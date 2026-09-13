@@ -183,9 +183,7 @@ fn collect_feature_selections(
         };
         let requested = dependency.feature_selection();
         let previous = selections.get(&package).cloned();
-        let selection = selections
-            .entry(package.clone())
-            .or_default();
+        let selection = selections.entry(package.clone()).or_default();
         selection.default_features |= requested.default_features;
         selection.features.extend(requested.features);
         if previous.as_ref() == Some(selection) {

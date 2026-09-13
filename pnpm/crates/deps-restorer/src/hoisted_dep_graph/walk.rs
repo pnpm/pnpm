@@ -29,11 +29,7 @@ impl WalkState<'_> {
         mut self,
         root_hierarchy: DepHierarchy,
     ) -> Result<LockfileToDepGraphResult, HoistedDepGraphError> {
-        fill_children(
-            &mut self.result.graph,
-            &self.pkg_locations_by_pkg_id,
-            self.lockfile,
-        )?;
+        fill_children(&mut self.result.graph, &self.pkg_locations_by_pkg_id, self.lockfile)?;
 
         // The hoister produced a children order; the directory keys in
         // `root_hierarchy` follow it, and
@@ -51,9 +47,7 @@ impl WalkState<'_> {
         // them via [`crate::SymlinkDirectDependencies`]'s `link_only` pass
         // after the hoisted linker runs.
         for importer_id in self.per_importer_direct_deps.keys() {
-            let Some(importer) = self.lockfile.importers.get(importer_id) else {
-                continue;
-            };
+            let Some(importer) = self.lockfile.importers.get(importer_id) else { continue };
             direct_dependencies_by_importer_id.insert(
                 importer_id.clone(),
                 importer_direct_deps(importer, &self.pkg_locations_by_pkg_id),
@@ -83,10 +77,7 @@ pub(super) fn root_direct_deps(
 ) -> BTreeMap<String, PathBuf> {
     let mut direct_deps = BTreeMap::new();
     for child_dir in root_hierarchy.0.keys() {
-        if let Some(alias) = graph
-            .get(child_dir)
-            .and_then(|node| node.alias.as_deref())
-        {
+        if let Some(alias) = graph.get(child_dir).and_then(|node| node.alias.as_deref()) {
             direct_deps.insert(alias.to_string(), child_dir.clone());
         }
     }
@@ -113,9 +104,7 @@ pub(super) fn importer_direct_deps(
         for (alias, spec) in dep_map {
             // For an aliased dep the snapshot key uses the alias's own
             // (name, suffix); for a regular dep it's `(alias, version)`.
-            let Some(dep_key) = spec.version.resolved_key(alias) else {
-                continue;
-            };
+            let Some(dep_key) = spec.version.resolved_key(alias) else { continue };
             if let Some(first) = pkg_locations_by_pkg_id
                 .get(&pnpm_real_hoist::pkg_id(&dep_key))
                 .and_then(|locations| locations.first())
@@ -134,19 +123,13 @@ pub(super) fn fill_children(
     pkg_locations: &BTreeMap<String, Vec<PathBuf>>,
     lockfile: &Lockfile,
 ) -> Result<(), HoistedDepGraphError> {
-    let dirs: Vec<PathBuf> = graph
-        .keys()
-        .cloned()
-        .collect();
+    let dirs: Vec<PathBuf> = graph.keys().cloned().collect();
     for dir in dirs {
         let reference = graph[&dir].package.dep_path.as_str().to_string();
         let pkg_key: PackageKey = match reference.parse() {
             Ok(key) => key,
             Err(source) => {
-                return Err(HoistedDepGraphError::BadReference {
-                    reference,
-                    source,
-                });
+                return Err(HoistedDepGraphError::BadReference { reference, source });
             }
         };
         let snapshot = lockfile.snapshots
@@ -228,7 +211,12 @@ pub(super) fn walk_dep(
     // The hoister keeps every absorbed reference; the first
     // (alphabetically smallest) is the canonical depPath for this
     // node's location.
-    let Some(reference) = first_reference(dep) else {
+    let Some(reference) = dep.0.references
+        .borrow()
+        .iter()
+        .next()
+        .cloned()
+    else {
         return Ok(None);
     };
 
@@ -263,13 +251,11 @@ pub(super) fn walk_dep(
         dir.clone(),
         graph_node(dep, &reference, &resolved, optional, present, &dir, modules),
     );
-    record_package_location(state, &resolved, &reference, &dir);
+    record_package_location(state, &resolved.pkg_key, &dir);
 
-    let hierarchy = walk_deps(
-        state,
-        &dir.join("node_modules"),
-        &dep.0.dependencies.borrow(),
-    )?;
+    record_injected_location(&mut state.result, &resolved, &reference, &dir);
+
+    let hierarchy = walk_deps(state, &dir.join("node_modules"), &dep.0.dependencies.borrow())?;
 
     // `hoistedLocations` is pushed AFTER the recursion. The
     // pre-recursion sites that mutate state are for graph/index
@@ -311,10 +297,7 @@ pub(super) fn package_is_reusable(
         .clone()
         .unwrap_or_else(|| resolved.pkg_key.suffix.version().to_string());
     !state.opts.force
-        && !matches!(
-            resolved.metadata.resolution,
-            LockfileResolution::Directory(_),
-        )
+        && !matches!(resolved.metadata.resolution, LockfileResolution::Directory(_))
         && !reference.contains("(patch_hash=")
         && state.opts.current_hoisted_locations.is_some_and(|locations| {
             locations
@@ -344,18 +327,13 @@ pub(super) fn walk_workspace_importer(
     importer_id: &str,
 ) -> Result<(), HoistedDepGraphError> {
     let importer_root = state.lockfile_dir.join(importer_id);
-    let importer_hierarchy = walk_deps(
-        state,
-        &importer_root.join("node_modules"),
-        &dep.0.dependencies.borrow(),
-    )?;
+    let importer_hierarchy =
+        walk_deps(state, &importer_root.join("node_modules"), &dep.0.dependencies.borrow())?;
     state.per_importer_hierarchies.insert(importer_root, importer_hierarchy);
     // Reserve the importer's slot so [`WalkState::into_result`]'s
     // post-walk loop knows the importer was visited, even when it ends
     // up with zero direct deps.
-    state.per_importer_direct_deps
-        .entry(importer_id.to_string())
-        .or_default();
+    state.per_importer_direct_deps.entry(importer_id.to_string()).or_default();
     Ok(())
 }
 /// The lockfile's metadata and snapshot for a hoister reference. `None`
@@ -385,11 +363,7 @@ pub(super) fn resolve_reference<'l>(
     let snapshot = state.lockfile.snapshots
         .as_ref()
         .and_then(|snapshots| snapshots.get(&pkg_key));
-    Ok(Some(ResolvedReference {
-        pkg_key,
-        metadata,
-        snapshot,
-    }))
+    Ok(Some(ResolvedReference { pkg_key, metadata, snapshot }))
 }
 pub(super) fn graph_node(
     dep: &RcByPtr<HoisterResult>,
@@ -442,9 +416,7 @@ pub(super) fn compute_children(
     pkg_locations: &BTreeMap<String, Vec<PathBuf>>,
 ) -> BTreeMap<String, PathBuf> {
     let mut children: BTreeMap<String, PathBuf> = BTreeMap::new();
-    let Some(snapshot) = snapshot else {
-        return children;
-    };
+    let Some(snapshot) = snapshot else { return children };
 
     let dep_iter = snapshot.dependencies
         .iter()
@@ -465,24 +437,9 @@ pub(super) fn compute_children(
     children
 }
 
-fn first_reference(dep: &RcByPtr<HoisterResult>) -> Option<String> {
-    dep.0.references
-        .borrow()
-        .iter()
-        .next()
-        .cloned()
-}
-
-fn record_package_location(
-    state: &mut WalkState<'_>,
-    resolved: &ResolvedReference<'_>,
-    reference: &str,
-    dir: &Path,
-) {
+fn record_package_location(state: &mut WalkState<'_>, pkg_key: &PackageKey, dir: &Path) {
     state.pkg_locations_by_pkg_id
-        .entry(pnpm_real_hoist::pkg_id(&resolved.pkg_key))
+        .entry(pnpm_real_hoist::pkg_id(pkg_key))
         .or_default()
         .push(dir.to_path_buf());
-
-    record_injected_location(&mut state.result, resolved, reference, dir);
 }

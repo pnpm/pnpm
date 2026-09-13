@@ -418,13 +418,7 @@ async fn osv_filters_packument_identity_mismatches() {
         .unwrap();
     assert_eq!(dist_tags.status(), StatusCode::OK);
     let tags = body_json(dist_tags.into_body()).await;
-    assert_eq!(
-        tags
-            .as_object()
-            .unwrap()
-            .len(),
-        1,
-    );
+    assert_eq!(tags.as_object().unwrap().len(), 1);
     assert_eq!(tags["stable"], "1.0.0");
 
     mock.assert_async().await;

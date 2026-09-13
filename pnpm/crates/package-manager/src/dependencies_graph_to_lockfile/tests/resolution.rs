@@ -33,17 +33,11 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
     );
 
     let mut react_dom_children = BTreeMap::new();
-    react_dom_children.insert(
-        "react".to_string(),
-        DepPath::from("react@17.0.2".to_string()),
-    );
+    react_dom_children.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
     let mut react_dom_peers = BTreeMap::new();
     react_dom_peers.insert(
         "react".to_string(),
-        PeerDep {
-            version: "17.0.2".to_string(),
-            optional: false,
-        },
+        PeerDep { version: "17.0.2".to_string(), optional: false },
     );
     let react_dom_dep_path = DepPath::from("react-dom@17.0.2(react@17.0.2)".to_string());
     let react_dom = DependenciesGraphNode {
@@ -76,10 +70,7 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
     graph.insert(react_dom_dep_path.clone(), react_dom);
 
     let mut direct = BTreeMap::new();
-    direct.insert(
-        "react".to_string(),
-        DepPath::from("react@17.0.2".to_string()),
-    );
+    direct.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
     direct.insert("react-dom".to_string(), react_dom_dep_path);
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
@@ -88,17 +79,11 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
 
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots");
     let snap_key: PackageKey = "react-dom@17.0.2(react@17.0.2)".parse().unwrap();
-    assert!(
-        snapshots.contains_key(&snap_key),
-        "snapshot keyed by peer-suffixed depPath",
-    );
+    assert!(snapshots.contains_key(&snap_key), "snapshot keyed by peer-suffixed depPath");
     let pkg_key: PackageKey = "react-dom@17.0.2".parse().unwrap();
     let packages = lockfile.packages.as_ref().expect("packages");
     let metadata = packages.get(&pkg_key).expect("package metadata for peer-stripped key");
-    assert!(
-        metadata.peer_dependencies.is_some(),
-        "peer_deps on packages metadata",
-    );
+    assert!(metadata.peer_dependencies.is_some(), "peer_deps on packages metadata");
 
     let importer = lockfile.root_project().unwrap();
     let dom = importer.dependencies
@@ -165,9 +150,7 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
             outer_node_id,
             DependenciesTreeNode::new(
                 Arc::<str>::clone(&outer_id),
-                TreeChildren::Lazy {
-                    parent_ids: Arc::new(Vec::new()).into(),
-                },
+                TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()).into() },
                 0,
                 true,
             ),
@@ -199,18 +182,12 @@ fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
     let snapshots = lockfile.snapshots.as_ref().unwrap();
     let outer_key: PackageKey = "outer@1.0.0".parse().unwrap();
     let outer_snap = &snapshots[&outer_key];
-    assert!(
-        outer_snap.dependencies.is_none(),
-        "optional child must not be written as regular",
-    );
+    assert!(outer_snap.dependencies.is_none(), "optional child must not be written as regular");
     let opt = outer_snap.optional_dependencies.as_ref().expect("opt deps map");
     assert!(opt.contains_key(&PkgName::parse("inner").unwrap()));
 
     let inner_key: PackageKey = "inner@1.0.0".parse().unwrap();
-    assert!(
-        snapshots[&inner_key].optional,
-        "optional child edge keeps the child optional",
-    );
+    assert!(snapshots[&inner_key].optional, "optional child edge keeps the child optional");
 }
 #[test]
 fn snapshot_records_transitive_peer_dependencies_sorted() {
@@ -235,10 +212,7 @@ fn snapshot_records_transitive_peer_dependencies_sorted() {
     graph.insert(outer.dep_path.clone(), outer);
 
     let mut direct = BTreeMap::new();
-    direct.insert(
-        "outer".to_string(),
-        DepPath::from("outer@1.0.0".to_string()),
-    );
+    direct.insert("outer".to_string(), DepPath::from("outer@1.0.0".to_string()));
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, true, false, None, None,
@@ -249,10 +223,7 @@ fn snapshot_records_transitive_peer_dependencies_sorted() {
     let recorded = snapshots[&outer_key].transitive_peer_dependencies
         .as_ref()
         .expect("transitive peers recorded");
-    assert_eq!(
-        recorded.as_slice(),
-        ["a-peer".to_string(), "z-peer".to_string()].as_slice(),
-    );
+    assert_eq!(recorded.as_slice(), ["a-peer".to_string(), "z-peer".to_string()].as_slice());
 }
 #[test]
 fn auto_installed_peer_not_declared_in_manifest_is_skipped_from_pruner_seeds() {
@@ -273,10 +244,7 @@ fn auto_installed_peer_not_declared_in_manifest_is_skipped_from_pruner_seeds() {
     );
 
     let mut parent_children = BTreeMap::new();
-    parent_children.insert(
-        "peer-x".to_string(),
-        DepPath::from("peer-x@1.0.0".to_string()),
-    );
+    parent_children.insert("peer-x".to_string(), DepPath::from("peer-x@1.0.0".to_string()));
     let parent = make_node_with_optional(
         "parent",
         "1.0.0",
@@ -296,14 +264,8 @@ fn auto_installed_peer_not_declared_in_manifest_is_skipped_from_pruner_seeds() {
     graph.insert(peer_x.dep_path.clone(), peer_x);
 
     let mut direct = BTreeMap::new();
-    direct.insert(
-        "parent".to_string(),
-        DepPath::from("parent@1.0.0".to_string()),
-    );
-    direct.insert(
-        "peer-x".to_string(),
-        DepPath::from("peer-x@1.0.0".to_string()),
-    );
+    direct.insert("parent".to_string(), DepPath::from("parent@1.0.0".to_string()));
+    direct.insert("peer-x".to_string(), DepPath::from("peer-x@1.0.0".to_string()));
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, true, false, None, None,
@@ -312,10 +274,7 @@ fn auto_installed_peer_not_declared_in_manifest_is_skipped_from_pruner_seeds() {
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
     let parent_key: PackageKey = "parent@1.0.0".parse().unwrap();
     let peer_x_key: PackageKey = "peer-x@1.0.0".parse().unwrap();
-    assert!(
-        snapshots[&parent_key].optional,
-        "parent is the importer's optional direct dep",
-    );
+    assert!(snapshots[&parent_key].optional, "parent is the importer's optional direct dep");
     assert!(
         snapshots[&peer_x_key].optional,
         "auto-installed peer reachable only via parent's optional path stays optional",
@@ -340,10 +299,7 @@ fn an_unresolvable_alias_keeps_the_tarball_url() {
     graph.insert(node.dep_path.clone(), node);
 
     let mut direct = BTreeMap::new();
-    direct.insert(
-        "foo".to_string(),
-        DepPath::from("foo@work:1.0.0".to_string()),
-    );
+    direct.insert("foo".to_string(), DepPath::from("foo@work:1.0.0".to_string()));
 
     // `work` is deliberately absent from the map.
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(

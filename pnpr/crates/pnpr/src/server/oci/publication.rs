@@ -57,10 +57,7 @@ impl OciPublication {
         limit: usize,
     ) -> Result<Self, Refusal> {
         if bytes.len() > limit {
-            return Err(Refusal::new(
-                ErrorCode::SizeInvalid,
-                "manifest is too large",
-            ));
+            return Err(Refusal::new(ErrorCode::SizeInvalid, "manifest is too large"));
         }
         let digest = Digest::of(&bytes);
         match Digest::parse(&reference) {
@@ -71,23 +68,13 @@ impl OciPublication {
                 ));
             }
             Err(_) if !pnpr_oci::is_valid_tag(&reference) => {
-                return Err(Refusal::new(
-                    ErrorCode::ManifestInvalid,
-                    "not a valid tag or digest",
-                ));
+                return Err(Refusal::new(ErrorCode::ManifestInvalid, "not a valid tag or digest"));
             }
             _ => {}
         }
         let manifest = Manifest::parse(&bytes, content_type)
             .map_err(|err| Refusal::new(ErrorCode::ManifestInvalid, err.to_string()))?;
-        Ok(Self {
-            key: target.0,
-            org: target.1,
-            bytes,
-            manifest,
-            digest,
-            reference,
-        })
+        Ok(Self { key: target.0, org: target.1, bytes, manifest, digest, reference })
     }
 
     pub(in crate::server) fn key(&self) -> &CanonicalPackageName {
@@ -173,8 +160,8 @@ impl OciPublication {
                     ),
                 ));
             }
-            let stored = storage.open_hosted_blob(&self.key, &descriptor.digest.blob_filename())
-                .await?;
+            let stored =
+                storage.open_hosted_blob(&self.key, &descriptor.digest.blob_filename()).await?;
             match stored {
                 Some((_, Some(size))) if size != descriptor.size => {
                     return Err(Refusal::new(
@@ -207,9 +194,7 @@ fn refuse_moved_document(
     children: &[Digest],
 ) -> Result<(), RegistryError> {
     if stored.generation != generation || stored.deleting_blob.is_some() {
-        return Err(RegistryError::DocumentWriteConflict {
-            package: package.to_string(),
-        });
+        return Err(RegistryError::DocumentWriteConflict { package: package.to_string() });
     }
     for child in children {
         if stored.manifest(child).is_none() {

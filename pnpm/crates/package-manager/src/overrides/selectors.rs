@@ -48,18 +48,12 @@ pub(super) fn sort_by_specificity(matching: &mut [&ResolvedOverride]) {
 /// exact-equal range pair matches without parsing. Otherwise both
 /// sides must parse as semver and have a non-empty intersection.
 fn is_intersecting_range(range1: Option<&str>, range2: &str) -> bool {
-    let Some(range1_str) = range1 else {
-        return true;
-    };
+    let Some(range1_str) = range1 else { return true };
     if range1_str.is_empty() || range2 == range1_str {
         return true;
     }
-    let Ok(parsed1) = range1_str.parse::<Range>() else {
-        return false;
-    };
-    let Ok(parsed2) = range2.parse::<Range>() else {
-        return false;
-    };
+    let Ok(parsed1) = range1_str.parse::<Range>() else { return false };
+    let Ok(parsed2) = range2.parse::<Range>() else { return false };
     parsed1.allows_any(&parsed2)
 }
 
@@ -68,11 +62,7 @@ fn is_intersecting_range(range1: Option<&str>, range2: &str) -> bool {
 /// A non-parseable version OR range fails the match conservatively —
 /// the parent constraint is treated as not applying.
 pub(super) fn semver_satisfies(version: &str, range: &str) -> bool {
-    let Ok(parsed_version) = version.parse::<Version>() else {
-        return false;
-    };
-    let Ok(parsed_range) = range.parse::<Range>() else {
-        return false;
-    };
+    let Ok(parsed_version) = version.parse::<Version>() else { return false };
+    let Ok(parsed_range) = range.parse::<Range>() else { return false };
     parsed_range.satisfies(&parsed_version)
 }

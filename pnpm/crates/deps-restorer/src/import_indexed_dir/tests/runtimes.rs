@@ -32,22 +32,10 @@ fn force_keep_replaces_files_and_preserves_node_modules() {
     )
     .expect("overwrite should succeed");
 
-    assert_eq!(
-        fs::read(target.join("package.json")).unwrap(),
-        b"{\"version\":\"2.0.0\"}",
-    );
-    assert!(
-        !target.join("stale.txt").exists(),
-        "stale file must be removed",
-    );
-    assert_eq!(
-        fs::read(target.join("node_modules/inner/index.js")).unwrap(),
-        b"// inner dep",
-    );
-    assert_eq!(
-        fs::read(target.join("node_modules/.placeholder")).unwrap(),
-        b"keep me",
-    );
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"2.0.0\"}");
+    assert!(!target.join("stale.txt").exists(), "stale file must be removed");
+    assert_eq!(fs::read(target.join("node_modules/inner/index.js")).unwrap(), b"// inner dep");
+    assert_eq!(fs::read(target.join("node_modules/.placeholder")).unwrap(), b"keep me");
 }
 /// This isn't a call shape any current pacquet linker uses, but the
 /// parameter space requires it: `force=true, keep_modules_dir=false` is
@@ -105,14 +93,8 @@ fn force_keep_without_node_modules_replaces_cleanly() {
     .expect("overwrite should succeed");
 
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"new");
-    assert!(
-        !target.join("nested").exists(),
-        "stale nested dir must be removed",
-    );
-    assert!(
-        !target.join("top.txt").exists(),
-        "stale top-level file must be removed",
-    );
+    assert!(!target.join("nested").exists(), "stale nested dir must be removed");
+    assert!(!target.join("top.txt").exists(), "stale top-level file must be removed");
 }
 #[test]
 fn node_modules_collision_in_file_map_merges() {
@@ -121,10 +103,7 @@ fn node_modules_collision_in_file_map_merges() {
     fs::create_dir_all(&src_root).unwrap();
     let regular = write_source(&src_root, "a.txt", b"top");
     let inside_nm = write_source(&src_root, "b.txt", b"shipped-nm");
-    let cas = cas_map(&[
-        ("package.json", regular),
-        ("node_modules/foo/index.js", inside_nm),
-    ]);
+    let cas = cas_map(&[("package.json", regular), ("node_modules/foo/index.js", inside_nm)]);
 
     let target = tmp.path().join("pkg");
     fs::create_dir_all(target.join("node_modules/existing")).unwrap();
@@ -141,14 +120,8 @@ fn node_modules_collision_in_file_map_merges() {
     )
     .expect("bundled and preserved node_modules should merge");
 
-    assert_eq!(
-        fs::read(target.join("node_modules/existing/keep.js")).unwrap(),
-        b"survivor",
-    );
-    assert_eq!(
-        fs::read(target.join("node_modules/foo/index.js")).unwrap(),
-        b"shipped-nm",
-    );
+    assert_eq!(fs::read(target.join("node_modules/existing/keep.js")).unwrap(), b"survivor");
+    assert_eq!(fs::read(target.join("node_modules/foo/index.js")).unwrap(), b"shipped-nm");
     assert!(!target.join("node_modules/foo/stale.js").exists());
 }
 /// Data-loss regression: if `remove_dir_all(dir_path)` fails *after*
@@ -173,10 +146,7 @@ fn remove_dir_all_failure_restores_preserved_node_modules() {
     fs::create_dir_all(&src_root).unwrap();
     let pkg_json = write_source(&src_root, "package.json", b"new");
     let bundled = write_source(&src_root, "bundled.js", b"bundled");
-    let cas = cas_map(&[
-        ("package.json", pkg_json),
-        ("node_modules/inner/bundled.js", bundled),
-    ]);
+    let cas = cas_map(&[("package.json", pkg_json), ("node_modules/inner/bundled.js", bundled)]);
 
     let target = tmp.path().join("pkg");
     fs::create_dir_all(&target).unwrap();
@@ -206,10 +176,7 @@ fn remove_dir_all_failure_restores_preserved_node_modules() {
         fs::set_permissions(&locked, fs::Permissions::from_mode(0o700)).unwrap();
     }
 
-    assert!(
-        matches!(err, ImportIndexedDirError::RemoveExisting { .. }),
-        "got: {err:?}",
-    );
+    assert!(matches!(err, ImportIndexedDirError::RemoveExisting { .. }), "got: {err:?}");
     // The rescue path must have moved `stage/node_modules/` back onto
     // `target/node_modules/` before the cleanup rimrafed staging.
     assert!(
@@ -277,10 +244,7 @@ fn node_modules_inspect_permission_denied_surfaces() {
     // Restore perms so the tempdir teardown can succeed.
     fs::set_permissions(&target, fs::Permissions::from_mode(0o700)).unwrap();
 
-    assert!(
-        matches!(err, ImportIndexedDirError::InspectTarget { .. }),
-        "got: {err:?}",
-    );
+    assert!(matches!(err, ImportIndexedDirError::InspectTarget { .. }), "got: {err:?}");
     // No staging directory should be left behind — the early-error
     // cleanup must have rimrafed it.
     for entry in walkdir::WalkDir::new(tmp.path()) {

@@ -138,9 +138,7 @@ pub fn arm_process_tree_cleanup() -> Option<JobGuard> {
         // Deliberately do not close `job`: it must stay open until the process
         // exits so `KILL_ON_JOB_CLOSE` fires then. Closing it now would also
         // terminate this process when it is assigned to the job.
-        Some(JobGuard {
-            job,
-        })
+        Some(JobGuard { job })
     }
 }
 
@@ -194,9 +192,7 @@ pub(crate) fn assign_child(child: &Child) {
     use windows_sys::Win32::System::JobObjects::AssignProcessToJobObject;
 
     let child_job = CHILD_JOB.lock().expect("child job lock is not poisoned");
-    let Some(job) = child_job.as_ref() else {
-        return;
-    };
+    let Some(job) = child_job.as_ref() else { return };
     // SAFETY: `job.0` is the open handle created by
     // [`arm_process_tree_cleanup`], kept alive by the lock held across the
     // call, and the child handle is owned by `child`. A failed assignment

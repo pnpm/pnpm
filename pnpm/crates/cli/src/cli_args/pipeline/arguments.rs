@@ -1,5 +1,3 @@
-use super::{DEFAULT_PIPELINE_NAME, InstallArgs, PipelineError, PipelineRun};
-use clap::Args;
 #[derive(Debug, Clone, clap::Args)]
 pub struct WatchArgs {
     /// Watch a git repository and run the pipeline for every new revision
@@ -34,70 +32,4 @@ pub struct PipelineReportArgs {
     /// only stores runs is better named here.
     #[clap(long = "report-to", value_name = "URL")]
     pub report_to: Option<String>,
-}
-
-#[derive(Debug, Args)]
-pub struct PipelineArgs {
-    /// The pipeline to run, from the `pipelines` section of
-    /// `pnpm-workspace.yaml`. Defaults to "default".
-    pub name: Option<String>,
-    /// The install `pnpm pipeline` performs first is always a frozen
-    /// install; these flags tune the rest of it. `--dry-run` prints the
-    /// task graph without installing or running anything.
-    #[clap(flatten)]
-    pub install_args: InstallArgs,
-    /// With `--dry-run`, print the tasks and their resolved dependency
-    /// edges as JSON.
-    #[clap(long)]
-    pub json: bool,
-    /// Run every task without reading or writing cached results or Cargo snapshots.
-    #[clap(long = "no-cache")]
-    pub no_cache: bool,
-    /// Run the pipeline over every workspace project instead of the
-    /// affected-since-base selection.
-    #[clap(long)]
-    pub full: bool,
-    /// The git ref the affected selection diffs against (its merge base
-    /// with HEAD). Overrides the `pipelineBase` setting.
-    #[clap(long)]
-    pub base: Option<String>,
-    #[clap(flatten)]
-    pub agent: WatchArgs,
-    #[clap(flatten)]
-    pub reporting: PipelineReportArgs,
-}
-
-/// The pipeline-specific inputs of one invocation, split off
-/// [`PipelineArgs`] once the install half has been consumed.
-pub struct PipelineInvocation {
-    pub name: Option<String>,
-    pub dry_run: bool,
-    pub json: bool,
-    pub no_cache: bool,
-    pub full: bool,
-    pub base: Option<String>,
-    pub report: bool,
-    pub report_to: Option<String>,
-}
-
-impl<'a> PipelineRun<'a> {
-    /// The named pipeline's tasks, or the default pipeline's without a name.
-    pub(super) fn requested_tasks(&self) -> miette::Result<(&'a str, &'a [String])> {
-        if self.config.pipelines.is_empty() {
-            return Err(PipelineError::NoPipelines.into());
-        }
-        let name = self.invocation.name.as_deref().unwrap_or(DEFAULT_PIPELINE_NAME);
-        let Some(requested_tasks) = self.config.pipelines.get(name) else {
-            return Err(PipelineError::UnknownPipeline {
-                name: name.to_string(),
-                available: self.config.pipelines
-                    .keys()
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            }
-            .into());
-        };
-        Ok((name, requested_tasks.as_slice()))
-    }
 }

@@ -25,9 +25,7 @@ pub(crate) fn check_importer_satisfies(
 ) -> Result<(), FreshnessCheckError> {
     let importer = lockfile.importers
         .get(importer_id)
-        .ok_or_else(|| FreshnessCheckError::NoImporter {
-            importer_id: importer_id.to_string(),
-        })?;
+        .ok_or_else(|| FreshnessCheckError::NoImporter { importer_id: importer_id.to_string() })?;
 
     // Apply `pnpm.overrides` to a *cloned* manifest before the
     // per-importer specifier check so the lockfile's specifiers —
@@ -108,11 +106,7 @@ pub(in super::super) fn exclude_linked_dependencies(manifest: &mut PackageManife
     let Some(manifest) = manifest.value_mut().as_object_mut() else {
         return;
     };
-    for group in [
-        DependencyGroup::Dev,
-        DependencyGroup::Prod,
-        DependencyGroup::Optional,
-    ] {
+    for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
         let group: &str = group.into();
         let Some(dependencies) = manifest.get_mut(group).and_then(serde_json::Value::as_object_mut)
         else {

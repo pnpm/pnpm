@@ -99,18 +99,11 @@ pub async fn resolve_ref<Runner: GitCommandRunner + ?Sized>(
     // Pass `None` for the ref filter when either `range` is set or the
     // ref looks like a committish: there is no single canonical ref
     // name to filter on in those cases.
-    let filter = if range.is_some() || committish {
-        None
-    } else {
-        Some(ref_)
-    };
+    let filter = if range.is_some() || committish { None } else { Some(ref_) };
     let refs = get_repo_refs(runner, repo, filter).await.map_err(GitResolveRefError::Runner)?;
     let commit = resolve_ref_from_refs(&refs, repo, ref_, committish, range)?;
     if committish && !commit.starts_with(ref_) {
-        return Err(GitResolveRefError::AmbiguousRef {
-            ref_: ref_.to_string(),
-            commit,
-        });
+        return Err(GitResolveRefError::AmbiguousRef { ref_: ref_.to_string(), commit });
     }
     Ok(commit)
 }
@@ -250,9 +243,7 @@ fn strip_v(tag: &str) -> &str {
 
 /// `true` when `key` is shaped like `refs/tags/v?<n.n.n>(...)?(^\{\})?`.
 fn looks_like_version_tag(key: &str) -> bool {
-    let Some(rest) = key.strip_prefix("refs/tags/") else {
-        return false;
-    };
+    let Some(rest) = key.strip_prefix("refs/tags/") else { return false };
     let rest = rest.strip_suffix("^{}").unwrap_or(rest);
     let rest = strip_v(rest);
     // Must start with `\d+\.\d+\.\d+`. The semver parser is lenient

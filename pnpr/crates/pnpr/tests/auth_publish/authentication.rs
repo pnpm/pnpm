@@ -112,10 +112,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     assert_eq!(packument["name"], "mypkg");
     assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0");
     assert_eq!(packument["dist-tags"]["latest"], "1.0.0");
-    assert!(
-        packument.get("_attachments").is_none(),
-        "_attachments should not be persisted",
-    );
+    assert!(packument.get("_attachments").is_none(), "_attachments should not be persisted");
 
     // Tarball on disk
     let on_disk_tarball =

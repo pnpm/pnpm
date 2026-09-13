@@ -76,14 +76,10 @@ impl Drop for SignalRelay {
 pub(crate) fn relay_to_child(pid: u32, own_process_group: bool) -> SignalRelay {
     install_handler();
     let Ok(pid) = i32::try_from(pid) else {
-        return SignalRelay {
-            entry: None,
-        };
+        return SignalRelay { entry: None };
     };
     let target = if own_process_group { -pid } else { pid };
-    SignalRelay {
-        entry: Some(claim_entry(target)),
-    }
+    SignalRelay { entry: Some(claim_entry(target)) }
 }
 
 /// Take the first free entry for `target`, or extend the list with one.
@@ -270,11 +266,7 @@ fn die_from(signal: libc::c_int) -> ! {
         libc::sigemptyset(&raw mut unblocked);
         libc::sigaddset(&raw mut unblocked, signal);
         libc::signal(signal, libc::SIG_DFL);
-        libc::sigprocmask(
-            libc::SIG_UNBLOCK,
-            &raw const unblocked,
-            std::ptr::null_mut(),
-        );
+        libc::sigprocmask(libc::SIG_UNBLOCK, &raw const unblocked, std::ptr::null_mut());
         libc::raise(signal);
         libc::_exit(128 + signal);
     }

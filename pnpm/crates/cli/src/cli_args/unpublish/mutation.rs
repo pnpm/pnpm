@@ -73,14 +73,8 @@ pub(super) async fn send_mutation<Sys: UnpublishHost, Reporter: self::Reporter>(
                 // over any statically configured one.
                 let effective_otp = challenge_otp.or_else(|| registry.otp.clone());
                 async move {
-                    send_once(
-                        registry,
-                        auth_header,
-                        auth_type,
-                        request,
-                        effective_otp.as_deref(),
-                    )
-                    .await
+                    send_once(registry, auth_header, auth_type, request, effective_otp.as_deref())
+                        .await
                 }
             },
         )
@@ -104,18 +98,14 @@ async fn send_once(
     request: MutationRequest<'_>,
     otp: Option<&str>,
 ) -> Result<reqwest::Response, UnpublishHttpError> {
-    let (_guard, response) = send_with_retry(
-        &registry.http_client,
-        request.url,
-        registry.retry_opts,
-        |client| {
+    let (_guard, response) =
+        send_with_retry(&registry.http_client, request.url, registry.retry_opts, |client| {
             let mut builder = client
                 .request(request.method.clone(), request.url)
                 .header("npm-auth-type", auth_type.header_value());
             if let Some(json_body) = request.json_body {
-                builder = builder
-                    .header("content-type", "application/json")
-                    .body(json_body.to_owned());
+                builder =
+                    builder.header("content-type", "application/json").body(json_body.to_owned());
             }
             if let Some(auth_header) = auth_header {
                 builder = builder.header("authorization", auth_header);
@@ -124,12 +114,14 @@ async fn send_once(
                 builder = builder.header("npm-otp", otp);
             }
             builder
-        },
-    )
-    .await
-    .map_err(|source| {
-        UnpublishHttpError::Registry(registry_operation_failed("requesting the registry", source))
-    })?;
+        })
+        .await
+        .map_err(|source| {
+            UnpublishHttpError::Registry(registry_operation_failed(
+                "requesting the registry",
+                source,
+            ))
+        })?;
     if response.status() != StatusCode::UNAUTHORIZED {
         return Ok(response);
     }
@@ -160,32 +152,11 @@ async fn unauthorized_unpublish(
             ))
         })?;
     if let Some(challenge) = otp_challenge_from_unauthorized_body(&body.bytes) {
-        return Err(UnpublishHttpError::Otp {
-            challenge,
-        });
+        return Err(UnpublishHttpError::Otp { challenge });
     }
     Err(UnpublishHttpError::Registry(write_error_for_status(
         StatusCode::UNAUTHORIZED,
         &body,
         "unpublish".to_string(),
     )))
-}
-
-impl<'a> MutationContext<'a> {
-    pub(super) fn new(
-        context: &'a DeprecateContext<'a>,
-        auth_header: Option<&'a str>,
-        config: &Config,
-    ) -> Self {
-        Self {
-            registry: context,
-            auth_header,
-            auth_type: if context.otp.is_some() {
-                AuthType::Legacy
-            } else {
-                AuthType::Web
-            },
-            session: OtpSession::new(web_auth_fetch_options(config)),
-        }
-    }
 }

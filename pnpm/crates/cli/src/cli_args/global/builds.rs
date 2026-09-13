@@ -38,8 +38,7 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
             rebuild_groups.push((install_dir, build_packages));
         }
     }
-    rebuild_approved_groups::<Reporter>(base_config, global_pkg_dir, rebuild_groups)
-        .await
+    rebuild_approved_groups::<Reporter>(base_config, global_pkg_dir, rebuild_groups).await
 }
 
 /// Each global group's install dir with its ignored builds.
@@ -76,12 +75,7 @@ fn scan_global_ignored_builds(
             base_config.supported_architectures.clone(),
         )?;
         let scan = get_automatically_ignored_builds(&config)?;
-        pending.extend(
-            scan.names
-                .iter()
-                .flatten()
-                .cloned(),
-        );
+        pending.extend(scan.names.iter().flatten().cloned());
         groups.push((package.install_dir, scan));
     }
     Ok((groups, pending))
@@ -143,19 +137,11 @@ pub(super) async fn prompt_approve_global_builds<Reporter: self::Reporter + 'sta
     // `workspace_dir`), so its install pipeline doesn't walk up into the
     // global settings workspace.
     let state_fn = |require_lockfile: bool| -> miette::Result<State> {
-        State::init(
-            manifest_path.clone(),
-            Config::leak(config.clone()),
-            require_lockfile,
-        )
-        .wrap_err("initialize the global approve-builds state")
+        State::init(manifest_path.clone(), Config::leak(config.clone()), require_lockfile)
+            .wrap_err("initialize the global approve-builds state")
     };
 
-    let args = ApproveBuildsArgs {
-        packages: Vec::new(),
-        all: auto_approve,
-        global: false,
-    };
+    let args = ApproveBuildsArgs { packages: Vec::new(), all: auto_approve, global: false };
     if let Some((rebuild_state, build_packages)) =
         args.prepare::<Reporter>(global_pkg_dir, &config_fn, &state_fn)?
     {

@@ -142,10 +142,7 @@ pub(crate) struct PerRegistryMap<Value> {
 
 impl<Value> Default for PerRegistryMap<Value> {
     fn default() -> Self {
-        Self {
-            by_uri: HashMap::new(),
-            max_parts: 0,
-        }
+        Self { by_uri: HashMap::new(), max_parts: 0 }
     }
 }
 
@@ -194,9 +191,7 @@ impl PerRegistryTls {
             .into_iter()
             .filter(|(_, v)| !v.is_empty())
             .collect();
-        PerRegistryTls {
-            by_uri: PerRegistryMap::from_map(by_uri),
-        }
+        PerRegistryTls { by_uri: PerRegistryMap::from_map(by_uri) }
     }
 
     /// `true` when there are no per-registry overrides. Lets the
@@ -220,9 +215,7 @@ impl PerRegistryTls {
     /// override.
     #[must_use]
     pub fn pick_for_url(&self, url: &str) -> Option<&str> {
-        self.by_uri
-            .pick_for_url(url)
-            .map(|(key, _)| key)
+        self.by_uri.pick_for_url(url).map(|(key, _)| key)
     }
 
     /// Borrow the inner [`RegistryTls`] for a nerf-darted key. Returns
@@ -249,10 +242,7 @@ impl<Value> PerRegistryMap<Value> {
             .map(|key| key.split('/').count())
             .max()
             .unwrap_or(0);
-        Self {
-            by_uri,
-            max_parts,
-        }
+        Self { by_uri, max_parts }
     }
 
     fn is_empty(&self) -> bool {
@@ -260,9 +250,7 @@ impl<Value> PerRegistryMap<Value> {
     }
 
     pub(crate) fn pick_value_for_url(&self, url: &str) -> Option<&Value> {
-        self
-            .pick_for_url(url)
-            .map(|(_, value)| value)
+        self.pick_for_url(url).map(|(_, value)| value)
     }
 
     /// Step numbers below index the chain documented on
@@ -329,10 +317,7 @@ impl<Value> PerRegistryMap<Value> {
             .iter()
             .map(|(key, value)| Ok((key.clone(), map_value(value)?)))
             .collect::<Result<_, MapError>>()?;
-        Ok(PerRegistryMap {
-            by_uri,
-            max_parts: self.max_parts,
-        })
+        Ok(PerRegistryMap { by_uri, max_parts: self.max_parts })
     }
 }
 
@@ -353,9 +338,7 @@ fn strip_port(url: &str) -> String {
     let (authority, path_tail) = split_authority(rest);
     // Skip past any `user[:pw]@` userinfo. The port-bearing colon is
     // the one in the host segment, not in the userinfo.
-    let host_segment = authority
-        .rsplit_once('@')
-        .map_or(authority, |(_, h)| h);
+    let host_segment = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
     let userinfo = authority.strip_suffix(host_segment).unwrap_or("");
     let Some(idx) = port_colon_index(host_segment) else {
         return url.to_string();

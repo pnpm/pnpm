@@ -19,7 +19,13 @@ pub(super) fn emit_root_added<Reporter: self::Reporter>(
     prefix: &str,
 ) {
     let ResolvedEntry { name, spec, group, name_str, .. } = entry;
-    let dependency_type = dependency_type(*group);
+    let dependency_type = match group {
+        DependencyGroup::Prod => DependencyType::Prod,
+        DependencyGroup::Dev => DependencyType::Dev,
+        DependencyGroup::Optional => DependencyType::Optional,
+        // Filtered upfront. See the comment on the `entries` builder.
+        DependencyGroup::Peer => unreachable!("peers are filtered out before this point"),
+    };
     // For a `link:` dep, the `version` field is the resolved
     // `link:<path>` payload (re-prepended on the wire) so reporters can
     // render the link target; for `Regular` deps it is the semver-only
@@ -52,14 +58,4 @@ pub(super) fn emit_root_added<Reporter: self::Reporter>(
             },
         },
     }));
-}
-
-fn dependency_type(group: DependencyGroup) -> DependencyType {
-    match group {
-        DependencyGroup::Prod => DependencyType::Prod,
-        DependencyGroup::Dev => DependencyType::Dev,
-        DependencyGroup::Optional => DependencyType::Optional,
-        // Filtered upfront. See the comment on the `entries` builder.
-        DependencyGroup::Peer => unreachable!("peers are filtered out before this point"),
-    }
 }

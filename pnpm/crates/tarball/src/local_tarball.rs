@@ -18,23 +18,14 @@ pub(crate) async fn open_local_tarball(
     path: &Path,
 ) -> Result<(tokio::fs::File, u64), TarballError> {
     let metadata = tokio::fs::metadata(path).await
-        .map_err(|source| TarballError::ReadLocalTarball {
-            path: path.to_path_buf(),
-            source,
-        })?;
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     reject_non_file_local_tarball(path, &metadata)?;
     let file = tokio::fs::File::open(path).await
-        .map_err(|source| TarballError::ReadLocalTarball {
-            path: path.to_path_buf(),
-            source,
-        })?;
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     let metadata = file
         .metadata()
         .await
-        .map_err(|source| TarballError::ReadLocalTarball {
-            path: path.to_path_buf(),
-            source,
-        })?;
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     reject_non_file_local_tarball(path, &metadata)?;
     Ok((file, metadata.len()))
 }
@@ -75,10 +66,7 @@ pub(crate) async fn read_local_tarball_buffer(
     reader
         .read_to_end(&mut buffer)
         .await
-        .map_err(|source| TarballError::ReadLocalTarball {
-            path: path.to_path_buf(),
-            source,
-        })?;
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     if u64::try_from(buffer.len()).unwrap_or(u64::MAX) > size {
         return Err(read_local_tarball_error(
             path,
@@ -155,14 +143,9 @@ pub(crate) async fn read_subdir_manifest(
     // top-level prefix strip; the resolution's `path` keeps the leading
     // slash it was written with (`#path:/packages/foo`).
     let key = format!("{}/package.json", subdir.trim_matches('/'));
-    let Some(cas_path) = cas_paths.get(&key) else {
-        return Ok(None);
-    };
+    let Some(cas_path) = cas_paths.get(&key) else { return Ok(None) };
     let bytes = tokio::fs::read(cas_path).await
-        .map_err(|source| TarballError::ReadLocalTarball {
-            path: cas_path.clone(),
-            source,
-        })?;
+        .map_err(|source| TarballError::ReadLocalTarball { path: cas_path.clone(), source })?;
     match parse_manifest_bytes(&bytes) {
         Ok(parsed) => Ok(normalize_bundled_manifest(&parsed)),
         Err(error) => {
@@ -218,8 +201,7 @@ pub async fn read_local_tarball_metadata(
     // it reports a bad tarball, so the manifest error quotes the same.
     let tarball_path = path.display().to_string();
     let (file, size) = open_local_tarball(path).await?;
-    let buffer = read_local_tarball_buffer(file, path, &package_url, size)
-        .await?;
+    let buffer = read_local_tarball_buffer(file, path, &package_url, size).await?;
 
     let post_download_permit = post_download_semaphore()
         .acquire()
@@ -229,11 +211,7 @@ pub async fn read_local_tarball_metadata(
         let integrity = verify_tarball_integrity(&buffer, None, package_url)?;
         let (manifest, has_manifest_entry) =
             read_bundled_manifest_from_archive(&buffer, &tarball_path)?;
-        Ok(LocalTarballMetadata {
-            integrity,
-            manifest,
-            has_manifest_entry,
-        })
+        Ok(LocalTarballMetadata { integrity, manifest, has_manifest_entry })
     })
     .await
     .map_err(TarballError::TaskJoin)?
@@ -280,11 +258,7 @@ pub(crate) fn read_bundled_manifest(
     let mut payload = None;
     for entry in archive.entries_with_seek().map_err(TarballError::ReadTarballEntries)? {
         let entry = entry.map_err(TarballError::ReadTarballEntries)?;
-        if !entry
-            .header()
-            .entry_type()
-            .is_file()
-        {
+        if !entry.header().entry_type().is_file() {
             continue;
         }
         let path = entry.path().map_err(TarballError::ReadTarballEntries)?;
@@ -296,9 +270,7 @@ pub(crate) fn read_bundled_manifest(
         // that a later one supersedes can't fail the read.
         payload = Some(tar_entry_payload(tar_data, &entry)?);
     }
-    let Some(payload) = payload else {
-        return Ok((None, false));
-    };
+    let Some(payload) = payload else { return Ok((None, false)) };
     finish_bundled_manifest(payload, tarball_path)
 }
 
@@ -313,11 +285,7 @@ fn read_bundled_manifest_streaming(
     let mut payload: Option<Vec<u8>> = None;
     for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {
         let mut entry = entry.map_err(TarballError::ReadTarballEntries)?;
-        if !entry
-            .header()
-            .entry_type()
-            .is_file()
-        {
+        if !entry.header().entry_type().is_file() {
             continue;
         }
         let is_manifest = {
@@ -338,9 +306,7 @@ fn read_bundled_manifest_streaming(
         entry.read_to_end(&mut data).map_err(TarballError::ReadTarballEntries)?;
         payload = Some(data);
     }
-    let Some(payload) = payload else {
-        return Ok((None, false));
-    };
+    let Some(payload) = payload else { return Ok((None, false)) };
     finish_bundled_manifest(&payload, tarball_path)
 }
 

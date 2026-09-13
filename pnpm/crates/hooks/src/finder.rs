@@ -88,9 +88,7 @@ pub fn validate_configured_pnpmfiles(
                 .map(PathBuf::as_path),
         );
     match named.find(|path| !pnpmfile_exists(path)) {
-        Some(missing) => Err(MissingPnpmfileError {
-            path: missing.to_path_buf(),
-        }),
+        Some(missing) => Err(MissingPnpmfileError { path: missing.to_path_buf() }),
         None => Ok(()),
     }
 }
@@ -134,10 +132,7 @@ pub fn load_pnpmfiles(
         // has to go through the wrapper, including a lone global one: its hash
         // must not become the project's.
         (1, 0) => hooks.into_iter().next(),
-        _ => Some(Arc::new(CombinedPnpmfileHooks {
-            hooks,
-            checksum_skips,
-        })),
+        _ => Some(Arc::new(CombinedPnpmfileHooks { hooks, checksum_skips })),
     })
 }
 
@@ -167,8 +162,7 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
     ) -> Result<Value, HookError> {
         let mut changed = false;
         for hook in &self.hooks {
-            let result = hook.after_all_resolved(lockfile.clone(), ctx.clone())
-                .await?;
+            let result = hook.after_all_resolved(lockfile.clone(), ctx.clone()).await?;
             if !result.is_null() {
                 lockfile = result;
                 changed = true;
@@ -291,11 +285,7 @@ pub fn calc_pnpmfile_paths_of_plugin_deps<'a>(
                 return None;
             }
             let mjs = plugin_dir.join("pnpmfile.mjs");
-            Some(if mjs.is_file() {
-                mjs
-            } else {
-                plugin_dir.join("pnpmfile.cjs")
-            })
+            Some(if mjs.is_file() { mjs } else { plugin_dir.join("pnpmfile.cjs") })
         })
         .collect()
 }

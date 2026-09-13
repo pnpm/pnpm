@@ -18,10 +18,7 @@ async fn does_not_hoist_when_disabled() {
             }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "react-dom": "18.0.0" }));
 
     let mut opts = default_opts();
@@ -69,32 +66,21 @@ async fn auto_install_does_not_install_when_no_intersection() {
             }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "wants-peer-c-1": "1.0.0",
         "wants-peer-c-2": "1.0.0",
     }));
 
-    let result = resolve_importer(
-        &resolver,
-        &manifest,
-        [DependencyGroup::Prod],
-        default_opts(),
-    )
-    .await
-    .unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
 
     let direct: Vec<&str> = result.peers_result.direct_dependencies_by_alias
         .keys()
         .map(String::as_str)
         .collect();
-    assert!(
-        !direct.contains(&"peer-c"),
-        "peer-c must not be hoisted on conflict: {direct:?}",
-    );
+    assert!(!direct.contains(&"peer-c"), "peer-c must not be hoisted on conflict: {direct:?}");
 }
 
 #[test]
@@ -103,10 +89,7 @@ fn repeated_consumer_ranges_merge_into_the_unique_intersection() {
     let narrower = "^18.0.0 || ^19.0.0";
     let merged = ">=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0";
 
-    assert_eq!(
-        merge_ranges(&[react, narrower], false).as_deref(),
-        Some(merged),
-    );
+    assert_eq!(merge_ranges(&[react, narrower], false).as_deref(), Some(merged));
 
     let mut repeated = vec![react; 10];
     repeated.push(narrower);
@@ -180,16 +163,9 @@ async fn auto_install_from_highest_match_installs_on_conflict() {
     );
     table.insert(
         ("peer-c".to_string(), "1.0.0 || 2.0.0".to_string()),
-        fake_result(
-            "peer-c",
-            "2.0.0",
-            serde_json::json!({ "name": "peer-c", "version": "2.0.0" }),
-        ),
+        fake_result("peer-c", "2.0.0", serde_json::json!({ "name": "peer-c", "version": "2.0.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "wants-peer-c-1": "1.0.0",
         "wants-peer-c-2": "1.0.0",
@@ -205,10 +181,7 @@ async fn auto_install_from_highest_match_installs_on_conflict() {
         .keys()
         .map(String::as_str)
         .collect();
-    assert!(
-        direct.contains(&"peer-c"),
-        "peer-c should land via `||` join: {direct:?}",
-    );
+    assert!(direct.contains(&"peer-c"), "peer-c should land via `||` join: {direct:?}");
 }
 
 #[tokio::test]
@@ -228,29 +201,17 @@ async fn auto_install_does_not_hoist_when_root_already_has_dep() {
     );
     table.insert(
         ("x".to_string(), "1.0.0".to_string()),
-        fake_result(
-            "x",
-            "1.0.0",
-            serde_json::json!({ "name": "x", "version": "1.0.0" }),
-        ),
+        fake_result("x", "1.0.0", serde_json::json!({ "name": "x", "version": "1.0.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "xyz": "1.0.0",
         "x": "1.0.0",
     }));
 
-    let result = resolve_importer(
-        &resolver,
-        &manifest,
-        [DependencyGroup::Prod],
-        default_opts(),
-    )
-    .await
-    .unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
 
     let calls = resolver.calls.lock().unwrap();
     let x_ranges: Vec<String> = calls

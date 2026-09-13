@@ -50,10 +50,7 @@ pub fn parse_wanted_dependency(raw_wanted_dependency: &str) -> ParsedWantedDepen
             bare_specifier: None,
         };
     }
-    ParsedWantedDependency {
-        alias: None,
-        bare_specifier: Some(raw_wanted_dependency.to_string()),
-    }
+    ParsedWantedDependency { alias: None, bare_specifier: Some(raw_wanted_dependency.to_string()) }
 }
 
 /// Find the first `@` byte index strictly after index 0.

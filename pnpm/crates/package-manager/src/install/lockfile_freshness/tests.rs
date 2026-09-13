@@ -14,31 +14,20 @@ async fn workspace_satisfaction_uses_pinned_lockfile_dir_for_local_overrides() {
     let lockfile_dir = root.path().join("locks");
     fs::create_dir_all(&project_dir).expect("create nested project");
     fs::create_dir_all(&lockfile_dir).expect("create lockfile directory");
-    fs::write(
-        workspace_dir.join("package.json"),
-        r#"{"name":"root","private":true}"#,
-    )
-    .expect("write root manifest");
-    fs::write(
-        workspace_dir.join("pnpm-workspace.yaml"),
-        "packages:\n  - pkgs/*\n",
-    )
-    .expect("write workspace manifest");
-    fs::write(
-        project_dir.join("package.json"),
-        r#"{"name":"a","dependencies":{"foo":"*"}}"#,
-    )
-    .expect("write nested manifest");
+    fs::write(workspace_dir.join("package.json"), r#"{"name":"root","private":true}"#)
+        .expect("write root manifest");
+    fs::write(workspace_dir.join("pnpm-workspace.yaml"), "packages:\n  - pkgs/*\n")
+        .expect("write workspace manifest");
+    fs::write(project_dir.join("package.json"), r#"{"name":"a","dependencies":{"foo":"*"}}"#)
+        .expect("write nested manifest");
     let manifest =
         PackageManifest::from_path(project_dir.join("package.json")).expect("read nested manifest");
     let mut config = Config::new();
     config.workspace_dir = Some(workspace_dir);
     config.lockfile_dir = Some(lockfile_dir);
     config.ignore_pnpmfile = true;
-    config.overrides = Some(indexmap::IndexMap::from([(
-        "foo".to_string(),
-        "link:./foo".to_string(),
-    )]));
+    config.overrides =
+        Some(indexmap::IndexMap::from([("foo".to_string(), "link:./foo".to_string())]));
     let lockfile: Lockfile = serde_saphyr::from_str(
         r"lockfileVersion: '9.0'
 overrides:

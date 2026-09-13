@@ -14,14 +14,7 @@ async fn hosted_registry_serves_only_what_it_hosts() {
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
     config.routing.registries = Registries::new(
-        vec![(
-            "acme".to_string(),
-            Registry::Hosted {
-                patterns: vec![],
-            },
-        )]
-        .into_iter()
-        .collect(),
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
     let app = router_with_auth(config, AuthState::in_memory());
@@ -60,14 +53,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
     config.routing.registries = Registries::new(
-        vec![(
-            "acme".to_string(),
-            Registry::Hosted {
-                patterns: vec![],
-            },
-        )]
-        .into_iter()
-        .collect(),
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
     let auth = AuthState::in_memory();
@@ -111,14 +97,7 @@ async fn private_hosted_org_masks_before_the_package_acl() {
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
     config.routing.registries = Registries::new(
-        vec![(
-            "acme".to_string(),
-            Registry::Hosted {
-                patterns: vec![],
-            },
-        )]
-        .into_iter()
-        .collect(),
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
     // A per-package rule that also denies the anonymous caller. In the
@@ -146,11 +125,7 @@ async fn private_hosted_org_masks_before_the_package_acl() {
             )
             .await
             .unwrap();
-        assert_eq!(
-            resp.status(),
-            StatusCode::NOT_FOUND,
-            "existence leaked on {path}",
-        );
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "existence leaked on {path}");
     }
 }
 
@@ -166,14 +141,7 @@ async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
     // The path-less base aliases the "acme" hosted registry, so `/-/package/...`
     // resolves to it.
     config.routing.registries = Registries::new(
-        vec![(
-            "acme".to_string(),
-            Registry::Hosted {
-                patterns: vec![],
-            },
-        )]
-        .into_iter()
-        .collect(),
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     config.routing.hosted
@@ -200,20 +168,12 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.routing.hosted.insert(
-        "acme".to_string(),
-        hosted_with_access("acme", "$authenticated"),
-    );
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
     // npmjs already exists (from config_for); add a hosted org claiming
     // `@acme/*` + a router over it and the pattern-less npmjs catch-all,
     // aliased path-less.
     let graph = vec![
-        (
-            "npmjs".to_string(),
-            Registry::Upstream {
-                patterns: vec![],
-            },
-        ),
+        ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
         (
             "acme".to_string(),
             Registry::Hosted {
@@ -222,9 +182,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
         ),
         (
             "main".to_string(),
-            Registry::Router {
-                sources: vec!["acme".to_string(), "npmjs".to_string()],
-            },
+            Registry::Router { sources: vec!["acme".to_string(), "npmjs".to_string()] },
         ),
     ];
     config.routing.registries =
@@ -316,10 +274,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     assert_eq!(search.status(), StatusCode::OK);
     let search = body_json(search.into_body()).await;
     assert_eq!(search["total"], json!(1));
-    assert_eq!(
-        search["objects"][0]["package"]["name"],
-        json!("@acme/widget"),
-    );
+    assert_eq!(search["objects"][0]["package"]["name"], json!("@acme/widget"));
 
     // ...and its tarball serves from the org namespace.
     let tar = app
@@ -342,9 +297,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
             Request::put("/lodash")
                 .header("content-type", "application/json")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
-                .body(Body::from(
-                    json!({ "name": "lodash", "versions": {} }).to_string(),
-                ))
+                .body(Body::from(json!({ "name": "lodash", "versions": {} }).to_string()))
                 .unwrap(),
         )
         .await
@@ -364,12 +317,7 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
                 patterns: vec![PackagePattern::parse("@acme/*", Ecosystem::Npm).unwrap()],
             },
         ),
-        (
-            "main".to_string(),
-            Registry::Router {
-                sources: vec!["acme".to_string()],
-            },
-        ),
+        ("main".to_string(), Registry::Router { sources: vec!["acme".to_string()] }),
     ];
     config.routing.registries =
         Registries::new(graph.into_iter().collect(), Some("main".to_string()));
@@ -442,10 +390,7 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
                 .unwrap()
                 .to_str()
                 .unwrap(),
-            format!(
-                "sha-512=:{}:",
-                integrity_text.strip_prefix("sha512-").unwrap()
-            ),
+            format!("sha-512=:{}:", integrity_text.strip_prefix("sha512-").unwrap()),
         );
         assert_eq!(body_bytes(response.into_body()).await, tarball, "{path}");
     }
@@ -466,19 +411,9 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
 async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_existing_refs() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.routing.hosted.insert(
-        "acme".to_string(),
-        hosted_with_access("acme", "$authenticated"),
-    );
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
     config.routing.registries = Registries::new(
-        vec![(
-            "acme".to_string(),
-            Registry::Hosted {
-                patterns: vec![],
-            },
-        )]
-        .into_iter()
-        .collect(),
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -550,14 +485,7 @@ async fn hosted_digest_route_rechecks_package_access() {
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("corp".to_string(), hosted_with_access("corp", "alice"));
     config.routing.registries = Registries::new(
-        vec![(
-            "corp".to_string(),
-            Registry::Hosted {
-                patterns: vec![],
-            },
-        )]
-        .into_iter()
-        .collect(),
+        vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("corp".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -570,13 +498,7 @@ async fn hosted_digest_route_rechecks_package_access() {
 
     let publish = app
         .clone()
-        .oneshot(hosted_publish_request(
-            "/~corp/secret",
-            "secret",
-            "1.0.0",
-            tarball,
-            &alice,
-        ))
+        .oneshot(hosted_publish_request("/~corp/secret", "secret", "1.0.0", tarball, &alice))
         .await
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
@@ -588,11 +510,7 @@ async fn hosted_digest_route_rechecks_package_access() {
         }
         let response = app
             .clone()
-            .oneshot(
-                request
-                    .body(Body::empty())
-                    .unwrap(),
-            )
+            .oneshot(request.body(Body::empty()).unwrap())
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -650,10 +568,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.routing.hosted.insert(
-        "acme".to_string(),
-        hosted_with_access("acme", "$authenticated"),
-    );
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
     // `acme` claims only `@acme/*`; the router has no other source, and the
     // path-less base aliases the router.
     let graph = vec![
@@ -663,12 +578,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
                 patterns: vec![PackagePattern::parse("@acme/*", Ecosystem::Npm).unwrap()],
             },
         ),
-        (
-            "main".to_string(),
-            Registry::Router {
-                sources: vec!["acme".to_string()],
-            },
-        ),
+        ("main".to_string(), Registry::Router { sources: vec!["acme".to_string()] }),
     ];
     let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     registries.validate().expect("patterned hosted config is valid");
@@ -679,10 +589,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
 
     let publish_body = |pkg: &str| {
         let tarball = b"typo-bytes";
-        let bare = pkg
-            .rsplit('/')
-            .next()
-            .unwrap();
+        let bare = pkg.rsplit('/').next().unwrap();
         json!({
             "name": pkg,
             "dist-tags": { "latest": "1.0.0" },
@@ -718,11 +625,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
             .oneshot(publish_to(url, pkg))
             .await
             .unwrap();
-        assert_eq!(
-            rejected.status(),
-            StatusCode::BAD_REQUEST,
-            "publish {url} must be rejected",
-        );
+        assert_eq!(rejected.status(), StatusCode::BAD_REQUEST, "publish {url} must be rejected");
     }
     assert!(
         !tmp
@@ -785,9 +688,7 @@ async fn off_pattern_publish_is_masked_for_callers_the_registry_denies() {
         Request::put("/~corp/@typo/widget")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
-            .body(Body::from(
-                json!({ "name": "@typo/widget", "versions": {} }).to_string(),
-            ))
+            .body(Body::from(json!({ "name": "@typo/widget", "versions": {} }).to_string()))
             .unwrap()
     };
 
@@ -840,9 +741,7 @@ async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection()
         Request::put("/~corp/lodash")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
-            .body(Body::from(
-                json!({ "name": "lodash", "versions": {} }).to_string(),
-            ))
+            .body(Body::from(json!({ "name": "lodash", "versions": {} }).to_string()))
             .unwrap()
     };
 
@@ -878,14 +777,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
     // `/~corp/` addresses the registry directly; the path-less base aliases it,
     // so the path-less dist-tag and unpublish writes route there too.
     config.routing.registries = Registries::new(
-        vec![(
-            "corp".to_string(),
-            Registry::Hosted {
-                patterns: vec![],
-            },
-        )]
-        .into_iter()
-        .collect(),
+        vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("corp".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -997,9 +889,7 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
         if let Some(value) = authorization {
             request = request.header(header::AUTHORIZATION, value);
         }
-        request
-            .body(Body::empty())
-            .unwrap()
+        request.body(Body::empty()).unwrap()
     };
 
     for url in ["/-/v1/search?text=secret", "/-/v1/search?browse=true"] {
@@ -1011,14 +901,7 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
         config.routing.hosted.clear();
         config.routing.hosted.insert("corp".to_string(), hosted_with_access("", "alice"));
         config.routing.registries = Registries::new(
-            vec![(
-                "corp".to_string(),
-                Registry::Hosted {
-                    patterns: vec![],
-                },
-            )]
-            .into_iter()
-            .collect(),
+            vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
             Some("corp".to_string()),
         );
         let auth = AuthState::in_memory();
@@ -1034,11 +917,7 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
                 .unwrap();
             assert_eq!(response.status(), StatusCode::OK);
             let body = body_json(response.into_body()).await;
-            assert_eq!(
-                body["total"],
-                json!(0),
-                "private package leaked through search",
-            );
+            assert_eq!(body["total"], json!(0), "private package leaked through search");
             assert_eq!(body["objects"], json!([]));
         }
 
@@ -1048,9 +927,6 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let body = body_json(response.into_body()).await;
-        assert_eq!(
-            body["objects"][0]["package"]["name"],
-            json!("@corp/secret-tool"),
-        );
+        assert_eq!(body["objects"][0]["package"]["name"], json!("@corp/secret-tool"));
     }
 }

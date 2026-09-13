@@ -39,25 +39,13 @@ fn install_via_pnpr_links_node_modules() {
         .success();
 
     let symlink_path = workspace.join("node_modules/@foo/no-deps");
-    assert!(
-        is_symlink_or_junction(&symlink_path).unwrap(),
-        "direct dep should be symlinked",
-    );
+    assert!(is_symlink_or_junction(&symlink_path).unwrap(), "direct dep should be symlinked");
     let virtual_path = workspace.join("node_modules/.pnpm/@foo+no-deps@1.0.0");
-    assert!(
-        virtual_path.exists(),
-        "virtual store should hold the package",
-    );
-    assert!(
-        workspace.join("pnpm-lock.yaml").exists(),
-        "pnpr should write the lockfile",
-    );
+    assert!(virtual_path.exists(), "virtual store should hold the package");
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "pnpr should write the lockfile");
     // The client store was populated by the frozen install fetching tarballs
     // directly from the registry after pnpr returned the lockfile.
-    assert!(
-        store_dir.join("v11/index.db").exists(),
-        "client store index should exist",
-    );
+    assert!(store_dir.join("v11/index.db").exists(), "client store index should exist");
 
     drop((root, mock_instance));
 }
@@ -98,10 +86,7 @@ fn install_via_pnpr_replaces_a_conflicted_lockfile() {
         .success();
 
     let lockfile = read_workspace_lockfile(&workspace);
-    assert_eq!(
-        workspace_importer_version(&lockfile, ".", "@foo/no-deps"),
-        "1.0.0",
-    );
+    assert_eq!(workspace_importer_version(&lockfile, ".", "@foo/no-deps"), "1.0.0");
     assert!(is_symlink_or_junction(&workspace.join("node_modules/@foo/no-deps")).unwrap());
 
     fs::write(workspace.join("pnpm-lock.yaml"), CONFLICTED_LOCKFILE)
@@ -112,10 +97,7 @@ fn install_via_pnpr_replaces_a_conflicted_lockfile() {
         .assert()
         .success();
     let repaired = read_workspace_lockfile(&workspace);
-    assert_eq!(
-        workspace_importer_version(&repaired, ".", "@foo/no-deps"),
-        "1.0.0",
-    );
+    assert_eq!(workspace_importer_version(&repaired, ".", "@foo/no-deps"), "1.0.0");
 
     drop((root, mock_instance));
 }
@@ -139,11 +121,8 @@ fn patched_dependencies_resolve_via_pnpr() {
     )
     .expect("write package.json");
     fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
-    fs::write(
-        workspace.join("patches/is-positive@1.0.0.patch"),
-        IS_POSITIVE_PATCH,
-    )
-    .expect("write patch file");
+    fs::write(workspace.join("patches/is-positive@1.0.0.patch"), IS_POSITIVE_PATCH)
+        .expect("write patch file");
     crate::_utils::append_workspace_yaml_key(
         &workspace,
         "patchedDependencies",
@@ -223,11 +202,8 @@ fn install_via_pnpr_preserves_the_lockfiles_time_section() {
 
     let manifest_path = workspace.join("package.json");
     let write_manifest = |dependencies: serde_json::Value| {
-        fs::write(
-            &manifest_path,
-            serde_json::json!({ "dependencies": dependencies }).to_string(),
-        )
-        .expect("write package.json");
+        fs::write(&manifest_path, serde_json::json!({ "dependencies": dependencies }).to_string())
+            .expect("write package.json");
     };
     let install_via_pnpr = || {
         pacquet_at(&workspace)
@@ -338,10 +314,7 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
     verify_mock.assert();
     no_downloads.assert();
     let symlink_path = workspace.join("node_modules/@foo/no-deps");
-    assert!(
-        is_symlink_or_junction(&symlink_path).unwrap(),
-        "direct dep should be symlinked",
-    );
+    assert!(is_symlink_or_junction(&symlink_path).unwrap(), "direct dep should be symlinked");
 
     drop((root, mock_instance));
 }
@@ -454,10 +427,7 @@ fn install_via_pnpr_skips_the_server_when_the_lockfile_satisfies_the_manifest() 
     no_pnpr_requests.assert();
     no_downloads.assert();
     let symlink_path = workspace.join("node_modules/@foo/no-deps");
-    assert!(
-        is_symlink_or_junction(&symlink_path).unwrap(),
-        "direct dep should be symlinked",
-    );
+    assert!(is_symlink_or_junction(&symlink_path).unwrap(), "direct dep should be symlinked");
 
     drop((root, mock_instance));
 }
@@ -523,10 +493,7 @@ fn satisfied_install_via_pnpr_delegates_verification_when_the_cache_is_cold() {
     verify_mock.assert();
     no_resolve.assert();
     let symlink_path = workspace.join("node_modules/@foo/no-deps");
-    assert!(
-        is_symlink_or_junction(&symlink_path).unwrap(),
-        "direct dep should be symlinked",
-    );
+    assert!(is_symlink_or_junction(&symlink_path).unwrap(), "direct dep should be symlinked");
 
     drop((root, mock_instance));
 }
@@ -565,14 +532,8 @@ fn install_via_pnpr_lockfile_only_writes_lockfile_without_linking() {
         .assert()
         .success();
 
-    assert!(
-        workspace.join("pnpm-lock.yaml").exists(),
-        "pnpr should write the lockfile",
-    );
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "lockfile-only must not link node_modules",
-    );
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "pnpr should write the lockfile");
+    assert!(!workspace.join("node_modules").exists(), "lockfile-only must not link node_modules");
     assert!(
         !store_dir.join("v11/index.db").exists(),
         "lockfile-only must not populate the client store",
@@ -635,14 +596,8 @@ fn import_ignores_the_pnpr_server_and_resolves_locally() {
         stdout.contains(&format!("the pnpr server at {pnpr_url} is not used")),
         "import must say the pnpr server was skipped:\n{stdout}",
     );
-    assert!(
-        workspace.join("pnpm-lock.yaml").exists(),
-        "import must write the lockfile",
-    );
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "import must not link node_modules",
-    );
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "import must write the lockfile");
+    assert!(!workspace.join("node_modules").exists(), "import must not link node_modules");
     // The store writer task always creates an empty `v11/index.db`, so the
     // absence of fetched package content is what says nothing was downloaded.
     let cas_blobs: Vec<String> = get_all_files(&store_dir)
@@ -653,10 +608,7 @@ fn import_ignores_the_pnpr_server_and_resolves_locally() {
                 .any(|component| component.as_os_str() == "files")
         })
         .collect();
-    assert!(
-        cas_blobs.is_empty(),
-        "import must not fetch package content: {cas_blobs:?}",
-    );
+    assert!(cas_blobs.is_empty(), "import must not fetch package content: {cas_blobs:?}");
 
     drop((root, mock_instance));
 }

@@ -65,17 +65,12 @@ const QUX_VARIANT: &str = "foo@1.0.0(bar@1.0.0)(qux@1.0.0)";
 /// other, so the collapse target is a real choice.
 fn build_graph() -> DependenciesGraph {
     let mut graph = DependenciesGraph::default();
-    for (id, dep_path) in [
-        ("bar@1.0.0", "bar@1.0.0"),
-        ("baz@1.0.0", "baz@1.0.0"),
-        ("qux@1.0.0", "qux@1.0.0"),
-    ] {
+    for (id, dep_path) in
+        [("bar@1.0.0", "bar@1.0.0"), ("baz@1.0.0", "baz@1.0.0"), ("qux@1.0.0", "qux@1.0.0")]
+    {
         graph.insert(dp(dep_path), make_node(id, dep_path, &[], &[]));
     }
-    graph.insert(
-        dp(SUBSET),
-        make_node("foo@1.0.0", SUBSET, &[("bar", "bar@1.0.0")], &["bar"]),
-    );
+    graph.insert(dp(SUBSET), make_node("foo@1.0.0", SUBSET, &[("bar", "bar@1.0.0")], &["bar"]));
     graph.insert(
         dp(BAZ_VARIANT),
         make_node(
@@ -101,14 +96,10 @@ fn build_graph() -> DependenciesGraph {
 fn collapse_target_is_independent_of_variant_order() {
     let graph = build_graph();
 
-    let (baz_first, _) = deduplicate_dep_paths(
-        &[vec![dp(SUBSET), dp(BAZ_VARIANT), dp(QUX_VARIANT)]],
-        &graph,
-    );
-    let (qux_first, _) = deduplicate_dep_paths(
-        &[vec![dp(SUBSET), dp(QUX_VARIANT), dp(BAZ_VARIANT)]],
-        &graph,
-    );
+    let (baz_first, _) =
+        deduplicate_dep_paths(&[vec![dp(SUBSET), dp(BAZ_VARIANT), dp(QUX_VARIANT)]], &graph);
+    let (qux_first, _) =
+        deduplicate_dep_paths(&[vec![dp(SUBSET), dp(QUX_VARIANT), dp(BAZ_VARIANT)]], &graph);
 
     // `foo(bar)(qux)` wins because it is the lexically-greater of the two
     // equal-count variants and the sorter pops the greatest first.
@@ -120,10 +111,7 @@ fn collapse_target_is_independent_of_variant_order() {
 fn rewrites_importer_direct_dep_and_prunes_orphan() {
     let mut graph = build_graph();
     let mut direct: DirectByImporter = BTreeMap::new();
-    direct.insert(
-        "project-subset".to_string(),
-        BTreeMap::from([("foo".to_string(), dp(SUBSET))]),
-    );
+    direct.insert("project-subset".to_string(), BTreeMap::from([("foo".to_string(), dp(SUBSET))]));
     direct.insert(
         "project-baz".to_string(),
         BTreeMap::from([("foo".to_string(), dp(BAZ_VARIANT))]),
@@ -138,10 +126,7 @@ fn rewrites_importer_direct_dep_and_prunes_orphan() {
     assert_eq!(direct["project-subset"]["foo"], dp(QUX_VARIANT));
     assert_eq!(direct["project-baz"]["foo"], dp(BAZ_VARIANT));
     assert_eq!(direct["project-qux"]["foo"], dp(QUX_VARIANT));
-    assert!(
-        !graph.contains_key(&dp(SUBSET)),
-        "collapsed variant should be pruned",
-    );
+    assert!(!graph.contains_key(&dp(SUBSET)), "collapsed variant should be pruned");
     assert!(graph.contains_key(&dp(BAZ_VARIANT)));
     assert!(graph.contains_key(&dp(QUX_VARIANT)));
 }
@@ -162,14 +147,8 @@ fn does_not_collapse_across_incompatible_peer_versions() {
     ] {
         graph.insert(dp(dep_path), make_node(id, dep_path, &[], &[]));
     }
-    graph.insert(
-        dp(bar1),
-        make_node("foo@1.0.0", bar1, &[("bar", "bar@1.0.0")], &["bar"]),
-    );
-    graph.insert(
-        dp(bar2),
-        make_node("foo@1.0.0", bar2, &[("bar", "bar@2.0.0")], &["bar"]),
-    );
+    graph.insert(dp(bar1), make_node("foo@1.0.0", bar1, &[("bar", "bar@1.0.0")], &["bar"]));
+    graph.insert(dp(bar2), make_node("foo@1.0.0", bar2, &[("bar", "bar@2.0.0")], &["bar"]));
     graph.insert(
         dp(bar1_baz),
         make_node(
@@ -190,22 +169,10 @@ fn does_not_collapse_across_incompatible_peer_versions() {
     );
 
     let mut direct: DirectByImporter = BTreeMap::new();
-    direct.insert(
-        "project1".to_string(),
-        BTreeMap::from([("foo".to_string(), dp(bar1))]),
-    );
-    direct.insert(
-        "project2".to_string(),
-        BTreeMap::from([("foo".to_string(), dp(bar1_baz))]),
-    );
-    direct.insert(
-        "project3".to_string(),
-        BTreeMap::from([("foo".to_string(), dp(bar2))]),
-    );
-    direct.insert(
-        "project4".to_string(),
-        BTreeMap::from([("foo".to_string(), dp(bar2_baz))]),
-    );
+    direct.insert("project1".to_string(), BTreeMap::from([("foo".to_string(), dp(bar1))]));
+    direct.insert("project2".to_string(), BTreeMap::from([("foo".to_string(), dp(bar1_baz))]));
+    direct.insert("project3".to_string(), BTreeMap::from([("foo".to_string(), dp(bar2))]));
+    direct.insert("project4".to_string(), BTreeMap::from([("foo".to_string(), dp(bar2_baz))]));
 
     dedupe_peer_dependents(&mut graph, &mut direct);
 
@@ -230,22 +197,11 @@ fn a_consumers_child_edge_follows_the_collapse() {
     for (id, dep_path) in [("bar@1.0.0", "bar@1.0.0"), ("qux@1.0.0", "qux@1.0.0")] {
         graph.insert(dp(dep_path), make_node(id, dep_path, &[], &[]));
     }
-    graph.insert(
-        dp(baz),
-        make_node("baz@1.0.0", baz, &[("qux", "qux@1.0.0")], &["qux"]),
-    );
-    graph.insert(
-        dp(subset),
-        make_node("foo@1.0.0", subset, &[("bar", "bar@1.0.0")], &["bar"]),
-    );
+    graph.insert(dp(baz), make_node("baz@1.0.0", baz, &[("qux", "qux@1.0.0")], &["qux"]));
+    graph.insert(dp(subset), make_node("foo@1.0.0", subset, &[("bar", "bar@1.0.0")], &["bar"]));
     graph.insert(
         dp(larger),
-        make_node(
-            "foo@1.0.0",
-            larger,
-            &[("bar", "bar@1.0.0"), ("baz", baz)],
-            &["bar", "baz"],
-        ),
+        make_node("foo@1.0.0", larger, &[("bar", "bar@1.0.0"), ("baz", baz)], &["bar", "baz"]),
     );
     graph.insert(
         dp(consumer),
@@ -258,14 +214,8 @@ fn a_consumers_child_edge_follows_the_collapse() {
     );
 
     let mut direct: DirectByImporter = BTreeMap::new();
-    direct.insert(
-        "project-subset".to_string(),
-        BTreeMap::from([("foo".to_string(), dp(subset))]),
-    );
-    direct.insert(
-        "project-larger".to_string(),
-        BTreeMap::from([("foo".to_string(), dp(larger))]),
-    );
+    direct.insert("project-subset".to_string(), BTreeMap::from([("foo".to_string(), dp(subset))]));
+    direct.insert("project-larger".to_string(), BTreeMap::from([("foo".to_string(), dp(larger))]));
     direct.insert(
         "project-consumer".to_string(),
         BTreeMap::from([("consumer".to_string(), dp(consumer))]),
@@ -276,10 +226,7 @@ fn a_consumers_child_edge_follows_the_collapse() {
     assert_eq!(direct["project-subset"]["foo"], dp(larger));
     assert_eq!(direct["project-larger"]["foo"], dp(larger));
     assert_eq!(graph[&dp(consumer)].edges.children["foo"], dp(larger));
-    assert!(
-        !graph.contains_key(&dp(subset)),
-        "the collapsed variant has no reference left",
-    );
+    assert!(!graph.contains_key(&dp(subset)), "the collapsed variant has no reference left");
     assert!(graph.contains_key(&dp(larger)));
 }
 

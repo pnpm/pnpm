@@ -5,10 +5,7 @@ fn identical_frame_produces_empty_diff() {
     let mut diff = Diff::new(120);
     diff.update("Progress: resolved 10\n");
     let output = diff.update("Progress: resolved 10\n");
-    assert!(
-        output.is_empty(),
-        "identical frame yields no output: {output:?}",
-    );
+    assert!(output.is_empty(), "identical frame yields no output: {output:?}");
 }
 
 #[test]
@@ -18,10 +15,7 @@ fn unchanged_sticky_line_not_rewritten() {
     let output = diff.update(
         "Lockfile passes supply-chain policies (verified 1h ago)\nProgress: resolved 11\n",
     );
-    assert!(
-        !output.contains("Lockfile"),
-        "sticky line must not be reprinted: {output:?}",
-    );
+    assert!(!output.contains("Lockfile"), "sticky line must not be reprinted: {output:?}");
 }
 
 #[test]
@@ -30,20 +24,14 @@ fn inline_diff_writes_only_changed_chars() {
     diff.update("Progress: resolved 10\n");
     let output = diff.update("Progress: resolved 11\n");
     assert!(output.contains('1'), "changed char is written: {output:?}");
-    assert!(
-        !output.contains("Progress"),
-        "unchanged prefix not rewritten: {output:?}",
-    );
+    assert!(!output.contains("Progress"), "unchanged prefix not rewritten: {output:?}");
 }
 
 #[test]
 fn first_frame_writes_full_content() {
     let mut diff = Diff::new(120);
     let output = diff.update("Progress: resolved 10\n");
-    assert!(
-        output.contains("Progress"),
-        "first frame has full content: {output:?}",
-    );
+    assert!(output.contains("Progress"), "first frame has full content: {output:?}");
 }
 
 #[test]
@@ -59,10 +47,7 @@ fn removed_line_cleared() {
     let mut diff = Diff::new(120);
     diff.update("Line 1\nLine 2\n");
     let output = diff.update("Line 1\n");
-    assert!(
-        output.contains("\x1b[0K"),
-        "removed line triggers clear: {output:?}",
-    );
+    assert!(output.contains("\x1b[0K"), "removed line triggers clear: {output:?}");
 }
 
 #[test]
@@ -97,14 +82,8 @@ fn full_line_rewrite_clears() {
     diff.update("This is the original line content\n");
     let output = diff.update("Completely different text here\n");
     // No common prefix/suffix → full line rewrite with clear.
-    assert!(
-        output.contains("\x1b[0K"),
-        "full line rewrite should clear old content: {output:?}",
-    );
-    assert!(
-        output.contains("Completely different"),
-        "new line content is written: {output:?}",
-    );
+    assert!(output.contains("\x1b[0K"), "full line rewrite should clear old content: {output:?}");
+    assert!(output.contains("Completely different"), "new line content is written: {output:?}");
 }
 
 #[test]
@@ -116,20 +95,11 @@ fn clear_down_from_cursor_row() {
     diff.update("Line A\nLine B\nLine C\n");
     let output = diff.update("Line A\nLine B changed\n");
     // Line A (unchanged) must not appear in the diff output at all.
-    assert!(
-        !output.contains("Line A"),
-        "unchanged leading line not rewritten: {output:?}",
-    );
+    assert!(!output.contains("Line A"), "unchanged leading line not rewritten: {output:?}");
     // Line B is rewritten (different length → full rewrite, not inline diff).
-    assert!(
-        output.contains("Line B changed"),
-        "changed line B is written: {output:?}",
-    );
+    assert!(output.contains("Line B changed"), "changed line B is written: {output:?}");
     // Line C is removed → clear_down emits \x1b[0K for the trailing rows.
-    assert!(
-        output.contains("\x1b[0K"),
-        "removed trailing line is cleared: {output:?}",
-    );
+    assert!(output.contains("\x1b[0K"), "removed trailing line is cleared: {output:?}");
 }
 
 #[test]
@@ -140,10 +110,7 @@ fn soft_wrapped_line_height() {
     diff.update(&format!("{long_line}\n"));
     // Same line → empty diff (diff correctly tracked the wrapped height).
     let output = diff.update(&format!("{long_line}\n"));
-    assert!(
-        output.is_empty(),
-        "soft-wrapped identical line produces empty diff: {output:?}",
-    );
+    assert!(output.is_empty(), "soft-wrapped identical line produces empty diff: {output:?}");
     // Different content → cursor movement accounts for wrapped height.
     let output = diff.update("ABCDEFGHIJKLMNOPQRSTUVWXY\n");
     assert!(
@@ -158,10 +125,7 @@ fn empty_frame_clears_all() {
     diff.update("Line 1\nLine 2\nLine 3\n");
     let output = diff.update("");
     // Transitioning to an empty frame should clear all previous lines.
-    assert!(
-        output.contains("\x1b[0K"),
-        "empty frame clears old content: {output:?}",
-    );
+    assert!(output.contains("\x1b[0K"), "empty frame clears old content: {output:?}");
 }
 
 #[test]
@@ -176,10 +140,7 @@ fn multiple_progress_ticks() {
             !output.contains("Progress"),
             "tick {tick} does not rewrite unchanged prefix: {output:?}",
         );
-        assert!(
-            !output.is_empty(),
-            "tick {tick} produces non-empty diff: {output:?}",
-        );
+        assert!(!output.is_empty(), "tick {tick} produces non-empty diff: {output:?}");
     }
 }
 

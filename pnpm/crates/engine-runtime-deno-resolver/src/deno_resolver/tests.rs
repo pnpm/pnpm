@@ -53,10 +53,7 @@ impl Resolver for CapturingResolver {
 }
 
 fn resolver() -> DenoResolver {
-    DenoResolver::new(
-        Arc::new(ThrottledClient::new_for_installs()),
-        Arc::new(StubResolver),
-    )
+    DenoResolver::new(Arc::new(ThrottledClient::new_for_installs()), Arc::new(StubResolver))
 }
 
 #[tokio::test]

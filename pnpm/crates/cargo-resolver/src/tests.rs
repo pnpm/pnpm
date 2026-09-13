@@ -50,16 +50,10 @@ const WORKSPACE_OPTIONAL_METADATA: &str = r#"{
 #[test]
 fn discovers_transitive_sparse_index_files() {
     let mut files = BTreeMap::new();
-    assert_eq!(
-        missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(),
-        ["foo"],
-    );
+    assert_eq!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(), ["foo"]);
 
     files.insert("foo".to_string(), FOO_INDEX.to_string());
-    assert_eq!(
-        missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(),
-        ["bar"],
-    );
+    assert_eq!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(), ["bar"]);
 
     files.insert("bar".to_string(), BAR_INDEX.to_string());
     assert!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap().is_empty());
@@ -143,12 +137,8 @@ fn writes_the_configured_sparse_registry_source() {
         ("foo".to_string(), FOO_INDEX.to_string()),
         ("bar".to_string(), BAR_INDEX.to_string()),
     ]);
-    let lockfile = resolve_lockfile(
-        METADATA,
-        &files,
-        "sparse+https://registry.example.test/index/",
-    )
-    .unwrap();
+    let lockfile =
+        resolve_lockfile(METADATA, &files, "sparse+https://registry.example.test/index/").unwrap();
 
     assert!(lockfile.contains(r#"source = "sparse+https://registry.example.test/index/""#));
 }
@@ -158,20 +148,13 @@ fn resolves_the_feature_unified_lock_graph() {
     let files = BTreeMap::from([("foo".to_string(), OPTIONAL_FOO_INDEX.to_string())]);
     assert!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap().is_empty());
     assert_eq!(
-        missing_index_names(
-            WORKSPACE_OPTIONAL_METADATA,
-            &BTreeMap::new(),
-            CRATES_IO_SOURCE
-        )
-        .unwrap(),
+        missing_index_names(WORKSPACE_OPTIONAL_METADATA, &BTreeMap::new(), CRATES_IO_SOURCE)
+            .unwrap(),
         ["foo"],
     );
 
     let files = BTreeMap::from([("foo".to_string(), DEFAULT_FEATURE_FOO_INDEX.to_string())]);
-    assert_eq!(
-        missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(),
-        ["bar"],
-    );
+    assert_eq!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(), ["bar"]);
 
     let files = BTreeMap::from([
         ("bar".to_string(), BAR_INDEX.to_string()),
@@ -184,22 +167,13 @@ fn resolves_the_feature_unified_lock_graph() {
 
 #[test]
 fn merges_duplicate_feature_names_across_index_feature_maps() {
-    let files = BTreeMap::from([(
-        "foo".to_string(),
-        SPLIT_DEFAULT_FEATURE_FOO_INDEX.to_string(),
-    )]);
-    assert_eq!(
-        missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(),
-        ["bar", "baz"],
-    );
+    let files = BTreeMap::from([("foo".to_string(), SPLIT_DEFAULT_FEATURE_FOO_INDEX.to_string())]);
+    assert_eq!(missing_index_names(METADATA, &files, CRATES_IO_SOURCE).unwrap(), ["bar", "baz"]);
 
     let files = BTreeMap::from([
         ("bar".to_string(), BAR_INDEX.to_string()),
         ("baz".to_string(), BAZ_INDEX.to_string()),
-        (
-            "foo".to_string(),
-            SPLIT_DEFAULT_FEATURE_FOO_INDEX.to_string(),
-        ),
+        ("foo".to_string(), SPLIT_DEFAULT_FEATURE_FOO_INDEX.to_string()),
     ]);
     let lockfile =
         Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
@@ -358,11 +332,8 @@ fn backtracks_when_a_candidate_feature_conflicts_with_that_candidate() {
 
 #[test]
 fn dep_activation_suppresses_the_implicit_optional_feature() {
-    let metadata = METADATA.replacen(
-        r#""req": "^1.0""#,
-        r#""req": "^1.0", "features": ["codec"]"#,
-        1,
-    );
+    let metadata =
+        METADATA.replacen(r#""req": "^1.0""#, r#""req": "^1.0", "features": ["codec"]"#, 1);
     let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"codec","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"full":["dep:codec"]},"yanked":false}"#;
     let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
 
@@ -372,11 +343,8 @@ fn dep_activation_suppresses_the_implicit_optional_feature() {
 
 #[test]
 fn selects_an_older_candidate_that_provides_a_requested_feature() {
-    let metadata = METADATA.replacen(
-        r#""req": "^1.0""#,
-        r#""req": "^1.0", "features": ["special"]"#,
-        1,
-    );
+    let metadata =
+        METADATA.replacen(r#""req": "^1.0""#, r#""req": "^1.0", "features": ["special"]"#, 1);
     let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"special":[]},"yanked":false}
 {"name":"foo","vers":"1.1.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
     let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
@@ -472,12 +440,8 @@ fn accepts_a_dependency_that_names_the_registry_being_resolved_from() {
         ("bar".to_string(), BAR_INDEX.to_string()),
     ]);
 
-    let lockfile = resolve_lockfile(
-        METADATA,
-        &files,
-        "sparse+https://registry.example.test/index/",
-    )
-    .unwrap();
+    let lockfile =
+        resolve_lockfile(METADATA, &files, "sparse+https://registry.example.test/index/").unwrap();
 
     assert!(lockfile.contains(r#"name = "bar""#), "{lockfile}");
 }
@@ -491,13 +455,9 @@ fn rejects_a_dependency_from_a_third_party_registry() {
         ("bar".to_string(), BAR_INDEX.to_string()),
     ]);
 
-    let error = resolve_lockfile(
-        METADATA,
-        &files,
-        "sparse+https://registry.example.test/index/",
-    )
-    .unwrap_err()
-    .to_string();
+    let error = resolve_lockfile(METADATA, &files, "sparse+https://registry.example.test/index/")
+        .unwrap_err()
+        .to_string();
 
     assert!(error.contains("other.example.test"), "{error}");
 }

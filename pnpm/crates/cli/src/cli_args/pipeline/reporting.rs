@@ -1,7 +1,8 @@
 use super::{
     Config, ExecutionStatus, GraphPkg, HashMap, IndexMap, IntoDiagnostic, Mutex, Path,
-    PipelineInvocation, ProjectGraph, Status, TaskCache, TaskCompletion, TaskGraph, TaskKey,
-    TaskNode, Value, cache, render_task_graph_dry_run, task_environment, task_graph_to_json,
+    PipelineInvocation, PipelineResults, ProjectGraph, Status, TaskCache, TaskCompletion,
+    TaskGraph, TaskKey, TaskNode, Value, cache, format_task, render_task_graph_dry_run,
+    task_environment, task_graph_to_json,
 };
 
 pub(super) struct StatusCounts {
@@ -40,15 +41,9 @@ pub(super) fn print_dry_run(
 ) -> miette::Result<()> {
     if invocation.json {
         let document = task_graph_to_json(task_graph, workspace_root);
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&document).into_diagnostic()?,
-        );
+        println!("{}", serde_json::to_string_pretty(&document).into_diagnostic()?);
     } else {
-        println!(
-            "{}",
-            render_task_graph_dry_run(task_graph, sequenced_tasks, workspace_root),
-        );
+        println!("{}", render_task_graph_dry_run(task_graph, sequenced_tasks, workspace_root));
     }
     Ok(())
 }
@@ -74,11 +69,7 @@ pub(super) fn record_task_outcome(
     };
     let failed = status.status == Status::Failure;
     statuses.lock().expect("status lock is not poisoned")[summary_key] = status;
-    if failed {
-        TaskCompletion::Failed
-    } else {
-        TaskCompletion::Passed
-    }
+    if failed { TaskCompletion::Failed } else { TaskCompletion::Passed }
 }
 
 /// Pass-through tasks contribute keys to invalidate their dependents.
@@ -127,11 +118,7 @@ fn task_script_bodies(
     let mut bodies: Vec<(String, String)> = Vec::new();
     for script in &node.scripts {
         let stages: Vec<String> = if enable_pre_post_scripts {
-            vec![
-                format!("pre{script}"),
-                script.clone(),
-                format!("post{script}"),
-            ]
+            vec![format!("pre{script}"), script.clone(), format!("post{script}")]
         } else {
             vec![script.clone()]
         };
@@ -146,4 +133,18 @@ fn task_script_bodies(
         }
     }
     bodies
+}
+
+impl PipelineResults {
+    pub(super) fn new(graph: &TaskGraph, workspace_root: &Path) -> Self {
+        Self {
+            statuses: Mutex::new(
+                graph
+                    .keys()
+                    .map(|key| (format_task(key, workspace_root), ExecutionStatus::queued()))
+                    .collect(),
+            ),
+            abort: Mutex::new(None),
+        }
+    }
 }

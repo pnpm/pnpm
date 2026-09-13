@@ -119,9 +119,7 @@ pub fn read_exact_project_manifest(
         "package.json" => PackageManifest::from_path(manifest_path.to_path_buf())
             .map_err(ReadProjectManifestError::Read),
         "package.yaml" => read_package_yaml(manifest_path),
-        _ => Err(ReadProjectManifestError::UnsupportedName {
-            basename,
-        }),
+        _ => Err(ReadProjectManifestError::UnsupportedName { basename }),
     }
 }
 

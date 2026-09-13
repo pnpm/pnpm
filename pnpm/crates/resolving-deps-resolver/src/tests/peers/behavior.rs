@@ -9,16 +9,9 @@ async fn pure_package_has_dep_path_equal_to_pkg_id() {
     let mut table = HashMap::default();
     table.insert(
         ("foo".to_string(), "^1.0.0".to_string()),
-        fake_result(
-            "foo",
-            "1.0.0",
-            serde_json::json!({ "name": "foo", "version": "1.0.0" }),
-        ),
+        fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
     let mut tree = resolve_dependency_tree(
         &resolver,
@@ -111,16 +104,9 @@ async fn shallower_pure_pkgs_revisit_lowers_graph_depth() {
     );
     table.insert(
         ("q".to_string(), "1.0.0".to_string()),
-        fake_result(
-            "q",
-            "1.0.0",
-            serde_json::json!({ "name": "q", "version": "1.0.0" }),
-        ),
+        fake_result("q", "1.0.0", serde_json::json!({ "name": "q", "version": "1.0.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     // `a` precedes `c` so `p` is first walked at depth 2 (`a → b → p`),
     // then revisited at depth 1 (`c → p`).
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "1.0.0", "c": "1.0.0" }));
@@ -143,10 +129,7 @@ async fn shallower_pure_pkgs_revisit_lowers_graph_depth() {
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
     let p_node = &result.graph[&DepPath::from("p@1.0.0".to_string())];
-    assert_eq!(
-        p_node.depth, 1,
-        "p's graph depth must be the minimum (1), not 2",
-    );
+    assert_eq!(p_node.depth, 1, "p's graph depth must be the minimum (1), not 2");
 }
 
 /// A pure package (no peer deps, peer-clean subtree) reached
@@ -207,10 +190,7 @@ async fn pure_revisit_leaves_lazy_children_unrealized() {
             serde_json::json!({ "name": "pure_leaf", "version": "1.0.0" }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "p1": "^1.0.0", "p2": "^1.0.0" }));
 
     let mut tree = resolve_dependency_tree(
@@ -238,23 +218,12 @@ async fn pure_revisit_leaves_lazy_children_unrealized() {
         .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0".into())
         .map(|(id, node)| (id, matches!(node.children, TreeChildren::Lazy { .. })))
         .collect();
-    assert_eq!(
-        pure_pre.len(),
-        2,
-        "expected two occurrences of pure, got {pure_pre:?}",
-    );
+    assert_eq!(pure_pre.len(), 2, "expected two occurrences of pure, got {pure_pre:?}");
     assert!(
-        pure_pre
-            .iter()
-            .any(|(_, is_lazy)| !*is_lazy),
+        pure_pre.iter().any(|(_, is_lazy)| !*is_lazy),
         "first walk should produce a Realized entry",
     );
-    assert!(
-        pure_pre
-            .iter()
-            .any(|(_, is_lazy)| *is_lazy),
-        "revisit should produce a Lazy entry",
-    );
+    assert!(pure_pre.iter().any(|(_, is_lazy)| *is_lazy), "revisit should produce a Lazy entry");
 
     resolve_peers(&mut tree, ResolvePeersOptions::default());
 

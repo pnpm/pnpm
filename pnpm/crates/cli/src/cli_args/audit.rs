@@ -61,6 +61,7 @@ use std::{
     path::Path,
     rc::Rc,
     sync::Arc,
+    time::Duration,
 };
 
 mod fix;
@@ -182,11 +183,7 @@ impl AuditDependencyOptions {
             dependencies = false;
             optional_dependencies = false;
         }
-        Include {
-            dependencies,
-            dev_dependencies,
-            optional_dependencies,
-        }
+        Include { dependencies, dev_dependencies, optional_dependencies }
     }
 }
 
@@ -211,12 +208,11 @@ impl AuditArgs {
 
         let lockfile_dir = state.lockfile_dir().to_path_buf();
         // pnpm writes settings to `workspaceDir ?? rootProjectManifestDir`.
-        let settings_dir = state.config.workspace_dir
-            .clone()
-            .unwrap_or_else(|| lockfile_dir.clone());
+        let settings_dir =
+            state.config.workspace_dir.clone().unwrap_or_else(|| lockfile_dir.clone());
 
-        let Some(mut report) = self.fetch_report(&state, include, audit_level, &lockfile_dir)
-            .await?
+        let Some(mut report) =
+            self.fetch_report(&state, include, audit_level, &lockfile_dir).await?
         else {
             return Ok(AuditOutcome::Clean);
         };
@@ -256,9 +252,7 @@ impl AuditArgs {
         settings_dir: &Path,
         audit_level: ConfigAuditLevel,
     ) -> miette::Result<AuditOutcome> {
-        if !self.advisories.ignore.is_empty()
-            || self.advisories.ignore_unfixable
-        {
+        if !self.advisories.ignore.is_empty() || self.advisories.ignore_unfixable {
             let output = ignore_vulnerabilities(
                 &report,
                 config,
@@ -285,10 +279,7 @@ impl AuditArgs {
     /// `audit` takes exactly one subcommand, `signatures`.
     async fn run_subcommand(&self, subcommand: &str, state: State) -> miette::Result<AuditOutcome> {
         if subcommand != "signatures" {
-            return Err(AuditError::UnknownSubcommand {
-                subcommand: subcommand.to_owned(),
-            }
-            .into());
+            return Err(AuditError::UnknownSubcommand { subcommand: subcommand.to_owned() }.into());
         }
         if self.params.len() > 1 {
             return Err(AuditError::UnknownSubcommand {

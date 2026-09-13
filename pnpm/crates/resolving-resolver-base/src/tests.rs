@@ -68,10 +68,7 @@ impl ResolutionVerifier for StubVerifier {
         _ctx: VerifyCtx<'a>,
     ) -> crate::VerifyFuture<'a> {
         Box::pin(async move {
-            ResolutionVerification::Err {
-                code: "STUB",
-                reason: "stub fails by design".to_string(),
-            }
+            ResolutionVerification::Err { code: "STUB", reason: "stub fails by design".to_string() }
         })
     }
 
@@ -96,27 +93,18 @@ impl ResolutionVerifier for StubVerifier {
 async fn resolution_verifier_dispatches_through_dyn() {
     let mut policy = serde_json::Map::new();
     policy.insert("stub".to_string(), serde_json::Value::Bool(true));
-    let verifier: Box<dyn ResolutionVerifier> = Box::new(StubVerifier {
-        policy,
-    });
+    let verifier: Box<dyn ResolutionVerifier> = Box::new(StubVerifier { policy });
 
     let name: PkgName = "lodash".parse().unwrap();
     let resolution = fake_resolution();
     let outcome = verifier.verify(
         &resolution,
-        VerifyCtx {
-            name: &name,
-            version: "4.17.21",
-            registry_name: None,
-        },
+        VerifyCtx { name: &name, version: "4.17.21", registry_name: None },
     )
     .await;
     assert_eq!(
         outcome,
-        ResolutionVerification::Err {
-            code: "STUB",
-            reason: "stub fails by design".to_string()
-        },
+        ResolutionVerification::Err { code: "STUB", reason: "stub fails by design".to_string() },
     );
 
     let mut cached = serde_json::Map::new();
@@ -195,10 +183,7 @@ async fn resolver_dispatches_through_dyn_and_returns_none_when_unclaimed() {
         ..WantedDependency::default()
     };
     let outcome = resolver.resolve(&unclaimed, &opts).await.expect("resolve unclaimed");
-    assert!(
-        outcome.is_none(),
-        "resolver should defer when it doesn't claim the dep",
-    );
+    assert!(outcome.is_none(), "resolver should defer when it doesn't claim the dep");
 
     let claimed = WantedDependency {
         alias: Some("claim:foo".to_string()),

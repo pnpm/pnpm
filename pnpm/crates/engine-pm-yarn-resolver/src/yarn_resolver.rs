@@ -51,11 +51,7 @@ pub struct YarnResolver {
 
 impl YarnResolver {
     pub fn new(http_client: Arc<ThrottledClient>, authenticate: bool) -> Self {
-        Self {
-            http_client,
-            authenticate,
-            releases: tokio::sync::OnceCell::new(),
-        }
+        Self { http_client, authenticate, releases: tokio::sync::OnceCell::new() }
     }
 
     async fn releases(&self) -> Result<&[YarnRelease], ReadYarnReleasesError> {
@@ -104,9 +100,7 @@ impl YarnResolver {
                 // The specifier comes from a manifest, so it can carry
                 // credentials — the message a user sees must not.
                 let spec = redact_and_sanitize(version_spec);
-                Box::new(YarnResolverError::ResolutionFailure {
-                    spec,
-                }) as ResolveError
+                Box::new(YarnResolverError::ResolutionFailure { spec }) as ResolveError
             })?;
         let variants = asset_variants(release)
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
@@ -119,9 +113,7 @@ impl YarnResolver {
         });
         Ok(Some(ResolveResult {
             id: format!("yarn@runtime:{version}").into(),
-            resolution: LockfileResolution::Variations(VariationsResolution {
-                variants,
-            }),
+            resolution: LockfileResolution::Variations(VariationsResolution { variants }),
             resolved_via: RESOLVED_VIA.to_string(),
             normalized_bare_specifier: Some(format!("runtime:{version_spec}")),
             alias: wanted_dependency.alias.clone(),
@@ -196,9 +188,7 @@ pub(crate) fn pick_release<'a>(
     candidates.sort_by(|left, right| right.0.cmp(&left.0));
 
     if version_spec.is_empty() || version_spec == "latest" || version_spec == "*" {
-        return candidates
-            .first()
-            .map(|(_, release)| *release);
+        return candidates.first().map(|(_, release)| *release);
     }
     let range = node_semver::Range::parse(version_spec).ok()?;
     candidates
@@ -235,11 +225,7 @@ fn bare_runtime_spec(wanted: &WantedDependency) -> Option<&str> {
 /// `read_yarn_releases::yarn_bin_path` for why it is not the `yarn`
 /// launcher sitting beside it.
 fn yarn_bin_for_current_os() -> &'static str {
-    if std::env::consts::OS == "windows" {
-        "yarn-bin.exe"
-    } else {
-        "yarn-bin"
-    }
+    if std::env::consts::OS == "windows" { "yarn-bin.exe" } else { "yarn-bin" }
 }
 
 #[cfg(test)]

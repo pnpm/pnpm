@@ -175,11 +175,7 @@ impl NpmrcAuth {
             let Some((is_pnpm, key)) = parse_url_scoped_env_name(&name) else {
                 continue;
             };
-            let target = if is_pnpm {
-                &mut pnpm_scoped
-            } else {
-                &mut npm_scoped
-            };
+            let target = if is_pnpm { &mut pnpm_scoped } else { &mut npm_scoped };
             target.insert(key.to_owned(), value);
         }
         npm_scoped.extend(pnpm_scoped);
@@ -212,11 +208,8 @@ impl NpmrcAuth {
     ) {
         if let Some(registry) = self.routes.default.take() {
             declared.registry = true;
-            config.registry = if registry.ends_with('/') {
-                registry
-            } else {
-                format!("{registry}/")
-            };
+            config.registry =
+                if registry.ends_with('/') { registry } else { format!("{registry}/") };
         }
         declared.scopes.extend(self.routes.scoped.keys().cloned());
         config.registries_by_scope.append(&mut self.routes.scoped);
@@ -282,11 +275,7 @@ impl NpmrcAuth {
 /// Normalize a registry URL for the purposes of nerf-darting: ensure a
 /// single trailing slash.
 fn normalize_registry_url(registry: &str) -> String {
-    if registry.ends_with('/') {
-        registry.to_string()
-    } else {
-        format!("{registry}/")
-    }
+    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
 #[cfg(test)]

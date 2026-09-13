@@ -139,12 +139,7 @@ fn collect_engine_components(
 ) -> Result<Vec<EngineComponent>, SelfUpdateError> {
     let package_label = engine.package_label();
     verify_engine_pin(env, engine, &package_label)?;
-    let mut to_verify = vec![engine_component(
-        env,
-        config,
-        engine.package,
-        engine.version,
-    )?];
+    let mut to_verify = vec![engine_component(env, config, engine.package, engine.version)?];
 
     // `link_exe_platform_binary` hardlinks the host's platform binary over
     // the engine's own `pnpm` bin, so whenever the lockfile carries a
@@ -197,10 +192,7 @@ fn host_platform_package(
     let libc = host_libc();
     let candidate_names = [
         format!("@pnpm/{}", exe_platform_pkg_dir_name(platform, arch, libc)),
-        format!(
-            "@pnpm/{}",
-            exe_platform_pkg_dir_name_next(platform, arch, libc),
-        ),
+        format!("@pnpm/{}", exe_platform_pkg_dir_name_next(platform, arch, libc)),
     ];
     candidate_names
         .iter()
@@ -224,9 +216,7 @@ fn engine_component(
         .parse::<PackageKey>()
         .ok()
         .and_then(|key| {
-            env.packages
-                .get(&key)
-                .map(|metadata| metadata.resolution.integrity())
+            env.packages.get(&key).map(|metadata| metadata.resolution.integrity())
         })
         .flatten()
         .map(ToString::to_string);
@@ -299,13 +289,9 @@ fn report_identity_failures(
          package-manager registry, do not match a published, signed release.",
     );
     if only_unreachable {
-        Err(SelfUpdateError::EngineIdentityUnverifiable {
-            message,
-        })
+        Err(SelfUpdateError::EngineIdentityUnverifiable { message })
     } else {
-        Err(SelfUpdateError::EngineIdentityMismatch {
-            message,
-        })
+        Err(SelfUpdateError::EngineIdentityMismatch { message })
     }
 }
 

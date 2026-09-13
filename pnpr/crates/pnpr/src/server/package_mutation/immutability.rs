@@ -37,11 +37,7 @@ pub(super) fn enforce_published_version_immutability(
                 ),
             });
         };
-        let entry = PublishedVersion {
-            version,
-            existing,
-            manifest,
-        };
+        let entry = PublishedVersion { version, existing, manifest };
         if let Some(err) = check_integrity_immutable(&entry, &mut restore) {
             return Some(err);
         }
@@ -130,11 +126,7 @@ pub(super) fn check_integrity_immutable(
         None => {
             let refusal = require_object_dist(entry.manifest, version);
             if refusal.is_none() {
-                restore.push((
-                    version.clone(),
-                    "integrity",
-                    Value::String(stored.to_string()),
-                ));
+                restore.push((version.clone(), "integrity", Value::String(stored.to_string())));
             }
             refusal
         }

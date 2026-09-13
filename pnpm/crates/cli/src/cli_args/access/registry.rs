@@ -1,6 +1,6 @@
 use super::{
-    AccessArgs, AccessError, Config, Context, IntoDiagnostic, Method, RedirectGuard, Response,
-    RetryOpts, StatusCode, ThrottledClient, ThrottledClientGuard, encode_uri_component,
+    AccessArgs, AccessError, Arc, Config, Context, Duration, IntoDiagnostic, Method, RedirectGuard,
+    Response, RetryOpts, StatusCode, ThrottledClient, ThrottledClientGuard, encode_uri_component,
     redact_and_sanitize, send_with_retry,
 };
 use futures_util::StreamExt as _;
@@ -20,22 +20,41 @@ pub(super) fn build_access_context<'a>(
     args: &AccessArgs,
     config: &'a Config,
 ) -> miette::Result<AccessContext<'a>> {
-    let registry = args.registry
-        .as_deref()
-        .map_or_else(|| config.registry.clone(), normalize_registry_url);
+    let registry =
+        args.registry.as_deref().map_or_else(|| config.registry.clone(), normalize_registry_url);
 
     let redirect_guard = args.otp
         .as_ref()
         .map(|_| {
-            crate::cli_args::registry_client::registry_redirect_guard(std::iter::once(
-                registry.as_str(),
-            ))
+            let registry_origin: Option<(String, String, Option<u16>)> =
+                reqwest::Url::parse(&registry)
+                    .ok()
+                    .and_then(|url| {
+                        url
+                            .host_str()
+                            .map(|host| (url.scheme().to_string(), host.to_string(), url.port()))
+                    });
+            let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
+                registry_origin
+                    .as_ref()
+                    .is_some_and(|(scheme, host, port)| {
+                        target.scheme() == scheme
+                            && target.host_str() == Some(host.as_str())
+                            && target.port() == *port
+                    })
+            });
+            guard
         });
 
     Ok(AccessContext {
         config,
         http_client: build_http_client(config, redirect_guard.as_ref())?,
-        retry_opts: config.retry_opts(),
+        retry_opts: RetryOpts {
+            retries: config.fetch_retries,
+            factor: config.fetch_retry_factor,
+            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
+            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
+        },
         registry,
         json: args.json,
         otp: args.otp.clone(),
@@ -101,11 +120,7 @@ fn build_http_client(
 }
 
 pub(super) fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') {
-        registry_url.to_string()
-    } else {
-        format!("{registry_url}/")
-    }
+    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
 }
 
 pub(super) fn escaped_package_name(package_name: &str) -> String {
@@ -141,31 +156,16 @@ pub(super) async fn write_error_from_response(
     let body = redact_and_sanitize(&read_error_body(response).await);
 
     match status {
-        StatusCode::UNAUTHORIZED => AccessError::Unauthorized {
-            action,
-            body,
+        StatusCode::UNAUTHORIZED => AccessError::Unauthorized { action, body }.into(),
+        StatusCode::FORBIDDEN => AccessError::Forbidden { action, body }.into(),
+        StatusCode::NOT_FOUND => {
+            AccessError::PackageNotFound { package_name: package_name.to_string() }.into()
         }
-        .into(),
-        StatusCode::FORBIDDEN => AccessError::Forbidden {
-            action,
-            body,
+        StatusCode::UNPROCESSABLE_ENTITY => AccessError::ValidationError { body }.into(),
+        _ => {
+            AccessError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
+                .into()
         }
-        .into(),
-        StatusCode::NOT_FOUND => AccessError::PackageNotFound {
-            package_name: package_name.to_string(),
-        }
-        .into(),
-        StatusCode::UNPROCESSABLE_ENTITY => AccessError::ValidationError {
-            body,
-        }
-        .into(),
-        _ => AccessError::RegistryWriteFailed {
-            action,
-            status: status.as_u16(),
-            status_text,
-            body,
-        }
-        .into(),
     }
 }
 

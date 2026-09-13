@@ -56,11 +56,7 @@ pub(crate) fn importer_roots(importer: &pnpm_lockfile::ProjectSnapshot) -> Vec<(
     let mut roots = Vec::new();
     append_importer_edges(&mut roots, DepKind::Prod, importer.dependencies.as_ref());
     append_importer_edges(&mut roots, DepKind::Dev, importer.dev_dependencies.as_ref());
-    append_importer_edges(
-        &mut roots,
-        DepKind::Optional,
-        importer.optional_dependencies.as_ref(),
-    );
+    append_importer_edges(&mut roots, DepKind::Optional, importer.optional_dependencies.as_ref());
     roots
 }
 
@@ -72,12 +68,7 @@ pub(crate) fn append_importer_edges(
     let Some(deps) = deps else { return };
     for (name, spec) in deps {
         if let Some(key) = spec.version.resolved_key(name) {
-            roots.push((
-                kind,
-                Edge {
-                    key,
-                },
-            ));
+            roots.push((kind, Edge { key }));
         }
     }
 }
@@ -90,9 +81,7 @@ pub(crate) fn env_roots(deps: &BTreeMap<String, SpecifierAndResolution>) -> Vec<
             let version = spec.version.parse::<ImporterDepVersion>().ok()?;
             version
                 .resolved_key(&name)
-                .map(|key| Edge {
-                    key,
-                })
+                .map(|key| Edge { key })
         })
         .collect()
 }
@@ -104,9 +93,7 @@ pub(crate) fn append_snapshot_edges(
     let Some(deps) = deps else { return };
     for (name, dep_ref) in deps {
         if let Some(key) = dep_ref.resolve(name) {
-            children.push(Edge {
-                key,
-            });
+            children.push(Edge { key });
         }
     }
 }
@@ -155,14 +142,8 @@ pub(crate) fn collect_optional_only_keys(
         return HashSet::new();
     }
     let with_optional = walk_reachable(graph, include, true);
-    let without_optional = walk_reachable(
-        graph,
-        Include {
-            optional_dependencies: false,
-            ..include
-        },
-        false,
-    );
+    let without_optional =
+        walk_reachable(graph, Include { optional_dependencies: false, ..include }, false);
     with_optional
         .difference(&without_optional)
         .cloned()
@@ -175,9 +156,8 @@ pub(crate) fn walk_reachable(
     include_optional_edges: bool,
 ) -> HashSet<PackageKey> {
     let mut seen = HashSet::new();
-    let mut stack = selected_root_edges(graph, include)
-        .map(|edge| edge.key.clone())
-        .collect::<Vec<_>>();
+    let mut stack =
+        selected_root_edges(graph, include).map(|edge| edge.key.clone()).collect::<Vec<_>>();
     while let Some(key) = stack.pop() {
         if !seen.insert(key.clone()) {
             continue;
@@ -249,9 +229,8 @@ impl AuditRequestBuilder {
     pub(crate) fn register_graph(&mut self, graph: &AuditGraph<'_>, include: Include) {
         let classes = classify_graph(graph, include);
         let mut seen = HashSet::new();
-        let mut stack = selected_root_edges(graph, include)
-            .map(|edge| edge.key.clone())
-            .collect::<Vec<_>>();
+        let mut stack =
+            selected_root_edges(graph, include).map(|edge| edge.key.clone()).collect::<Vec<_>>();
         while let Some(key) = stack.pop() {
             if !seen.insert(key.clone()) {
                 continue;
@@ -259,10 +238,7 @@ impl AuditRequestBuilder {
             let class = classes
                 .get(&key)
                 .copied()
-                .unwrap_or(DepClass {
-                    dev_only: false,
-                    optional_only: false,
-                });
+                .unwrap_or(DepClass { dev_only: false, optional_only: false });
             self.register_occurrence(&key, class);
             stack.extend(
                 graph
@@ -274,20 +250,13 @@ impl AuditRequestBuilder {
     }
 
     pub(crate) fn register_occurrence(&mut self, key: &PackageKey, class: DepClass) {
-        let Some(version) = package_version(key) else {
-            return;
-        };
+        let Some(version) = package_version(key) else { return };
         let name = key.name.to_string();
-        let version_states = self.states_by_name
-            .entry(name.clone())
-            .or_default();
+        let version_states = self.states_by_name.entry(name.clone()).or_default();
         let Some(state) = version_states.get_mut(&version) else {
             version_states.insert(
                 version.clone(),
-                VersionState {
-                    dev_only: class.dev_only,
-                    optional_only: class.optional_only,
-                },
+                VersionState { dev_only: class.dev_only, optional_only: class.optional_only },
             );
             self.request
                 .entry(name)

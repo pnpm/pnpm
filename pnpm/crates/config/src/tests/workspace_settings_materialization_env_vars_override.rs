@@ -36,9 +36,7 @@ pub fn materialization_env_vars_override_workspace_yaml() {
     inert_link_probe!(HostWithMaterializationEnv);
     host_current_dir!(HostWithMaterializationEnv);
 
-    let config = Config::new()
-        .current::<HostWithMaterializationEnv>(tmp.path())
-        .expect("loads");
+    let config = Config::new().current::<HostWithMaterializationEnv>(tmp.path()).expect("loads");
     assert!(config.virtual_store_only);
     assert!(!config.enable_modules_dir);
     assert_eq!(config.hoist_pattern, Some(vec![]));
@@ -54,16 +52,12 @@ pub fn self_update_config_ignores_a_workspace_manifest_that_raises_the_cutoff() 
     )
     .expect("write to pnpm-workspace.yaml");
 
-    let config = Config::new()
-        .current_for_self_update::<HostNoHome>(tmp.path())
-        .expect("config loads");
+    let config =
+        Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
 
     // A repo that raises the cutoff would pin the machine to the installed
     // pnpm, including past a release that fixes a vulnerability in it.
-    assert_eq!(
-        config.minimum_release_age,
-        Config::new().minimum_release_age,
-    );
+    assert_eq!(config.minimum_release_age, Config::new().minimum_release_age);
     assert_eq!(config.minimum_release_age_strict, None);
     assert_eq!(config.workspace_dir.as_deref(), Some(tmp.path()));
 }
@@ -103,10 +97,7 @@ pub fn self_update_config_ignores_a_workspace_manifest_that_loosens_the_cutoff()
         .current_for_self_update::<HostWithStrictEnv>(tmp.path())
         .expect("config loads");
 
-    assert_eq!(
-        config.minimum_release_age,
-        Config::new().minimum_release_age,
-    );
+    assert_eq!(config.minimum_release_age, Config::new().minimum_release_age);
     assert_eq!(config.minimum_release_age_strict, Some(true));
     assert_eq!(config.minimum_release_age_exclude, None);
 }
@@ -154,15 +145,11 @@ pub fn self_update_config_ignores_a_workspace_manifest_that_loosens_the_trust_po
 #[test]
 pub fn self_update_config_keeps_non_policy_workspace_settings() {
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "nodeLinker: hoisted\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write to pnpm-workspace.yaml");
 
-    let config = Config::new()
-        .current_for_self_update::<HostNoHome>(tmp.path())
-        .expect("config loads");
+    let config =
+        Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
 
     assert_eq!(config.node_linker, NodeLinker::Hoisted);
 }
@@ -170,15 +157,10 @@ pub fn self_update_config_keeps_non_policy_workspace_settings() {
 #[test]
 pub fn workspace_manifest_still_sets_the_release_age_policy_for_other_commands() {
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "minimumReleaseAge: 4320\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAge: 4320\n")
+        .expect("write to pnpm-workspace.yaml");
 
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("config loads");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("config loads");
 
     assert_eq!(config.minimum_release_age, Some(4320));
 }
@@ -215,9 +197,7 @@ pub fn pnpm_config_hoist_false_clears_hoist_pattern() {
     host_current_dir!(HostWithHoistEnv);
 
     let tmp = tempdir().unwrap();
-    let config = Config::new()
-        .current::<HostWithHoistEnv>(tmp.path())
-        .expect("loads");
+    let config = Config::new().current::<HostWithHoistEnv>(tmp.path()).expect("loads");
     assert!(!config.hoist);
     assert_eq!(
         config.hoist_pattern, None,
@@ -234,9 +214,7 @@ pub fn shamefully_hoist_derives_the_public_hoist_pattern() {
     )
     .expect("write to pnpm-workspace.yaml");
 
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("loads");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
 
     assert_eq!(config.public_hoist_pattern, Some(vec!["*".to_string()]));
 }
@@ -250,9 +228,7 @@ pub fn shamefully_hoist_false_disables_public_hoisting() {
     )
     .expect("write to pnpm-workspace.yaml");
 
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("loads");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
 
     assert_eq!(config.public_hoist_pattern, None);
 }
@@ -260,33 +236,20 @@ pub fn shamefully_hoist_false_disables_public_hoisting() {
 #[test]
 pub fn unset_shamefully_hoist_preserves_the_public_hoist_pattern() {
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "publicHoistPattern:\n  - eslint\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "publicHoistPattern:\n  - eslint\n")
+        .expect("write to pnpm-workspace.yaml");
 
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("loads");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
 
-    assert_eq!(
-        config.public_hoist_pattern,
-        Some(vec!["eslint".to_string()]),
-    );
+    assert_eq!(config.public_hoist_pattern, Some(vec!["eslint".to_string()]));
 }
 
 #[test]
 pub fn virtual_store_dir_max_length_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "virtualStoreDirMaxLength: 90\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "virtualStoreDirMaxLength: 90\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(config.virtual_store_dir_max_length, 90);
 }
 
@@ -298,9 +261,7 @@ pub fn engine_strict_node_version_and_max_sockets_from_workspace_yaml() {
         "engineStrict: true\nnodeVersion: 18.20.4\nmaxSockets: 5\n",
     )
     .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(config.engine_strict);
     assert_eq!(config.node_version.as_deref(), Some("18.20.4"));
     assert_eq!(config.max_sockets, Some(5));
@@ -322,9 +283,7 @@ pub fn max_sockets_from_the_environment_wins_over_the_workspace_yaml() {
 #[test]
 pub fn update_notifier_and_legacy_dir_filtering_default_and_come_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("loads");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
     assert!(config.update_notifier);
     assert!(!config.legacy_dir_filtering);
 
@@ -333,9 +292,7 @@ pub fn update_notifier_and_legacy_dir_filtering_default_and_come_from_workspace_
         "updateNotifier: false\nlegacyDirFiltering: true\n",
     )
     .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(!config.update_notifier);
     assert!(config.legacy_dir_filtering);
 }
@@ -343,9 +300,7 @@ pub fn update_notifier_and_legacy_dir_filtering_default_and_come_from_workspace_
 #[test]
 pub fn init_settings_come_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("loads");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
     assert_eq!(config.init_author_name, None);
     assert_eq!(config.init_license, None);
     assert_eq!(config.init_version, None);
@@ -355,15 +310,10 @@ pub fn init_settings_come_from_workspace_yaml() {
         "initAuthorName: pnpm\ninitAuthorEmail: xxxxxx@pnpm.com\ninitAuthorUrl: https://www.github.com/pnpm\ninitLicense: MIT\ninitVersion: 2.0.0\n",
     )
     .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(config.init_author_name.as_deref(), Some("pnpm"));
     assert_eq!(config.init_author_email.as_deref(), Some("xxxxxx@pnpm.com"));
-    assert_eq!(
-        config.init_author_url.as_deref(),
-        Some("https://www.github.com/pnpm"),
-    );
+    assert_eq!(config.init_author_url.as_deref(), Some("https://www.github.com/pnpm"));
     assert_eq!(config.init_license.as_deref(), Some("MIT"));
     assert_eq!(config.init_version.as_deref(), Some("2.0.0"));
 }
@@ -372,11 +322,8 @@ pub fn init_settings_come_from_workspace_yaml() {
 pub fn node_version_from_pnpm_config_env_overrides_workspace_yaml() {
     fake_env!(load_with_fake_env);
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "nodeVersion: 18.20.4\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeVersion: 18.20.4\n")
+        .expect("write to pnpm-workspace.yaml");
 
     set_fake_env(&[("PNPM_CONFIG_NODE_VERSION", "20.0.0")]);
     let config = load_with_fake_env(tmp.path());
@@ -387,18 +334,11 @@ pub fn node_version_from_pnpm_config_env_overrides_workspace_yaml() {
 #[test]
 pub fn catalog_prune_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("loads");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
     assert!(!config.catalog_prune);
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "catalogPrune: true\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "catalogPrune: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(config.catalog_prune);
 }
 
@@ -407,14 +347,9 @@ pub fn catalog_prune_from_workspace_yaml() {
 #[test]
 pub fn catalog_prune_from_its_former_name_in_workspace_yaml() {
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "cleanupUnusedCatalogs: true\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "cleanupUnusedCatalogs: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(config.catalog_prune);
 }
 
@@ -427,59 +362,37 @@ pub fn catalog_prune_overrides_its_former_name() {
         "cleanupUnusedCatalogs: true\ncatalogPrune: false\n",
     )
     .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(!config.catalog_prune);
 }
 
 #[test]
 pub fn minimum_release_age_exclude_prune_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("loads");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
     assert!(!config.minimum_release_age_exclude_prune);
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "minimumReleaseAgeExcludePrune: true\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAgeExcludePrune: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(config.minimum_release_age_exclude_prune);
 }
 
 #[test]
 pub fn trust_policy_exclude_prune_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("loads");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
     assert!(!config.trust_policy_exclude_prune);
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "trustPolicyExcludePrune: true\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "trustPolicyExcludePrune: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(config.trust_policy_exclude_prune);
 }
 
 #[test]
 pub fn runtime_on_fail_from_workspace_yaml() {
     let dir = tempdir().unwrap();
-    std::fs::write(
-        dir.path().join("pnpm-workspace.yaml"),
-        "runtimeOnFail: download\n",
-    )
-    .unwrap();
-    let config = Config::default()
-        .current::<Host>(dir.path())
-        .unwrap();
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "runtimeOnFail: download\n").unwrap();
+    let config = Config::default().current::<Host>(dir.path()).unwrap();
     assert_eq!(config.runtime_on_fail, Some(crate::RuntimeOnFail::Download));
 }
 
@@ -522,9 +435,7 @@ pub fn package_map_settings_load_from_workspace_yaml() {
         "nodeExperimentalPackageMap: true\nnodePackageMapType: loose\n",
     )
     .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert!(config.node_experimental_package_map);
     assert_eq!(config.node_package_map_type, NodePackageMapType::Loose);
 }
@@ -532,14 +443,9 @@ pub fn package_map_settings_load_from_workspace_yaml() {
 #[test]
 pub fn peers_suffix_max_length_from_workspace_yaml() {
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "peersSuffixMaxLength: 10\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "peersSuffixMaxLength: 10\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(config.peers_suffix_max_length, 10);
 }
 
@@ -550,15 +456,11 @@ pub fn peers_suffix_max_length_from_workspace_yaml() {
 #[test]
 fn self_update_ignores_a_workspace_release_age_for_strict_mode() {
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "minimumReleaseAge: 4320\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAge: 4320\n")
+        .expect("write to pnpm-workspace.yaml");
 
-    let config = Config::new()
-        .current_for_self_update::<HostNoHome>(tmp.path())
-        .expect("config loads");
+    let config =
+        Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
 
     assert!(!config.resolved_minimum_release_age_strict());
 }
@@ -578,12 +480,9 @@ pub fn package_manager_bootstrap_ignores_workspace_yaml_registries() {
         "registries:\n  default: https://attacker.example.com/\n  '@evil': https://attacker-scoped.example.com/\n",
     )
     .expect("write pnpm-workspace.yaml");
-    let config = Config {
-        npmrc_auth_file: Some(user_file),
-        ..Config::default()
-    }
-    .current::<HostNoHome>(project.path())
-    .expect("load config");
+    let config = Config { npmrc_auth_file: Some(user_file), ..Config::default() }
+        .current::<HostNoHome>(project.path())
+        .expect("load config");
 
     assert_eq!(
         config.registry, "https://attacker.example.com/",
@@ -615,11 +514,8 @@ pub fn extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace() {
     let config = load_with_fake_env(project.path());
     assert_eq!(config.extra_bin_paths, Vec::<PathBuf>::new());
 
-    fs::write(
-        project.path().join("pnpm-workspace.yaml"),
-        "packages:\n  - .\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - .\n")
+        .expect("write pnpm-workspace.yaml");
     let config = load_with_fake_env(project.path());
     assert_eq!(
         config.extra_bin_paths,

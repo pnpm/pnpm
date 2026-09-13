@@ -57,9 +57,7 @@ impl OsvIndex {
         if !config.osv.enabled {
             return Ok(None);
         }
-        let path = config.osv.path
-            .clone()
-            .unwrap_or_else(|| default_osv_path(config));
+        let path = config.osv.path.clone().unwrap_or_else(|| default_osv_path(config));
         if !path.exists() {
             return Err(invalid_config(format!(
                 "OSV is enabled but database {} does not exist; download the npm OSV dump to this path or set osv.path",
@@ -258,10 +256,7 @@ fn default_osv_path(config: &Config) -> PathBuf {
 fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
     let file = File::open(path)
         .map_err(|err| {
-            invalid_config(format!(
-                "failed to open OSV database {}: {err}",
-                path.display(),
-            ))
+            invalid_config(format!("failed to open OSV database {}: {err}", path.display()))
         })?;
     let mut archive = zip::ZipArchive::new(file)
         .map_err(|err| {
@@ -277,10 +272,7 @@ fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
         let mut entry = archive
             .by_index(index)
             .map_err(|err| {
-                invalid_config(format!(
-                    "failed to read OSV zip entry in {}: {err}",
-                    path.display(),
-                ))
+                invalid_config(format!("failed to read OSV zip entry in {}: {err}", path.display()))
             })?;
         if !entry.is_file() || !entry.name().ends_with(".json") {
             continue;
@@ -289,26 +281,17 @@ fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {
         digests.push(record_digest(&name, &bytes));
         ingest_record_bytes(&mut packages, &name, &bytes)?;
     }
-    Ok(OsvIndex {
-        packages,
-        fingerprint: combine_fingerprint(digests),
-    })
+    Ok(OsvIndex { packages, fingerprint: combine_fingerprint(digests) })
 }
 
 fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
     let entries = std::fs::read_dir(path)
         .map_err(|err| {
-            invalid_config(format!(
-                "failed to read OSV directory {}: {err}",
-                path.display(),
-            ))
+            invalid_config(format!("failed to read OSV directory {}: {err}", path.display()))
         })?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| {
-            invalid_config(format!(
-                "failed to read OSV directory {}: {err}",
-                path.display(),
-            ))
+            invalid_config(format!("failed to read OSV directory {}: {err}", path.display()))
         })?;
 
     let mut packages = HashMap::new();
@@ -330,10 +313,7 @@ fn load_from_directory(path: &Path) -> Result<OsvIndex, RegistryError> {
         digests.push(record_digest(name, &bytes));
         ingest_record_bytes(&mut packages, name, &bytes)?;
     }
-    Ok(OsvIndex {
-        packages,
-        fingerprint: combine_fingerprint(digests),
-    })
+    Ok(OsvIndex { packages, fingerprint: combine_fingerprint(digests) })
 }
 
 /// Per-record content digest over a length-prefixed `(name, bytes)` so
@@ -393,9 +373,7 @@ pub fn format_advisory_ids(ids: &[String]) -> String {
 }
 
 fn invalid_config(reason: String) -> RegistryError {
-    RegistryError::InvalidConfig {
-        reason,
-    }
+    RegistryError::InvalidConfig { reason }
 }
 
 #[cfg(test)]
@@ -440,14 +418,9 @@ fn read_zip_record(
 fn read_directory_record(entry_path: &Path) -> Result<Vec<u8>, RegistryError> {
     let file = open_osv_record(entry_path)
         .map_err(|err| {
-            invalid_config(format!(
-                "failed to read OSV record {}: {err}",
-                entry_path.display(),
-            ))
+            invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
         })?;
-    let is_regular_file = file
-        .metadata()
-        .is_ok_and(|metadata| metadata.is_file());
+    let is_regular_file = file.metadata().is_ok_and(|metadata| metadata.is_file());
     if !is_regular_file {
         return Err(invalid_config(format!(
             "OSV record {} is not a regular file",
@@ -459,10 +432,7 @@ fn read_directory_record(entry_path: &Path) -> Result<Vec<u8>, RegistryError> {
         .take(MAX_OSV_RECORD_BYTES + 1)
         .read_to_end(&mut bytes)
         .map_err(|err| {
-            invalid_config(format!(
-                "failed to read OSV record {}: {err}",
-                entry_path.display(),
-            ))
+            invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))
         })?;
     if bytes.len() as u64 > MAX_OSV_RECORD_BYTES {
         return Err(invalid_config(format!(

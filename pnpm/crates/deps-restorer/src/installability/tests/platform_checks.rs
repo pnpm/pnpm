@@ -16,13 +16,7 @@ fn skip_optional_with_wrong_os() {
     reset_events();
     let key = snapshot_key("not-compatible-with-any-os@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
     packages.insert(
         key.clone(),
@@ -50,13 +44,8 @@ fn skip_optional_with_wrong_os() {
     assert_eq!(skipped_events.len(), 1);
     if let LogEvent::SkippedOptionalDependency(log) = skipped_events[0] {
         assert_eq!(log.reason, SkippedOptionalReason::UnsupportedPlatform);
-        let SkippedOptionalPackage::Installed { name, version, .. } =
-            &log.package
-        else {
-            panic!(
-                "expected Installed payload for unsupported_platform, got {:?}",
-                log.package,
-            );
+        let SkippedOptionalPackage::Installed { name, version, .. } = &log.package else {
+            panic!("expected Installed payload for unsupported_platform, got {:?}", log.package);
         };
         assert_eq!(name, "not-compatible-with-any-os");
         assert_eq!(version, "1.0.0");
@@ -69,18 +58,9 @@ fn compatible_snapshots_are_not_skipped() {
     reset_events();
     let key = snapshot_key("compat@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
-    packages.insert(
-        key,
-        synthetic_metadata(None, None, Some(&["darwin", "linux"]), None),
-    );
+    packages.insert(key, synthetic_metadata(None, None, Some(&["darwin", "linux"]), None));
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
         &no_importers(),
@@ -107,18 +87,9 @@ fn non_optional_incompatible_is_not_skipped() {
     reset_events();
     let key = snapshot_key("non-optional-but-wrong-os@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: false,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: false, ..Default::default() });
     let mut packages = HashMap::new();
-    packages.insert(
-        key,
-        synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None),
-    );
+    packages.insert(key, synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None));
 
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
         &no_importers(),
@@ -145,13 +116,7 @@ fn no_constraints_skips_the_per_snapshot_pass() {
     reset_events();
     let key = snapshot_key("no-constraints@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
     packages.insert(key, synthetic_metadata(None, None, None, None));
 
@@ -178,10 +143,7 @@ fn no_constraints_skips_the_per_snapshot_pass() {
 fn platform_any_sentinel_does_not_count_as_constraint() {
     let key = snapshot_key("any-platforms@1.0.0");
     let mut packages = HashMap::new();
-    packages.insert(
-        key,
-        synthetic_metadata(None, Some(&["any"]), Some(&["any"]), Some(&["any"])),
-    );
+    packages.insert(key, synthetic_metadata(None, Some(&["any"]), Some(&["any"]), Some(&["any"])));
     assert!(
         !any_installability_constraint(&HashMap::new(), &packages),
         r#"cpu/os/libc = ["any"] should not block the fast path"#,
@@ -191,10 +153,7 @@ fn platform_any_sentinel_does_not_count_as_constraint() {
 fn empty_platform_lists_do_not_count_as_constraint() {
     let key = snapshot_key("empty-platforms@1.0.0");
     let mut packages = HashMap::new();
-    packages.insert(
-        key,
-        synthetic_metadata(None, Some(&[]), Some(&[]), Some(&[])),
-    );
+    packages.insert(key, synthetic_metadata(None, Some(&[]), Some(&[]), Some(&[])));
     assert!(
         !any_installability_constraint(&HashMap::new(), &packages),
         "empty platform lists should not block the fast path",
@@ -204,10 +163,7 @@ fn empty_platform_lists_do_not_count_as_constraint() {
 fn meaningful_platform_value_triggers_slow_path() {
     let key = snapshot_key("not-compatible-with-any-os@1.0.0");
     let mut packages = HashMap::new();
-    packages.insert(
-        key,
-        synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None),
-    );
+    packages.insert(key, synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None));
     assert!(
         any_installability_constraint(&HashMap::new(), &packages),
         "non-any os must trigger the slow path",
@@ -217,18 +173,9 @@ fn meaningful_platform_value_triggers_slow_path() {
 fn required_only_constraint_does_not_trigger_optional_gate() {
     let key = snapshot_key("not-compatible-with-any-os@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: false,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: false, ..Default::default() });
     let mut packages = HashMap::new();
-    packages.insert(
-        key,
-        synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None),
-    );
+    packages.insert(key, synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None));
 
     assert!(any_installability_constraint(&snapshots, &packages));
     assert!(
@@ -240,18 +187,9 @@ fn required_only_constraint_does_not_trigger_optional_gate() {
 fn optional_constraint_triggers_optional_gate() {
     let key = snapshot_key("not-compatible-with-any-os@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
-    packages.insert(
-        key,
-        synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None),
-    );
+    packages.insert(key, synthetic_metadata(None, None, Some(&["this-os-does-not-exist"]), None));
 
     assert!(
         any_optional_installability_constraint(&snapshots, &packages),
@@ -264,13 +202,7 @@ fn supported_architectures_widens_accept_set_so_optional_stays() {
     reset_events();
     let key = snapshot_key("darwin-only-pkg@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
     packages.insert(key, synthetic_metadata(None, None, Some(&["darwin"]), None));
 
@@ -291,10 +223,7 @@ fn supported_architectures_widens_accept_set_so_optional_stays() {
     )
     .unwrap();
 
-    assert!(
-        skipped.is_empty(),
-        "supportedArchitectures.os=['darwin'] should keep the package",
-    );
+    assert!(skipped.is_empty(), "supportedArchitectures.os=['darwin'] should keep the package");
     let events = take_events();
     assert!(
         events
@@ -309,18 +238,9 @@ fn supported_architectures_does_not_implicitly_include_host() {
     reset_events();
     let key = snapshot_key("darwin-only-pkg@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
-    packages.insert(
-        key.clone(),
-        synthetic_metadata(None, None, Some(&["darwin"]), None),
-    );
+    packages.insert(key.clone(), synthetic_metadata(None, None, Some(&["darwin"]), None));
 
     let mut host = host("20.10.0", "linux", "x64");
     host.supported_architectures = Some(pnpm_package_is_installable::SupportedArchitectures {
@@ -350,18 +270,9 @@ fn seeded_still_incompatible_snapshot_stays_skipped() {
     reset_events();
     let key = snapshot_key("for-legacy-node@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
-    packages.insert(
-        key.clone(),
-        synthetic_metadata(Some(&[("node", "0.10")]), None, None, None),
-    );
+    packages.insert(key.clone(), synthetic_metadata(Some(&[("node", "0.10")]), None, None, None));
 
     let seed = SkippedSnapshots::from_set(std::iter::once(key.clone()).collect());
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
@@ -374,10 +285,7 @@ fn seeded_still_incompatible_snapshot_stays_skipped() {
     )
     .unwrap();
 
-    assert!(
-        skipped.contains(&key),
-        "seeded key must survive the recompute",
-    );
+    assert!(skipped.contains(&key), "seeded key must survive the recompute");
     let events = take_events();
     assert!(
         events
@@ -395,13 +303,7 @@ fn seeded_snapshot_compatible_with_new_host_is_unskipped() {
     reset_events();
     let key = snapshot_key("darwin-arm64-only@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
     packages.insert(
         key.clone(),
@@ -430,18 +332,9 @@ fn seeded_non_optional_snapshot_is_rechecked() {
     reset_events();
     let key = snapshot_key("not-compatible-with-any-os@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: false,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: false, ..Default::default() });
     let mut packages = HashMap::new();
-    packages.insert(
-        key.clone(),
-        synthetic_metadata(None, None, Some(&["missing-os"]), None),
-    );
+    packages.insert(key.clone(), synthetic_metadata(None, None, Some(&["missing-os"]), None));
 
     let seed = SkippedSnapshots::from_set(std::iter::once(key.clone()).collect());
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
@@ -454,10 +347,7 @@ fn seeded_non_optional_snapshot_is_rechecked() {
     )
     .unwrap();
 
-    assert!(
-        !skipped.contains(&key),
-        "non-optional snapshots must not stay seeded as skipped",
-    );
+    assert!(!skipped.contains(&key), "non-optional snapshots must not stay seeded as skipped");
     let events = take_events();
     assert!(
         events
@@ -472,13 +362,7 @@ fn fast_path_preserves_seed() {
     reset_events();
     let key = snapshot_key("previously-skipped@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
     packages.insert(key.clone(), synthetic_metadata(None, None, None, None));
 
@@ -501,13 +385,7 @@ fn fast_path_drops_seed_for_non_optional_snapshot() {
     recording_reporter!();
     let key = snapshot_key("previously-skipped@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: false,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: false, ..Default::default() });
     let mut packages = HashMap::new();
     packages.insert(key.clone(), synthetic_metadata(None, None, None, None));
 
@@ -576,20 +454,8 @@ fn skip_optional_with_platform_inferred_from_name() {
     let foreign = snapshot_key("@nx/nx-win32-arm64-msvc@1.0.0");
     let matching = snapshot_key("@nx/nx-linux-x64-gnu@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        foreign.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
-    snapshots.insert(
-        matching.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(foreign.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    snapshots.insert(matching.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
     packages.insert(foreign.clone(), synthetic_metadata(None, None, None, None));
     packages.insert(matching.clone(), synthetic_metadata(None, None, None, None));
@@ -621,13 +487,7 @@ fn name_inference_does_not_apply_to_non_optional_snapshots() {
     reset_events();
     let key = snapshot_key("@nx/nx-win32-arm64-msvc@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: false,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: false, ..Default::default() });
     let mut packages = HashMap::new();
     packages.insert(key, synthetic_metadata(None, None, None, None));
 
@@ -650,29 +510,11 @@ fn missing_libc_is_inferred_from_name() {
     let musl = snapshot_key("@nx/nx-linux-x64-musl@1.0.0");
     let gnu = snapshot_key("@nx/nx-linux-x64-gnu@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        musl.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
-    snapshots.insert(
-        gnu.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(musl.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    snapshots.insert(gnu.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
-    packages.insert(
-        musl.clone(),
-        synthetic_metadata(None, Some(&["x64"]), Some(&["linux"]), None),
-    );
-    packages.insert(
-        gnu.clone(),
-        synthetic_metadata(None, Some(&["x64"]), Some(&["linux"]), None),
-    );
+    packages.insert(musl.clone(), synthetic_metadata(None, Some(&["x64"]), Some(&["linux"]), None));
+    packages.insert(gnu.clone(), synthetic_metadata(None, Some(&["x64"]), Some(&["linux"]), None));
 
     let mut host = host("20.10.0", "linux", "x64");
     host.libc = "glibc";
@@ -700,13 +542,7 @@ fn missing_libc_is_inferred_from_name() {
 fn name_inferable_optional_snapshot_triggers_slow_path() {
     let key = snapshot_key("@nx/nx-win32-arm64-msvc@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
     packages.insert(key, synthetic_metadata(None, None, None, None));
     assert!(
@@ -722,13 +558,7 @@ fn name_inferable_optional_snapshot_triggers_slow_path() {
 fn generic_name_does_not_trigger_slow_path() {
     let key = snapshot_key("is-arm@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
     packages.insert(key, synthetic_metadata(None, None, None, None));
     assert!(
@@ -741,18 +571,9 @@ fn engine_strict_hard_fails_a_required_incompatible_dep() {
     recording_reporter!(reset_events);
     let key = snapshot_key("needs-newer-node@1.0.0");
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key.clone(),
-        SnapshotEntry {
-            optional: false,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(key.clone(), SnapshotEntry { optional: false, ..Default::default() });
     let mut packages = HashMap::new();
-    packages.insert(
-        key,
-        synthetic_metadata(Some(&[("node", ">=99")]), None, None, None),
-    );
+    packages.insert(key, synthetic_metadata(Some(&[("node", ">=99")]), None, None, None));
 
     let strict_host = InstallabilityHost {
         node_version: "20.10.0".to_string(),
@@ -772,10 +593,7 @@ fn engine_strict_hard_fails_a_required_incompatible_dep() {
         "/proj",
         SkippedSnapshots::new(),
     );
-    assert!(
-        strict.is_err(),
-        "engine_strict must hard-fail a required incompatible dep",
-    );
+    assert!(strict.is_err(), "engine_strict must hard-fail a required incompatible dep");
 
     // The same graph under the default (non-strict) host only warns and installs.
     reset_events();
@@ -787,10 +605,7 @@ fn engine_strict_hard_fails_a_required_incompatible_dep() {
         "/proj",
         SkippedSnapshots::new(),
     );
-    assert!(
-        lenient.is_ok(),
-        "without engine_strict a required incompatible dep is only a warning",
-    );
+    assert!(lenient.is_ok(), "without engine_strict a required incompatible dep is only a warning");
 }
 /// The graph of TS `fail on unsupported dependency of optional
 /// dependency` (`optionalDependencies.ts:552`): an installable
@@ -820,13 +635,7 @@ fn engine_strict_fails_incompatible_regular_dep_of_installed_optional() {
             ..Default::default()
         },
     );
-    snapshots.insert(
-        grandchild.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
-    );
+    snapshots.insert(grandchild.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
     packages.insert(parent, synthetic_metadata(None, None, None, None));
     packages.insert(
@@ -861,10 +670,7 @@ fn engine_strict_fails_incompatible_regular_dep_of_installed_optional() {
         SkippedSnapshots::new(),
     )
     .unwrap();
-    assert!(
-        lenient.is_empty(),
-        "without engine_strict the required dep is warned, not skipped",
-    );
+    assert!(lenient.is_empty(), "without engine_strict the required dep is warned, not skipped");
     let events = take_events();
     assert!(
         events

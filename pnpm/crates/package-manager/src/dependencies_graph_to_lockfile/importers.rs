@@ -1,9 +1,3 @@
-pub(crate) use manifest_fields::manifest_publish_config;
-pub(super) use manifest_fields::{manifest_alias_to_group, read_manifest_specifier};
-
-mod manifest_fields;
-use manifest_fields::manifest_dependencies_meta;
-
 use super::{
     DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileFlags,
     ImporterLockfileInput,
@@ -18,6 +12,7 @@ use pnpm_resolving_deps_resolver::{
 };
 use pnpm_resolving_resolver_base::ResolveResult;
 use rayon::prelude::*;
+use serde_json::Value;
 use std::collections::HashMap;
 
 /// Each importer's snapshot reads only its own input plus the shared
@@ -39,8 +34,7 @@ pub(super) fn build_importers(
                 input,
                 opts.graph,
                 &ImporterLockfileFlags {
-                    exclude_links_from_lockfile: opts.settings
-                        .exclude_links_from_lockfile,
+                    exclude_links_from_lockfile: opts.settings.exclude_links_from_lockfile,
                     auto_install_peers: opts.settings.auto_install_peers,
                 },
                 opts.reuse.previous_importers.and_then(|importers| importers.get(id)),
@@ -77,16 +71,12 @@ pub(super) fn effective_update_reuse_scope<'o>(
 /// the `version` in a catalog snapshot.
 pub(super) fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str) -> Option<String> {
     let key = PkgName::parse(alias).ok()?;
-    [
-        &importer.dependencies,
-        &importer.dev_dependencies,
-        &importer.optional_dependencies,
-    ]
-    .into_iter()
-    .flatten()
-    .find_map(|map| map.get(&key))
-    .and_then(|spec| spec.version.ver_peer())
-    .map(|version| version.version().to_string())
+    [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+        .into_iter()
+        .flatten()
+        .find_map(|map| map.get(&key))
+        .and_then(|spec| spec.version.ver_peer())
+        .map(|version| version.version().to_string())
 }
 /// Build an importer's [`ProjectSnapshot`] from its on-disk manifest
 /// plus the per-alias `DepPath` map the resolver produced for that
@@ -160,9 +150,7 @@ pub(super) fn importer_direct_entry(
     dep_path: &DepPath,
     sources: &DirectEntrySources<'_>,
 ) -> Result<Option<(PkgName, ResolvedDependencySpec)>, DependenciesGraphToLockfileError> {
-    let Ok(name_for_key) = PkgName::parse(alias) else {
-        return Ok(None);
-    };
+    let Ok(name_for_key) = PkgName::parse(alias) else { return Ok(None) };
     // Skip aliases the manifest doesn't declare. The resolver's
     // `direct_dependencies_by_alias` includes auto-installed peers
     // hoisted to the importer when `autoInstallPeers: true` is on,
@@ -199,13 +187,7 @@ pub(super) fn importer_direct_entry(
         },
     )
     .unwrap_or(version);
-    Ok(Some((
-        name_for_key,
-        ResolvedDependencySpec {
-            specifier,
-            version,
-        },
-    )))
+    Ok(Some((name_for_key, ResolvedDependencySpec { specifier, version })))
 }
 /// One importer's direct dependencies, split by the manifest group they were
 /// declared in.
@@ -244,18 +226,14 @@ pub(super) fn direct_dep_version(
         }
         return Ok(Some(ImporterDepVersion::Link(target.to_string())));
     }
-    let Some(node) = graph.get(dep_path) else {
-        return Ok(None);
-    };
+    let Some(node) = graph.get(dep_path) else { return Ok(None) };
     importer_dep_version(alias, node)
         .map(Some)
-        .map_err(
-            |source| DependenciesGraphToLockfileError::ImporterDependency {
-                alias: alias.to_string(),
-                dep_path: dep_path.to_string(),
-                source: Box::new(source),
-            },
-        )
+        .map_err(|source| DependenciesGraphToLockfileError::ImporterDependency {
+            alias: alias.to_string(),
+            dep_path: dep_path.to_string(),
+            source: Box::new(source),
+        })
 }
 /// What [`preserved_link_version`] consults to decide whether this install
 /// targets the dependency.
@@ -291,14 +269,10 @@ pub(super) fn preserved_link_version(
     version: &ImporterDepVersion,
     lookup: &PreservedLinkLookup<'_>,
 ) -> Option<ImporterDepVersion> {
-    let ImporterDepVersion::File(_) = version else {
-        return None;
-    };
+    let ImporterDepVersion::File(_) = version else { return None };
     let previous =
         lookup.previous_importer.and_then(|prev| previous_importer_dep(prev, lookup.name_for_key))?;
-    let ImporterDepVersion::Link(_) = &previous.version else {
-        return None;
-    };
+    let ImporterDepVersion::Link(_) = &previous.version else { return None };
     let targeted_by_update = match lookup.update_reuse_scope {
         UpdateReuseScope::All => false,
         UpdateReuseScope::None => true,
@@ -313,7 +287,69 @@ pub(super) fn preserved_link_version(
     let targeted_by_spec_change = previous.specifier != lookup.specifier;
     (!targeted_by_update && !targeted_by_spec_change).then(|| previous.version.clone())
 }
-
+pub(crate) fn manifest_publish_config(
+    manifest: &PackageManifest,
+) -> (Option<String>, Option<bool>) {
+    let publish_config = manifest.value().get("publishConfig");
+    let publish_directory = publish_config
+        .and_then(|publish_config| publish_config.get("directory"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let link_directory = publish_directory
+        .as_ref()
+        .and_then(|_| {
+            publish_config
+                .and_then(|publish_config| publish_config.get("linkDirectory"))
+                .and_then(Value::as_bool)
+                .filter(|link_directory| !link_directory)
+        });
+    (publish_directory, link_directory)
+}
+/// Map each direct-dep alias to the manifest group it appears in.
+/// `optionalDependencies` wins over `dependencies` wins over
+/// `devDependencies` when an alias is duplicated across groups
+/// (first-write-wins over the dependency fields).
+pub(super) fn manifest_alias_to_group(
+    manifest: &PackageManifest,
+) -> HashMap<String, DependencyGroup> {
+    let mut out: HashMap<String, DependencyGroup> = HashMap::new();
+    for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev] {
+        for (alias, _) in manifest.dependencies([group]) {
+            out.entry(alias.to_string()).or_insert(group);
+        }
+    }
+    out
+}
+/// Look up the user-written specifier for `alias` in the manifest's
+/// `optionalDependencies` / `dependencies` / `devDependencies` maps —
+/// plus `peerDependencies` when `auto_install_peers` materializes those
+/// into the importer's dependencies. Returns `None` for an alias the
+/// manifest doesn't declare in any of those groups, including a peer the
+/// hoist installed while `autoInstallPeers` is off: such entries stay out
+/// of the importer's `specifiers` map and are only reachable through the
+/// snapshots graph.
+pub(super) fn read_manifest_specifier(
+    manifest: &PackageManifest,
+    alias: &str,
+    auto_install_peers: bool,
+) -> Option<String> {
+    let materialized_peers = auto_install_peers.then_some(DependencyGroup::Peer);
+    for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev]
+        .into_iter()
+        .chain(materialized_peers)
+    {
+        let group_key: &str = group.into();
+        if let Some(map) = manifest
+            .value()
+            .get(group_key)
+            .and_then(Value::as_object)
+            && let Some(spec) = map.get(alias).and_then(Value::as_str)
+        {
+            return Some(spec.to_string());
+        }
+    }
+    None
+}
 /// Build the version cell for an importer-level dependency.
 pub(super) fn importer_dep_version(
     alias: &str,
@@ -462,4 +498,16 @@ pub(super) fn real_name(result: &ResolveResult) -> Option<String> {
 /// no URL.
 pub(super) fn is_remote_http_tarball(tarball: &str) -> bool {
     tarball.starts_with("http:") || tarball.starts_with("https:")
+}
+
+fn manifest_dependencies_meta(manifest: &PackageManifest) -> Option<Value> {
+    manifest
+        .value()
+        .get("dependenciesMeta")
+        .filter(|value| {
+            value
+                .as_object()
+                .is_some_and(|meta| !meta.is_empty())
+        })
+        .cloned()
 }

@@ -86,10 +86,7 @@ fn fail_runtime_check(
 ) -> miette::Result<()> {
     if on_fail == Some("error") {
         let message = sanitize_inline(message).into_owned();
-        return Err(PreCommandError::BadRuntimeVersion {
-            message,
-        }
-        .into());
+        return Err(PreCommandError::BadRuntimeVersion { message }.into());
     }
     global_warn(emit, message);
     Ok(())

@@ -11,18 +11,11 @@ fn allow_build_merges_into_config_and_persists_to_workspace_yaml() {
     apply_allow_build(&mut config, &["esbuild".to_string()], dir.path())
         .expect("allow-build applies");
 
-    assert_eq!(
-        config.allow_builds.get("esbuild"),
-        Some(&true),
-        "enabled for this install",
-    );
+    assert_eq!(config.allow_builds.get("esbuild"), Some(&true), "enabled for this install");
 
     let yaml = std::fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
         .expect("pnpm-workspace.yaml written");
-    assert!(
-        yaml.contains("esbuild: true"),
-        "allowBuilds entry persisted, got:\n{yaml}",
-    );
+    assert!(yaml.contains("esbuild: true"), "allowBuilds entry persisted, got:\n{yaml}");
 }
 
 #[test]
@@ -32,18 +25,11 @@ fn allow_build_negation_sets_false_in_config_and_workspace_yaml() {
     apply_allow_build(&mut config, &["!core-js".to_string()], dir.path())
         .expect("allow-build negation applies");
 
-    assert_eq!(
-        config.allow_builds.get("core-js"),
-        Some(&false),
-        "disabled for this install",
-    );
+    assert_eq!(config.allow_builds.get("core-js"), Some(&false), "disabled for this install");
 
     let yaml = std::fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
         .expect("pnpm-workspace.yaml written");
-    assert!(
-        yaml.contains("core-js: false"),
-        "allowBuilds entry persisted, got:\n{yaml}",
-    );
+    assert!(yaml.contains("core-js: false"), "allowBuilds entry persisted, got:\n{yaml}");
 }
 
 #[test]
@@ -222,10 +208,7 @@ fn save_build_selects_only_the_cargo_build_table() {
         no_save_peer: false,
     };
 
-    assert_eq!(
-        options.cargo_dependency_kind(false).unwrap(),
-        CargoDependencyKind::Build,
-    );
+    assert_eq!(options.cargo_dependency_kind(false).unwrap(), CargoDependencyKind::Build);
     assert_eq!(options.dependency_groups().collect::<Vec<_>>(), []);
 }
 
@@ -242,14 +225,8 @@ fn save_build_rejects_mixed_packages_and_conflicting_cargo_targets() {
     assert!(save_build.cargo_dependency_kind(true).is_err());
 
     for options in [
-        AddDependencyOptions {
-            save_prod: true,
-            ..save_build.clone()
-        },
-        AddDependencyOptions {
-            save_dev: true,
-            ..save_build
-        },
+        AddDependencyOptions { save_prod: true, ..save_build.clone() },
+        AddDependencyOptions { save_dev: true, ..save_build },
     ] {
         assert!(options.cargo_dependency_kind(false).is_err());
     }
@@ -269,14 +246,7 @@ fn workspace_selectors_request_the_workspace_copy_of_each_package() {
 
     let rewritten = workspace_selectors(&selectors, &packages).expect("every selector rewrites");
 
-    assert_eq!(
-        rewritten,
-        [
-            "foo@workspace:*",
-            "@scope/bar@workspace:^1.0.0",
-            "baz@workspace:~"
-        ],
-    );
+    assert_eq!(rewritten, ["foo@workspace:*", "@scope/bar@workspace:^1.0.0", "baz@workspace:~"]);
 }
 
 #[test]
@@ -286,10 +256,7 @@ fn workspace_selectors_reject_a_package_outside_the_workspace() {
     let err = workspace_selectors(&["foo".to_string(), "bar@1".to_string()], &packages)
         .expect_err("bar is not in the workspace");
 
-    assert!(
-        matches!(&err, AddError::WorkspacePackageNotFound { name } if name == "bar"),
-        "{err}",
-    );
+    assert!(matches!(&err, AddError::WorkspacePackageNotFound { name } if name == "bar"), "{err}");
 }
 
 #[test]

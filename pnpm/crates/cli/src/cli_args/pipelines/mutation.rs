@@ -1,8 +1,8 @@
 use super::{
     AddArgs, Arc, BTreeMap, Config, Context, DedicatedProjectRuns, DeployArgs, InstallFamilyPlan,
     Path, PathBuf, RemoveArgs, Reporter, State, UpdateArgs, UpdateChangesetContext,
-    anchor_active_project, config_deps, ecosystem_add, ecosystem_install, init_shared_state,
-    select_install_family_plan,
+    anchor_active_project, config_deps, dedicated_project_name, ecosystem_add, ecosystem_install,
+    init_shared_state, select_install_family_plan,
 };
 
 pub(crate) struct AddPipeline {
@@ -21,8 +21,7 @@ pub(crate) struct AddPipeline {
 
 impl AddPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false)
-            .await?;
+        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         if !self.package_specifier_plan.ecosystem_packages.is_empty() {
             return run_add_with_ecosystems::<Reporter>(
                 self.args,
@@ -85,12 +84,12 @@ impl AddPipeline {
                 let cfg: &'static Config = self.cfg;
                 let state =
                     State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(self.args.run_selected::<Reporter>(state, *selection))
-                    .await
+                Box::pin(self.args.run_selected::<Reporter>(state, *selection)).await
             }
             InstallFamilyPlan::Single => self.run_single::<Reporter>().await,
         }
     }
+
     async fn run_single<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
         // Dedicated per-project lockfiles: `add` mutates only the
         // active project, whose outputs anchor at the project dir.
@@ -104,8 +103,7 @@ impl AddPipeline {
         }
         let cfg: &'static Config = self.cfg;
         let state = State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
-        Box::pin(self.args.run::<Reporter>(state, self.config_dependencies))
-            .await
+        Box::pin(self.args.run::<Reporter>(state, self.config_dependencies)).await
     }
 }
 
@@ -118,7 +116,12 @@ async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<()> {
     let has_node_packages = !package_specifier_plan.node_packages.is_empty();
     if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() && has_node_packages {
-        anchor_active_project(cfg, &manifest_path);
+        let manifest_dir = manifest_path
+            .parent()
+            .expect("manifest path always has a parent dir")
+            .to_path_buf();
+        let name = dedicated_project_name(cfg, &manifest_dir);
+        cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
     }
     let http_client = State::new_http_client(cfg).wrap_err("initialize the add network")?;
     let cfg: &'static Config = cfg;
@@ -146,10 +149,7 @@ async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
         Box::pin(node_args.run::<Reporter>(state, None)).await
     };
     plan
-        .with_task(pnpm_install_coordinator::InstallTask::in_place(
-            metadata,
-            node_install,
-        ))
+        .with_task(pnpm_install_coordinator::InstallTask::in_place(metadata, node_install))
         .run()
         .await
 }
@@ -158,9 +158,7 @@ pub(super) fn node_add_metadata_paths(config: &Config, manifest_path: &Path) -> 
     let project_dir = manifest_path.parent().expect("manifest path always has a parent dir");
     let mut paths = vec![
         manifest_path.to_path_buf(),
-        config
-            .lockfile_dir_for(project_dir)
-            .join(config.wanted_lockfile_name()),
+        config.lockfile_dir_for(project_dir).join(config.wanted_lockfile_name()),
         // The current lockfile remains project-local even with a global virtual store.
         config.virtual_store_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
         config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME),
@@ -186,8 +184,7 @@ pub(crate) struct UpdatePipeline {
 
 impl UpdatePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false)
-            .await?;
+        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
             &self.prefix,
@@ -251,8 +248,7 @@ impl UpdatePipeline {
                 let cfg: &'static Config = self.cfg;
                 let state =
                     State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(self.args.run_selected::<Reporter>(state, *selection))
-                    .await?;
+                Box::pin(self.args.run_selected::<Reporter>(state, *selection)).await?;
             }
             InstallFamilyPlan::Single => {
                 let cfg: &'static Config = self.cfg;
@@ -276,8 +272,7 @@ pub(crate) struct RemovePipeline {
 
 impl RemovePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false)
-            .await?;
+        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
             &self.prefix,

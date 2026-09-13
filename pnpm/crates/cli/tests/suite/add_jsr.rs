@@ -20,16 +20,10 @@ fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
         CommandTempCwd::init().add_mocked_registry();
     let npmrc = fs::read_to_string(&npmrc_info.npmrc_path).expect("read the harness .npmrc");
     let jsr_registry = npmrc_info.mock_instance.url();
-    fs::write(
-        &npmrc_info.npmrc_path,
-        format!("{npmrc}@jsr:registry={jsr_registry}\n"),
-    )
-    .expect("write .npmrc");
-    fs::write(
-        workspace.join("package.json"),
-        r#"{ "name": "test-add-jsr", "version": "1.0.0" }"#,
-    )
-    .expect("write package.json");
+    fs::write(&npmrc_info.npmrc_path, format!("{npmrc}@jsr:registry={jsr_registry}\n"))
+        .expect("write .npmrc");
+    fs::write(workspace.join("package.json"), r#"{ "name": "test-add-jsr", "version": "1.0.0" }"#)
+        .expect("write package.json");
     (root, workspace, npmrc_info)
 }
 

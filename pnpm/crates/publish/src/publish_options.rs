@@ -73,9 +73,7 @@ pub fn find_registry_info(
 
     parse_supported_registry_url(&non_normalized)
         .map(|info| info.normalized_url)
-        .ok_or(PublishUnsupportedRegistryProtocolError {
-            registry_url: non_normalized,
-        })
+        .ok_or(PublishUnsupportedRegistryProtocolError { registry_url: non_normalized })
 }
 
 /// The scope of a package name (`@scope/name` → `scope`), or `None` when
@@ -138,16 +136,21 @@ where
     Sys: EnvVar + Clock + OidcFetch,
     Reporter: self::Reporter,
 {
-    let id_token = publish_id_token::<Sys, Reporter>(registry, http).await?;
+    let id_token = match get_id_token::<Sys, Reporter>(registry, http).await {
+        Ok(token) => token,
+        Err(GetIdTokenError::IdToken(error)) => {
+            global_warn::<Reporter>(&format!("Skipped OIDC: {}", display_diagnostic(&error)));
+            return Ok(None);
+        }
+        Err(error) => return Err(FetchTokenAndProvenanceError::IdToken(error)),
+    };
     let Some(id_token) = id_token else {
         // OIDC is simply not applicable (local publish / non-OIDC CI). Stay
         // silent — only configuration errors in a supported CI warn.
         return Ok(None);
     };
 
-    let auth_token = match fetch_auth_token::<Sys>(&id_token, package_name, registry, http)
-        .await
-    {
+    let auth_token = match fetch_auth_token::<Sys>(&id_token, package_name, registry, http).await {
         Ok(token) => token,
         Err(error) => {
             global_warn::<Reporter>(&format!("Skipped OIDC: {}", display_diagnostic(&error)));
@@ -156,19 +159,11 @@ where
     };
 
     if provenance_override.is_some() {
-        return Ok(Some(OidcTokenProvenance {
-            auth_token,
-            provenance: provenance_override,
-        }));
+        return Ok(Some(OidcTokenProvenance { auth_token, provenance: provenance_override }));
     }
 
-    match determine_provenance::<Sys>(&auth_token, &id_token, package_name, registry, http)
-        .await
-    {
-        Ok(provenance) => Ok(Some(OidcTokenProvenance {
-            auth_token,
-            provenance,
-        })),
+    match determine_provenance::<Sys>(&auth_token, &id_token, package_name, registry, http).await {
+        Ok(provenance) => Ok(Some(OidcTokenProvenance { auth_token, provenance })),
         Err(DetermineProvenanceError::Provenance(error)) => {
             // Keep the OIDC auth token even when provenance can't be decided —
             // the publish itself can still go through, matching the npm CLI.
@@ -176,10 +171,7 @@ where
                 "Skipped setting provenance: {}",
                 display_diagnostic(&error),
             ));
-            Ok(Some(OidcTokenProvenance {
-                auth_token,
-                provenance: None,
-            }))
+            Ok(Some(OidcTokenProvenance { auth_token, provenance: None }))
         }
         Err(error) => Err(FetchTokenAndProvenanceError::Provenance(error)),
     }
@@ -209,6 +201,13 @@ pub struct ResolvedPublishOptions {
     pub auth_token_override: Option<String>,
 }
 
+pub(crate) fn manifest_registry(manifest: &Value) -> Option<&str> {
+    manifest
+        .get("publishConfig")
+        .and_then(|config| config.get("registry"))
+        .and_then(Value::as_str)
+}
+
 /// Build the registry / auth / access options for publishing `manifest`. When
 /// `oidc_enabled` is `false` the per-package OIDC exchange is skipped (batch
 /// publish sends many packages a package-scoped token cannot authorize).
@@ -221,10 +220,7 @@ where
     Sys: EnvVar + Clock + OidcFetch,
     Reporter: self::Reporter,
 {
-    let publish_config_registry = manifest
-        .get("publishConfig")
-        .and_then(|config| config.get("registry"))
-        .and_then(Value::as_str);
+    let publish_config_registry = manifest_registry(manifest);
     let name = manifest
         .get("name")
         .and_then(Value::as_str)
@@ -290,21 +286,3 @@ impl From<FetchTokenAndProvenanceError> for CreatePublishOptionsError {
 
 #[cfg(test)]
 mod tests;
-
-async fn publish_id_token<Sys, Reporter>(
-    registry: &str,
-    http: &OidcHttpOptions,
-) -> Result<Option<String>, FetchTokenAndProvenanceError>
-where
-    Sys: EnvVar + Clock + OidcFetch,
-    Reporter: self::Reporter,
-{
-    match get_id_token::<Sys, Reporter>(registry, http).await {
-        Ok(token) => Ok(token),
-        Err(GetIdTokenError::IdToken(error)) => {
-            global_warn::<Reporter>(&format!("Skipped OIDC: {}", display_diagnostic(&error)));
-            Ok(None)
-        }
-        Err(error) => Err(FetchTokenAndProvenanceError::IdToken(error)),
-    }
-}

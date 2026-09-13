@@ -109,9 +109,7 @@ impl Package {
     /// is nothing for the map to be incomplete about — and a version whose
     /// entry is an empty string counts as absent.
     pub fn drop_incomplete_publish_times(&mut self) {
-        let Some(time) = self.time.as_ref() else {
-            return;
-        };
+        let Some(time) = self.time.as_ref() else { return };
         let complete = self.versions
             .keys()
             .all(|version| {
@@ -228,10 +226,7 @@ impl Package {
     ) -> Result<Self, RegistryError> {
         let encoded_name = pnpm_network::encode_package_name(name);
         let url = format!("{registry}{encoded_name}"); // TODO: use reqwest URL directly
-        let network_error = |error| NetworkError {
-            error,
-            url: url.clone(),
-        };
+        let network_error = |error| NetworkError { error, url: url.clone() };
         // Hold the semaphore permit across send + body consumption so the
         // socket-bound stays effective under concurrent fan-out. See the
         // doc comment on `ThrottledClientGuard`.

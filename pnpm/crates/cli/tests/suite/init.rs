@@ -81,10 +81,7 @@ fn the_pin_follows_the_registry_latest_rather_than_the_running_pnpm() {
         .expect("read from package.json")
         .pipe_deref(serde_json::from_str)
         .expect("parse package.json");
-    assert_eq!(
-        manifest["packageManager"],
-        json!(format!("pnpm@{LATEST_PNPM}")),
-    );
+    assert_eq!(manifest["packageManager"], json!(format!("pnpm@{LATEST_PNPM}")));
     assert_eq!(
         manifest["devEngines"]["packageManager"],
         json!({ "name": "pnpm", "version": LATEST_PNPM, "onFail": "download" }),
@@ -204,11 +201,8 @@ fn no_init_package_manager_leaves_the_manifest_unpinned() {
 #[test]
 fn init_package_manager_off_in_the_workspace_manifest_leaves_the_manifest_unpinned() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "initPackageManager: false\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "initPackageManager: false\n")
+        .expect("write to pnpm-workspace.yaml");
     pacquet
         .with_arg("init")
         .assert()
@@ -228,11 +222,8 @@ fn a_workspace_root_is_pinned() {
         npmrc_info,
         ..
     } = pinning_fixture(LATEST_PNPM);
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write to pnpm-workspace.yaml");
     pacquet
         .with_arg("init")
         .assert()
@@ -240,10 +231,7 @@ fn a_workspace_root_is_pinned() {
 
     let manifest =
         fs::read_to_string(workspace.join("package.json")).expect("read from package.json");
-    assert!(
-        manifest.contains(&format!(r#""packageManager": "pnpm@{LATEST_PNPM}""#)),
-        "{manifest}",
-    );
+    assert!(manifest.contains(&format!(r#""packageManager": "pnpm@{LATEST_PNPM}""#)), "{manifest}");
 
     drop((root, npmrc_info));
 }
@@ -253,11 +241,8 @@ fn a_workspace_root_is_pinned() {
 #[test]
 fn a_new_workspace_member_is_not_pinned() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write to pnpm-workspace.yaml");
     let member = workspace.join("packages/foo");
     fs::create_dir_all(&member).expect("create the workspace member directory");
     pacquet
@@ -332,11 +317,8 @@ fn init_type_from_the_workspace_manifest_is_honored() {
         npmrc_info,
         ..
     } = pinning_fixture(LATEST_PNPM);
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "initType: commonjs\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "initType: commonjs\n")
+        .expect("write to pnpm-workspace.yaml");
     pacquet
         .with_arg("init")
         .assert()
@@ -378,10 +360,7 @@ fn the_author_license_and_version_settings_replace_the_scaffold_placeholders() {
         .expect("parse package.json");
     assert_eq!(manifest["version"], json!("2.0.0"));
     assert_eq!(manifest["license"], json!("MIT"));
-    assert_eq!(
-        manifest["author"],
-        json!("pnpm <xxxxxx@pnpm.com> (https://www.github.com/pnpm)"),
-    );
+    assert_eq!(manifest["author"], json!("pnpm <xxxxxx@pnpm.com> (https://www.github.com/pnpm)"));
 
     drop((root, npmrc_info));
 }

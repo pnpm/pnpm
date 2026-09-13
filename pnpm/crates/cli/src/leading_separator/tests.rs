@@ -19,11 +19,7 @@ fn a_script_shortcut_opening_on_the_separator_keeps_it() {
     for command in ["test", "start", "stop"] {
         let argv = preserve(["pnpm", command, "--", "--flag"]);
         dbg!(command, &argv);
-        assert_eq!(
-            argv,
-            ["pnpm", command, "--", "--", "--flag"],
-            "command: {command}",
-        );
+        assert_eq!(argv, ["pnpm", command, "--", "--", "--flag"], "command: {command}");
     }
 }
 
@@ -46,18 +42,7 @@ fn a_run_script_name_before_the_separator_leaves_it_alone() {
 fn global_options_before_the_command_are_stepped_over() {
     let argv = preserve(["pnpm", "--dir", "/tmp/project", "stop", "--", "--flag"]);
 
-    assert_eq!(
-        argv,
-        [
-            "pnpm",
-            "--dir",
-            "/tmp/project",
-            "stop",
-            "--",
-            "--",
-            "--flag"
-        ],
-    );
+    assert_eq!(argv, ["pnpm", "--dir", "/tmp/project", "stop", "--", "--", "--flag"]);
 }
 
 #[test]

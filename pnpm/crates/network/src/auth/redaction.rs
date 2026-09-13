@@ -21,10 +21,7 @@ pub fn hide_auth_information(auth_header_value: &str) -> String {
     if token.chars().count() < 20 {
         return format!("{auth_type} [hidden]");
     }
-    let prefix: String = token
-        .chars()
-        .take(4)
-        .collect();
+    let prefix: String = token.chars().take(4).collect();
     format!("{auth_type} {prefix}[hidden]")
 }
 
@@ -44,9 +41,7 @@ pub fn redact_url_credentials(text: &str) -> String {
         // (schemes end in an ASCII alphanumeric) precedes it, so an unrelated
         // "://" in the message isn't mangled.
         let has_scheme = pos > 0 && rest.as_bytes()[pos - 1].is_ascii_alphanumeric();
-        rest = strip_leading_userinfo(after)
-            .filter(|_| has_scheme)
-            .unwrap_or(after);
+        rest = strip_leading_userinfo(after).filter(|_| has_scheme).unwrap_or(after);
     }
     out.push_str(rest);
     out
@@ -111,11 +106,7 @@ pub fn redact_and_sanitize_multiline(text: &str) -> String {
         .map(redact_and_sanitize)
         .collect::<Vec<_>>()
         .join("\n");
-    if per_line.replace('\n', "") == collapsed {
-        per_line
-    } else {
-        collapsed
-    }
+    if per_line.replace('\n', "") == collapsed { per_line } else { collapsed }
 }
 
 /// If the authority leading `text` contains `userinfo@`, return the slice after

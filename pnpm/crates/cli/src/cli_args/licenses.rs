@@ -16,7 +16,6 @@ use dependencies::{
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
-use metadata::read_license_details;
 use miette::{Diagnostic, IntoDiagnostic};
 use owo_colors::{OwoColorize, Stream};
 use pnpm_config::Config;
@@ -39,6 +38,7 @@ use std::{
 use tabled::{builder::Builder, settings::Style};
 
 mod license_resolver;
+use license_resolver::{extract_license_author, extract_license_homepage};
 
 #[derive(Debug, Args)]
 pub struct LicensesArgs {
@@ -108,11 +108,7 @@ impl LicensesDependencyOptions {
             optional_dependencies = true;
         }
 
-        Include {
-            dependencies,
-            dev_dependencies,
-            optional_dependencies,
-        }
+        Include { dependencies, dev_dependencies, optional_dependencies }
     }
 }
 
@@ -158,7 +154,8 @@ impl LicensesArgs {
         check_licenses_subcommand(self.params.first().map(String::as_str))?;
 
         let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
-        let Some(lockfile) = Lockfile::load_wanted_from_dir(lockfile_dir).into_diagnostic()? else {
+        let lockfile = Lockfile::load_wanted_from_dir(lockfile_dir).into_diagnostic()?;
+        let Some(lockfile) = lockfile else {
             if self.json {
                 println!("{{}}");
             }
@@ -212,9 +209,8 @@ fn lockfile_layout(
     let project_manifest = safe_read_package_json_from_dir(dir).into_diagnostic()?;
     let manifest_node_version =
         project_manifest.as_ref().and_then(node_version_from_engines_runtime);
-    let effective_node_version = config.node_version
-        .as_deref()
-        .or(manifest_node_version.as_deref());
+    let effective_node_version =
+        config.node_version.as_deref().or(manifest_node_version.as_deref());
     let layout = virtual_store_layout_for_lockfile(
         config,
         effective_node_version,
@@ -240,10 +236,7 @@ fn print_license_table(
     let mut builder = Builder::default();
     builder.push_record(header);
     for info in sorted_license_infos(results_by_license) {
-        let mut row = vec![
-            render_package_name(info),
-            sanitize_inline(&info.license).into_owned(),
-        ];
+        let mut row = vec![render_package_name(info), sanitize_inline(&info.license).into_owned()];
         if long {
             row.push(render_license_details(info));
         }
@@ -300,9 +293,7 @@ async fn group_by_license(
         let details = read_license_details(&pkg_dir, &name).await;
         let path_str = pkg_dir.to_string_lossy().to_string();
 
-        let license_group = results_by_license
-            .entry(details.license.clone())
-            .or_default();
+        let license_group = results_by_license.entry(details.license.clone()).or_default();
         let info = license_group
             .entry(name.clone())
             .or_insert_with(|| LicenseInfo {
@@ -383,6 +374,39 @@ struct LicenseDetails {
     description: Option<String>,
 }
 
+/// The package's declared license, falling back to a license file in its
+/// directory when the manifest declares none or defers to one.
+async fn read_license_details(pkg_dir: &std::path::Path, name: &str) -> LicenseDetails {
+    let manifest = if is_unsafe_path_component(name) {
+        None
+    } else {
+        safe_read_package_json_from_dir(pkg_dir).unwrap_or(None)
+    };
+    let Some(manifest) = manifest else {
+        return LicenseDetails {
+            license: "Unknown".to_string(),
+            author: None,
+            homepage: None,
+            description: None,
+        };
+    };
+    let license = match extract_license(&manifest) {
+        Some(license) if !license.to_ascii_lowercase().contains("see license") => license,
+        manifest_license => license_resolver::resolve_license_from_dir(manifest_license, pkg_dir)
+            .await
+            .unwrap_or_else(|| "Unknown".to_string()),
+    };
+    LicenseDetails {
+        license,
+        author: extract_license_author(&manifest),
+        homepage: extract_license_homepage(&manifest),
+        description: manifest
+            .get("description")
+            .and_then(serde_json::Value::as_str)
+            .map(ToString::to_string),
+    }
+}
+
 fn render_licenses_json(
     results_by_license: &IndexMap<String, BTreeMap<String, LicenseInfo>>,
 ) -> miette::Result<String> {
@@ -399,15 +423,11 @@ fn render_licenses_json(
 /// The `--long` details column: whichever of author, description and
 /// homepage the package declares, one per line.
 fn render_license_details(info: &LicenseInfo) -> String {
-    let details = [
-        info.author.as_ref(),
-        info.description.as_ref(),
-        info.homepage.as_ref(),
-    ]
-    .into_iter()
-    .flatten()
-    .cloned()
-    .collect::<Vec<_>>();
+    let details = [info.author.as_ref(), info.description.as_ref(), info.homepage.as_ref()]
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
     sanitize(&details.join("\n")).into_owned()
 }
 
@@ -417,16 +437,10 @@ fn render_package_name(info: &LicenseInfo) -> String {
         BelongsTo::Prod | BelongsTo::Optional => return name.into_owned(),
         BelongsTo::Dev => "(dev)",
     };
-    format!(
-        "{} {}",
-        name,
-        suffix.if_supports_color(Stream::Stdout, |text| text.dimmed()),
-    )
+    format!("{} {}", name, suffix.if_supports_color(Stream::Stdout, |text| text.dimmed()))
 }
 
 #[cfg(test)]
 mod tests;
 
 mod dependencies;
-
-mod metadata;

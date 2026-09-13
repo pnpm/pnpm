@@ -45,10 +45,7 @@ pub fn parse_supported_registry_url(registry_url: &str) -> Option<SupportedRegis
         .or_else(|| replace_prefix(&registry_url, "https://"))?;
     let normalized_url = NormalizedRegistryUrl(registry_url);
     let longest_config_key = RegistryConfigKey(ensure_trailing_slash(&key_prefix));
-    Some(SupportedRegistryUrlInfo {
-        normalized_url,
-        longest_config_key,
-    })
+    Some(SupportedRegistryUrlInfo { normalized_url, longest_config_key })
 }
 
 /// Generate every [`RegistryConfigKey`] of the same host from `longest` down
@@ -89,11 +86,7 @@ fn replace_prefix(text: &str, prefix: &str) -> Option<String> {
 
 /// Ensure `text` ends with a single trailing slash.
 fn ensure_trailing_slash(text: &str) -> String {
-    if text.ends_with('/') {
-        text.to_owned()
-    } else {
-        format!("{text}/")
-    }
+    if text.ends_with('/') { text.to_owned() } else { format!("{text}/") }
 }
 
 #[cfg(test)]

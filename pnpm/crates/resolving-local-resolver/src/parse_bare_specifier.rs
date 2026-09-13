@@ -112,20 +112,11 @@ pub(crate) fn parse_local_scheme(
 ) -> Result<Option<LocalPackageSpec>, PathProtocolNotSupportedError> {
     let bare = wd.bare_specifier.as_str();
     if bare.starts_with("link:") || bare.starts_with("workspace:") {
-        return Ok(Some(from_local(
-            wd,
-            project_dir,
-            lockfile_dir,
-            LocalSpecKind::Directory,
-            opts,
-        )));
+        return Ok(Some(from_local(wd, project_dir, lockfile_dir, LocalSpecKind::Directory, opts)));
     }
     if bare.starts_with("file:") {
-        let kind = if is_tarball_filename(bare) {
-            LocalSpecKind::File
-        } else {
-            LocalSpecKind::Directory
-        };
+        let kind =
+            if is_tarball_filename(bare) { LocalSpecKind::File } else { LocalSpecKind::Directory };
         return Ok(Some(from_local(wd, project_dir, lockfile_dir, kind, opts)));
     }
     if let Some(rest) = bare.strip_prefix("path:") {
@@ -149,11 +140,8 @@ pub(crate) fn parse_local_path(
 ) -> Option<LocalPackageSpec> {
     let bare = wd.bare_specifier.as_str();
     if is_tarball_filename(bare) || contains_path_sep(bare) || is_filespec(bare) {
-        let kind = if is_tarball_filename(bare) {
-            LocalSpecKind::File
-        } else {
-            LocalSpecKind::Directory
-        };
+        let kind =
+            if is_tarball_filename(bare) { LocalSpecKind::File } else { LocalSpecKind::Directory };
         return Some(from_local(wd, project_dir, lockfile_dir, kind, opts));
     }
     None
@@ -192,10 +180,8 @@ fn from_local(
     } else {
         lockfile_dir
     };
-    let id_value = format!(
-        "{protocol}{}",
-        normalize_relative_or_absolute(id_base, &fetch_spec, &spec, opts),
-    );
+    let id_value =
+        format!("{protocol}{}", normalize_relative_or_absolute(id_base, &fetch_spec, &spec, opts));
 
     LocalPackageSpec {
         dependency_path,
@@ -233,10 +219,7 @@ fn fetched_and_normalized(spec: &str, project_dir: &Path, protocol: &str) -> (Pa
     }
     let relative = forward_slashes(
         pathdiff::diff_paths(&fetched, project_dir)
-            .map_or_else(
-                || fetched.display().to_string(),
-                |path| path.display().to_string(),
-            ),
+            .map_or_else(|| fetched.display().to_string(), |path| path.display().to_string()),
     );
     (fetched, format!("{protocol}{relative}"))
 }
@@ -321,19 +304,12 @@ fn normalize_relative_or_absolute(
         return forward_slashes(from_path.display().to_string());
     }
     let relative = pathdiff::diff_paths(from_path, relative_to)
-        .map_or_else(
-            || from_path.display().to_string(),
-            |path| path.display().to_string(),
-        );
+        .map_or_else(|| from_path.display().to_string(), |path| path.display().to_string());
     forward_slashes(relative)
 }
 
 fn forward_slashes(input: String) -> String {
-    if input.contains('\\') {
-        input.replace('\\', "/")
-    } else {
-        input
-    }
+    if input.contains('\\') { input.replace('\\', "/") } else { input }
 }
 
 /// `true` for an absolute spec: a leading `/` or a `<letter>:` drive
@@ -391,10 +367,7 @@ pub fn local_tarball_path(bare: &str, project_dir: &Path) -> Option<PathBuf> {
     if !(bare.starts_with("file:") || is_filespec(bare)) || !is_tarball_filename(bare) {
         return None;
     }
-    let wanted = WantedLocalDependency {
-        bare_specifier: bare.to_string(),
-        injected: false,
-    };
+    let wanted = WantedLocalDependency { bare_specifier: bare.to_string(), injected: false };
     let spec = if bare.starts_with("file:") {
         parse_local_scheme(&wanted, project_dir, project_dir, ParseOptions::default())
             .ok()

@@ -33,20 +33,14 @@ fn registry_revision_uses_the_registry_declared_for_its_prefix() {
 
     assert_eq!(
         tarball_url.as_ref(),
-        format!(
-            "https://registry.example/workspace/npm/-/tarballs/sha512/{}",
-            "A".repeat(86)
-        ),
+        format!("https://registry.example/workspace/npm/-/tarballs/sha512/{}", "A".repeat(86)),
     );
 }
 #[test]
 fn tarball_revision_rejects_a_url_outside_its_effective_registry() {
     let config = Config::new();
     let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: format!(
-            "https://attacker.example/-/tarballs/sha512/{}",
-            "A".repeat(86),
-        ),
+        tarball: format!("https://attacker.example/-/tarballs/sha512/{}", "A".repeat(86)),
         integrity: Some(DUMMY_SHA512.parse().expect("parse integrity")),
         revision: Some(TarballRevision::try_from(1).unwrap()),
         git_hosted: None,
@@ -58,10 +52,7 @@ fn tarball_revision_rejects_a_url_outside_its_effective_registry() {
         .expect_err("a revision URL from another registry must be rejected");
 
     assert!(
-        matches!(
-            err,
-            InstallPackageBySnapshotError::InvalidTarballRevision { .. }
-        ),
+        matches!(err, InstallPackageBySnapshotError::InvalidTarballRevision { .. }),
         "got {err:?}",
     );
 }
@@ -69,10 +60,9 @@ fn tarball_revision_rejects_a_url_outside_its_effective_registry() {
 fn tarball_revision_rejects_non_registry_tarballs() {
     let config = Config::new();
     let package_key: PackageKey = "foo@1.0.0".parse().expect("parse package key");
-    for (tarball, git_hosted) in [
-        ("file:../foo.tgz", None),
-        ("https://codeload.github.com/foo/bar/tar.gz/abc", Some(true)),
-    ] {
+    for (tarball, git_hosted) in
+        [("file:../foo.tgz", None), ("https://codeload.github.com/foo/bar/tar.gz/abc", Some(true))]
+    {
         let resolution = LockfileResolution::Tarball(TarballResolution {
             tarball: tarball.to_string(),
             integrity: Some(DUMMY_SHA512.parse().expect("parse integrity")),
@@ -85,10 +75,7 @@ fn tarball_revision_rejects_non_registry_tarballs() {
             .expect_err("a revision must identify a registry tarball");
 
         assert!(
-            matches!(
-                err,
-                InstallPackageBySnapshotError::InvalidTarballRevision { .. }
-            ),
+            matches!(err, InstallPackageBySnapshotError::InvalidTarballRevision { .. }),
             "got {err:?}",
         );
     }
@@ -101,13 +88,9 @@ fn only_git_hosted_and_local_tarballs_may_be_fetched_unverified() {
         "https://codeload.github.com/watson/ci-info/tar.gz/f43f6a1cefff47fb361c88cf4b943fdbcaafe540",
     ));
     assert!(unverified_fetch_is_allowed("file:../vendor/pkg.tgz"));
-    assert!(!unverified_fetch_is_allowed(
-        "https://example.com/pkg-1.0.0.tgz"
-    ));
+    assert!(!unverified_fetch_is_allowed("https://example.com/pkg-1.0.0.tgz"));
     // A git host, but not one of its immutable archive URLs.
-    assert!(!unverified_fetch_is_allowed(
-        "https://codeload.github.com/watson/ci-info/tar.gz/main"
-    ));
+    assert!(!unverified_fetch_is_allowed("https://codeload.github.com/watson/ci-info/tar.gz/main"));
 }
 /// Asserting platform-specific shape directly would mean four
 /// `cfg`-gated tests; instead, run the live `host_*` functions and
@@ -143,11 +126,7 @@ fn render_variant_targets_formats_each_triple_with_optional_libc() {
                 directory: "fixture".into(),
             }),
             targets: vec![
-                PlatformAssetTarget {
-                    os: "darwin".into(),
-                    cpu: "arm64".into(),
-                    libc: None,
-                },
+                PlatformAssetTarget { os: "darwin".into(), cpu: "arm64".into(), libc: None },
                 PlatformAssetTarget {
                     os: "linux".into(),
                     cpu: "x64".into(),
@@ -282,9 +261,7 @@ async fn custom_fetcher_delegate_rewrites_the_resolution() {
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
         "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
-        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(
-            seeded.clone(),
-        )))),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
     );
 
     let session = scripted_session(
@@ -324,9 +301,7 @@ async fn custom_fetcher_declining_falls_through_to_the_original_resolution() {
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
         "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
-        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(
-            seeded.clone(),
-        )))),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
     );
 
     let session = scripted_session(
@@ -385,10 +360,8 @@ async fn custom_fetcher_invalid_delegate_fails_the_install() {
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let metadata = registry_metadata();
 
-    let session = scripted_session(
-        true,
-        Ok(serde_json::json!({ "delegate": { "garbage": true } })),
-    );
+    let session =
+        scripted_session(true, Ok(serde_json::json!({ "delegate": { "garbage": true } })));
 
     let err =
         run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
@@ -415,10 +388,8 @@ async fn custom_fetcher_custom_typed_delegate_is_rejected() {
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let metadata = custom_resolution_metadata("custom:cdn");
 
-    let session = scripted_session(
-        true,
-        Ok(serde_json::json!({ "delegate": { "type": "custom:other" } })),
-    );
+    let session =
+        scripted_session(true, Ok(serde_json::json!({ "delegate": { "type": "custom:other" } })));
 
     let err =
         run_snapshot_install_with_session(config, &metadata, &session, None, store_tmp.path())
@@ -455,9 +426,7 @@ async fn custom_typed_resolution_installs_via_delegating_fetcher() {
     let mem_cache = Arc::new(MemCache::default());
     mem_cache.insert(
         "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
-        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(
-            seeded.clone(),
-        )))),
+        Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded.clone())))),
     );
 
     let session = scripted_session(
@@ -539,10 +508,7 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
                 fetching: pnpm_tarball::ArchiveFetchOptions {
                     http_client: &pnpm_network::ThrottledClient::default(),
                     auth_headers: &config.auth_headers,
-                    retry_opts: pnpm_tarball::RetryOpts {
-                        retries: 0,
-                        ..Default::default()
-                    },
+                    retry_opts: pnpm_tarball::RetryOpts { retries: 0, ..Default::default() },
                     offline: true,
                 },
                 package: pnpm_tarball::TarballPackage {
@@ -557,8 +523,7 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
                     index: None,
                     index_writer: None,
                     verify_integrity: config.verify_store_integrity,
-                    strict_pkg_content_check: config
-                        .strict_store_pkg_content_check,
+                    strict_pkg_content_check: config.strict_store_pkg_content_check,
                     verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
                     prefetched_cas_paths: None,
                 },

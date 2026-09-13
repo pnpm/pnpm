@@ -16,10 +16,7 @@ async fn a_manifest_pushed_under_the_wrong_digest_is_refused() {
     let wrong = digest_of(b"not the manifest");
     let request = Request::put(format!("/v2/acme/app/manifests/{wrong}"))
         .header(header::AUTHORIZATION, &auth)
-        .header(
-            header::CONTENT_TYPE,
-            "application/vnd.oci.image.manifest.v1+json",
-        )
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
         .body(Body::from(image_manifest("config", &["layer"])))
         .unwrap();
     let response = app
@@ -50,10 +47,7 @@ async fn tags_list_in_lexical_order_and_a_moved_tag_repoints() {
     let moved = image_manifest("config2", &[]);
     let request = Request::put("/v2/acme/app/manifests/latest")
         .header(header::AUTHORIZATION, &auth)
-        .header(
-            header::CONTENT_TYPE,
-            "application/vnd.oci.image.manifest.v1+json",
-        )
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
         .body(Body::from(moved.clone()))
         .unwrap();
     assert_eq!(
@@ -96,10 +90,7 @@ async fn deleting_a_tag_keeps_the_manifest_and_deleting_the_manifest_drops_the_t
             .status(),
         StatusCode::ACCEPTED,
     );
-    assert_eq!(
-        get(&app, "/v2/acme/app/manifests/1.0").await.status(),
-        StatusCode::NOT_FOUND,
-    );
+    assert_eq!(get(&app, "/v2/acme/app/manifests/1.0").await.status(), StatusCode::NOT_FOUND);
     assert_eq!(
         get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}")).await.status(),
         StatusCode::OK,
@@ -141,10 +132,7 @@ async fn a_delete_is_refused_unless_the_registry_opens_destructive_writes() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
-    assert_eq!(
-        get(&app, "/v2/acme/app/manifests/1.0").await.status(),
-        StatusCode::OK,
-    );
+    assert_eq!(get(&app, "/v2/acme/app/manifests/1.0").await.status(), StatusCode::OK);
 }
 
 #[tokio::test]
@@ -166,10 +154,7 @@ async fn a_manifest_whose_descriptor_size_is_wrong_is_refused() {
     .unwrap();
     let request = Request::put("/v2/acme/app/manifests/1.0")
         .header(header::AUTHORIZATION, &auth)
-        .header(
-            header::CONTENT_TYPE,
-            "application/vnd.oci.image.manifest.v1+json",
-        )
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
         .body(Body::from(manifest))
         .unwrap();
     let response = app
@@ -194,10 +179,7 @@ async fn a_reference_that_is_neither_tag_nor_digest_is_refused() {
     for reference in ["sha256:short", ".leading-dot", "-leading-dash"] {
         let request = Request::put(format!("/v2/acme/app/manifests/{reference}"))
             .header(header::AUTHORIZATION, &auth)
-            .header(
-                header::CONTENT_TYPE,
-                "application/vnd.oci.image.manifest.v1+json",
-            )
+            .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
             .body(Body::from(image_manifest("config", &["layer"])))
             .unwrap();
         let response = app
@@ -205,11 +187,7 @@ async fn a_reference_that_is_neither_tag_nor_digest_is_refused() {
             .oneshot(request)
             .await
             .unwrap();
-        assert_eq!(
-            response.status(),
-            StatusCode::BAD_REQUEST,
-            "{reference} should not be a tag",
-        );
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{reference} should not be a tag");
     }
 
     let response = get(&app, "/v2/acme/app/tags/list").await;
@@ -237,10 +215,7 @@ async fn a_manifest_repeating_one_descriptor_is_not_thousands_of_lookups() {
     .unwrap();
     let request = Request::put("/v2/acme/app/manifests/1.0")
         .header(header::AUTHORIZATION, &auth)
-        .header(
-            header::CONTENT_TYPE,
-            "application/vnd.oci.image.manifest.v1+json",
-        )
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
         .body(Body::from(manifest))
         .unwrap();
     let response = app
@@ -268,10 +243,7 @@ async fn an_index_child_must_be_a_manifest_this_repository_serves() {
     .unwrap();
     let request = Request::put("/v2/acme/app/manifests/multi")
         .header(header::AUTHORIZATION, &auth)
-        .header(
-            header::CONTENT_TYPE,
-            "application/vnd.oci.image.index.v1+json",
-        )
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.index.v1+json")
         .body(Body::from(index))
         .unwrap();
     let response = app
@@ -280,10 +252,7 @@ async fn an_index_child_must_be_a_manifest_this_repository_serves() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    assert_eq!(
-        get(&app, "/v2/acme/app/manifests/multi").await.status(),
-        StatusCode::NOT_FOUND,
-    );
+    assert_eq!(get(&app, "/v2/acme/app/manifests/multi").await.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -355,10 +324,7 @@ async fn referrers_backfill_preexisting_manifests_on_both_backends() {
                 .len(),
             1,
         );
-        assert_eq!(
-            payload["manifests"][0]["artifactType"],
-            "application/example.sbom",
-        );
+        assert_eq!(payload["manifests"][0]["artifactType"], "application/example.sbom");
         let document = pnpr_oci::ImageDocument::parse(
             &storage
                 .read_hosted_document(&key)
@@ -438,12 +404,9 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
     let reader = app.clone();
     let path = format!("/v2/acme/migration/referrers/{subject}");
     let read = tokio::spawn(async move { get(&reader, &path).await });
-    tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        objects.started.notified(),
-    )
-    .await
-    .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), objects.started.notified())
+        .await
+        .unwrap();
     let update = async {
         let published = push_image(&app, &auth, "acme/migration", "fresh").await;
         let deleted = app
@@ -459,8 +422,7 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
         assert_eq!(deleted.status(), StatusCode::ACCEPTED);
         published
     };
-    let published = tokio::time::timeout(std::time::Duration::from_secs(5), update)
-        .await;
+    let published = tokio::time::timeout(std::time::Duration::from_secs(5), update).await;
     objects.resume.notify_one();
     let published = published.expect("manifest reads must not hold the package writer lock");
     let response = tokio::time::timeout(std::time::Duration::from_secs(5), read)
@@ -502,18 +464,13 @@ async fn batch_publishes_an_oci_manifest_and_rolls_back_on_invalid_siblings() {
             Request::put("/-/pnpr/v0/publish")
                 .header(header::AUTHORIZATION, &auth)
                 .header(header::CONTENT_TYPE, "application/json")
-                .body(Body::from(
-                    json!({ "packages": [entry.clone(), invalid] }).to_string(),
-                ))
+                .body(Body::from(json!({ "packages": [entry.clone(), invalid] }).to_string()))
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    assert_eq!(
-        get(&app, "/v2/acme/app/manifests/release").await.status(),
-        StatusCode::NOT_FOUND,
-    );
+    assert_eq!(get(&app, "/v2/acme/app/manifests/release").await.status(), StatusCode::NOT_FOUND);
     let response = app
         .clone()
         .oneshot(
@@ -526,10 +483,7 @@ async fn batch_publishes_an_oci_manifest_and_rolls_back_on_invalid_siblings() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
-    assert_eq!(
-        get(&app, "/v2/acme/app/manifests/release").await.status(),
-        StatusCode::OK,
-    );
+    assert_eq!(get(&app, "/v2/acme/app/manifests/release").await.status(), StatusCode::OK);
 }
 
 #[tokio::test]
@@ -581,18 +535,8 @@ async fn manifest_head_checks_digests_and_verifies_legacy_responses_without_a_he
     let wrong = digest_of(b"different manifest");
     for (reference, declared, valid_body, expected) in [
         (digest.as_str(), Some(digest.as_str()), true, StatusCode::OK),
-        (
-            digest.as_str(),
-            Some(wrong.as_str()),
-            true,
-            StatusCode::BAD_REQUEST,
-        ),
-        (
-            digest.as_str(),
-            Some("invalid"),
-            true,
-            StatusCode::BAD_REQUEST,
-        ),
+        (digest.as_str(), Some(wrong.as_str()), true, StatusCode::BAD_REQUEST),
+        (digest.as_str(), Some("invalid"), true, StatusCode::BAD_REQUEST),
         (digest.as_str(), None, true, StatusCode::OK),
         (digest.as_str(), None, false, StatusCode::BAD_REQUEST),
         ("latest", Some(digest.as_str()), true, StatusCode::OK),
@@ -600,20 +544,14 @@ async fn manifest_head_checks_digests_and_verifies_legacy_responses_without_a_he
     ] {
         let mut upstream = mockito::Server::new_async().await;
         let path = format!("/v2/other/app/manifests/{reference}");
-        let mut head = upstream
-            .mock("HEAD", path.as_str())
-            .expect(1);
+        let mut head = upstream.mock("HEAD", path.as_str()).expect(1);
         if let Some(declared) = declared {
             head = head.with_header("docker-content-digest", declared);
         }
         let head = head.create_async().await;
         let get = upstream
             .mock("GET", path.as_str())
-            .with_body(if valid_body {
-                manifest.as_slice()
-            } else {
-                b"corrupt"
-            })
+            .with_body(if valid_body { manifest.as_slice() } else { b"corrupt" })
             .expect(usize::from(declared.is_none()))
             .create_async()
             .await;

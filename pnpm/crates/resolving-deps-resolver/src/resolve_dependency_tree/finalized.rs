@@ -34,9 +34,7 @@ use crate::resolved_tree::ResolvedPackage;
 /// into a package still under inspection adds no package the walk has
 /// not already checked.
 pub(super) fn announce_finalized_packages(ctx: &TreeCtx) {
-    let Some(finalized_package) = ctx.workspace.hooks.finalized_package.as_ref() else {
-        return;
-    };
+    let Some(finalized_package) = ctx.workspace.hooks.finalized_package.as_ref() else { return };
     let announcements = collect_finalized(ctx);
     for package in announcements {
         finalized_package(package);
@@ -44,9 +42,8 @@ pub(super) fn announce_finalized_packages(ctx: &TreeCtx) {
 }
 
 fn collect_finalized(ctx: &TreeCtx) -> Vec<FinalizedPackage> {
-    let mut worklist = std::mem::take(&mut *lock_recoverable(
-        &ctx.workspace.finalization.finalization_pending,
-    ));
+    let mut worklist =
+        std::mem::take(&mut *lock_recoverable(&ctx.workspace.finalization.finalization_pending));
     if worklist.is_empty() {
         return Vec::new();
     }
@@ -54,7 +51,13 @@ fn collect_finalized(ctx: &TreeCtx) -> Vec<FinalizedPackage> {
     let children_by_id = lock_recoverable(&ctx.workspace.children.by_id);
     let parents_by_id = lock_recoverable(&ctx.workspace.finalization.parents_by_id);
     let mut finalized_ids = lock_recoverable(&ctx.workspace.finalization.finalized_ids);
-    let mut sweep = Sweep::new(&packages, &children_by_id, &finalized_ids);
+    let mut sweep = Sweep {
+        packages: &packages,
+        children_by_id: &children_by_id,
+        finalized_ids: &finalized_ids,
+        verdicts: HashMap::default(),
+        inspecting: Vec::new(),
+    };
     let mut newly_finalized: Vec<Arc<str>> = Vec::new();
     let mut seen: HashSet<Arc<str>> = HashSet::default();
     while let Some(pkg_id) = worklist.pop() {
@@ -95,11 +98,7 @@ fn announcement(
             optional: edge.optional,
         })
         .collect();
-    FinalizedPackage {
-        pkg_id: Arc::clone(pkg_id),
-        result: Arc::clone(&package.result),
-        children,
-    }
+    FinalizedPackage { pkg_id: Arc::clone(pkg_id), result: Arc::clone(&package.result), children }
 }
 
 /// One sweep's view of the graph. `verdicts` memoises this sweep's
@@ -132,9 +131,7 @@ impl Sweep<'_> {
     }
 
     fn subtree_is_finalized(&mut self, pkg_id: &Arc<str>) -> bool {
-        let Some(package) = self.packages.get(pkg_id) else {
-            return false;
-        };
+        let Some(package) = self.packages.get(pkg_id) else { return false };
         if !package.peer_dependencies.is_empty() || package.result.id.as_str().starts_with("link:")
         {
             return false;
@@ -151,21 +148,5 @@ impl Sweep<'_> {
             .all(|edge| self.is_finalized(&edge.pkg_id));
         self.inspecting.pop();
         finalized
-    }
-}
-
-impl<'a> Sweep<'a> {
-    fn new(
-        packages: &'a HashMap<Arc<str>, ResolvedPackage>,
-        children_by_id: &'a HashMap<Arc<str>, RecordedChildren>,
-        finalized_ids: &'a HashSet<Arc<str>>,
-    ) -> Self {
-        Self {
-            packages,
-            children_by_id,
-            finalized_ids,
-            verdicts: HashMap::default(),
-            inspecting: Vec::new(),
-        }
     }
 }

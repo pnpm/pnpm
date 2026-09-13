@@ -12,9 +12,7 @@ impl ReporterState {
         if (self.options.append_only || self.options.lifecycle.stream_output)
             && !self.options.lifecycle.hide_output
         {
-            let Some(msg) = self.streamed_lifecycle_block(message) else {
-                return;
-            };
+            let Some(msg) = self.streamed_lifecycle_block(message) else { return };
             let mut slot = BlockSlot::default();
             self.display.frame.emit(&mut slot, msg, false);
             return;
@@ -111,7 +109,18 @@ impl ReporterState {
         dep_path: &str,
         wd: &str,
     ) -> String {
-        self.initialize_lifecycle_label(key, message, dep_path, wd);
+        if self.scripts.entries[key].label.is_none() {
+            let mut label = highlight_last_folder(
+                &format_prefix_no_trim(&self.rendering.cwd, wd),
+                &self.rendering.colors,
+            );
+            let stage = lifecycle_ids(message).0;
+            if contains_path(wd, "tmp/_tmp_") {
+                let _ = write!(label, " [{dep_path}]");
+            }
+            let _ = write!(label, ": Running {stage} script");
+            self.scripts.entries.get_mut(key).unwrap().label = Some(label);
+        }
         let label = self.scripts.entries[key].label.clone().unwrap();
         let LifecycleMessage::Exit { exit_code, optional, .. } = message else {
             self.update_lifecycle_cache(key, message);
@@ -128,31 +137,7 @@ impl ReporterState {
         if *optional {
             return format!("{label}, failed in {time} (skipped as optional)");
         }
-        format!(
-            "{label}, failed in {time}\n{}",
-            self.render_script(key, message),
-        )
-    }
-
-    fn initialize_lifecycle_label(
-        &mut self,
-        key: &str,
-        message: &LifecycleMessage,
-        dep_path: &str,
-        wd: &str,
-    ) {
-        if self.scripts.entries[key].label.is_none() {
-            let mut label = highlight_last_folder(
-                &format_prefix_no_trim(&self.rendering.cwd, wd),
-                &self.rendering.colors,
-            );
-            let stage = lifecycle_ids(message).0;
-            if contains_path(wd, "tmp/_tmp_") {
-                let _ = write!(label, " [{dep_path}]");
-            }
-            let _ = write!(label, ": Running {stage} script");
-            self.scripts.entries.get_mut(key).unwrap().label = Some(label);
-        }
+        format!("{label}, failed in {time}\n{}", self.render_script(key, message))
     }
 
     /// The streamed rendering of one lifecycle event, or `None` when
@@ -202,11 +187,7 @@ impl ReporterState {
                     LifecycleStdio::Stderr => self.rendering.colors.grey(line),
                     LifecycleStdio::Stdout => line.clone(),
                 };
-                if self.options.lifecycle.hide_prefix {
-                    line
-                } else {
-                    format!("{prefix}: {line}")
-                }
+                if self.options.lifecycle.hide_prefix { line } else { format!("{prefix}: {line}") }
             }
         }
     }
@@ -214,11 +195,7 @@ impl ReporterState {
 
 impl RenderingContext {
     pub(super) fn script_line(&self, stage: &str, wd: &str, script: &str) -> String {
-        let prefix = format!(
-            "{} {}",
-            format_prefix(&self.cwd, wd),
-            self.colors.cyan_bright(stage),
-        );
+        let prefix = format!("{} {}", format_prefix(&self.cwd, wd), self.colors.cyan_bright(stage));
         let max = self.width as isize - visible_width(&prefix) as isize - 2;
         format!("{prefix}$ {}", cut_line(script, max))
     }

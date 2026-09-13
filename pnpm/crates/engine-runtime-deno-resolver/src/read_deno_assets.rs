@@ -100,9 +100,7 @@ pub async fn read_deno_assets(
     let assets = release_assets(http_client, version).await?;
     let mut variants = Vec::new();
     for asset in &assets {
-        let Some(targets) = parse_asset_name(&asset.name) else {
-            continue;
-        };
+        let Some(targets) = parse_asset_name(&asset.name) else { continue };
         variants.push(asset_resolution(http_client, asset, targets).await?);
     }
     variants.sort_by(|a, b| variant_url(a).cmp(variant_url(b)));
@@ -134,9 +132,7 @@ async fn release_assets(
             version: version.to_string(),
             error: Arc::new(error),
         })?;
-    index.assets.ok_or_else(|| ReadDenoAssetsError::MissingAssets {
-        version: version.to_string(),
-    })
+    index.assets.ok_or_else(|| ReadDenoAssetsError::MissingAssets { version: version.to_string() })
 }
 
 /// The download one release asset describes, with the integrity read from
@@ -174,10 +170,7 @@ async fn asset_resolution(
         archive: BinaryArchive::Zip,
         prefix: None,
     };
-    Ok(PlatformAssetResolution {
-        resolution: LockfileResolution::Binary(binary),
-        targets,
-    })
+    Ok(PlatformAssetResolution { resolution: LockfileResolution::Binary(binary), targets })
 }
 
 fn variant_url(variant: &PlatformAssetResolution) -> &str {
@@ -204,11 +197,8 @@ fn parse_asset_name(name: &str) -> Option<Vec<PlatformAssetTarget>> {
         "pc-windows-msvc" => "win32",
         _ => return None,
     };
-    let mut targets = vec![PlatformAssetTarget {
-        os: os.to_string(),
-        cpu: cpu.to_string(),
-        libc: None,
-    }];
+    let mut targets =
+        vec![PlatformAssetTarget { os: os.to_string(), cpu: cpu.to_string(), libc: None }];
     if os == "win32" && cpu == "x64" {
         targets.push(PlatformAssetTarget {
             os: "win32".to_string(),
@@ -246,10 +236,7 @@ async fn fetch_sha256(
             url: url.to_string(),
             error: Arc::new(error),
         })?;
-    extract_sha256(&body)
-        .ok_or_else(|| ReadDenoAssetsError::ParseHash {
-            url: url.to_string(),
-        })
+    extract_sha256(&body).ok_or_else(|| ReadDenoAssetsError::ParseHash { url: url.to_string() })
 }
 
 /// Lift a 64-character hex string out of an arbitrary body, matching

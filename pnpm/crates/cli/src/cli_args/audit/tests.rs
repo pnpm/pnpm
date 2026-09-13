@@ -75,32 +75,18 @@ fn fixture_env_lockfile() -> EnvLockfile {
         .config_dependencies
         .insert(
             "config-dep".to_string(),
-            SpecifierAndResolution {
-                specifier: "1.0.0".to_string(),
-                version: "1.0.0".to_string(),
-            },
+            SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
         );
-    env.snapshots.insert(
-        "config-dep@1.0.0".parse().unwrap(),
-        SnapshotEntry::default(),
-    );
+    env.snapshots.insert("config-dep@1.0.0".parse().unwrap(), SnapshotEntry::default());
     env
 }
 
 fn all_dependencies() -> Include {
-    Include {
-        dependencies: true,
-        dev_dependencies: true,
-        optional_dependencies: true,
-    }
+    Include { dependencies: true, dev_dependencies: true, optional_dependencies: true }
 }
 
 fn prod_without_optional() -> Include {
-    Include {
-        dependencies: true,
-        dev_dependencies: false,
-        optional_dependencies: false,
-    }
+    Include { dependencies: true, dev_dependencies: false, optional_dependencies: false }
 }
 
 fn empty_lockfile() -> Lockfile {
@@ -135,10 +121,7 @@ fn snapshot(deps: &[(&str, &str)], optional_deps: &[(&str, &str)]) -> SnapshotEn
             deps
                 .iter()
                 .map(|(name, version)| {
-                    (
-                        (*name).parse().unwrap(),
-                        (*version).parse::<SnapshotDepRef>().unwrap(),
-                    )
+                    ((*name).parse().unwrap(), (*version).parse::<SnapshotDepRef>().unwrap())
                 })
                 .collect()
         }),
@@ -146,10 +129,7 @@ fn snapshot(deps: &[(&str, &str)], optional_deps: &[(&str, &str)]) -> SnapshotEn
             optional_deps
                 .iter()
                 .map(|(name, version)| {
-                    (
-                        (*name).parse().unwrap(),
-                        (*version).parse::<SnapshotDepRef>().unwrap(),
-                    )
+                    ((*name).parse().unwrap(), (*version).parse::<SnapshotDepRef>().unwrap())
                 })
                 .collect()
         }),
@@ -306,12 +286,7 @@ fn render_json_filters_by_audit_level_after_ignores() {
             ),
             (
                 "2".to_string(),
-                advisory(
-                    2,
-                    "high issue",
-                    ConfigAuditLevel::High,
-                    "GHSA-high-3333-4444",
-                ),
+                advisory(2, "high issue", ConfigAuditLevel::High, "GHSA-high-3333-4444"),
             ),
         ]),
         metadata: AuditMetadata {
@@ -353,18 +328,10 @@ fn render_json_filters_by_audit_level_after_ignores() {
 fn filter_ignored_advisories_does_not_match_blank_ghsa_ids() {
     let mut report = AuditReport {
         advisories: BTreeMap::from([
-            (
-                "1".to_string(),
-                advisory(1, "missing ghsa", ConfigAuditLevel::High, ""),
-            ),
+            ("1".to_string(), advisory(1, "missing ghsa", ConfigAuditLevel::High, "")),
             (
                 "2".to_string(),
-                advisory(
-                    2,
-                    "ignored ghsa",
-                    ConfigAuditLevel::High,
-                    "GHSA-high-3333-4444",
-                ),
+                advisory(2, "ignored ghsa", ConfigAuditLevel::High, "GHSA-high-3333-4444"),
             ),
         ]),
         metadata: AuditMetadata {
@@ -382,11 +349,8 @@ fn filter_ignored_advisories_does_not_match_blank_ghsa_ids() {
         },
     };
     let mut config = Config::default();
-    config.audit_config.ignore_ghsas = vec![
-        String::new(),
-        "  ".to_string(),
-        "ghsa-HIGH-3333-4444".to_string(),
-    ];
+    config.audit_config.ignore_ghsas =
+        vec![String::new(), "  ".to_string(), "ghsa-HIGH-3333-4444".to_string()];
 
     let ignored = filter_ignored_advisories(&mut report, &config);
 
@@ -408,12 +372,7 @@ fn text_report_separates_advisory_table_from_summary() {
     let report = AuditReport {
         advisories: BTreeMap::from([(
             "1".to_string(),
-            advisory(
-                1,
-                "high issue",
-                ConfigAuditLevel::High,
-                "GHSA-high-3333-4444",
-            ),
+            advisory(1, "high issue", ConfigAuditLevel::High, "GHSA-high-3333-4444"),
         )]),
         metadata: AuditMetadata {
             vulnerabilities: AuditVulnerabilityCounts {
@@ -430,11 +389,8 @@ fn text_report_separates_advisory_table_from_summary() {
         },
     };
 
-    let output = render_text_report(
-        &report,
-        ConfigAuditLevel::Low,
-        &AuditVulnerabilityCounts::default(),
-    );
+    let output =
+        render_text_report(&report, ConfigAuditLevel::Low, &AuditVulnerabilityCounts::default());
     let summary_start = output.find("1 vulnerabilities found").unwrap();
     assert_eq!(output.as_bytes()[summary_start - 1], b'\n');
 }
@@ -457,13 +413,7 @@ fn text_report_summary_omits_advisories_fully_suppressed_by_ignore_ghsas() {
             total_dependencies: 1,
         },
     };
-    let ignored = AuditVulnerabilityCounts {
-        info: 0,
-        low: 0,
-        moderate: 0,
-        high: 1,
-        critical: 0,
-    };
+    let ignored = AuditVulnerabilityCounts { info: 0, low: 0, moderate: 0, high: 1, critical: 0 };
 
     let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
 
@@ -495,13 +445,7 @@ fn text_report_summary_counts_advisories_rather_than_registry_metadata() {
             total_dependencies: 2,
         },
     };
-    let ignored = AuditVulnerabilityCounts {
-        info: 0,
-        low: 0,
-        moderate: 0,
-        high: 1,
-        critical: 0,
-    };
+    let ignored = AuditVulnerabilityCounts { info: 0, low: 0, moderate: 0, high: 1, critical: 0 };
 
     let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
 
@@ -518,12 +462,7 @@ fn text_report_summary_excludes_ignored_advisories_from_severity_counts() {
     let report = AuditReport {
         advisories: BTreeMap::from([(
             "1".to_string(),
-            advisory(
-                1,
-                "high issue",
-                ConfigAuditLevel::High,
-                "GHSA-high-3333-4444",
-            ),
+            advisory(1, "high issue", ConfigAuditLevel::High, "GHSA-high-3333-4444"),
         )]),
         metadata: AuditMetadata {
             vulnerabilities: AuditVulnerabilityCounts {
@@ -539,13 +478,7 @@ fn text_report_summary_excludes_ignored_advisories_from_severity_counts() {
             total_dependencies: 3,
         },
     };
-    let ignored = AuditVulnerabilityCounts {
-        info: 0,
-        low: 0,
-        moderate: 1,
-        high: 1,
-        critical: 0,
-    };
+    let ignored = AuditVulnerabilityCounts { info: 0, low: 0, moderate: 1, high: 1, critical: 0 };
 
     let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
 
@@ -573,12 +506,7 @@ fn text_report_summary_excludes_ignored_advisories_from_severity_counts() {
 
 #[test]
 fn text_report_shows_none_when_patched_version_was_unpublished() {
-    let mut adv = advisory(
-        1,
-        "high issue",
-        ConfigAuditLevel::High,
-        "GHSA-high-3333-4444",
-    );
+    let mut adv = advisory(1, "high issue", ConfigAuditLevel::High, "GHSA-high-3333-4444");
     adv.patched_versions = None;
     adv.patched_versions_unpublished = Some(true);
     let report = AuditReport {
@@ -598,15 +526,9 @@ fn text_report_shows_none_when_patched_version_was_unpublished() {
         },
     };
 
-    let output = render_text_report(
-        &report,
-        ConfigAuditLevel::Low,
-        &AuditVulnerabilityCounts::default(),
-    );
-    assert!(
-        output.contains("Patched versions"),
-        "row label should be present:\n{output}",
-    );
+    let output =
+        render_text_report(&report, ConfigAuditLevel::Low, &AuditVulnerabilityCounts::default());
+    assert!(output.contains("Patched versions"), "row label should be present:\n{output}");
     assert!(
         output.contains("Patched versions    │ None"),
         "an unpublished patch renders as None:\n{output}",
@@ -619,12 +541,7 @@ fn text_report_shows_none_when_patched_version_was_unpublished() {
 
 #[test]
 fn text_report_shows_unknown_when_patched_version_cannot_be_inferred() {
-    let mut adv = advisory(
-        1,
-        "high issue",
-        ConfigAuditLevel::High,
-        "GHSA-high-3333-4444",
-    );
+    let mut adv = advisory(1, "high issue", ConfigAuditLevel::High, "GHSA-high-3333-4444");
     adv.patched_versions = None;
     adv.patched_versions_unpublished = None;
     let report = AuditReport {
@@ -644,11 +561,8 @@ fn text_report_shows_unknown_when_patched_version_cannot_be_inferred() {
         },
     };
 
-    let output = render_text_report(
-        &report,
-        ConfigAuditLevel::Low,
-        &AuditVulnerabilityCounts::default(),
-    );
+    let output =
+        render_text_report(&report, ConfigAuditLevel::Low, &AuditVulnerabilityCounts::default());
     assert!(
         output.contains("Patched versions    │ (unknown)"),
         "a non-inferable range renders as (unknown):\n{output}",
@@ -672,10 +586,7 @@ fn redact_url_userinfo_removes_credentials_from_audit_endpoint() {
 
 #[test]
 fn sanitize_control_chars_escapes_registry_control_characters() {
-    assert_eq!(
-        sanitize_control_chars("ok\u{1b}[31m\n\u{7f}"),
-        r"ok\u{1b}[31m\u{a}\u{7f}",
-    );
+    assert_eq!(sanitize_control_chars("ok\u{1b}[31m\n\u{7f}"), r"ok\u{1b}[31m\u{a}\u{7f}");
 }
 
 fn advisory(id: u64, title: &str, severity: ConfigAuditLevel, ghsa: &str) -> AuditAdvisory {
@@ -735,35 +646,19 @@ fn report_of(advisories: Vec<AuditAdvisory>) -> AuditReport {
 fn create_overrides_respects_save_style() {
     let advisories = BTreeMap::from([(
         "1".to_string(),
-        fix_advisory(
-            1,
-            "axios",
-            "<=0.18.0",
-            Some(">=0.18.1"),
-            ConfigAuditLevel::High,
-            "GHSA-a",
-        ),
+        fix_advisory(1, "axios", "<=0.18.0", Some(">=0.18.1"), ConfigAuditLevel::High, "GHSA-a"),
     )]);
 
     let exact = create_overrides(&advisories, RangeSpecStyle::from_save_options(true, None));
     assert_eq!(exact["axios@<=0.18.0"], "0.18.1");
 
-    let tilde = create_overrides(
-        &advisories,
-        RangeSpecStyle::from_save_options(false, Some("~")),
-    );
+    let tilde = create_overrides(&advisories, RangeSpecStyle::from_save_options(false, Some("~")));
     assert_eq!(tilde["axios@<=0.18.0"], "~0.18.1");
 
-    let equals = create_overrides(
-        &advisories,
-        RangeSpecStyle::from_save_options(false, Some("=")),
-    );
+    let equals = create_overrides(&advisories, RangeSpecStyle::from_save_options(false, Some("=")));
     assert_eq!(equals["axios@<=0.18.0"], "=0.18.1");
 
-    let bare = create_overrides(
-        &advisories,
-        RangeSpecStyle::from_save_options(false, Some("")),
-    );
+    let bare = create_overrides(&advisories, RangeSpecStyle::from_save_options(false, Some("")));
     assert_eq!(bare["axios@<=0.18.0"], "0.18.1");
 }
 
@@ -777,10 +672,7 @@ async fn vulnerability_guard_rejects_only_vulnerable_versions() {
     };
 
     let rejected = guard.check("vulnerable", "1.5.0").await.expect("guard check");
-    assert!(matches!(
-        rejected,
-        PackageVersionGuardDecision::Reject { .. }
-    ));
+    assert!(matches!(rejected, PackageVersionGuardDecision::Reject { .. }));
 
     let allowed_safe = guard.check("vulnerable", "2.0.0").await.expect("guard check");
     assert_eq!(allowed_safe, PackageVersionGuardDecision::Allow);
@@ -790,10 +682,7 @@ async fn vulnerability_guard_rejects_only_vulnerable_versions() {
 
     // A package with no safe version in range keeps resolving; `--fix update`
     // reports it as remaining rather than failing the run.
-    assert_eq!(
-        guard.exhaustion_policy(),
-        GuardExhaustionPolicy::AcceptRejected,
-    );
+    assert_eq!(guard.exhaustion_policy(), GuardExhaustionPolicy::AcceptRejected);
 }
 
 fn age_cutoff() -> DateTime<Utc> {

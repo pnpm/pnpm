@@ -1,14 +1,12 @@
 use super::{
-    CheckResult, CheckStatus, DoctorReport, can_write_to_dir, check_versions,
-    probe_link_capabilities, render::status_mark, render_report, smoke_install::last_line,
+    CheckResult, CheckStatus, DoctorReport, can_write_to_dir, check_versions, last_line,
+    probe_link_capabilities, render_report, status_mark,
 };
 use pnpm_config::PNPM_VERSION;
 use pretty_assertions::assert_eq;
 
 fn report(checks: Vec<CheckResult>) -> DoctorReport {
-    DoctorReport {
-        checks,
-    }
+    DoctorReport { checks }
 }
 
 #[test]
@@ -22,11 +20,8 @@ fn render_report_summarizes_a_clean_run() {
 /// a check nobody can act on is noise.
 #[test]
 fn render_report_shows_the_fix_for_a_warning() {
-    let output = render_report(&report(vec![CheckResult::warn(
-        "Filesystem",
-        "only copying",
-        "Move it.",
-    )]));
+    let output =
+        render_report(&report(vec![CheckResult::warn("Filesystem", "only copying", "Move it.")]));
     dbg!(&output);
     assert_eq!(
         output,
@@ -95,10 +90,7 @@ fn can_write_to_dir_rejects_a_missing_dir() {
 /// trailing blank line must not swallow the actual error.
 #[test]
 fn last_line_skips_trailing_blanks() {
-    assert_eq!(
-        last_line("first\nERR_PNPM_BROKEN  it broke\n\n"),
-        "ERR_PNPM_BROKEN  it broke",
-    );
+    assert_eq!(last_line("first\nERR_PNPM_BROKEN  it broke\n\n"), "ERR_PNPM_BROKEN  it broke");
     assert_eq!(last_line(""), "");
 }
 
@@ -107,8 +99,5 @@ fn last_line_skips_trailing_blanks() {
 #[test]
 fn check_versions_reports_the_released_pnpm_version() {
     let detail = check_versions().detail.expect("versions detail");
-    assert!(
-        detail.starts_with(&format!("pnpm {PNPM_VERSION}")),
-        "{detail}",
-    );
+    assert!(detail.starts_with(&format!("pnpm {PNPM_VERSION}")), "{detail}");
 }

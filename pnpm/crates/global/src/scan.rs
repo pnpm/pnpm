@@ -75,12 +75,8 @@ pub fn scan_global_packages(global_dir: &Path) -> io::Result<Vec<GlobalPackageIn
         let Ok(true) = is_symlink_or_junction(&link_path) else {
             continue;
         };
-        let Ok(install_dir) = std::fs::canonicalize(&link_path) else {
-            continue;
-        };
-        let Some(manifest) = read_package_json(&install_dir) else {
-            continue;
-        };
+        let Ok(install_dir) = std::fs::canonicalize(&link_path) else { continue };
+        let Some(manifest) = read_package_json(&install_dir) else { continue };
         let dependencies = dependencies_of(&manifest);
         if dependencies.is_empty() {
             continue;
@@ -138,11 +134,7 @@ fn installed_packages(
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_string();
-            Some(InstalledGlobalPackage {
-                alias: alias.clone(),
-                version,
-                manifest,
-            })
+            Some(InstalledGlobalPackage { alias: alias.clone(), version, manifest })
         })
         .collect()
 }
@@ -170,15 +162,9 @@ where
         let dep_dir = modules_dir.join(alias);
         let manifest_path = dep_dir.join("package.json");
         let bytes = Sys::read_file(&manifest_path)
-            .map_err(|source| PackageManifestError::Read {
-                path: manifest_path.clone(),
-                source,
-            })?;
+            .map_err(|source| PackageManifestError::Read { path: manifest_path.clone(), source })?;
         let manifest = parse_manifest_bytes(&bytes)
-            .map_err(|source| PackageManifestError::Parse {
-                path: manifest_path,
-                source,
-            })?;
+            .map_err(|source| PackageManifestError::Parse { path: manifest_path, source })?;
         for command in get_bins_from_package_manifest::<Sys>(&manifest, &dep_dir) {
             bins.insert(command.name);
         }
@@ -190,9 +176,7 @@ where
 /// [`PackageBinSource`]s for bin linking / conflict checks.
 #[must_use]
 pub fn read_installed_packages(install_dir: &Path) -> Vec<PackageBinSource> {
-    let Some(manifest) = read_package_json(install_dir) else {
-        return Vec::new();
-    };
+    let Some(manifest) = read_package_json(install_dir) else { return Vec::new() };
     let modules_dir = install_dir.join("node_modules");
     dependencies_of(&manifest)
         .into_iter()
@@ -221,18 +205,14 @@ pub fn read_direct_dependency_aliases(install_dir: &Path) -> Vec<String> {
 /// callers can distinguish them from same-named registry packages.
 #[must_use]
 pub fn read_direct_dependencies(install_dir: &Path) -> Vec<(String, String)> {
-    let Some(manifest) = read_package_json(install_dir) else {
-        return Vec::new();
-    };
+    let Some(manifest) = read_package_json(install_dir) else { return Vec::new() };
     dependencies_of(&manifest)
 }
 
 /// Remove install directories under `global_dir` that no hash symlink
 /// points at.
 pub fn clean_orphaned_install_dirs(global_dir: &Path) {
-    let Ok(entries) = std::fs::read_dir(global_dir) else {
-        return;
-    };
+    let Ok(entries) = std::fs::read_dir(global_dir) else { return };
     let entries: Vec<_> = entries.flatten().collect();
     let referenced = symlink_targets(&entries);
 
@@ -268,23 +248,17 @@ fn is_orphaned_install_dir(
     now: SystemTime,
 ) -> bool {
     const SAFETY_WINDOW: Duration = Duration::from_mins(5);
-    let Ok(file_type) = entry.file_type() else {
-        return false;
-    };
+    let Ok(file_type) = entry.file_type() else { return false };
     if !file_type.is_dir() {
         return false;
     }
     let dir_path = entry.path();
-    let Ok(canonical) = std::fs::canonicalize(&dir_path) else {
-        return false;
-    };
+    let Ok(canonical) = std::fs::canonicalize(&dir_path) else { return false };
     !referenced.contains(&canonical) && !recently_created(&dir_path, now, SAFETY_WINDOW)
 }
 
 fn recently_created(dir_path: &Path, now: SystemTime, window: Duration) -> bool {
-    let Ok(metadata) = std::fs::metadata(dir_path) else {
-        return true;
-    };
+    let Ok(metadata) = std::fs::metadata(dir_path) else { return true };
     // Use max(created, modified) as the dir's age — the closest portable
     // proxies std exposes for birthtime / ctime.
     let created = metadata.created().ok();

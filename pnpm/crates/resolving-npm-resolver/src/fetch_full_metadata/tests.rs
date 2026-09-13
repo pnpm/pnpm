@@ -62,10 +62,7 @@ fn expect_modified(outcome: FetchFullMetadataOutcome) -> pnpm_registry::Package 
 }
 
 fn no_retry_opts() -> RetryOpts {
-    RetryOpts {
-        retries: 0,
-        ..Default::default()
-    }
+    RetryOpts { retries: 0, ..Default::default() }
 }
 
 fn fast_retry_opts() -> RetryOpts {
@@ -237,10 +234,7 @@ async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
         "expected Network variant, got: {err:?}",
     );
     let text = format!("{err:?}");
-    assert!(
-        text.contains("acme"),
-        "error mentions the failing URL: {text}",
-    );
+    assert!(text.contains("acme"), "error mentions the failing URL: {text}");
     mock.assert_async().await;
 }
 
@@ -257,10 +251,7 @@ async fn fetch_full_metadata_redacts_credentials_in_surfaced_error() {
     // Registry configured with inline basic-auth in the URL: the surfaced
     // error (Display *and* Debug, which reach the terminal and CI logs) must
     // not carry the password.
-    let registry = format!(
-        "{}/",
-        server.url().replacen("http://", "http://user:secret@", 1),
-    );
+    let registry = format!("{}/", server.url().replacen("http://", "http://user:secret@", 1));
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataOptions {
@@ -277,14 +268,8 @@ async fn fetch_full_metadata_redacts_credentials_in_surfaced_error() {
 
     let err = fetch_full_metadata("acme", &opts).await.expect_err("503 must surface");
     for rendered in [err.to_string(), format!("{err:?}")] {
-        assert!(
-            !rendered.contains("secret"),
-            "password must not leak: {rendered}",
-        );
-        assert!(
-            !rendered.contains("user:"),
-            "userinfo must not leak: {rendered}",
-        );
+        assert!(!rendered.contains("secret"), "password must not leak: {rendered}");
+        assert!(!rendered.contains("user:"), "userinfo must not leak: {rendered}");
     }
     mock.assert_async().await;
 }

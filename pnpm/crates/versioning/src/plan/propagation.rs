@@ -22,10 +22,7 @@ pub(super) fn seed_bumps(
 ) {
     let selected = |dir: &String| selection.is_none_or(|selected| selected.contains(dir));
 
-    for (dir, pending) in intents.pending_by_dir
-        .iter()
-        .filter(|(dir, _)| selected(dir))
-    {
+    for (dir, pending) in intents.pending_by_dir.iter().filter(|(dir, _)| selected(dir)) {
         if let Some(direct) = max_bump_type(
             pending
                 .iter()
@@ -120,12 +117,8 @@ pub(super) fn propagate_bumps(
     for (dependent_dir, target_name, target_new_version) in
         forced_dependency_bumps(&ctx.workspace.participants, new_versions)
     {
-        changed |= bump_at_least(
-            state,
-            dependent_dir,
-            ReleaseBumpType::Patch,
-            ReleaseCause::Dependencies,
-        );
+        changed |=
+            bump_at_least(state, dependent_dir, ReleaseBumpType::Patch, ReleaseCause::Dependencies);
         state
             .get_mut(dependent_dir)
             .expect("bump_at_least inserted the state")
@@ -133,7 +126,18 @@ pub(super) fn propagate_bumps(
             .insert(target_name, target_new_version);
     }
 
-    changed |= propagate_fixed_bumps(ctx, state);
+    for group in &ctx.workspace.fixed_groups {
+        let Some(group_bump) = max_bump_type_of(
+            group
+                .iter()
+                .filter_map(|dir| state.get(dir).map(|entry| entry.bump_type)),
+        ) else {
+            continue;
+        };
+        for dir in group {
+            changed |= bump_at_least(state, dir, group_bump, ReleaseCause::Fixed);
+        }
+    }
 
     // When the lead crosses to a new stable major, every member re-bases
     // to the band floor. Seed a release for each so the override in
@@ -144,12 +148,7 @@ pub(super) fn propagate_bumps(
             continue;
         }
         for member_dir in &epic.member_dirs {
-            changed |= bump_at_least(
-                state,
-                member_dir,
-                ReleaseBumpType::Major,
-                ReleaseCause::Epic,
-            );
+            changed |= bump_at_least(state, member_dir, ReleaseBumpType::Major, ReleaseCause::Epic);
         }
     }
     changed
@@ -261,11 +260,7 @@ fn changelog_intents(
     if !ctx.workspace.lanes_by_dir.contains_key(dir)
         && let Some(lane_consumed) = intents.lane_consumed_by_dir.get(dir)
     {
-        consumed.extend(
-            lane_consumed
-                .iter()
-                .map(|&intent| intent.clone()),
-        );
+        consumed.extend(lane_consumed.iter().map(|&intent| intent.clone()));
     }
     consumed
 }
@@ -369,29 +364,4 @@ pub(super) fn collect_lane_consumed_intents<'i>(
         }
     }
     lane_consumed
-}
-
-fn propagate_fixed_bumps(
-    ctx: &AssembleContext<'_>,
-    state: &mut BTreeMap<String, BumpState>,
-) -> bool {
-    let mut changed = false;
-    for group in &ctx.workspace.fixed_groups {
-        let Some(group_bump) = max_bump_type_of(
-            group
-                .iter()
-                .filter_map(|dir| {
-                    state
-                        .get(dir)
-                        .map(|entry| entry.bump_type)
-                }),
-        ) else {
-            continue;
-        };
-        for dir in group {
-            changed |= bump_at_least(state, dir, group_bump, ReleaseCause::Fixed);
-        }
-    }
-
-    changed
 }

@@ -17,10 +17,7 @@ fn target() -> Target {
         "sys_platform": "linux",
     }))
     .expect("marker environment fixture");
-    Target {
-        environment,
-        tags: vec!["py3-none-any".to_string()],
-    }
+    Target { environment, tags: vec!["py3-none-any".to_string()] }
 }
 
 fn handshake_body(ecosystems: &[&str]) -> String {

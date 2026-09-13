@@ -44,11 +44,8 @@ pub(super) fn parse_git_url(giturl: &str) -> Option<ParsedUrl> {
 pub(super) fn whatwg_parse(giturl: &str) -> Option<ParsedUrl> {
     let parsed = reqwest::Url::parse(giturl).ok()?;
     let scheme = parsed.scheme().to_string();
-    let username = if parsed.username().is_empty() {
-        None
-    } else {
-        Some(parsed.username().to_string())
-    };
+    let username =
+        if parsed.username().is_empty() { None } else { Some(parsed.username().to_string()) };
     let password = parsed.password().map(str::to_string);
     let host = parsed.host_str().map(str::to_string);
     let pathname = if parsed.cannot_be_a_base() {
@@ -61,14 +58,7 @@ pub(super) fn whatwg_parse(giturl: &str) -> Option<ParsedUrl> {
     let hash = parsed
         .fragment()
         .map(|f| format!("#{f}"));
-    Some(ParsedUrl {
-        scheme,
-        username,
-        password,
-        host,
-        pathname,
-        hash,
-    })
+    Some(ParsedUrl { scheme, username, password, host, pathname, hash })
 }
 
 /// Mirrors upstream's
@@ -156,10 +146,7 @@ pub(super) fn shortcut_segments(parsed: &ParsedUrl) -> UrlSegments {
         pathname = &pathname[at + 1..];
     }
     let (user, project) = match pathname.rfind('/') {
-        Some(idx) => (
-            percent_decode(&pathname[..idx]),
-            percent_decode(&pathname[idx + 1..]),
-        ),
+        Some(idx) => (percent_decode(&pathname[..idx]), percent_decode(&pathname[idx + 1..])),
         None => (String::new(), percent_decode(pathname)),
     };
     UrlSegments {
@@ -191,10 +178,8 @@ pub(super) fn host_segments(host_type: HostedGitType, parsed: &ParsedUrl) -> Opt
 /// The `user[:password]` credentials to keep, for the protocols that carry
 /// them. Shortcut forms have already had their auth trimmed off the path.
 pub(super) fn extract_auth(parsed: &ParsedUrl) -> Option<String> {
-    let auth_protocols = matches!(
-        parsed.scheme.as_str(),
-        "git" | "https" | "git+https" | "http" | "git+http",
-    );
+    let auth_protocols =
+        matches!(parsed.scheme.as_str(), "git" | "https" | "git+https" | "http" | "git+http");
     if !auth_protocols {
         return None;
     }
@@ -289,11 +274,7 @@ pub(super) fn extract_github(parsed: &ParsedUrl) -> Option<Segments> {
         return None;
     }
 
-    Some(Segments {
-        user,
-        project,
-        committish,
-    })
+    Some(Segments { user, project, committish })
 }
 
 /// Port of `gitHosts.bitbucket.extract`.
@@ -322,11 +303,7 @@ pub(super) fn extract_bitbucket(parsed: &ParsedUrl) -> Option<Segments> {
                 .to_string()
         })
         .filter(|committish| !committish.is_empty());
-    Some(Segments {
-        user,
-        project,
-        committish,
-    })
+    Some(Segments { user, project, committish })
 }
 
 /// Port of `gitHosts.gitlab.extract`.
@@ -353,11 +330,7 @@ pub(super) fn extract_gitlab(parsed: &ParsedUrl) -> Option<Segments> {
                 .to_string()
         })
         .filter(|committish| !committish.is_empty());
-    Some(Segments {
-        user,
-        project,
-        committish,
-    })
+    Some(Segments { user, project, committish })
 }
 
 /// Match Node's `decodeURIComponent` for the inputs hosted-git-info
@@ -379,10 +352,8 @@ pub(super) fn percent_decode(input: &str) -> String {
     while idx < bytes.len() {
         if bytes[idx] == b'%'
             && idx + 2 < bytes.len()
-            && let (Some(hi), Some(lo)) = (
-                (bytes[idx + 1] as char).to_digit(16),
-                (bytes[idx + 2] as char).to_digit(16),
-            )
+            && let (Some(hi), Some(lo)) =
+                ((bytes[idx + 1] as char).to_digit(16), (bytes[idx + 2] as char).to_digit(16))
         {
             buf.push((hi * 16 + lo) as u8);
             idx += 3;

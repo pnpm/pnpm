@@ -37,10 +37,7 @@ fn sign(payload: &Value, key: &SigningKey) -> String {
     let payload = BASE64_URL_SAFE_NO_PAD.encode(serde_json::to_vec(payload).unwrap());
     let message = format!("{header}.{payload}");
     let signature: Signature = key.sign(message.as_bytes());
-    format!(
-        "{message}.{}",
-        BASE64_URL_SAFE_NO_PAD.encode(signature.to_bytes()),
-    )
+    format!("{message}.{}", BASE64_URL_SAFE_NO_PAD.encode(signature.to_bytes()))
 }
 
 fn config(issuer: &str) -> OidcProvider {
@@ -251,24 +248,15 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example").await.unwrap();
     let url = Url::parse(&start.url).unwrap();
-    let query: HashMap<_, _> = url
-        .query_pairs()
-        .into_owned()
-        .collect();
+    let query: HashMap<_, _> = url.query_pairs().into_owned().collect();
     assert_eq!(query["response_type"], "code");
     assert_eq!(query["code_challenge_method"], "S256");
-    assert_eq!(
-        query["redirect_uri"],
-        "https://registry.example/-/oidc/example/callback",
-    );
+    assert_eq!(query["redirect_uri"], "https://registry.example/-/oidc/example/callback");
     *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
     let session =
         state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
-    assert_eq!(
-        state.session(&session.token).unwrap(),
-        Some("ci".to_string()),
-    );
+    assert_eq!(state.session(&session.token).unwrap(), Some("ci".to_string()));
     assert!(session.expires <= Utc::now().timestamp() + 300);
     assert!(state.finish("example", &start.state, &start.browser_secret, "code").await.is_err());
     assert!(state.revoke_session(&session.token));
@@ -343,12 +331,8 @@ fn verifies_rs256_workload_tokens() {
     let header = BASE64_URL_SAFE_NO_PAD.encode(br#"{"alg":"RS256"}"#);
     let payload = BASE64_URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload(issuer)).unwrap());
     let message = format!("{header}.{payload}");
-    let signature = key
-        .sign(
-            &CoreJwsSigningAlgorithm::RsaSsaPkcs1V15Sha256,
-            message.as_bytes(),
-        )
-        .unwrap();
+    let signature =
+        key.sign(&CoreJwsSigningAlgorithm::RsaSsaPkcs1V15Sha256, message.as_bytes()).unwrap();
     let token = format!("{message}.{}", BASE64_URL_SAFE_NO_PAD.encode(signature));
     verify_workload(&config(issuer), &metadata, &token).unwrap();
 }
@@ -357,10 +341,8 @@ fn verifies_rs256_workload_tokens() {
 async fn rejects_expired_state_and_wrong_nonce() {
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);
-    config.login = Some(OidcLogin {
-        client_secret: None,
-        users: vec![config.workloads.remove(0).identity],
-    });
+    config.login =
+        Some(OidcLogin { client_secret: None, users: vec![config.workloads.remove(0).identity] });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example").await.unwrap();
     let query: HashMap<_, _> = Url::parse(&start.url)
@@ -411,10 +393,8 @@ async fn selects_client_secret_post_from_discovery() {
 async fn anonymous_login_starts_cannot_exhaust_or_evict_active_flows() {
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);
-    config.login = Some(OidcLogin {
-        client_secret: None,
-        users: vec![config.workloads.remove(0).identity],
-    });
+    config.login =
+        Some(OidcLogin { client_secret: None, users: vec![config.workloads.remove(0).identity] });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example").await.unwrap();
     let query: HashMap<_, _> = Url::parse(&start.url)
@@ -451,17 +431,11 @@ async fn valid_workloads_do_not_wait_for_a_forced_network_refresh() {
     let refreshing = Arc::clone(&state);
     let refresh =
         tokio::spawn(
-            async move {
-                refreshing.metadata(&refreshing.providers["example"], true)
-                    .await
-            },
+            async move { refreshing.metadata(&refreshing.providers["example"], true).await },
         );
-    tokio::time::timeout(
-        Duration::from_secs(2),
-        provider.discovery.discovery_started.notified(),
-    )
-    .await
-    .unwrap();
+    tokio::time::timeout(Duration::from_secs(2), provider.discovery.discovery_started.notified())
+        .await
+        .unwrap();
     tokio::time::timeout(Duration::from_millis(100), state.workload(&token))
         .await
         .unwrap()
@@ -475,10 +449,8 @@ async fn valid_workloads_do_not_wait_for_a_forced_network_refresh() {
 async fn failed_callbacks_are_rejected_on_repeated_and_concurrent_attempts() {
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);
-    config.login = Some(OidcLogin {
-        client_secret: None,
-        users: vec![config.workloads.remove(0).identity],
-    });
+    config.login =
+        Some(OidcLogin { client_secret: None, users: vec![config.workloads.remove(0).identity] });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example").await.unwrap();
     let first = state.finish("example", &start.state, &start.browser_secret, "invalid");
@@ -501,10 +473,8 @@ async fn failed_callbacks_are_rejected_on_repeated_and_concurrent_attempts() {
 async fn callback_capacity_recovers_without_blocking_unattempted_logins() {
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);
-    config.login = Some(OidcLogin {
-        client_secret: None,
-        users: vec![config.workloads.remove(0).identity],
-    });
+    config.login =
+        Some(OidcLogin { client_secret: None, users: vec![config.workloads.remove(0).identity] });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
     let start = state.start("example").await.unwrap();
     for index in 0..super::MAX_ENTRIES + 32 {
@@ -512,13 +482,7 @@ async fn callback_capacity_recovers_without_blocking_unattempted_logins() {
             .record_attempt(&index.to_string())
             .unwrap();
     }
-    assert_eq!(
-        state.attempts
-            .lock()
-            .unwrap()
-            .len(),
-        super::MAX_ENTRIES,
-    );
+    assert_eq!(state.attempts.lock().unwrap().len(), super::MAX_ENTRIES);
     let permits = state.exchanges.try_acquire_many(16).unwrap();
     assert!(state.finish("example", &start.state, &start.browser_secret, "invalid").await.is_err());
     assert_eq!(*provider.token_requests.lock().unwrap(), 0);

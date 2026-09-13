@@ -22,9 +22,7 @@ use std::{io, path::Path};
 /// base64 before it is rendered as unpadded base64url in the request path.
 #[must_use]
 pub fn integrity_addressed_tarball_path(integrity: &Integrity) -> Option<String> {
-    let [hash] = integrity.hashes.as_slice() else {
-        return None;
-    };
+    let [hash] = integrity.hashes.as_slice() else { return None };
     if hash.algorithm != Algorithm::Sha512 {
         return None;
     }
@@ -35,10 +33,7 @@ pub fn integrity_addressed_tarball_path(integrity: &Integrity) -> Option<String>
     if digest.len() != 64 || BASE64.encode(&digest) != hash.digest {
         return None;
     }
-    Some(format!(
-        "-/tarballs/sha512/{}",
-        URL_SAFE_NO_PAD.encode(digest),
-    ))
+    Some(format!("-/tarballs/sha512/{}", URL_SAFE_NO_PAD.encode(digest)))
 }
 
 /// Parse the digest segment of an integrity-addressed sha512 tarball path.

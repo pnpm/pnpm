@@ -48,10 +48,7 @@ fn lookup(owner: &str) -> ResolveArtifactsRequest {
         candidates: vec![ArtifactCandidate {
             key: "dependency-side-effects:v1:deps=abc".to_string(),
             subject: ArtifactSubject::dependency_side_effects(
-                PackageIdentity {
-                    name: "native-addon".to_string(),
-                    version: "1.0.0".to_string(),
-                },
+                PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
                 "sha512-source",
             ),
             owner: OwnerScope::organization(owner),
@@ -117,10 +114,7 @@ fn publication_request(
                     mode: 0o755,
                     size: bytes.len() as u64,
                 }],
-                vec![ArtifactBlobUpload {
-                    integrity,
-                    data: BASE64.encode(bytes),
-                }],
+                vec![ArtifactBlobUpload { integrity, data: BASE64.encode(bytes) }],
             )
         }
         None => (Vec::new(), Vec::new()),
@@ -128,10 +122,7 @@ fn publication_request(
     let payload = ArtifactPayload {
         kind: ARTIFACT_KIND.to_string(),
         subject: ArtifactSubject::dependency_side_effects(
-            PackageIdentity {
-                name: "native-addon".to_string(),
-                version: "1.0.0".to_string(),
-            },
+            PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
             "sha512-source",
         ),
         input_key: input_key.to_string(),
@@ -143,10 +134,7 @@ fn publication_request(
             environment: BTreeMap::new(),
         },
         compatibility: CompatibilityConstraints::Universal,
-        manifest: ArtifactManifest {
-            added,
-            deleted: Vec::new(),
-        },
+        manifest: ArtifactManifest { added, deleted: Vec::new() },
     };
     let payload_bytes = serde_json::to_vec(&payload).unwrap();
     PublishArtifactRequest {
@@ -174,10 +162,7 @@ fn workspace_task_publication() -> PublishArtifactRequest {
             environment: BTreeMap::new(),
         },
         compatibility: CompatibilityConstraints::Universal,
-        manifest: ArtifactManifest {
-            added: Vec::new(),
-            deleted: Vec::new(),
-        },
+        manifest: ArtifactManifest { added: Vec::new(), deleted: Vec::new() },
     };
     PublishArtifactRequest {
         key: payload.input_key.clone(),
@@ -341,8 +326,7 @@ impl ObjectStore for FailArtifactWrites {
             return claimed;
         }
         if self.fail_only.is_some() {
-            return self.put_with_targeted_failure(location, payload, options)
-                .await;
+            return self.put_with_targeted_failure(location, payload, options).await;
         }
         if !self.fail_scope_writes && location.as_ref().contains("/scopes/") {
             return self.inner.put_opts(location, payload, options).await;

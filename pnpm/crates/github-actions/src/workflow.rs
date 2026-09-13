@@ -38,9 +38,7 @@ async fn workflow_files(workflows: &Path) -> miette::Result<VecDeque<PathBuf>> {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(VecDeque::new()),
         Err(error) => {
-            return Err(miette::miette!(
-                "Failed to read {workflows_display}: {error}"
-            ));
+            return Err(miette::miette!("Failed to read {workflows_display}: {error}"));
         }
     };
     let mut queue = VecDeque::new();
@@ -50,12 +48,7 @@ async fn workflow_files(workflows: &Path) -> miette::Result<VecDeque<PathBuf>> {
         .map_err(|error| miette::miette!("Failed to read {workflows_display}: {error}"))?
     {
         let path = entry.path();
-        if matches!(
-            path
-                .extension()
-                .and_then(|ext| ext.to_str()),
-            Some("yml" | "yaml"),
-        ) {
+        if matches!(path.extension().and_then(|ext| ext.to_str()), Some("yml" | "yaml")) {
             queue.push_back(path);
         }
     }
@@ -78,10 +71,7 @@ async fn scan_workflow_file(
     let real_file_display = real_file.display();
     let text = fs::read_to_string(real_file).await
         .map_err(|error| miette::miette!("Failed to read {real_file_display}: {error}"))?;
-    let mut scan = WorkflowScan {
-        actions: Vec::new(),
-        local_references: Vec::new(),
-    };
+    let mut scan = WorkflowScan { actions: Vec::new(), local_references: Vec::new() };
     for uses_value in uses_values(&text)
         .map_err(|error| miette::miette!("Failed to parse {real_file_display}: {error}"))?
     {
@@ -90,9 +80,7 @@ async fn scan_workflow_file(
             .strip_prefix("./")
             .or_else(|| value.strip_prefix("$/"))
         {
-            if let Some(candidate) = resolve_local_reference(root, canonical_root, local)
-                .await?
-            {
+            if let Some(candidate) = resolve_local_reference(root, canonical_root, local).await? {
                 scan.local_references.push(candidate);
             }
             continue;
@@ -146,9 +134,7 @@ async fn resolve_local_reference(
 ) -> miette::Result<Option<PathBuf>> {
     let target = root.join(reference);
     let candidate = if matches!(
-        target
-            .extension()
-            .and_then(|extension| extension.to_str()),
+        target.extension().and_then(|extension| extension.to_str()),
         Some("yml" | "yaml"),
     ) {
         existing_file(&target).await?.then_some(target)
@@ -161,9 +147,7 @@ async fn resolve_local_reference(
             existing_file(&action_yaml).await?.then_some(action_yaml)
         }
     };
-    let Some(candidate) = candidate else {
-        return Ok(None);
-    };
+    let Some(candidate) = candidate else { return Ok(None) };
     let candidate_display = candidate.display();
     let candidate = fs::canonicalize(&candidate).await
         .map_err(|error| miette::miette!("Failed to read {candidate_display}: {error}"))?;
@@ -198,9 +182,7 @@ pub(super) fn split_uses_value(value: &str) -> (&str, Option<&str>) {
     }
     value
         .split_once(" #")
-        .map_or((value, None), |(value, comment)| {
-            (value, Some(comment.trim()))
-        })
+        .map_or((value, None), |(value, comment)| (value, Some(comment.trim())))
 }
 
 struct UsesValue<'a> {
@@ -252,54 +234,6 @@ fn uses_value_at<'text>(
     }) {
         return Ok(None);
     }
-    let (end, flow_style) = uses_value_end(text, scalar_end);
-    let line_start = text[..start]
-        .rfind('\n')
-        .map_or(0, |line_break| line_break + 1);
-    Ok(Some(UsesValue {
-        flow_style,
-        indentation: " ".repeat(start - line_start),
-        range: start..end,
-        value: &text[start..end],
-    }))
-}
-
-fn uses_routes(value: &Value) -> Vec<Route<'static>> {
-    let mut routes = Vec::new();
-    add_job_routes(&mut routes, value);
-    add_step_routes(
-        &mut routes,
-        value
-            .get("runs")
-            .and_then(|runs| runs.get("steps")),
-        &["runs".into(), "steps".into()],
-    );
-    routes
-}
-
-fn add_step_routes(
-    routes: &mut Vec<Route<'static>>,
-    steps: Option<&Value>,
-    prefix: &[Component<'static>],
-) {
-    let Some(steps) = steps.and_then(Value::as_sequence) else {
-        return;
-    };
-    for (index, step) in steps.iter().enumerate() {
-        if step
-            .get("uses")
-            .and_then(Value::as_str)
-            .is_none()
-        {
-            continue;
-        }
-        let mut route = prefix.to_owned();
-        route.extend([index.into(), "uses".into()]);
-        routes.push(Route::from(route));
-    }
-}
-
-fn uses_value_end(text: &str, scalar_end: usize) -> (usize, bool) {
     let line_end = text[scalar_end..]
         .find('\n')
         .map_or(text.len(), |end| scalar_end + end);
@@ -313,10 +247,19 @@ fn uses_value_end(text: &str, scalar_end: usize) -> (usize, bool) {
     } else {
         scalar_end
     };
-    (end, flow_style)
+    let line_start = text[..start]
+        .rfind('\n')
+        .map_or(0, |line_break| line_break + 1);
+    Ok(Some(UsesValue {
+        flow_style,
+        indentation: " ".repeat(start - line_start),
+        range: start..end,
+        value: &text[start..end],
+    }))
 }
 
-fn add_job_routes(routes: &mut Vec<Route<'static>>, value: &Value) {
+fn uses_routes(value: &Value) -> Vec<Route<'static>> {
+    let mut routes = Vec::new();
     if let Some(jobs) = value.get("jobs").and_then(Value::as_mapping) {
         for (name, job) in jobs {
             let Some(name) = name.as_str() else { continue };
@@ -332,10 +275,38 @@ fn add_job_routes(routes: &mut Vec<Route<'static>>, value: &Value) {
                 ]));
             }
             add_step_routes(
-                routes,
+                &mut routes,
                 job.get("steps"),
                 &["jobs".into(), name.to_string().into(), "steps".into()],
             );
         }
+    }
+    add_step_routes(
+        &mut routes,
+        value
+            .get("runs")
+            .and_then(|runs| runs.get("steps")),
+        &["runs".into(), "steps".into()],
+    );
+    routes
+}
+
+fn add_step_routes(
+    routes: &mut Vec<Route<'static>>,
+    steps: Option<&Value>,
+    prefix: &[Component<'static>],
+) {
+    let Some(steps) = steps.and_then(Value::as_sequence) else { return };
+    for (index, step) in steps.iter().enumerate() {
+        if step
+            .get("uses")
+            .and_then(Value::as_str)
+            .is_none()
+        {
+            continue;
+        }
+        let mut route = prefix.to_owned();
+        route.extend([index.into(), "uses".into()]);
+        routes.push(Route::from(route));
     }
 }

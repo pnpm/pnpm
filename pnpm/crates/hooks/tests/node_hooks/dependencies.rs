@@ -49,10 +49,7 @@ async fn read_package_normalizes_missing_dependency_fields() {
     let updated = hooks
         .read_package(
             serde_json::json!({ "name": "x", "version": "1.0.0" }),
-            pnpm_hooks::HookContext {
-                log: Arc::new(|_| {}),
-                dir: None,
-            },
+            pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
         )
         .await
         .expect("readPackage should succeed after normalization");

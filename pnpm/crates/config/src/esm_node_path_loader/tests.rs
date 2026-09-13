@@ -50,10 +50,7 @@ fn keep_reapplies_the_flag_only_when_the_previous_value_carried_it() {
         keep_esm_node_path_loader_option("--no-warnings", Some(&previous)),
         format!("--no-warnings {flag}"),
     );
-    assert_eq!(
-        keep_esm_node_path_loader_option("--no-warnings", None),
-        "--no-warnings",
-    );
+    assert_eq!(keep_esm_node_path_loader_option("--no-warnings", None), "--no-warnings");
     assert_eq!(
         keep_esm_node_path_loader_option("--no-warnings", Some("--enable-source-maps")),
         "--no-warnings",

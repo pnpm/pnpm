@@ -12,19 +12,11 @@ fn repo_with_head(head: &str) -> TempDir {
 }
 
 fn ok(stdout: &str) -> io::Result<CommandOutput> {
-    Ok(CommandOutput {
-        success: true,
-        stdout: stdout.to_owned(),
-        stderr: String::new(),
-    })
+    Ok(CommandOutput { success: true, stdout: stdout.to_owned(), stderr: String::new() })
 }
 
 fn fail() -> io::Result<CommandOutput> {
-    Ok(CommandOutput {
-        success: false,
-        stdout: String::new(),
-        stderr: String::new(),
-    })
+    Ok(CommandOutput { success: false, stdout: String::new(), stderr: String::new() })
 }
 
 #[test]

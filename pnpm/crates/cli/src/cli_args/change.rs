@@ -1,7 +1,5 @@
 pub use report::render_release_plan;
 
-use errors::ChangeError;
-
 use crate::cli_args::{
     changelog::{published_names, unpublished_release_dirs},
     recursive::discover_workspace_projects,
@@ -51,6 +49,33 @@ pub struct ChangeArgs {
     pub summary: Option<String>,
 }
 
+/// Errors of `pnpm change`. Codes and messages match the TypeScript CLI.
+#[derive(Debug, Display, Error, Diagnostic)]
+enum ChangeError {
+    #[display("pnpm change is only supported in a workspace")]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_ONLY))]
+    WorkspaceOnly,
+
+    #[display("No releasable packages found in this workspace")]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_NO_PACKAGES))]
+    NoPackages,
+
+    #[display("{pkg_name} is not a releasable package of this workspace")]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_UNKNOWN_PACKAGE))]
+    UnknownPackage { pkg_name: String },
+
+    #[display(
+        "{reference} matches multiple workspace projects: {}. Reference the project by directory instead.",
+        dirs.join(", ")
+    )]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_AMBIGUOUS_PACKAGE))]
+    AmbiguousPackage { reference: String, dirs: Vec<String> },
+
+    #[display("Invalid bump type: {bump}. Expected one of none, patch, minor, major")]
+    #[diagnostic(code(ERR_PNPM_VERSIONING_INVALID_BUMP))]
+    InvalidBump { bump: String },
+}
+
 impl ChangeArgs {
     pub async fn run(self, config: &Config) -> miette::Result<()> {
         let Some(workspace_dir) = config.workspace_dir.clone() else {
@@ -59,9 +84,7 @@ impl ChangeArgs {
         let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
         let engine_projects = to_engine_projects(&projects);
 
-        if self.run_diagnostic_form(&workspace_dir, &projects, &engine_projects, config)
-            .await?
-        {
+        if self.run_diagnostic_form(&workspace_dir, &projects, &engine_projects, config).await? {
             return Ok(());
         }
 
@@ -70,7 +93,12 @@ impl ChangeArgs {
             return Err(ChangeError::NoPackages.into());
         }
         self.check_params_releasable(&releasable, &engine_projects, &workspace_dir)?;
-        let bump = self.requested_bump()?;
+        let bump = self.bump
+            .as_ref()
+            .map(|bump| {
+                parse_bump(bump).ok_or_else(|| ChangeError::InvalidBump { bump: bump.clone() })
+            })
+            .transpose()?;
 
         // For a name shared by several projects the interactive picker offers
         // each project under its directory reference, so the written intent
@@ -97,18 +125,6 @@ impl ChangeArgs {
         println!("Recorded change intent .changeset/{id}.md");
         Ok(())
     }
-    fn requested_bump(&self) -> Result<Option<IntentBumpType>, ChangeError> {
-        self.bump
-            .as_ref()
-            .map(|bump| {
-                parse_bump(bump)
-                    .ok_or_else(|| ChangeError::InvalidBump {
-                        bump: bump.clone(),
-                    })
-            })
-            .transpose()
-    }
-
     fn change_summary(&self) -> miette::Result<String> {
         match &self.summary {
             Some(summary) => Ok(summary.clone()),
@@ -153,8 +169,7 @@ impl ChangeArgs {
         match self.params[0].as_str() {
             "status" => {
                 let names = published_names(projects);
-                let output = render_status(workspace_dir, engine_projects, &names, config)
-                    .await?;
+                let output = render_status(workspace_dir, engine_projects, &names, config).await?;
                 println!("{output}");
             }
             "check" => run_check(workspace_dir, engine_projects, config)?,
@@ -185,9 +200,7 @@ fn check_reference_is_releasable(
         .first()
         .is_none_or(|dir| !releasable_dirs.contains(dir.as_str()))
     {
-        return Err(ChangeError::UnknownPackage {
-            pkg_name: reference.to_owned(),
-        });
+        return Err(ChangeError::UnknownPackage { pkg_name: reference.to_owned() });
     }
     Ok(())
 }
@@ -316,10 +329,7 @@ fn detect_base_commit(cwd: &Path) -> Option<String> {
 fn prompt_bump_types(pkg_refs: &[String]) -> miette::Result<IndexMap<String, IntentBumpType>> {
     let mut bump_by_ref: IndexMap<String, IntentBumpType> = IndexMap::new();
     let mut remaining: Vec<String> = pkg_refs.to_vec();
-    for (label, bump_type) in [
-        ("major", IntentBumpType::Major),
-        ("minor", IntentBumpType::Minor),
-    ] {
+    for (label, bump_type) in [("major", IntentBumpType::Major), ("minor", IntentBumpType::Minor)] {
         if remaining.is_empty() {
             break;
         }
@@ -388,16 +398,9 @@ pub fn releasable_projects(
             if ignored_dirs.contains(&dir) {
                 return None;
             }
-            let reference = if refs.name_to_dirs(name).len() > 1 {
-                format!("./{dir}")
-            } else {
-                name.clone()
-            };
-            Some(ReleasableProject {
-                name: name.clone(),
-                dir,
-                reference,
-            })
+            let reference =
+                if refs.name_to_dirs(name).len() > 1 { format!("./{dir}") } else { name.clone() };
+            Some(ReleasableProject { name: name.clone(), dir, reference })
         })
         .collect();
     releasable.sort_by(|left, right| left.reference.cmp(&right.reference));
@@ -409,49 +412,36 @@ pub fn releasable_projects(
 pub fn to_engine_projects(projects: &[Project]) -> Vec<WorkspaceProject> {
     projects
         .iter()
-        .map(to_engine_project)
+        .map(|project| {
+            let manifest = project.manifest.value();
+            let mut prod_dependencies = Vec::new();
+            for (group, field) in [
+                (DependencyGroup::Prod, pnpm_versioning::DependencyField::Dependencies),
+                (DependencyGroup::Optional, pnpm_versioning::DependencyField::OptionalDependencies),
+                (DependencyGroup::Peer, pnpm_versioning::DependencyField::PeerDependencies),
+            ] {
+                for (alias, spec) in project.manifest.dependencies([group]) {
+                    prod_dependencies.push(ManifestDependency {
+                        field,
+                        alias: alias.to_string(),
+                        spec: spec.to_string(),
+                    });
+                }
+            }
+            WorkspaceProject {
+                root_dir: project.root_dir.clone(),
+                name: manifest
+                    .get("name")
+                    .and_then(|name| name.as_str())
+                    .map(ToString::to_string),
+                version: manifest
+                    .get("version")
+                    .and_then(|version| version.as_str())
+                    .map(ToString::to_string),
+                prod_dependencies,
+            }
+        })
         .collect()
 }
 
 mod report;
-
-mod errors;
-
-fn to_engine_project(project: &Project) -> WorkspaceProject {
-    let manifest = project.manifest.value();
-    let mut prod_dependencies = Vec::new();
-    for (group, field) in [
-        (
-            DependencyGroup::Prod,
-            pnpm_versioning::DependencyField::Dependencies,
-        ),
-        (
-            DependencyGroup::Optional,
-            pnpm_versioning::DependencyField::OptionalDependencies,
-        ),
-        (
-            DependencyGroup::Peer,
-            pnpm_versioning::DependencyField::PeerDependencies,
-        ),
-    ] {
-        for (alias, spec) in project.manifest.dependencies([group]) {
-            prod_dependencies.push(ManifestDependency {
-                field,
-                alias: alias.to_string(),
-                spec: spec.to_string(),
-            });
-        }
-    }
-    WorkspaceProject {
-        root_dir: project.root_dir.clone(),
-        name: manifest
-            .get("name")
-            .and_then(|name| name.as_str())
-            .map(ToString::to_string),
-        version: manifest
-            .get("version")
-            .and_then(|version| version.as_str())
-            .map(ToString::to_string),
-        prod_dependencies,
-    }
-}

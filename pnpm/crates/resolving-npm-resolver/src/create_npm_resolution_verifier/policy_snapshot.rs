@@ -47,15 +47,26 @@ pub(super) fn build_policy_snapshot(
         "namedRegistriesRouting".to_string(),
         JsonValue::String(opts.named_registries_routing.to_string()),
     );
-    map.insert(
-        "minimumReleaseAge".to_string(),
-        JsonValue::from(opts.minimum_release_age),
-    );
+    map.insert("minimumReleaseAge".to_string(), JsonValue::from(opts.minimum_release_age));
     map.insert(
         "minimumReleaseAgeExclude".to_string(),
         policy_patterns_json(opts.sorted_min_age_excludes),
     );
-    insert_trust_policy(&mut map, opts);
+    map.insert(
+        "trustPolicy".to_string(),
+        match opts.trust_policy {
+            Some(TrustPolicy::NoDowngrade) => JsonValue::String("no-downgrade".to_string()),
+            Some(TrustPolicy::Off) | None => JsonValue::Null,
+        },
+    );
+    map.insert("trustPolicyExclude".to_string(), policy_patterns_json(opts.sorted_trust_excludes));
+    map.insert(
+        "trustPolicyIgnoreAfter".to_string(),
+        match opts.trust_policy_ignore_after {
+            Some(value) => JsonValue::from(value),
+            None => JsonValue::Null,
+        },
+    );
     map.insert(
         "minimumReleaseAgeIgnoreMissingTime".to_string(),
         JsonValue::Bool(opts.ignore_missing_time_field),
@@ -108,26 +119,13 @@ pub(super) fn policy_patterns_json(patterns: &[String]) -> JsonValue {
     )
 }
 
-fn insert_trust_policy(
-    map: &mut serde_json::Map<String, JsonValue>,
-    opts: &BuildPolicySnapshot<'_>,
-) {
-    map.insert(
-        "trustPolicy".to_string(),
-        match opts.trust_policy {
-            Some(TrustPolicy::NoDowngrade) => JsonValue::String("no-downgrade".to_string()),
-            Some(TrustPolicy::Off) | None => JsonValue::Null,
-        },
-    );
-    map.insert(
-        "trustPolicyExclude".to_string(),
-        policy_patterns_json(opts.sorted_trust_excludes),
-    );
-    map.insert(
-        "trustPolicyIgnoreAfter".to_string(),
-        match opts.trust_policy_ignore_after {
-            Some(value) => JsonValue::from(value),
-            None => JsonValue::Null,
-        },
-    );
+impl super::NpmResolutionVerifier {
+    /// Whether the maturity and trust policies apply to this entry.
+    pub(super) fn policies_for(&self, ctx: &super::VerifyCtx<'_>) -> (bool, bool) {
+        let age_applies = self.release_age.age_check_active()
+            && !super::is_excluded(self.release_age.exclude.as_ref(), ctx.name, ctx.version);
+        let trust_applies = self.trust.trust_check_active()
+            && !super::is_excluded(self.trust.exclude.as_ref(), ctx.name, ctx.version);
+        (age_applies, trust_applies)
+    }
 }

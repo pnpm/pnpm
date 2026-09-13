@@ -108,10 +108,7 @@ where
         current = next;
     }
 
-    GraphSequencerResult {
-        order: indexed.interner.to_nodes(&order),
-        cycles,
-    }
+    GraphSequencerResult { order: indexed.interner.to_nodes(&order), cycles }
 }
 
 /// The interned graph the sort runs on. Ids below `included_count` are the

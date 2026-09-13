@@ -72,11 +72,7 @@ fn absent_when_only_the_other_platforms_wrapper_was_shipped() {
         .join("dist")
         .join("node-gyp-bin");
     fs::create_dir_all(&bin_dir).unwrap();
-    let other = if cfg!(windows) {
-        "node-gyp"
-    } else {
-        "node-gyp.cmd"
-    };
+    let other = if cfg!(windows) { "node-gyp" } else { "node-gyp.cmd" };
     fs::write(bin_dir.join(other), "").unwrap();
 
     assert_eq!(bundled_node_gyp_bin_in(exe_dir.path()), None);

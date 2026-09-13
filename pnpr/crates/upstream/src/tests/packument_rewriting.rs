@@ -81,14 +81,8 @@ fn does_not_preserve_an_invalid_upstream_revision_route() {
     let digest = "A".repeat(86);
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     for (revision, tarball) in [
-        (
-            json!(0),
-            format!("https://upstream.test/-/tarballs/sha512/{digest}"),
-        ),
-        (
-            json!(2),
-            format!("https://other.test/-/tarballs/sha512/{digest}"),
-        ),
+        (json!(0), format!("https://upstream.test/-/tarballs/sha512/{digest}")),
+        (json!(2), format!("https://other.test/-/tarballs/sha512/{digest}")),
     ] {
         let mut doc = json!({
             "version": "1.0.0",
@@ -106,10 +100,7 @@ fn does_not_preserve_an_invalid_upstream_revision_route() {
             "http://pnpr.test/~corp/",
         );
 
-        assert_eq!(
-            doc["dist"]["tarball"],
-            format!("http://pnpr.test/~corp/foo/-/{digest}"),
-        );
+        assert_eq!(doc["dist"]["tarball"], format!("http://pnpr.test/~corp/foo/-/{digest}"));
         assert!(doc["dist"].get("revision").is_none());
     }
 }
@@ -206,18 +197,9 @@ fn rewrites_basenameless_tarball_url_to_pnpr_route() {
 #[test]
 fn tarball_basename_strips_query_and_fragment() {
     let base = "foo-1.0.0.tgz";
-    assert_eq!(
-        tarball_basename("https://r/foo/-/foo-1.0.0.tgz"),
-        Some(base),
-    );
-    assert_eq!(
-        tarball_basename("https://r/foo/-/foo-1.0.0.tgz?sig=x"),
-        Some(base),
-    );
-    assert_eq!(
-        tarball_basename("https://r/foo/-/foo-1.0.0.tgz#frag"),
-        Some(base),
-    );
+    assert_eq!(tarball_basename("https://r/foo/-/foo-1.0.0.tgz"), Some(base));
+    assert_eq!(tarball_basename("https://r/foo/-/foo-1.0.0.tgz?sig=x"), Some(base));
+    assert_eq!(tarball_basename("https://r/foo/-/foo-1.0.0.tgz#frag"), Some(base));
     assert_eq!(tarball_basename("foo-1.0.0.tgz"), Some(base));
     assert_eq!(tarball_basename("https://r/foo/"), None);
 }
@@ -250,10 +232,7 @@ fn extracts_version_by_dist_tag() {
         CanonicalPackageName::parse("@foo/no-deps", pnpr_package_name::Ecosystem::Npm).unwrap();
     let manifest = extract_version_manifest(&doc, &name, "latest", "http://reg").unwrap();
     assert_eq!(manifest["version"], "1.0.0");
-    assert_eq!(
-        manifest["dist"]["tarball"],
-        "http://reg/@foo/no-deps/-/no-deps-1.0.0.tgz",
-    );
+    assert_eq!(manifest["dist"]["tarball"], "http://reg/@foo/no-deps/-/no-deps-1.0.0.tgz");
     assert_eq!(manifest["dist"]["shasum"], "abc");
 }
 
@@ -266,10 +245,7 @@ fn extracts_version_by_literal_version() {
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let manifest = extract_version_manifest(&doc, &name, "2.0.0", "http://reg").unwrap();
     assert_eq!(manifest["version"], "2.0.0");
-    assert_eq!(
-        manifest["dist"]["tarball"],
-        "http://reg/foo/-/foo-2.0.0.tgz",
-    );
+    assert_eq!(manifest["dist"]["tarball"], "http://reg/foo/-/foo-2.0.0.tgz");
 }
 
 #[test]

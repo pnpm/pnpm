@@ -247,10 +247,7 @@ where
         node.children
             .iter()
             .map(|(alias, child_key)| {
-                (
-                    alias.as_str(),
-                    cache.get(child_key).map_or("", String::as_str),
-                )
+                (alias.as_str(), cache.get(child_key).map_or("", String::as_str))
             })
             .collect()
     } else {
@@ -263,12 +260,7 @@ where
     serialize_str(scratch, "deps");
     scratch.push(b':');
     scratch.extend_from_slice(b"object:");
-    scratch.extend_from_slice(
-        pairs
-            .len()
-            .to_string()
-            .as_bytes(),
-    );
+    scratch.extend_from_slice(pairs.len().to_string().as_bytes());
     scratch.push(b':');
     for (alias, child_digest) in &pairs {
         serialize_str(scratch, alias);

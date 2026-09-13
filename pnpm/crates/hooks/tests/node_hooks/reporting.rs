@@ -20,25 +20,14 @@ async fn worker_forwards_read_package_context_log() {
         .read_package(
             serde_json::json!({ "name": "foo", "version": "1.0.0" }),
             pnpm_hooks::HookContext {
-                log: Arc::new(move |message| {
-                    sink
-                        .lock()
-                        .unwrap()
-                        .push(message);
-                }),
+                log: Arc::new(move |message| sink.lock().unwrap().push(message)),
                 dir: None,
             },
         )
         .await
         .expect("readPackage should succeed");
 
-    assert_eq!(
-        logs
-            .lock()
-            .unwrap()
-            .as_slice(),
-        &["hello from foo".to_string()],
-    );
+    assert_eq!(logs.lock().unwrap().as_slice(), &["hello from foo".to_string()]);
 }
 
 #[tokio::test]

@@ -54,9 +54,7 @@ pub(super) struct Packument {
 /// `None` when it can't be parsed (mirroring JS `Date.parse` yielding `NaN`,
 /// which then compares false).
 pub(super) fn parse_timestamp(value: &str) -> Option<i64> {
-    chrono::DateTime::parse_from_rfc3339(value)
-        .ok()
-        .map(|datetime| datetime.timestamp_millis())
+    chrono::DateTime::parse_from_rfc3339(value).ok().map(|datetime| datetime.timestamp_millis())
 }
 
 pub(super) async fn fetch_registry_keys(
@@ -71,25 +69,42 @@ pub(super) async fn fetch_registry_keys(
     // Keep the throttle guard alive until the body is fully read; dropping it
     // before `response.text()` would release the concurrency permit while the
     // socket is still draining (see [`send_with_retry`]).
-    let (_guard, response) = send_with_retry(
-        http_client,
-        &keys_url,
-        retry_opts_from_config(config),
-        |client| {
+    let (_guard, response) =
+        send_with_retry(http_client, &keys_url, retry_opts_from_config(config), |client| {
             let mut request = client.get(&keys_url).header("accept", "application/json");
             if let Some(value) = &authorization {
                 request = request.header("authorization", value);
             }
             request
-        },
-    )
-    .await
-    .map_err(|source| SignaturesError::KeysNetwork {
-        url: display_url.clone(),
-        reason: redact_url_credentials(&source.to_string()),
-    })?;
+        })
+        .await
+        .map_err(|source| SignaturesError::KeysNetwork {
+            url: display_url.clone(),
+            reason: redact_url_credentials(&source.to_string()),
+        })?;
 
-    read_registry_keys_response(response, display_url).await
+    let status = response.status().as_u16();
+    let body = response
+        .text()
+        .await
+        .map_err(|source| SignaturesError::KeysNetwork {
+            url: display_url.clone(),
+            reason: redact_url_credentials(&source.to_string()),
+        })?;
+    // npm registries answer 404 (no signing) and 400 the same way: there is no
+    // trust root, so the registry's packages are simply not audited.
+    if status == 404 || status == 400 {
+        return Ok(Vec::new());
+    }
+    if status != 200 {
+        return Err(SignaturesError::KeysBadStatus {
+            url: display_url,
+            status,
+            body: sanitize_response_body(&body),
+        });
+    }
+
+    parse_registry_keys(&body, &display_url)
 }
 
 /// The registry's signing keys. npm registry signing uses ECDSA P-256
@@ -124,81 +139,20 @@ pub(super) async fn fetch_packument(
     let display_url = redact_url_credentials(&packument_url);
     let authorization = config.auth_headers.for_url(&registry_url);
     // Hold the throttle guard until the body is read; see `fetch_registry_keys`.
-    let (_guard, response) = send_with_retry(
-        http_client,
-        &packument_url,
-        retry_opts_from_config(config),
-        |client| {
+    let (_guard, response) =
+        send_with_retry(http_client, &packument_url, retry_opts_from_config(config), |client| {
             let mut request = client.get(&packument_url).header("accept", "application/json");
             if let Some(value) = &authorization {
                 request = request.header("authorization", value);
             }
             request
-        },
-    )
-    .await
-    .map_err(|source| SignaturesError::PackumentNetwork {
-        url: display_url.clone(),
-        reason: redact_url_credentials(&source.to_string()),
-    })?;
-
-    read_packument_response(response, display_url).await
-}
-
-fn parse_packument(body: &str, display_url: &str) -> Result<Packument, SignaturesError> {
-    let value: serde_json::Value = serde_json::from_str(body)
-        .map_err(|err| SignaturesError::PackumentInvalidJson {
-            url: display_url.to_string(),
-            reason: err.to_string(),
-            body: sanitize_response_body(body),
-        })?;
-    serde_json::from_value(value.clone())
-        .map_err(|_| SignaturesError::PackumentUnexpectedBody {
-            url: display_url.to_string(),
-            body: sanitize_response_body(&value.to_string()),
         })
-}
-
-fn with_trailing_slash(registry: &str) -> String {
-    if registry.ends_with('/') {
-        registry.to_string()
-    } else {
-        format!("{registry}/")
-    }
-}
-
-async fn read_registry_keys_response(
-    response: reqwest::Response,
-    display_url: String,
-) -> Result<Vec<RegistryKey>, SignaturesError> {
-    let status = response.status().as_u16();
-    let body = response
-        .text()
         .await
-        .map_err(|source| SignaturesError::KeysNetwork {
+        .map_err(|source| SignaturesError::PackumentNetwork {
             url: display_url.clone(),
             reason: redact_url_credentials(&source.to_string()),
         })?;
-    // npm registries answer 404 (no signing) and 400 the same way: there is no
-    // trust root, so the registry's packages are simply not audited.
-    if status == 404 || status == 400 {
-        return Ok(Vec::new());
-    }
-    if status != 200 {
-        return Err(SignaturesError::KeysBadStatus {
-            url: display_url,
-            status,
-            body: sanitize_response_body(&body),
-        });
-    }
 
-    parse_registry_keys(&body, &display_url)
-}
-
-async fn read_packument_response(
-    response: reqwest::Response,
-    display_url: String,
-) -> Result<Option<Packument>, SignaturesError> {
     let status = response.status().as_u16();
     let body = response
         .text()
@@ -219,4 +173,22 @@ async fn read_packument_response(
     }
 
     parse_packument(&body, &display_url).map(Some)
+}
+
+fn parse_packument(body: &str, display_url: &str) -> Result<Packument, SignaturesError> {
+    let value: serde_json::Value = serde_json::from_str(body)
+        .map_err(|err| SignaturesError::PackumentInvalidJson {
+            url: display_url.to_string(),
+            reason: err.to_string(),
+            body: sanitize_response_body(body),
+        })?;
+    serde_json::from_value(value.clone())
+        .map_err(|_| SignaturesError::PackumentUnexpectedBody {
+            url: display_url.to_string(),
+            body: sanitize_response_body(&value.to_string()),
+        })
+}
+
+fn with_trailing_slash(registry: &str) -> String {
+    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }

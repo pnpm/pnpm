@@ -40,11 +40,8 @@ fn write_manifest_with_dependency_groups(
         panic!("the dependency groups must be an object")
     };
     manifest.extend(groups);
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::Value::Object(manifest).to_string(),
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), serde_json::Value::Object(manifest).to_string())
+        .expect("write package.json");
 }
 
 /// The default action is `install` (pnpm's
@@ -61,14 +58,8 @@ fn default_install_action_installs_before_running_the_script() {
         .with_args(["run", "hello"])
         .assert()
         .success();
-    assert!(
-        marker.exists(),
-        "the script must run after the spawned install",
-    );
-    assert!(
-        workspace.join("node_modules").exists(),
-        "the gate must have spawned an install first",
-    );
+    assert!(marker.exists(), "the script must run after the spawned install");
+    assert!(workspace.join("node_modules").exists(), "the gate must have spawned an install first");
 
     drop(root);
 }
@@ -121,10 +112,7 @@ fn install_action_reruns_a_production_only_install() {
         .with_args(["run", "hello"])
         .assert()
         .success();
-    assert!(
-        marker.exists(),
-        "the script must run after the spawned install",
-    );
+    assert!(marker.exists(), "the script must run after the spawned install");
     let installed: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(workspace.join("node_modules/@pnpm.e2e/foo/package.json"))
             .expect("read the installed @pnpm.e2e/foo manifest"),
@@ -245,10 +233,7 @@ fn error_action_follows_the_dependency_state() {
         .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
         .output()
         .expect("spawn pacquet run");
-    assert!(
-        !output.status.success(),
-        "running before any install must fail",
-    );
+    assert!(!output.status.success(), "running before any install must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN")
@@ -265,10 +250,7 @@ fn error_action_follows_the_dependency_state() {
         .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
         .assert()
         .success();
-    assert!(
-        marker.exists(),
-        "the script must run once dependencies are in sync",
-    );
+    assert!(marker.exists(), "the script must run once dependencies are in sync");
 
     // An mtime-only rewrite (same content) must still pass: the gate
     // re-checks the content against the lockfile instead of trusting
@@ -294,10 +276,7 @@ fn error_action_follows_the_dependency_state() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!output.status.success(), "a missing lockfile must fail");
-    assert!(
-        stderr.contains("Cannot find a lockfile in"),
-        "expected the lockfile error:\n{stderr}",
-    );
+    assert!(stderr.contains("Cannot find a lockfile in"), "expected the lockfile error:\n{stderr}");
     assert!(
         !workspace.join("pnpm-lock.yaml").exists(),
         "the pre-run check must not write pnpm-lock.yaml",
@@ -306,10 +285,7 @@ fn error_action_follows_the_dependency_state() {
         .with_arg("install")
         .assert()
         .success();
-    assert!(
-        workspace.join("pnpm-lock.yaml").exists(),
-        "install must restore the lockfile",
-    );
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "install must restore the lockfile");
 
     // A manifest that no longer matches the lockfile must fail again.
     let mut manifest: serde_json::Value = serde_json::from_str(
@@ -324,10 +300,7 @@ fn error_action_follows_the_dependency_state() {
         .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
         .output()
         .expect("spawn pacquet run");
-    assert!(
-        !output.status.success(),
-        "an out-of-sync manifest must fail",
-    );
+    assert!(!output.status.success(), "an out-of-sync manifest must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
@@ -445,10 +418,7 @@ fn a_shared_lockfile_is_checked_from_a_directory_without_a_manifest() {
         .with_args(["exec", "true"])
         .output()
         .expect("spawn pacquet exec");
-    assert!(
-        !output.status.success(),
-        "exec before any install must fail",
-    );
+    assert!(!output.status.success(), "exec before any install must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
@@ -479,20 +449,14 @@ fn warn_action_warns_and_runs_the_script() {
         .with_args(["--config.verify-deps-before-run=warn", "run", "hello"])
         .output()
         .expect("spawn pacquet run");
-    assert!(
-        output.status.success(),
-        "warn mode must not block the script",
-    );
+    assert!(output.status.success(), "warn mode must not block the script");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("Your node_modules are out of sync with your lockfile."),
         "expected the out-of-sync warning:\n{stderr}",
     );
     assert!(marker.exists(), "the script must run");
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "warn mode must not install",
-    );
+    assert!(!workspace.join("node_modules").exists(), "warn mode must not install");
 
     drop(root);
 }
@@ -508,10 +472,7 @@ fn prompt_action_errors_when_not_interactive() {
         .with_args(["--config.verify-deps-before-run=prompt", "run", "hello"])
         .output()
         .expect("spawn pacquet run");
-    assert!(
-        !output.status.success(),
-        "prompt mode must fail without a TTY",
-    );
+    assert!(!output.status.success(), "prompt mode must fail without a TTY");
     let stderr = String::from_utf8_lossy(&output.stderr);
     // miette wraps the help text, so collapse whitespace before matching.
     let stderr_flat = stderr
@@ -543,10 +504,7 @@ fn false_disables_the_gate() {
         .assert()
         .success();
     assert!(marker.exists(), "the script must run");
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "no install may be spawned",
-    );
+    assert!(!workspace.join("node_modules").exists(), "no install may be spawned");
 
     drop(root);
 }
@@ -591,10 +549,7 @@ fn env_var_outranks_the_cli_config_override() {
         .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
         .assert()
         .success();
-    assert!(
-        marker.exists(),
-        "the script must run with the check disabled by env",
-    );
+    assert!(marker.exists(), "the script must run with the check disabled by env");
 
     drop(root);
 }
@@ -614,14 +569,8 @@ fn empty_env_value_disables_the_gate() {
         .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
         .assert()
         .success();
-    assert!(
-        marker.exists(),
-        "the script must run with the gate disabled by the empty env var",
-    );
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "no check or install may run",
-    );
+    assert!(marker.exists(), "the script must run with the gate disabled by the empty env var");
+    assert!(!workspace.join("node_modules").exists(), "no check or install may run");
 
     drop(root);
 }
@@ -659,18 +608,12 @@ fn unrecognized_env_value_checks_without_acting() {
     write_manifest(&workspace, &marker);
 
     pacquet
-        .with_env(
-            "pnpm_config_verify_deps_before_run",
-            "definitely-not-an-action",
-        )
+        .with_env("pnpm_config_verify_deps_before_run", "definitely-not-an-action")
         .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
         .assert()
         .success();
     assert!(marker.exists(), "the script must run");
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "no action may fire",
-    );
+    assert!(!workspace.join("node_modules").exists(), "no action may fire");
 
     drop(root);
 }
@@ -686,10 +629,7 @@ fn exec_runs_the_gate_too() {
         .with_args(["--config.verify-deps-before-run=error", "exec", "true"])
         .output()
         .expect("spawn pacquet exec");
-    assert!(
-        !output.status.success(),
-        "exec before any install must fail",
-    );
+    assert!(!output.status.success(), "exec before any install must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
@@ -716,11 +656,8 @@ fn exec_keeps_verifier_output_out_of_child_stdout() {
         json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
     )
     .expect("write root package.json");
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
     let project = workspace.join("packages/project");
     fs::create_dir_all(&project).expect("create workspace project");
     write_manifest(&project, &project.join("marker.txt"));
@@ -767,10 +704,7 @@ fn ndjson_exec_keeps_verifier_output_machine_readable() {
     eprintln!("STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n");
     assert!(output.status.success(), "ndjson exec failed");
     assert_eq!(stdout, r#"{"workspace":"test"}"#);
-    assert!(
-        !stderr.is_empty(),
-        "the verifier install must report NDJSON events",
-    );
+    assert!(!stderr.is_empty(), "the verifier install must report NDJSON events");
     for line in stderr.lines() {
         serde_json::from_str::<serde_json::Value>(line)
             .unwrap_or_else(|err| panic!("invalid NDJSON line {line:?}: {err}"));
@@ -833,10 +767,7 @@ fn silent_recursive_exec_suppresses_verifier_output() {
 }
 
 #[test]
-#[cfg_attr(
-    not(unix),
-    ignore = "the fixture script uses the POSIX `touch` command"
-)]
+#[cfg_attr(not(unix), ignore = "the fixture script uses the POSIX `touch` command")]
 fn silent_recursive_run_suppresses_verifier_output() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let marker = workspace.join("marker.txt");
@@ -854,10 +785,7 @@ fn silent_recursive_run_suppresses_verifier_output() {
     assert!(output.status.success(), "silent recursive run failed");
     assert_eq!(stdout, "");
     assert_eq!(stderr, "");
-    assert!(
-        marker.exists(),
-        "the script must run after the verifier install",
-    );
+    assert!(marker.exists(), "the script must run after the verifier install");
 
     drop(root);
 }

@@ -56,10 +56,7 @@ fn write_manifest_and_lockfile(workspace: &Path) {
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
-    assert!(
-        workspace.join("pnpm-lock.yaml").exists(),
-        "lockfile must exist after --lockfile-only",
-    );
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "lockfile must exist after --lockfile-only");
 }
 
 #[test]
@@ -87,10 +84,7 @@ fn fetch_requires_existing_lockfile() {
         .output()
         .expect("spawn pacquet fetch");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !output.status.success(),
-        "fetch without lockfile must fail (stderr: {stderr})",
-    );
+    assert!(!output.status.success(), "fetch without lockfile must fail (stderr: {stderr})");
     assert!(
         stderr.contains("pnpm-lock.yaml"),
         "fetch must fail specifically because the lockfile is missing (stderr: {stderr})",
@@ -112,22 +106,10 @@ fn fetch_populates_every_group_by_default() {
         .assert()
         .success();
 
-    assert!(
-        store_dir.join(STORE_VERSION).exists(),
-        "fetch must populate the store",
-    );
-    assert!(
-        virtual_dep(&workspace, PROD_DEP).exists(),
-        "production dep must be fetched",
-    );
-    assert!(
-        virtual_dep(&workspace, DEV_DEP).exists(),
-        "dev dep must be fetched",
-    );
-    assert!(
-        virtual_dep(&workspace, OPTIONAL_DEP).exists(),
-        "optional dep must be fetched",
-    );
+    assert!(store_dir.join(STORE_VERSION).exists(), "fetch must populate the store");
+    assert!(virtual_dep(&workspace, PROD_DEP).exists(), "production dep must be fetched");
+    assert!(virtual_dep(&workspace, DEV_DEP).exists(), "dev dep must be fetched");
+    assert!(virtual_dep(&workspace, OPTIONAL_DEP).exists(), "optional dep must be fetched");
     assert_no_importer_links(&workspace);
     assert_eq!(
         pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace.join(
@@ -163,10 +145,7 @@ fn fetch_prod_keeps_optional_drops_dev() {
         virtual_dep(&workspace, OPTIONAL_DEP).exists(),
         "`fetch --prod` must still fetch optional deps (they follow production)",
     );
-    assert!(
-        !virtual_dep(&workspace, DEV_DEP).exists(),
-        "`fetch --prod` must not fetch dev deps",
-    );
+    assert!(!virtual_dep(&workspace, DEV_DEP).exists(), "`fetch --prod` must not fetch dev deps");
     assert_no_importer_links(&workspace);
 
     drop((root, mock_instance));
@@ -185,10 +164,7 @@ fn fetch_dev_drops_prod_and_optional() {
         .assert()
         .success();
 
-    assert!(
-        virtual_dep(&workspace, DEV_DEP).exists(),
-        "`fetch --dev` must fetch dev deps",
-    );
+    assert!(virtual_dep(&workspace, DEV_DEP).exists(), "`fetch --dev` must fetch dev deps");
     assert!(
         !virtual_dep(&workspace, PROD_DEP).exists(),
         "`fetch --dev` must not fetch production deps",
@@ -212,10 +188,7 @@ fn fetch_populates_the_global_virtual_store_without_importer_links() {
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&yaml_path)
         .expect("read pnpm-workspace.yaml")
-        .replace(
-            "enableGlobalVirtualStore: false",
-            "enableGlobalVirtualStore: true",
-        );
+        .replace("enableGlobalVirtualStore: false", "enableGlobalVirtualStore: true");
     fs::write(&yaml_path, yaml).expect("enable the global virtual store");
 
     pacquet_at(&workspace)
@@ -224,10 +197,7 @@ fn fetch_populates_the_global_virtual_store_without_importer_links() {
         .success();
 
     let gvs_root = store_dir.join(STORE_VERSION).join("links");
-    assert!(
-        gvs_root.is_dir(),
-        "fetch must populate the global virtual store",
-    );
+    assert!(gvs_root.is_dir(), "fetch must populate the global virtual store");
     assert!(
         gvs_root
             .join(PROD_DEP)
@@ -267,10 +237,7 @@ fn fetch_under_pnp_does_not_write_the_loader() {
         .assert()
         .success();
 
-    assert!(
-        store_dir.join(STORE_VERSION).exists(),
-        "fetch must still populate the store",
-    );
+    assert!(store_dir.join(STORE_VERSION).exists(), "fetch must still populate the store");
     assert!(
         !workspace.join(".pnp.cjs").exists(),
         "fetch must not write the PnP loader: it never linked the project",

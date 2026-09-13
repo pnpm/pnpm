@@ -50,10 +50,8 @@ async fn missing_bare_specifier_synthesizes_default_tag_query() {
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    let wanted = WantedDependency {
-        alias: Some("acme".to_string()),
-        ..WantedDependency::default()
-    };
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
     let result = resolver
         .resolve(&wanted, &ResolveOptions::default())
         .await
@@ -145,10 +143,7 @@ async fn jsr_specifier_without_selector_uses_default_tag() {
         .await;
     let jsr_registry = format!("{}/", server.url());
     let mut registries = HashMap::new();
-    registries.insert(
-        "default".to_string(),
-        "https://registry.npmjs.org/".to_string(),
-    );
+    registries.insert("default".to_string(), "https://registry.npmjs.org/".to_string());
     registries.insert("@jsr".to_string(), jsr_registry);
     let (resolver, _tempdir) = build_resolver_with_registries(registries);
 
@@ -258,8 +253,5 @@ async fn latest_is_suppressed_when_all_versions_are_immature_fallback_case() {
             .to_string(),
         "1.0.0",
     );
-    assert!(
-        result.package.latest.is_none(),
-        "immature dist-tags.latest suppresses the hint",
-    );
+    assert!(result.package.latest.is_none(), "immature dist-tags.latest suppresses the hint");
 }

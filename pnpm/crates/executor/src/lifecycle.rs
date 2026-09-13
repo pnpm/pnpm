@@ -39,12 +39,7 @@ pub enum LifecycleScriptError {
 
     #[display("{dep_path} {stage}: `{script}` exited with {status}")]
     #[diagnostic(code(ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED))]
-    ScriptFailed {
-        dep_path: String,
-        stage: String,
-        script: String,
-        status: ScriptExit,
-    },
+    ScriptFailed { dep_path: String, stage: String, script: String, status: ScriptExit },
 
     #[display("Failed to spawn lifecycle script for {dep_path} {stage}: {source}")]
     #[diagnostic(code(ERR_PNPM_EXECUTOR_SPAWN_LIFECYCLE))]
@@ -105,14 +100,8 @@ const DEPENDENCY_LIFECYCLE_STAGES: [&str; 3] = ["preinstall", "install", "postin
 
 /// The lifecycle stages pnpm runs for each workspace *project* during
 /// `pnpm install`, in execution order.
-pub const PROJECT_LIFECYCLE_STAGES: [&str; 6] = [
-    "preinstall",
-    "install",
-    "postinstall",
-    "preprepare",
-    "prepare",
-    "postprepare",
-];
+pub const PROJECT_LIFECYCLE_STAGES: [&str; 6] =
+    ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"];
 
 /// The pnpm-specific hook the root project may define to prepare state
 /// the install itself depends on. It runs before resolution, so unlike
@@ -182,13 +171,9 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
     opts: &RunPostinstallHooks<'_>,
     stages: &[&str],
 ) -> Result<bool, LifecycleScriptError> {
-    let Some(manifest) = read_lifecycle_manifest(opts.pkg_root)? else {
-        return Ok(false);
-    };
+    let Some(manifest) = read_lifecycle_manifest(opts.pkg_root)? else { return Ok(false) };
 
-    let scripts = manifest
-        .get("scripts")
-        .and_then(|v| v.as_object());
+    let scripts = manifest.get("scripts").and_then(|v| v.as_object());
     let get_script = |name: &str| -> Option<&str> {
         scripts
             .and_then(|s| s.get(name))
@@ -229,6 +214,19 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
     Ok(ran_any)
 }
 
+fn read_lifecycle_manifest(
+    pkg_root: &Path,
+) -> Result<Option<serde_json::Value>, LifecycleScriptError> {
+    safe_read_package_json_from_dir(pkg_root)
+        .map_err(|source| LifecycleScriptError::ReadManifest {
+            path: pkg_root
+                .join("package.json")
+                .display()
+                .to_string(),
+            source,
+        })
+}
+
 /// Run a single lifecycle hook and emit `pnpm:lifecycle` events.
 ///
 /// `parent_env` is captured by the caller so multi-stage callers (the
@@ -253,13 +251,16 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
 
     let pkg_root_str = opts.pkg_root.to_string_lossy().into_owned();
 
-    StreamedScript {
-        dep_path: opts.dep_path,
-        stage,
-        wd: &pkg_root_str,
-        emit: Reporter::emit,
-    }
-    .started_with_optional(script, opts.optional);
+    Reporter::emit(&LogEvent::Lifecycle(LifecycleLog {
+        level: LogLevel::Debug,
+        message: LifecycleMessage::Script {
+            dep_path: opts.dep_path.to_string(),
+            optional: opts.optional,
+            script: script.to_string(),
+            stage: stage.to_string(),
+            wd: pkg_root_str.clone(),
+        },
+    }));
 
     let built = lifecycle_env(stage, script, opts, manifest, parent_env);
     let path_env = prepare_lifecycle_path(opts, stage, &built)?;
@@ -414,13 +415,12 @@ fn run_in_shell<Reporter: self::Reporter>(
             source: error,
         })?;
 
-    let target = StreamedScript {
-        dep_path: opts.dep_path,
-        stage,
-        wd,
-        emit: Reporter::emit,
-    };
-    let pumps = target.pump_outputs(child.child_mut());
+    let stdout = child.child_mut().stdout.take();
+    let stderr = child.child_mut().stderr.take();
+
+    let target = StreamedScript { dep_path: opts.dep_path, stage, wd, emit: Reporter::emit };
+    let stdout_handle = stdout.map(|stream| target.pump_stream(stream, LifecycleStdio::Stdout));
+    let stderr_handle = stderr.map(|stream| target.pump_stream(stream, LifecycleStdio::Stderr));
 
     let status = child
         .wait()
@@ -430,7 +430,14 @@ fn run_in_shell<Reporter: self::Reporter>(
             source: error,
         })?;
 
-    output::join_output_pumps(pumps);
+    // Joining the pumps after `wait` ensures every line they read is
+    // emitted before the caller's `Exit` event, matching pnpm's ordering.
+    if let Some(handle) = stdout_handle {
+        let _ = handle.join();
+    }
+    if let Some(handle) = stderr_handle {
+        let _ = handle.join();
+    }
 
     Ok(ScriptExit::Process(status))
 }
@@ -444,22 +451,11 @@ fn run_in_emulator<Reporter: self::Reporter>(
     env: &HashMap<String, String>,
     wd: &str,
 ) -> Result<ScriptExit, LifecycleScriptError> {
-    let target = StreamedScript {
-        dep_path: opts.dep_path,
-        stage,
-        wd,
-        emit: Reporter::emit,
-    };
+    let target = StreamedScript { dep_path: opts.dep_path, stage, wd, emit: Reporter::emit };
     let emit_line = |stdio, line| target.emit_line(stdio, line);
-    execute_emulated(
-        script,
-        opts.pkg_root,
-        env,
-        EmulatedOutput::Lines(&emit_line),
-        None,
-    )
-    .map(ScriptExit::Emulated)
-    .map_err(LifecycleScriptError::ShellEmulator)
+    execute_emulated(script, opts.pkg_root, env, EmulatedOutput::Lines(&emit_line), None)
+        .map(ScriptExit::Emulated)
+        .map_err(LifecycleScriptError::ShellEmulator)
 }
 
 /// Append the script body as the shell command's final argument.
@@ -491,14 +487,3 @@ pub fn push_script_arg(cmd: &mut Command, script: &str, _windows_verbatim_args: 
 mod tests;
 
 mod output;
-
-fn read_lifecycle_manifest(pkg_root: &Path) -> Result<Option<Value>, LifecycleScriptError> {
-    safe_read_package_json_from_dir(pkg_root)
-        .map_err(|source| LifecycleScriptError::ReadManifest {
-            path: pkg_root
-                .join("package.json")
-                .display()
-                .to_string(),
-            source,
-        })
-}

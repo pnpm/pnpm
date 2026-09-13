@@ -23,16 +23,10 @@ use std::fs;
 async fn run_install_ignores_an_ambient_workspace_manifest_above_the_install_dir() {
     let registry = TestRegistry::start();
     let temp = tempfile::tempdir().expect("tempdir");
-    let global_pkg_dir = temp
-        .path()
-        .join("global")
-        .join("v11");
+    let global_pkg_dir = temp.path().join("global").join("v11");
     fs::create_dir_all(&global_pkg_dir).expect("create global packages dir");
-    fs::write(
-        global_pkg_dir.join("pnpm-workspace.yaml"),
-        "allowBuilds:\n  esbuild: true\n",
-    )
-    .expect("write ambient workspace manifest");
+    fs::write(global_pkg_dir.join("pnpm-workspace.yaml"), "allowBuilds:\n  esbuild: true\n")
+        .expect("write ambient workspace manifest");
     // The leftovers an unanchored install strands in the global packages
     // dir: a stray `node_modules` and a lockfile at the adopted workspace
     // root. A later self-update must succeed with them in place (each
@@ -80,85 +74,34 @@ async fn run_install_ignores_an_ambient_workspace_manifest_above_the_install_dir
 
 #[test]
 fn legacy_platform_dir_names() {
-    assert_eq!(
-        exe_platform_pkg_dir_name("darwin", "arm64", "unknown"),
-        "macos-arm64",
-    );
-    assert_eq!(
-        exe_platform_pkg_dir_name("darwin", "x64", "unknown"),
-        "macos-x64",
-    );
-    assert_eq!(
-        exe_platform_pkg_dir_name("win32", "x64", "unknown"),
-        "win-x64",
-    );
-    assert_eq!(
-        exe_platform_pkg_dir_name("win32", "ia32", "unknown"),
-        "win-x86",
-    );
-    assert_eq!(
-        exe_platform_pkg_dir_name("linux", "x64", "glibc"),
-        "linux-x64",
-    );
-    assert_eq!(
-        exe_platform_pkg_dir_name("linux", "x64", "musl"),
-        "linuxstatic-x64",
-    );
-    assert_eq!(
-        exe_platform_pkg_dir_name("linux", "arm64", "musl"),
-        "linuxstatic-arm64",
-    );
+    assert_eq!(exe_platform_pkg_dir_name("darwin", "arm64", "unknown"), "macos-arm64");
+    assert_eq!(exe_platform_pkg_dir_name("darwin", "x64", "unknown"), "macos-x64");
+    assert_eq!(exe_platform_pkg_dir_name("win32", "x64", "unknown"), "win-x64");
+    assert_eq!(exe_platform_pkg_dir_name("win32", "ia32", "unknown"), "win-x86");
+    assert_eq!(exe_platform_pkg_dir_name("linux", "x64", "glibc"), "linux-x64");
+    assert_eq!(exe_platform_pkg_dir_name("linux", "x64", "musl"), "linuxstatic-x64");
+    assert_eq!(exe_platform_pkg_dir_name("linux", "arm64", "musl"), "linuxstatic-arm64");
 }
 
 #[test]
 fn next_platform_dir_names() {
-    assert_eq!(
-        exe_platform_pkg_dir_name_next("darwin", "arm64", "unknown"),
-        "exe.darwin-arm64",
-    );
-    assert_eq!(
-        exe_platform_pkg_dir_name_next("win32", "ia32", "unknown"),
-        "exe.win32-x86",
-    );
-    assert_eq!(
-        exe_platform_pkg_dir_name_next("linux", "x64", "glibc"),
-        "exe.linux-x64",
-    );
-    assert_eq!(
-        exe_platform_pkg_dir_name_next("linux", "x64", "musl"),
-        "exe.linux-x64-musl",
-    );
-    assert_eq!(
-        exe_platform_pkg_dir_name_next("linux", "arm64", "musl"),
-        "exe.linux-arm64-musl",
-    );
+    assert_eq!(exe_platform_pkg_dir_name_next("darwin", "arm64", "unknown"), "exe.darwin-arm64");
+    assert_eq!(exe_platform_pkg_dir_name_next("win32", "ia32", "unknown"), "exe.win32-x86");
+    assert_eq!(exe_platform_pkg_dir_name_next("linux", "x64", "glibc"), "exe.linux-x64");
+    assert_eq!(exe_platform_pkg_dir_name_next("linux", "x64", "musl"), "exe.linux-x64-musl");
+    assert_eq!(exe_platform_pkg_dir_name_next("linux", "arm64", "musl"), "exe.linux-arm64-musl");
 }
 
 #[test]
 fn target_package_name_matches_pnpm_engine_layout() {
-    assert_eq!(
-        pnpm_package_to_install("12.0.0-alpha.1").name,
-        PNPM_PACKAGE_NAME,
-    );
+    assert_eq!(pnpm_package_to_install("12.0.0-alpha.1").name, PNPM_PACKAGE_NAME);
     assert_eq!(pnpm_package_to_install("12.0.0").name, PNPM_PACKAGE_NAME);
-    assert_eq!(
-        pnpm_package_to_install("11.10.0").name,
-        PNPM_EXE_PACKAGE_NAME,
-    );
-    assert_eq!(
-        pnpm_package_to_install("10.34.4").name,
-        PNPM_EXE_PACKAGE_NAME,
-    );
-    assert_eq!(
-        pnpm_package_to_install("6.17.1").name,
-        PNPM_EXE_PACKAGE_NAME,
-    );
+    assert_eq!(pnpm_package_to_install("11.10.0").name, PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("10.34.4").name, PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(pnpm_package_to_install("6.17.1").name, PNPM_EXE_PACKAGE_NAME);
     assert_eq!(pnpm_package_to_install("6.16.0").name, PNPM_PACKAGE_NAME);
     assert_eq!(pnpm_package_to_install("5.18.10").name, PNPM_PACKAGE_NAME);
-    assert_eq!(
-        pnpm_package_to_install("not-semver").name,
-        PNPM_EXE_PACKAGE_NAME,
-    );
+    assert_eq!(pnpm_package_to_install("not-semver").name, PNPM_EXE_PACKAGE_NAME);
 }
 
 #[test]
@@ -209,14 +152,8 @@ fn links_the_host_platform_binary_into_the_wrapper() {
         .join("node_modules")
         .join("pnpm")
         .join("pnpm");
-    assert!(
-        dest.exists(),
-        "the native binary is linked into the wrapper",
-    );
-    assert_eq!(
-        fs::read(&dest).expect("read linked binary"),
-        b"#!/bin/sh\necho pnpm\n",
-    );
+    assert!(dest.exists(), "the native binary is linked into the wrapper");
+    assert_eq!(fs::read(&dest).expect("read linked binary"), b"#!/bin/sh\necho pnpm\n");
     let mode = fs::metadata(&dest)
         .expect("stat linked binary")
         .permissions()
@@ -233,14 +170,8 @@ fn links_the_host_platform_binary_into_scoped_exe_wrapper() {
     link_exe_platform_binary(temp.path(), PNPM_EXE_PACKAGE_NAME).expect("linking should succeed");
 
     let dest = package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME).join("pnpm");
-    assert!(
-        dest.exists(),
-        "the native binary is linked into the scoped wrapper",
-    );
-    assert_eq!(
-        fs::read(&dest).expect("read linked binary"),
-        b"#!/bin/sh\necho pnpm\n",
-    );
+    assert!(dest.exists(), "the native binary is linked into the scoped wrapper");
+    assert_eq!(fs::read(&dest).expect("read linked binary"), b"#!/bin/sh\necho pnpm\n");
 }
 
 /// Lay out the wrapper slot of a fake global-virtual-store engine install
@@ -307,14 +238,8 @@ fn links_native_binary_from_a_sibling_global_virtual_store_slot() {
     link_exe_platform_binary(&slot, "pnpm").expect("linking should succeed");
 
     let dest = package_dir(&slot, "pnpm").join("pnpm");
-    assert!(
-        dest.exists(),
-        "the native binary is linked into the wrapper",
-    );
-    assert_eq!(
-        fs::read(&dest).expect("read linked binary"),
-        b"#!/bin/sh\necho pnpm\n",
-    );
+    assert!(dest.exists(), "the native binary is linked into the wrapper");
+    assert_eq!(fs::read(&dest).expect("read linked binary"), b"#!/bin/sh\necho pnpm\n");
 }
 
 #[cfg(unix)]
@@ -362,10 +287,7 @@ fn rejects_native_binary_that_escapes_the_global_virtual_store() {
     .expect("symlink platform package outside the store");
 
     let err = link_exe_platform_binary(&slot, "pnpm").expect_err("escaped native source rejected");
-    assert!(
-        err.to_string().contains("resolves outside"),
-        "unexpected error: {err:?}",
-    );
+    assert!(err.to_string().contains("resolves outside"), "unexpected error: {err:?}");
     assert!(!package_dir(&slot, "pnpm").join("pnpm").exists());
 }
 
@@ -385,22 +307,13 @@ fn rejects_wrapper_symlink_that_escapes_the_install_dir() {
             .join("@pnpm"),
     )
     .expect("create scope dir");
-    std::os::unix::fs::symlink(
-        &outside_wrapper,
-        package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME),
-    )
-    .expect("symlink wrapper outside install dir");
+    std::os::unix::fs::symlink(&outside_wrapper, package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME))
+        .expect("symlink wrapper outside install dir");
 
     let err = link_exe_platform_binary(temp.path(), PNPM_EXE_PACKAGE_NAME)
         .expect_err("escaped wrapper must be rejected");
-    assert!(
-        err.to_string().contains("resolves outside"),
-        "unexpected error: {err:?}",
-    );
-    assert_eq!(
-        fs::read(outside_wrapper.join("pnpm")).expect("read outside file"),
-        b"outside",
-    );
+    assert!(err.to_string().contains("resolves outside"), "unexpected error: {err:?}");
+    assert_eq!(fs::read(outside_wrapper.join("pnpm")).expect("read outside file"), b"outside");
 }
 
 #[cfg(unix)]
@@ -424,15 +337,9 @@ fn rejects_native_binary_symlink_that_escapes_the_install_dir() {
 
     let err =
         link_exe_platform_binary(temp.path(), "pnpm").expect_err("escaped native source rejected");
-    assert!(
-        err.to_string().contains("is a symlink"),
-        "unexpected error: {err:?}",
-    );
+    assert!(err.to_string().contains("is a symlink"), "unexpected error: {err:?}");
     assert!(!package_dir(temp.path(), "pnpm").join("pnpm").exists());
-    assert_eq!(
-        fs::read(outside_binary).expect("read outside file"),
-        b"outside",
-    );
+    assert_eq!(fs::read(outside_binary).expect("read outside file"), b"outside");
 }
 
 #[cfg(unix)]
@@ -458,10 +365,7 @@ fn rejects_native_binary_scope_symlink_that_escapes_the_install_dir() {
 
     let err =
         link_exe_platform_binary(temp.path(), "pnpm").expect_err("escaped native source rejected");
-    assert!(
-        err.to_string().contains("resolves outside"),
-        "unexpected error: {err:?}",
-    );
+    assert!(err.to_string().contains("resolves outside"), "unexpected error: {err:?}");
     assert!(!package_dir(temp.path(), "pnpm").join("pnpm").exists());
 }
 
@@ -479,11 +383,8 @@ fn link_errors_when_the_native_binary_is_missing() {
 /// [`super::installed_version`] reads it back.
 fn write_wrapper_version(install_dir: &std::path::Path, wrapper_pkg_name: &str, version: &str) {
     let manifest = format!(r#"{{"name":"{wrapper_pkg_name}","version":"{version}"}}"#);
-    fs::write(
-        package_dir(install_dir, wrapper_pkg_name).join("package.json"),
-        manifest,
-    )
-    .expect("write wrapper package.json");
+    fs::write(package_dir(install_dir, wrapper_pkg_name).join("package.json"), manifest)
+        .expect("write wrapper package.json");
 }
 
 #[cfg(unix)]
@@ -493,11 +394,7 @@ fn reuse_cached_engine_accepts_a_healthy_slot() {
     fake_engine_install_for(temp.path(), PNPM_EXE_PACKAGE_NAME, true);
     write_wrapper_version(temp.path(), PNPM_EXE_PACKAGE_NAME, "11.10.0");
 
-    assert!(reuse_cached_engine(
-        temp.path(),
-        pnpm_package_to_install("11.10.0"),
-        "11.10.0"
-    ));
+    assert!(reuse_cached_engine(temp.path(), pnpm_package_to_install("11.10.0"), "11.10.0"));
     // The relink repaired the slot in place: the native binary is now linked.
     assert!(package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME).join("pnpm").exists());
 }
@@ -508,11 +405,7 @@ fn reuse_cached_engine_rejects_a_version_mismatch() {
     fake_engine_install_for(temp.path(), PNPM_EXE_PACKAGE_NAME, true);
     write_wrapper_version(temp.path(), PNPM_EXE_PACKAGE_NAME, "11.9.0");
 
-    assert!(!reuse_cached_engine(
-        temp.path(),
-        pnpm_package_to_install("11.10.0"),
-        "11.10.0"
-    ));
+    assert!(!reuse_cached_engine(temp.path(), pnpm_package_to_install("11.10.0"), "11.10.0"));
 }
 
 #[test]
@@ -541,11 +434,8 @@ fn reuse_cached_engine_rejects_a_wrapper_that_escapes_the_slot() {
     let outside = tempfile::tempdir().expect("outside tempdir");
     let outside_wrapper = outside.path().join("exe");
     fs::create_dir_all(&outside_wrapper).expect("create outside wrapper");
-    fs::write(
-        outside_wrapper.join("package.json"),
-        r#"{"name":"@pnpm/exe","version":"11.10.0"}"#,
-    )
-    .expect("write outside wrapper manifest");
+    fs::write(outside_wrapper.join("package.json"), r#"{"name":"@pnpm/exe","version":"11.10.0"}"#)
+        .expect("write outside wrapper manifest");
 
     fs::create_dir_all(
         temp
@@ -554,17 +444,10 @@ fn reuse_cached_engine_rejects_a_wrapper_that_escapes_the_slot() {
             .join("@pnpm"),
     )
     .expect("create scope dir");
-    std::os::unix::fs::symlink(
-        &outside_wrapper,
-        package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME),
-    )
-    .expect("symlink wrapper outside slot");
+    std::os::unix::fs::symlink(&outside_wrapper, package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME))
+        .expect("symlink wrapper outside slot");
 
     // The recorded version matches, but the wrapper resolves outside the
     // slot, so the slot is not reusable.
-    assert!(!reuse_cached_engine(
-        temp.path(),
-        pnpm_package_to_install("11.10.0"),
-        "11.10.0"
-    ));
+    assert!(!reuse_cached_engine(temp.path(), pnpm_package_to_install("11.10.0"), "11.10.0"));
 }

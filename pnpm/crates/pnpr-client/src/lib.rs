@@ -527,11 +527,7 @@ async fn response_body_bounded(
     let mut stream = response.bytes_stream();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk?;
-        if body
-            .len()
-            .saturating_add(chunk.len())
-            > limit
-        {
+        if body.len().saturating_add(chunk.len()) > limit {
             return Err(PnprClientError::Protocol(format!(
                 "pnpr response exceeds the {limit}-byte limit",
             )));

@@ -151,10 +151,7 @@ impl FsWrite for PartialWriteFailure {
         if PARTIAL_WRITE_CALLS.fetch_add(1, Ordering::SeqCst) == 0 {
             return <Host as FsWrite>::write(path, bytes);
         }
-        Err(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            "injected shim write failure",
-        ))
+        Err(io::Error::new(io::ErrorKind::PermissionDenied, "injected shim write failure"))
     }
 }
 
@@ -214,10 +211,7 @@ impl FsSwapHashLink for RenameRollbackFailure {
 
 impl FsRename for RenameRollbackFailure {
     fn rename(_source: &Path, _target: &Path) -> io::Result<()> {
-        Err(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            "injected backup rename failure",
-        ))
+        Err(io::Error::new(io::ErrorKind::PermissionDenied, "injected backup rename failure"))
     }
 }
 
@@ -258,9 +252,7 @@ fn replace_backup_dir_with_file(global_bin_dir: &Path) -> io::Result<()> {
 /// Leave a file inside the pending backup directory so removing it fails.
 fn block_backup_cleanup() -> io::Result<()> {
     let guard = BACKUP_BLOCKER_BIN_DIR.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let Some(global_bin_dir) = guard.as_ref() else {
-        return Ok(());
-    };
+    let Some(global_bin_dir) = guard.as_ref() else { return Ok(()) };
     for entry in fs::read_dir(global_bin_dir)? {
         let entry = entry?;
         if entry
@@ -268,10 +260,7 @@ fn block_backup_cleanup() -> io::Result<()> {
             .to_string_lossy()
             .starts_with(".pnpm-bin-backup-")
         {
-            fs::write(
-                entry.path().join("cleanup-blocker"),
-                b"keep backup non-empty\n",
-            )?;
+            fs::write(entry.path().join("cleanup-blocker"), b"keep backup non-empty\n")?;
         }
     }
     Ok(())
@@ -424,15 +413,9 @@ fn only_directory_symlink_slots_need_pre_removal() {
 #[test]
 fn directory_removal_uses_the_current_slot_kind() {
     assert!(!needs_directory_symlink_removal(None));
-    assert!(!needs_directory_symlink_removal(Some(
-        BinSlotKind::RegularFile
-    )));
-    assert!(!needs_directory_symlink_removal(Some(
-        BinSlotKind::FileSymlink
-    )));
-    assert!(needs_directory_symlink_removal(Some(
-        BinSlotKind::DirectorySymlink
-    )));
+    assert!(!needs_directory_symlink_removal(Some(BinSlotKind::RegularFile)));
+    assert!(!needs_directory_symlink_removal(Some(BinSlotKind::FileSymlink)));
+    assert!(needs_directory_symlink_removal(Some(BinSlotKind::DirectorySymlink)));
 }
 
 #[test]
@@ -468,16 +451,10 @@ fn successful_activation_returns_deduped_unskipped_bins_and_removes_backup() {
     )
     .expect("activate global install");
 
-    assert_eq!(
-        activated.activated_bins,
-        HashSet::from(["tool".to_string()]),
-    );
+    assert_eq!(activated.activated_bins, HashSet::from(["tool".to_string()]));
     assert!(activated.leftover_backup.is_none());
     assert_eq!(slot_state(&fixture.global_bin_dir.join("skip")), skipped);
-    assert_eq!(
-        resolved_hash_target(&fixture.hash_link),
-        canonical(&fixture.fresh_install_dir),
-    );
+    assert_eq!(resolved_hash_target(&fixture.hash_link), canonical(&fixture.fresh_install_dir));
     assert!(fixture.old_install_dir.exists());
     assert!(backup_dirs(&fixture.global_bin_dir).is_empty());
 }
@@ -508,17 +485,11 @@ fn a_committed_activation_reports_a_leftover_backup_instead_of_failing() {
     )
     .expect("a leftover backup directory must not fail a committed activation");
 
-    assert_eq!(
-        activation.activated_bins,
-        HashSet::from(["tool".to_string()]),
-    );
+    assert_eq!(activation.activated_bins, HashSet::from(["tool".to_string()]));
     let leftover = activation.leftover_backup.expect("the leftover backup must be reported");
     assert!(leftover.to_string().contains("Failed to remove the global bin backup directory"));
     assert_eq!(backup_dirs(&fixture.global_bin_dir).len(), 1);
-    assert_eq!(
-        resolved_hash_target(&fixture.hash_link),
-        canonical(&fixture.fresh_install_dir),
-    );
+    assert_eq!(resolved_hash_target(&fixture.hash_link), canonical(&fixture.fresh_install_dir));
 }
 
 fn test_link_bins<Sys>(
@@ -571,11 +542,8 @@ impl ActivationFixture {
         for bin_name in bin_names {
             let relative = format!("bin/{bin_name}.js");
             bins.insert((*bin_name).to_string(), json!(relative));
-            fs::write(
-                package_dir.join(&relative),
-                format!("#!/usr/bin/env node\n// {bin_name}\n"),
-            )
-            .expect("write fresh bin source");
+            fs::write(package_dir.join(&relative), format!("#!/usr/bin/env node\n// {bin_name}\n"))
+                .expect("write fresh bin source");
         }
         let manifest = json!({
             "name": "replacement",
@@ -658,19 +626,10 @@ enum SlotState {
 fn slot_state(path: &Path) -> SlotState {
     let metadata = fs::symlink_metadata(path).expect("read bin slot metadata");
     if metadata.file_type().is_symlink() {
-        return SlotState::Symlink {
-            target: fs::read_link(path).expect("read bin symlink"),
-        };
+        return SlotState::Symlink { target: fs::read_link(path).expect("read bin symlink") };
     }
-    assert!(
-        metadata.is_file(),
-        "expected a regular file or symlink at {}",
-        path.display(),
-    );
-    SlotState::File {
-        bytes: fs::read(path).expect("read bin slot"),
-        mode: mode(&metadata),
-    }
+    assert!(metadata.is_file(), "expected a regular file or symlink at {}", path.display());
+    SlotState::File { bytes: fs::read(path).expect("read bin slot"), mode: mode(&metadata) }
 }
 
 fn resolved_hash_target(link: &Path) -> PathBuf {

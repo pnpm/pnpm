@@ -36,9 +36,7 @@ fn discovered_workspace_packages(
 }
 
 fn actions_selector_matcher(update_actions: bool, selectors: &[String]) -> Option<Matcher> {
-    update_actions
-        .then(|| github_actions::selector_matcher(selectors))
-        .flatten()
+    update_actions.then(|| github_actions::selector_matcher(selectors)).flatten()
 }
 
 fn filter_package_selectors(packages: &[String], include_github_actions: bool) -> Vec<String> {
@@ -62,11 +60,7 @@ fn update_actions_root(
     selection: Option<&InstallFamilySelection>,
 ) -> std::path::PathBuf {
     selection.map_or_else(
-        || {
-            state.config.workspace_dir
-                .clone()
-                .unwrap_or_else(|| manifest_root(&state.manifest))
-        },
+        || state.config.workspace_dir.clone().unwrap_or_else(|| manifest_root(&state.manifest)),
         |selection| selection.workspace_root.clone(),
     )
 }
@@ -134,8 +128,7 @@ impl UpdateArgs {
                 .await
             }
             None => {
-                super::super::install::install_via_pnpr::<Reporter>(state, pnpr_server, link)
-                    .await
+                super::super::install::install_via_pnpr::<Reporter>(state, pnpr_server, link).await
             }
         }
     }
@@ -147,8 +140,7 @@ impl UpdateArgs {
         inputs: &UpdateInputs,
     ) -> miette::Result<()> {
         let Some(packages) =
-            self.select_local_packages::<Reporter>(&state, selection.as_ref(), inputs)
-                .await?
+            self.select_local_packages::<Reporter>(&state, selection.as_ref(), inputs).await?
         else {
             return Ok(());
         };
@@ -162,8 +154,7 @@ impl UpdateArgs {
             let update = self.prepare_update(&mut state, inputs, &packages)?;
             match &mut selection {
                 Some(selection) => {
-                    update.run_selected::<Reporter>(selection.selected_projects())
-                        .await
+                    update.run_selected::<Reporter>(selection.selected_projects()).await
                 }
                 None => update.run::<Reporter>().await,
             }

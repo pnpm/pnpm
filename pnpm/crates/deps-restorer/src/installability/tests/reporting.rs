@@ -16,17 +16,11 @@ fn duplicate_metadata_dedupes_reporter_events() {
     let mut snapshots = HashMap::new();
     snapshots.insert(
         snapshot_key_a.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
+        SnapshotEntry { optional: true, ..Default::default() },
     );
     snapshots.insert(
         snapshot_key_b.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..Default::default()
-        },
+        SnapshotEntry { optional: true, ..Default::default() },
     );
     let mut packages = HashMap::new();
     packages.insert(

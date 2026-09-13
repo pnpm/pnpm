@@ -87,10 +87,7 @@ pub(super) fn create_indexed_dirs(
         }
         let abs = dir_path.join(rel);
         fs::create_dir_all(&abs)
-            .map_err(|error| ImportIndexedDirError::CreateDir {
-                dirname: abs,
-                error,
-            })?;
+            .map_err(|error| ImportIndexedDirError::CreateDir { dirname: abs, error })?;
     }
 
     Ok(())
@@ -154,10 +151,9 @@ pub(super) fn clear_dir_blocking_file(target: &Path) -> Result<(), ImportIndexed
             }),
         Ok(_) => Ok(()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(ImportIndexedDirError::InspectTarget {
-            path: target.to_path_buf(),
-            error,
-        }),
+        Err(error) => {
+            Err(ImportIndexedDirError::InspectTarget { path: target.to_path_buf(), error })
+        }
     }
 }
 /// Remove any non-directory dirent along `rel`'s ancestry, so that the
@@ -180,12 +176,7 @@ pub(super) fn clear_dirent_blocking_dir(
                     error,
                 })?,
             Err(err) if err.kind() == io::ErrorKind::NotFound => break,
-            Err(error) => {
-                return Err(ImportIndexedDirError::InspectTarget {
-                    path: abs,
-                    error,
-                });
-            }
+            Err(error) => return Err(ImportIndexedDirError::InspectTarget { path: abs, error }),
         }
     }
     Ok(())
@@ -279,9 +270,7 @@ pub(super) fn files_have_equal_contents(left: &Path, right: &Path) -> io::Result
         if left_chunk.is_empty() || right_chunk.is_empty() {
             return Ok(left_chunk.is_empty() && right_chunk.is_empty());
         }
-        let len = left_chunk
-            .len()
-            .min(right_chunk.len());
+        let len = left_chunk.len().min(right_chunk.len());
         if left_chunk[..len] != right_chunk[..len] {
             return Ok(false);
         }

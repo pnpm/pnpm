@@ -55,15 +55,17 @@ pub struct WhyArgs {
 
 impl WhyArgs {
     pub async fn run(self, state: State) -> miette::Result<()> {
-        self.validate_search()?;
+        if self.packages.is_empty() && self.find_by.is_empty() {
+            return Err(miette::miette!(
+                code = "ERR_PNPM_MISSING_PACKAGE_NAME",
+                "`pnpm why` requires the package name or --find-by=<finder-name>"
+            ));
+        }
         let lockfile_dir = state.lockfile_dir().to_path_buf();
         let project_dirs = state_project_dirs(&state, &lockfile_dir)?;
 
-        let loaded = LoadedState::load(
-            &lockfile_dir,
-            Some(state.config.modules_dir.as_path()),
-            false,
-        )?;
+        let loaded =
+            LoadedState::load(&lockfile_dir, Some(state.config.modules_dir.as_path()), false)?;
         let Some(env) = loaded.env(
             &lockfile_dir,
             state.config.virtual_store_dir_max_length as usize,
@@ -81,15 +83,10 @@ impl WhyArgs {
         let root_ids = importer_root_ids(lockfile, &lockfile_dir, &project_dirs);
         let graph = build_dependency_graph(
             &root_ids,
-            &BuildGraphOptions {
-                lockfile,
-                include,
-                only_projects: false,
-            },
+            &BuildGraphOptions { lockfile, include, only_projects: false },
         );
 
-        let searcher = self.searcher(&env, &graph, state.config, &lockfile_dir)
-            .await?;
+        let searcher = self.searcher(&env, &graph, state.config, &lockfile_dir).await?;
 
         let trees = build_dependents_tree(&BuildDependentsOptions {
             env: &env,
@@ -100,16 +97,6 @@ impl WhyArgs {
         });
 
         print_output(&self.render(&trees));
-        Ok(())
-    }
-
-    fn validate_search(&self) -> miette::Result<()> {
-        if self.packages.is_empty() && self.find_by.is_empty() {
-            return Err(miette::miette!(
-                code = "ERR_PNPM_MISSING_PACKAGE_NAME",
-                "`pnpm why` requires the package name or --find-by=<finder-name>"
-            ));
-        }
         Ok(())
     }
 
@@ -136,8 +123,7 @@ impl WhyArgs {
     ) -> miette::Result<Searcher> {
         let mut searcher = Searcher::from_queries(&self.packages)?;
         if !self.find_by.is_empty() {
-            let finders = resolve_finders(config, lockfile_dir, &self.find_by)
-                .await?;
+            let finders = resolve_finders(config, lockfile_dir, &self.find_by).await?;
             let candidates = finder_candidates(env, graph);
             let results = evaluate_finders(env, &finders, candidates).await?;
             searcher.set_finder_results(results);
@@ -146,10 +132,7 @@ impl WhyArgs {
     }
 
     fn render(&self, trees: &[DependentsTree]) -> String {
-        let render_opts = RenderDependentsOptions {
-            long: self.output.long,
-            depth: self.depth,
-        };
+        let render_opts = RenderDependentsOptions { long: self.output.long, depth: self.depth };
         if self.output.parseable {
             render_dependents_parseable(trees, &render_opts)
         } else if self.output.json {
@@ -176,10 +159,7 @@ fn collect_importer_info(
         let name = manifest.name.unwrap_or_else(|| importer_display_name(importer_id));
         importer_info.insert(
             importer_id.clone(),
-            ImporterInfo {
-                name,
-                version: manifest.version.unwrap_or_default(),
-            },
+            ImporterInfo { name, version: manifest.version.unwrap_or_default() },
         );
     }
     importer_info
@@ -187,11 +167,7 @@ fn collect_importer_info(
 
 /// What to call an importer whose manifest carries no name.
 fn importer_display_name(importer_id: &str) -> String {
-    if importer_id == "." {
-        "the root project".to_string()
-    } else {
-        importer_id.to_string()
-    }
+    if importer_id == "." { "the root project".to_string() } else { importer_id.to_string() }
 }
 
 /// The projects `pnpm why` walks: the selected workspace projects under
@@ -206,13 +182,11 @@ fn why_project_dirs(
     }
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(lockfile_dir);
     let (projects, _) = discover_workspace_projects(workspace_root, config)?;
-    Ok(
-        select_recursive_projects(&projects, config, &project_dir, AutoExcludeRoot::Disabled)?
-            .selected
-            .keys()
-            .cloned()
-            .collect(),
-    )
+    Ok(select_recursive_projects(&projects, config, &project_dir, AutoExcludeRoot::Disabled)?
+        .selected
+        .keys()
+        .cloned()
+        .collect())
 }
 
 fn state_project_dirs(state: &State, lockfile_dir: &Path) -> miette::Result<Vec<PathBuf>> {

@@ -19,17 +19,11 @@ fn nested_importer_links_stay_shallow_and_snapshot_links_use_lockfile_base() {
     let snapshot_target_id = "packages/snapshot-target".to_string();
     let provider_version = "1.0.0(peer@2.0.0)";
     let mut dependencies = importer_map(&[("provider", provider_version)]);
-    dependencies.insert(
-        pkg("importer-target"),
-        importer_link("../../../packages/importer-target"),
-    );
+    dependencies.insert(pkg("importer-target"), importer_link("../../../packages/importer-target"));
     let importers = HashMap::from([
         (
             nested_id.clone(),
-            ProjectSnapshot {
-                dependencies: Some(dependencies),
-                ..Default::default()
-            },
+            ProjectSnapshot { dependencies: Some(dependencies), ..Default::default() },
         ),
         (importer_target_id.clone(), ProjectSnapshot::default()),
         (snapshot_target_id.clone(), ProjectSnapshot::default()),
@@ -44,11 +38,7 @@ fn nested_importer_links_stay_shallow_and_snapshot_links_use_lockfile_base() {
             ..Default::default()
         },
     )]);
-    let lockfile = Lockfile {
-        importers,
-        snapshots: Some(snapshots),
-        ..empty_lockfile()
-    };
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
 
     let closure = super::super::materialization_closure(
         &lockfile,
@@ -58,10 +48,7 @@ fn nested_importer_links_stay_shallow_and_snapshot_links_use_lockfile_base() {
         &SkippedSnapshots::new(),
     );
 
-    assert_eq!(
-        closure.importer_ids,
-        HashSet::from([nested_id, snapshot_target_id]),
-    );
+    assert_eq!(closure.importer_ids, HashSet::from([nested_id, snapshot_target_id]));
     assert!(!closure.importer_ids.contains(&importer_target_id));
 }
 #[test]
@@ -72,10 +59,7 @@ fn merge_filtered_wanted_lockfile_refreshes_all_importers_when_global_inputs_cha
     let new_id = "packages/new".to_string();
 
     let prior_retained = ProjectSnapshot {
-        specifiers: Some(HashMap::from([(
-            "retained".to_string(),
-            "prior".to_string(),
-        )])),
+        specifiers: Some(HashMap::from([("retained".to_string(), "prior".to_string())])),
         dependencies: Some(importer_map(&[("retained", "1.0.0"), ("shared", "1.0.0")])),
         ..Default::default()
     };
@@ -99,15 +83,9 @@ fn merge_filtered_wanted_lockfile_refreshes_all_importers_when_global_inputs_cha
     ]);
     previous.snapshots = Some(HashMap::from([
         (key("selected-old", "1.0.0"), SnapshotEntry::default()),
-        (
-            key("retained", "1.0.0"),
-            snapshot_with_deps(&[("retained-child", "1.0.0")]),
-        ),
+        (key("retained", "1.0.0"), snapshot_with_deps(&[("retained-child", "1.0.0")])),
         (key("retained-child", "1.0.0"), SnapshotEntry::default()),
-        (
-            key("shared", "1.0.0"),
-            snapshot_with_deps(&[("old-child", "1.0.0")]),
-        ),
+        (key("shared", "1.0.0"), snapshot_with_deps(&[("old-child", "1.0.0")])),
         (key("old-child", "1.0.0"), SnapshotEntry::default()),
         (key("removed", "1.0.0"), SnapshotEntry::default()),
     ]));
@@ -117,23 +95,14 @@ fn merge_filtered_wanted_lockfile_refreshes_all_importers_when_global_inputs_cha
             .unwrap()
             .keys()
             .map(|package_key| {
-                (
-                    package_key.without_peer(),
-                    package_metadata(&format!("prior-{package_key}")),
-                )
+                (package_key.without_peer(), package_metadata(&format!("prior-{package_key}")))
             })
             .collect(),
     );
 
     let fresh_selected = ProjectSnapshot {
-        specifiers: Some(HashMap::from([(
-            "selected-new".to_string(),
-            "fresh".to_string(),
-        )])),
-        dependencies: Some(importer_map(&[
-            ("selected-new", "2.0.0"),
-            ("shared", "1.0.0"),
-        ])),
+        specifiers: Some(HashMap::from([("selected-new".to_string(), "fresh".to_string())])),
+        dependencies: Some(importer_map(&[("selected-new", "2.0.0"), ("shared", "1.0.0")])),
         ..Default::default()
     };
     let fresh_new = ProjectSnapshot {
@@ -164,10 +133,7 @@ fn merge_filtered_wanted_lockfile_refreshes_all_importers_when_global_inputs_cha
             .unwrap()
             .keys()
             .map(|package_key| {
-                (
-                    package_key.without_peer(),
-                    package_metadata(&format!("fresh-{package_key}")),
-                )
+                (package_key.without_peer(), package_metadata(&format!("fresh-{package_key}")))
             })
             .collect(),
     );
@@ -219,15 +185,9 @@ fn merge_filtered_wanted_lockfile_refreshes_all_importers_when_global_inputs_cha
     assert_eq!(merged.settings, expected_settings);
     assert_eq!(merged.catalogs, expected_catalogs);
     assert_eq!(merged.overrides, expected_overrides);
-    assert_eq!(
-        merged.package_extensions_checksum,
-        expected_package_extensions_checksum,
-    );
+    assert_eq!(merged.package_extensions_checksum, expected_package_extensions_checksum);
     assert_eq!(merged.pnpmfile_checksum, expected_pnpmfile_checksum);
-    assert_eq!(
-        merged.ignored_optional_dependencies,
-        expected_ignored_optional_dependencies,
-    );
+    assert_eq!(merged.ignored_optional_dependencies, expected_ignored_optional_dependencies);
     assert_eq!(merged.patched_dependencies, expected_patched_dependencies);
 }
 #[test]
@@ -302,10 +262,7 @@ fn merge_filtered_wanted_lockfile_rejects_a_missing_selected_importer() {
     )
     .expect_err("a selected importer missing from the fresh lockfile must be rejected");
 
-    assert_eq!(
-        error.to_string(),
-        "fresh lockfile is missing importer packages/selected",
-    );
+    assert_eq!(error.to_string(), "fresh lockfile is missing importer packages/selected");
 }
 #[test]
 fn merge_filtered_wanted_lockfile_keeps_a_dependency_free_importer() {
@@ -328,10 +285,7 @@ fn merge_filtered_wanted_lockfile_keeps_a_dependency_free_importer() {
         (app_id.clone(), fresh_app.clone()),
         (lib_id.clone(), ProjectSnapshot::default()),
     ]);
-    fresh.snapshots = Some(HashMap::from([(
-        key("dep", "1.0.0"),
-        SnapshotEntry::default(),
-    )]));
+    fresh.snapshots = Some(HashMap::from([(key("dep", "1.0.0"), SnapshotEntry::default())]));
 
     let all = HashSet::from([app_id.clone(), lib_id.clone()]);
     let merged = super::super::merge_filtered_wanted_lockfile(
@@ -344,10 +298,7 @@ fn merge_filtered_wanted_lockfile_keeps_a_dependency_free_importer() {
     .expect("a dependency-free importer present as an empty snapshot must not error");
 
     assert_eq!(merged.importers.get(&app_id), Some(&fresh_app));
-    assert_eq!(
-        merged.importers.get(&lib_id),
-        Some(&ProjectSnapshot::default()),
-    );
+    assert_eq!(merged.importers.get(&lib_id), Some(&ProjectSnapshot::default()));
 }
 #[test]
 fn merge_filtered_current_lockfile_preserves_prior_importers_across_sequential_runs() {
@@ -420,10 +371,7 @@ fn merge_filtered_current_lockfile_does_not_restore_a_skipped_selected_snapshot(
         ..Default::default()
     };
     let snapshots = HashMap::from([
-        (
-            key("parent", "1.0.0"),
-            snapshot_with_deps(&[("child", "1.0.0")]),
-        ),
+        (key("parent", "1.0.0"), snapshot_with_deps(&[("child", "1.0.0")])),
         (key("child", "1.0.0"), SnapshotEntry::default()),
     ]);
     let packages = HashMap::from([
@@ -471,10 +419,7 @@ fn merge_filtered_current_lockfile_keeps_an_installability_skipped_snapshot() {
         ..Default::default()
     };
     let snapshots = HashMap::from([
-        (
-            key("parent", "1.0.0"),
-            snapshot_with_deps(&[("child", "1.0.0")]),
-        ),
+        (key("parent", "1.0.0"), snapshot_with_deps(&[("child", "1.0.0")])),
         (key("child", "1.0.0"), SnapshotEntry::default()),
     ]);
     let packages = HashMap::from([
@@ -515,10 +460,7 @@ fn merge_filtered_current_lockfile_uses_one_fresh_shared_snapshot() {
         },
     )]);
     previous.snapshots = Some(HashMap::from([
-        (
-            key("shared", "1.0.0"),
-            snapshot_with_deps(&[("old-child", "1.0.0")]),
-        ),
+        (key("shared", "1.0.0"), snapshot_with_deps(&[("old-child", "1.0.0")])),
         (key("old-child", "1.0.0"), SnapshotEntry::default()),
     ]));
     previous.packages = Some(HashMap::from([
@@ -578,10 +520,8 @@ fn merge_filtered_current_lockfile_preserves_shallow_link_target_importers() {
     };
     let mut previous = empty_lockfile();
     previous.importers = HashMap::from([(linked_id.clone(), previous_linked.clone())]);
-    previous.snapshots = Some(HashMap::from([(
-        key("linked-old", "1.0.0"),
-        SnapshotEntry::default(),
-    )]));
+    previous.snapshots =
+        Some(HashMap::from([(key("linked-old", "1.0.0"), SnapshotEntry::default())]));
 
     let mut selected_dependencies = ResolvedDependencyMap::new();
     selected_dependencies.insert(pkg("linked"), importer_link("../b"));
@@ -589,10 +529,7 @@ fn merge_filtered_current_lockfile_preserves_shallow_link_target_importers() {
     wanted.importers = HashMap::from([
         (
             selected_id.clone(),
-            ProjectSnapshot {
-                dependencies: Some(selected_dependencies),
-                ..Default::default()
-            },
+            ProjectSnapshot { dependencies: Some(selected_dependencies), ..Default::default() },
         ),
         (
             linked_id.clone(),
@@ -602,10 +539,8 @@ fn merge_filtered_current_lockfile_preserves_shallow_link_target_importers() {
             },
         ),
     ]);
-    wanted.snapshots = Some(HashMap::from([(
-        key("linked-new", "2.0.0"),
-        SnapshotEntry::default(),
-    )]));
+    wanted.snapshots =
+        Some(HashMap::from([(key("linked-new", "2.0.0"), SnapshotEntry::default())]));
 
     let merged = super::super::merge_filtered_current_lockfile(
         Some(&previous),

@@ -71,10 +71,7 @@ fn fresh_target_creates_nested_directories() {
     fs::create_dir_all(&src_root).unwrap();
     let file_a = write_source(&src_root, "a.txt", b"deep");
     let file_b = write_source(&src_root, "b.txt", b"deeper");
-    let cas = cas_map(&[
-        ("lib/deep/file.js", file_a),
-        ("lib/deep/nested/file.js", file_b),
-    ]);
+    let cas = cas_map(&[("lib/deep/file.js", file_a), ("lib/deep/nested/file.js", file_b)]);
 
     let target = tmp.path().join("pkg");
     import_indexed_dir::<SilentReporter>(
@@ -87,10 +84,7 @@ fn fresh_target_creates_nested_directories() {
     .expect("nested fresh import should succeed");
 
     assert_eq!(fs::read(target.join("lib/deep/file.js")).unwrap(), b"deep");
-    assert_eq!(
-        fs::read(target.join("lib/deep/nested/file.js")).unwrap(),
-        b"deeper",
-    );
+    assert_eq!(fs::read(target.join("lib/deep/nested/file.js")).unwrap(), b"deeper");
 }
 /// Two staging paths produced back-to-back in the same process must
 /// differ — otherwise concurrent rayon workers would collide on the
@@ -157,10 +151,7 @@ fn partial_dir_without_marker_is_repaired() {
     fs::create_dir_all(target.join("lib")).unwrap();
     fs::write(target.join("lib/index.js"), b"codev1").unwrap();
     fs::write(target.join("leftover.txt"), b"keep me").unwrap();
-    assert!(
-        !target.join("package.json").exists(),
-        "precondition: marker absent",
-    );
+    assert!(!target.join("package.json").exists(), "precondition: marker absent");
 
     import_indexed_dir::<SilentReporter>(
         &AtomicU8::new(0),
@@ -198,15 +189,8 @@ fn existing_marker_short_circuits_even_when_other_files_missing() {
     )
     .expect("marker present should short-circuit");
 
-    assert_eq!(
-        fs::read(target.join("package.json")).unwrap(),
-        b"vOLD",
-        "marker untouched",
-    );
-    assert!(
-        !target.join("lib/index.js").exists(),
-        "skipped import must not link other files",
-    );
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"vOLD", "marker untouched");
+    assert!(!target.join("lib/index.js").exists(), "skipped import must not link other files");
 }
 #[test]
 fn fallback_marker_repairs_when_no_package_json() {
@@ -256,10 +240,7 @@ fn fresh_import_places_marker_and_leaks_no_temp() {
     )
     .expect("fresh import should succeed");
 
-    assert!(
-        target.join("package.json").exists(),
-        "marker must be placed",
-    );
+    assert!(target.join("package.json").exists(), "marker must be placed");
     for entry in walkdir::WalkDir::new(&target) {
         let path = entry.unwrap().into_path();
         assert!(
@@ -292,11 +273,7 @@ fn marker_only_map_creates_target_and_places_marker() {
     .expect("marker-only import into a non-existent target should succeed");
 
     assert!(target.is_dir(), "target directory must be created");
-    assert_eq!(
-        fs::read(target.join("package.json")).unwrap(),
-        b"{}",
-        "marker must be placed",
-    );
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{}", "marker must be placed");
     for entry in walkdir::WalkDir::new(&target) {
         let path = entry.unwrap().into_path();
         assert!(
@@ -330,14 +307,8 @@ fn safe_to_skip_still_repairs_an_incomplete_target() {
     )
     .expect("an incomplete slot must be repaired");
 
-    assert_eq!(
-        fs::read(target.join("package.json")).unwrap(),
-        b"{\"version\":\"1.0.0\"}",
-    );
-    assert_eq!(
-        fs::read(target.join("index.js")).unwrap(),
-        b"module.exports = 1",
-    );
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
 }
 // An incomplete slot is as often an importer mid-flight as an interrupted one, and swapping a
 // fresh directory over it would remove the files that importer is still writing.
@@ -368,14 +339,8 @@ fn safe_to_skip_repairs_an_incomplete_target_without_replacing_it() {
     .expect("an incomplete slot must be repaired");
 
     assert_eq!(fs::metadata(&target).unwrap().ino(), occupied);
-    assert_eq!(
-        fs::read(target.join("package.json")).unwrap(),
-        b"{\"version\":\"1.0.0\"}",
-    );
-    assert_eq!(
-        fs::read(target.join("index.js")).unwrap(),
-        b"module.exports = 1",
-    );
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
 }
 // Same size, same leading bytes, damaged near the end: the compare has to run past its first
 // buffer to see it. The copy tier is the one that reads, since it shares no inode with the store.
@@ -430,10 +395,7 @@ fn safe_to_skip_clears_a_file_where_the_package_needs_a_directory() {
     )
     .expect("a dirent of the wrong kind must not wedge the install");
 
-    assert_eq!(
-        fs::read(target.join("lib/nested/index.js")).unwrap(),
-        b"module.exports = 1",
-    );
+    assert_eq!(fs::read(target.join("lib/nested/index.js")).unwrap(), b"module.exports = 1");
 }
 #[test]
 fn safe_to_skip_clears_a_directory_where_the_package_needs_a_file() {
@@ -457,8 +419,5 @@ fn safe_to_skip_clears_a_directory_where_the_package_needs_a_file() {
     )
     .expect("a dirent of the wrong kind must not wedge the install");
 
-    assert_eq!(
-        fs::read(target.join("index.js")).unwrap(),
-        b"module.exports = 1",
-    );
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
 }

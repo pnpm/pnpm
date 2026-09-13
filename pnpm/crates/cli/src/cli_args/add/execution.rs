@@ -70,8 +70,7 @@ async fn record_package_manager_pins(
     let mut recorded = Vec::new();
     for request in package_names {
         if let Some((pm, version_spec)) = declared_package_manager(request) {
-            let reference = resolve_project_pin(state.config, pm, version_spec.as_deref())
-                .await?;
+            let reference = resolve_project_pin(state.config, pm, version_spec.as_deref()).await?;
             let reference = reference.as_deref();
             let manifest = state.manifest
                 .value_mut()
@@ -84,10 +83,7 @@ async fn record_package_manager_pins(
             remaining.push(selector.unwrap_or_else(|| request.clone()));
         }
     }
-    Ok(RecordedPins {
-        remaining,
-        recorded,
-    })
+    Ok(RecordedPins { remaining, recorded })
 }
 
 impl RecordedPins {
@@ -179,8 +175,7 @@ async fn add_workspace_config_dependencies<Reporter: self::Reporter>(
                 .parent()
                 .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
         });
-    config_deps::add_config_dependencies::<Reporter>(state.config, &root_dir, added)
-        .await
+    config_deps::add_config_dependencies::<Reporter>(state.config, &root_dir, added).await
 }
 
 impl AddArgs {
@@ -215,8 +210,7 @@ impl AddArgs {
         // into `.pnpm-config`, then record the clean specifiers in
         // `pnpm-workspace.yaml`.
         if let Some(added) = config_dependencies {
-            return add_workspace_config_dependencies::<Reporter>(&state, &added)
-                .await;
+            return add_workspace_config_dependencies::<Reporter>(&state, &added).await;
         }
 
         // Merge CLI overrides with the yaml-derived value before
@@ -234,8 +228,7 @@ impl AddArgs {
         let save_catalog_name = self.effective_save_catalog_name(state.config);
 
         let mut state = state;
-        let pins = record_package_manager_pins(&mut state, &self.package_names)
-            .await?;
+        let pins = record_package_manager_pins(&mut state, &self.package_names).await?;
         if pins.remaining.is_empty() {
             pins.save(&mut state)?;
             pins.report::<Reporter>();
@@ -319,10 +312,7 @@ impl AddArgs {
             .iter()
             .find(|request| declared_package_manager(request).is_some())
         {
-            return Err(AddError::PackageManagerInSelection {
-                request: request.clone(),
-            }
-            .into());
+            return Err(AddError::PackageManagerInSelection { request: request.clone() }.into());
         }
         let package_names =
             match workspace_link_root(self.target.workspace, config.workspace_dir.as_deref())? {
@@ -353,9 +343,7 @@ impl AddArgs {
         // `--config` (configurational dependency) and `--lockfile-only` have
         // no meaning for a global install; reject rather than silently ignore.
         if self.target.config {
-            return Err(miette::miette!(
-                "`pnpm add --config` cannot be combined with --global."
-            ));
+            return Err(miette::miette!("`pnpm add --config` cannot be combined with --global."));
         }
         if self.install.lockfile_only {
             return Err(miette::miette!(

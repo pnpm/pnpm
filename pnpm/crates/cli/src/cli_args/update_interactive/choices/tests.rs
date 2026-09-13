@@ -98,11 +98,7 @@ fn each_group_opens_with_an_unselectable_header() {
     let header = &groups[0].rows[0];
     assert_eq!(header.value, None);
     for column in ["Package", "Current", "Target", "URL"] {
-        assert!(
-            header.label.contains(column),
-            "header is missing {column}: {}",
-            header.label,
-        );
+        assert!(header.label.contains(column), "header is missing {column}: {}", header.label);
     }
 }
 
@@ -143,18 +139,10 @@ fn the_same_name_at_different_versions_is_offered_twice() {
 /// group, titled the way pnpm titles it.
 #[test]
 fn github_actions_form_their_own_group() {
-    let mut action = pkg(
-        "actions/checkout",
-        "actions/checkout",
-        "4.1.0",
-        "4.2.2",
-        DependencyGroup::Dev,
-    );
+    let mut action =
+        pkg("actions/checkout", "actions/checkout", "4.1.0", "4.2.2", DependencyGroup::Dev);
     action.github_action = true;
-    let packages = [
-        pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Dev),
-        action,
-    ];
+    let packages = [pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Dev), action];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
@@ -164,10 +152,7 @@ fn github_actions_form_their_own_group() {
         .collect();
     assert_eq!(
         rendered,
-        vec![
-            ("devDependencies", vec!["foo"]),
-            ("GitHub Actions", vec!["actions/checkout"])
-        ],
+        vec![("devDependencies", vec!["foo"]), ("GitHub Actions", vec!["actions/checkout"])],
     );
 }
 
@@ -189,16 +174,8 @@ fn a_long_version_keeps_the_row_on_one_line() {
     let row = &groups[0].rows[1];
     assert_eq!(row.value.as_deref(), Some("@typescript/native-preview"));
     assert!(!row.label.contains('\n'), "row wrapped: {}", row.label);
-    assert!(
-        row.label.contains("7.0.0-dev.20251209.1"),
-        "current missing: {}",
-        row.label,
-    );
-    assert!(
-        row.label.contains("7.0.0-dev.20251214.1"),
-        "target missing: {}",
-        row.label,
-    );
+    assert!(row.label.contains("7.0.0-dev.20251209.1"), "current missing: {}", row.label);
+    assert!(row.label.contains("7.0.0-dev.20251214.1"), "target missing: {}", row.label);
 }
 
 /// Columns are padded to a common width, so the `❯` of every row in a
@@ -263,11 +240,9 @@ fn the_header_row_lines_up_with_its_rows() {
         column_of(row, "1.0.0") + "1.0.0".len(),
         "Current is out of line:\n{header}\n{row}",
     );
-    for (title, cell) in [
-        ("Target", "2.0.0"),
-        ("Workspace", "web"),
-        ("URL", "https://example.test/"),
-    ] {
+    for (title, cell) in
+        [("Target", "2.0.0"), ("Workspace", "web"), ("URL", "https://example.test/")]
+    {
         assert_eq!(
             column_of(header, title),
             column_of(row, cell),
@@ -290,20 +265,8 @@ fn column_of(line: &str, text: &str) -> usize {
 #[test]
 fn a_wide_name_does_not_shift_its_row() {
     let packages = [
-        pkg(
-            "中文包名字",
-            "中文包名字",
-            "1.0.0",
-            "2.0.0",
-            DependencyGroup::Prod,
-        ),
-        pkg(
-            "party-🎉-pkg",
-            "party-🎉-pkg",
-            "1.0.0",
-            "2.0.0",
-            DependencyGroup::Prod,
-        ),
+        pkg("中文包名字", "中文包名字", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        pkg("party-🎉-pkg", "party-🎉-pkg", "1.0.0", "2.0.0", DependencyGroup::Prod),
         pkg("b", "b", "1.0.0", "2.0.0", DependencyGroup::Prod),
     ];
 
@@ -359,34 +322,16 @@ fn two_aliases_of_one_package_are_both_offered() {
 /// prompt's redraw and a newline would split the row in two.
 #[test]
 fn control_characters_in_registry_metadata_are_stripped() {
-    let mut package = pkg(
-        "foo",
-        "foo\u{1b}[31m",
-        "1.0.0",
-        "2.0.0",
-        DependencyGroup::Prod,
-    );
+    let mut package = pkg("foo", "foo\u{1b}[31m", "1.0.0", "2.0.0", DependencyGroup::Prod);
     package.metadata.homepage = Some("https://example.test/\u{1b}[2J\nEVIL".to_string());
     let packages = [package];
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
     let row = &groups[0].rows[1];
-    assert!(
-        !row.label.contains('\u{1b}'),
-        "escape survived: {:?}",
-        row.label,
-    );
-    assert!(
-        !row.label.contains('\n'),
-        "newline survived: {:?}",
-        row.label,
-    );
-    assert!(
-        row.label.contains("https://example.test/"),
-        "url lost: {:?}",
-        row.label,
-    );
+    assert!(!row.label.contains('\u{1b}'), "escape survived: {:?}", row.label);
+    assert!(!row.label.contains('\n'), "newline survived: {:?}", row.label);
+    assert!(row.label.contains("https://example.test/"), "url lost: {:?}", row.label);
 }
 
 /// Inside a workspace the list gains a `Workspace` column naming the
@@ -403,16 +348,8 @@ fn a_workspace_run_names_the_project_each_row_came_from() {
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
 
     assert!(groups[0].rows[0].label.contains("Workspace"));
-    assert!(
-        groups[0].rows[1].label.contains("app"),
-        "{}",
-        groups[0].rows[1].label,
-    );
-    assert!(
-        groups[0].rows[2].label.contains("lib"),
-        "{}",
-        groups[0].rows[2].label,
-    );
+    assert!(groups[0].rows[1].label.contains("app"), "{}", groups[0].rows[1].label);
+    assert!(groups[0].rows[2].label.contains("lib"), "{}", groups[0].rows[2].label);
 }
 
 /// Outside a workspace the column is absent, as upstream omits it when
@@ -426,11 +363,7 @@ fn a_single_project_run_has_no_workspace_column() {
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
 
     assert!(!groups[0].rows[0].label.contains("Workspace"));
-    assert!(
-        !groups[0].rows[1].label.contains("solo"),
-        "{}",
-        groups[0].rows[1].label,
-    );
+    assert!(!groups[0].rows[1].label.contains("solo"), "{}", groups[0].rows[1].label);
 }
 
 /// Entries that differ only by the project they came from collapse into
@@ -447,11 +380,7 @@ fn a_collapsed_row_names_every_project_it_covers() {
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
 
     assert_eq!(values(&groups[0]), vec!["foo"]);
-    assert!(
-        groups[0].rows[1].label.contains("web, tooling"),
-        "{}",
-        groups[0].rows[1].label,
-    );
+    assert!(groups[0].rows[1].label.contains("web, tooling"), "{}", groups[0].rows[1].label);
 }
 
 /// A project appearing twice for one dependency is named once.
@@ -465,9 +394,5 @@ fn a_repeated_project_is_named_once() {
 
     let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
 
-    assert!(
-        !groups[0].rows[1].label.contains("web, web"),
-        "{}",
-        groups[0].rows[1].label,
-    );
+    assert!(!groups[0].rows[1].label.contains("web, web"), "{}", groups[0].rows[1].label);
 }

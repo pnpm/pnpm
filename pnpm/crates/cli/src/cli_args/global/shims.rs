@@ -46,16 +46,27 @@ pub(super) fn link_global_bins(
         });
     migrate_legacy_shims(global_bin_dir).into_diagnostic().wrap_err("migrate the global shims")?;
     if !direct.is_empty() {
-        link_direct_global_bins(&direct, global_bin_dir, bins_to_skip)?;
+        // A slot turning direct again (its package's shim switched off)
+        // must not keep the native shim, which would shadow the direct
+        // shim on Windows and hold a stale target everywhere.
+        for (command, _) in choose_bins::<CmdShimHost>(&direct, bins_to_skip) {
+            remove_native_shim(global_bin_dir, &command.name)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("remove the stale {} shim", command.name))?;
+        }
+        link_bins_of_packages_with_excludes::<CmdShimHost>(
+            &direct,
+            global_bin_dir,
+            bins_to_skip,
+            &LinkBinsOptions::default(),
+        )
+        .map_err(miette::Report::new)
+        .wrap_err("link direct global package bins")?;
     }
     for (command, _) in choose_bins::<CmdShimHost>(&context_aware, bins_to_skip) {
-        install_native_shim(
-            global_bin_dir,
-            &command.name,
-            &ShimTarget::Installed(command.path),
-        )
-        .into_diagnostic()
-        .wrap_err_with(|| format!("install the {} shim", command.name))?;
+        install_native_shim(global_bin_dir, &command.name, &ShimTarget::Installed(command.path))
+            .into_diagnostic()
+            .wrap_err_with(|| format!("install the {} shim", command.name))?;
     }
     Ok(())
 }
@@ -75,7 +86,7 @@ pub(super) fn check_virtual_shim_conflicts(
     packages: &[PackageBinSource],
     global_bin_dir: &Path,
 ) -> miette::Result<()> {
-    let providers_by_bin = bin_providers(packages);
+    let providers_by_bin = package_bin_providers(packages);
     if providers_by_bin.is_empty() {
         return Ok(());
     }
@@ -103,6 +114,26 @@ pub(super) fn check_virtual_shim_conflicts(
         .into());
     }
     Ok(())
+}
+
+fn package_bin_providers(packages: &[PackageBinSource]) -> HashMap<String, BTreeSet<String>> {
+    let mut providers_by_bin: HashMap<String, BTreeSet<String>> = HashMap::new();
+    for package in packages {
+        let package_name = package.manifest
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        for command in pnpm_cmd_shim::get_bins_from_package_manifest::<CmdShimHost>(
+            &package.manifest,
+            &package.location,
+        ) {
+            providers_by_bin
+                .entry(command.name)
+                .or_default()
+                .insert(package_name.to_string());
+        }
+    }
+    providers_by_bin
 }
 
 pub(super) fn virtual_shims_to_restore(
@@ -186,10 +217,7 @@ pub(super) fn plan_replaced_global_bins(
         .flat_map(|group| group.bin_names.iter().cloned())
         .filter(|bin| !occupied_bins.contains(bin))
         .collect();
-    Ok(ReplacedGlobalBinPlan {
-        shims_to_restore,
-        affected_bin_names,
-    })
+    Ok(ReplacedGlobalBinPlan { shims_to_restore, affected_bin_names })
 }
 
 pub(super) fn restore_virtual_shims(
@@ -222,48 +250,4 @@ pub(super) fn bin_names_of_other_groups(
         }
     }
     Ok(names)
-}
-
-fn link_direct_global_bins(
-    direct: &[PackageBinSource],
-    global_bin_dir: &Path,
-    bins_to_skip: &HashSet<String>,
-) -> miette::Result<()> {
-    // A slot turning direct again (its package's shim switched off)
-    // must not keep the native shim, which would shadow the direct
-    // shim on Windows and hold a stale target everywhere.
-    for (command, _) in choose_bins::<CmdShimHost>(direct, bins_to_skip) {
-        remove_native_shim(global_bin_dir, &command.name)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("remove the stale {} shim", command.name))?;
-    }
-    link_bins_of_packages_with_excludes::<CmdShimHost>(
-        direct,
-        global_bin_dir,
-        bins_to_skip,
-        &LinkBinsOptions::default(),
-    )
-    .map_err(miette::Report::new)
-    .wrap_err("link direct global package bins")?;
-    Ok(())
-}
-
-fn bin_providers(packages: &[PackageBinSource]) -> HashMap<String, BTreeSet<String>> {
-    let mut providers_by_bin: HashMap<String, BTreeSet<String>> = HashMap::new();
-    for package in packages {
-        let package_name = package.manifest
-            .get("name")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("");
-        for command in pnpm_cmd_shim::get_bins_from_package_manifest::<CmdShimHost>(
-            &package.manifest,
-            &package.location,
-        ) {
-            providers_by_bin
-                .entry(command.name)
-                .or_default()
-                .insert(package_name.to_string());
-        }
-    }
-    providers_by_bin
 }

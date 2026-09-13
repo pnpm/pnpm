@@ -89,20 +89,12 @@ impl From<PathBuf> for StoreDir {
     /// string in `.modules.yaml` and switching between them stops
     /// tripping `ERR_PNPM_UNEXPECTED_STORE`.
     fn from(root: PathBuf) -> Self {
-        let root = if root
-            .file_name()
-            .and_then(|name| name.to_str())
-            == Some(STORE_VERSION)
-        {
+        let root = if root.file_name().and_then(|name| name.to_str()) == Some(STORE_VERSION) {
             root
         } else {
             root.join(STORE_VERSION)
         };
-        StoreDir {
-            root,
-            ensured_shards: DashSet::new(),
-            cached_files_dir: OnceLock::new(),
-        }
+        StoreDir { root, ensured_shards: DashSet::new(), cached_files_dir: OnceLock::new() }
     }
 }
 
@@ -150,10 +142,7 @@ impl StoreDir {
     /// * `head` is the first 2 hexadecimal digit of the file address.
     /// * `tail` is the rest of the address and an optional suffix.
     fn file_path_by_head_tail(&self, head: &str, tail: &str) -> PathBuf {
-        self
-            .files_dir()
-            .join(head)
-            .join(tail)
+        self.files_dir().join(head).join(tail)
     }
 
     /// Path to a content-addressed file. The hex digest is split into a

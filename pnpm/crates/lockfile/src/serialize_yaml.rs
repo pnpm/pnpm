@@ -30,16 +30,12 @@ pub(crate) fn to_string<Document: Serialize>(
     // serialization (should one ever appear) cannot clobber its
     // caller's stash.
     let previous = LOWERED_MAPS.with_borrow_mut(|stash| {
-        stash.replace(LoweredMaps {
-            nonce: stash_nonce.clone(),
-            maps: Vec::new(),
-        })
+        stash.replace(LoweredMaps { nonce: stash_nonce.clone(), maps: Vec::new() })
     });
     let document = serde_json::to_value(value);
     let stash = LOWERED_MAPS.with_borrow_mut(|slot| std::mem::replace(slot, previous));
     let mut document = document?;
-    let mut maps = stash.expect("the stash installed above is only taken here")
-        .maps;
+    let mut maps = stash.expect("the stash installed above is only taken here").maps;
     if !maps.is_empty() {
         let mut remaining = maps.len();
         splice_lowered_maps(&mut document, &stash_nonce, &mut maps, &mut remaining);
@@ -227,10 +223,7 @@ where
 /// unreachable in practice — every call site pairs this with
 /// `skip_serializing_if = "Option::is_none"` — but is handled so the helper
 /// is a drop-in `serialize_with` for optional maps.
-#[expect(
-    clippy::ref_option,
-    reason = "serde serialize_with is invoked as f(&field, serializer)"
-)]
+#[expect(clippy::ref_option, reason = "serde serialize_with is invoked as f(&field, serializer)")]
 pub(crate) fn sorted_map_opt<Key, Value, Ser>(
     map: &Option<HashMap<Key, Value>>,
     serializer: Ser,

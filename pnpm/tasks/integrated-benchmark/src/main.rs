@@ -131,14 +131,7 @@ impl RegistryLink {
         let (spawned_port, cache_populator) =
             upstream_registry(proxied, args.network.registry_port, &url);
         let public_url = url.trim_end_matches('/').to_string();
-        RegistryLink {
-            url,
-            rate_limit,
-            proxied,
-            spawned_port,
-            cache_populator,
-            public_url,
-        }
+        RegistryLink { url, rate_limit, proxied, spawned_port, cache_populator, public_url }
     }
 }
 
@@ -237,11 +230,7 @@ fn verify_prerequisites(
     if has_pnpm_target {
         verify::ensure_pnpm_git_repo(pnpm_repository.unwrap_or(repository));
     }
-    verify::validate_revision_list(
-        targets
-            .iter()
-            .map(|target| target.rev.as_str()),
-    );
+    verify::validate_revision_list(targets.iter().map(|target| target.rev.as_str()));
     verify::ensure_program("bash");
     verify::ensure_program("git");
     verify::ensure_program("hyperfine");
@@ -255,10 +244,7 @@ fn verify_prerequisites(
     // `pnpm install` to warm the cache).
     let needs_pnpm = has_pnpm_target
         || with_pnpm
-        || matches!(
-            registry_mode,
-            RegistryMode::Verdaccio | RegistryMode::Virtual,
-        );
+        || matches!(registry_mode, RegistryMode::Verdaccio | RegistryMode::Virtual);
     if needs_pnpm {
         verify::ensure_program("pnpm");
     }

@@ -80,19 +80,9 @@ impl From<StoredImageDocument> for ImageDocument {
             generation,
             deleting_blob,
         } = stored;
-        manifests.sort_by(|left, right| {
-            left.digest
-                .hex()
-                .cmp(right.digest.hex())
-        });
+        manifests.sort_by(|left, right| left.digest.hex().cmp(right.digest.hex()));
         tags.sort_by(|left, right| left.tag.cmp(&right.tag));
-        Self {
-            name,
-            manifests,
-            tags,
-            generation,
-            deleting_blob,
-        }
+        Self { name, manifests, tags, generation, deleting_blob }
     }
 }
 
@@ -125,10 +115,7 @@ pub struct ImageDocument {
 impl ImageDocument {
     #[must_use]
     pub fn new(name: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            ..Self::default()
-        }
+        Self { name: name.to_string(), ..Self::default() }
     }
 
     pub fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
@@ -155,11 +142,7 @@ impl ImageDocument {
     #[must_use]
     pub fn manifest(&self, digest: &Digest) -> Option<&ManifestEntry> {
         self.manifests
-            .binary_search_by(|entry| {
-                entry.digest
-                    .hex()
-                    .cmp(digest.hex())
-            })
+            .binary_search_by(|entry| entry.digest.hex().cmp(digest.hex()))
             .ok()
             .map(|index| &self.manifests[index])
     }
@@ -194,11 +177,7 @@ impl ImageDocument {
     }
 
     pub fn insert_manifest(&mut self, entry: ManifestEntry) {
-        match self.manifests.binary_search_by(|held| {
-            held.digest
-                .hex()
-                .cmp(entry.digest.hex())
-        }) {
+        match self.manifests.binary_search_by(|held| held.digest.hex().cmp(entry.digest.hex())) {
             Ok(index) => self.manifests[index] = entry,
             Err(index) => self.manifests.insert(index, entry),
         }
@@ -214,11 +193,8 @@ impl ImageDocument {
     /// Every tag that named the manifest goes with it. `false` when the
     /// repository held no such manifest.
     pub fn remove_manifest(&mut self, digest: &Digest) -> bool {
-        let Ok(index) = self.manifests.binary_search_by(|held| {
-            held.digest
-                .hex()
-                .cmp(digest.hex())
-        }) else {
+        let Ok(index) = self.manifests.binary_search_by(|held| held.digest.hex().cmp(digest.hex()))
+        else {
             return false;
         };
         self.manifests.remove(index);

@@ -23,9 +23,8 @@ fn setup_project() -> (TempDir, PathBuf) {
 #[tokio::test]
 async fn dispatcher_routes_link_specifier_through_local_resolver() {
     let (_tmp, project_dir) = setup_project();
-    let resolver = DefaultResolver::new(vec![Box::new(LocalResolver::new(
-        LocalResolverContext::default(),
-    ))]);
+    let resolver =
+        DefaultResolver::new(vec![Box::new(LocalResolver::new(LocalResolverContext::default()))]);
 
     let opts = ResolveOptions {
         project: pnpm_resolving_resolver_base::ResolverProjectOptions {
@@ -43,19 +42,15 @@ async fn dispatcher_routes_link_specifier_through_local_resolver() {
     let result = resolver.resolve(&wd, &opts).await.expect("resolve");
     assert_eq!(result.id.as_str(), "link:..");
     assert_eq!(result.alias.as_deref(), Some("parent"));
-    assert!(matches!(
-        result.resolution,
-        LockfileResolution::Directory(_)
-    ));
+    assert!(matches!(result.resolution, LockfileResolution::Directory(_)));
     assert_eq!(result.resolved_via, "local-filesystem");
 }
 
 #[tokio::test]
 async fn dispatcher_falls_through_when_specifier_is_neither_local_nor_npm() {
     let (_tmp, project_dir) = setup_project();
-    let resolver = DefaultResolver::new(vec![Box::new(LocalResolver::new(
-        LocalResolverContext::default(),
-    ))]);
+    let resolver =
+        DefaultResolver::new(vec![Box::new(LocalResolver::new(LocalResolverContext::default()))]);
     let opts = ResolveOptions {
         project: pnpm_resolving_resolver_base::ResolverProjectOptions {
             project_dir: project_dir.clone(),
@@ -73,18 +68,14 @@ async fn dispatcher_falls_through_when_specifier_is_neither_local_nor_npm() {
         .resolve(&wd, &opts)
         .await
         .expect_err("chain with only the local resolver shouldn't claim a registry-shaped dep");
-    assert!(
-        err.downcast_ref::<SpecNotSupportedByAnyResolverError>().is_some(),
-        "got {err}",
-    );
+    assert!(err.downcast_ref::<SpecNotSupportedByAnyResolverError>().is_some(), "got {err}");
 }
 
 #[tokio::test]
 async fn resolve_latest_claims_local_scheme_specifiers() {
     let (_tmp, project_dir) = setup_project();
-    let resolver = DefaultResolver::new(vec![Box::new(LocalResolver::new(
-        LocalResolverContext::default(),
-    ))]);
+    let resolver =
+        DefaultResolver::new(vec![Box::new(LocalResolver::new(LocalResolverContext::default()))]);
     let opts = ResolveOptions {
         project: pnpm_resolving_resolver_base::ResolverProjectOptions {
             project_dir: project_dir.clone(),
@@ -102,8 +93,5 @@ async fn resolve_latest_claims_local_scheme_specifiers() {
         compatible: false,
     };
     let info = resolver.resolve_latest(&query, &opts).await.expect("resolve_latest");
-    assert!(
-        info.is_some(),
-        "local resolver should claim link: specs in resolve_latest",
-    );
+    assert!(info.is_some(), "local resolver should claim link: specs in resolve_latest");
 }

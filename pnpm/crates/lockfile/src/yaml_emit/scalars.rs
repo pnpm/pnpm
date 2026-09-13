@@ -33,10 +33,7 @@ pub(super) fn write_scalar(string: &str, level: usize, single_line: bool, inbloc
 
 /// Mirrors the fork's `chooseScalarStyle` under lockfile options.
 fn choose_scalar_style(string: &str, single_line_only: bool, inblock: bool) -> ScalarStyle {
-    let chars: Vec<u32> = string
-        .chars()
-        .map(u32::from)
-        .collect();
+    let chars: Vec<u32> = string.chars().map(u32::from).collect();
     let Some(scan) = scan_scalar(&chars, single_line_only, inblock) else {
         return ScalarStyle::Double;
     };
@@ -236,11 +233,7 @@ fn encode_hex(code: u32) -> String {
 }
 
 fn block_header(string: &str) -> String {
-    let indicator = if needs_indent_indicator(string) {
-        INDENT.to_string()
-    } else {
-        String::new()
-    };
+    let indicator = if needs_indent_indicator(string) { INDENT.to_string() } else { String::new() };
     let bytes = string.as_bytes();
     let clip = bytes.last() == Some(&b'\n');
     let keep = clip && (bytes.get(bytes.len().wrapping_sub(2)) == Some(&b'\n') || string == "\n");

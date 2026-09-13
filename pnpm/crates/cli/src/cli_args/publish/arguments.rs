@@ -24,10 +24,7 @@ pub struct PublishManifestArgs {
     pub no_embed_readme: bool,
     /// Keep the original `packageManager` field and publish-lifecycle scripts
     /// in the published manifest instead of stripping them.
-    #[clap(
-        long = "skip-manifest-obfuscation",
-        overrides_with = "no_skip_manifest_obfuscation"
-    )]
+    #[clap(long = "skip-manifest-obfuscation", overrides_with = "no_skip_manifest_obfuscation")]
     pub skip_manifest_obfuscation: bool,
     /// Apply pnpm's normal published-manifest filtering.
     #[clap(

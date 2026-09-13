@@ -33,9 +33,7 @@ fn is_wildcard(range: &str) -> bool {
 fn max_version_including_prerelease(versions: &[String]) -> Option<String> {
     let mut best: Option<(Version, &str)> = None;
     for raw in versions {
-        let Ok(parsed) = Version::parse(raw) else {
-            continue;
-        };
+        let Ok(parsed) = Version::parse(raw) else { continue };
         match &best {
             Some((current, _)) if current >= &parsed => {}
             _ => best = Some((parsed, raw.as_str())),
@@ -51,9 +49,7 @@ fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
     let range_allows_prereleases = range_allows_prereleases(range);
     let mut best: Option<(Version, &str)> = None;
     for raw in versions {
-        let Ok(parsed) = Version::parse(raw) else {
-            continue;
-        };
+        let Ok(parsed) = Version::parse(raw) else { continue };
         if !parsed.satisfies(&parsed_range) {
             continue;
         }

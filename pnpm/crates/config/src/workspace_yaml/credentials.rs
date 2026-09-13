@@ -34,9 +34,7 @@ fn authority_start_of(url: &str) -> Option<usize> {
     if let Some(scheme_end) = url.find("://") {
         let scheme = &url[..scheme_end];
         let mut chars = scheme.chars();
-        let starts_with_letter = chars
-            .next()
-            .is_some_and(|first| first.is_ascii_alphabetic());
+        let starts_with_letter = chars.next().is_some_and(|first| first.is_ascii_alphabetic());
         let rest_is_scheme = chars.all(|character| {
             character.is_ascii_alphanumeric() || matches!(character, '+' | '.' | '-')
         });
@@ -44,9 +42,7 @@ fn authority_start_of(url: &str) -> Option<usize> {
             return Some(scheme_end + "://".len());
         }
     }
-    url
-        .starts_with("//")
-        .then_some("//".len())
+    url.starts_with("//").then_some("//".len())
 }
 
 /// `url` with any `user:pass@` removed, safe to put in a message.
@@ -57,11 +53,9 @@ fn authority_start_of(url: &str) -> Option<usize> {
 /// registry URL, so the scheme-less `//host/` form can be handled too.
 pub(super) fn redact_registry_url(url: &str) -> String {
     match (authority_start_of(url), userinfo_end(url)) {
-        (Some(authority_start), Some(userinfo_end)) => redact_and_sanitize(&format!(
-            "{}{}",
-            &url[..authority_start],
-            &url[userinfo_end..],
-        )),
+        (Some(authority_start), Some(userinfo_end)) => {
+            redact_and_sanitize(&format!("{}{}", &url[..authority_start], &url[userinfo_end..]))
+        }
         _ => redact_and_sanitize(url),
     }
 }

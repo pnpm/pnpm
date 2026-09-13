@@ -125,15 +125,10 @@ pub fn render_dependents(
     reject_over_deep_trees(&trees)?;
     let trees: Vec<DependentsTree> = serde_json::from_value(trees)
         .map_err(|err| {
-            napi::Error::from_reason(format!(
-                "the trees argument is not a dependents tree: {err}",
-            ))
+            napi::Error::from_reason(format!("the trees argument is not a dependents tree: {err}"))
         })?;
-    let options = options.unwrap_or(RenderDependentsInput {
-        format: None,
-        depth: None,
-        long: None,
-    });
+    let options =
+        options.unwrap_or(RenderDependentsInput { format: None, depth: None, long: None });
     let render_opts = RenderDependentsOptions {
         long: options.long.unwrap_or(false),
         depth: options.depth.map(|depth| depth as usize),
@@ -167,11 +162,7 @@ fn reject_over_deep_trees(trees: &serde_json::Value) -> napi::Result<()> {
         }
         match value {
             serde_json::Value::Array(items) => {
-                stack.extend(
-                    items
-                        .iter()
-                        .map(|item| (item, depth)),
-                );
+                stack.extend(items.iter().map(|item| (item, depth)));
             }
             serde_json::Value::Object(fields) => {
                 if let Some(dependents) = fields.get("dependents") {
@@ -186,12 +177,9 @@ fn reject_over_deep_trees(trees: &serde_json::Value) -> napi::Result<()> {
 
 fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>> {
     let lockfile_dir = PathBuf::from(&options.dir);
-    let loaded = LoadedState::load(
-        &lockfile_dir,
-        options.modules_dir.as_deref().map(Path::new),
-        false,
-    )
-    .map_err(|report| report_to_napi_error(&report))?;
+    let loaded =
+        LoadedState::load(&lockfile_dir, options.modules_dir.as_deref().map(Path::new), false)
+            .map_err(|report| report_to_napi_error(&report))?;
     let registries = registry_routes(options);
 
     // No lockfile: nothing is installed, so nothing depends on anything.
@@ -281,10 +269,7 @@ fn read_importer_info(lockfile: &Lockfile, lockfile_dir: &Path) -> HashMap<Strin
             });
             (
                 importer_id.clone(),
-                ImporterInfo {
-                    name,
-                    version: manifest.version.unwrap_or_default(),
-                },
+                ImporterInfo { name, version: manifest.version.unwrap_or_default() },
             )
         })
         .collect()
@@ -300,11 +285,7 @@ fn included_dependencies(options: &DependentsOptions) -> IncludedDependencies {
 
 fn resolve_project_dir(lockfile_dir: &Path, dir: &str) -> PathBuf {
     let dir = Path::new(dir);
-    if dir.is_absolute() {
-        dir.to_path_buf()
-    } else {
-        lockfile_dir.join(dir)
-    }
+    if dir.is_absolute() { dir.to_path_buf() } else { lockfile_dir.join(dir) }
 }
 
 #[cfg(test)]

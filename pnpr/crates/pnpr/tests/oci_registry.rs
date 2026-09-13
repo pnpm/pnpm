@@ -33,10 +33,7 @@ mod common;
 mod pausing_store;
 
 #[path = "../src/server/striped_locks.rs"]
-#[allow(
-    dead_code,
-    reason = "the collision fixture uses the production stripe mapping"
-)]
+#[allow(dead_code, reason = "the collision fixture uses the production stripe mapping")]
 mod striped_locks;
 
 use axum::{
@@ -75,10 +72,7 @@ fn oci_config(storage: PathBuf, hosted_access: &str) -> Config {
 }
 
 fn app(tmp: &TempDir) -> Router {
-    router_with_auth(
-        oci_config(tmp.path().to_path_buf(), "$all"),
-        AuthState::in_memory(),
-    )
+    router_with_auth(oci_config(tmp.path().to_path_buf(), "$all"), AuthState::in_memory())
 }
 
 /// The same registry with destructive writes opened up, which the
@@ -139,11 +133,7 @@ async fn push_blob(app: &Router, auth: &str, repository: &str, bytes: &[u8]) -> 
         .oneshot(request)
         .await
         .unwrap();
-    assert_eq!(
-        response.status(),
-        StatusCode::CREATED,
-        "blob push should succeed",
-    );
+    assert_eq!(response.status(), StatusCode::CREATED, "blob push should succeed");
     digest
 }
 
@@ -168,10 +158,7 @@ async fn push_image(app: &Router, auth: &str, repository: &str, reference: &str)
     let manifest = image_manifest("config", &["layer"]);
     let request = Request::put(format!("/v2/{repository}/manifests/{reference}"))
         .header(header::AUTHORIZATION, auth)
-        .header(
-            header::CONTENT_TYPE,
-            "application/vnd.oci.image.manifest.v1+json",
-        )
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
         .body(Body::from(manifest.clone()))
         .unwrap();
     let response = app
@@ -179,11 +166,7 @@ async fn push_image(app: &Router, auth: &str, repository: &str, reference: &str)
         .oneshot(request)
         .await
         .unwrap();
-    assert_eq!(
-        response.status(),
-        StatusCode::CREATED,
-        "manifest push should succeed",
-    );
+    assert_eq!(response.status(), StatusCode::CREATED, "manifest push should succeed");
     digest_of(&manifest)
 }
 
@@ -249,10 +232,7 @@ async fn check_protocol_surface(app: Router) {
     assert_eq!(response.status(), StatusCode::CREATED);
     let location = response.headers()[header::LOCATION].to_str().unwrap();
     assert_eq!(location, format!("/v2/acme/destination/blobs/{digest}"));
-    assert_eq!(
-        body_bytes(get(&app, location).await.into_body()).await,
-        b"0123456789",
-    );
+    assert_eq!(body_bytes(get(&app, location).await.into_body()).await, b"0123456789");
     for from in ["acme/missing", "library/upstream"] {
         let response = app
             .clone()
@@ -300,11 +280,7 @@ async fn check_protocol_surface(app: Router) {
         assert!(!response.headers().contains_key(header::LINK));
         let payload: Value =
             serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-        let field = if endpoint == "_catalog" {
-            "repositories"
-        } else {
-            "tags"
-        };
+        let field = if endpoint == "_catalog" { "repositories" } else { "tags" };
         assert_eq!(payload[field], json!([]));
         for invalid in ["-1", "oops", "184467440737095516160", ""] {
             assert_eq!(
@@ -352,15 +328,8 @@ async fn check_protocol_surface(app: Router) {
         assert_eq!(response.status(), StatusCode::CREATED);
         assert_eq!(response.headers()["oci-subject"], subject);
     }
-    let response = get(
-        &app,
-        &format!("{path}?artifactType=application%2Fexample.signature"),
-    )
-    .await;
-    assert_eq!(
-        response.headers()[header::CONTENT_TYPE],
-        pnpr_oci::media_type::OCI_IMAGE_INDEX,
-    );
+    let response = get(&app, &format!("{path}?artifactType=application%2Fexample.signature")).await;
+    assert_eq!(response.headers()[header::CONTENT_TYPE], pnpr_oci::media_type::OCI_IMAGE_INDEX);
     assert_eq!(response.headers()["oci-filters-applied"], "artifactType");
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(payload["schemaVersion"], 2);
@@ -465,11 +434,7 @@ async fn check_unsatisfiable_ranges(app: &Router, blob_path: &str) {
             )
             .await
             .unwrap();
-        assert_eq!(
-            response.status(),
-            StatusCode::RANGE_NOT_SATISFIABLE,
-            "{range}",
-        );
+        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE, "{range}");
         assert_eq!(response.headers()[header::CONTENT_RANGE], "bytes */10");
     }
 }
@@ -495,10 +460,7 @@ async fn check_satisfiable_ranges(app: &Router, blob_path: &str) {
             .unwrap();
         assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT, "{range}");
         assert_eq!(response.headers()[header::CONTENT_RANGE], content_range);
-        assert_eq!(
-            response.headers()[header::CONTENT_LENGTH],
-            expected.len().to_string(),
-        );
+        assert_eq!(response.headers()[header::CONTENT_LENGTH], expected.len().to_string());
         assert_eq!(response.headers()[header::ACCEPT_RANGES], "bytes");
         assert_eq!(body_bytes(response.into_body()).await, expected.as_bytes());
     }
@@ -506,11 +468,7 @@ async fn check_satisfiable_ranges(app: &Router, blob_path: &str) {
 
 fn strip_referrer_metadata(document: &mut Value, expected_count: usize) {
     let entries = document["manifests"].as_array_mut().unwrap();
-    assert_eq!(
-        entries.len(),
-        expected_count,
-        "the pushed manifests are stored",
-    );
+    assert_eq!(entries.len(), expected_count, "the pushed manifests are stored");
     for entry in entries {
         assert!(
             entry

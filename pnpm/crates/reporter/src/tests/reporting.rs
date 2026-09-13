@@ -16,12 +16,7 @@ fn summary_event_matches_pnpm_wire_shape() {
         level: LogLevel::Debug,
         prefix: "/some/project".to_string(),
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
 
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
@@ -65,16 +60,9 @@ fn progress_event_matches_pnpm_wire_shape() {
             "found_in_store",
         ),
     ] {
-        let event = LogEvent::Progress(ProgressLog {
-            level: LogLevel::Debug,
-            message,
-        });
-        let envelope = Envelope {
-            time: 1_700_000_000_000,
-            hostname: "host",
-            pid: 4242,
-            event: &event,
-        };
+        let event = LogEvent::Progress(ProgressLog { level: LogLevel::Debug, message });
+        let envelope =
+            Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
 
         let json: Value = envelope
             .pipe_ref(serde_json::to_string)
@@ -97,12 +85,7 @@ fn progress_event_matches_pnpm_wire_shape() {
             to: "/proj/node_modules/.pacquet/react@18.0.0/node_modules/react".to_string(),
         },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -113,17 +96,11 @@ fn progress_event_matches_pnpm_wire_shape() {
     assert_eq!(json["status"], "imported");
     assert_eq!(json["method"], "hardlink");
     assert_eq!(json["requester"], "/proj");
-    assert_eq!(
-        json["to"],
-        "/proj/node_modules/.pacquet/react@18.0.0/node_modules/react",
-    );
+    assert_eq!(json["to"], "/proj/node_modules/.pacquet/react@18.0.0/node_modules/react");
     // `imported` deliberately omits `packageId` — match pnpm's shape
     // so consumers that read `progress.packageId` only on the three
     // store-ish statuses don't trip on a stray field.
-    assert!(
-        json.get("packageId").is_none(),
-        "imported must not carry packageId",
-    );
+    assert!(json.get("packageId").is_none(), "imported must not carry packageId");
 }
 
 /// `pnpm:fetching-progress` flattens its two-state `status` enum into
@@ -141,12 +118,7 @@ fn fetching_progress_event_matches_pnpm_wire_shape() {
             size: Some(123_456),
         },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -170,21 +142,13 @@ fn fetching_progress_event_matches_pnpm_wire_shape() {
             size: None,
         },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
         .pipe_as_ref(serde_json::from_str)
         .expect("parse JSON");
-    assert!(
-        json.get("size").is_some_and(serde_json::Value::is_null),
-        "size must be JSON null",
-    );
+    assert!(json.get("size").is_some_and(serde_json::Value::is_null), "size must be JSON null");
 
     let event = LogEvent::FetchingProgress(FetchingProgressLog {
         level: LogLevel::Debug,
@@ -193,12 +157,7 @@ fn fetching_progress_event_matches_pnpm_wire_shape() {
             package_id: "react@18.0.0".to_string(),
         },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -227,12 +186,7 @@ fn lifecycle_event_matches_pnpm_wire_shape() {
             wd: "/proj/node_modules/.pacquet/x@1.0.0/node_modules/x".to_string(),
         },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -245,15 +199,9 @@ fn lifecycle_event_matches_pnpm_wire_shape() {
     assert_eq!(json["optional"], false);
     assert_eq!(json["script"], "node build.js");
     assert_eq!(json["stage"], "postinstall");
-    assert_eq!(
-        json["wd"],
-        "/proj/node_modules/.pacquet/x@1.0.0/node_modules/x",
-    );
+    assert_eq!(json["wd"], "/proj/node_modules/.pacquet/x@1.0.0/node_modules/x");
     for k in ["line", "stdio", "exitCode"] {
-        assert!(
-            json.get(k).is_none(),
-            "Script must not carry {k}, got {json:?}",
-        );
+        assert!(json.get(k).is_none(), "Script must not carry {k}, got {json:?}");
     }
 
     eprintln!("CASE: Stdio");
@@ -267,12 +215,7 @@ fn lifecycle_event_matches_pnpm_wire_shape() {
             wd: "/wd".to_string(),
         },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -285,10 +228,7 @@ fn lifecycle_event_matches_pnpm_wire_shape() {
     assert_eq!(json["stage"], "postinstall");
     assert_eq!(json["wd"], "/wd");
     for k in ["script", "exitCode", "optional"] {
-        assert!(
-            json.get(k).is_none(),
-            "Stdio must not carry {k}, got {json:?}",
-        );
+        assert!(json.get(k).is_none(), "Stdio must not carry {k}, got {json:?}");
     }
 
     eprintln!("CASE: Exit");
@@ -302,12 +242,7 @@ fn lifecycle_event_matches_pnpm_wire_shape() {
             wd: "/wd".to_string(),
         },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -320,10 +255,7 @@ fn lifecycle_event_matches_pnpm_wire_shape() {
     assert_eq!(json["stage"], "postinstall");
     assert_eq!(json["wd"], "/wd");
     for k in ["script", "line", "stdio"] {
-        assert!(
-            json.get(k).is_none(),
-            "Exit must not carry {k}, got {json:?}",
-        );
+        assert!(json.get(k).is_none(), "Exit must not carry {k}, got {json:?}");
     }
 }
 
@@ -371,16 +303,7 @@ fn recording_fake_captures_emitted_events() {
     assert_eq!(captured.len(), 2);
     assert!(matches!(
         &captured[0],
-        LogEvent::Stage(StageLog {
-            stage: Stage::ImportingStarted,
-            ..
-        })
+        LogEvent::Stage(StageLog { stage: Stage::ImportingStarted, .. })
     ));
-    assert!(matches!(
-        &captured[1],
-        LogEvent::Stage(StageLog {
-            stage: Stage::ImportingDone,
-            ..
-        })
-    ));
+    assert!(matches!(&captured[1], LogEvent::Stage(StageLog { stage: Stage::ImportingDone, .. })));
 }

@@ -7,9 +7,7 @@ fn wheel_with(entries: &[(&str, &str)]) -> Vec<u8> {
         archive
             .start_file::<_, ()>(*name, zip::write::SimpleFileOptions::default())
             .expect("start a wheel entry");
-        archive
-            .write_all(body.as_bytes())
-            .expect("write a wheel entry");
+        archive.write_all(body.as_bytes()).expect("write a wheel entry");
     }
     archive
         .finish()
@@ -22,10 +20,7 @@ fn a_wheels_metadata_is_read_from_its_dist_info() {
     let wheel = wheel_with(&[
         ("demo/__init__.py", "value = 1\n"),
         ("demo-1.0.0.dist-info/RECORD", "demo/__init__.py,,\n"),
-        (
-            "demo-1.0.0.dist-info/METADATA",
-            "Name: demo\nVersion: 1.0.0\n",
-        ),
+        ("demo-1.0.0.dist-info/METADATA", "Name: demo\nVersion: 1.0.0\n"),
     ]);
 
     let document = metadata_from_wheel(&wheel, "demo-1.0.0-py3-none-any.whl").expect("metadata");
@@ -53,10 +48,7 @@ fn only_the_dist_info_metadata_counts() {
     let wheel = wheel_with(&[
         ("METADATA", "Name: impostor\nVersion: 9.9.9\n"),
         ("demo/nested/METADATA", "Name: impostor\nVersion: 9.9.9\n"),
-        (
-            "demo-1.0.0.dist-info/METADATA",
-            "Name: demo\nVersion: 1.0.0\n",
-        ),
+        ("demo-1.0.0.dist-info/METADATA", "Name: demo\nVersion: 1.0.0\n"),
     ]);
 
     let document = metadata_from_wheel(&wheel, "demo-1.0.0-py3-none-any.whl").expect("metadata");
@@ -69,10 +61,7 @@ fn only_the_dist_info_metadata_counts() {
 
 #[test]
 fn metadata_past_the_cap_is_refused_rather_than_cut_short() {
-    let long = format!(
-        "Name: demo\nVersion: 1.0.0\n{}",
-        "Requires-Dist: filler\n".repeat(500_000),
-    );
+    let long = format!("Name: demo\nVersion: 1.0.0\n{}", "Requires-Dist: filler\n".repeat(500_000));
     let wheel = wheel_with(&[("demo-1.0.0.dist-info/METADATA", &long)]);
 
     let error =
@@ -97,15 +86,9 @@ fn an_index_url_gains_the_slash_a_project_page_resolves_against() {
 
 #[test]
 fn an_index_url_that_could_carry_a_credential_is_refused() {
-    for index in [
-        "file:///etc/passwd",
-        "https://user:secret@example.test/simple/",
-    ] {
+    for index in ["file:///etc/passwd", "https://user:secret@example.test/simple/"] {
         let error = index_url(index).expect_err("refused");
-        assert!(
-            error.contains("HTTP(S) URLs without embedded credentials"),
-            "{index}: {error}",
-        );
+        assert!(error.contains("HTTP(S) URLs without embedded credentials"), "{index}: {error}");
     }
 }
 

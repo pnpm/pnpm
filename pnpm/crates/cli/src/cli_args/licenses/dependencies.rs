@@ -13,9 +13,8 @@ pub(super) fn collect_dependencies(
     let mut belongs_to: HashMap<PackageKey, BelongsTo> = HashMap::new();
     let mut stack: Vec<(PackageKey, BelongsTo)> = Vec::new();
     for id in importer_ids {
-        let Some(importer) = lockfile.importers
-            .get(id.as_ref())
-            .or_else(|| lockfile.root_project())
+        let Some(importer) =
+            lockfile.importers.get(id.as_ref()).or_else(|| lockfile.root_project())
         else {
             continue;
         };
@@ -144,10 +143,7 @@ fn version_is_newer(candidate: &str, selected: &str) -> bool {
 }
 
 pub(super) fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
-    match (
-        node_semver::Version::parse(left),
-        node_semver::Version::parse(right),
-    ) {
+    match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
         (Ok(left), Ok(right)) => left.cmp(&right),
         _ => left.cmp(right),
     }

@@ -42,16 +42,8 @@ impl PeersArgs {
         dir: &std::path::Path,
         recursive: bool,
     ) -> miette::Result<PeersOutcome> {
-        if !matches!(
-            self.params.first().map(String::as_str),
-            Some("check") | None,
-        ) {
-            let mut cmd = crate::cli_args::CliArgs::command();
-            cmd.build();
-            let _ = cmd
-                .find_subcommand_mut("peers")
-                .expect("peers subcommand")
-                .print_help();
+        if !matches!(self.params.first().map(String::as_str), Some("check") | None) {
+            print_peers_help();
             return Ok(PeersOutcome::UnknownSubcommand);
         }
 
@@ -79,7 +71,23 @@ impl PeersArgs {
         };
         let issues = filter_peer_issues(issues, &config.peer_dependency_rules);
 
-        report_peer_issues(&issues, self.json)
+        let no_issues = issues
+            .values()
+            .all(|pi| pi.bad.is_empty() && pi.missing.is_empty());
+
+        if self.json {
+            let output = serde_json::to_string_pretty(&issues)
+                .into_diagnostic()
+                .wrap_err("serialize issues to JSON")?;
+            println!("{output}");
+        } else if no_issues {
+            println!("No peer dependency issues found");
+        } else {
+            println!("Issues with peer dependencies found\n");
+            println!("{}", render_peer_issues(&issues));
+        }
+
+        Ok(if no_issues { PeersOutcome::NoIssues } else { PeersOutcome::IssuesFound })
     }
     /// The lockfile the check reads: the materialized current lockfile
     /// when there is one, and the wanted lockfile otherwise.
@@ -99,6 +107,15 @@ impl PeersArgs {
     }
 }
 
+fn print_peers_help() {
+    let mut cmd = crate::cli_args::CliArgs::command();
+    cmd.build();
+    let _ = cmd
+        .find_subcommand_mut("peers")
+        .expect("peers subcommand")
+        .print_help();
+}
+
 /// The projects the check covers: the `--filter` selection under
 /// `--recursive`, the current directory otherwise.
 fn checked_project_dirs(
@@ -111,35 +128,9 @@ fn checked_project_dirs(
     }
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
     let (projects, _) = discover_workspace_projects(workspace_root, config)?;
-    Ok(
-        select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?
-            .selected
-            .keys()
-            .cloned()
-            .collect(),
-    )
-}
-
-fn report_peer_issues(issues: &IssuesByProjects, json: bool) -> miette::Result<PeersOutcome> {
-    let no_issues = issues
-        .values()
-        .all(|pi| pi.bad.is_empty() && pi.missing.is_empty());
-
-    if json {
-        let output = serde_json::to_string_pretty(issues)
-            .into_diagnostic()
-            .wrap_err("serialize issues to JSON")?;
-        println!("{output}");
-    } else if no_issues {
-        println!("No peer dependency issues found");
-    } else {
-        println!("Issues with peer dependencies found\n");
-        println!("{}", render_peer_issues(issues));
-    }
-
-    Ok(if no_issues {
-        PeersOutcome::NoIssues
-    } else {
-        PeersOutcome::IssuesFound
-    })
+    Ok(select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?
+        .selected
+        .keys()
+        .cloned()
+        .collect())
 }

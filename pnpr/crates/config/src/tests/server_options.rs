@@ -9,22 +9,10 @@ fn compiler_cache_policies_distinguish_readers_and_publishers() {
         Path::new("/config"), listen(), None,
     ).unwrap();
     let policy = &config.features.artifacts.compiler_caches["acme"];
-    assert!(
-        policy.access.allows(&Identity::user("developer")),
-        "developer must be able to read",
-    );
-    assert!(
-        !policy.publish.allows(&Identity::user("developer")),
-        "developer must not publish",
-    );
-    assert!(
-        policy.publish.allows(&Identity::user("ci")),
-        "CI must be able to publish",
-    );
-    assert!(
-        !policy.access.allows(&Identity::Anonymous),
-        "anonymous reads must not be granted",
-    );
+    assert!(policy.access.allows(&Identity::user("developer")), "developer must be able to read");
+    assert!(!policy.publish.allows(&Identity::user("developer")), "developer must not publish");
+    assert!(policy.publish.allows(&Identity::user("ci")), "CI must be able to publish");
+    assert!(!policy.access.allows(&Identity::Anonymous), "anonymous reads must not be granted");
     assert!(
         config.features.artifacts.compiler_caches["disabled"].access.is_empty(),
         "empty access must deny reads",
@@ -48,12 +36,7 @@ fn compiler_cache_policies_reject_ambiguous_or_incomplete_declarations() {
 
 #[test]
 fn rejects_non_origin_cors_urls() {
-    for origin in [
-        "*",
-        "null",
-        "ftp://example.test",
-        "https://example.test/path",
-    ] {
+    for origin in ["*", "null", "ftp://example.test", "https://example.test/path"] {
         let yaml = format!("cors:\n  allowedOrigins: [{origin:?}]\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
         assert!(
@@ -88,10 +71,7 @@ fn osv_config_defaults_off_and_resolves_relative_path() {
     let yaml = "osv:\n  enabled: true\n  path: ./osv/npm/all.zip\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert!(config.osv.enabled);
-    assert_eq!(
-        config.osv.path,
-        Some(PathBuf::from("/etc/pnpr/./osv/npm/all.zip")),
-    );
+    assert_eq!(config.osv.path, Some(PathBuf::from("/etc/pnpr/./osv/npm/all.zip")));
 }
 
 #[test]
@@ -215,14 +195,8 @@ fn log_level_filter_directives_are_valid() {
 
 #[test]
 fn log_format_accepts_each_known_variant() {
-    assert_eq!(
-        parse_log_yaml::<LogFormat>("pretty").unwrap(),
-        LogFormat::Pretty,
-    );
-    assert_eq!(
-        parse_log_yaml::<LogFormat>("json").unwrap(),
-        LogFormat::Json,
-    );
+    assert_eq!(parse_log_yaml::<LogFormat>("pretty").unwrap(), LogFormat::Pretty);
+    assert_eq!(parse_log_yaml::<LogFormat>("json").unwrap(), LogFormat::Json);
 }
 
 #[test]

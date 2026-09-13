@@ -73,18 +73,8 @@ pub fn mixed_router_config(
             )
         })
         .collect();
-    graph.insert(
-        hosted.name.to_string(),
-        Registry::Hosted {
-            patterns: claimed,
-        },
-    );
-    graph.insert(
-        upstream.0.to_string(),
-        Registry::Upstream {
-            patterns: vec![],
-        },
-    );
+    graph.insert(hosted.name.to_string(), Registry::Hosted { patterns: claimed });
+    graph.insert(upstream.0.to_string(), Registry::Upstream { patterns: vec![] });
     graph.insert(
         "main".to_string(),
         Registry::Router {
@@ -161,12 +151,7 @@ pub async fn assert_cache_tracks_metadata(ecosystem: Ecosystem) {
     let mut config = mixed_router_config(
         tmp.path().to_path_buf(),
         ecosystem,
-        HostedSource {
-            name: "hosted",
-            org: "hosted",
-            access: "$all",
-            packages: &["demo"],
-        },
+        HostedSource { name: "hosted", org: "hosted", access: "$all", packages: &["demo"] },
         ("upstream", &upstream.url()),
     );
     config.http.packument_ttl = Duration::ZERO;

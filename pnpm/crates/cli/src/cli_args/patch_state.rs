@@ -20,11 +20,7 @@ pub(crate) struct EditDirState {
     pub(crate) patched_pkg: String,
     #[serde(rename = "applyToAll")]
     pub(crate) apply_to_all: bool,
-    #[serde(
-        rename = "packageKey",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "packageKey", default, skip_serializing_if = "Option::is_none")]
     pub(crate) package_key: Option<PackageKey>,
 }
 
@@ -85,14 +81,9 @@ pub(crate) fn read_edit_dir_state(
     edit_dir: &Path,
 ) -> Result<Option<EditDirState>, StateFileError> {
     let path = checked_state_file_path_for_read(modules_dir)?;
-    let Some(text) = read_state_file_text(&path)? else {
-        return Ok(None);
-    };
+    let Some(text) = read_state_file_text(&path)? else { return Ok(None) };
     let state: BTreeMap<String, EditDirState> = serde_json::from_str(&text)
-        .map_err(|source| StateFileError::Parse {
-            path: path.clone(),
-            source,
-        })?;
+        .map_err(|source| StateFileError::Parse { path: path.clone(), source })?;
     let key = edit_dir_key(edit_dir)?;
     Ok(state.get(&key).cloned())
 }
@@ -107,40 +98,24 @@ pub(crate) fn write_edit_dir_state(
     state.insert(edit_dir_key(edit_dir)?, edit_dir_state.clone());
 
     let text = serde_json::to_string_pretty(&state)
-        .map_err(|source| StateFileError::Serialize {
-            path: path.clone(),
-            source,
-        })?;
+        .map_err(|source| StateFileError::Serialize { path: path.clone(), source })?;
     write_state_file_atomically(&path, text.as_bytes())
-        .map_err(|source| StateFileError::Write {
-            path,
-            source,
-        })
+        .map_err(|source| StateFileError::Write { path, source })
 }
 
 fn read_state_file_for_write(
     path: &Path,
 ) -> Result<BTreeMap<String, EditDirState>, StateFileError> {
-    let Some(text) = read_state_file_text(path)? else {
-        return Ok(BTreeMap::new());
-    };
+    let Some(text) = read_state_file_text(path)? else { return Ok(BTreeMap::new()) };
     serde_json::from_str(&text)
-        .map_err(|source| StateFileError::Parse {
-            path: path.to_path_buf(),
-            source,
-        })
+        .map_err(|source| StateFileError::Parse { path: path.to_path_buf(), source })
 }
 
 fn read_state_file_text(path: &Path) -> Result<Option<String>, StateFileError> {
     let metadata = match fs::metadata(path) {
         Ok(metadata) => metadata,
         Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(source) => {
-            return Err(StateFileError::Read {
-                path: path.to_path_buf(),
-                source,
-            });
-        }
+        Err(source) => return Err(StateFileError::Read { path: path.to_path_buf(), source }),
     };
     if !metadata.is_file() {
         return Err(StateFileError::Read {
@@ -156,10 +131,7 @@ fn read_state_file_text(path: &Path) -> Result<Option<String>, StateFileError> {
     }
     fs::read_to_string(path)
         .map(Some)
-        .map_err(|source| StateFileError::Read {
-            path: path.to_path_buf(),
-            source,
-        })
+        .map_err(|source| StateFileError::Read { path: path.to_path_buf(), source })
 }
 
 fn state_file_path(modules_dir: &Path) -> PathBuf {
@@ -177,10 +149,7 @@ fn checked_state_file_path_for_write(modules_dir: &Path) -> Result<PathBuf, Stat
     let state_dir = path.parent().expect("state file has parent");
     reject_state_symlink_if_exists(state_dir)?;
     fs::create_dir_all(state_dir)
-        .map_err(|source| StateFileError::Write {
-            path: state_dir.to_path_buf(),
-            source,
-        })?;
+        .map_err(|source| StateFileError::Write { path: state_dir.to_path_buf(), source })?;
     validate_existing_state_path(modules_dir, &path)?;
     Ok(path)
 }
@@ -189,10 +158,9 @@ fn validate_existing_state_path(modules_dir: &Path, path: &Path) -> Result<(), S
     let state_dir = path.parent().expect("state file has parent");
     reject_state_symlink_if_exists(state_dir)?;
     reject_state_symlink_if_exists(path)?;
-    if let (Ok(real_modules_dir), Ok(real_state_dir)) = (
-        dunce::canonicalize(modules_dir),
-        dunce::canonicalize(state_dir),
-    ) && !is_subdir(&real_modules_dir, &real_state_dir)
+    if let (Ok(real_modules_dir), Ok(real_state_dir)) =
+        (dunce::canonicalize(modules_dir), dunce::canonicalize(state_dir))
+        && !is_subdir(&real_modules_dir, &real_state_dir)
     {
         return Err(StateFileError::UnsafePath {
             path: state_dir.to_path_buf(),
@@ -210,23 +178,16 @@ fn reject_state_symlink_if_exists(path: &Path) -> Result<(), StateFileError> {
         }),
         Ok(_) => Ok(()),
         Err(source) if source.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(source) => Err(StateFileError::Read {
-            path: path.to_path_buf(),
-            source,
-        }),
+        Err(source) => Err(StateFileError::Read { path: path.to_path_buf(), source }),
     }
 }
 
 fn write_state_file_atomically(target: &Path, content: &[u8]) -> io::Result<()> {
-    let parent = target
-        .parent()
-        .unwrap_or_else(|| Path::new("."));
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
     let mut tmp = tempfile::NamedTempFile::new_in(parent)?;
     tmp.write_all(content)?;
     tmp.as_file().sync_all()?;
-    tmp
-        .persist(target)
-        .map_err(|error| error.error)?;
+    tmp.persist(target).map_err(|error| error.error)?;
     Ok(())
 }
 
@@ -246,10 +207,7 @@ fn edit_dir_key(edit_dir: &Path) -> Result<String, StateFileError> {
         Ok(path) => path,
         Err(source) if source.kind() == io::ErrorKind::NotFound => normalized,
         Err(source) => {
-            return Err(StateFileError::ResolveEditDir {
-                path: edit_dir.to_path_buf(),
-                source,
-            });
+            return Err(StateFileError::ResolveEditDir { path: edit_dir.to_path_buf(), source });
         }
     }
     .display()

@@ -66,9 +66,7 @@ pub(super) fn ingest_record_bytes(
         return Ok(());
     }
     for affected in record.affected {
-        let Some(package) = affected.package.as_ref() else {
-            continue;
-        };
+        let Some(package) = affected.package.as_ref() else { continue };
         if package.ecosystem != "npm" {
             continue;
         }
@@ -109,10 +107,7 @@ pub(super) fn exceeds_affected_limits(affected: &OsvAffected) -> bool {
 /// when a lockfile name and the OSV dump disagree on casing. Borrows
 /// when the name is already lowercase (the common case).
 pub(super) fn normalized_name(name: &str) -> Cow<'_, str> {
-    if name
-        .bytes()
-        .any(|byte| byte.is_ascii_uppercase())
-    {
+    if name.bytes().any(|byte| byte.is_ascii_uppercase()) {
         Cow::Owned(name.to_ascii_lowercase())
     } else {
         Cow::Borrowed(name)
@@ -160,15 +155,9 @@ pub(super) fn semver_range_from_osv(range: OsvRange) -> Option<SemverRange> {
             .bound()
             .partial_cmp(b.bound())
             .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| {
-                a
-                    .sort_rank()
-                    .cmp(&b.sort_rank())
-            })
+            .then_with(|| a.sort_rank().cmp(&b.sort_rank()))
     });
-    (!events.is_empty()).then_some(SemverRange {
-        events,
-    })
+    (!events.is_empty()).then_some(SemverRange { events })
 }
 
 pub(super) fn semver_event_from_osv(event: OsvEvent) -> Option<SemverEvent> {

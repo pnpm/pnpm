@@ -13,8 +13,6 @@
 //! emit boundaries — is in place so the cache slice only needs to
 //! plug into the existing call sites.
 
-pub(crate) use offline_cache::with_offline_check_cache_identities;
-
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
@@ -24,7 +22,7 @@ use pnpm_reporter::{
     LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, Reporter,
 };
 use pnpm_resolving_resolver_base::{
-    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx,
+    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
 };
 use tokio::sync::Semaphore;
 
@@ -163,20 +161,25 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         CacheOutcome::Miss(precomputed) => precomputed,
     };
 
-    let candidates = validated_candidates(lockfile)?;
+    let (candidates, shape_violations) = collect_candidates(lockfile);
+    if !shape_violations.is_empty() {
+        return Err(build_verification_error(shape_violations));
+    }
     if verifiers.is_empty() {
         return Ok(());
     }
+    if candidates.is_empty() {
+        // Persist the success so the next install can stat-only the
+        // lockfile. An empty fan-out is still a successful run.
+        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
+        return Ok(());
+    }
+
     let violations =
         verify_candidates::<Reporter>(candidates, verifiers, opts.concurrency, lockfile_path_str)
             .await?;
     if violations.is_empty() {
-        record_verdict(
-            cache_inputs,
-            &cache_verifiers,
-            &mut hash_once,
-            cache_precomputed,
-        );
+        record_verdict(cache_inputs, &cache_verifiers, &mut hash_once, cache_precomputed);
         return Ok(());
     }
     Err(build_verification_error(violations))
@@ -190,17 +193,11 @@ async fn verify_candidates<Reporter: self::Reporter>(
     concurrency: Option<usize>,
     lockfile_path_str: Option<String>,
 ) -> Result<Vec<ResolutionPolicyViolation>, VerifyError> {
-    if candidates.is_empty() {
-        return Ok(Vec::new());
-    }
     let entries = candidates.len() as u64;
     let started_at = Instant::now();
     emit::<Reporter>(
         LogLevel::Debug,
-        LockfileVerificationMessage::Started {
-            entries,
-            lockfile_path: lockfile_path_str.clone(),
-        },
+        LockfileVerificationMessage::Started { entries, lockfile_path: lockfile_path_str.clone() },
     );
 
     // The drop guard fires `Failed` for early-return / panic paths.
@@ -215,11 +212,7 @@ async fn verify_candidates<Reporter: self::Reporter>(
         // The registry couldn't be reached to verify an entry: abort with its
         // own error (already credential-redacted) instead of a policy batch.
         // `emit_guard` is still armed to emit `failed` on drop.
-        Err(message) => {
-            return Err(VerifyError::RegistryMetaFetchFailed {
-                message,
-            });
-        }
+        Err(message) => return Err(VerifyError::RegistryMetaFetchFailed { message }),
     };
     if violations.is_empty() {
         emit_guard.cancel(LockfileVerificationMessage::Done {
@@ -252,11 +245,7 @@ struct CachedVerdict<'a> {
 /// lookup never computes it.
 fn memoized_lockfile_hash(lockfile: &Lockfile) -> impl FnMut() -> String + '_ {
     let mut cached_hash: Option<String> = None;
-    move || {
-        cached_hash
-            .get_or_insert_with(|| hash_lockfile(lockfile))
-            .clone()
-    }
+    move || cached_hash.get_or_insert_with(|| hash_lockfile(lockfile)).clone()
 }
 
 /// Reuse a previous verdict for this lockfile, if the cache holds one.
@@ -297,13 +286,7 @@ fn record_verdict(
     precomputed: CachePrecomputed,
 ) {
     if let Some((cache_dir, lockfile_path)) = cache_inputs {
-        record_verification(
-            cache_dir,
-            lockfile_path,
-            cache_verifiers,
-            hash_once,
-            precomputed,
-        );
+        record_verification(cache_dir, lockfile_path, cache_verifiers, hash_once, precomputed);
     }
 }
 
@@ -330,6 +313,67 @@ pub async fn collect_resolution_policy_violations(
 }
 
 pub const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE: &str = "RESOLUTION_SHAPE_MISMATCH";
+
+/// Cache-key participant for an always-on offline structural check
+/// (resolution-shape, dependency-alias): a record written before the
+/// check's rule existed lacks its `flag`, so `can_trust_past_check`
+/// rejects it and forces a re-verification. `verify` is never invoked —
+/// the identity is appended only to the verifier lists handed to the
+/// cache lookup and recorder.
+struct OfflineCheckCacheIdentity {
+    policy: serde_json::Map<String, serde_json::Value>,
+    flag: &'static str,
+}
+
+fn resolution_shape_cache_identity() -> Arc<dyn ResolutionVerifier> {
+    let mut policy = serde_json::Map::new();
+    policy.insert("resolutionShapeCheck".to_string(), serde_json::Value::Bool(true));
+    Arc::new(OfflineCheckCacheIdentity { policy, flag: "resolutionShapeCheck" })
+}
+
+fn dependency_alias_cache_identity() -> Arc<dyn ResolutionVerifier> {
+    let mut policy = serde_json::Map::new();
+    policy.insert("dependencyAliasCheck".to_string(), serde_json::Value::Bool(true));
+    Arc::new(OfflineCheckCacheIdentity { policy, flag: "dependencyAliasCheck" })
+}
+
+/// Every verifier list that flows into the verification cache must
+/// carry the always-on offline structural checks' identities, so a
+/// record written before one of those rules existed cannot
+/// stat-fast-path around it — its missing flag fails
+/// `can_trust_past_check`, forcing a re-verification that runs the new
+/// check. Used by the gate itself and by
+/// [`crate::record_lockfile_verified()`], whose freshly-resolved
+/// lockfile satisfies these invariants by construction (the resolver
+/// validates aliases at manifest-read time and derives every resolution
+/// key from the resolution it just produced).
+pub(crate) fn with_offline_check_cache_identities(
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> Vec<Arc<dyn ResolutionVerifier>> {
+    verifiers
+        .iter()
+        .cloned()
+        .chain([resolution_shape_cache_identity(), dependency_alias_cache_identity()])
+        .collect()
+}
+
+impl ResolutionVerifier for OfflineCheckCacheIdentity {
+    fn verify<'a>(
+        &'a self,
+        _resolution: &'a LockfileResolution,
+        _ctx: VerifyCtx<'a>,
+    ) -> VerifyFuture<'a> {
+        Box::pin(async { ResolutionVerification::Ok })
+    }
+
+    fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
+        &self.policy
+    }
+
+    fn can_trust_past_check(&self, cached: &serde_json::Map<String, serde_json::Value>) -> bool {
+        cached.get(self.flag) == Some(&serde_json::Value::Bool(true))
+    }
+}
 
 /// Whether a resolution is registry-shaped. A plain tarball
 /// resolution is registry-shaped because the npm verifier unconditionally
@@ -400,11 +444,9 @@ fn push_invalid_aliases<'alias>(
 fn collect_invalid_dependency_names(lockfile: &Lockfile) -> std::collections::BTreeSet<String> {
     let mut invalid = std::collections::BTreeSet::new();
     for importer in lockfile.importers.values() {
-        for deps in [
-            &importer.dependencies,
-            &importer.dev_dependencies,
-            &importer.optional_dependencies,
-        ] {
+        for deps in
+            [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+        {
             push_invalid_aliases(
                 deps
                     .iter()
@@ -414,9 +456,7 @@ fn collect_invalid_dependency_names(lockfile: &Lockfile) -> std::collections::BT
             );
         }
     }
-    let Some(snapshots) = lockfile.snapshots.as_ref() else {
-        return invalid;
-    };
+    let Some(snapshots) = lockfile.snapshots.as_ref() else { return invalid };
     for (key, snapshot) in snapshots {
         push_invalid_aliases(std::iter::once(&key.name), &mut invalid);
         for deps in [&snapshot.dependencies, &snapshot.optional_dependencies] {
@@ -457,10 +497,7 @@ pub fn verify_lockfile_dependency_names(lockfile: &Lockfile) -> Result<(), Verif
 }
 
 fn emit<Reporter: self::Reporter>(level: LogLevel, message: LockfileVerificationMessage) {
-    Reporter::emit(&LogEvent::LockfileVerification(LockfileVerificationLog {
-        level,
-        message,
-    }));
+    Reporter::emit(&LogEvent::LockfileVerification(LockfileVerificationLog { level, message }));
 }
 
 /// Drop guard that fires the terminal `Failed` payload when the
@@ -524,14 +561,3 @@ mod tests;
 
 mod candidates;
 use candidates::{Candidate, build_verification_error, collect_candidates, run_fan_out};
-
-mod offline_cache;
-
-fn validated_candidates(lockfile: &Lockfile) -> Result<Vec<Candidate>, VerifyError> {
-    let (candidates, violations) = collect_candidates(lockfile);
-    if violations.is_empty() {
-        Ok(candidates)
-    } else {
-        Err(build_verification_error(violations))
-    }
-}

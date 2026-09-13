@@ -6,8 +6,7 @@ use pnpm_hooks::PnpmfileHooks as _;
 
 #[tokio::test]
 async fn read_package_fails_when_hook_returns_undefined() {
-    let err = read_package_err("module.exports = { hooks: { readPackage (pkg) {} } }")
-        .await;
+    let err = read_package_err("module.exports = { hooks: { readPackage (pkg) {} } }").await;
     eprintln!("err = {err}");
     assert!(err.contains("readPackage hook did not return a package manifest object."));
 }
@@ -40,10 +39,7 @@ async fn worker_multiplexes_concurrent_read_package_calls() {
             let updated = hooks
                 .read_package(
                     serde_json::json!({ "name": name, "version": "1.0.0" }),
-                    pnpm_hooks::HookContext {
-                        log: Arc::new(|_| {}),
-                        dir: None,
-                    },
+                    pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
                 )
                 .await
                 .expect("readPackage should succeed");
@@ -59,10 +55,7 @@ async fn worker_multiplexes_concurrent_read_package_calls() {
 
     while let Some(joined) = set.join_next().await {
         let (sent, echoed) = joined.expect("task should not panic");
-        assert_eq!(
-            sent, echoed,
-            "a concurrent call received another call's response",
-        );
+        assert_eq!(sent, echoed, "a concurrent call received another call's response");
     }
 }
 
@@ -98,12 +91,7 @@ async fn custom_resolver_round_trips_can_resolve_and_resolve() {
     let resolvers = hooks.get_custom_resolvers().await.expect("load resolvers");
     let wanted = serde_json::json!({ "alias": "foo", "bareSpecifier": "custom:foo" });
 
-    assert!(
-        resolvers[0]
-            .can_resolve(wanted.clone())
-            .await
-            .expect("canResolve"),
-    );
+    assert!(resolvers[0].can_resolve(wanted.clone()).await.expect("canResolve"));
     assert!(
         !resolvers[0]
             .can_resolve(serde_json::json!({ "alias": "bar", "bareSpecifier": "^1.0.0" }))
@@ -118,14 +106,8 @@ async fn custom_resolver_round_trips_can_resolve_and_resolve() {
     // `custom/` prefix comes from `this.idPrefix`: methods must be
     // invoked with the resolver object as `this`, like pnpm does.
     assert_eq!(result["id"], "custom/foo@1.0.0");
-    assert_eq!(
-        result["resolution"]["tarball"],
-        "https://example.com/foo-1.0.0.tgz",
-    );
-    assert_eq!(
-        result["lockfileDir"], "/repo",
-        "resolve opts reach the hook",
-    );
+    assert_eq!(result["resolution"]["tarball"], "https://example.com/foo-1.0.0.tgz");
+    assert_eq!(result["lockfileDir"], "/repo", "resolve opts reach the hook");
 }
 
 #[tokio::test]
@@ -141,10 +123,7 @@ async fn custom_resolver_errors_propagate() {
         .await
         .expect_err("throwing hook must surface as an error");
 
-    assert!(
-        err.to_string().contains("refresh check crashed"),
-        "got: {err}",
-    );
+    assert!(err.to_string().contains("refresh check crashed"), "got: {err}");
 }
 
 #[tokio::test]
@@ -168,12 +147,7 @@ async fn custom_fetcher_round_trips_can_fetch_and_fetch() {
     let resolution =
         serde_json::json!({ "type": "@custom/local", "url": "https://example.com/pkg" });
 
-    assert!(
-        fetchers[0]
-            .can_fetch("foo@1.0.0", resolution.clone())
-            .await
-            .expect("canFetch"),
-    );
+    assert!(fetchers[0].can_fetch("foo@1.0.0", resolution.clone()).await.expect("canFetch"));
     assert!(
         !fetchers[0]
             .can_fetch("foo@1.0.0", serde_json::json!({ "type": "tarball" }))
@@ -182,14 +156,8 @@ async fn custom_fetcher_round_trips_can_fetch_and_fetch() {
     );
 
     let opts = serde_json::json!({ "pkg": { "name": "foo", "version": "1.0.0" } });
-    let result = fetchers[0]
-        .fetch("foo@1.0.0", resolution, opts.clone())
-        .await
-        .expect("fetch");
-    assert_eq!(
-        result["filesIndex"]["package.json"]["integrity"],
-        "sha512-abc123",
-    );
+    let result = fetchers[0].fetch("foo@1.0.0", resolution, opts.clone()).await.expect("fetch");
+    assert_eq!(result["filesIndex"]["package.json"]["integrity"], "sha512-abc123");
     // TS-parity positions: `cafs` / `fetchers` are null placeholders
     // over IPC, `resolution` and `opts` arrive in the TS slots.
     assert_eq!(result["receivedNullCafs"], true);
@@ -257,20 +225,12 @@ module.exports = {
         "type": "@custom/proxy",
         "proxyUrl": "https://proxy.example.com/foo-1.0.0.tgz",
     });
-    assert!(
-        fetchers[0]
-            .can_fetch("foo@1.0.0", resolution.clone())
-            .await
-            .unwrap(),
-    );
+    assert!(fetchers[0].can_fetch("foo@1.0.0", resolution.clone()).await.unwrap());
     let result = fetchers[0]
         .fetch("foo@1.0.0", resolution, serde_json::json!({}))
         .await
         .unwrap();
-    assert_eq!(
-        result["delegate"]["tarball"],
-        "https://proxy.example.com/foo-1.0.0.tgz",
-    );
+    assert_eq!(result["delegate"]["tarball"], "https://proxy.example.com/foo-1.0.0.tgz");
     assert_eq!(result["delegate"]["integrity"], "sha512-delegated");
 }
 
@@ -297,28 +257,16 @@ module.exports = {
     let empty_resolution = serde_json::json!({});
 
     assert!(
-        fetchers[0]
-            .can_fetch("a@1.0.0", empty_resolution.clone())
-            .await
-            .unwrap(),
+        fetchers[0].can_fetch("a@1.0.0", empty_resolution.clone()).await.unwrap(),
         "1 is truthy",
     );
     assert!(
-        fetchers[1]
-            .can_fetch("a@1.0.0", empty_resolution.clone())
-            .await
-            .unwrap(),
+        fetchers[1].can_fetch("a@1.0.0", empty_resolution.clone()).await.unwrap(),
         r#""yes" is truthy"#,
     );
     assert!(
-        !fetchers[2]
-            .can_fetch("a@1.0.0", empty_resolution.clone())
-            .await
-            .unwrap(),
+        !fetchers[2].can_fetch("a@1.0.0", empty_resolution.clone()).await.unwrap(),
         "0 is falsy",
     );
-    assert!(
-        !fetchers[3].can_fetch("a@1.0.0", empty_resolution).await.unwrap(),
-        r#""" is falsy"#,
-    );
+    assert!(!fetchers[3].can_fetch("a@1.0.0", empty_resolution).await.unwrap(), r#""" is falsy"#);
 }

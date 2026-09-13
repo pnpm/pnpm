@@ -15,18 +15,12 @@ async fn artifact_blob_download_rejects_bytes_that_do_not_match_the_integrity() 
 
     let error = PnprClient::new(server.url())
         .download_artifact_blob(
-            &ArtifactBlobRequest {
-                owner: OwnerScope::organization("acme"),
-                integrity,
-            },
+            &ArtifactBlobRequest { owner: OwnerScope::organization("acme"), integrity },
             None,
         )
         .await
         .expect_err("a corrupt artifact blob must be rejected");
 
-    assert!(
-        matches!(error, PnprClientError::Protocol(_)),
-        "got: {error}",
-    );
+    assert!(matches!(error, PnprClientError::Protocol(_)), "got: {error}");
     mock.assert_async().await;
 }

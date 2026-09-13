@@ -18,7 +18,6 @@
 //! [`PublishedAtLookupContext`] so verifying many pinned versions of
 //! the same package costs at most one fetch per layer.
 
-mod registry_routes;
 mod registry_tarball;
 use registry_tarball::npm_registry_tarball;
 
@@ -268,19 +267,10 @@ impl std::fmt::Debug for NpmResolutionVerifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f
             .debug_struct("NpmResolutionVerifier")
-            .field(
-                "minimum_release_age_minutes",
-                &self.release_age.minimum_minutes,
-            )
+            .field("minimum_release_age_minutes", &self.release_age.minimum_minutes)
             .field("cutoff", &self.release_age.cutoff)
-            .field(
-                "ignore_missing_time_field",
-                &self.metadata.ignore_missing_time_field,
-            )
-            .field(
-                "registry_supports_time_field",
-                &self.metadata.registry_supports_time_field,
-            )
+            .field("ignore_missing_time_field", &self.metadata.ignore_missing_time_field)
+            .field("registry_supports_time_field", &self.metadata.registry_supports_time_field)
             .field("trust_policy", &self.trust.policy)
             .field("trust_policy_ignore_after", &self.trust.ignore_after)
             .field("offline", &self.metadata.offline)
@@ -480,8 +470,7 @@ impl NpmResolutionVerifier {
             return violation;
         }
 
-        self.run_policy_checks(&registry, &ctx, age_applies, trust_applies)
-            .await
+        self.run_policy_checks(&registry, &ctx, age_applies, trust_applies).await
     }
 
     /// A registry entry that pins an explicit tarball URL must point at the
@@ -508,15 +497,6 @@ impl NpmResolutionVerifier {
             .await
     }
 
-    /// Whether the maturity and trust policies apply to this entry.
-    fn policies_for(&self, ctx: &VerifyCtx<'_>) -> (bool, bool) {
-        let age_applies = self.release_age.age_check_active()
-            && !is_excluded(self.release_age.exclude.as_ref(), ctx.name, ctx.version);
-        let trust_applies = self.trust.trust_check_active()
-            && !is_excluded(self.trust.exclude.as_ref(), ctx.name, ctx.version);
-        (age_applies, trust_applies)
-    }
-
     /// The maturity and trust policies, each skipped when it does not apply
     /// to this entry.
     async fn run_policy_checks(
@@ -528,14 +508,12 @@ impl NpmResolutionVerifier {
     ) -> ResolutionVerification {
         if age_applies
             && let Some(violation) =
-                self.run_age_check(registry, ctx.name, ctx.version, ctx.registry_name)
-                    .await
+                self.run_age_check(registry, ctx.name, ctx.version, ctx.registry_name).await
         {
             return violation;
         }
         if trust_applies
-            && let Some(violation) = self.run_trust_check(registry, ctx.name, ctx.version)
-                .await
+            && let Some(violation) = self.run_trust_check(registry, ctx.name, ctx.version).await
         {
             return violation;
         }
@@ -544,9 +522,7 @@ impl NpmResolutionVerifier {
 }
 
 fn render_fetch_metadata_error(error: &crate::FetchMetadataError) -> String {
-    let code = error
-        .code()
-        .map(|code| code.to_string());
+    let code = error.code().map(|code| code.to_string());
     let message = redact_url_credentials(&error.to_string());
     match code {
         Some(code) => format!("{code}: {message}"),
@@ -578,6 +554,48 @@ fn format_trust_violation(err: TrustViolation) -> String {
 
 #[cfg(test)]
 mod tests;
+
+impl VerificationRegistryRoutes {
+    /// The URL a registry-qualified entry routes to.
+    ///
+    /// Registry-qualified entries name their registry in the dep path, so
+    /// routing does not depend on a recorded tarball URL (canonical URLs are
+    /// omitted from the lockfile in the 12.0 format). This fails closed on
+    /// an unknown alias: none of the metadata-backed checks could vouch for
+    /// the entry without its registry URL.
+    fn named_registry_url(
+        &self,
+        registry_name: Option<&str>,
+    ) -> Result<Option<String>, ResolutionVerification> {
+        let Some(registry_name) = registry_name else { return Ok(None) };
+        match self.registries_by_prefix.get(registry_name) {
+            Some(url) => Ok(Some(url.clone())),
+            None => Err(ResolutionVerification::Err {
+                code: MISSING_NAMED_REGISTRY_VIOLATION_CODE,
+                reason: format!(
+                    "has registry prefix '{registry_name}:', which is not declared by the registries setting",
+                ),
+            }),
+        }
+    }
+
+    fn pick_registry(&self, name: &PkgName, tarball_url: Option<&str>) -> String {
+        if let Some(url) = tarball_url {
+            // Match on the same canonical form the tarball comparison uses, so
+            // a named-registry tarball that differs from the configured base
+            // only by scheme or `%2f` encoding still routes to its registry
+            // instead of falling back (and then failing closed against the
+            // wrong packument).
+            let normalized = canonical_tarball_url(url);
+            for prefix in &self.named_registry_prefixes {
+                if normalized.starts_with(&canonical_tarball_url(prefix)) {
+                    return prefix.clone();
+                }
+            }
+        }
+        pick_registry_for_package(&self.registries, &name.to_string(), None)
+    }
+}
 
 impl ReleaseAgeCheck {
     fn age_check_active(&self) -> bool {

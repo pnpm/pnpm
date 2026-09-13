@@ -108,10 +108,7 @@ pub struct CargoSettings {
 
 impl Default for CargoSettings {
     fn default() -> Self {
-        Self {
-            enabled: false,
-            index_url: "https://index.crates.io".to_string(),
-        }
+        Self { enabled: false, index_url: "https://index.crates.io".to_string() }
     }
 }
 

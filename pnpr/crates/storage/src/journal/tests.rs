@@ -49,9 +49,7 @@ struct FailsThenRecordsNothing {
 impl HostedDocuments for FailsThenRecordsNothing {
     fn merge(&self, _merge: DocumentMerge<'_>) -> Result<Option<Vec<u8>>> {
         if self.merges.fetch_add(1, Ordering::Relaxed) == 0 {
-            return Err(RegistryError::Internal {
-                reason: "merge failed".to_string(),
-            });
+            return Err(RegistryError::Internal { reason: "merge failed".to_string() });
         }
         Ok(None)
     }
@@ -70,9 +68,7 @@ impl HostedDocuments for WritesOneThenFails {
     fn merge(&self, merge: DocumentMerge<'_>) -> Result<Option<Vec<u8>>> {
         if merge.name.as_str() == self.fails {
             if self.failed.fetch_add(1, Ordering::Relaxed) == 0 {
-                return Err(RegistryError::Internal {
-                    reason: "merge failed".to_string(),
-                });
+                return Err(RegistryError::Internal { reason: "merge failed".to_string() });
             }
             return Ok(None);
         }
@@ -92,17 +88,12 @@ struct AlwaysFails {
 impl HostedDocuments for AlwaysFails {
     fn merge(&self, _merge: DocumentMerge<'_>) -> Result<Option<Vec<u8>>> {
         let attempt = self.merges.fetch_add(1, Ordering::Relaxed);
-        Err(RegistryError::Internal {
-            reason: format!("merge failed on attempt {attempt}"),
-        })
+        Err(RegistryError::Internal { reason: format!("merge failed on attempt {attempt}") })
     }
 }
 
 fn npm_package(name: &str) -> PackageId {
-    PackageId {
-        ecosystem: Ecosystem::Npm,
-        name: name.to_string(),
-    }
+    PackageId { ecosystem: Ecosystem::Npm, name: name.to_string() }
 }
 
 /// A journaled npm publish of `packument` for `name`, with no staged blobs
@@ -158,10 +149,7 @@ async fn commit_persists_revision_references() {
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let storage = Storage::new(
-        &HostedStoreConfig::ObjectStore {
-            store: object_store,
-            prefix: String::new(),
-        },
+        &HostedStoreConfig::ObjectStore { store: object_store, prefix: String::new() },
         tmp.path().join("hosted"),
         tmp.path().join("cache"),
     )
@@ -188,10 +176,7 @@ async fn commit_persists_revision_references() {
         .await
         .unwrap();
 
-    assert_eq!(
-        storage.read_hosted_revision_refs(&digest).await.unwrap(),
-        vec![record.clone()],
-    );
+    assert_eq!(storage.read_hosted_revision_refs(&digest).await.unwrap(), vec![record.clone()]);
     assert_eq!(
         storage
             .write_hosted_revision_ref(&digest, &"a".repeat(64), "later-owner", &record)
@@ -204,12 +189,9 @@ async fn commit_persists_revision_references() {
 #[tokio::test]
 async fn commit_drops_a_version_that_cannot_reserve_a_revision_reference() {
     let tmp = tempdir().unwrap();
-    let storage = Storage::new(
-        &HostedStoreConfig::Fs,
-        tmp.path().join("hosted"),
-        tmp.path().join("cache"),
-    )
-    .unwrap();
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
+            .unwrap();
     let digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
     for index in 0..crate::MAX_HOSTED_REVISION_REFS {
         storage
@@ -244,10 +226,7 @@ async fn commit_drops_a_version_that_cannot_reserve_a_revision_reference() {
         .await
         .unwrap();
 
-    assert_eq!(
-        outcome.reference_limit,
-        Some(crate::MAX_HOSTED_REVISION_REFS),
-    );
+    assert_eq!(outcome.reference_limit, Some(crate::MAX_HOSTED_REVISION_REFS));
     let hosted = storage
         .read_hosted_document(&name)
         .await
@@ -270,12 +249,9 @@ async fn commit_drops_a_version_that_cannot_reserve_a_revision_reference() {
 #[tokio::test]
 async fn commit_only_removes_transaction_owned_references_for_a_dropped_version() {
     let tmp = tempdir().unwrap();
-    let storage = Storage::new(
-        &HostedStoreConfig::Fs,
-        tmp.path().join("hosted"),
-        tmp.path().join("cache"),
-    )
-    .unwrap();
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
+            .unwrap();
     let transaction_owned_digest = URL_SAFE_NO_PAD.encode([5_u8; 64]);
     let previously_owned_digest = URL_SAFE_NO_PAD.encode([6_u8; 64]);
     let full_digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
@@ -327,12 +303,7 @@ async fn commit_only_removes_transaction_owned_references_for_a_dropped_version(
         .unwrap();
     let revision_ref_owner = txn.revision_ref_owner.clone();
     storage
-        .write_hosted_revision_ref(
-            &transaction_owned_digest,
-            &ref_id,
-            &revision_ref_owner,
-            &record,
-        )
+        .write_hosted_revision_ref(&transaction_owned_digest, &ref_id, &revision_ref_owner, &record)
         .await
         .unwrap();
     storage
@@ -370,10 +341,7 @@ async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let storage = Storage::new(
-        &HostedStoreConfig::ObjectStore {
-            store: object_store,
-            prefix: String::new(),
-        },
+        &HostedStoreConfig::ObjectStore { store: object_store, prefix: String::new() },
         tmp.path().join("hosted"),
         tmp.path().join("cache"),
     )
@@ -386,10 +354,7 @@ async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
 
     let winner = storage.reserve_hosted_blob(&conflicted_name, filename).await.unwrap();
     fs::write(&winner.tmp_path, b"winner").await.unwrap();
-    assert_eq!(
-        storage.finalize_blob_slot(winner).await.unwrap(),
-        BlobFinalize::Written,
-    );
+    assert_eq!(storage.finalize_blob_slot(winner).await.unwrap(), BlobFinalize::Written);
 
     let loser = storage.reserve_hosted_blob(&conflicted_name, filename).await.unwrap();
     fs::write(&loser.tmp_path, b"loser").await.unwrap();
@@ -457,12 +422,9 @@ async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
         .iter()
         .find(|package| package.name == later_name.as_str())
         .unwrap();
-    fs::write(
-        txn_dir.join(&later.document_file),
-        serde_json::to_vec(&later_packument).unwrap(),
-    )
-    .await
-    .unwrap();
+    fs::write(txn_dir.join(&later.document_file), serde_json::to_vec(&later_packument).unwrap())
+        .await
+        .unwrap();
 
     SealedTxn::reopen(txn_dir.clone())
         .unwrap()
@@ -505,10 +467,7 @@ async fn commit_reports_a_package_whose_merge_recorded_nothing() {
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let storage = Storage::new(
-        &HostedStoreConfig::ObjectStore {
-            store: object_store,
-            prefix: String::new(),
-        },
+        &HostedStoreConfig::ObjectStore { store: object_store, prefix: String::new() },
         tmp.path().join("hosted"),
         tmp.path().join("cache"),
     )
@@ -542,10 +501,7 @@ async fn commit_reports_an_entry_the_retry_found_recorded_by_another_writer() {
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let storage = Storage::new(
-        &HostedStoreConfig::ObjectStore {
-            store: object_store,
-            prefix: String::new(),
-        },
+        &HostedStoreConfig::ObjectStore { store: object_store, prefix: String::new() },
         tmp.path().join("hosted"),
         tmp.path().join("cache"),
     )
@@ -566,11 +522,7 @@ async fn commit_reports_an_entry_the_retry_found_recorded_by_another_writer() {
         .await
         .unwrap();
 
-    assert_eq!(
-        documents.merges.load(Ordering::Relaxed),
-        2,
-        "the failed apply is re-run",
-    );
+    assert_eq!(documents.merges.load(Ordering::Relaxed), 2, "the failed apply is re-run");
     assert_eq!(outcome.unrecorded, vec![npm_package("pkg")]);
 }
 
@@ -582,10 +534,7 @@ async fn commit_does_not_report_what_its_own_first_attempt_wrote() {
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let storage = Storage::new(
-        &HostedStoreConfig::ObjectStore {
-            store: object_store,
-            prefix: String::new(),
-        },
+        &HostedStoreConfig::ObjectStore { store: object_store, prefix: String::new() },
         tmp.path().join("hosted"),
         tmp.path().join("cache"),
     )
@@ -631,10 +580,7 @@ async fn commit_keeps_the_journal_entry_when_the_retry_fails_too() {
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let storage = Storage::new(
-        &HostedStoreConfig::ObjectStore {
-            store: object_store,
-            prefix: String::new(),
-        },
+        &HostedStoreConfig::ObjectStore { store: object_store, prefix: String::new() },
         tmp.path().join("hosted"),
         tmp.path().join("cache"),
     )
@@ -672,12 +618,9 @@ async fn commit_keeps_the_journal_entry_when_the_retry_fails_too() {
 #[tokio::test]
 async fn recovery_applies_a_journal_with_the_alias_manifest_keys() {
     let tmp = tempdir().unwrap();
-    let storage = Storage::new(
-        &HostedStoreConfig::Fs,
-        tmp.path().join("hosted"),
-        tmp.path().join("cache"),
-    )
-    .unwrap();
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
+            .unwrap();
     let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let slot = storage.reserve_hosted_blob(&name, "pkg-1.0.0.tgz").await.unwrap();
     fs::write(&slot.tmp_path, b"tarball bytes").await.unwrap();

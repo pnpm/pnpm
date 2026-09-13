@@ -73,11 +73,7 @@ pub(super) fn publication_charge(
 pub(super) fn quota_write_retry_delay(attempt: usize) -> Duration {
     let base = 1_u64 << attempt.min(6);
     let mut random = [0_u8; 1];
-    let jitter = if getrandom::fill(&mut random).is_ok() {
-        u64::from(random[0]) % base
-    } else {
-        0
-    };
+    let jitter = if getrandom::fill(&mut random).is_ok() { u64::from(random[0]) % base } else { 0 };
     Duration::from_millis(base + jitter)
 }
 

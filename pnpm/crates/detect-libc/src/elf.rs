@@ -33,9 +33,7 @@ fn read_elf_interpreter(file: &mut (impl Read + Seek)) -> Option<String> {
     if size > MAX_INTERPRETER_SIZE {
         return None;
     }
-    file
-        .seek(SeekFrom::Start(offset))
-        .ok()?;
+    file.seek(SeekFrom::Start(offset)).ok()?;
     let mut interpreter = vec![0_u8; size];
     file.read_exact(&mut interpreter).ok()?;
     decode_interpreter(&interpreter).map(str::to_string)
@@ -71,11 +69,7 @@ fn elf_layout(header: &[u8]) -> Option<ElfLayout> {
     if phnum == 0 || phentsize < MIN_PROGRAM_HEADER_SIZE {
         return None;
     }
-    Some(ElfLayout {
-        phoff,
-        phentsize,
-        phnum,
-    })
+    Some(ElfLayout { phoff, phentsize, phnum })
 }
 
 fn interpreter_location(program_headers: &[u8], phentsize: usize) -> Option<(u64, usize)> {

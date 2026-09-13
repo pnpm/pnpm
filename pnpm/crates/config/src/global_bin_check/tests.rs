@@ -25,10 +25,7 @@ fn not_in_path_when_missing() {
         .to_string_lossy()
         .into_owned();
     let result = check_global_bin_dir(&bin, Some(&other), false);
-    assert!(matches!(
-        result,
-        Err(CheckGlobalBinDirError::NotInPath { .. })
-    ));
+    assert!(matches!(result, Err(CheckGlobalBinDirError::NotInPath { .. })));
 }
 
 #[test]

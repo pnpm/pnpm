@@ -17,10 +17,7 @@ fn should_use_shallow_returns_false_for_empty_host_list() {
 fn should_use_shallow_matches_known_host() {
     let hosts = vec!["github.com".to_string(), "gitlab.com".to_string()];
     assert!(should_use_shallow("https://github.com/x/y.git", &hosts));
-    assert!(should_use_shallow(
-        "git+ssh://git@github.com/x/y.git",
-        &hosts
-    ));
+    assert!(should_use_shallow("git+ssh://git@github.com/x/y.git", &hosts));
     assert!(!should_use_shallow("https://example.com/x/y.git", &hosts));
 }
 
@@ -157,10 +154,7 @@ async fn fetcher_imports_package_into_cas() {
     .await
     .unwrap();
 
-    assert!(
-        !received.built,
-        "package without scripts should not be 'built'",
-    );
+    assert!(!received.built, "package without scripts should not be 'built'");
     assert!(received.cas_paths.contains_key("package.json"));
     assert!(received.cas_paths.contains_key("index.js"));
     let cas_path = &received.cas_paths["package.json"];
@@ -229,11 +223,7 @@ async fn fetcher_blocks_build_when_not_allowed() {
     let bare = tmp.path().join("repo.git");
     fs::create_dir_all(&work).unwrap();
     exec_git(&["init", "-q", "-b", "main"], Some(&work)).unwrap();
-    exec_git(
-        &["config", "user.email", "test@example.invalid"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["config", "user.email", "test@example.invalid"], Some(&work)).unwrap();
     exec_git(&["config", "user.name", "Test"], Some(&work)).unwrap();
     fs::write(
         work.join("package.json"),
@@ -244,26 +234,13 @@ async fn fetcher_blocks_build_when_not_allowed() {
     exec_git(&["add", "-A"], Some(&work)).unwrap();
     // `-c commit.gpgsign=false` neutralises a user-global `gpgsign=true`
     // setting that would otherwise demand a real signing key in CI.
-    exec_git(
-        &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
     let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
         .unwrap()
         .trim()
         .to_string();
-    exec_git(
-        &[
-            "clone",
-            "--bare",
-            "-q",
-            &work.to_string_lossy(),
-            &bare.to_string_lossy(),
-        ],
-        None,
-    )
-    .unwrap();
+    exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
+        .unwrap();
 
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
@@ -367,10 +344,7 @@ async fn fetcher_runs_prepare_script_when_allowed() {
     .await
     .unwrap();
 
-    assert!(
-        received.built,
-        "manifest with prepare script must report should_be_built=true",
-    );
+    assert!(received.built, "manifest with prepare script must report should_be_built=true");
     assert!(
         received.cas_paths.contains_key("PREPARED.marker"),
         "prepare script must have written PREPARED.marker into the prepared tree: keys = {:?}",
@@ -621,13 +595,12 @@ async fn fetcher_uses_shallow_fetch_for_allowed_hosts() {
         .unwrap_or_else(|| {
             panic!("shallow path must call `git remote add origin -- <url>`; got {invocations:?}")
         });
-    let fetch_at = position_of(
-        &invocations,
-        &["fetch", "--depth", "1", "origin", fake_commit],
-    )
-    .unwrap_or_else(|| {
-        panic!("shallow path must call `git fetch --depth 1 origin <commit>`; got {invocations:?}")
-    });
+    let fetch_at = position_of(&invocations, &["fetch", "--depth", "1", "origin", fake_commit])
+        .unwrap_or_else(|| {
+            panic!(
+                "shallow path must call `git fetch --depth 1 origin <commit>`; got {invocations:?}",
+            )
+        });
     assert!(
         init_at < remote_at && remote_at < fetch_at,
         "shallow sequence must be `init` → `remote add` → `fetch`; got {invocations:?}",
@@ -751,31 +724,16 @@ fn is_safe_repo_arg_rejects_option_shaped_values() {
 
 #[test]
 fn ssh_repo_host_recognises_only_ssh_references() {
-    assert_eq!(
-        ssh_repo_host("git@github.com:acme/widget.git"),
-        Some("github.com"),
-    );
-    assert_eq!(
-        ssh_repo_host("ssh://git@github.com/acme/widget.git"),
-        Some("github.com"),
-    );
-    assert_eq!(
-        ssh_repo_host("git+ssh://git@github.com/acme/widget.git"),
-        Some("github.com"),
-    );
+    assert_eq!(ssh_repo_host("git@github.com:acme/widget.git"), Some("github.com"));
+    assert_eq!(ssh_repo_host("ssh://git@github.com/acme/widget.git"), Some("github.com"));
+    assert_eq!(ssh_repo_host("git+ssh://git@github.com/acme/widget.git"), Some("github.com"));
     assert_eq!(
         ssh_repo_host("ssh://git@gitlab.example.com:2222/org/repo.git"),
         Some("gitlab.example.com"),
     );
     // Brackets are kept, matching what `URL.hostname` hands the TypeScript CLI.
-    assert_eq!(
-        ssh_repo_host("ssh://git@[2001:db8::1]:2222/org/repo.git"),
-        Some("[2001:db8::1]"),
-    );
-    assert_eq!(
-        ssh_repo_host("ssh://[2001:db8::1]/org/repo.git"),
-        Some("[2001:db8::1]"),
-    );
+    assert_eq!(ssh_repo_host("ssh://git@[2001:db8::1]:2222/org/repo.git"), Some("[2001:db8::1]"));
+    assert_eq!(ssh_repo_host("ssh://[2001:db8::1]/org/repo.git"), Some("[2001:db8::1]"));
 
     assert_eq!(ssh_repo_host("https://github.com/acme/widget.git"), None);
     assert_eq!(ssh_repo_host("git://github.com/acme/widget.git"), None);
@@ -819,10 +777,7 @@ async fn a_failed_clone_over_ssh_names_the_package_and_how_to_re_record_it() {
     );
     let rendered = err.to_string();
     dbg!(&rendered);
-    assert!(
-        rendered.contains(r#"Failed to fetch "@scope/pkg""#),
-        "{rendered}",
-    );
+    assert!(rendered.contains(r#"Failed to fetch "@scope/pkg""#), "{rendered}");
 
     let help = err
         .help()
@@ -831,10 +786,7 @@ async fn a_failed_clone_over_ssh_names_the_package_and_how_to_re_record_it() {
     dbg!(&help);
     assert!(help.contains("needs an SSH key for github.com"), "{help}");
     assert!(help.contains("pnpm update @scope/pkg"), "{help}");
-    assert!(
-        help.contains("do not re-resolve git dependencies"),
-        "{help}",
-    );
+    assert!(help.contains("do not re-resolve git dependencies"), "{help}");
 }
 
 #[cfg(unix)]
@@ -863,8 +815,5 @@ async fn a_failed_clone_over_https_carries_no_ssh_remediation() {
             .to_string(),
         "ERR_PNPM_GIT_FETCH_FAILED",
     );
-    assert!(
-        err.help().is_none(),
-        "an HTTPS remote needs no SSH remediation",
-    );
+    assert!(err.help().is_none(), "an HTTPS remote needs no SSH remediation");
 }

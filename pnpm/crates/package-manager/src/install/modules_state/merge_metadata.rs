@@ -28,9 +28,7 @@ where
     // package the policy still blocks stays owed, matching pnpm's "drop
     // only what was actually rebuilt".
     let settled = |entry: &str| {
-        let (Some(rebuild), Some(policy)) = (rebuild, rebuild_build_policy) else {
-            return false;
-        };
+        let (Some(rebuild), Some(policy)) = (rebuild, rebuild_build_policy) else { return false };
         !current.is_some_and(|current| current.importers.contains_key(entry))
             && rebuild.settles_dependency(entry)
             && policy.check(pnpm_deps_path::remove_suffix(entry)) == Some(true)
@@ -71,13 +69,9 @@ pub(super) fn merge_hoisted_dependencies(
         if !retained_only_dep_path(current, selected, dep_path) {
             continue;
         }
-        let retained_aliases = next.hoisted_dependencies
-            .entry(dep_path.clone())
-            .or_default();
+        let retained_aliases = next.hoisted_dependencies.entry(dep_path.clone()).or_default();
         for (alias, kind) in aliases {
-            retained_aliases
-                .entry(alias.clone())
-                .or_insert(*kind);
+            retained_aliases.entry(alias.clone()).or_insert(*kind);
         }
     }
 }
@@ -87,17 +81,13 @@ pub(super) fn merge_hoisted_locations(
     current: &Lockfile,
     selected: &Lockfile,
 ) {
-    let Some(previous_locations) = previous.hoisted_locations.as_ref() else {
-        return;
-    };
+    let Some(previous_locations) = previous.hoisted_locations.as_ref() else { return };
     for (dep_path, locations) in previous_locations {
         if !retained_only_dep_path(current, selected, dep_path) {
             continue;
         }
         let retained_locations = next.hoisted_locations.get_or_insert_default();
-        let retained = retained_locations
-            .entry(dep_path.clone())
-            .or_default();
+        let retained = retained_locations.entry(dep_path.clone()).or_default();
         for location in locations {
             if !retained.contains(location) {
                 retained.push(location.clone());
@@ -177,16 +167,12 @@ pub(super) fn merge_injected_deps(
 ) {
     let current_injected_sources = injected_source_paths(current);
     let selected_injected_sources = injected_source_paths(selected);
-    let Some(previous_injected) = previous.injected_deps.as_ref() else {
-        return;
-    };
+    let Some(previous_injected) = previous.injected_deps.as_ref() else { return };
     for (source, targets) in previous_injected {
         if current_injected_sources.contains(source) && !selected_injected_sources.contains(source)
         {
             let retained_injected = next.injected_deps.get_or_insert_default();
-            retained_injected
-                .entry(source.clone())
-                .or_insert_with(|| targets.clone());
+            retained_injected.entry(source.clone()).or_insert_with(|| targets.clone());
         }
     }
 }
@@ -201,11 +187,7 @@ pub(in super::super) fn injected_source_paths(lockfile: &Lockfile) -> HashSet<St
     lockfile.snapshots
         .iter()
         .flat_map(|snapshots| snapshots.keys())
-        .chain(
-            lockfile.packages
-                .iter()
-                .flat_map(|packages| packages.keys()),
-        )
+        .chain(lockfile.packages.iter().flat_map(|packages| packages.keys()))
         .filter_map(|key| match key.suffix.version() {
             VersionPart::File(path) => Some(
                 path
@@ -223,9 +205,7 @@ pub(in super::super) fn current_contains_dep_path(current: &Lockfile, dep_path: 
     if current.importers.contains_key(dep_path) {
         return true;
     }
-    let Ok(key) = dep_path.parse::<pnpm_lockfile::PackageKey>() else {
-        return false;
-    };
+    let Ok(key) = dep_path.parse::<pnpm_lockfile::PackageKey>() else { return false };
     current.snapshots
         .as_ref()
         .is_some_and(|snapshots| snapshots.contains_key(&key))

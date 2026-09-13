@@ -35,10 +35,7 @@ fn shared_lockfile_deploy_binds_a_singleton_peer_of_a_linked_workspace_package()
         .parent()
         .unwrap()
         .join("@pnpm.e2e/peer-a");
-    assert!(
-        peer.exists(),
-        "the deployed workspace package should resolve its peer",
-    );
+    assert!(peer.exists(), "the deployed workspace package should resolve its peer");
     let manifest: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(fs::canonicalize(&peer).unwrap().join("package.json")).unwrap(),
     )
@@ -132,10 +129,7 @@ fn shared_lockfile_deploy_refuses_a_linked_workspace_package_with_an_ambiguous_p
         "more than one version (1.0.0, 1.0.1)",
         r#"Pin '@pnpm.e2e/peer-a' to a single version with an "overrides" entry"#,
     ] {
-        assert!(
-            stderr.contains(expected),
-            "stderr should mention {expected}:\n{stderr}",
-        );
+        assert!(stderr.contains(expected), "stderr should mention {expected}:\n{stderr}");
     }
 
     drop((root, mock_instance));

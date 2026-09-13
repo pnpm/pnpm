@@ -1,6 +1,6 @@
 use super::{
-    Body, Config, Request, ServiceExt, StatusCode, TempDir, add_user_and_get_token, body_bytes,
-    body_json, common, json, publish_doc, router, sri_sha512, static_config,
+    Body, Config, Request, ServiceExt, StatusCode, TempDir, Value, add_user_and_get_token,
+    body_bytes, body_json, common, json, publish_doc, router, sri_sha512, static_config,
 };
 
 #[tokio::test]
@@ -31,9 +31,7 @@ async fn update_packument_rejects_a_non_string_dist_integrity() {
     let publish = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(
-            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real")).unwrap(),
-        ))
+        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real")).unwrap()))
         .unwrap();
     assert_eq!(
         app
@@ -86,9 +84,7 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
     let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(
-            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap(),
-        ))
+        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
         .unwrap();
     assert_eq!(
         app
@@ -112,10 +108,7 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
     let hosted = body_json(get.into_body()).await;
     let hosted_dist = hosted["versions"]["1.0.0"]["dist"].clone();
     // Baseline so the dist-preservation assertion below isn't vacuous.
-    assert_eq!(
-        hosted_dist["integrity"].as_str(),
-        Some(sri_sha512(b"original").as_str()),
-    );
+    assert_eq!(hosted_dist["integrity"].as_str(), Some(sri_sha512(b"original").as_str()));
     let body = json!({
         "_id": "mypkg",
         "name": "mypkg",
@@ -156,14 +149,8 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
             .into_body(),
     )
     .await;
-    assert_eq!(
-        after["versions"]["1.0.0"]["deprecated"],
-        "use 2.0.0 instead",
-    );
-    assert_eq!(
-        after["versions"]["1.0.0"]["dist"],
-        hosted["versions"]["1.0.0"]["dist"],
-    );
+    assert_eq!(after["versions"]["1.0.0"]["deprecated"], "use 2.0.0 instead");
+    assert_eq!(after["versions"]["1.0.0"]["dist"], hosted["versions"]["1.0.0"]["dist"]);
 }
 
 #[tokio::test]
@@ -179,9 +166,7 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
     let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(
-            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap(),
-        ))
+        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
         .unwrap();
     assert_eq!(
         app
@@ -254,9 +239,7 @@ async fn metadata_put_cannot_inject_a_tarball_less_version() {
     let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(
-            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap(),
-        ))
+        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
         .unwrap();
     assert_eq!(
         app
@@ -372,10 +355,7 @@ async fn search_finds_packages_by_substring_in_local_storage() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
     let objects = body["objects"].as_array().expect("objects is array");
-    assert!(
-        !objects.is_empty(),
-        "expected no-deps to match the storage fixture",
-    );
+    assert!(!objects.is_empty(), "expected no-deps to match the storage fixture");
     let names: Vec<&str> = objects
         .iter()
         .map(|object| object["package"]["name"].as_str().unwrap())
@@ -416,11 +396,7 @@ async fn search_filters_protected_packages_for_anonymous_callers() {
         !names.contains(&"@pnpm.e2e/needs-auth"),
         "anonymous search must not enumerate @pnpm.e2e/needs-auth; got {names:?}",
     );
-    assert_eq!(
-        body["total"],
-        names.len(),
-        "total must reflect post-filter count",
-    );
+    assert_eq!(body["total"], names.len(), "total must reflect post-filter count");
 
     // Authenticated: same query should return the package.
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
@@ -538,4 +514,186 @@ async fn search_returns_empty_objects_in_static_mode() {
         0,
     );
     assert_eq!(body["total"], 0);
+}
+
+#[tokio::test]
+async fn publish_followed_by_dist_tag_set_works() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    // First publish 1.0.0
+    let body = publish_doc("tagpkg", "1.0.0", b"v1");
+    let request = Request::put("/tagpkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+
+    // Then publish 2.0.0 (without changing latest)
+    let mut body = publish_doc("tagpkg", "2.0.0", b"v2");
+    body["dist-tags"] = json!({}); // don't bump latest
+    let request = Request::put("/tagpkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+
+    // Confirm latest is still 1.0.0.
+    let tags = app
+        .clone()
+        .oneshot(
+            Request::get("/-/package/tagpkg/dist-tags")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(tags.status(), StatusCode::OK);
+    let tags_body = body_json(tags.into_body()).await;
+    assert_eq!(tags_body["latest"], "1.0.0");
+
+    // PUT a new "beta" tag pointing at 2.0.0.
+    let request = Request::put("/-/package/tagpkg/dist-tags/beta")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_string("2.0.0").unwrap()))
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // Confirm the tag landed.
+    let tags = app
+        .clone()
+        .oneshot(
+            Request::get("/-/package/tagpkg/dist-tags")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let tags_body = body_json(tags.into_body()).await;
+    assert_eq!(tags_body["beta"], "2.0.0");
+    assert_eq!(tags_body["latest"], "1.0.0");
+
+    // And via the version-manifest endpoint resolving the tag.
+    let manifest = app
+        .clone()
+        .oneshot(
+            Request::get("/tagpkg/beta")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let manifest_body = body_json(manifest.into_body()).await;
+    assert_eq!(manifest_body["version"], "2.0.0");
+
+    // Now DELETE it.
+    let request = Request::delete("/-/package/tagpkg/dist-tags/beta")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let tags = app
+        .oneshot(
+            Request::get("/-/package/tagpkg/dist-tags")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let tags_body = body_json(tags.into_body()).await;
+    assert!(tags_body.get("beta").is_none(), "beta tag should be removed");
+}
+
+#[tokio::test]
+async fn dist_tag_mutations_refresh_time_modified() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = publish_doc("time-mod-pkg", "1.0.0", b"x");
+    let request = Request::put("/time-mod-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+
+    let initial_time = serde_json::from_slice::<Value>(
+        &std::fs::read(storage.join("time-mod-pkg/package.json")).unwrap(),
+    )
+    .unwrap()["time"]["modified"]
+        .as_str()
+        .expect("modified is a string")
+        .to_string();
+
+    // Wait long enough that ISO-millisecond timestamps will differ.
+    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+    let request = Request::put("/-/package/time-mod-pkg/dist-tags/next")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_string("1.0.0").unwrap()))
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let after_set = serde_json::from_slice::<Value>(
+        &std::fs::read(storage.join("time-mod-pkg/package.json")).unwrap(),
+    )
+    .unwrap()["time"]["modified"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(initial_time, after_set, "dist-tag PUT should bump time.modified");
+
+    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+    let request = Request::delete("/-/package/time-mod-pkg/dist-tags/next")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let after_delete = serde_json::from_slice::<Value>(
+        &std::fs::read(storage.join("time-mod-pkg/package.json")).unwrap(),
+    )
+    .unwrap()["time"]["modified"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(after_set, after_delete, "dist-tag DELETE should bump time.modified too");
 }

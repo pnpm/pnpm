@@ -59,15 +59,8 @@ fn prev_graph_none_when_current_lockfile_absent() {
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
 
-    assert!(
-        result.prev_graph.is_none(),
-        "no current_lockfile → no prev_graph",
-    );
-    assert_eq!(
-        result.graph.len(),
-        1,
-        "wanted lockfile still produces the graph",
-    );
+    assert!(result.prev_graph.is_none(), "no current_lockfile → no prev_graph");
+    assert_eq!(result.graph.len(), 1, "wanted lockfile still produces the graph");
 }
 /// A current lockfile with no `packages` map yields no `prev_graph`.
 #[test]
@@ -104,10 +97,7 @@ fn prev_graph_none_when_current_lockfile_has_no_packages() {
     let result =
         lockfile_to_hoisted_dep_graph(&wanted, Some(&current), &opts).expect("walker succeeds");
 
-    assert!(
-        result.prev_graph.is_none(),
-        "current lockfile without packages → no prev_graph",
-    );
+    assert!(result.prev_graph.is_none(), "current lockfile without packages → no prev_graph");
 }
 /// Pacquet collapses null and empty into the same "no orphans"
 /// representation, since walking an empty `packages:` would just produce an
@@ -146,10 +136,7 @@ fn prev_graph_none_when_current_lockfile_has_empty_packages() {
     let result =
         lockfile_to_hoisted_dep_graph(&wanted, Some(&current), &opts).expect("walker succeeds");
 
-    assert!(
-        result.prev_graph.is_none(),
-        "current lockfile with empty packages → no prev_graph",
-    );
+    assert!(result.prev_graph.is_none(), "current lockfile with empty packages → no prev_graph");
 }
 /// The linker subtracts `graph` from `prev_graph` to find orphan
 /// directories and `rimraf` them.
@@ -188,17 +175,8 @@ fn prev_graph_contains_orphan_from_current_only_lockfile() {
     let a_dir = lockfile_dir.join("node_modules").join("a");
 
     let prev = result.prev_graph.expect("prev_graph populated");
-    assert!(
-        prev.contains_key(&orphan_dir),
-        "orphan present in prev_graph",
-    );
-    assert!(
-        prev.contains_key(&a_dir),
-        "carried-over dep also in prev_graph",
-    );
+    assert!(prev.contains_key(&orphan_dir), "orphan present in prev_graph");
+    assert!(prev.contains_key(&a_dir), "carried-over dep also in prev_graph");
     assert!(result.graph.contains_key(&a_dir), "wanted graph carries a");
-    assert!(
-        !result.graph.contains_key(&orphan_dir),
-        "wanted graph omits orphan",
-    );
+    assert!(!result.graph.contains_key(&orphan_dir), "wanted graph omits orphan");
 }

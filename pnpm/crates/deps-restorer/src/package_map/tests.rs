@@ -1,7 +1,7 @@
 use super::{
-    HoistedPackageMapOptions, PackageMapOptions, dependencies_graph_to_package_map, link_target_id,
-    lockfile_to_package_map, make_node_package_map_option, make_node_require_option,
-    paths::absolute_package_url, to_relative_url,
+    HoistedPackageMapOptions, PackageMapOptions, absolute_package_url,
+    dependencies_graph_to_package_map, link_target_id, lockfile_to_package_map,
+    make_node_package_map_option, make_node_require_option, to_relative_url,
 };
 use crate::{DependenciesGraphNode, LockfileToDepGraphResult, VirtualStoreLayout};
 use pnpm_lockfile::{
@@ -62,14 +62,8 @@ fn builds_package_map_from_lockfile() {
                 ),
             ]),
             snapshots: Some(HashMap::from([
-                (
-                    "dep1@1.0.0".parse().unwrap(),
-                    snapshot_deps(&[("dep2-alias", "foo@2.0.0")]),
-                ),
-                (
-                    "foo@2.0.0".parse().unwrap(),
-                    snapshot_optional_deps(&[("qar", "3.0.0")]),
-                ),
+                ("dep1@1.0.0".parse().unwrap(), snapshot_deps(&[("dep2-alias", "foo@2.0.0")])),
+                ("foo@2.0.0".parse().unwrap(), snapshot_optional_deps(&[("qar", "3.0.0")])),
                 ("qar@3.0.0".parse().unwrap(), SnapshotEntry::default()),
             ])),
             ..empty_lockfile()
@@ -145,10 +139,8 @@ fn lockfile_package_map_uses_global_virtual_store_layout() {
     config.global_virtual_store_dir = cwd.join("store/links");
     config.virtual_store_dir = cwd.join("node_modules/.pnpm");
 
-    let snapshots = HashMap::from([(
-        "dep1@1.0.0".parse::<PackageKey>().unwrap(),
-        SnapshotEntry::default(),
-    )]);
+    let snapshots =
+        HashMap::from([("dep1@1.0.0".parse::<PackageKey>().unwrap(), SnapshotEntry::default())]);
     // GVS precomputes a `<name>/<version>/<hash>` slot per snapshot; the
     // package map must read those locations rather than the flat depPath name.
     let layout = VirtualStoreLayout::new(&config, None, Some(&snapshots), None, None, None);
@@ -203,17 +195,11 @@ fn lockfile_package_map_loose_mode_includes_physical_ancestor_dependencies() {
         importers: HashMap::from([(
             ".".to_string(),
             ProjectSnapshot {
-                dependencies: Some(deps(&[
-                    ("dep1", "1.0.0"),
-                    ("linked", "link:packages/linked"),
-                ])),
+                dependencies: Some(deps(&[("dep1", "1.0.0"), ("linked", "link:packages/linked")])),
                 ..ProjectSnapshot::default()
             },
         )]),
-        snapshots: Some(HashMap::from([(
-            "dep1@1.0.0".parse().unwrap(),
-            SnapshotEntry::default(),
-        )])),
+        snapshots: Some(HashMap::from([("dep1@1.0.0".parse().unwrap(), SnapshotEntry::default())])),
         ..empty_lockfile()
     };
     let standard_package_map = lockfile_to_package_map(
@@ -267,17 +253,11 @@ fn hoisted_package_map_loose_mode_includes_physical_ancestor_dependencies() {
         importers: HashMap::from([(
             ".".to_string(),
             ProjectSnapshot {
-                dependencies: Some(deps(&[
-                    ("dep1", "1.0.0"),
-                    ("linked", "link:packages/linked"),
-                ])),
+                dependencies: Some(deps(&[("dep1", "1.0.0"), ("linked", "link:packages/linked")])),
                 ..ProjectSnapshot::default()
             },
         )]),
-        snapshots: Some(HashMap::from([(
-            "dep1@1.0.0".parse().unwrap(),
-            SnapshotEntry::default(),
-        )])),
+        snapshots: Some(HashMap::from([("dep1@1.0.0".parse().unwrap(), SnapshotEntry::default())])),
         ..empty_lockfile()
     };
 
@@ -404,10 +384,7 @@ fn package_map_node_options_replaces_existing_package_map_option() {
 #[test]
 fn pnp_node_options_preserve_existing_options_and_quote_the_loader_path() {
     assert_eq!(
-        make_node_require_option(
-            Path::new("/repo/.pnp.cjs"),
-            Some("--max-old-space-size=4096")
-        ),
+        make_node_require_option(Path::new("/repo/.pnp.cjs"), Some("--max-old-space-size=4096")),
         "--max-old-space-size=4096 --require=/repo/.pnp.cjs",
     );
     assert_eq!(
@@ -423,10 +400,7 @@ fn pnp_node_options_preserve_existing_options_and_quote_the_loader_path() {
 #[test]
 fn link_target_id_uses_link_prefix_for_paths_above_the_lockfile_dir() {
     let dir = PathBuf::from("/outside/pkg");
-    assert_eq!(
-        link_target_id(Some(PathBuf::from("../outside/pkg")), &dir),
-        "link:/outside/pkg",
-    );
+    assert_eq!(link_target_id(Some(PathBuf::from("../outside/pkg")), &dir), "link:/outside/pkg");
 }
 
 #[test]
@@ -472,10 +446,7 @@ fn deps(entries: &[(&str, &str)]) -> ResolvedDependencyMap {
 }
 
 fn snapshot_deps(entries: &[(&str, &str)]) -> SnapshotEntry {
-    SnapshotEntry {
-        dependencies: Some(snapshot_dep_map(entries)),
-        ..SnapshotEntry::default()
-    }
+    SnapshotEntry { dependencies: Some(snapshot_dep_map(entries)), ..SnapshotEntry::default() }
 }
 
 fn snapshot_optional_deps(entries: &[(&str, &str)]) -> SnapshotEntry {
@@ -498,11 +469,7 @@ fn pkg(name: &str) -> PkgName {
 
 fn empty_lockfile() -> Lockfile {
     Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer {
-            major: 9,
-            minor: 0,
-        })
-        .unwrap(),
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor: 0 }).unwrap(),
         settings: None,
         catalogs: None,
         overrides: None,

@@ -94,13 +94,7 @@ pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     pnpr_server: &str,
     link: PnprLink<'_>,
 ) -> miette::Result<()> {
-    Box::pin(install_via_pnpr_inner::<Reporter>(
-        state,
-        pnpr_server,
-        None,
-        link,
-    ))
-    .await
+    Box::pin(install_via_pnpr_inner::<Reporter>(state, pnpr_server, None, link)).await
 }
 
 pub(crate) async fn install_selected_via_pnpr<Reporter: self::Reporter + 'static>(
@@ -109,13 +103,7 @@ pub(crate) async fn install_selected_via_pnpr<Reporter: self::Reporter + 'static
     selection: &InstallFamilySelection,
     link: PnprLink<'_>,
 ) -> miette::Result<()> {
-    Box::pin(install_via_pnpr_inner::<Reporter>(
-        state,
-        pnpr_server,
-        Some(selection),
-        link,
-    ))
-    .await
+    Box::pin(install_via_pnpr_inner::<Reporter>(state, pnpr_server, Some(selection), link)).await
 }
 
 pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
@@ -135,8 +123,7 @@ pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     }
 
     let lockfile_dir = pnpr_lockfile_dir(state, &link);
-    let session = prepare_pnpr_session::<Reporter>(state, selection, &link, lockfile_dir)
-        .await?;
+    let session = prepare_pnpr_session::<Reporter>(state, selection, &link, lockfile_dir).await?;
     let inputs = pnpr_request_inputs(state, &link, lockfile_dir).await?;
 
     if (session.satisfied_without_server
@@ -179,16 +166,12 @@ pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
 pub(super) struct PnprSession<'a> {
     pub(super) previous_wanted: Option<&'a Lockfile>,
     pub(super) merge_wanted: Option<&'a Lockfile>,
-    pub(super) selection_importer_ids: Option<(
-        std::collections::HashSet<String>,
-        std::collections::HashSet<String>,
-    )>,
+    pub(super) selection_importer_ids:
+        Option<(std::collections::HashSet<String>, std::collections::HashSet<String>)>,
     pub(super) partial_selection: bool,
     pub(super) projects: Vec<ResolveProject>,
-    pub(super) full_workspace_importer_ids: Option<(
-        std::collections::HashSet<String>,
-        std::collections::HashSet<String>,
-    )>,
+    pub(super) full_workspace_importer_ids:
+        Option<(std::collections::HashSet<String>, std::collections::HashSet<String>)>,
     pub(super) catalogs: Option<Catalogs>,
     pub(super) satisfied_without_server: bool,
 }
@@ -328,11 +311,8 @@ fn load_previous_wanted<'a, Reporter: self::Reporter + 'static>(
     if !link.use_state_lockfile {
         return Ok(None);
     }
-    let loaded = if link.lockfile.fix {
-        state.lockfile.get_for_fix()
-    } else {
-        state.lockfile.get()
-    };
+    let loaded =
+        if link.lockfile.fix { state.lockfile.get_for_fix() } else { state.lockfile.get() };
     match loaded {
         Ok(lockfile) => Ok(lockfile),
         Err(error) if !link.lockfile.frozen => {
@@ -445,14 +425,8 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
         return Ok(());
     }
 
-    link_pnpr_lockfile::<Reporter>(
-        state,
-        selection,
-        link,
-        &outcome.lockfile,
-        inputs.pnpmfile_hook,
-    )
-    .await?;
+    link_pnpr_lockfile::<Reporter>(state, selection, link, &outcome.lockfile, inputs.pnpmfile_hook)
+        .await?;
 
     // The materialization install has awaited every tarball's mem-cache
     // slot, so all prefetch downloads have finished and queued their
@@ -469,10 +443,7 @@ async fn streaming_prefetcher(
     state: &State,
     streaming: &ResolveStreaming<'_>,
 ) -> Option<TarballPrefetcher> {
-    if streaming.lockfile_only
-        || streaming.partial_selection
-        || !streaming.prefetch_allowed
-    {
+    if streaming.lockfile_only || streaming.partial_selection || !streaming.prefetch_allowed {
         None
     } else {
         Some(

@@ -23,10 +23,7 @@ pub(super) fn reject_unsupported_install_options(options: &InstallOptions) -> na
     reject_non_empty_map(options.auth_config.as_ref(), "authConfig")?;
     // `neverBuiltDependencies` was replaced by `allowBuilds` in pnpm v12:
     // hosts fold it into explicit `allowBuilds: false` entries themselves.
-    reject_non_empty_list(
-        options.never_built_dependencies.as_deref(),
-        "neverBuiltDependencies",
-    )?;
+    reject_non_empty_list(options.never_built_dependencies.as_deref(), "neverBuiltDependencies")?;
     Ok(())
 }
 
@@ -42,9 +39,5 @@ fn reject_non_empty_list<Value>(value: Option<&[Value]>, option: &str) -> napi::
 }
 
 fn reject_if(condition: bool, option: &str) -> napi::Result<()> {
-    if condition {
-        Err(unsupported_option_error("install", option))
-    } else {
-        Ok(())
-    }
+    if condition { Err(unsupported_option_error("install", option)) } else { Ok(()) }
 }

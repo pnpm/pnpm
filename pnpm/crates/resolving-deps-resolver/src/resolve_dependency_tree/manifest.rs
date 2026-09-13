@@ -54,25 +54,24 @@ pub(super) async fn build_pkg_id_with_patch_hash(
     let manifest_name = manifest
         .and_then(|manifest| manifest.get("name"))
         .and_then(serde_json::Value::as_str);
-    let manifest_version = (!matches!(
-        result.resolution,
-        pnpm_lockfile::LockfileResolution::Directory(_),
-    ))
-    .then(|| {
-        manifest
-            .and_then(|manifest| manifest.get("version"))
-            .and_then(serde_json::Value::as_str)
-    })
-    .flatten();
+    let manifest_version =
+        (!matches!(result.resolution, pnpm_lockfile::LockfileResolution::Directory(_)))
+            .then(|| {
+                manifest
+                    .and_then(|manifest| manifest.get("version"))
+                    .and_then(serde_json::Value::as_str)
+            })
+            .flatten();
     let (name, version) = match (result.package.name_ver.as_ref(), manifest_name) {
         (Some(name_ver), _) => (name_ver.name.to_string(), name_ver.suffix.to_string()),
-        (None, Some(name)) => (
-            name.to_string(),
-            manifest_version.unwrap_or_default().to_string(),
-        ),
+        (None, Some(name)) => (name.to_string(), manifest_version.unwrap_or_default().to_string()),
         (None, None) => return Ok(raw_id.to_string()),
     };
-    let prefixed = prefix_package_name(raw_id, &name);
+    let prefixed = if raw_id.starts_with(&format!("{name}@")) {
+        raw_id.to_string()
+    } else {
+        format!("{name}@{raw_id}")
+    };
     // `patched_dependencies` keys carry a `name@version` shape. Bail
     // out when the resolver and manifest both omitted the version so
     // the patch lookup doesn't run a `name@""` query.
@@ -95,11 +94,7 @@ fn link_pkg_id(ctx: &TreeCtx, target: &str) -> String {
     let relative_target = ctx.importer.link_anchor
         .target_relative_to_lockfile_root(target)
         .unwrap_or_else(|| lockfile_relative_target(ctx, target));
-    let relative_target = if relative_target.is_empty() {
-        "."
-    } else {
-        &relative_target
-    };
+    let relative_target = if relative_target.is_empty() { "." } else { &relative_target };
     format!("link:{relative_target}")
 }
 
@@ -149,22 +144,13 @@ fn lockfile_relative_target(ctx: &TreeCtx, target: &str) -> String {
 pub(super) fn extract_children(
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
-    let Some(manifest) = result.package.manifest.as_ref() else {
-        return Ok(Vec::new());
-    };
+    let Some(manifest) = result.package.manifest.as_ref() else { return Ok(Vec::new()) };
     let parent = render_parent(result);
     let bundled = bundled_dependency_names(manifest);
     let mut out = Vec::new();
     collect_deps(manifest, "dependencies", false, &parent, &bundled, &mut out)?;
     let mut optional = Vec::new();
-    collect_deps(
-        manifest,
-        "optionalDependencies",
-        true,
-        &parent,
-        &bundled,
-        &mut optional,
-    )?;
+    collect_deps(manifest, "optionalDependencies", true, &parent, &bundled, &mut optional)?;
     if !optional.is_empty() {
         let dependency_positions: HashMap<String, usize> = out
             .iter()
@@ -200,12 +186,7 @@ fn bundled_dependency_names(manifest: &Value) -> HashSet<&str> {
         Some(Value::Bool(true)) => manifest
             .get("dependencies")
             .and_then(Value::as_object)
-            .map(|map| {
-                map
-                    .keys()
-                    .map(String::as_str)
-                    .collect()
-            })
+            .map(|map| map.keys().map(String::as_str).collect())
             .unwrap_or_default(),
         Some(Value::Array(names)) => names
             .iter()
@@ -226,9 +207,7 @@ fn collect_deps(
     bundled: &HashSet<&str>,
     out: &mut Vec<ChildSpec>,
 ) -> Result<(), ResolveDependencyTreeError> {
-    let Some(map) = manifest.get(key).and_then(Value::as_object) else {
-        return Ok(());
-    };
+    let Some(map) = manifest.get(key).and_then(Value::as_object) else { return Ok(()) };
     for (name, range) in map {
         if let Some(range_str) = range.as_str() {
             if !crate::is_valid_dependency_alias(name) {
@@ -278,9 +257,7 @@ pub(super) fn extract_peer_dependencies(
     peer_shadowed: &HashSet<String>,
     catalogs: Option<&Catalogs>,
 ) -> Result<BTreeMap<String, PeerDep>, ResolveDependencyTreeError> {
-    let Some(manifest) = result.package.manifest.as_ref() else {
-        return Ok(BTreeMap::new());
-    };
+    let Some(manifest) = result.package.manifest.as_ref() else { return Ok(BTreeMap::new()) };
     let mut peers: BTreeMap<String, PeerDep> = BTreeMap::new();
 
     let dep_names = |key| {
@@ -321,23 +298,14 @@ fn insert_declared_peers(
         if own_deps.contains(name) {
             continue;
         }
-        let Some(range_str) = range.as_str() else {
-            continue;
-        };
+        let Some(range_str) = range.as_str() else { continue };
         let version = match catalogs {
             Some(catalogs) => {
-                resolve_catalog_specifier(name.clone(), range_str.to_string(), catalogs)?
-                    .1
+                resolve_catalog_specifier(name.clone(), range_str.to_string(), catalogs)?.1
             }
             None => range_str.to_string(),
         };
-        peers.insert(
-            name.clone(),
-            PeerDep {
-                version,
-                optional: false,
-            },
-        );
+        peers.insert(name.clone(), PeerDep { version, optional: false });
     }
     Ok(())
 }
@@ -356,10 +324,7 @@ fn insert_optional_meta_peers(
         peers
             .entry(name.clone())
             .and_modify(|entry| entry.optional = true)
-            .or_insert_with(|| PeerDep {
-                version: "*".to_string(),
-                optional: true,
-            });
+            .or_insert_with(|| PeerDep { version: "*".to_string(), optional: true });
     }
 }
 
@@ -371,9 +336,7 @@ fn insert_optional_meta_peers(
 /// there is none of. Resolutions reaching here always carry one, real
 /// or synthesized by `walk::fallback_manifest`.
 pub(super) fn pkg_is_leaf(result: &pnpm_resolving_resolver_base::ResolveResult) -> bool {
-    let Some(manifest) = result.package.manifest.as_ref() else {
-        return false;
-    };
+    let Some(manifest) = result.package.manifest.as_ref() else { return false };
     is_empty_or_absent(manifest.get("dependencies"))
         && is_empty_or_absent(manifest.get("optionalDependencies"))
         && is_empty_or_absent(manifest.get("peerDependencies"))
@@ -489,11 +452,3 @@ pub(super) fn is_exotic_resolved_via(resolved_via: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
-
-fn prefix_package_name(raw_id: &str, name: &str) -> String {
-    if raw_id.starts_with(&format!("{name}@")) {
-        raw_id.to_string()
-    } else {
-        format!("{name}@{raw_id}")
-    }
-}

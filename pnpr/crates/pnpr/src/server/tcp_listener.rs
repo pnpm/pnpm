@@ -30,8 +30,7 @@ impl axum::serve::Listener for NodelayTcpListener {
                 }
                 Err(err) => {
                     tracing::warn!(?err, "tcp accept error; retrying");
-                    tokio::time::sleep(std::time::Duration::from_millis(50))
-                        .await;
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                 }
             }
         }

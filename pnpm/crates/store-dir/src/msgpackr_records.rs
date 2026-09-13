@@ -169,9 +169,7 @@ pub fn transcode_to_plain_msgpack(bytes: &[u8]) -> Result<Vec<u8>, DecodeError> 
     transcode_value(&mut reader, &mut writer, &mut state)?;
     let leftover = reader.remaining();
     if leftover != 0 {
-        return Err(DecodeError::TrailingBytes {
-            count: leftover,
-        });
+        return Err(DecodeError::TrailingBytes { count: leftover });
     }
     Ok(writer)
 }
@@ -197,10 +195,7 @@ struct Reader<'a> {
 
 impl<'a> Reader<'a> {
     fn new(bytes: &'a [u8]) -> Self {
-        Reader {
-            bytes,
-            pos: 0,
-        }
+        Reader { bytes, pos: 0 }
     }
     fn remaining(&self) -> usize {
         self.bytes.len() - self.pos
@@ -209,9 +204,7 @@ impl<'a> Reader<'a> {
         self.bytes
             .get(self.pos + offset)
             .copied()
-            .ok_or(DecodeError::UnexpectedEof {
-                offset: self.pos + offset,
-            })
+            .ok_or(DecodeError::UnexpectedEof { offset: self.pos + offset })
     }
     fn read_u8(&mut self) -> Result<u8, DecodeError> {
         let byte = self.peek(0)?;
@@ -221,13 +214,9 @@ impl<'a> Reader<'a> {
     fn read_bytes(&mut self, n: usize) -> Result<&'a [u8], DecodeError> {
         let end = self.pos
             .checked_add(n)
-            .ok_or(DecodeError::UnexpectedEof {
-                offset: self.pos,
-            })?;
+            .ok_or(DecodeError::UnexpectedEof { offset: self.pos })?;
         if end > self.bytes.len() {
-            return Err(DecodeError::UnexpectedEof {
-                offset: end,
-            });
+            return Err(DecodeError::UnexpectedEof { offset: end });
         }
         let slice = &self.bytes[self.pos..end];
         self.pos = end;
@@ -263,10 +252,7 @@ fn transcode_value(
         let fields = Rc::clone(
             state.slots
                 .get(&head)
-                .ok_or(DecodeError::UnknownSlot {
-                    slot: head,
-                    offset: start,
-                })?,
+                .ok_or(DecodeError::UnknownSlot { slot: head, offset: start })?,
         );
         return transcode_record(reader, writer, state, &fields);
     }
@@ -331,10 +317,7 @@ fn transcode_scalar(
         0xd6 => copy_n(reader, writer, 6),
         0xd7 => copy_n(reader, writer, 10),
         0xd8 => copy_n(reader, writer, 18),
-        other => Err(DecodeError::Unsupported {
-            byte: other,
-            offset: reader.pos,
-        }),
+        other => Err(DecodeError::Unsupported { byte: other, offset: reader.pos }),
     }
 }
 
@@ -416,10 +399,7 @@ fn read_record_def(
     // don't understand. Reject rather than silently registering a
     // slot that nothing could ever reference.
     if !(SLOT_LO..=SLOT_HI).contains(&slot) {
-        return Err(DecodeError::SlotOutOfRange {
-            slot,
-            offset: slot_offset,
-        });
+        return Err(DecodeError::SlotOutOfRange { slot, offset: slot_offset });
     }
     let fields: Rc<[String]> = read_string_array(reader)?.into();
     state.slots.insert(slot, Rc::clone(&fields));
@@ -470,12 +450,7 @@ fn read_string_array(reader: &mut Reader<'_>) -> Result<Vec<String>, DecodeError
         0x90..=0x9f => (head & 0x0f) as usize,
         0xdc => reader.read_u16()? as usize,
         0xdd => reader.read_u32()? as usize,
-        _ => {
-            return Err(DecodeError::ExpectedArrayHeader {
-                byte: head,
-                offset: start,
-            });
-        }
+        _ => return Err(DecodeError::ExpectedArrayHeader { byte: head, offset: start }),
     };
     let mut out = Vec::with_capacity(len);
     for _ in 0..len {
@@ -492,18 +467,10 @@ fn read_string(reader: &mut Reader<'_>) -> Result<String, DecodeError> {
         0xd9 => reader.read_u8()? as usize,
         0xda => reader.read_u16()? as usize,
         0xdb => reader.read_u32()? as usize,
-        _ => {
-            return Err(DecodeError::ExpectedStringHeader {
-                byte: head,
-                offset: start,
-            });
-        }
+        _ => return Err(DecodeError::ExpectedStringHeader { byte: head, offset: start }),
     };
     let bytes = reader.read_bytes(len)?.to_vec();
-    String::from_utf8(bytes)
-        .map_err(|_| DecodeError::InvalidFieldNameUtf8 {
-            offset: start,
-        })
+    String::from_utf8(bytes).map_err(|_| DecodeError::InvalidFieldNameUtf8 { offset: start })
 }
 
 /// Exactly 2^64 as f64 — the smallest `f64` value that does **not** fit
@@ -535,10 +502,46 @@ fn maybe_narrow_float_to_uint(
     }
 }
 
+fn write_map_header(writer: &mut Vec<u8>, n: usize) {
+    if n < 16 {
+        writer.push(0x80 | (n as u8));
+    } else if u16::try_from(n).is_ok() {
+        writer.push(0xde);
+        writer.extend_from_slice(&(n as u16).to_be_bytes());
+    } else {
+        // MessagePack's `map 32` header caps length at `u32::MAX`. On
+        // 64-bit hosts a `usize` could in principle exceed that; use
+        // a checked conversion so we panic with a clear message
+        // rather than silently truncating to a corrupt payload.
+        let n = u32::try_from(n).expect("map length exceeds MessagePack's u32::MAX limit");
+        writer.push(0xdf);
+        writer.extend_from_slice(&n.to_be_bytes());
+    }
+}
+
+fn write_str(writer: &mut Vec<u8>, text: &str) {
+    let bytes = text.as_bytes();
+    let n = bytes.len();
+    if n < 32 {
+        writer.push(0xa0 | (n as u8));
+    } else if u8::try_from(n).is_ok() {
+        writer.push(0xd9);
+        writer.push(n as u8);
+    } else if u16::try_from(n).is_ok() {
+        writer.push(0xda);
+        writer.extend_from_slice(&(n as u16).to_be_bytes());
+    } else {
+        // `str 32` tops out at `u32::MAX` bytes. Checked cast to
+        // fail loudly rather than silently truncating to a corrupt
+        // length prefix.
+        let n = u32::try_from(n).expect("string length exceeds MessagePack's u32::MAX limit");
+        writer.push(0xdb);
+        writer.extend_from_slice(&n.to_be_bytes());
+    }
+    writer.extend_from_slice(bytes);
+}
+
 #[cfg(test)]
 mod tests;
 
 mod encoding;
-
-mod wire_encoding;
-use wire_encoding::{write_map_header, write_str};

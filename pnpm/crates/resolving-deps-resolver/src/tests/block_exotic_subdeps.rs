@@ -35,16 +35,9 @@ async fn rejects_exotic_transitive_dep() {
     );
     table.insert(
         ("say-hi".to_string(), "github:zkochan/hi".to_string()),
-        git_result(
-            "say-hi",
-            "1.0.0",
-            serde_json::json!({ "name": "say-hi", "version": "1.0.0" }),
-        ),
+        git_result("say-hi", "1.0.0", serde_json::json!({ "name": "say-hi", "version": "1.0.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
     let err = resolve_dependency_tree(
@@ -82,20 +75,14 @@ async fn rejects_exotic_transitive_dep() {
 async fn allows_exotic_direct_dep() {
     let mut table = HashMap::default();
     table.insert(
-        (
-            "is-negative".to_string(),
-            "kevva/is-negative#1.0.0".to_string(),
-        ),
+        ("is-negative".to_string(), "kevva/is-negative#1.0.0".to_string()),
         git_result(
             "is-negative",
             "1.0.0",
             serde_json::json!({ "name": "is-negative", "version": "1.0.0" }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) =
         fake_manifest(serde_json::json!({ "is-negative": "kevva/is-negative#1.0.0" }));
 
@@ -142,16 +129,9 @@ async fn allows_registry_subdep() {
     );
     table.insert(
         ("bar".to_string(), "^2.0.0".to_string()),
-        fake_result(
-            "bar",
-            "2.0.0",
-            serde_json::json!({ "name": "bar", "version": "2.0.0" }),
-        ),
+        fake_result("bar", "2.0.0", serde_json::json!({ "name": "bar", "version": "2.0.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
     resolve_dependency_tree(
@@ -195,16 +175,9 @@ async fn allows_exotic_subdep_when_disabled() {
     );
     table.insert(
         ("say-hi".to_string(), "github:zkochan/hi".to_string()),
-        git_result(
-            "say-hi",
-            "1.0.0",
-            serde_json::json!({ "name": "say-hi", "version": "1.0.0" }),
-        ),
+        git_result("say-hi", "1.0.0", serde_json::json!({ "name": "say-hi", "version": "1.0.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
     let tree = resolve_dependency_tree(
@@ -245,22 +218,12 @@ async fn allows_exotic_dep_under_workspace_dep() {
         }),
     );
     workspace_dep_res.resolved_via = "workspace".to_string();
-    table.insert(
-        ("workspace-dep".to_string(), "workspace:^1.0.0".to_string()),
-        workspace_dep_res,
-    );
+    table.insert(("workspace-dep".to_string(), "workspace:^1.0.0".to_string()), workspace_dep_res);
     table.insert(
         ("say-hi".to_string(), "github:zkochan/hi".to_string()),
-        git_result(
-            "say-hi",
-            "1.0.0",
-            serde_json::json!({ "name": "say-hi", "version": "1.0.0" }),
-        ),
+        git_result("say-hi", "1.0.0", serde_json::json!({ "name": "say-hi", "version": "1.0.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) =
         fake_manifest(serde_json::json!({ "workspace-dep": "workspace:^1.0.0" }));
 

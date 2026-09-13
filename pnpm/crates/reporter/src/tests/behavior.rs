@@ -8,16 +8,8 @@ use super::{
 
 #[test]
 fn prompt_event_matches_pnpm_wire_shape() {
-    let event = LogEvent::Prompt(PromptLog {
-        level: LogLevel::Debug,
-        action: PromptAction::Start,
-    });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let event = LogEvent::Prompt(PromptLog { level: LogLevel::Debug, action: PromptAction::Start });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -41,12 +33,7 @@ fn context_event_matches_pnpm_wire_shape() {
         store_dir: "/store".to_string(),
         virtual_store_dir: "/proj/node_modules/.pacquet".to_string(),
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
 
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
@@ -72,12 +59,7 @@ fn stage_event_matches_pnpm_wire_shape() {
         prefix: "/some/project".to_string(),
         stage: Stage::ImportingStarted,
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
 
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
@@ -106,12 +88,7 @@ fn pnpm_event_matches_pnpm_wire_shape() {
         message: "Lockfile is up to date, resolution step is skipped".to_string(),
         prefix: "/some/project".to_string(),
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
 
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
@@ -121,10 +98,7 @@ fn pnpm_event_matches_pnpm_wire_shape() {
 
     assert_eq!(json["name"], "pnpm");
     assert_eq!(json["level"], "info");
-    assert_eq!(
-        json["message"],
-        "Lockfile is up to date, resolution step is skipped",
-    );
+    assert_eq!(json["message"], "Lockfile is up to date, resolution step is skipped");
     assert_eq!(json["prefix"], "/some/project");
 }
 
@@ -151,12 +125,7 @@ fn dedupe_check_event_matches_pnpm_wire_shape() {
         }),
         rendered: "terminal-only rendering".to_string(),
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -166,14 +135,8 @@ fn dedupe_check_event_matches_pnpm_wire_shape() {
     assert_eq!(json["name"], "pnpm");
     assert_eq!(json["level"], "error");
     assert_eq!(json["err"]["code"], "ERR_PNPM_DEDUPE_CHECK_ISSUES");
-    assert_eq!(
-        json["dedupeCheckIssues"]["packageIssuesByDepPath"]["added"][0],
-        "dep@2.0.0",
-    );
-    assert!(
-        json.get("rendered").is_none(),
-        "terminal rendering must stay off the wire: {json:?}",
-    );
+    assert_eq!(json["dedupeCheckIssues"]["packageIssuesByDepPath"]["added"][0], "dep@2.0.0");
+    assert!(json.get("rendered").is_none(), "terminal rendering must stay off the wire: {json:?}");
 }
 
 /// Global-channel (`name: "pnpm:global"`) log carries the
@@ -186,12 +149,7 @@ fn global_event_matches_pnpm_wire_shape() {
         level: LogLevel::Info,
         message: "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc".to_string(),
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
 
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
@@ -205,10 +163,7 @@ fn global_event_matches_pnpm_wire_shape() {
         json["message"],
         "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc",
     );
-    assert!(
-        json.get("prefix").is_none(),
-        "pnpm:global must not carry a prefix, got {json:?}",
-    );
+    assert!(json.get("prefix").is_none(), "pnpm:global must not carry a prefix, got {json:?}");
 }
 
 /// Hook log (`name: "pnpm:hook"`) carries the `from` / `hook` /
@@ -224,12 +179,7 @@ fn hook_event_matches_pnpm_wire_shape() {
         message: "is-positive pinned to 1.0.0".to_string(),
         prefix: "/some/project".to_string(),
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
 
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
@@ -255,12 +205,7 @@ fn package_import_method_event_matches_pnpm_wire_shape() {
         level: LogLevel::Debug,
         method: PackageImportMethod::Clone,
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
 
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
@@ -304,12 +249,7 @@ fn root_event_matches_pnpm_wire_shape() {
             },
         },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -325,15 +265,9 @@ fn root_event_matches_pnpm_wire_shape() {
     // Optional fields skip when None so the JS reporter doesn't see
     // `id: null` etc. — pnpm's emit also omits them when absent.
     for k in ["id", "latest", "linkedFrom"] {
-        assert!(
-            json["added"].get(k).is_none(),
-            "added.{k} should be absent, got {json:?}",
-        );
+        assert!(json["added"].get(k).is_none(), "added.{k} should be absent, got {json:?}");
     }
-    assert!(
-        json.get("removed").is_none(),
-        "added event must not carry removed",
-    );
+    assert!(json.get("removed").is_none(), "added event must not carry removed");
 
     let event = LogEvent::Root(RootLog {
         level: LogLevel::Debug,
@@ -346,22 +280,14 @@ fn root_event_matches_pnpm_wire_shape() {
             },
         },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
         .pipe_as_ref(serde_json::from_str)
         .expect("parse JSON");
     assert_eq!(json["removed"]["name"], "fastify");
-    assert!(
-        json.get("added").is_none(),
-        "removed event must not carry added",
-    );
+    assert!(json.get("added").is_none(), "removed event must not carry added");
 
     for (ty, expected) in [
         (DependencyType::Prod, "prod"),
@@ -382,17 +308,9 @@ fn root_event_matches_pnpm_wire_shape() {
 fn stats_event_matches_pnpm_wire_shape() {
     let event = LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Added {
-            prefix: "/proj".to_string(),
-            added: 42,
-        },
+        message: StatsMessage::Added { prefix: "/proj".to_string(), added: 42 },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -402,34 +320,20 @@ fn stats_event_matches_pnpm_wire_shape() {
     assert_eq!(json["level"], "debug");
     assert_eq!(json["prefix"], "/proj");
     assert_eq!(json["added"], 42);
-    assert!(
-        json.get("removed").is_none(),
-        "added event must not carry removed",
-    );
+    assert!(json.get("removed").is_none(), "added event must not carry removed");
 
     let event = LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Removed {
-            prefix: "/proj".to_string(),
-            removed: 0,
-        },
+        message: StatsMessage::Removed { prefix: "/proj".to_string(), removed: 0 },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
         .pipe_as_ref(serde_json::from_str)
         .expect("parse JSON");
     assert_eq!(json["removed"], 0);
-    assert!(
-        json.get("added").is_none(),
-        "removed event must not carry added",
-    );
+    assert!(json.get("added").is_none(), "removed event must not carry added");
 }
 
 /// `pnpm:request-retry` carries the retry loop's bookkeeping
@@ -455,12 +359,7 @@ fn request_retry_event_matches_pnpm_wire_shape() {
         timeout: 10_000,
         url: "https://registry.npmjs.org/x/-/x-1.0.0.tgz".to_string(),
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -476,10 +375,7 @@ fn request_retry_event_matches_pnpm_wire_shape() {
     assert_eq!(json["error"]["message"], "503 Service Unavailable");
     assert_eq!(json["error"]["httpStatusCode"], "503");
     for k in ["status", "errno", "code"] {
-        assert!(
-            json["error"].get(k).is_none(),
-            "error.{k} should be absent, got {json:?}",
-        );
+        assert!(json["error"].get(k).is_none(), "error.{k} should be absent, got {json:?}");
     }
 }
 
@@ -492,12 +388,7 @@ fn broken_modules_event_matches_pnpm_wire_shape() {
         level: LogLevel::Debug,
         missing: "/proj/node_modules/.pacquet/react@18.0.0/node_modules/react".to_string(),
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -505,10 +396,7 @@ fn broken_modules_event_matches_pnpm_wire_shape() {
         .expect("parse JSON");
     assert_eq!(json["name"], "pnpm:_broken_node_modules");
     assert_eq!(json["level"], "debug");
-    assert_eq!(
-        json["missing"],
-        "/proj/node_modules/.pacquet/react@18.0.0/node_modules/react",
-    );
+    assert_eq!(json["missing"], "/proj/node_modules/.pacquet/react@18.0.0/node_modules/react");
 }
 
 /// Phase markers serialize as the `snake_case` strings pnpm uses.
@@ -562,12 +450,7 @@ fn deprecation_event_matches_pnpm_wire_shape() {
         deprecated: "express 0.x series is deprecated".to_string(),
         depth: 0,
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -596,12 +479,7 @@ fn deprecation_event_transitive_matches_pnpm_wire_shape() {
         deprecated: "request has been deprecated".to_string(),
         depth: 3,
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")

@@ -1,10 +1,7 @@
 use super::{PeerId, create_peer_dep_graph_hash};
 
 fn pair(name: &str, version: &str) -> PeerId {
-    PeerId::Pair {
-        name: name.to_string(),
-        version: version.to_string(),
-    }
+    PeerId::Pair { name: name.to_string(), version: version.to_string() }
 }
 
 #[test]
@@ -49,9 +46,5 @@ fn long_body_is_replaced_with_short_hash() {
     assert!(got.ends_with(')'));
     let body = &got[1..got.len() - 1];
     assert_eq!(body.len(), 32);
-    assert!(
-        body
-            .chars()
-            .all(|c| c.is_ascii_hexdigit()),
-    );
+    assert!(body.chars().all(|c| c.is_ascii_hexdigit()));
 }

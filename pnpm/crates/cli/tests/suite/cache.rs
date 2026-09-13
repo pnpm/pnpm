@@ -36,16 +36,8 @@ fn should_list_packages() {
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
-    fs::write(
-        cache_dir.join(&registry_name).join("is-positive.jsonl"),
-        "{}",
-    )
-    .unwrap();
-    fs::write(
-        cache_dir.join(&registry_name).join("is-negative.jsonl"),
-        "{}",
-    )
-    .unwrap();
+    fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), "{}").unwrap();
+    fs::write(cache_dir.join(&registry_name).join("is-negative.jsonl"), "{}").unwrap();
 
     let output = cwd.pacquet
         .with_arg("cache")
@@ -69,11 +61,7 @@ fn should_list_only_files_not_directories() {
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
-    fs::write(
-        cache_dir.join(&registry_name).join("is-positive.jsonl"),
-        "{}",
-    )
-    .unwrap();
+    fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), "{}").unwrap();
     // A scoped package lives in its own directory, which the glob also matches.
     // Only the file underneath it, not the directory itself, should be listed.
     fs::create_dir_all(cache_dir.join(&registry_name).join("@scope")).unwrap();
@@ -115,16 +103,8 @@ fn should_delete_packages() {
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
-    fs::write(
-        cache_dir.join(&registry_name).join("is-positive.jsonl"),
-        "{}",
-    )
-    .unwrap();
-    fs::write(
-        cache_dir.join(&registry_name).join("is-negative.jsonl"),
-        "{}",
-    )
-    .unwrap();
+    fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), "{}").unwrap();
+    fs::write(cache_dir.join(&registry_name).join("is-negative.jsonl"), "{}").unwrap();
 
     let output = cwd.pacquet
         .with_arg("cache")
@@ -208,11 +188,7 @@ fn should_view_package_cache() {
             }\
         }\
     }";
-    fs::write(
-        cache_dir.join(&registry_name).join("is-positive.jsonl"),
-        package_jsonl,
-    )
-    .unwrap();
+    fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), package_jsonl).unwrap();
 
     let output = cwd.pacquet
         .with_args(["cache", "view", "is-positive"])
@@ -279,10 +255,7 @@ fn import_populates_metadata_cache() {
         .join("metadata")
         .join(&registry_name);
 
-    assert!(
-        cache_metadata_dir.exists(),
-        "metadata cache directory must exist",
-    );
+    assert!(cache_metadata_dir.exists(), "metadata cache directory must exist");
     assert!(
         cache_metadata_dir.join("@pnpm.e2e/pkg-with-1-dep.jsonl").exists(),
         "cached metadata file for @pnpm.e2e/pkg-with-1-dep must exist",
@@ -315,11 +288,7 @@ fn should_print_cache_path() {
     // workspace. Its textual form is not pinned any further: macOS resolves
     // the temporary directory to `/private/var`, exactly as `path.resolve`
     // does for the TypeScript CLI.
-    assert!(
-        printed.is_absolute(),
-        "expected an absolute path, got {}",
-        printed.display(),
-    );
+    assert!(printed.is_absolute(), "expected an absolute path, got {}", printed.display());
     assert!(
         !printed
             .components()
@@ -328,8 +297,5 @@ fn should_print_cache_path() {
         printed.display(),
     );
     fs::create_dir_all(&printed).unwrap();
-    assert_eq!(
-        fs::canonicalize(&printed).unwrap(),
-        fs::canonicalize(&cache_dir).unwrap(),
-    );
+    assert_eq!(fs::canonicalize(&printed).unwrap(), fs::canonicalize(&cache_dir).unwrap());
 }

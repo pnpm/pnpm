@@ -152,28 +152,19 @@ async fn concurrent_blob_finalize_does_not_overwrite() {
 
     let tmp = store.staging_tmp_path(&name, file).await.unwrap();
     tokio::fs::write(&tmp, b"tarball A").await.unwrap();
-    assert_eq!(
-        store.upload_blob(&tmp, &name, file).await.unwrap(),
-        BlobFinalize::Written,
-    );
+    assert_eq!(store.upload_blob(&tmp, &name, file).await.unwrap(), BlobFinalize::Written);
 
     // Re-promoting byte-identical content is a tolerated no-op, so idempotent
     // journal roll-forward and concurrent identical publishes don't conflict.
     let tmp = store.staging_tmp_path(&name, file).await.unwrap();
     tokio::fs::write(&tmp, b"tarball A").await.unwrap();
-    assert_eq!(
-        store.upload_blob(&tmp, &name, file).await.unwrap(),
-        BlobFinalize::AlreadyIdentical,
-    );
+    assert_eq!(store.upload_blob(&tmp, &name, file).await.unwrap(), BlobFinalize::AlreadyIdentical);
 
     // Different bytes for the same version's key are rejected without
     // overwriting the first writer's blob.
     let tmp = store.staging_tmp_path(&name, file).await.unwrap();
     tokio::fs::write(&tmp, b"tarball B").await.unwrap();
-    assert_eq!(
-        store.upload_blob(&tmp, &name, file).await.unwrap(),
-        BlobFinalize::Conflict,
-    );
+    assert_eq!(store.upload_blob(&tmp, &name, file).await.unwrap(), BlobFinalize::Conflict);
 
     let (body, _len) = store
         .open_blob(&name, file)
@@ -269,10 +260,7 @@ async fn lists_hosted_package_names() {
 
         let mut names = store.list_package_names().await.unwrap();
         names.sort();
-        assert_eq!(
-            names,
-            vec!["@scope/thing".to_string(), "is-positive".to_string()],
-        );
+        assert_eq!(names, vec!["@scope/thing".to_string(), "is-positive".to_string()]);
     }
 }
 
@@ -281,10 +269,7 @@ async fn revision_refs_roundtrip_under_the_configured_prefix() {
     for prefix in ["", "packages"] {
         let (store, _staging) = store_with_prefix(prefix);
         let digest = "A".repeat(86);
-        assert_eq!(
-            store.read_revision_refs(&digest).await.unwrap(),
-            Vec::<Vec<u8>>::new(),
-        );
+        assert_eq!(store.read_revision_refs(&digest).await.unwrap(), Vec::<Vec<u8>>::new());
 
         store
             .write_revision_ref(&digest, &"a".repeat(64), "owner-a", b"first")
@@ -315,23 +300,14 @@ async fn revision_ref_removal_is_scoped_to_its_owner() {
     );
 
     store.remove_revision_ref(&digest, &ref_id, "owner-a").await.unwrap();
-    assert_eq!(
-        store.read_revision_refs(&digest).await.unwrap(),
-        vec![b"record".to_vec()],
-    );
+    assert_eq!(store.read_revision_refs(&digest).await.unwrap(), vec![b"record".to_vec()]);
 
     store.remove_revision_ref(&digest, &ref_id, "owner-a").await.unwrap();
-    assert_eq!(
-        store.read_revision_refs(&digest).await.unwrap(),
-        vec![b"record".to_vec()],
-    );
+    assert_eq!(store.read_revision_refs(&digest).await.unwrap(), vec![b"record".to_vec()]);
 
     store.commit_revision_ref(&digest, &ref_id, "owner-b").await.unwrap();
     store.remove_revision_ref(&digest, &ref_id, "owner-b").await.unwrap();
-    assert_eq!(
-        store.read_revision_refs(&digest).await.unwrap(),
-        vec![b"record".to_vec()],
-    );
+    assert_eq!(store.read_revision_refs(&digest).await.unwrap(), vec![b"record".to_vec()]);
 
     assert_eq!(
         store.write_revision_ref(&digest, &ref_id, "owner-a", b"record").await.unwrap(),
@@ -349,8 +325,7 @@ async fn concurrent_revision_ref_claims_survive_other_owner_removal() {
         let digest = digest.clone();
         let ref_id = ref_id.clone();
         tokio::spawn(async move {
-            store.write_revision_ref(&digest, &ref_id, "owner-a", b"record")
-                .await
+            store.write_revision_ref(&digest, &ref_id, "owner-a", b"record").await
         })
     };
     let second = {
@@ -358,29 +333,16 @@ async fn concurrent_revision_ref_claims_survive_other_owner_removal() {
         let digest = digest.clone();
         let ref_id = ref_id.clone();
         tokio::spawn(async move {
-            store.write_revision_ref(&digest, &ref_id, "owner-b", b"record")
-                .await
+            store.write_revision_ref(&digest, &ref_id, "owner-b", b"record").await
         })
     };
 
-    assert_eq!(
-        first.await.unwrap().unwrap(),
-        HostedRevisionRefWrite::Claimed,
-    );
-    assert_eq!(
-        second.await.unwrap().unwrap(),
-        HostedRevisionRefWrite::Claimed,
-    );
+    assert_eq!(first.await.unwrap().unwrap(), HostedRevisionRefWrite::Claimed);
+    assert_eq!(second.await.unwrap().unwrap(), HostedRevisionRefWrite::Claimed);
     store.remove_revision_ref(&digest, &ref_id, "owner-a").await.unwrap();
-    assert_eq!(
-        store.read_revision_refs(&digest).await.unwrap(),
-        vec![b"record".to_vec()],
-    );
+    assert_eq!(store.read_revision_refs(&digest).await.unwrap(), vec![b"record".to_vec()]);
     store.remove_revision_ref(&digest, &ref_id, "owner-b").await.unwrap();
-    assert_eq!(
-        store.read_revision_refs(&digest).await.unwrap(),
-        Vec::<Vec<u8>>::new(),
-    );
+    assert_eq!(store.read_revision_refs(&digest).await.unwrap(), Vec::<Vec<u8>>::new());
 }
 
 #[tokio::test]
@@ -414,20 +376,14 @@ async fn revision_ref_writes_enforce_the_read_bound() {
     );
     store.store
         .put(
-            &ObjectPath::from(format!(
-                "packages/.revisions/sha512/{digest}/not-a-reference.json",
-            )),
+            &ObjectPath::from(format!("packages/.revisions/sha512/{digest}/not-a-reference.json")),
             PutPayload::from_static(b"stray"),
         )
         .await
         .unwrap();
     let refs = store.read_revision_refs(&digest).await.unwrap();
     assert_eq!(refs.len(), crate::MAX_HOSTED_REVISION_REFS);
-    assert!(
-        refs
-            .iter()
-            .all(|bytes| bytes == b"{}"),
-    );
+    assert!(refs.iter().all(|bytes| bytes == b"{}"));
 }
 
 #[tokio::test]
@@ -439,8 +395,7 @@ async fn concurrent_revision_ref_writes_cannot_exceed_the_limit() {
         let store = store.clone();
         let digest = digest.clone();
         writes.push(tokio::spawn(async move {
-            store.write_revision_ref(&digest, &format!("{index:064x}"), "owner-a", b"{}")
-                .await
+            store.write_revision_ref(&digest, &format!("{index:064x}"), "owner-a", b"{}").await
         }));
     }
 
@@ -531,10 +486,7 @@ impl object_store::MultipartUpload for RecordedMultipart {
 async fn multipart_streams_large_files_in_bounded_parts_and_aborts_failures() {
     let temp = tempfile::NamedTempFile::new().unwrap();
     let size = super::MAX_SINGLE_PUT_BYTES + 1;
-    temp
-        .as_file()
-        .set_len(size)
-        .unwrap();
+    temp.as_file().set_len(size).unwrap();
     let mut upload = RecordedMultipart::default();
     super::send_parts(temp.path(), &mut upload).await.unwrap();
     assert!(upload.completed);
@@ -546,10 +498,7 @@ async fn multipart_streams_large_files_in_bounded_parts_and_aborts_failures() {
             .iter()
             .all(|size| *size == super::MULTIPART_PART_BYTES),
     );
-    let mut failed = RecordedMultipart {
-        fail_part: true,
-        ..Default::default()
-    };
+    let mut failed = RecordedMultipart { fail_part: true, ..Default::default() };
     assert!(super::send_parts(temp.path(), &mut failed).await.is_err());
     assert!(failed.aborted);
     assert!(!failed.completed);
@@ -670,8 +619,5 @@ async fn record_keys_are_listed_relative_to_their_namespace() {
     let mut keys = store.list_record_keys(".pipeline-runs/v0").await.unwrap();
     keys.sort();
     assert_eq!(keys, ["demo/100.json", "other/200.json"]);
-    assert_eq!(
-        store.list_record_keys(".staged").await.unwrap(),
-        ["stage.json"],
-    );
+    assert_eq!(store.list_record_keys(".staged").await.unwrap(), ["stage.json"]);
 }

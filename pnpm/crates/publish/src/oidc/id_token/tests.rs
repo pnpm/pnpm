@@ -114,11 +114,7 @@ async fn fetches_and_returns_github_id_token() {
         // The audience query param is derived from the registry hostname.
         assert!(request.url.contains("audience=npm%3Aregistry.npmjs.org"));
         assert_eq!(request.authorization, "Bearer request-token");
-        Ok(OidcResponse {
-            ok: true,
-            status: 200,
-            body: r#"{"value":"gh-id-token"}"#.to_owned(),
-        })
+        Ok(OidcResponse { ok: true, status: 200, body: r#"{"value":"gh-id-token"}"#.to_owned() })
     });
 
     let token = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
@@ -129,38 +125,28 @@ async fn fetches_and_returns_github_id_token() {
 
 #[tokio::test]
 async fn errors_on_non_ok_github_response() {
-    github_actions_env!(Sys, github_request_env, |_: OidcRequest<'_>| Ok(
-        OidcResponse {
-            ok: false,
-            status: 403,
-            body: String::new(),
-        }
-    ));
+    github_actions_env!(Sys, github_request_env, |_: OidcRequest<'_>| Ok(OidcResponse {
+        ok: false,
+        status: 403,
+        body: String::new(),
+    }));
 
     let err = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
         .await
         .unwrap_err();
-    assert!(matches!(
-        err,
-        GetIdTokenError::IdToken(IdTokenError::GitHubInvalidResponse)
-    ));
+    assert!(matches!(err, GetIdTokenError::IdToken(IdTokenError::GitHubInvalidResponse)));
 }
 
 #[tokio::test]
 async fn errors_on_github_response_without_value() {
-    github_actions_env!(Sys, github_request_env, |_: OidcRequest<'_>| Ok(
-        OidcResponse {
-            ok: true,
-            status: 200,
-            body: r#"{"other":1}"#.to_owned(),
-        }
-    ));
+    github_actions_env!(Sys, github_request_env, |_: OidcRequest<'_>| Ok(OidcResponse {
+        ok: true,
+        status: 200,
+        body: r#"{"other":1}"#.to_owned(),
+    }));
 
     let err = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
         .await
         .unwrap_err();
-    assert!(matches!(
-        err,
-        GetIdTokenError::IdToken(IdTokenError::GitHubJsonInvalidValue)
-    ));
+    assert!(matches!(err, GetIdTokenError::IdToken(IdTokenError::GitHubJsonInvalidValue)));
 }

@@ -105,11 +105,7 @@ pub(crate) fn read_cached_bytes(
     let file = options.open(&path).ok()?;
     // Checked on the opened handle, so nothing can swap the regular
     // file for a special one between check and read.
-    if !file
-        .metadata()
-        .ok()?
-        .is_file()
-    {
+    if !file.metadata().ok()?.is_file() {
         return None;
     }
     // A bounded reader rather than a metadata check keeps the cap
@@ -138,9 +134,7 @@ pub(crate) fn write_cached_shasums(
     if body.len() as u64 > MAX_CACHED_SHASUMS_LEN {
         return;
     }
-    let Some(path) = shasums_cache_path(cache_dir, trust, url) else {
-        return;
-    };
+    let Some(path) = shasums_cache_path(cache_dir, trust, url) else { return };
     let Some(parent) = path.parent() else { return };
     if fs::create_dir_all(parent).is_err() {
         return;
@@ -207,9 +201,7 @@ pub(crate) fn shasums_cache_path(
         }
         segments.push(encode_path_segment(segment)?);
     }
-    let mut file = cache_dir
-        .join(RUNTIME_SHASUMS_CACHE_DIR)
-        .join(trust.dir_name());
+    let mut file = cache_dir.join(RUNTIME_SHASUMS_CACHE_DIR).join(trust.dir_name());
     file.extend(segments);
     Some(file)
 }

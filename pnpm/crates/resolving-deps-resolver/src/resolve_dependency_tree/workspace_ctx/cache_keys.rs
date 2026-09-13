@@ -103,11 +103,7 @@ impl WantedKey {
             .hash(&mut hasher);
         let scopeless_hash = hasher.clone().finish();
         fields.6.hash(&mut hasher);
-        WantedKey(Arc::new(WantedKeyInner {
-            full_hash: hasher.finish(),
-            scopeless_hash,
-            fields,
-        }))
+        WantedKey(Arc::new(WantedKeyInner { full_hash: hasher.finish(), scopeless_hash, fields }))
     }
 
     pub(in super::super) fn fields(&self) -> &WantedKeyFields {
@@ -197,11 +193,7 @@ impl SharedWorkspaceWantedKey {
         previous_specifier: Option<String>,
         resolve_options: &Arc<WorkspaceResolutionOptionsKey>,
     ) -> Self {
-        Self {
-            wanted,
-            previous_specifier,
-            resolve_options: Arc::clone(resolve_options),
-        }
+        Self { wanted, previous_specifier, resolve_options: Arc::clone(resolve_options) }
     }
 }
 
@@ -257,8 +249,7 @@ impl WorkspaceResolutionOptionsKey {
             range_spec_style_discriminant: options.specifier.range_spec_style.map(|style| {
                 style as u8
             }),
-            save_workspace_protocol_discriminant: options.specifier
-                .save_workspace_protocol as u8,
+            save_workspace_protocol_discriminant: options.specifier.save_workspace_protocol as u8,
         }
     }
 

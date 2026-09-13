@@ -155,10 +155,7 @@ impl Lockfile {
             match fs::remove_file(&target) {
                 Ok(()) => Ok(()),
                 Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-                Err(error) => Err(SaveLockfileError::RemoveFile {
-                    path: target,
-                    error,
-                }),
+                Err(error) => Err(SaveLockfileError::RemoveFile { path: target, error }),
             }
         } else {
             fs::create_dir_all(virtual_store_dir)
@@ -187,9 +184,7 @@ fn carry_mode_across(file: &fs::File, target: &Path) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt as _;
 
     // `symlink_metadata` so a symlinked target is never followed.
-    let Ok(metadata) = fs::symlink_metadata(target) else {
-        return Ok(());
-    };
+    let Ok(metadata) = fs::symlink_metadata(target) else { return Ok(()) };
     if metadata.file_type().is_symlink() {
         return Ok(());
     }
@@ -223,22 +218,17 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let pid = std::process::id();
-    let parent = target
-        .parent()
-        .unwrap_or_else(|| Path::new("."));
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
     let file_name = target
         .file_name()
-        .map_or_else(
-            || String::from("lock.yaml"),
-            |name| name.to_string_lossy().into_owned(),
-        );
+        .map_or_else(|| String::from("lock.yaml"), |name| name.to_string_lossy().into_owned());
 
     let mut last_already_exists: Option<io::Error> = None;
     for _ in 0..MAX_TEMP_ATTEMPTS {
         let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
         let tmp = parent.join(format!(".{file_name}.{pid}.{counter}.tmp"));
 
-        let file = match OpenOptions::new()
+        let mut file = match OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&tmp)
@@ -254,50 +244,39 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
             Err(error) => return Err(SaveLockfileError::WriteFile(error)),
         };
 
-        return persist_temp_file(file, tmp, target, content);
+        if let Err(error) = fill_temp_file(&mut file, content, target) {
+            drop(file);
+            let _ = fs::remove_file(&tmp);
+            return Err(SaveLockfileError::WriteFile(error));
+        }
+        // Close the handle before `rename`. Windows `MoveFileEx` over
+        // an open source file can fail with sharing-violation; on Unix
+        // an early `close` lets the kernel commit dirty buffers before
+        // the rename commits the dirent change.
+        drop(file);
+
+        return commit_temp_file(tmp, target);
     }
 
     // Ran out of temp-name attempts. Surface the last `AlreadyExists`
     // so the operator can see what happened.
-    Err(SaveLockfileError::WriteFile(
-        last_already_exists.unwrap_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                "exhausted temp-path attempts for atomic lockfile write",
-            )
-        }),
-    ))
+    Err(SaveLockfileError::WriteFile(last_already_exists.unwrap_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "exhausted temp-path attempts for atomic lockfile write",
+        )
+    })))
 }
 
-#[cfg(test)]
-mod tests;
-
-fn persist_temp_file(
-    mut file: fs::File,
-    tmp: PathBuf,
-    target: &Path,
-    content: &[u8],
-) -> Result<(), SaveLockfileError> {
-    if let Err(error) = fill_temp_file(&mut file, content, target) {
-        drop(file);
-        let _ = fs::remove_file(&tmp);
-        return Err(SaveLockfileError::WriteFile(error));
-    }
-    // Close the handle before `rename`. Windows `MoveFileEx` over
-    // an open source file can fail with sharing-violation; on Unix
-    // an early `close` lets the kernel commit dirty buffers before
-    // the rename commits the dirent change.
-    drop(file);
-
+fn commit_temp_file(tmp: PathBuf, target: &Path) -> Result<(), SaveLockfileError> {
     fs::rename(&tmp, target)
         .map_err(|error| {
             // Best-effort cleanup so a failed rename doesn't leak temp
             // files in the virtual store.
             let _ = fs::remove_file(&tmp);
-            SaveLockfileError::RenameFile {
-                tmp,
-                target: target.to_path_buf(),
-                error,
-            }
+            SaveLockfileError::RenameFile { tmp, target: target.to_path_buf(), error }
         })
 }
+
+#[cfg(test)]
+mod tests;

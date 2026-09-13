@@ -95,10 +95,7 @@ fn an_install_that_runs_the_scripts_records_nothing() {
     });
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
-    allow_builds(
-        &workspace,
-        &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)],
-    );
+    allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
 
     pacquet
         .with_arg("install")
@@ -161,14 +158,8 @@ fn removing_a_package_shrinks_the_list() {
         .success();
 
     let after = read_pending_builds(&workspace);
-    assert_eq!(
-        after,
-        ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
-    );
-    assert!(
-        after.len() < before.len(),
-        "removing a package must shrink {before:?}",
-    );
+    assert_eq!(after, ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"]);
+    assert!(after.len() < before.len(), "removing a package must shrink {before:?}");
 
     drop((root, mock_instance, rerun_root));
 }
@@ -197,10 +188,7 @@ fn rebuild_pending_runs_the_deferred_work_and_empties_the_list() {
     });
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
-    allow_builds(
-        &workspace,
-        &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)],
-    );
+    allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
 
     pacquet
         .with_args(["install", "--ignore-scripts"])
@@ -210,10 +198,7 @@ fn rebuild_pending_runs_the_deferred_work_and_empties_the_list() {
         read_pending_builds(&workspace),
         [".", "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
     );
-    assert!(
-        !marker.exists(),
-        "--ignore-scripts must defer the project's own script",
-    );
+    assert!(!marker.exists(), "--ignore-scripts must defer the project's own script");
     append_workspace_yaml_key(&workspace, "pending", true);
 
     let CommandTempCwd {
@@ -273,10 +258,7 @@ fn rebuild_pending_keeps_a_dependency_the_policy_still_blocks() {
         .assert()
         .success();
     let pending = read_pending_builds(&workspace);
-    assert_eq!(
-        pending,
-        ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
-    );
+    assert_eq!(pending, ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"]);
 
     // No `allowBuilds` entry, so `rebuild --pending` cannot build it.
     // Its exit code is beside the point — the assertion is that the
@@ -292,11 +274,7 @@ fn rebuild_pending_keeps_a_dependency_the_policy_still_blocks() {
         .output()
         .expect("run pacquet rebuild --pending");
 
-    assert_eq!(
-        read_pending_builds(&workspace),
-        pending,
-        "a build the policy blocked stays owed",
-    );
+    assert_eq!(read_pending_builds(&workspace), pending, "a build the policy blocked stays owed");
 
     drop((root, mock_instance, rebuild_root));
 }
@@ -322,10 +300,7 @@ fn a_failed_project_script_keeps_its_pending_entry() {
     });
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
-    allow_builds(
-        &workspace,
-        &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)],
-    );
+    allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
 
     pacquet
         .with_args(["install", "--ignore-scripts"])
@@ -351,10 +326,7 @@ fn a_failed_project_script_keeps_its_pending_entry() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
-    assert!(
-        !output.status.success(),
-        "a failing project script must fail the rebuild",
-    );
+    assert!(!output.status.success(), "a failing project script must fail the rebuild");
 
     assert_eq!(
         read_pending_builds(&workspace),
@@ -386,20 +358,14 @@ fn a_later_install_preserves_what_an_earlier_one_deferred() {
         .expect("write package.json");
     // Approved, so the second install's build phase reports nothing
     // deferred — the entry can only survive by being carried over.
-    allow_builds(
-        &workspace,
-        &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)],
-    );
+    allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
 
     pacquet
         .with_args(["install", "--ignore-scripts"])
         .assert()
         .success();
     let deferred = read_pending_builds(&workspace);
-    assert_eq!(
-        deferred,
-        ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
-    );
+    assert_eq!(deferred, ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"]);
 
     let CommandTempCwd {
         pacquet: rerun, root: rerun_root, ..

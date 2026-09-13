@@ -1,7 +1,7 @@
 use super::{
-    CommandExtra, CommandTempCwd, GitRepoFixture, Value, allow_builds, assert_eq,
-    assert_git_dependency_is_built_on_reinstall, assert_success, fs, importer_version, json,
-    pnpm_at, read_lockfile, write_dependencies,
+    CommandExtra, CommandTempCwd, GitRepoFixture, Value, allow_builds, append_workspace_yaml_key,
+    assert_eq, assert_success, fs, importer_version, json, pnpm_at, read_lockfile,
+    write_dependencies,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -96,11 +96,8 @@ fn prepared_git_package_in_shared_store_still_requires_project_approval() {
     fs::create_dir(&workspace_b).expect("create second workspace");
     fs::copy(workspace.join(".npmrc"), workspace_b.join(".npmrc"))
         .expect("copy shared-store npmrc");
-    fs::copy(
-        workspace.join("pnpm-workspace.yaml"),
-        workspace_b.join("pnpm-workspace.yaml"),
-    )
-    .expect("copy shared-store workspace config");
+    fs::copy(workspace.join("pnpm-workspace.yaml"), workspace_b.join("pnpm-workspace.yaml"))
+        .expect("copy shared-store workspace config");
     let workspace_b_yaml = fs::read_to_string(workspace_b.join("pnpm-workspace.yaml"))
         .expect("read second workspace config");
     let (workspace_b_yaml, _) = workspace_b_yaml
@@ -115,10 +112,7 @@ fn prepared_git_package_in_shared_store_still_requires_project_approval() {
         .output()
         .expect("install from warm store");
     dbg!(&output);
-    assert!(
-        !output.status.success(),
-        "the unapproved warm-store install unexpectedly succeeded",
-    );
+    assert!(!output.status.success(), "the unapproved warm-store install unexpectedly succeeded");
     assert!(
         String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED"),
         "stderr did not report the build-policy failure",
@@ -149,10 +143,7 @@ fn prepared_git_package_in_shared_store_still_requires_project_approval() {
         .output()
         .expect("install from legacy store");
     dbg!(&output);
-    assert!(
-        !output.status.success(),
-        "the unapproved legacy-store install unexpectedly succeeded",
-    );
+    assert!(!output.status.success(), "the unapproved legacy-store install unexpectedly succeeded");
     assert!(
         String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED"),
         "stderr did not report the build-policy failure",
@@ -255,10 +246,7 @@ fn an_aliased_git_dependency_is_gated_on_its_manifest_name() {
         .success();
 
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
-    assert_eq!(
-        importer_version(&lockfile, ".", "say-hi"),
-        format!("hi@{spec}"),
-    );
+    assert_eq!(importer_version(&lockfile, ".", "say-hi"), format!("hi@{spec}"));
     assert!(
         workspace.join("node_modules/say-hi/prepare.txt").exists(),
         "the manifest-name allowBuilds entry must let `prepare` run under the alias",
@@ -329,11 +317,106 @@ fn a_git_dependency_is_prepared_with_the_package_manager_it_pins() {
         .into_iter()
         .flatten()
         .any(|entry| entry.file_name() == "yarn.js");
-    assert!(
-        provisioned,
-        "no provisioned yarn under {}",
-        engine_store.display(),
+    assert!(provisioned, "no provisioned yarn under {}", engine_store.display());
+
+    drop((root, npmrc_info));
+}
+
+/// TS: `git-hosted repository is not added to the store if it fails to
+/// be built` (`fromRepo.ts:354`).
+///
+/// The second install is the assertion: a package whose `prepare`
+/// failed must not have been indexed, or the retry would find a
+/// half-built package in the store and succeed.
+#[test]
+fn git_hosted_repository_is_not_added_to_the_store_if_it_fails_to_be_built() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "prepare-script-fails");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"prepare-script-fails","version":"1.0.0","main":"index.js","scripts":{"prepare":"node -e \"process.exit(1)\""}}"#,
     );
+    repo.write_file("index.js", "module.exports = true\n");
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+
+    write_dependencies(&workspace, &[("prepare-script-fails", &spec)]);
+    allow_builds(&workspace, &[&format!("prepare-script-fails@{spec}")]);
+
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .failure();
+    pnpm_at(&workspace)
+        .with_args(["install"])
+        .assert()
+        .failure();
+
+    drop((root, npmrc_info));
+}
+
+fn assert_git_dependency_is_built_on_reinstall(node_linker: Option<&str>) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "prepare-script-works");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"prepare-script-works","version":"1.0.0","files":["package.json","prepare.txt"],"scripts":{"prepare":"node -e \"require('fs').writeFileSync('prepare.txt', 'prepared')\""}}"#,
+    );
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_dependencies(&workspace, &[("prepare-script-works", &spec)]);
+    allow_builds(&workspace, &[&format!("prepare-script-works@{spec}")]);
+    if let Some(node_linker) = node_linker {
+        append_workspace_yaml_key(&workspace, "nodeLinker", node_linker);
+    }
+    let marker = workspace.join("node_modules/prepare-script-works/prepare.txt");
+
+    pacquet
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
+    let marker_exists = marker.exists();
+    eprintln!("MARKER: {}\nEXISTS: {marker_exists}\n", marker.display());
+    assert!(!marker_exists, "the ignored initial install must not prepare the package");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pnpm_at(&workspace)
+        .with_args(["install", "--config.prefer-frozen-lockfile=false"])
+        .assert()
+        .success();
+    let marker_exists = marker.exists();
+    eprintln!("MARKER: {}\nEXISTS: {marker_exists}\n", marker.display());
+    assert!(marker_exists, "a fresh-resolution reinstall must prepare the package");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pnpm_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    let marker_exists = marker.exists();
+    eprintln!("MARKER: {}\nEXISTS: {marker_exists}\n", marker.display());
+    assert!(marker_exists, "a frozen reinstall must materialize the prepared package");
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    pnpm_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
+        .assert()
+        .success();
+    let marker_exists = marker.exists();
+    eprintln!("MARKER: {}\nEXISTS: {marker_exists}\n", marker.display());
+    assert!(!marker_exists, "--ignore-scripts must keep prepare output out of the install");
 
     drop((root, npmrc_info));
 }

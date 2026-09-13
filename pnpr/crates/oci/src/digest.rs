@@ -35,35 +35,25 @@ impl Digest {
     pub fn parse(raw: &str) -> Result<Self, DigestError> {
         let (algorithm, hex) = raw
             .split_once(':')
-            .ok_or_else(|| DigestError::Malformed {
-                raw: raw.to_string(),
-            })?;
+            .ok_or_else(|| DigestError::Malformed { raw: raw.to_string() })?;
         if algorithm != ALGORITHM {
-            return Err(DigestError::UnsupportedAlgorithm {
-                algorithm: algorithm.to_string(),
-            });
+            return Err(DigestError::UnsupportedAlgorithm { algorithm: algorithm.to_string() });
         }
         if hex.len() != HEX_LEN
             || !hex
                 .bytes()
                 .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
         {
-            return Err(DigestError::NotHex {
-                raw: raw.to_string(),
-            });
+            return Err(DigestError::NotHex { raw: raw.to_string() });
         }
-        Ok(Self {
-            hex: hex.to_string(),
-        })
+        Ok(Self { hex: hex.to_string() })
     }
 
     /// The digest of `bytes`, as the registry would compute it to verify an
     /// upload.
     #[must_use]
     pub fn of(bytes: &[u8]) -> Self {
-        Self {
-            hex: format!("{:x}", Sha256::digest(bytes)),
-        }
+        Self { hex: format!("{:x}", Sha256::digest(bytes)) }
     }
 
     /// The blob's single path segment in the store. `:` cannot appear in a

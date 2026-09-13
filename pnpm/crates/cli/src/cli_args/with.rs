@@ -50,10 +50,7 @@ pub enum WithError {
 
 impl From<BadPathDir> for WithError {
     fn from(BadPathDir { dir, delimiter }: BadPathDir) -> Self {
-        WithError::BadPathDir {
-            dir,
-            delimiter,
-        }
+        WithError::BadPathDir { dir, delimiter }
     }
 }
 
@@ -78,8 +75,7 @@ impl WithArgs {
             return Err(WithError::CantUseWithInCorepack.into());
         }
 
-        let engine = Box::pin(provision::<Reporter>(config, PackageManager::Pnpm, spec))
-            .await?;
+        let engine = Box::pin(provision::<Reporter>(config, PackageManager::Pnpm, spec)).await?;
 
         let status = spawn_pnpm(&engine.bin_dirs, args, PackageManagerCheck::Disabled)?;
         if !status.success() {

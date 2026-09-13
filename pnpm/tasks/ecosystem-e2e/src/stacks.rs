@@ -69,14 +69,7 @@ pub const STACKS: &[Stack] = &[
         }],
         build_script: "build",
         serve: Some(Serve {
-            command: &[
-                "next",
-                "start",
-                "--port",
-                "{port}",
-                "--hostname",
-                "127.0.0.1",
-            ],
+            command: &["next", "start", "--port", "{port}", "--hostname", "127.0.0.1"],
             ready_path: "/",
             timeout_secs: 60,
         }),
@@ -143,14 +136,7 @@ pub const STACKS: &[Stack] = &[
         }],
         build_script: "build",
         serve: Some(Serve {
-            command: &[
-                "astro",
-                "preview",
-                "--port",
-                "{port}",
-                "--host",
-                "127.0.0.1",
-            ],
+            command: &["astro", "preview", "--port", "{port}", "--host", "127.0.0.1"],
             ready_path: "/",
             timeout_secs: 30,
         }),
@@ -203,11 +189,7 @@ pub const STACKS: &[Stack] = &[
             ],
         }],
         build_script: "build",
-        serve: Some(Serve {
-            command: &["nuxi", "preview"],
-            ready_path: "/",
-            timeout_secs: 60,
-        }),
+        serve: Some(Serve { command: &["nuxi", "preview"], ready_path: "/", timeout_secs: 60 }),
     },
     Stack {
         name: "react-router",

@@ -32,11 +32,8 @@ fn installed_workspace(members: &[&str]) -> (TempDir, std::path::PathBuf, AddMoc
 
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    fs::write(
-        &yaml_path,
-        format!("{}\npackages:\n  - 'packages/*'\n", yaml.trim_end()),
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(&yaml_path, format!("{}\npackages:\n  - 'packages/*'\n", yaml.trim_end()))
+        .expect("write pnpm-workspace.yaml");
     fs::write(workspace.join("package.json"), project_manifest("root"))
         .expect("write the root package.json");
     for member in members {
@@ -195,12 +192,7 @@ fn recursive_bare_update_runs_every_project_scripts() {
 fn add_in_a_member_runs_that_member_and_the_workspace_root() {
     let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
 
-    pacquet(
-        &workspace.join("packages").join("a"),
-        ["add", "@pnpm.e2e/foo"],
-    )
-    .assert()
-    .success();
+    pacquet(&workspace.join("packages").join("a"), ["add", "@pnpm.e2e/foo"]).assert().success();
 
     assert_ran(&workspace, &["root", "a"], &["root", "a", "b"]);
 

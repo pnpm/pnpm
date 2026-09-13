@@ -83,10 +83,7 @@ async fn revision_qualified_selector_does_not_fall_back_to_workspace() {
         .resolve(&wanted, &opts)
         .await
         .expect_err("a registry revision cannot resolve to an unversioned workspace artifact");
-    assert!(
-        is_not_found_error(err.as_ref()),
-        "expected registry 404, got: {err}",
-    );
+    assert!(is_not_found_error(err.as_ref()), "expected registry 404, got: {err}");
 }
 
 #[tokio::test]
@@ -543,10 +540,7 @@ async fn non_404_registry_error_not_masked_by_workspace_version_mismatch() {
     let (mut resolver, _tempdir) = build_resolver(&registry);
     // A 5xx is retried with backoff; skip the retries so the test
     // doesn't spend over a minute sleeping.
-    resolver.metadata.retry_opts = RetryOpts {
-        retries: 0,
-        ..RetryOpts::default()
-    };
+    resolver.metadata.retry_opts = RetryOpts { retries: 0, ..RetryOpts::default() };
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let opts = workspace_resolve_options(packages);
@@ -561,10 +555,7 @@ async fn non_404_registry_error_not_masked_by_workspace_version_mismatch() {
         .await
         .expect_err("a 500 registry response must propagate as an error");
     let err_msg = err.to_string();
-    assert!(
-        err_msg.contains("500"),
-        "expected the 500 to propagate, got: {err_msg}",
-    );
+    assert!(err_msg.contains("500"), "expected the 500 to propagate, got: {err_msg}");
     assert!(
         !err_msg.contains("inside the workspace"),
         "workspace mismatch must not mask a non-404 registry error, got: {err_msg}",

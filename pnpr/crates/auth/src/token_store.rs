@@ -39,9 +39,7 @@ impl TokenStore {
     #[must_use]
     pub fn in_memory() -> Self {
         Self {
-            inner: Mutex::new(TokenInner {
-                tokens: HashMap::new(),
-            }),
+            inner: Mutex::new(TokenInner { tokens: HashMap::new() }),
             persist: None,
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
@@ -62,9 +60,7 @@ impl TokenStore {
         let tokens = load_all_tokens(&conn)?;
         drop(conn);
         Ok(Self {
-            inner: Mutex::new(TokenInner {
-                tokens,
-            }),
+            inner: Mutex::new(TokenInner { tokens }),
             persist: Some(path),
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
@@ -97,14 +93,18 @@ impl TokenBackend for TokenStore {
                 Ok(())
             })
             .await;
-            let result = match result {
-                Ok(result) => result,
-                Err(err) => Err(err.into()),
-            };
-            if let Err(err) = result {
-                let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                inner.tokens.remove(&token_hash);
-                return Err(err);
+            match result {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => {
+                    let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+                    inner.tokens.remove(&token_hash);
+                    return Err(err);
+                }
+                Err(err) => {
+                    let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+                    inner.tokens.remove(&token_hash);
+                    return Err(err.into());
+                }
             }
         }
         Ok(raw)
@@ -115,9 +115,7 @@ impl TokenBackend for TokenStore {
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        Ok(inner.tokens
-            .get(&token_hash)
-            .map(|record| record.username.clone()))
+        Ok(inner.tokens.get(&token_hash).map(|record| record.username.clone()))
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
@@ -226,10 +224,7 @@ pub(super) fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, Token
 }
 
 pub(super) fn delete_token(conn: &Connection, token_hash: &str) -> Result<()> {
-    conn.execute(
-        "DELETE FROM tokens WHERE token_hash = ?1",
-        rusqlite::params![token_hash],
-    )?;
+    conn.execute("DELETE FROM tokens WHERE token_hash = ?1", rusqlite::params![token_hash])?;
     Ok(())
 }
 
@@ -297,7 +292,5 @@ pub(super) fn hex_encode(bytes: &[u8]) -> String {
 }
 
 pub(super) fn unix_seconds() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| duration.as_secs())
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |duration| duration.as_secs())
 }

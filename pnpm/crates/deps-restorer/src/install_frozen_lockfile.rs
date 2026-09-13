@@ -358,8 +358,7 @@ impl<'a> InstallFrozenLockfile<'a> {
         let (store_index_writer, writer_task) =
             StoreIndexWriter::spawn_for(&ctx.config.store_dir, ctx.config.frozen_store);
 
-        let settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped)
-            .await?;
+        let settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
 
         let fetched = self.fetch::<Reporter>(
             &ctx,
@@ -411,7 +410,12 @@ impl<'a> InstallFrozenLockfile<'a> {
             },
         )
         .await?;
-        report_install_phase("build_phase", phase_start);
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "build_phase",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Drop the orchestrator's clone of the writer so the channel
         // closes once every per-snapshot clone has also been dropped
@@ -458,11 +462,7 @@ impl<'a> InstallFrozenLockfile<'a> {
         let phase_start = std::time::Instant::now();
         let linked = self.link::<Reporter>(
             ctx,
-            LinkInputs {
-                fetched,
-                cas_paths_by_pkg_id,
-                host_node: settled.host_node.as_ref(),
-            },
+            LinkInputs { fetched, cas_paths_by_pkg_id, host_node: settled.host_node.as_ref() },
             &mut settled.skipped,
         )?;
         tracing::info!(
@@ -501,8 +501,4 @@ impl<'a> InstallFrozenLockfile<'a> {
     fn take_owned(&mut self) -> crate::FrozenInstallSeed<'a> {
         std::mem::take(&mut self.seed)
     }
-}
-
-fn report_install_phase(phase: &str, started_at: std::time::Instant) {
-    tracing::info!(target: "pacquet::install::phase", phase, elapsed_ms = started_at.elapsed().as_millis() as u64, "phase complete");
 }

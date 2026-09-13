@@ -64,11 +64,6 @@ struct ErrorDetail {
 impl ErrorBody {
     #[must_use]
     pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
-        Self {
-            errors: vec![ErrorDetail {
-                code: code.to_string(),
-                message: message.into(),
-            }],
-        }
+        Self { errors: vec![ErrorDetail { code: code.to_string(), message: message.into() }] }
     }
 }

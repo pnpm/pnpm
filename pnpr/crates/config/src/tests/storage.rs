@@ -8,10 +8,7 @@ use std::fmt::Write as _;
 fn from_yaml_str_storage_is_resolved_relative_to_base_dir() {
     let yaml = "storage: ./store\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert_eq!(
-        config.storage.hosted_dir,
-        PathBuf::from("/etc/pnpr/./store"),
-    );
+    assert_eq!(config.storage.hosted_dir, PathBuf::from("/etc/pnpr/./store"));
 }
 
 #[test]
@@ -25,20 +22,14 @@ fn from_yaml_str_absolute_storage_is_left_alone() {
 fn cache_storage_defaults_to_subdir_of_storage() {
     let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert_eq!(
-        config.storage.cache_dir,
-        PathBuf::from("/var/lib/pnpr/.pnpr-cache"),
-    );
+    assert_eq!(config.storage.cache_dir, PathBuf::from("/var/lib/pnpr/.pnpr-cache"));
 }
 
 #[test]
 fn hosted_store_defaults_to_fs_without_an_s3_block() {
     let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert!(matches!(
-        config.storage.hosted_backend,
-        HostedStoreConfig::Fs
-    ));
+    assert!(matches!(config.storage.hosted_backend, HostedStoreConfig::Fs));
 }
 
 #[test]
@@ -176,10 +167,7 @@ fn yaml_with_no_storage_uses_default_storage_string() {
     // to the config-file's parent dir.
     let yaml = "upstreams: {}\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert_eq!(
-        config.storage.hosted_dir,
-        PathBuf::from("/etc/pnpr/./storage"),
-    );
+    assert_eq!(config.storage.hosted_dir, PathBuf::from("/etc/pnpr/./storage"));
 }
 
 /// `Debug` on [`S3Settings`] is reachable from `Debug` on the whole [`Config`],
@@ -198,23 +186,11 @@ fn s3_settings_debug_redacts_credentials() {
     };
 
     let rendered = format!("{settings:?}");
-    assert!(
-        !rendered.contains("s3cr3t-do-not-log"),
-        "secret leaked: {rendered}",
-    );
-    assert!(
-        !rendered.contains("AKIAEXAMPLEKEYID"),
-        "key id leaked: {rendered}",
-    );
-    assert!(
-        rendered.contains("<redacted>"),
-        "expected redaction marker: {rendered}",
-    );
+    assert!(!rendered.contains("s3cr3t-do-not-log"), "secret leaked: {rendered}");
+    assert!(!rendered.contains("AKIAEXAMPLEKEYID"), "key id leaked: {rendered}");
+    assert!(rendered.contains("<redacted>"), "expected redaction marker: {rendered}");
     // Non-secret fields still render, so the dump stays useful.
-    assert!(
-        rendered.contains("packages"),
-        "bucket should render: {rendered}",
-    );
+    assert!(rendered.contains("packages"), "bucket should render: {rendered}");
 }
 
 /// `endpoint` is operator-supplied, so it can carry `user:pass@` userinfo or a
@@ -226,14 +202,8 @@ fn s3_settings_debug_redacts_credentials_inside_the_endpoint() {
     settings.bucket = "packages".to_string();
 
     let rendered = format!("{settings:?}");
-    assert!(
-        !rendered.contains("hunter2"),
-        "endpoint userinfo leaked: {rendered}",
-    );
-    assert!(
-        rendered.contains("minio.corp.example"),
-        "host should still render: {rendered}",
-    );
+    assert!(!rendered.contains("hunter2"), "endpoint userinfo leaked: {rendered}");
+    assert!(rendered.contains("minio.corp.example"), "host should still render: {rendered}");
 }
 
 #[test]
@@ -250,18 +220,9 @@ fn ecosystem_groups_scope_names_sources_defaults_and_hosted_storage() {
     for ecosystem in Ecosystem::all() {
         let key = format!("{ecosystem}/internal");
         let router = format!("{ecosystem}/main");
-        assert_eq!(
-            config.routing.registries.default_for(ecosystem),
-            Some(router.as_str()),
-        );
-        assert_eq!(
-            config.routing.registries.sources("main", ecosystem),
-            [key.as_str()],
-        );
-        assert_eq!(
-            config.routing.hosted[&key].org,
-            format!("{ecosystem}~internal"),
-        );
+        assert_eq!(config.routing.registries.default_for(ecosystem), Some(router.as_str()));
+        assert_eq!(config.routing.registries.sources("main", ecosystem), [key.as_str()]);
+        assert_eq!(config.routing.hosted[&key].org, format!("{ecosystem}~internal"));
         for resolution in [
             config.routing.registries.resolve("internal", ecosystem, "demo"),
             config.routing.registries.resolve("main", ecosystem, "demo"),
@@ -276,8 +237,5 @@ fn ecosystem_groups_scope_names_sources_defaults_and_hosted_storage() {
             );
         }
     }
-    assert_eq!(
-        config.routing.registries.addressed("cargo/internal", Ecosystem::Npm),
-        None,
-    );
+    assert_eq!(config.routing.registries.addressed("cargo/internal", Ecosystem::Npm), None);
 }

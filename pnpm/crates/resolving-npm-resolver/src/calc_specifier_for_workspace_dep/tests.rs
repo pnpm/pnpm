@@ -7,10 +7,7 @@ use pretty_assertions::assert_eq;
 /// `my-lib@1.2.3`, with no previous lockfile entry.
 fn fresh(bare: &str, protocol: SaveWorkspaceProtocol) -> String {
     calc_specifier_for_workspace_dep(
-        DeclaredSpecifiers {
-            prev: None,
-            bare: Some(bare),
-        },
+        DeclaredSpecifiers { prev: None, bare: Some(bare) },
         Some("my-lib"),
         "my-lib",
         Some("1.2.3"),
@@ -56,10 +53,7 @@ fn rolling_falls_back_to_caret() {
     assert_eq!(fresh("latest", Rolling), "workspace:^");
     assert_eq!(
         calc_specifier_for_workspace_dep(
-            DeclaredSpecifiers {
-                prev: None,
-                bare: None
-            },
+            DeclaredSpecifiers { prev: None, bare: None },
             Some("my-lib"),
             "my-lib",
             Some("1.2.3"),
@@ -77,10 +71,7 @@ fn rolling_falls_back_to_caret() {
 fn rolling_prefers_the_previous_specifier() {
     assert_eq!(
         calc_specifier_for_workspace_dep(
-            DeclaredSpecifiers {
-                prev: Some("workspace:~"),
-                bare: Some("^1.0.0")
-            },
+            DeclaredSpecifiers { prev: Some("workspace:~"), bare: Some("^1.0.0") },
             Some("my-lib"),
             "my-lib",
             Some("1.2.3"),
@@ -97,10 +88,7 @@ fn pinned_writes_the_resolved_version_with_the_default_operator() {
     assert_eq!(fresh("^1.0.0", On), "workspace:^1.2.3");
     assert_eq!(
         calc_specifier_for_workspace_dep(
-            DeclaredSpecifiers {
-                prev: None,
-                bare: Some("^1.0.0")
-            },
+            DeclaredSpecifiers { prev: None, bare: Some("^1.0.0") },
             Some("my-lib"),
             "my-lib",
             Some("1.2.3"),
@@ -118,10 +106,7 @@ fn pinned_writes_the_resolved_version_with_the_default_operator() {
 fn pinned_takes_its_operator_from_the_previous_specifier() {
     assert_eq!(
         calc_specifier_for_workspace_dep(
-            DeclaredSpecifiers {
-                prev: Some("workspace:~1.0.0"),
-                bare: Some("^1.0.0")
-            },
+            DeclaredSpecifiers { prev: Some("workspace:~1.0.0"), bare: Some("^1.0.0") },
             Some("my-lib"),
             "my-lib",
             Some("1.2.3"),
@@ -138,10 +123,7 @@ fn pinned_takes_its_operator_from_the_previous_specifier() {
 fn pinned_writes_a_prerelease_exactly() {
     assert_eq!(
         calc_specifier_for_workspace_dep(
-            DeclaredSpecifiers {
-                prev: None,
-                bare: Some("^1.0.0")
-            },
+            DeclaredSpecifiers { prev: None, bare: Some("^1.0.0") },
             Some("my-lib"),
             "my-lib",
             Some("2.0.0-beta.1"),
@@ -168,10 +150,7 @@ fn off_renders_the_pinned_shape() {
 fn an_alias_names_its_target_inside_the_protocol() {
     let specifier = |protocol| {
         calc_specifier_for_workspace_dep(
-            DeclaredSpecifiers {
-                prev: None,
-                bare: Some("workspace:^1.0.0"),
-            },
+            DeclaredSpecifiers { prev: None, bare: Some("workspace:^1.0.0") },
             Some("lib-alias"),
             "my-lib",
             Some("1.2.3"),
@@ -179,14 +158,8 @@ fn an_alias_names_its_target_inside_the_protocol() {
             RangeSpecStyle::Major,
         )
     };
-    assert_eq!(
-        specifier(SaveWorkspaceProtocol::Rolling),
-        "workspace:my-lib@^",
-    );
-    assert_eq!(
-        specifier(SaveWorkspaceProtocol::On),
-        "workspace:my-lib@^1.2.3",
-    );
+    assert_eq!(specifier(SaveWorkspaceProtocol::Rolling), "workspace:my-lib@^");
+    assert_eq!(specifier(SaveWorkspaceProtocol::On), "workspace:my-lib@^1.2.3");
 }
 
 /// Without a resolved version there is nothing to pin to, so the pinned
@@ -195,10 +168,7 @@ fn an_alias_names_its_target_inside_the_protocol() {
 fn a_missing_version_falls_back_to_the_rolling_shape() {
     let specifier = |protocol| {
         calc_specifier_for_workspace_dep(
-            DeclaredSpecifiers {
-                prev: None,
-                bare: Some("workspace:^"),
-            },
+            DeclaredSpecifiers { prev: None, bare: Some("workspace:^") },
             Some("my-lib"),
             "my-lib",
             None,

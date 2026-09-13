@@ -50,11 +50,7 @@ fn bundle_dependency_symlink_escaping_pkg_dir_is_refused() {
     // package so the walk-up resolves it.
     let escape = dir.path().join("escape");
     fs::create_dir_all(&escape).unwrap();
-    fs::write(
-        escape.join("package.json"),
-        r#"{"name":"evil","version":"1.0.0"}"#,
-    )
-    .unwrap();
+    fs::write(escape.join("package.json"), r#"{"name":"evil","version":"1.0.0"}"#).unwrap();
     fs::write(escape.join("secret.txt"), "DO NOT EXFIL\n").unwrap();
     std::os::unix::fs::symlink(&escape, root.join("node_modules/evil")).unwrap();
 

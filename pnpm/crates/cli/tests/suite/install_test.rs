@@ -42,10 +42,7 @@ fn install_test() {
         .join("node_modules")
         .join("@pnpm.e2e")
         .join("hello-world-js-bin");
-    println!(
-        "Checking if dependency directory exists: {}",
-        hello_world_bin_dir.display(),
-    );
+    println!("Checking if dependency directory exists: {}", hello_world_bin_dir.display());
     assert!(hello_world_bin_dir.exists(), "dependency not installed");
     drop((root, npmrc_info));
 }
@@ -121,10 +118,7 @@ fn it_alias() {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     println!("stdout:\n{stdout}");
-    assert!(
-        stdout.contains("it alias ran successfully"),
-        "stdout: {stdout}",
-    );
+    assert!(stdout.contains("it alias ran successfully"), "stdout: {stdout}");
 
     drop((root, npmrc_info));
 }

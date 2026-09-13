@@ -92,10 +92,7 @@ fn recursive_run_respects_workspace_concurrency() {
         .assert()
         .success();
 
-    assert!(
-        workspace.join("saw-parallel").exists(),
-        "two scripts should overlap",
-    );
+    assert!(workspace.join("saw-parallel").exists(), "two scripts should overlap");
     assert!(
         !workspace.join("exceeded-concurrency").exists(),
         "no more than two scripts should overlap",
@@ -185,10 +182,7 @@ fn recursive_run_preloads_each_project_pnp_loader() {
     };
     write_workspace(
         &workspace,
-        &[
-            ("project-1", manifest("project-1")),
-            ("project-2", manifest("project-2")),
-        ],
+        &[("project-1", manifest("project-1")), ("project-2", manifest("project-2"))],
     );
     for name in ["project-1", "project-2"] {
         fs::write(
@@ -270,14 +264,8 @@ fn top_level_fallback_does_not_exec_local_bin_recursively() {
     write_workspace(
         &workspace,
         &[
-            (
-                "project-1",
-                json!({ "name": "project-1", "version": "1.0.0", "scripts": {} }),
-            ),
-            (
-                "project-2",
-                json!({ "name": "project-2", "version": "1.0.0", "scripts": {} }),
-            ),
+            ("project-1", json!({ "name": "project-1", "version": "1.0.0", "scripts": {} })),
+            ("project-2", json!({ "name": "project-2", "version": "1.0.0", "scripts": {} })),
         ],
     );
     for name in ["project-1", "project-2"] {
@@ -286,10 +274,7 @@ fn top_level_fallback_does_not_exec_local_bin_recursively() {
             .join("node_modules")
             .join(".bin");
         fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
-        write_executable(
-            &bin_dir.join("commitlint"),
-            "#!/bin/sh\ntouch bin-ran.txt\n",
-        );
+        write_executable(&bin_dir.join("commitlint"), "#!/bin/sh\ntouch bin-ran.txt\n");
     }
 
     let output = pacquet
@@ -297,10 +282,7 @@ fn top_level_fallback_does_not_exec_local_bin_recursively() {
         .with_arg("commitlint")
         .output()
         .expect("spawn pacquet");
-    assert!(
-        !output.status.success(),
-        "recursive shorthand without matching scripts must fail",
-    );
+    assert!(!output.status.success(), "recursive shorthand without matching scripts must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT"),

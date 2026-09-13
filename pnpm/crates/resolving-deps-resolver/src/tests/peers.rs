@@ -28,11 +28,7 @@ async fn resolve_emotion_fixture(
     let mut table = HashMap::default();
     table.insert(
         ("react".to_string(), "18.0.0".to_string()),
-        fake_result(
-            "react",
-            "18.0.0",
-            serde_json::json!({ "name": "react", "version": "18.0.0" }),
-        ),
+        fake_result("react", "18.0.0", serde_json::json!({ "name": "react", "version": "18.0.0" })),
     );
     table.insert(
         ("@emotion/react".to_string(), "11.0.0".to_string()),
@@ -61,10 +57,7 @@ async fn resolve_emotion_fixture(
             }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "react": "18.0.0",
         "@emotion/react": "11.0.0",

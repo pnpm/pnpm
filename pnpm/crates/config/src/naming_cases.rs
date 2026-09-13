@@ -91,15 +91,8 @@ fn words(name: &str) -> Vec<String> {
             prev = None;
             continue;
         }
-        let starts_word = prev.is_some_and(|prev| {
-            boundary_before(
-                prev,
-                char,
-                chars
-                    .get(index + 1)
-                    .copied(),
-            )
-        });
+        let starts_word =
+            prev.is_some_and(|prev| boundary_before(prev, char, chars.get(index + 1).copied()));
         if starts_word {
             push_word(&mut result, &mut current);
         }

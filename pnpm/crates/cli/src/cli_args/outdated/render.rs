@@ -107,11 +107,7 @@ pub(super) fn render_table(outdated: &[OutdatedPackage], long: bool) -> String {
     let mut builder = Builder::default();
     builder.push_record(header);
     for pkg in outdated {
-        let mut row = vec![
-            render_package_name(pkg),
-            pkg.current.to_string(),
-            render_latest(pkg),
-        ];
+        let mut row = vec![render_package_name(pkg), pkg.current.to_string(), render_latest(pkg)];
         if long {
             row.push(render_details(pkg));
         }
@@ -149,11 +145,8 @@ pub(super) fn render_list(outdated: &[OutdatedPackage], long: bool) -> String {
 pub(super) fn render_json(outdated: &[OutdatedPackage], long: bool) -> String {
     let mut map = serde_json::Map::new();
     for pkg in outdated {
-        let dependency_type: &'static str = if pkg.github_action {
-            "githubAction"
-        } else {
-            pkg.belongs_to.into()
-        };
+        let dependency_type: &'static str =
+            if pkg.github_action { "githubAction" } else { pkg.belongs_to.into() };
         let mut entry = serde_json::json!({
             "current": pkg.current.to_string(),
             "latest": pkg.target.to_string(),
@@ -225,11 +218,7 @@ pub(super) fn render_recursive_list(outdated: &[OutdatedInWorkspace], long: bool
         .iter()
         .map(|entry| {
             let package = &entry.package;
-            let label = if entry.dependents.len() == 1 {
-                "Dependent:"
-            } else {
-                "Dependents:"
-            };
+            let label = if entry.dependents.len() == 1 { "Dependent:" } else { "Dependents:" };
             let mut info = format!(
                 "{}\n{} {} {}\n{} {}",
                 bold(&render_package_name(package)),
@@ -256,11 +245,8 @@ pub(super) fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool
     let mut map = serde_json::Map::new();
     for entry in outdated {
         let package = &entry.package;
-        let dependency_type: &'static str = if package.github_action {
-            "githubAction"
-        } else {
-            package.belongs_to.into()
-        };
+        let dependency_type: &'static str =
+            if package.github_action { "githubAction" } else { package.belongs_to.into() };
         let mut value = serde_json::json!({
             "current": package.current.to_string(),
             "latest": package.target.to_string(),
@@ -341,9 +327,7 @@ fn colorize_version(version: &Version, change: Change) -> String {
     let text = version.to_string();
     let split = match change {
         Change::Breaking => 0,
-        Change::Feature => text
-            .find('.')
-            .map_or(0, |i| i + 1),
+        Change::Feature => text.find('.').map_or(0, |i| i + 1),
         Change::Fix => text
             .find('.')
             .and_then(|i| {
@@ -383,15 +367,11 @@ fn render_details(pkg: &OutdatedPackage) -> String {
 // captured output), matching chalk's auto-disable so machine-readable
 // output stays free of escape codes.
 pub(super) fn bright_blue(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.bright_blue())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.bright_blue()).to_string()
 }
 
 pub(super) fn red(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.red())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.red()).to_string()
 }
 
 fn red_bold(text: &str) -> String {
@@ -402,37 +382,25 @@ fn red_bold(text: &str) -> String {
 }
 
 pub(super) fn green(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.green())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.green()).to_string()
 }
 
 fn yellow(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.yellow())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.yellow()).to_string()
 }
 
 fn grey(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.bright_black())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.bright_black()).to_string()
 }
 
 fn bold(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.bold())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
 }
 
 pub(super) fn dimmed(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.dimmed())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
 }
 
 fn underline(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.underline())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.underline()).to_string()
 }

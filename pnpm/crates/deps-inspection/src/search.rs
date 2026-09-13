@@ -80,10 +80,7 @@ impl Searcher {
         version: &str,
         node: Option<&TreeNodeId>,
     ) -> SearchMatch {
-        if self.queries
-            .iter()
-            .any(|query| query_matches(query, alias, name, version))
-        {
+        if self.queries.iter().any(|query| query_matches(query, alias, name, version)) {
             return SearchMatch::Yes;
         }
         if self.has_finders {
@@ -125,10 +122,7 @@ fn parse_search_query(query: &str) -> miette::Result<ParsedQuery> {
                 })?,
         ),
     };
-    Ok(ParsedQuery {
-        match_name,
-        match_version,
-    })
+    Ok(ParsedQuery { match_name, match_version })
 }
 
 /// Split `<name>[@<spec>]`, honoring the `@scope/` prefix.

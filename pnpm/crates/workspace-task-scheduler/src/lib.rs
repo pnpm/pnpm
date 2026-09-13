@@ -188,13 +188,7 @@ impl<'a, Run, Skip> ScheduleGraphOptions<'a, Run, Skip> {
         run_node: &'a Run,
         on_node_skipped: &'a Skip,
     ) -> Self {
-        Self {
-            concurrency,
-            bail,
-            continue_on_failure: false,
-            run_node,
-            on_node_skipped,
-        }
+        Self { concurrency, bail, continue_on_failure: false, run_node, on_node_skipped }
     }
 
     #[must_use]
@@ -211,13 +205,7 @@ impl<'a, Run, Skip> ScheduleGraphAsyncOptions<'a, Run, Skip> {
         run_node: &'a Run,
         on_node_skipped: &'a Skip,
     ) -> Self {
-        Self {
-            concurrency,
-            bail,
-            continue_on_failure: false,
-            run_node,
-            on_node_skipped,
-        }
+        Self { concurrency, bail, continue_on_failure: false, run_node, on_node_skipped }
     }
 
     #[must_use]

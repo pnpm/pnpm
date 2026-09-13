@@ -17,17 +17,9 @@ impl CompilerSession {
         let directory = TempDir::new().unwrap();
         std::fs::write(directory.path().join("sccache.toml"), "").unwrap();
         let listener = StdTcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener
-            .local_addr()
-            .unwrap()
-            .port();
+        let port = listener.local_addr().unwrap().port();
         drop(listener);
-        let session = Self {
-            directory,
-            port,
-            endpoint,
-            readonly,
-        };
+        let session = Self { directory, port, endpoint, readonly };
         successful(
             session
                 .command("sccache")
@@ -55,30 +47,17 @@ impl CompilerSession {
             .env("CARGO_INCREMENTAL", "0")
             .env("CARGO_PROFILE_DEV_DEBUG", "0")
             .env("SCCACHE_CONF", self.directory.path().join("sccache.toml"))
-            .env(
-                "SCCACHE_CACHED_CONF",
-                self.directory.path().join("cached-config"),
-            )
+            .env("SCCACHE_CACHED_CONF", self.directory.path().join("cached-config"))
             .env("SCCACHE_DIR", self.directory.path().join("cache"))
             .env("SCCACHE_SERVER_PORT", self.port.to_string())
             .env("SCCACHE_IDLE_TIMEOUT", "60")
             .env("SCCACHE_LOG", "debug")
-            .env(
-                "SCCACHE_ERROR_LOG",
-                self.directory.path().join("sccache.log"),
-            )
+            .env("SCCACHE_ERROR_LOG", self.directory.path().join("sccache.log"))
             .env("SCCACHE_MULTILEVEL_CHAIN", "disk,webdav")
             .env("SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY", "all")
             .env("SCCACHE_WEBDAV_ENDPOINT", &self.endpoint)
             .env("SCCACHE_WEBDAV_TOKEN", "token")
-            .env(
-                "SCCACHE_WEBDAV_RW_MODE",
-                if self.readonly {
-                    "READ_ONLY"
-                } else {
-                    "READ_WRITE"
-                },
-            );
+            .env("SCCACHE_WEBDAV_RW_MODE", if self.readonly { "READ_ONLY" } else { "READ_WRITE" });
         command
     }
 
@@ -94,10 +73,7 @@ impl CompilerSession {
                 .await
                 .unwrap(),
         );
-        assert!(
-            project.join("target/debug/libcache_fixture.rlib").is_file(),
-            "missing rlib",
-        );
+        assert!(project.join("target/debug/libcache_fixture.rlib").is_file(), "missing rlib");
     }
 
     async fn stats(&self) -> Value {
@@ -141,11 +117,7 @@ fn successful(output: Output) -> Output {
 fn project(directory: &Path) {
     std::fs::create_dir_all(directory.join("src")).unwrap();
     std::fs::write(directory.join("Cargo.toml"), "[package]\nname = 'cache-fixture'\nversion = '0.0.0'\nedition = '2024'\n[features]\nextra = []\n[workspace]\n").unwrap();
-    std::fs::write(
-        directory.join("src/lib.rs"),
-        "pub fn answer() -> u32 { 42 }\n",
-    )
-    .unwrap();
+    std::fs::write(directory.join("src/lib.rs"), "pub fn answer() -> u32 { 42 }\n").unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -153,10 +125,8 @@ async fn cargo_reuses_ci_compilation_with_fresh_checkout_and_backfills_disk() {
     let directory = TempDir::new().unwrap();
     let config = config(&directory);
     let ci_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let ci_endpoint = format!(
-        "http://{}/-/pnpr/v0/compiler-cache/acme",
-        ci_listener.local_addr().unwrap(),
-    );
+    let ci_endpoint =
+        format!("http://{}/-/pnpr/v0/compiler-cache/acme", ci_listener.local_addr().unwrap());
     let ci_app = app(config.clone(), "ci", false);
     let ci_server = tokio::spawn(async move { axum::serve(ci_listener, ci_app).await.unwrap() });
     let ci_project = directory.path().join("checkout");
@@ -164,10 +134,7 @@ async fn cargo_reuses_ci_compilation_with_fresh_checkout_and_backfills_disk() {
     let ci = CompilerSession::start(ci_endpoint, false).await;
     ci.build(&ci_project, &[]).await;
     let stats = ci.stats().await;
-    assert_eq!(
-        stats["stats"]["cache_misses"]["counts"]["Rust"], 1,
-        "{stats}",
-    );
+    assert_eq!(stats["stats"]["cache_misses"]["counts"]["Rust"], 1, "{stats}");
     assert_eq!(stats["stats"]["cache_write_errors"], 0, "{stats}");
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
@@ -188,10 +155,8 @@ async fn cargo_reuses_ci_compilation_with_fresh_checkout_and_backfills_disk() {
     std::fs::rename(&ci_project, directory.path().join("ci-checkout")).unwrap();
 
     let dev_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let dev_endpoint = format!(
-        "http://{}/-/pnpr/v0/compiler-cache/acme",
-        dev_listener.local_addr().unwrap(),
-    );
+    let dev_endpoint =
+        format!("http://{}/-/pnpr/v0/compiler-cache/acme", dev_listener.local_addr().unwrap());
     let dev_app = app(config, "developer", false);
     let dev_server = tokio::spawn(async move { axum::serve(dev_listener, dev_app).await.unwrap() });
     let dev_project = directory.path().join("checkout");
@@ -202,26 +167,12 @@ async fn cargo_reuses_ci_compilation_with_fresh_checkout_and_backfills_disk() {
     assert_eq!(stats["stats"]["cache_hits"]["counts"]["Rust"], 1, "{stats}");
     developer.build(&dev_project, &["--features", "extra"]).await;
     let stats = developer.stats().await;
-    assert_eq!(
-        stats["stats"]["cache_misses"]["counts"]["Rust"], 1,
-        "{stats}",
-    );
-    std::fs::write(
-        dev_project.join("src/lib.rs"),
-        "pub fn answer() -> u32 { 43 }\n",
-    )
-    .unwrap();
+    assert_eq!(stats["stats"]["cache_misses"]["counts"]["Rust"], 1, "{stats}");
+    std::fs::write(dev_project.join("src/lib.rs"), "pub fn answer() -> u32 { 43 }\n").unwrap();
     developer.build(&dev_project, &[]).await;
     let stats = developer.stats().await;
-    assert_eq!(
-        stats["stats"]["cache_misses"]["counts"]["Rust"], 2,
-        "{stats}",
-    );
-    std::fs::write(
-        dev_project.join("src/lib.rs"),
-        "pub fn answer() -> u32 { 42 }\n",
-    )
-    .unwrap();
+    assert_eq!(stats["stats"]["cache_misses"]["counts"]["Rust"], 2, "{stats}");
+    std::fs::write(dev_project.join("src/lib.rs"), "pub fn answer() -> u32 { 42 }\n").unwrap();
     dev_server.abort();
     successful(
         developer

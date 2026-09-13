@@ -2,9 +2,6 @@ pub(crate) use configuration::{apply_install_cli_config, derive_config_root};
 pub(crate) use install::InstallPipeline;
 pub(crate) use maintenance::{DedupePipeline, PrunePipeline};
 pub(crate) use mutation::{AddPipeline, DeployPipeline, RemovePipeline, UpdatePipeline};
-pub(crate) use selection::select_workspace_projects;
-
-use selection::select_workspace_projects_with_cycles;
 
 use super::{
     add::AddArgs,
@@ -115,10 +112,7 @@ pub(crate) struct DedicatedProjects {
 impl DedicatedProjects {
     fn new(config: &Config, selection: InstallFamilySelection) -> Self {
         let names = project_names(config, &selection.projects);
-        DedicatedProjects {
-            dependencies: selection.project_dependencies,
-            names,
-        }
+        DedicatedProjects { dependencies: selection.project_dependencies, names }
     }
 
     fn is_empty(&self) -> bool {
@@ -244,27 +238,117 @@ fn select_install_family_plan<Reporter: self::Reporter>(
         workspace_prefix: Some(selection.workspace_root.to_string_lossy().into_owned()),
     }));
     if !cfg.shares_one_lockfile() {
-        return Ok(InstallFamilyPlan::PerProject(DedicatedProjects::new(
-            cfg, selection,
-        )));
+        return Ok(InstallFamilyPlan::PerProject(DedicatedProjects::new(cfg, selection)));
     }
     Ok(InstallFamilyPlan::Shared(Box::new(selection)))
 }
 
-/// Whether the active directory has no manifest of its own and is none of
-/// the workspace's projects, so the manifest at hand stands in for one.
-fn active_manifest_is_standin(
-    active_dir: &Path,
-    projects: &[pnpm_workspace::Project],
-) -> miette::Result<bool> {
-    let normalized_active_dir = pnpm_fs::lexical_normalize(active_dir);
-    Ok(!active_dir.join("package.json").is_file()
-        && pnpm_workspace::try_read_project_manifest(active_dir)
-            .map_err(miette::Report::new)?
-            .is_none()
-        && !projects
+pub(crate) fn select_workspace_projects(
+    cfg: &Config,
+    prefix: &Path,
+    manifest_path: &Path,
+    recursive_sort: bool,
+    auto_exclude_root: bool,
+) -> miette::Result<Option<InstallFamilySelection>> {
+    select_workspace_projects_with_cycles(
+        cfg,
+        prefix,
+        manifest_path,
+        recursive_sort,
+        auto_exclude_root,
+        false,
+    )
+}
+
+fn select_workspace_projects_with_cycles(
+    cfg: &Config,
+    prefix: &Path,
+    manifest_path: &Path,
+    recursive_sort: bool,
+    auto_exclude_root: bool,
+    precompute_workspace_cycles: bool,
+) -> miette::Result<Option<InstallFamilySelection>> {
+    if !cfg.recursive {
+        return Ok(None);
+    }
+
+    let workspace_root = cfg.workspace_dir.clone().unwrap_or_else(|| prefix.to_path_buf());
+    let (mut projects, workspace_patterns) = discover_workspace_projects(&workspace_root, cfg)?;
+    apply_runtime_on_fail(cfg, &mut projects);
+    let (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles) = {
+        let selection = select_recursive_projects(
+            &projects,
+            cfg,
+            prefix,
+            if auto_exclude_root {
+                AutoExcludeRoot::Enabled { workspace_patterns: workspace_patterns.as_deref() }
+            } else {
+                AutoExcludeRoot::Disabled
+            },
+        )?;
+        let workspace_cycles =
+            precomputed_workspace_cycles(&selection, cfg, precompute_workspace_cycles);
+        let project_dependencies = project_dependencies(&selection, recursive_sort);
+        let ordered_dirs = sequence_project_dependencies(&project_dependencies);
+        let selected_dirs = selected_project_dirs(&selection);
+        (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles)
+    };
+
+    let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
+    let active_manifest_is_standin =
+        configuration::active_manifest_is_standin(active_dir, &projects)?;
+    let install_dirs = install_dirs(&selected_dirs, &projects, &workspace_root);
+
+    Ok(Some(InstallFamilySelection {
+        workspace_root,
+        projects,
+        project_dependencies,
+        ordered_dirs,
+        selected_dirs,
+        install_dirs: Arc::new(install_dirs),
+        active_manifest_is_standin,
+        workspace_cycles,
+    }))
+}
+
+fn selected_project_dirs(
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+) -> Arc<HashSet<PathBuf>> {
+    Arc::new(
+        selection.selected
+            .keys()
+            .cloned()
+            .collect(),
+    )
+}
+
+/// The selection in build order. Sequenced over borrowed paths: cloning a
+/// workspace-scale edge map just to sort it cost more than the sort.
+fn sequence_project_dependencies(
+    project_dependencies: &IndexMap<PathBuf, Vec<PathBuf>>,
+) -> Vec<PathBuf> {
+    graph_sequencer(
+        &project_dependencies
             .iter()
-            .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_active_dir))
+            .map(|(key, value)| {
+                (
+                    PathNode(key.as_path()),
+                    value
+                        .iter()
+                        .map(|dir| PathNode(dir))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect(),
+        &project_dependencies
+            .keys()
+            .map(|dir| PathNode(dir))
+            .collect::<Vec<_>>(),
+    )
+    .order
+    .into_iter()
+    .map(|node| node.0.to_path_buf())
+    .collect()
 }
 
 /// The selected projects plus the workspace root project, when the
@@ -368,6 +452,16 @@ fn record_dedicated_result(
     }
 }
 
+fn precomputed_workspace_cycles(
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+    cfg: &Config,
+    precompute_workspace_cycles: bool,
+) -> Option<Vec<Vec<PathBuf>>> {
+    (precompute_workspace_cycles && selection.all.is_none() && !cfg.ignore_workspace_cycles).then(
+        || pnpm_package_manager::workspace_cycles(&selection.selected).unwrap_or_default(),
+    )
+}
+
 mod install;
 
 mod mutation;
@@ -375,5 +469,3 @@ mod mutation;
 mod maintenance;
 
 mod configuration;
-
-mod selection;

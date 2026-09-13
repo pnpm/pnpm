@@ -28,24 +28,13 @@ fn returns_skipped_when_trust_policy_is_newly_configured() {
         isolated_included(),
         None,
     );
-    assert_eq!(
-        stale_settings.trust_policy, None,
-        "an unconfigured policy is not recorded",
-    );
+    assert_eq!(stale_settings.trust_policy, None, "an unconfigured policy is not recorded");
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        stale_settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");

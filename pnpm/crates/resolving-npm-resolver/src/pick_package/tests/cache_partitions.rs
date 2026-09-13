@@ -57,13 +57,9 @@ async fn cache_key_separates_abbreviated_from_full() {
         },
     };
 
-    let _ = pick_package(
-        &ctx,
-        &range_spec("acme", "^1.0.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("first");
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("first");
     let mut opts = default_opts(&registry);
     opts.request.optional = true;
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("second");
@@ -131,20 +127,12 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
         },
     };
 
-    let _ = pick_package(
-        &unfiltered_ctx,
-        &range_spec("acme", "^1.0.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("unfiltered full");
-    let _ = pick_package(
-        &filtered_ctx,
-        &range_spec("acme", "^1.0.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("filtered full");
+    let _ = pick_package(&unfiltered_ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("unfiltered full");
+    let _ = pick_package(&filtered_ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("filtered full");
 
     assert!(
         meta_cache
@@ -176,13 +164,8 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
     let registry = format!("{}/", server.url());
     let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
-    persist_meta_to_mirror(
-        cache_dir.path(),
-        ABBREVIATED_META_DIR,
-        &registry,
-        &preloaded,
-    )
-    .expect("warm mirror");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
 
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -211,17 +194,10 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
 
     // Normal pick takes the on-disk fast path and promotes the packument into
     // the in-memory cache.
-    let first = pick_package(
-        &ctx,
-        &version_spec("acme", "1.0.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("ok");
-    assert_eq!(
-        first.picked_package.expect("picked").version.to_string(),
-        "1.0.0",
-    );
+    let first = pick_package(&ctx, &version_spec("acme", "1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(first.picked_package.expect("picked").version.to_string(), "1.0.0");
     assert!(
         meta_cache
             .get(&format!("{registry}\x00acme"))
@@ -241,10 +217,7 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
     let second = pick_package(&ctx, &version_spec("acme", "1.0.0"), &update_opts)
         .await
         .expect("ok");
-    assert_eq!(
-        second.picked_package.expect("picked").version.to_string(),
-        "1.0.0",
-    );
+    assert_eq!(second.picked_package.expect("picked").version.to_string(), "1.0.0");
     mock.assert_async().await;
 }
 
@@ -301,18 +274,11 @@ async fn cache_fast_paths_record_route_through_hook() {
                 },
             },
         };
-        pick_package(
-            &ctx,
-            &range_spec("acme", "^1.0.0"),
-            &default_opts(&registry),
-        )
-        .await
-        .expect("ok");
+        pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+            .await
+            .expect("ok");
         let routes = recorder.routes.lock().expect("routes");
-        assert_eq!(
-            routes.as_slice(),
-            &[(expected_url.clone(), Some("acme".to_string()))],
-        );
+        assert_eq!(routes.as_slice(), &[(expected_url.clone(), Some("acme".to_string()))]);
     }
 
     // Offline disk fast path.
@@ -321,13 +287,8 @@ async fn cache_fast_paths_record_route_through_hook() {
         let auth_headers = AuthHeaders::default()
             .with_route_hook(Arc::clone(&recorder) as Arc<dyn UpstreamRouteHook>);
         let cache_dir = TempDir::new().expect("tempdir");
-        persist_meta_to_mirror(
-            cache_dir.path(),
-            ABBREVIATED_META_DIR,
-            &registry,
-            &preloaded,
-        )
-        .expect("warm mirror");
+        persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+            .expect("warm mirror");
         let http_client = ThrottledClient::default();
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
@@ -351,18 +312,11 @@ async fn cache_fast_paths_record_route_through_hook() {
                 },
             },
         };
-        pick_package(
-            &ctx,
-            &range_spec("acme", "^1.0.0"),
-            &default_opts(&registry),
-        )
-        .await
-        .expect("ok");
+        pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+            .await
+            .expect("ok");
         let routes = recorder.routes.lock().expect("routes");
-        assert_eq!(
-            routes.as_slice(),
-            &[(expected_url.clone(), Some("acme".to_string()))],
-        );
+        assert_eq!(routes.as_slice(), &[(expected_url.clone(), Some("acme".to_string()))]);
     }
 
     // Version-spec disk fast path (no network, pinned version on disk).
@@ -371,13 +325,8 @@ async fn cache_fast_paths_record_route_through_hook() {
         let auth_headers = AuthHeaders::default()
             .with_route_hook(Arc::clone(&recorder) as Arc<dyn UpstreamRouteHook>);
         let cache_dir = TempDir::new().expect("tempdir");
-        persist_meta_to_mirror(
-            cache_dir.path(),
-            ABBREVIATED_META_DIR,
-            &registry,
-            &preloaded,
-        )
-        .expect("warm mirror");
+        persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+            .expect("warm mirror");
         let http_client = ThrottledClient::default();
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
@@ -401,18 +350,11 @@ async fn cache_fast_paths_record_route_through_hook() {
                 },
             },
         };
-        pick_package(
-            &ctx,
-            &version_spec("acme", "1.0.0"),
-            &default_opts(&registry),
-        )
-        .await
-        .expect("ok");
+        pick_package(&ctx, &version_spec("acme", "1.0.0"), &default_opts(&registry))
+            .await
+            .expect("ok");
         let routes = recorder.routes.lock().expect("routes");
-        assert_eq!(
-            routes.as_slice(),
-            &[(expected_url.clone(), Some("acme".to_string()))],
-        );
+        assert_eq!(routes.as_slice(), &[(expected_url.clone(), Some("acme".to_string()))]);
     }
 
     mock.assert_async().await;
@@ -439,33 +381,21 @@ fn metadata_cache_key_public_matches_upstream_shape() {
 
 #[test]
 fn metadata_cache_key_private_is_namespaced() {
-    let private = MetadataCacheScope::Private {
-        descriptor_id: "id1".to_string(),
-    };
+    let private = MetadataCacheScope::Private { descriptor_id: "id1".to_string() };
     assert_eq!(
         metadata_cache_key(&private, "https://reg/", "acme", false, false),
         "private\x00id1\x00https://reg/\x00acme",
     );
     // A different descriptor never collides with the first.
-    let other = MetadataCacheScope::Private {
-        descriptor_id: "id2".to_string(),
-    };
+    let other = MetadataCacheScope::Private { descriptor_id: "id2".to_string() };
     assert_ne!(
         metadata_cache_key(&private, "https://reg/", "acme", false, false),
         metadata_cache_key(&other, "https://reg/", "acme", false, false),
     );
     // A private key never collides with the public key.
-    let public = metadata_cache_key(
-        &MetadataCacheScope::Public,
-        "https://reg/",
-        "acme",
-        false,
-        false,
-    );
-    assert_ne!(
-        public,
-        metadata_cache_key(&private, "https://reg/", "acme", false, false),
-    );
+    let public =
+        metadata_cache_key(&MetadataCacheScope::Public, "https://reg/", "acme", false, false);
+    assert_ne!(public, metadata_cache_key(&private, "https://reg/", "acme", false, false));
 }
 
 /// A `Private` route must persist its packument under the
@@ -487,9 +417,7 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default()
         .with_route_hook(Arc::new(ScopeHook {
-            scope: MetadataCacheScope::Private {
-                descriptor_id: "deadbeef".to_string(),
-            },
+            scope: MetadataCacheScope::Private { descriptor_id: "deadbeef".to_string() },
         }) as Arc<dyn UpstreamRouteHook>);
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
@@ -513,13 +441,9 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
             },
         },
     };
-    pick_package(
-        &ctx,
-        &range_spec("acme", "^1.0.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("ok");
+    pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
     mock.assert_async().await;
 
     let scoped = get_pkg_mirror_path(
@@ -529,16 +453,10 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
         "acme",
     )
     .expect("scoped path");
-    assert!(
-        scoped.exists(),
-        "private packument lands in the descriptor-scoped mirror",
-    );
+    assert!(scoped.exists(), "private packument lands in the descriptor-scoped mirror");
     let global = get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
         .expect("global path");
-    assert!(
-        !global.exists(),
-        "private packument must not touch the global mirror",
-    );
+    assert!(!global.exists(), "private packument must not touch the global mirror");
 }
 
 /// A public route keeps its disk fallback on the same `401`, proving the
@@ -555,13 +473,8 @@ async fn public_scope_falls_back_to_mirror_on_401() {
         .await;
     let registry = format!("{}/", server.url());
     let cache_dir = TempDir::new().expect("tempdir");
-    persist_meta_to_mirror(
-        cache_dir.path(),
-        ABBREVIATED_META_DIR,
-        &registry,
-        &preloaded,
-    )
-    .expect("warm global mirror");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm global mirror");
 
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -587,16 +500,9 @@ async fn public_scope_falls_back_to_mirror_on_401() {
             },
         },
     };
-    let result = pick_package(
-        &ctx,
-        &range_spec("acme", "^1.0.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("ok");
-    assert_eq!(
-        result.picked_package.expect("picked").version.to_string(),
-        "1.1.0",
-    );
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
     mock.assert_async().await;
 }

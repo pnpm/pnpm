@@ -13,11 +13,7 @@ async fn read_git_manifest_rejects_a_sub_directory_escape() {
     let repo = format!("file://{}", bare.to_string_lossy());
     // A real `package.json` sitting outside the checkout, of the shape
     // an escape would be aiming for.
-    fs::write(
-        tmp.path().join("package.json"),
-        r#"{"name":"outside","version":"9.9.9"}"#,
-    )
-    .unwrap();
+    fs::write(tmp.path().join("package.json"), r#"{"name":"outside","version":"9.9.9"}"#).unwrap();
 
     for escape in ["/../..", "../..", "/../"] {
         let err = read_git_manifest(GitManifestQuery {
@@ -31,10 +27,7 @@ async fn read_git_manifest_rejects_a_sub_directory_escape() {
         .await
         .expect_err("a path climbing out of the checkout must be rejected");
         assert!(
-            matches!(
-                err,
-                GitFetcherError::Prepare(PreparePackageError::InvalidPath { .. })
-            ),
+            matches!(err, GitFetcherError::Prepare(PreparePackageError::InvalidPath { .. })),
             "{escape:?} produced {err:?}",
         );
     }

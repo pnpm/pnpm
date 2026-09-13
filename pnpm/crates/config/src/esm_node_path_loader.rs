@@ -91,10 +91,7 @@ pub fn esm_node_path_loader_import_flag() -> &'static str {
         let registration = REGISTRATION_TEMPLATE
             .replace("@HELPERS@", &RESOLVE_HELPERS.replace('\n', "\n    "))
             .replace("@ASYNC_LOADER@", &strict_uri_encode(&async_loader));
-        format!(
-            "--import=data:text/javascript,{}",
-            strict_uri_encode(&registration),
-        )
+        format!("--import=data:text/javascript,{}", strict_uri_encode(&registration))
     });
     &FLAG
 }

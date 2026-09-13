@@ -84,10 +84,7 @@ fn validate_gh_actions_env_file_value(name: &'static str, value: &Path) -> miett
         .to_string_lossy()
         .contains(['\n', '\r', '\0'])
     {
-        return Err(BadGhActionsEnvFileValue {
-            name,
-        }
-        .into());
+        return Err(BadGhActionsEnvFileValue { name }.into());
     }
     Ok(())
 }
@@ -148,11 +145,7 @@ fn append_line_to_regular_file(path: &Path, line: &str) -> std::io::Result<()> {
     };
     // The `symlink_metadata` above races with anything that swaps the path
     // between the two syscalls, so re-check through the descriptor.
-    if !file
-        .metadata()?
-        .file_type()
-        .is_file()
-    {
+    if !file.metadata()?.file_type().is_file() {
         return Ok(());
     }
     write_line(&mut file, line)

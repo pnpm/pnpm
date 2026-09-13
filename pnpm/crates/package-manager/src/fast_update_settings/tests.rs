@@ -102,18 +102,11 @@ snapshots:
   foo@1.1.0: {}
 ",
     );
-    let settings = LockfileSettings {
-        dedupe_peers: Some(true),
-        ..recorded_settings()
-    };
+    let settings = LockfileSettings { dedupe_peers: Some(true), ..recorded_settings() };
 
     assert!(
-        try_fast_update_settings(
-            &lockfile,
-            &settings,
-            &[(PathBuf::from("/project"), &manifest)]
-        )
-        .is_none(),
+        try_fast_update_settings(&lockfile, &settings, &[(PathBuf::from("/project"), &manifest)])
+            .is_none(),
     );
 }
 
@@ -140,18 +133,11 @@ snapshots:
   foo@1.1.0(bar@1.0.0): {}
 ",
     );
-    let settings = LockfileSettings {
-        peers_suffix_max_length: Some(10),
-        ..recorded_settings()
-    };
+    let settings = LockfileSettings { peers_suffix_max_length: Some(10), ..recorded_settings() };
 
     assert!(
-        try_fast_update_settings(
-            &lockfile,
-            &settings,
-            &[(PathBuf::from("/project"), &manifest)]
-        )
-        .is_none(),
+        try_fast_update_settings(&lockfile, &settings, &[(PathBuf::from("/project"), &manifest)])
+            .is_none(),
     );
 }
 
@@ -161,10 +147,7 @@ fn rejects_a_peer_setting_when_a_project_declares_peer_dependencies() {
         "dependencies": { "foo": "^1.0.0" },
         "peerDependencies": { "bar": "^1.0.0" },
     }));
-    let settings = LockfileSettings {
-        auto_install_peers: false,
-        ..recorded_settings()
-    };
+    let settings = LockfileSettings { auto_install_peers: false, ..recorded_settings() };
 
     assert!(
         try_fast_update_settings(
@@ -179,10 +162,7 @@ fn rejects_a_peer_setting_when_a_project_declares_peer_dependencies() {
 #[test]
 fn rejects_exclude_links_when_a_project_depends_on_a_directory() {
     let manifest = manifest(json!({ "dependencies": { "bar": "link:../bar", "foo": "^1.0.0" } }));
-    let settings = LockfileSettings {
-        exclude_links_from_lockfile: true,
-        ..recorded_settings()
-    };
+    let settings = LockfileSettings { exclude_links_from_lockfile: true, ..recorded_settings() };
 
     assert!(
         try_fast_update_settings(
@@ -211,18 +191,11 @@ importers:
         version: link:../bar
 ",
     );
-    let settings = LockfileSettings {
-        exclude_links_from_lockfile: true,
-        ..recorded_settings()
-    };
+    let settings = LockfileSettings { exclude_links_from_lockfile: true, ..recorded_settings() };
 
     assert!(
-        try_fast_update_settings(
-            &lockfile,
-            &settings,
-            &[(PathBuf::from("/project"), &manifest)]
-        )
-        .is_none(),
+        try_fast_update_settings(&lockfile, &settings, &[(PathBuf::from("/project"), &manifest)])
+            .is_none(),
     );
 }
 
@@ -233,19 +206,13 @@ fn records_exclude_links_when_the_only_workspace_dependency_uses_the_workspace_p
         "dependencies": { "bar": "workspace:*", "foo": "^1.0.0" },
     }));
     let sibling = manifest(json!({ "name": "bar" }));
-    let settings = LockfileSettings {
-        exclude_links_from_lockfile: true,
-        ..recorded_settings()
-    };
+    let settings = LockfileSettings { exclude_links_from_lockfile: true, ..recorded_settings() };
 
     assert!(
         try_fast_update_settings(
             &lockfile(PEERLESS_LOCKFILE),
             &settings,
-            &[
-                (PathBuf::from("/project"), &root),
-                (PathBuf::from("/project/bar"), &sibling)
-            ],
+            &[(PathBuf::from("/project"), &root), (PathBuf::from("/project/bar"), &sibling)],
         )
         .is_some(),
     );
@@ -256,19 +223,13 @@ fn rejects_exclude_links_when_a_workspace_project_is_depended_on_by_range() {
     let root =
         manifest(json!({ "name": "root", "dependencies": { "bar": "^1.0.0", "foo": "^1.0.0" } }));
     let sibling = manifest(json!({ "name": "bar" }));
-    let settings = LockfileSettings {
-        exclude_links_from_lockfile: true,
-        ..recorded_settings()
-    };
+    let settings = LockfileSettings { exclude_links_from_lockfile: true, ..recorded_settings() };
 
     assert!(
         try_fast_update_settings(
             &lockfile(PEERLESS_LOCKFILE),
             &settings,
-            &[
-                (PathBuf::from("/project"), &root),
-                (PathBuf::from("/project/bar"), &sibling)
-            ],
+            &[(PathBuf::from("/project"), &root), (PathBuf::from("/project/bar"), &sibling)],
         )
         .is_none(),
     );
@@ -281,19 +242,13 @@ fn rejects_inject_workspace_packages_when_a_workspace_project_is_depended_on() {
         "dependencies": { "bar": "workspace:*", "foo": "^1.0.0" },
     }));
     let sibling = manifest(json!({ "name": "bar" }));
-    let settings = LockfileSettings {
-        inject_workspace_packages: true,
-        ..recorded_settings()
-    };
+    let settings = LockfileSettings { inject_workspace_packages: true, ..recorded_settings() };
 
     assert!(
         try_fast_update_settings(
             &lockfile(PEERLESS_LOCKFILE),
             &settings,
-            &[
-                (PathBuf::from("/project"), &root),
-                (PathBuf::from("/project/bar"), &sibling)
-            ],
+            &[(PathBuf::from("/project"), &root), (PathBuf::from("/project/bar"), &sibling)],
         )
         .is_none(),
     );
@@ -305,10 +260,7 @@ fn rejects_inject_workspace_packages_when_a_dependency_is_already_injected() {
         "dependencies": { "foo": "^1.0.0" },
         "dependenciesMeta": { "foo": { "injected": true } },
     }));
-    let settings = LockfileSettings {
-        inject_workspace_packages: true,
-        ..recorded_settings()
-    };
+    let settings = LockfileSettings { inject_workspace_packages: true, ..recorded_settings() };
 
     assert!(
         try_fast_update_settings(

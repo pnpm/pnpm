@@ -49,9 +49,7 @@ pub(crate) fn is_abbreviated_content_type(headers: &header::HeaderMap) -> bool {
         .get(header::CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| {
-            let media_type = value
-                .split_once(';')
-                .map_or(value, |(media_type, _)| media_type);
+            let media_type = value.split_once(';').map_or(value, |(media_type, _)| media_type);
             media_type.trim().eq_ignore_ascii_case(ABBREVIATED_META_CONTENT_TYPE)
         })
 }
@@ -135,13 +133,10 @@ pub(crate) async fn send_metadata_request<'a>(
     // here rather than when the request that named it was read: a registry a
     // caller configures but never resolves from costs nothing.
     if !opts.http.auth_headers.allows_fetch(opts.url) {
-        return Err(FetchMetadataError::OffAllowlist {
-            url: redact_url_credentials(opts.url),
-        });
+        return Err(FetchMetadataError::OffAllowlist { url: redact_url_credentials(opts.url) });
     }
     let validators = Validators::for_request(opts);
-    let (client, response) = send_once(opts, &validators, opts.bypass_cache)
-        .await?;
+    let (client, response) = send_once(opts, &validators, opts.bypass_cache).await?;
     if response.status() != StatusCode::NOT_MODIFIED || validators.any() {
         return Ok((client, response));
     }
@@ -172,10 +167,7 @@ struct Validators<'a> {
 impl<'a> Validators<'a> {
     fn for_request(opts: &MetadataRequestOptions<'a>) -> Self {
         if opts.bypass_cache {
-            return Validators {
-                etag: None,
-                modified: None,
-            };
+            return Validators { etag: None, modified: None };
         }
         Validators {
             etag: opts.etag.filter(|value| !value.is_empty()),
@@ -220,10 +212,7 @@ async fn send_once<'a>(
         },
     )
     .await
-    .map_err(|error| FetchMetadataError::Network {
-        url: redact_url_credentials(opts.url),
-        error,
-    })
+    .map_err(|error| FetchMetadataError::Network { url: redact_url_credentials(opts.url), error })
 }
 
 /// Convert a stored `modified` value — the packument's ISO-8601
@@ -247,27 +236,56 @@ pub async fn fetch_full_metadata(
     opts: &FetchFullMetadataOptions<'_>,
 ) -> Result<FetchFullMetadataOutcome, FetchMetadataError> {
     let url = to_registry_url(opts.registry, pkg_name);
-    let accept = if opts.full_metadata {
-        ACCEPT_FULL_DOC
-    } else {
-        ACCEPT_ABBREVIATED_DOC
-    };
-    retry_async(
-        &url,
-        opts.http.retry_opts,
-        FetchMetadataError::is_body_retryable,
-        || fetch_full_metadata_once(pkg_name, &url, accept, opts),
-    )
+    let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
+    retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_body_retryable, || async {
+        let started_at = Instant::now();
+        let (client, response) = send_metadata_request(&MetadataRequestOptions {
+            pkg_name,
+            url: &url,
+            accept,
+            priority: pnpm_network::UNPRIORITIZED,
+            etag: opts.etag,
+            modified: opts.modified,
+            bypass_cache: false,
+            http: opts.http,
+        })
+        .await?;
+        if response.status() == StatusCode::NOT_MODIFIED {
+            return Ok(FetchFullMetadataOutcome::NotModified);
+        }
+        let response = response
+            .error_for_status()
+            .map_err(|error| FetchMetadataError::Network {
+                url: redact_url_credentials(&url),
+                error,
+            })?;
+        let normalize_to_abbreviated =
+            !opts.full_metadata && !is_abbreviated_content_type(response.headers());
+        let raw_body = response
+            .text()
+            .await
+            .map_err(|error| FetchMetadataError::BodyRead {
+                url: redact_url_credentials(&url),
+                error,
+            })?;
+        // Body fully buffered — release the connection and its
+        // network-concurrency permit, then parse off the reactor: a
+        // multi-MB packument parse would otherwise pin a tokio worker
+        // and stall every socket it pumps (see
+        // `fetch_full_metadata_cached` for the cold-install numbers).
+        drop(client);
+        let (meta, elapsed) =
+            decode_full_metadata(&url, raw_body, normalize_to_abbreviated, started_at).await?;
+        warn_if_request_is_slow(opts.http.http_client, elapsed, &url);
+        Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
+    })
     .await
 }
 
 pub(crate) fn warn_if_request_is_slow(http_client: &ThrottledClient, elapsed: Duration, url: &str) {
     let elapsed_ms = elapsed.as_millis();
     if elapsed_ms > http_client.fetch_warn_timeout().as_millis() {
-        http_client.warn(&format!(
-            "Request took {elapsed_ms}ms: {}",
-            redact_url_for_display(url),
-        ));
+        http_client.warn(&format!("Request took {elapsed_ms}ms: {}", redact_url_for_display(url)));
     }
 }
 
@@ -317,11 +335,8 @@ async fn decode_full_metadata(
                 })?;
             meta.drop_incomplete_publish_times();
             let elapsed = started_at.elapsed();
-            let meta = if normalize_to_abbreviated {
-                normalize_abbreviated_meta(meta)
-            } else {
-                meta
-            };
+            let meta =
+                if normalize_to_abbreviated { normalize_abbreviated_meta(meta) } else { meta };
             Ok((meta, elapsed))
         })
         .await
@@ -330,52 +345,4 @@ async fn decode_full_metadata(
             error,
         })??;
     Ok((meta, elapsed))
-}
-
-async fn fetch_full_metadata_once(
-    pkg_name: &str,
-    url: &str,
-    accept: &str,
-    opts: &FetchFullMetadataOptions<'_>,
-) -> Result<FetchFullMetadataOutcome, FetchMetadataError> {
-    let started_at = Instant::now();
-    let (client, response) = send_metadata_request(&MetadataRequestOptions {
-        pkg_name,
-        url,
-        accept,
-        priority: pnpm_network::UNPRIORITIZED,
-        etag: opts.etag,
-        modified: opts.modified,
-        bypass_cache: false,
-        http: opts.http,
-    })
-    .await?;
-    if response.status() == StatusCode::NOT_MODIFIED {
-        return Ok(FetchFullMetadataOutcome::NotModified);
-    }
-    let response = response
-        .error_for_status()
-        .map_err(|error| FetchMetadataError::Network {
-            url: redact_url_credentials(url),
-            error,
-        })?;
-    let normalize_to_abbreviated =
-        !opts.full_metadata && !is_abbreviated_content_type(response.headers());
-    let raw_body = response
-        .text()
-        .await
-        .map_err(|error| FetchMetadataError::BodyRead {
-            url: redact_url_credentials(url),
-            error,
-        })?;
-    // Body fully buffered — release the connection and its
-    // network-concurrency permit, then parse off the reactor: a
-    // multi-MB packument parse would otherwise pin a tokio worker
-    // and stall every socket it pumps (see
-    // `fetch_full_metadata_cached` for the cold-install numbers).
-    drop(client);
-    let (meta, elapsed) = decode_full_metadata(url, raw_body, normalize_to_abbreviated, started_at)
-        .await?;
-    warn_if_request_is_slow(opts.http.http_client, elapsed, url);
-    Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
 }

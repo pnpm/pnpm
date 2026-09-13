@@ -102,14 +102,8 @@ namedRegistries:
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let named = settings.named_registries.as_ref().expect("namedRegistries present");
-    assert_eq!(
-        named.get("gh").map(String::as_str),
-        Some("https://npm.pkg.ghes.example.com/"),
-    );
-    assert_eq!(
-        named.get("work").map(String::as_str),
-        Some("https://npm.work.example.com/"),
-    );
+    assert_eq!(named.get("gh").map(String::as_str), Some("https://npm.pkg.ghes.example.com/"));
+    assert_eq!(named.get("work").map(String::as_str), Some("https://npm.work.example.com/"));
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
@@ -134,15 +128,11 @@ registries:
     let registries = settings.registries.as_ref().expect("registries present");
     assert_eq!(
         registries.get("default"),
-        Some(&RegistryEntry::ScopeRoute(
-            "https://default.example.com/npm".to_owned()
-        )),
+        Some(&RegistryEntry::ScopeRoute("https://default.example.com/npm".to_owned())),
     );
     assert_eq!(
         registries.get("@private"),
-        Some(&RegistryEntry::ScopeRoute(
-            "https://private.example.com/npm".to_owned()
-        )),
+        Some(&RegistryEntry::ScopeRoute("https://private.example.com/npm".to_owned())),
     );
 
     let mut config = Config::new();
@@ -165,10 +155,7 @@ fn parses_strict_store_pkg_content_check_from_yaml_and_applies() {
     assert_eq!(settings.strict_store_pkg_content_check, Some(false));
 
     let mut config = Config::new();
-    assert!(
-        config.strict_store_pkg_content_check,
-        "the default is `true` to match pnpm",
-    );
+    assert!(config.strict_store_pkg_content_check, "the default is `true` to match pnpm");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert!(!config.strict_store_pkg_content_check, "yaml override wins");
 }
@@ -182,16 +169,10 @@ fn parses_strict_store_pkg_content_check_from_yaml_and_applies() {
 fn parses_side_effects_cache_from_yaml_and_applies() {
     let yaml = "sideEffectsCache: false\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(
-        settings.side_effects_cache,
-        Some(SideEffectsCacheSetting::Enabled(false)),
-    );
+    assert_eq!(settings.side_effects_cache, Some(SideEffectsCacheSetting::Enabled(false)));
 
     let mut config = Config::new();
-    assert!(
-        config.side_effects_cache,
-        "the default is `true` to match pnpm",
-    );
+    assert!(config.side_effects_cache, "the default is `true` to match pnpm");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert!(!config.side_effects_cache, "yaml override wins");
 }
@@ -207,10 +188,7 @@ fn parses_side_effects_cache_readonly_from_yaml_and_applies() {
     assert_eq!(settings.side_effects_cache_readonly, Some(true));
 
     let mut config = Config::new();
-    assert!(
-        !config.side_effects_cache_readonly,
-        "the default is `false`",
-    );
+    assert!(!config.side_effects_cache_readonly, "the default is `false`");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert!(config.side_effects_cache_readonly, "yaml override wins");
 }
@@ -259,10 +237,7 @@ allowBuilds:
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let raw = settings.allow_builds.clone().expect("field present");
     assert_eq!(raw.get("esbuild").and_then(AllowBuild::decided), Some(true));
-    assert_eq!(
-        raw.get("foo@1.0.0").and_then(AllowBuild::decided),
-        Some(true),
-    );
+    assert_eq!(raw.get("foo@1.0.0").and_then(AllowBuild::decided), Some(true));
     assert_eq!(raw.get("bar").and_then(AllowBuild::decided), Some(false));
 
     let mut config = Config::new();
@@ -344,15 +319,9 @@ sideEffectsCacheReadonly: true
     global.apply_to(&mut config, Path::new("/global"));
     workspace.apply_to(&mut config, Path::new("/workspace"));
 
-    assert!(
-        config.side_effects_cache_read(),
-        "the read-only pair still reads",
-    );
+    assert!(config.side_effects_cache_read(), "the read-only pair still reads");
     assert!(!config.side_effects_cache_write());
-    assert_eq!(
-        config.remote_side_effects_cache.expect("shared cache config").org,
-        "acme",
-    );
+    assert_eq!(config.remote_side_effects_cache.expect("shared cache config").org, "acme");
 }
 
 /// A file may carry both spellings of the field; `org` wins, and neither is a
@@ -371,10 +340,7 @@ sideEffectsCache:
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/workspace"));
 
-    assert_eq!(
-        config.remote_side_effects_cache.expect("shared cache config").org,
-        "canonical",
-    );
+    assert_eq!(config.remote_side_effects_cache.expect("shared cache config").org, "canonical");
 }
 
 /// Layers apply in order, so a shorthand in a later one has to beat an object
@@ -593,9 +559,7 @@ allowBuilds:
     let raw = settings.allow_builds.clone().expect("field present");
     assert_eq!(
         raw.get("esbuild"),
-        Some(&AllowBuild::Undecided(
-            "set this to true or false".to_string()
-        )),
+        Some(&AllowBuild::Undecided("set this to true or false".to_string())),
     );
 
     let mut config = Config::new();
@@ -645,10 +609,7 @@ fn parses_negative_child_concurrency_from_yaml_and_resolves() {
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     let parallelism = crate::available_parallelism();
     assert!(config.child_concurrency >= 1, "must floor at 1");
-    assert!(
-        config.child_concurrency <= parallelism,
-        "must not exceed available parallelism",
-    );
+    assert!(config.child_concurrency <= parallelism, "must not exceed available parallelism");
 }
 
 #[test]
@@ -656,22 +617,13 @@ fn apply_leaves_unset_fields_alone() {
     let yaml = "storeDir: /s\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::new();
-    let before = (
-        config.hoist,
-        config.lockfile,
-        config.registry.clone(),
-        config.auto_install_peers,
-    );
+    let before =
+        (config.hoist, config.lockfile, config.registry.clone(), config.auto_install_peers);
 
     settings.apply_to(&mut config, Path::new("/anywhere"));
 
     assert_eq!(
-        (
-            config.hoist,
-            config.lockfile,
-            config.registry.clone(),
-            config.auto_install_peers
-        ),
+        (config.hoist, config.lockfile, config.registry.clone(), config.auto_install_peers),
         before,
     );
 }
@@ -698,10 +650,7 @@ gitShallowHosts:
 
     settings.apply_to(&mut config, Path::new("/irrelevant"));
 
-    assert_eq!(
-        config.git_shallow_hosts,
-        vec!["corp-git.example.com".to_string()],
-    );
+    assert_eq!(config.git_shallow_hosts, vec!["corp-git.example.com".to_string()]);
 }
 
 /// `supportedArchitectures` from `pnpm-workspace.yaml`. Optional
@@ -718,28 +667,16 @@ supportedArchitectures:
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let raw = settings.supported_architectures.clone().expect("field present");
-    assert_eq!(
-        raw.os.as_deref(),
-        Some(&["darwin".to_string(), "linux".to_string()][..]),
-    );
-    assert_eq!(
-        raw.cpu.as_deref(),
-        Some(&["arm64".to_string(), "x64".to_string()][..]),
-    );
+    assert_eq!(raw.os.as_deref(), Some(&["darwin".to_string(), "linux".to_string()][..]));
+    assert_eq!(raw.cpu.as_deref(), Some(&["arm64".to_string(), "x64".to_string()][..]));
     assert_eq!(raw.libc.as_deref(), Some(&["glibc".to_string()][..]));
 
     let mut config = Config::new();
     assert!(config.supported_architectures.is_none(), "default is None");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     let applied = config.supported_architectures.expect("set after apply_to");
-    assert_eq!(
-        applied.os.as_deref(),
-        Some(&["darwin".to_string(), "linux".to_string()][..]),
-    );
-    assert_eq!(
-        applied.cpu.as_deref(),
-        Some(&["arm64".to_string(), "x64".to_string()][..]),
-    );
+    assert_eq!(applied.os.as_deref(), Some(&["darwin".to_string(), "linux".to_string()][..]));
+    assert_eq!(applied.cpu.as_deref(), Some(&["arm64".to_string(), "x64".to_string()][..]));
     assert_eq!(applied.libc.as_deref(), Some(&["glibc".to_string()][..]));
 }
 
@@ -793,20 +730,14 @@ overrides:
         .iter()
         .map(|(key, value)| (key.as_str(), value.as_str()))
         .collect();
-    assert_eq!(
-        entries,
-        vec![("foo", "1.2.3"), ("@scope/bar", "^2.0.0"), ("baz>qux", "-")],
-    );
+    assert_eq!(entries, vec![("foo", "1.2.3"), ("@scope/bar", "^2.0.0"), ("baz>qux", "-")]);
 
     let mut config = Config::new();
     assert!(config.overrides.is_none(), "default is None");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     let applied = config.overrides.expect("overrides applied");
     assert_eq!(applied.get("foo").map(String::as_str), Some("1.2.3"));
-    assert_eq!(
-        applied.get("@scope/bar").map(String::as_str),
-        Some("^2.0.0"),
-    );
+    assert_eq!(applied.get("@scope/bar").map(String::as_str), Some("^2.0.0"));
     assert_eq!(applied.get("baz>qux").map(String::as_str), Some("-"));
 }
 
@@ -841,10 +772,7 @@ fn empty_overrides_clears_prior_non_empty_assignment() {
 
     let later: WorkspaceSettings = serde_saphyr::from_str("overrides: {}\n").unwrap();
     later.apply_to(&mut config, Path::new("/irrelevant"));
-    assert!(
-        config.overrides.is_none(),
-        "explicit empty must clear earlier non-empty",
-    );
+    assert!(config.overrides.is_none(), "explicit empty must clear earlier non-empty");
 }
 
 /// Absent `overrides` leaves the config field at `None`.
@@ -921,8 +849,5 @@ fn empty_package_extensions_map_collapses_to_none() {
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert!(
-        config.package_extensions.is_none(),
-        "empty map collapses to None",
-    );
+    assert!(config.package_extensions.is_none(), "empty map collapses to None");
 }

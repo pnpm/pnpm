@@ -41,10 +41,7 @@ fn parse_alias_scoped_target() {
 #[test]
 fn parse_alias_with_peer_suffix() {
     let dep: SnapshotDepRef = "react-dom@17.0.2(react@17.0.2)".parse().unwrap();
-    assert_eq!(
-        dep,
-        SnapshotDepRef::Alias(key("react-dom@17.0.2(react@17.0.2)")),
-    );
+    assert_eq!(dep, SnapshotDepRef::Alias(key("react-dom@17.0.2(react@17.0.2)")));
 }
 
 #[test]
@@ -127,16 +124,10 @@ fn looks_like_alias_rules() {
 #[test]
 fn ver_peer_returns_inner_version_for_each_variant() {
     let plain: SnapshotDepRef = "17.0.2(react@17.0.2)".parse().unwrap();
-    assert_eq!(
-        plain.ver_peer().map(ToString::to_string),
-        Some("17.0.2(react@17.0.2)".to_string()),
-    );
+    assert_eq!(plain.ver_peer().map(ToString::to_string), Some("17.0.2(react@17.0.2)".to_string()));
 
     let alias: SnapshotDepRef = "react-dom@17.0.2(react@17.0.2)".parse().unwrap();
-    assert_eq!(
-        alias.ver_peer().map(ToString::to_string),
-        Some("17.0.2(react@17.0.2)".to_string()),
-    );
+    assert_eq!(alias.ver_peer().map(ToString::to_string), Some("17.0.2(react@17.0.2)".to_string()));
 
     let link: SnapshotDepRef = "link:packages/c".parse().unwrap();
     assert_eq!(link.ver_peer(), None);

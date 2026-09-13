@@ -145,10 +145,7 @@ fn convert_engines_runtime_skips_entries_without_a_version() {
         },
     });
     convert_engines_runtime_to_dependencies(&mut manifest, "devEngines", "devDependencies");
-    assert!(
-        manifest.get("devDependencies").is_none(),
-        "manifest: {manifest}",
-    );
+    assert!(manifest.get("devDependencies").is_none(), "manifest: {manifest}");
 }
 
 #[test]
@@ -550,12 +547,7 @@ fn remove_dependencies_clears_all_fields_without_save_type() {
     manifest.remove_dependencies(&["foo".to_string()], None);
 
     let value = manifest.value();
-    for field in [
-        "dependencies",
-        "devDependencies",
-        "optionalDependencies",
-        "peerDependencies",
-    ] {
+    for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] {
         assert!(
             value
                 .get(field)

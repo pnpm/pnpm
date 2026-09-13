@@ -322,10 +322,7 @@ fn remove_unreachable_versions(
             emptied_versions += 1;
         }
     }
-    Ok((
-        count,
-        emptied_versions == versions.len() && !versions.is_empty(),
-    ))
+    Ok((count, emptied_versions == versions.len() && !versions.is_empty()))
 }
 
 /// Remove every unreachable `<hash>` slot of one version, reporting how many
@@ -360,18 +357,12 @@ fn list_subdirs(dir: &Path) -> Result<Vec<std::ffi::OsString>, PruneError> {
         Ok(entries) => entries,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => {
-            return Err(PruneError::ReadSweepDir {
-                path: dir.to_path_buf(),
-                error,
-            });
+            return Err(PruneError::ReadSweepDir { path: dir.to_path_buf(), error });
         }
     };
     let mut out = Vec::new();
     for entry in entries.flatten() {
-        if entry
-            .file_type()
-            .is_ok_and(|t| t.is_dir())
-        {
+        if entry.file_type().is_ok_and(|t| t.is_dir()) {
             out.push(entry.file_name());
         }
     }
@@ -386,10 +377,7 @@ fn remove_slot_dir(path: &Path) -> Result<(), PruneError> {
     match fs::remove_dir_all(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(PruneError::RemoveSlot {
-            path: path.to_path_buf(),
-            error,
-        }),
+        Err(error) => Err(PruneError::RemoveSlot { path: path.to_path_buf(), error }),
     }
 }
 
@@ -415,17 +403,11 @@ fn remove_empty_dir(path: &Path) -> Result<bool, PruneError> {
     match fs::remove_dir(path) {
         Ok(()) => Ok(true),
         Err(error)
-            if matches!(
-                error.kind(),
-                ErrorKind::NotFound | ErrorKind::DirectoryNotEmpty,
-            ) =>
+            if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::DirectoryNotEmpty) =>
         {
             Ok(false)
         }
-        Err(error) => Err(PruneError::RemoveSlot {
-            path: path.to_path_buf(),
-            error,
-        }),
+        Err(error) => Err(PruneError::RemoveSlot { path: path.to_path_buf(), error }),
     }
 }
 

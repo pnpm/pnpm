@@ -27,22 +27,11 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
     );
     table.insert(
         ("sub".to_string(), "^2.0.0".to_string()),
-        fake_result(
-            "sub",
-            "2.0.0",
-            None,
-            serde_json::json!({ "name": "sub", "version": "2.0.0" }),
-        ),
+        fake_result("sub", "2.0.0", None, serde_json::json!({ "name": "sub", "version": "2.0.0" })),
     );
-    let resolver = RecordingResolver {
-        table,
-        seen: Mutex::new(HashMap::default()),
-    };
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
     let (tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0", "b": "^1.0.0" }));
-    let importers = [WorkspaceImporter {
-        id: ".".to_string(),
-        manifest: &manifest,
-    }];
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
 
     let result = resolve_workspace(
         &resolver,
@@ -91,22 +80,11 @@ async fn time_based_cutoff_is_clamped_by_minimum_release_age() {
     );
     table.insert(
         ("sub".to_string(), "^2.0.0".to_string()),
-        fake_result(
-            "sub",
-            "2.0.0",
-            None,
-            serde_json::json!({ "name": "sub", "version": "2.0.0" }),
-        ),
+        fake_result("sub", "2.0.0", None, serde_json::json!({ "name": "sub", "version": "2.0.0" })),
     );
-    let resolver = RecordingResolver {
-        table,
-        seen: Mutex::new(HashMap::default()),
-    };
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
     let (tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0" }));
-    let importers = [WorkspaceImporter {
-        id: ".".to_string(),
-        manifest: &manifest,
-    }];
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
 
     resolve_workspace(
         &resolver,

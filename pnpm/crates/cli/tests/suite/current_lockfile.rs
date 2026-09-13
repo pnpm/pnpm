@@ -80,10 +80,7 @@ fn a_frozen_install_writes_the_current_lockfile() {
 
     assert_eq!(
         package_names(&read_current_lockfile(&workspace)),
-        [
-            "@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0",
-            "@pnpm.e2e/pkg-with-1-dep@100.0.0"
-        ],
+        ["@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0", "@pnpm.e2e/pkg-with-1-dep@100.0.0"],
     );
 
     drop((root, mock_instance));
@@ -130,10 +127,7 @@ fn a_failed_build_writes_no_current_lockfile() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
-    assert!(
-        !output.status.success(),
-        "a failing postinstall must fail the install",
-    );
+    assert!(!output.status.success(), "a failing postinstall must fail the install");
 
     assert!(
         !workspace.join(CURRENT_LOCKFILE).exists(),
@@ -251,11 +245,8 @@ fn a_broken_wanted_lockfile_is_ignored_and_regenerated() {
         .success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    fs::write(
-        &lockfile_path,
-        format!("{lockfile}\nlockfileVersion: '9.0'\n"),
-    )
-    .expect("duplicate a top-level key");
+    fs::write(&lockfile_path, format!("{lockfile}\nlockfileVersion: '9.0'\n"))
+        .expect("duplicate a top-level key");
 
     let output = rerun(&workspace)
         .with_args(["--reporter=ndjson", "install"])
@@ -266,10 +257,7 @@ fn a_broken_wanted_lockfile_is_ignored_and_regenerated() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
-    assert!(
-        output.status.success(),
-        "install must ignore the broken wanted lockfile:\n{combined}",
-    );
+    assert!(output.status.success(), "install must ignore the broken wanted lockfile:\n{combined}");
     let canonical_workspace = dunce::canonicalize(&workspace).expect("canonicalize workspace");
     assert!(
         combined
@@ -328,11 +316,8 @@ fn a_wanted_lockfile_with_duplicate_keys_fails_a_frozen_install() {
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    fs::write(
-        &lockfile_path,
-        format!("{lockfile}\nlockfileVersion: '9.0'\n"),
-    )
-    .expect("duplicate a top-level key");
+    fs::write(&lockfile_path, format!("{lockfile}\nlockfileVersion: '9.0'\n"))
+        .expect("duplicate a top-level key");
 
     let output = rerun(&workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -344,10 +329,7 @@ fn a_wanted_lockfile_with_duplicate_keys_fails_a_frozen_install() {
         String::from_utf8_lossy(&output.stderr),
     );
     eprintln!("frozen install output:\n{combined}");
-    assert!(
-        !output.status.success(),
-        "a duplicated mapping key must fail the install",
-    );
+    assert!(!output.status.success(), "a duplicated mapping key must fail the install");
     assert!(
         combined.contains("ERR_PNPM_BROKEN_LOCKFILE"),
         "expected the broken-lockfile error code; got:\n{combined}",
@@ -520,10 +502,7 @@ fn a_global_virtual_store_install_still_writes_the_current_lockfile() {
     let expected = package_names(&read_current_lockfile(&workspace));
     assert_eq!(
         expected,
-        [
-            "@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0",
-            "@pnpm.e2e/pkg-with-1-dep@100.0.0"
-        ],
+        ["@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0", "@pnpm.e2e/pkg-with-1-dep@100.0.0"],
     );
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("wipe node_modules");
@@ -577,10 +556,7 @@ fn a_skipped_optional_dependency_still_lets_a_repeat_frozen_install_be_a_no_op()
     );
 
     let log_path = workspace.join("postinstall.log");
-    assert_eq!(
-        fs::read_to_string(&log_path).expect("read postinstall.log"),
-        "x",
-    );
+    assert_eq!(fs::read_to_string(&log_path).expect("read postinstall.log"), "x");
 
     rerun(&workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -628,11 +604,8 @@ fn a_broken_current_lockfile_is_ignored_with_a_warning() {
         .success();
     let current_path = workspace.join(CURRENT_LOCKFILE);
     let current = fs::read_to_string(&current_path).expect("read current lockfile");
-    fs::write(
-        &current_path,
-        format!("{current}\nlockfileVersion: '9.0'\n"),
-    )
-    .expect("break current lockfile with a duplicate key");
+    fs::write(&current_path, format!("{current}\nlockfileVersion: '9.0'\n"))
+        .expect("break current lockfile with a duplicate key");
 
     let output = rerun(&workspace)
         .with_args(["--reporter=ndjson", "install"])

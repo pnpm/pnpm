@@ -163,15 +163,9 @@ impl CompiledPattern {
 
 fn compile_single(pattern: &str) -> SingleMatcher {
     if let Some(rest) = pattern.strip_prefix('!') {
-        SingleMatcher {
-            glob: WildcardMatcher::new(rest),
-            is_ignore: true,
-        }
+        SingleMatcher { glob: WildcardMatcher::new(rest), is_ignore: true }
     } else {
-        SingleMatcher {
-            glob: WildcardMatcher::new(pattern),
-            is_ignore: false,
-        }
+        SingleMatcher { glob: WildcardMatcher::new(pattern), is_ignore: false }
     }
 }
 
@@ -182,10 +176,7 @@ fn compile_many(patterns: &[String]) -> MatcherImpl {
     for pattern in patterns {
         if let Some(rest) = pattern.strip_prefix('!') {
             has_ignore = true;
-            compiled.push(CompiledPattern {
-                glob: WildcardMatcher::new(rest),
-                is_ignore: true,
-            });
+            compiled.push(CompiledPattern { glob: WildcardMatcher::new(rest), is_ignore: true });
         } else {
             has_include = true;
             compiled.push(CompiledPattern {
@@ -229,10 +220,7 @@ impl WildcardMatcher {
             .map(str::to_owned)
             .collect();
         let had_wildcard = segments.len() > 1;
-        WildcardMatcher {
-            segments: segments.into(),
-            had_wildcard,
-        }
+        WildcardMatcher { segments: segments.into(), had_wildcard }
     }
 
     /// Returns whether the pattern consumes the whole input.
@@ -243,15 +231,11 @@ impl WildcardMatcher {
         }
         let first = &self.segments[0];
         let last = &self.segments[self.segments.len() - 1];
-        let Some(rest) = input.strip_prefix(first.as_str()) else {
-            return false;
-        };
+        let Some(rest) = input.strip_prefix(first.as_str()) else { return false };
         if first.len() + last.len() > input.len() {
             return false;
         }
-        let Some(middle) = rest.strip_suffix(last.as_str()) else {
-            return false;
-        };
+        let Some(middle) = rest.strip_suffix(last.as_str()) else { return false };
         // The prefix-strip already advanced past `first`; the
         // suffix-strip already accounted for `last`. Walk the
         // middle segments greedily.
@@ -266,9 +250,7 @@ fn contains_in_order(mut input: &str, segments: &[String]) -> bool {
         if segment.is_empty() {
             continue;
         }
-        let Some(index) = input.find(segment.as_str()) else {
-            return false;
-        };
+        let Some(index) = input.find(segment.as_str()) else { return false };
         input = &input[index + segment.len()..];
     }
     true

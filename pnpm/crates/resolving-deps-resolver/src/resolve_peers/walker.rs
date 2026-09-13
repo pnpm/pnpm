@@ -11,7 +11,6 @@ pub(super) use walk_context::{
 
 pub(crate) use missing_names::{MissingNames, index_missing_names};
 
-mod settled_peers;
 mod walk_context;
 use walk_context::{
     ChildAliases, ChildChains, ChildOutputs, ChildParentRefs, ChildrenWalk, DeferredChildren,
@@ -261,13 +260,18 @@ impl<'tree> Walker<'tree> {
     /// created lazily and queued for the driver's importer-context
     /// walk. See [`crate::resolve_peers::discovery::PeerDiscoveryCaches::canonical_backedge_nodes`].
     pub(super) fn canonical_backedge_node(&mut self, pkg_id: &Arc<str>, depth: i32) -> NodeId {
-        if self.tree.packages
-            .get(&**pkg_id)
-            .is_some_and(|pkg| pkg.is_leaf)
-        {
+        if self.tree.packages.get(&**pkg_id).is_some_and(|pkg| pkg.is_leaf) {
             let node_id = NodeId::leaf(pkg_id);
             if !self.tree.dependencies_tree.contains_key(&node_id) {
-                self.insert_canonical_node(&node_id, pkg_id, depth);
+                self.tree.dependencies_tree.insert(
+                    node_id.clone(),
+                    crate::resolved_tree::DependenciesTreeNode::new(
+                        Arc::clone(pkg_id),
+                        TreeChildren::Lazy { parent_ids: AncestorIds::default() },
+                        depth,
+                        true,
+                    ),
+                );
             }
             return node_id;
         }
@@ -277,24 +281,18 @@ impl<'tree> Walker<'tree> {
             return node_id.clone();
         }
         let node_id = NodeId::next();
-        self.insert_canonical_node(&node_id, pkg_id, depth);
-        self.caches.canonical_backedge_nodes.insert(Arc::clone(pkg_id), node_id.clone());
-        self.traversal.pending_canonical_nodes.push(node_id.clone());
-        node_id
-    }
-
-    fn insert_canonical_node(&mut self, node_id: &NodeId, pkg_id: &Arc<str>, depth: i32) {
         self.tree.dependencies_tree.insert(
             node_id.clone(),
             crate::resolved_tree::DependenciesTreeNode::new(
                 Arc::clone(pkg_id),
-                TreeChildren::Lazy {
-                    parent_ids: AncestorIds::default(),
-                },
+                TreeChildren::Lazy { parent_ids: AncestorIds::default() },
                 depth,
                 true,
             ),
         );
+        self.caches.canonical_backedge_nodes.insert(Arc::clone(pkg_id), node_id.clone());
+        self.traversal.pending_canonical_nodes.push(node_id.clone());
+        node_id
     }
 
     /// Walk every queued canonical back-edge target at importer-root
@@ -347,8 +345,7 @@ impl Walker<'_> {
             graph,
             direct_dependencies_by_alias: direct_by_alias,
             missing_names_by_pkg: self.missing_names_by_pkg(),
-            resolved_peer_providers_by_alias: self.providers
-                .resolved_peer_providers_by_alias,
+            resolved_peer_providers_by_alias: self.providers.resolved_peer_providers_by_alias,
             peer_dependency_issues: self.output.issues,
             paths_by_node_id,
         }
@@ -383,15 +380,13 @@ impl Walker<'_> {
         direct: &[DirectDep],
         final_dep_paths: &HashMap<NodeId, DepPath>,
     ) -> BTreeMap<String, DepPath> {
-        let anchor = match (
-            self.opts.project_dir.as_deref(),
-            self.opts.links.lockfile_dir.as_deref(),
-        ) {
-            (Some(project_dir), Some(lockfile_dir)) => {
-                crate::link_target::ImporterAnchor::new(project_dir, lockfile_dir)
-            }
-            _ => crate::link_target::ImporterAnchor::default(),
-        };
+        let anchor =
+            match (self.opts.project_dir.as_deref(), self.opts.links.lockfile_dir.as_deref()) {
+                (Some(project_dir), Some(lockfile_dir)) => {
+                    crate::link_target::ImporterAnchor::new(project_dir, lockfile_dir)
+                }
+                _ => crate::link_target::ImporterAnchor::default(),
+            };
         direct
             .iter()
             .map(|dep| {
@@ -440,9 +435,7 @@ impl Walker<'_> {
     fn missing_names_by_pkg(&self) -> HashMap<String, HashSet<String>> {
         let mut missing_names_by_pkg: HashMap<String, HashSet<String>> = HashMap::default();
         for (node_id, missing) in &self.nodes.children_missing_peers {
-            let Some(tree_node) = self.tree.dependencies_tree.get(node_id) else {
-                continue;
-            };
+            let Some(tree_node) = self.tree.dependencies_tree.get(node_id) else { continue };
             missing_names_by_pkg
                 .entry(tree_node.resolved_package_id.to_string())
                 .or_default()
@@ -494,13 +487,7 @@ impl Walker<'_> {
             }
             let parent_node_id = remap_link_node_id(&self.opts, &direct.alias, &pkg.result)
                 .unwrap_or_else(|| direct.node_id.clone());
-            insert_parent_ref(
-                &mut refs,
-                &direct.alias,
-                parent_node_id,
-                pkg,
-                tree_node.depth,
-            );
+            insert_parent_ref(&mut refs, &direct.alias, parent_node_id, pkg, tree_node.depth);
         }
         refs
     }
@@ -509,11 +496,7 @@ impl Walker<'_> {
 /// The ancestor package-id chain a node's children see. A package already on
 /// the chain is not repeated, so a cycle cannot grow it without bound.
 fn chain_with_pkg_id(chain: &SharedChain<String>, pkg_id: &Arc<str>) -> SharedChain<String> {
-    if chain.contains_str(pkg_id) {
-        chain.clone()
-    } else {
-        chain.pushed(pkg_id.to_string())
-    }
+    if chain.contains_str(pkg_id) { chain.clone() } else { chain.pushed(pkg_id.to_string()) }
 }
 
 #[cfg(test)]
@@ -529,4 +512,22 @@ fn prepare_discovery_caches(
     }
     index_peer_provider_children(tree, &mut caches.peer_provider_children_by_pkg_id);
     caches
+}
+
+impl SettledPeers {
+    fn node_output(self, walked: &mut ChildrenWalk) -> NodeOutput {
+        NodeOutput {
+            dep_path: self.dep_path,
+            external_resolved_peers: Arc::new(external_peers_to_report(
+                &self.all_resolved,
+                &walked.children_map,
+                walked.discovery_children.as_ref(),
+            )),
+            auto_install_resolved_peers: std::mem::take(
+                &mut walked.outputs.auto_install_resolved_peers,
+            ),
+            missing_peers: self.all_missing,
+            subtree_missing_by_pkg: self.subtree_missing_by_pkg,
+        }
+    }
 }

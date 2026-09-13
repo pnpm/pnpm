@@ -25,10 +25,7 @@ fn target_spec_pnpr_prefix() {
 #[test]
 fn target_spec_unprefixed_is_rejected() {
     let err = TargetSpec::from_str("HEAD").unwrap_err();
-    assert!(
-        err.contains("`pacquet@<rev>`, `pnpm@<rev>`, or `pnpr@<rev>`"),
-        "err = {err}",
-    );
+    assert!(err.contains("`pacquet@<rev>`, `pnpm@<rev>`, or `pnpr@<rev>`"), "err = {err}");
 }
 
 #[test]

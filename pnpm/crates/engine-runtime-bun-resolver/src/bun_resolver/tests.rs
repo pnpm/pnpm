@@ -53,10 +53,7 @@ impl Resolver for CapturingResolver {
 }
 
 fn resolver() -> BunResolver {
-    BunResolver::new(
-        Arc::new(ThrottledClient::new_for_installs()),
-        Arc::new(StubResolver),
-    )
+    BunResolver::new(Arc::new(ThrottledClient::new_for_installs()), Arc::new(StubResolver))
 }
 
 #[tokio::test]

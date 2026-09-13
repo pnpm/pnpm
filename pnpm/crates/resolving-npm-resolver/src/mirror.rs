@@ -48,9 +48,6 @@ pub use registry_key::{
     EncodeRegistryError, decode_registry_name, encode_pkg_name, get_registry_name,
 };
 
-mod file_limits;
-use file_limits::raise_open_file_limit_once;
-
 mod read_records;
 use read_records::{held_mirror_file_cap, load_meta_with_hold_cap};
 
@@ -302,7 +299,20 @@ pub fn save_meta_ndjson(
 /// Strip full packuments down to the fields pnpm keeps when
 /// `filterMetadata` is enabled.
 pub fn clear_meta(meta: &Package) -> Result<Package, EncodeMetaError> {
-    let versions = filtered_versions(meta)?;
+    let mut versions = Map::new();
+    for (version, json) in meta.versions.fragments() {
+        let info: Value = serde_json::from_str(&json).map_err(EncodeMetaError)?;
+        let Value::Object(info) = info else {
+            continue;
+        };
+        let mut filtered = Map::new();
+        for key in VERSION_KEYS {
+            if let Some(value) = info.get(*key) {
+                filtered.insert((*key).to_string(), value.clone());
+            }
+        }
+        versions.insert(version.clone(), Value::Object(filtered));
+    }
 
     let mut pkg = Map::new();
     pkg.insert("name".to_string(), Value::String(meta.name.clone()));
@@ -312,10 +322,7 @@ pub fn clear_meta(meta: &Package) -> Result<Package, EncodeMetaError> {
     );
     pkg.insert("versions".to_string(), Value::Object(versions));
     if let Some(time) = meta.time.as_ref() {
-        pkg.insert(
-            "time".to_string(),
-            serde_json::to_value(time).map_err(EncodeMetaError)?,
-        );
+        pkg.insert("time".to_string(), serde_json::to_value(time).map_err(EncodeMetaError)?);
     }
     if let Some(modified) = meta.modified.as_ref() {
         pkg.insert("modified".to_string(), Value::String(modified.clone()));
@@ -337,6 +344,54 @@ fn meta_modified(meta: &Package) -> Option<String> {
                 .map(str::to_string)
         })
 }
+
+/// One-time, best-effort raise of the process's soft `RLIMIT_NOFILE`
+/// toward the hard limit. Loaded mirrors keep their file handle open
+/// so version fragments can be read on demand without buffering the
+/// body (see [`load_meta`]), which holds one descriptor per packument
+/// — beyond the conservative soft defaults some platforms ship (256
+/// on macOS, 1024 on several Linux distros) once a workspace consults
+/// thousands of packuments. Raising the soft limit to the hard limit
+/// needs no privileges; it is the same startup adjustment the Go
+/// runtime performs.
+#[cfg(unix)]
+fn raise_open_file_limit_once() {
+    static RAISE: std::sync::Once = std::sync::Once::new();
+    RAISE.call_once(|| {
+        // SAFETY: plain libc calls; `limit` is a properly initialised
+        // out-parameter and no pointer outlives its call.
+        unsafe {
+            let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+            if libc::getrlimit(libc::RLIMIT_NOFILE, &raw mut limit) != 0 {
+                return;
+            }
+            let ceiling: libc::rlim_t = 1 << 20;
+            let target = limit.rlim_max.min(ceiling);
+            if target <= limit.rlim_cur {
+                return;
+            }
+            let request = libc::rlimit { rlim_cur: target, rlim_max: limit.rlim_max };
+            if libc::setrlimit(libc::RLIMIT_NOFILE, &raw const request) != 0 {
+                // macOS rejects soft limits above `kern.maxfilesperproc`
+                // even when the hard limit reads unlimited; 10240 is
+                // the historically safe `OPEN_MAX` ceiling there.
+                #[cfg(target_os = "macos")]
+                {
+                    let fallback = limit.rlim_max.min(10240);
+                    if fallback > limit.rlim_cur {
+                        let request = libc::rlimit { rlim_cur: fallback, rlim_max: limit.rlim_max };
+                        let _ = libc::setrlimit(libc::RLIMIT_NOFILE, &raw const request);
+                    }
+                }
+            }
+        }
+    });
+}
+
+/// Windows has no `RLIMIT_NOFILE`; per-process handle capacity is far
+/// above any realistic packument count.
+#[cfg(not(unix))]
+fn raise_open_file_limit_once() {}
 
 /// Parse the `pacquet-meta-v1 <headers_len> <index_len>` line.
 /// `None` for anything else, including pnpm's NDJSON format.
@@ -365,12 +420,8 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
         return None;
     }
     let headers_start = newline + 1;
-    let headers_json = read_headers_json(
-        file,
-        chunk,
-        headers_start,
-        headers_start.checked_add(headers_len)?,
-    )?;
+    let headers_json =
+        read_headers_json(file, chunk, headers_start, headers_start.checked_add(headers_len)?)?;
     serde_json::from_slice(&headers_json).ok()
 }
 
@@ -378,9 +429,7 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
 fn fill_probe(file: &mut File, buf: &mut [u8]) -> Option<usize> {
     let mut filled = 0usize;
     while filled < buf.len() {
-        let n = file
-            .read(&mut buf[filled..])
-            .ok()?;
+        let n = file.read(&mut buf[filled..]).ok()?;
         if n == 0 {
             break;
         }
@@ -397,9 +446,7 @@ fn read_headers_json<'c>(
     headers_end: usize,
 ) -> Option<std::borrow::Cow<'c, [u8]>> {
     if headers_end <= chunk.len() {
-        return Some(std::borrow::Cow::Borrowed(
-            &chunk[headers_start..headers_end],
-        ));
+        return Some(std::borrow::Cow::Borrowed(&chunk[headers_start..headers_end]));
     }
     let mut rest = vec![0u8; headers_end - chunk.len()];
     file.read_exact(&mut rest).ok()?;
@@ -482,41 +529,26 @@ pub async fn load_meta_headers_async(pkg_mirror: Option<&Path>) -> Option<MetaHe
 /// The rename is the only atomic step; an observer sees either the
 /// old contents or the new ones, never a torn body line.
 pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError> {
-    let dir = pkg_mirror
-        .parent()
-        .unwrap_or_else(|| Path::new("."));
+    let dir = pkg_mirror.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(dir)
-        .map_err(|error| SaveMetaError::CreateDir {
-            dir: dir.to_path_buf(),
-            error,
-        })?;
+        .map_err(|error| SaveMetaError::CreateDir { dir: dir.to_path_buf(), error })?;
     let temp = temp_sibling_path(pkg_mirror);
     {
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&temp)
-            .map_err(|error| SaveMetaError::WriteTemp {
-                temp: temp.clone(),
-                error,
-            })?;
+            .map_err(|error| SaveMetaError::WriteTemp { temp: temp.clone(), error })?;
         file
             .write_all(contents)
-            .map_err(|error| SaveMetaError::WriteTemp {
-                temp: temp.clone(),
-                error,
-            })?;
+            .map_err(|error| SaveMetaError::WriteTemp { temp: temp.clone(), error })?;
     }
     fs::rename(&temp, pkg_mirror)
         .map_err(|error| {
             // Best-effort cleanup so a stale temp doesn't accumulate on
             // a rename failure (e.g. cross-device move on an unusual mount).
             let _ = fs::remove_file(&temp);
-            SaveMetaError::Rename {
-                temp,
-                target: pkg_mirror.to_path_buf(),
-                error,
-            }
+            SaveMetaError::Rename { temp, target: pkg_mirror.to_path_buf(), error }
         })?;
     Ok(())
 }
@@ -530,10 +562,7 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 fn temp_sibling_path(target: &Path) -> PathBuf {
     let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
-    let mut name = match target
-        .file_name()
-        .and_then(|n| n.to_str())
-    {
+    let mut name = match target.file_name().and_then(|n| n.to_str()) {
         Some(name) => name.to_string(),
         None => "tmp".to_string(),
     };
@@ -565,22 +594,3 @@ const VERSION_KEYS: &[&str] = &[
     "hasInstallScript",
     "_npmUser",
 ];
-
-fn filtered_versions(meta: &Package) -> Result<Map<String, Value>, EncodeMetaError> {
-    let mut versions = Map::new();
-    for (version, json) in meta.versions.fragments() {
-        let info: Value = serde_json::from_str(&json).map_err(EncodeMetaError)?;
-        let Value::Object(info) = info else {
-            continue;
-        };
-        let mut filtered = Map::new();
-        for key in VERSION_KEYS {
-            if let Some(value) = info.get(*key) {
-                filtered.insert((*key).to_string(), value.clone());
-            }
-        }
-        versions.insert(version.clone(), Value::Object(filtered));
-    }
-
-    Ok(versions)
-}

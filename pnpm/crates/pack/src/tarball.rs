@@ -62,11 +62,7 @@ pub fn build_tarball<Sys: FsReadFile>(
         } else {
             (name.as_str(), Sys::read_file(source)?)
         };
-        let mode = if bin_set.contains(source.as_path()) {
-            EXECUTABLE_MODE
-        } else {
-            REGULAR_MODE
-        };
+        let mode = if bin_set.contains(source.as_path()) { EXECUTABLE_MODE } else { REGULAR_MODE };
         append_entry(&mut builder, entry_name, &data, mode)?;
     }
     for (name, data) in injected {

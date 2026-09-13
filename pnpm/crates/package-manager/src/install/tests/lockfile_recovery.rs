@@ -32,11 +32,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
     // `PARTIAL_INSTALL_LOCKFILE`'s importer entry.
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/hello-world-js-bin",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 
@@ -121,11 +117,8 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
     std::fs::create_dir_all(project_root.join("node_modules"))
         .expect("create member modules directory");
     std::fs::create_dir_all(&virtual_store_dir).expect("create virtual store");
-    std::fs::write(
-        workspace_root.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write workspace manifest");
+    std::fs::write(workspace_root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
     std::fs::write(
         workspace_root.join("package.json"),
         r#"{ "name": "workspace-root", "version": "1.0.0" }"#,
@@ -149,10 +142,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
 
     let mut config = Config::new();
     config.workspace_dir = Some(workspace_root.clone());
-    config.store_dir = dir
-        .path()
-        .join("pacquet-store")
-        .into();
+    config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     let config = config.leak();
@@ -207,15 +197,10 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
     };
 
     assert_eq!(
-        install_already_up_to_date(&check)
-            .map(|up_to_date| up_to_date.root)
-            .as_deref(),
+        install_already_up_to_date(&check).map(|up_to_date| up_to_date.root).as_deref(),
         Some(&*workspace_root),
     );
-    assert_eq!(
-        std::fs::read_to_string(&wanted_path).expect("reread wanted lockfile"),
-        current,
-    );
+    assert_eq!(std::fs::read_to_string(&wanted_path).expect("reread wanted lockfile"), current);
 
     std::fs::write(project_root.join(Lockfile::FILE_NAME), current).expect("write member lockfile");
     std::fs::write(&wanted_path, "not: [valid").expect("write invalid root lockfile");
@@ -235,9 +220,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
     };
 
     assert_eq!(
-        install_already_up_to_date(&per_project_check)
-            .map(|up_to_date| up_to_date.root)
-            .as_deref(),
+        install_already_up_to_date(&per_project_check).map(|up_to_date| up_to_date.root).as_deref(),
         Some(&*workspace_root),
     );
 }
@@ -257,10 +240,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
 #[tokio::test]
 pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -434,11 +414,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
     let manifest_path = project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/hello-world-js-bin",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 
@@ -513,10 +489,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
     let touched_manifest = PackageManifest::from_path(manifest_path).expect("reload manifest");
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -607,10 +580,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         })
         .collect();
     assert!(
-        matches!(
-            verification_messages.as_slice(),
-            [LockfileVerificationMessage::Cached { .. }]
-        ),
+        matches!(verification_messages.as_slice(), [LockfileVerificationMessage::Cached { .. }]),
         "verification cache hit must skip the fan-out and announce the reused verdict; got {captured:#?}",
     );
 
@@ -638,10 +608,7 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
     let touched_manifest = touch_manifest(&manifest);
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {

@@ -167,9 +167,7 @@ pub(super) fn apply_fixed_group_versions(
             group
                 .iter()
                 .filter_map(|dir| {
-                    state
-                        .get(dir)
-                        .map(|entry| cumulative_bump(dir, entry.bump_type))
+                    state.get(dir).map(|entry| cumulative_bump(dir, entry.bump_type))
                 }),
         ) else {
             continue;
@@ -201,10 +199,7 @@ fn shared_group_version(
         Version::parse(participants[dir.as_str()].current_version)
             .expect("participants have valid versions")
     };
-    let highest_current = group
-        .iter()
-        .map(current_of)
-        .max()?;
+    let highest_current = group.iter().map(current_of).max()?;
     let target = stable_target(&highest_current, group_bump);
 
     let Some(lane_tag) = group
@@ -310,11 +305,7 @@ pub(super) fn epic_band(
         ),
     };
     let low = major * 100;
-    EpicBand {
-        major,
-        low,
-        high: low + 99,
-    }
+    EpicBand { major, low, high: low + 99 }
 }
 
 /// Enforces that every released member's new major stays inside its epic's
@@ -333,9 +324,8 @@ pub(super) fn enforce_epic_bands(
             let Some(member_version) = new_versions.get(member_dir) else {
                 continue;
             };
-            let member_major = Version::parse(member_version)
-                .expect("participants have valid versions")
-                .major;
+            let member_major =
+                Version::parse(member_version).expect("participants have valid versions").major;
             if !band.contains(member_major) {
                 return Err(VersioningError::EpicOutOfBand {
                     pkg_name: participants[member_dir.as_str()].name.to_string(),
@@ -424,10 +414,9 @@ pub(super) fn enforce_max_bump(
 /// declared or propagated bump, so the cap compares against the real
 /// distance between the current and the new version as well.
 fn effective_bump_class(release: &crate::ReleaseVersion) -> ReleaseBumpType {
-    let (Ok(current), Ok(new_version)) = (
-        Version::parse(&release.current),
-        Version::parse(&release.next),
-    ) else {
+    let (Ok(current), Ok(new_version)) =
+        (Version::parse(&release.current), Version::parse(&release.next))
+    else {
         return release.bump;
     };
     let diff_class = if new_version.major != current.major {

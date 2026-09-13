@@ -97,24 +97,14 @@ pub async fn exec_recursive(
         &projects,
         config,
         dir,
-        AutoExcludeRoot::Enabled {
-            workspace_patterns: patterns.as_deref(),
-        },
+        AutoExcludeRoot::Enabled { workspace_patterns: patterns.as_deref() },
     )?;
     // An empty `--filter` selection is a no-op (exit 0).
     if selection.selected.is_empty() {
         return Ok(());
     }
 
-    execute_selection(
-        args,
-        config,
-        dir,
-        emit,
-        &command,
-        workspace_root,
-        &selection,
-    )
+    execute_selection(args, config, dir, emit, &command, workspace_root, &selection)
 }
 
 /// What identifies an exec run in the task-run state: its command line and
@@ -137,10 +127,7 @@ impl ExecStateInputs {
             node_options: config.node_options.as_deref(),
             user_agent: &config.user_agent,
         });
-        Self {
-            params,
-            settings,
-        }
+        Self { params, settings }
     }
 }
 
@@ -249,11 +236,7 @@ fn exec_process_tracker(bail: bool, runs_concurrently: bool) -> Option<ProcessTr
     if !bail {
         return None;
     }
-    Some(if runs_concurrently {
-        ProcessTracker::default()
-    } else {
-        ProcessTracker::foreground()
-    })
+    Some(if runs_concurrently { ProcessTracker::default() } else { ProcessTracker::foreground() })
 }
 
 fn execute_selection(
@@ -336,12 +319,7 @@ fn queued_exec_results(task_graph: &TaskGraph) -> Mutex<IndexMap<String, Executi
     Mutex::new(
         task_graph
             .values()
-            .map(|node| {
-                (
-                    node.project.to_string_lossy().into_owned(),
-                    ExecutionStatus::queued(),
-                )
-            })
+            .map(|node| (node.project.to_string_lossy().into_owned(), ExecutionStatus::queued()))
             .collect(),
     )
 }

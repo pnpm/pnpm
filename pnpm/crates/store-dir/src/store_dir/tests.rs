@@ -29,19 +29,13 @@ fn tmp() {
 #[test]
 fn from_pathbuf_auto_appends_store_version_when_missing() {
     let store = StoreDir::from(PathBuf::from("/home/user/.local/share/pnpm/store"));
-    assert_eq!(
-        store.root(),
-        Path::new("/home/user/.local/share/pnpm/store/v11"),
-    );
+    assert_eq!(store.root(), Path::new("/home/user/.local/share/pnpm/store/v11"));
 }
 
 #[test]
 fn from_pathbuf_does_not_double_append_when_already_suffixed() {
     let store = StoreDir::from(PathBuf::from("/home/user/.local/share/pnpm/store/v11"));
-    assert_eq!(
-        store.root(),
-        Path::new("/home/user/.local/share/pnpm/store/v11"),
-    );
+    assert_eq!(store.root(), Path::new("/home/user/.local/share/pnpm/store/v11"));
 }
 
 /// Round-trip the `storeDir` string pacquet writes to `.modules.yaml`
@@ -72,20 +66,14 @@ fn modules_yaml_serialized_store_dir_carries_store_version() {
 fn deserialize_applies_store_version_to_unsuffixed_path() {
     let json = r#""/home/user/.local/share/pnpm/store""#;
     let store: StoreDir = serde_json::from_str(json).expect("deserialize StoreDir");
-    assert_eq!(
-        store.root(),
-        Path::new("/home/user/.local/share/pnpm/store/v11"),
-    );
+    assert_eq!(store.root(), Path::new("/home/user/.local/share/pnpm/store/v11"));
 }
 
 #[test]
 fn deserialize_preserves_already_suffixed_path() {
     let json = r#""/home/user/.local/share/pnpm/store/v11""#;
     let store: StoreDir = serde_json::from_str(json).expect("deserialize StoreDir");
-    assert_eq!(
-        store.root(),
-        Path::new("/home/user/.local/share/pnpm/store/v11"),
-    );
+    assert_eq!(store.root(), Path::new("/home/user/.local/share/pnpm/store/v11"));
 }
 
 #[test]
@@ -100,10 +88,7 @@ fn init_creates_all_256_shards_and_populates_cache() {
     assert!(files.is_dir(), "v11/files must exist after init");
     for shard in 0u8..=255 {
         let name = format!("{shard:02x}");
-        assert!(
-            files.join(&name).is_dir(),
-            "shard {name} must exist after init",
-        );
+        assert!(files.join(&name).is_dir(), "shard {name} must exist after init");
         assert!(
             store.shard_already_ensured(shard),
             "shard {name} must be marked ensured in the cache",
@@ -153,10 +138,7 @@ fn init_warm_store_is_noop_and_leaves_cache_empty() {
     let store = StoreDir::new(tempdir.path());
     store.init().unwrap();
 
-    assert!(
-        shard.join("sentinel").is_file(),
-        "pre-existing shard content must survive init",
-    );
+    assert!(shard.join("sentinel").is_file(), "pre-existing shard content must survive init");
     for shard in 0u8..=255 {
         assert!(
             !store.shard_already_ensured(shard),

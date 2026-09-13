@@ -116,7 +116,23 @@ impl CacheCommand {
                 println!("{}", Self::cleaned_cache_dir(config).display());
             }
             CacheCommand::ListRegistries => {
-                list_registries(&cache_dir);
+                let Ok(entries) = fs::read_dir(&cache_dir) else {
+                    return Ok(());
+                };
+                let mut registries: Vec<String> = entries
+                    .filter_map(std::result::Result::ok)
+                    .filter(|entry| entry.file_type().is_ok_and(|file_type| file_type.is_dir()))
+                    .map(|entry| {
+                        entry
+                            .file_name()
+                            .to_string_lossy()
+                            .into_owned()
+                    })
+                    .collect();
+                registries.sort();
+                if !registries.is_empty() {
+                    println!("{}", registries.join("\n"));
+                }
             }
             CacheCommand::List { packages } => {
                 if !cache_dir.exists() {
@@ -160,9 +176,7 @@ impl CacheCommand {
         // plain-object output.
         let mut meta_files_by_path = IndexMap::new();
         for (file_path, full_path) in meta_file_paths {
-            let Some(meta_object) = load_meta(&full_path) else {
-                continue;
-            };
+            let Some(meta_object) = load_meta(&full_path) else { continue };
             let (cached_versions, non_cached_versions) =
                 split_cached_versions(&meta_object, store_index.as_deref());
 
@@ -178,10 +192,7 @@ impl CacheCommand {
             );
         }
 
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&meta_files_by_path).into_diagnostic()?,
-        );
+        println!("{}", serde_json::to_string_pretty(&meta_files_by_path).into_diagnostic()?);
         Ok(())
     }
 
@@ -232,9 +243,7 @@ fn cache_registry_name(file_path: &str) -> String {
 
 /// The metadata file's modification time as an RFC 3339 timestamp.
 fn cached_at(full_path: &Path) -> Option<String> {
-    let mtime = fs::metadata(full_path)
-        .and_then(|meta| meta.modified())
-        .ok()?;
+    let mtime = fs::metadata(full_path).and_then(|meta| meta.modified()).ok()?;
     Some(
         chrono::DateTime::<chrono::Utc>::from(mtime)
             .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
@@ -274,9 +283,7 @@ fn split_cached_versions(
     let mut cached = Vec::new();
     let mut non_cached = Vec::new();
     for (version, json_frag) in meta_object.versions.fragments() {
-        let Some(integrity) = version_integrity(json_frag.as_ref()) else {
-            continue;
-        };
+        let Some(integrity) = version_integrity(json_frag.as_ref()) else { continue };
         let key = pnpm_store_dir::store_index_key(
             &integrity,
             &format!("{}@{}", meta_object.name, version),
@@ -298,28 +305,4 @@ fn version_integrity(json_frag: &str) -> Option<String> {
         .get("integrity")?
         .as_str()
         .map(ToOwned::to_owned)
-}
-
-fn list_registries(cache_dir: &Path) {
-    let Ok(entries) = fs::read_dir(cache_dir) else {
-        return;
-    };
-    let mut registries: Vec<String> = entries
-        .filter_map(std::result::Result::ok)
-        .filter(|entry| {
-            entry
-                .file_type()
-                .is_ok_and(|file_type| file_type.is_dir())
-        })
-        .map(|entry| {
-            entry
-                .file_name()
-                .to_string_lossy()
-                .into_owned()
-        })
-        .collect();
-    registries.sort();
-    if !registries.is_empty() {
-        println!("{}", registries.join("\n"));
-    }
 }

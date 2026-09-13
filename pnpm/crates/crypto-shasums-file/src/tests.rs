@@ -49,10 +49,7 @@ fn picks_the_right_checksum_for_a_file() {
 ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  foo.tar.gz
 be127be1d98cad94c56f46245d0f2de89934d300028694456861a6d5ac558bf3  foo.msi";
     let integrity = pick_file_checksum_from_shasums_file(body, "foo.tar.gz").unwrap();
-    assert_eq!(
-        integrity,
-        "sha256-7VIjkpStUX++kaJoFG1dKqihfS1i1khz5DIZB4unHE4=",
-    );
+    assert_eq!(integrity, "sha256-7VIjkpStUX++kaJoFG1dKqihfS1i1khz5DIZB4unHE4=");
 }
 
 #[test]
@@ -146,11 +143,7 @@ async fn missing_node_shasums_signature_fails() {
 
     assert!(matches!(
         err,
-        FetchVerifiedNodeShasumsError::StatusNotOk {
-            what: "SHASUMS256.txt.sig",
-            status: 404,
-            ..
-        },
+        FetchVerifiedNodeShasumsError::StatusNotOk { what: "SHASUMS256.txt.sig", status: 404, .. },
     ));
 }
 
@@ -213,14 +206,8 @@ async fn authenticated_verified_fetch_bypasses_the_cache() {
     let client = pnpm_network::ThrottledClient::new_for_installs();
     let url = format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url());
     let auth_headers = AuthHeaders::from_creds_map([
-        (
-            nerf_dart(&format!("{url}/")),
-            "Bearer shasums-token".to_string(),
-        ),
-        (
-            nerf_dart(&format!("{url}.sig/")),
-            "Bearer signature-token".to_string(),
-        ),
+        (nerf_dart(&format!("{url}/")), "Bearer shasums-token".to_string()),
+        (nerf_dart(&format!("{url}.sig/")), "Bearer signature-token".to_string()),
     ]);
 
     for _ in 0..2 {

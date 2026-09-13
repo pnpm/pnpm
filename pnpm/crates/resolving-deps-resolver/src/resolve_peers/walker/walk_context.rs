@@ -87,9 +87,7 @@ impl ChildOutputs {
             subtree_missing_by_pkg,
         } = output;
         if let Some(summary) = subtree_missing_by_pkg
-            && !self.missing_summaries
-                .iter()
-                .any(|existing| Arc::ptr_eq(existing, &summary))
+            && !self.missing_summaries.iter().any(|existing| Arc::ptr_eq(existing, &summary))
         {
             self.missing_summaries.push(summary);
         }
@@ -142,9 +140,7 @@ pub(super) fn index_peer_provider_edge(
     edge_index: usize,
     edge: &ChildEdge,
 ) {
-    let Some(pkg) = tree.packages.get(&edge.pkg_id) else {
-        return;
-    };
+    let Some(pkg) = tree.packages.get(&edge.pkg_id) else { return };
     let real_name = pkg_name_version(&pkg.result).0;
     let alias_is_peer = tree.all_peer_dep_names.contains(&edge.alias);
     let real_name_is_peer = tree.all_peer_dep_names.contains(&real_name);

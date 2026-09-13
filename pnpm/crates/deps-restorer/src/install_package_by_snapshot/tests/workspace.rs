@@ -73,10 +73,7 @@ fn node_extras_filter_matches_upstream_regex_alternations() {
 #[test]
 fn archive_filter_for_only_returns_filter_for_unscoped_node() {
     let key_node: PackageKey = "node@22.0.0".parse().expect("parse node key");
-    assert!(
-        archive_filter_for(&key_node).is_some(),
-        "node must get the filter",
-    );
+    assert!(archive_filter_for(&key_node).is_some(), "node must get the filter");
 
     let key_scoped_node: PackageKey = "@foo/node@22.0.0".parse().expect("parse @foo/node key");
     assert!(

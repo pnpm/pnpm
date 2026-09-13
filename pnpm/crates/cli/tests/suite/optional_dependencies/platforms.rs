@@ -32,10 +32,7 @@ fn skip_optional_dependency_that_does_not_support_the_current_node_version() {
         !workspace.join("node_modules/@pnpm.e2e/for-legacy-node").exists(),
         "an optional dependency for a legacy Node version must not be linked",
     );
-    assert_eq!(
-        read_skipped(&workspace),
-        ["@pnpm.e2e/for-legacy-node@1.0.0"],
-    );
+    assert_eq!(read_skipped(&workspace), ["@pnpm.e2e/for-legacy-node@1.0.0"]);
 
     drop((root, npmrc_info)); // cleanup
 }
@@ -87,17 +84,10 @@ pub(super) fn forced_frozen_install_materializes_incompatible_optionals() {
     } = CommandTempCwd::init().add_mocked_registry();
 
     pacquet
-        .with_args([
-            "add",
-            "@pnpm.e2e/pkg-with-optional",
-            "@pnpm.e2e/dep-of-optional-pkg",
-        ])
+        .with_args(["add", "@pnpm.e2e/pkg-with-optional", "@pnpm.e2e/dep-of-optional-pkg"])
         .assert()
         .success();
-    assert_eq!(
-        read_skipped(&workspace),
-        ["@pnpm.e2e/not-compatible-with-any-os@1.0.0"],
-    );
+    assert_eq!(read_skipped(&workspace), ["@pnpm.e2e/not-compatible-with-any-os@1.0.0"]);
 
     pacquet_in(&workspace)
         .with_args(["install", "--force", "--frozen-lockfile"])
@@ -132,26 +122,15 @@ fn skip_unsupported_optional_when_installing_a_workspace_subset() {
     fixture.project(
         "project2",
         "project2",
-        ManifestDeps {
-            prod: &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")], ..Default::default() },
     );
     fixture.run(["install", "--lockfile-only"]);
 
-    fixture.run([
-        "--filter",
-        "project1",
-        "install",
-        "--no-prefer-frozen-lockfile",
-    ]);
+    fixture.run(["--filter", "project1", "install", "--no-prefer-frozen-lockfile"]);
 
     assert_eq!(
         read_skipped(&fixture.workspace),
-        [
-            "@pnpm.e2e/dep-of-optional-pkg@1.0.0",
-            "@pnpm.e2e/not-compatible-with-any-os@1.0.0"
-        ],
+        ["@pnpm.e2e/dep-of-optional-pkg@1.0.0", "@pnpm.e2e/not-compatible-with-any-os@1.0.0"],
     );
 }
 
@@ -192,10 +171,9 @@ fn skip_optional_dependency_that_does_not_support_the_current_os() {
 
     let lockfile = read_wanted_lockfile(&workspace);
     let packages = lockfile.packages.as_ref().expect("lockfile has packages");
-    for name in [
-        "@pnpm.e2e/not-compatible-with-any-os@1.0.0",
-        "@pnpm.e2e/dep-of-optional-pkg@1.0.0",
-    ] {
+    for name in
+        ["@pnpm.e2e/not-compatible-with-any-os@1.0.0", "@pnpm.e2e/dep-of-optional-pkg@1.0.0"]
+    {
         assert!(
             packages
                 .keys()
@@ -213,10 +191,7 @@ fn skip_optional_dependency_that_does_not_support_the_current_os() {
 
     assert_eq!(
         read_skipped(&workspace),
-        [
-            "@pnpm.e2e/dep-of-optional-pkg@1.0.0",
-            "@pnpm.e2e/not-compatible-with-any-os@1.0.0"
-        ],
+        ["@pnpm.e2e/dep-of-optional-pkg@1.0.0", "@pnpm.e2e/not-compatible-with-any-os@1.0.0"],
     );
 
     // A previously skipped package is installed once it also becomes a
@@ -229,10 +204,7 @@ fn skip_optional_dependency_that_does_not_support_the_current_os() {
         workspace.join("node_modules/@pnpm.e2e/dep-of-optional-pkg/package.json").exists(),
         "the package must be installed once it is a regular dependency",
     );
-    assert_eq!(
-        read_skipped(&workspace),
-        ["@pnpm.e2e/not-compatible-with-any-os@1.0.0"],
-    );
+    assert_eq!(read_skipped(&workspace), ["@pnpm.e2e/not-compatible-with-any-os@1.0.0"]);
 
     // The skip set survives a frozen reinstall from scratch.
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
@@ -243,10 +215,7 @@ fn skip_optional_dependency_that_does_not_support_the_current_os() {
 
     assert!(!workspace.join("node_modules/@pnpm.e2e/not-compatible-with-any-os").exists());
     assert!(workspace.join("node_modules/@pnpm.e2e/dep-of-optional-pkg/package.json").exists());
-    assert_eq!(
-        read_skipped(&workspace),
-        ["@pnpm.e2e/not-compatible-with-any-os@1.0.0"],
-    );
+    assert_eq!(read_skipped(&workspace), ["@pnpm.e2e/not-compatible-with-any-os@1.0.0"]);
 
     drop((root, npmrc_info)); // cleanup
 }
@@ -304,46 +273,20 @@ fn install_optional_dependency_for_the_supported_architectures() {
             ])
             .assert()
             .success();
-        assert!(
-            installed_platform_dep("darwin-arm64"),
-            "nodeLinker={node_linker}",
-        );
-        assert!(
-            !installed_platform_dep("darwin-x64"),
-            "nodeLinker={node_linker}",
-        );
+        assert!(installed_platform_dep("darwin-arm64"), "nodeLinker={node_linker}");
+        assert!(!installed_platform_dep("darwin-x64"), "nodeLinker={node_linker}");
 
         pacquet_in(&workspace)
-            .with_args([
-                "install",
-                "--no-prefer-frozen-lockfile",
-                "--os",
-                "darwin",
-                "--cpu",
-                "x64",
-            ])
+            .with_args(["install", "--no-prefer-frozen-lockfile", "--os", "darwin", "--cpu", "x64"])
             .assert()
             .success();
-        assert!(
-            installed_platform_dep("darwin-x64"),
-            "nodeLinker={node_linker}",
-        );
+        assert!(installed_platform_dep("darwin-x64"), "nodeLinker={node_linker}");
 
         pacquet_in(&workspace)
-            .with_args([
-                "install",
-                "--frozen-lockfile",
-                "--os",
-                "linux",
-                "--cpu",
-                "x64",
-            ])
+            .with_args(["install", "--frozen-lockfile", "--os", "linux", "--cpu", "x64"])
             .assert()
             .success();
-        assert!(
-            installed_platform_dep("linux-x64"),
-            "nodeLinker={node_linker}",
-        );
+        assert!(installed_platform_dep("linux-x64"), "nodeLinker={node_linker}");
 
         drop((root, npmrc_info)); // cleanup
     }
@@ -406,11 +349,7 @@ fn fail_on_unsupported_dependency_of_optional_dependency() {
     append_workspace_yaml_key(&workspace, "engineStrict", "true");
 
     let assert = pacquet
-        .with_args([
-            "add",
-            "--save-optional",
-            "@pnpm.e2e/has-not-compatible-dep@1.0.0",
-        ])
+        .with_args(["add", "--save-optional", "@pnpm.e2e/has-not-compatible-dep@1.0.0"])
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
@@ -438,11 +377,7 @@ fn fail_on_unsupported_dependency_of_optional_dependency_during_a_headless_insta
     } = CommandTempCwd::init().add_mocked_registry();
 
     pacquet
-        .with_args([
-            "add",
-            "--save-optional",
-            "@pnpm.e2e/has-not-compatible-dep@1.0.0",
-        ])
+        .with_args(["add", "--save-optional", "@pnpm.e2e/has-not-compatible-dep@1.0.0"])
         .assert()
         .success();
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
@@ -492,11 +427,7 @@ fn remove_optional_dependencies_when_architectures_change_and_a_dependency_is_ad
         .success();
 
     let virtual_store = workspace.join("node_modules/.pnpm");
-    for name in [
-        "parent-of-has-many-optional-deps",
-        "has-many-optional-deps",
-        "darwin-x64",
-    ] {
+    for name in ["parent-of-has-many-optional-deps", "has-many-optional-deps", "darwin-x64"] {
         assert!(
             virtual_store
                 .join(format!("@pnpm.e2e+{name}@1.0.0"))

@@ -25,10 +25,7 @@ pub(super) fn parse_local_target(new_bare_specifier: &str, root_dir: &Path) -> O
     let (protocol, pkg_path) = if let Some(rest) = new_bare_specifier.strip_prefix("file:") {
         (LocalProtocol::File, rest)
     } else {
-        (
-            LocalProtocol::Link,
-            new_bare_specifier.strip_prefix("link:")?,
-        )
+        (LocalProtocol::Link, new_bare_specifier.strip_prefix("link:")?)
     };
 
     let candidate = Path::new(pkg_path);
@@ -38,11 +35,7 @@ pub(super) fn parse_local_target(new_bare_specifier: &str, root_dir: &Path) -> O
     } else {
         candidate.to_path_buf()
     };
-    Some(LocalTarget {
-        protocol,
-        absolute_path,
-        specified_via_relative_path,
-    })
+    Some(LocalTarget { protocol, absolute_path, specified_via_relative_path })
 }
 /// Render a `link:` / `file:` override against the importing
 /// package's directory. Relative-form targets are re-anchored against
@@ -67,9 +60,5 @@ pub(super) fn resolve_local_override_spec(target: &LocalTarget, pkg_dir: Option<
 /// expect that shape.
 pub(super) fn normalize_path(path: &Path) -> String {
     let display = path.display().to_string();
-    if cfg!(windows) {
-        display.replace('\\', "/")
-    } else {
-        display
-    }
+    if cfg!(windows) { display.replace('\\', "/") } else { display }
 }

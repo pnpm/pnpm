@@ -206,10 +206,7 @@ fn split_include_and_negation(
     for pattern in patterns {
         if !pattern.starts_with('!') {
             if let Some(normalized) = normalize_directory_pattern(pattern) {
-                include_patterns.push(WorkspacePattern {
-                    source: pattern,
-                    normalized,
-                });
+                include_patterns.push(WorkspacePattern { source: pattern, normalized });
             }
             continue;
         }
@@ -329,12 +326,8 @@ fn group_manifests_by_root(
 ) -> Vec<(PathBuf, Vec<PathBuf>)> {
     let mut sorted: Vec<PathBuf> = manifest_paths.into_iter().collect();
     sorted.sort_by(|left, right| {
-        let dir_left = left
-            .parent()
-            .unwrap_or_else(|| Path::new(""));
-        let dir_right = right
-            .parent()
-            .unwrap_or_else(|| Path::new(""));
+        let dir_left = left.parent().unwrap_or_else(|| Path::new(""));
+        let dir_right = right.parent().unwrap_or_else(|| Path::new(""));
         dir_left.cmp(dir_right)
     });
     let mut root_groups: Vec<(PathBuf, Vec<PathBuf>)> = Vec::new();
@@ -480,11 +473,7 @@ fn read_first_project_manifest(
             ))) => continue,
             Err(err) => return Err(FindWorkspaceProjectsError::ReadManifest(err)),
         };
-        return Ok(Some(Project {
-            root_dir,
-            manifest,
-            dependency_manifest: None,
-        }));
+        return Ok(Some(Project { root_dir, manifest, dependency_manifest: None }));
     }
     Ok(None)
 }

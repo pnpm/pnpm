@@ -94,10 +94,7 @@ fn add_existing_dependency_without_version_keeps_tilde_range() {
         .assert()
         .success();
 
-    assert_eq!(
-        prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"),
-        "~100.0.0",
-    );
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "~100.0.0");
     drop((root, npmrc_info)); // cleanup
 }
 
@@ -123,10 +120,7 @@ fn add_existing_dependency_without_version_keeps_exact_pin() {
         .assert()
         .success();
 
-    assert_eq!(
-        prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"),
-        "100.0.0",
-    );
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "100.0.0");
     drop((root, npmrc_info)); // cleanup
 }
 
@@ -141,10 +135,7 @@ fn add_explicit_range_resolves_to_concrete_version() {
         "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
         "--lockfile-only",
     ]);
-    assert_eq!(
-        prod_spec(&dir, "@pnpm.e2e/dep-of-pkg-with-1-dep"),
-        "^100.1.0",
-    );
+    assert_eq!(prod_spec(&dir, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "^100.1.0");
     drop((root, anchor)); // cleanup
 }
 
@@ -158,10 +149,7 @@ fn add_explicit_tilde_range_is_not_widened_to_latest() {
         "@pnpm.e2e/dep-of-pkg-with-1-dep@~100.0.0",
         "--lockfile-only",
     ]);
-    assert_eq!(
-        prod_spec(&dir, "@pnpm.e2e/dep-of-pkg-with-1-dep"),
-        "~100.0.0",
-    );
+    assert_eq!(prod_spec(&dir, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "~100.0.0");
     drop((root, anchor)); // cleanup
 }
 
@@ -174,10 +162,7 @@ fn add_explicit_dist_tag_resolves_with_caret() {
         "@pnpm.e2e/dep-of-pkg-with-1-dep@latest",
         "--lockfile-only",
     ]);
-    assert_eq!(
-        prod_spec(&dir, "@pnpm.e2e/dep-of-pkg-with-1-dep"),
-        "^101.0.0",
-    );
+    assert_eq!(prod_spec(&dir, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "^101.0.0");
     drop((root, anchor)); // cleanup
 }
 
@@ -240,18 +225,11 @@ fn add_explicit_range_respects_existing_operator() {
     .unwrap();
 
     pacquet
-        .with_args([
-            "add",
-            "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
-            "--lockfile-only",
-        ])
+        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0", "--lockfile-only"])
         .assert()
         .success();
 
-    assert_eq!(
-        prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"),
-        "~100.0.0",
-    );
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "~100.0.0");
     drop((root, npmrc_info)); // cleanup
 }
 
@@ -264,10 +242,7 @@ fn add_npm_alias_spec_is_kept_verbatim() {
         "my-alias@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
         "--lockfile-only",
     ]);
-    assert_eq!(
-        prod_spec(&dir, "my-alias"),
-        "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
-    );
+    assert_eq!(prod_spec(&dir, "my-alias"), "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0");
     drop((root, anchor)); // cleanup
 }
 
@@ -293,18 +268,11 @@ fn add_explicit_range_ignores_pin_from_non_registry_prev() {
     .unwrap();
 
     pacquet
-        .with_args([
-            "add",
-            "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
-            "--lockfile-only",
-        ])
+        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0", "--lockfile-only"])
         .assert()
         .success();
 
-    assert_eq!(
-        prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"),
-        "^100.1.0",
-    );
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), "^100.1.0");
     drop((root, npmrc_info)); // cleanup
 }
 
@@ -331,10 +299,7 @@ fn add_without_version_respects_minimum_release_age() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
 
-    set_minimum_release_age(
-        &workspace,
-        bravo_dep_mature_up_to_1_0_1_minimum_release_age(),
-    );
+    set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
 
     pacquet
         .with_args(["add", "@pnpm.e2e/bravo-dep"])
@@ -365,16 +330,8 @@ fn save_prefix_and_save_peer_settings_drive_add() {
         .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")
         .map(|(_, spec)| spec.to_string());
     eprintln!("PEER: {peer_spec:?}, DEV: {dev_spec:?}");
-    assert_eq!(
-        peer_spec.as_deref(),
-        Some("~1.0.0"),
-        "savePeer must add a peerDependencies entry",
-    );
-    assert_eq!(
-        dev_spec.as_deref(),
-        Some("~1.0.0"),
-        "savePeer also saves it as a dev dependency",
-    );
+    assert_eq!(peer_spec.as_deref(), Some("~1.0.0"), "savePeer must add a peerDependencies entry");
+    assert_eq!(dev_spec.as_deref(), Some("~1.0.0"), "savePeer also saves it as a dev dependency");
 
     drop((root, mock_instance));
 }
@@ -399,11 +356,7 @@ fn save_flags_overrule_the_save_settings() {
         .find(|(name, _)| *name == "@pnpm.e2e/hello-world-js-bin")
         .map(|(_, spec)| spec.to_string());
     eprintln!("PROD: {prod_spec:?}, PEER: {peer_spec:?}");
-    assert_eq!(
-        prod_spec.as_deref(),
-        Some("^1.0.0"),
-        "--save-prefix must overrule savePrefix",
-    );
+    assert_eq!(prod_spec.as_deref(), Some("^1.0.0"), "--save-prefix must overrule savePrefix");
     assert_eq!(peer_spec, None, "--no-save-peer must overrule savePeer");
 
     drop((root, mock_instance));
@@ -416,18 +369,12 @@ fn save_exact_and_equals_prefix_settings_drive_add() {
     let (root, workspace, mock_instance) = add_with_settings("saveExact: true\n", &["add"]);
     let spec = prod_spec(&workspace, "@pnpm.e2e/hello-world-js-bin");
     eprintln!("SPEC: {spec}");
-    assert_eq!(
-        spec, "1.0.0",
-        "the saveExact setting must save the bare version",
-    );
+    assert_eq!(spec, "1.0.0", "the saveExact setting must save the bare version");
     drop((root, mock_instance));
 
     let (root, workspace, mock_instance) = add_with_settings("savePrefix: '='\n", &["add"]);
     let spec = prod_spec(&workspace, "@pnpm.e2e/hello-world-js-bin");
     eprintln!("SPEC: {spec}");
-    assert_eq!(
-        spec, "=1.0.0",
-        "a savePrefix of = must keep the explicit operator",
-    );
+    assert_eq!(spec, "=1.0.0", "a savePrefix of = must keep the explicit operator");
     drop((root, mock_instance));
 }

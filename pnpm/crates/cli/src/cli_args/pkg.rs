@@ -138,9 +138,7 @@ impl PkgArgs {
         if selection.selected.is_empty() {
             return Err(PkgError::RecursiveNoPackages.into());
         }
-        let projects = selection.selected
-            .values()
-            .map(|node| node.package.project);
+        let projects = selection.selected.values().map(|node| node.package.project);
         let PkgSubcommand::Get(args) = &self.command else {
             return self.edit_recursive(projects);
         };
@@ -254,14 +252,10 @@ fn apply_set_pairs(value: &mut Value, pairs: &[String], json: bool) -> miette::R
     for pair in pairs {
         let (key, raw_value) = pair
             .split_once('=')
-            .ok_or_else(|| PkgError::SetInvalidArg {
-                arg: pair.clone(),
-            })?;
+            .ok_or_else(|| PkgError::SetInvalidArg { arg: pair.clone() })?;
         let parsed_value: Value = if json {
             serde_json::from_str(raw_value)
-                .map_err(|_| PkgError::SetJsonParse {
-                    value: raw_value.to_string(),
-                })?
+                .map_err(|_| PkgError::SetJsonParse { value: raw_value.to_string() })?
         } else {
             Value::String(raw_value.to_string())
         };
@@ -326,18 +320,12 @@ fn pkg_fix(manifest_path: &Path) -> miette::Result<()> {
 }
 
 fn fix_manifest(value: &mut Value) {
-    let Some(obj) = value.as_object_mut() else {
-        return;
-    };
+    let Some(obj) = value.as_object_mut() else { return };
     remove_ill_typed_field(obj, "name", Value::is_string);
     remove_ill_typed_field(obj, "version", Value::is_string);
-    for field in [
-        "dependencies",
-        "devDependencies",
-        "optionalDependencies",
-        "peerDependencies",
-        "scripts",
-    ] {
+    for field in
+        ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "scripts"]
+    {
         remove_ill_typed_field(obj, field, Value::is_object);
     }
     remove_ill_typed_field(obj, "bin", |bin| bin.is_string() || bin.is_object());

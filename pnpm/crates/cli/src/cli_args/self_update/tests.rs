@@ -16,20 +16,14 @@ fn version_constraint_preserves_pinning_style() {
     assert_eq!(update_version_constraint(Some("~1.2.0"), "1.2.5"), "~1.2.5");
     // Complex ranges that still satisfy are left untouched; the lockfile pins
     // the exact version.
-    assert_eq!(
-        update_version_constraint(Some(">=1.0.0"), "1.5.0"),
-        ">=1.0.0",
-    );
+    assert_eq!(update_version_constraint(Some(">=1.0.0"), "1.5.0"), ">=1.0.0");
     // A range that no longer satisfies is rewritten in its own style.
     assert_eq!(update_version_constraint(Some("^1.0.0"), "2.0.0"), "^2.0.0");
     assert_eq!(update_version_constraint(Some("~1.0.0"), "2.0.0"), "~2.0.0");
     // An exact pin stays exact.
     assert_eq!(update_version_constraint(Some("1.0.0"), "2.0.0"), "2.0.0");
     // A complex multi-comparator range falls back to a caret range.
-    assert_eq!(
-        update_version_constraint(Some(">=1.0.0 <2.0.0"), "3.0.0"),
-        "^3.0.0",
-    );
+    assert_eq!(update_version_constraint(Some(">=1.0.0 <2.0.0"), "3.0.0"), "^3.0.0");
 }
 
 fn seed_global_engine(global_dir: &Path, package_name: &str, version: &str) {
@@ -60,20 +54,11 @@ fn pin_specifier_records_the_resolved_pin_not_the_cli_dist_tag() {
     );
     // A range pin is rewritten to the new version, keeping the operator, so the
     // specifier is the range a later install reads back from the manifest.
-    assert_eq!(
-        package_manager_pin_specifier(false, Some("^12.0.0"), "12.1.0"),
-        "^12.1.0",
-    );
+    assert_eq!(package_manager_pin_specifier(false, Some("^12.0.0"), "12.1.0"), "^12.1.0");
     // A legacy `packageManager` pin is always exact.
-    assert_eq!(
-        package_manager_pin_specifier(true, Some("^12.0.0"), "12.1.0"),
-        "12.1.0",
-    );
+    assert_eq!(package_manager_pin_specifier(true, Some("^12.0.0"), "12.1.0"), "12.1.0");
     // No prior constraint → the resolved version.
-    assert_eq!(
-        package_manager_pin_specifier(false, None, "12.1.0"),
-        "12.1.0",
-    );
+    assert_eq!(package_manager_pin_specifier(false, None, "12.1.0"), "12.1.0");
 }
 
 #[test]
@@ -116,10 +101,7 @@ fn seed_shim_and_new_engine(root: &Path) -> (install_pnpm::InstallPnpmResult, st
         package_name: "pnpm",
         already_existed: false,
     };
-    (
-        installed,
-        global_bin.join(format!("node{}", std::env::consts::EXE_SUFFIX)),
-    )
+    (installed, global_bin.join(format!("node{}", std::env::consts::EXE_SUFFIX)))
 }
 
 #[test]
@@ -133,9 +115,7 @@ fn self_update_republishes_global_shims_from_a_compatible_engine() {
     assert_eq!(fs::read(node).unwrap(), b"new shim engine");
     assert_eq!(
         native_shim_target(&global_bin, "node").unwrap(),
-        Some(ShimTarget::Installed(
-            root.path().join("node-release/bin/node")
-        )),
+        Some(ShimTarget::Installed(root.path().join("node-release/bin/node"))),
     );
 }
 
@@ -165,11 +145,8 @@ fn self_update_migrates_legacy_shell_shims() {
         "#!/bin/sh\nexit 1\n# pnpm-shim-style=context-aware\n# cmd-shim-target=pkg:yarn\n",
     )
     .unwrap();
-    fs::write(
-        global_bin.join("direct"),
-        "#!/bin/sh\nexec node\n# cmd-shim-target=/x/cli.js\n",
-    )
-    .unwrap();
+    fs::write(global_bin.join("direct"), "#!/bin/sh\nexec node\n# cmd-shim-target=/x/cli.js\n")
+        .unwrap();
 
     refresh_global_shims(&global_bin, &installed, "12.3.0").unwrap();
 

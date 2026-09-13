@@ -33,10 +33,7 @@ pub(super) fn importer_scoped_update_lockfile(
             )]);
             (
                 (*importer_id).to_string(),
-                ProjectSnapshot {
-                    dependencies: Some(dependencies),
-                    ..ProjectSnapshot::default()
-                },
+                ProjectSnapshot { dependencies: Some(dependencies), ..ProjectSnapshot::default() },
             )
         })
         .collect();
@@ -112,10 +109,7 @@ pub(super) async fn resolve_importer_scoped_update_direct(
     ]);
     let importers = order
         .iter()
-        .map(|id| WorkspaceImporter {
-            id: (*id).to_string(),
-            manifest: manifests[id],
-        })
+        .map(|id| WorkspaceImporter { id: (*id).to_string(), manifest: manifests[id] })
         .collect::<Vec<_>>();
     let resolver = RecordingResolver {
         table: HashMap::from_iter([(
@@ -138,15 +132,12 @@ pub(super) async fn resolve_importer_scoped_update_direct(
         None,
     )));
     opts.reuse.scopes_by_importer = BTreeMap::from([("selected".to_string(), selected_scope)]);
-    let result = resolve_workspace(
-        &resolver,
-        &importers,
-        &[DependencyGroup::Prod],
-        opts,
-        |importer| importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None),
-    )
-    .await
-    .expect("resolve importer-scoped update");
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+        })
+        .await
+        .expect("resolve importer-scoped update");
     result.peers.direct_dependencies_by_importer
         .into_iter()
         .map(|(importer_id, dependencies)| (importer_id, dependencies["pkg"].as_str().to_string()))
@@ -256,10 +247,7 @@ pub(super) fn reuse_graph_lockfile(
         .collect();
     let importers = std::collections::HashMap::from([(
         importer_id.to_string(),
-        ProjectSnapshot {
-            dependencies: Some(dependencies),
-            ..ProjectSnapshot::default()
-        },
+        ProjectSnapshot { dependencies: Some(dependencies), ..ProjectSnapshot::default() },
     )]);
     let metadata = || {
         PackageMetadata {
@@ -300,13 +288,7 @@ pub(super) fn reuse_graph_lockfile(
                 })
                 .collect()
         });
-        snapshots.insert(
-            key,
-            SnapshotEntry {
-                dependencies,
-                ..SnapshotEntry::default()
-            },
-        );
+        snapshots.insert(key, SnapshotEntry { dependencies, ..SnapshotEntry::default() });
     }
     let catalog_snapshots = (!catalogs.is_empty()).then(|| {
         let mut snapshot: pnpm_lockfile::CatalogSnapshots = BTreeMap::new();
@@ -405,15 +387,9 @@ pub(super) async fn resolve_pinned_versus_fresh(slow: (&str, &str)) -> crate::Re
             ),
         ),
     ]);
-    let resolver = SlowAliasResolver {
-        table,
-        slow: (slow.0.to_string(), slow.1.to_string()),
-    };
+    let resolver = SlowAliasResolver { table, slow: (slow.0.to_string(), slow.1.to_string()) };
     let (tmp, manifest) = fake_manifest(serde_json::json!({ "reused": "1.0.0", "fresh": "1.0.0" }));
-    let importers = [WorkspaceImporter {
-        id: ".".to_string(),
-        manifest: &manifest,
-    }];
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
 
     let mut opts = workspace_opts(false, false);
     opts.reuse.lockfile = Some(Arc::new(reuse_graph_lockfile(
@@ -427,13 +403,9 @@ pub(super) async fn resolve_pinned_versus_fresh(slow: (&str, &str)) -> crate::Re
         &[],
     )));
     let dir = tmp.path().to_path_buf();
-    resolve_workspace(
-        &resolver,
-        &importers,
-        &[DependencyGroup::Prod],
-        opts,
-        |_| importer_opts(dir.clone(), None),
-    )
+    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(dir.clone(), None)
+    })
     .await
     .expect("resolve the pinned-versus-fresh contest")
     .merged_tree

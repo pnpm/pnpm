@@ -10,9 +10,7 @@ impl Walker<'_> {
         parent_refs: &ParentRefs,
         pkg_id: &str,
     ) -> Option<&PeersCacheItem> {
-        let TreeChildren::Lazy { .. } =
-            &self.tree.dependencies_tree.get(node_id)?.children
-        else {
+        let TreeChildren::Lazy { .. } = &self.tree.dependencies_tree.get(node_id)?.children else {
             return None;
         };
         self.find_fast_hit_for_lazy(parent_refs, pkg_id)
@@ -24,20 +22,11 @@ impl Walker<'_> {
         pkg_id: &str,
     ) -> Option<&PeersCacheItem> {
         let canonical_scc = self.canonical_scc();
-        let query = FastProviderQuery {
-            canonical_scc: &canonical_scc,
-            parent_refs,
-            pkg_id,
-        };
+        let query = FastProviderQuery { canonical_scc: &canonical_scc, parent_refs, pkg_id };
         self.caches.peers_cache
             .get(pkg_id)?
             .iter()
-            .find(|item| {
-                matches!(
-                    self.fast_cache_item_matches(query, item),
-                    FastCacheMatch::Match,
-                )
-            })
+            .find(|item| matches!(self.fast_cache_item_matches(query, item), FastCacheMatch::Match))
     }
 
     pub(super) fn fast_cache_item_matches(
@@ -62,11 +51,7 @@ impl Walker<'_> {
                 FastProvider::Ambiguous => ambiguous = true,
             }
         }
-        if ambiguous {
-            FastCacheMatch::Ambiguous
-        } else {
-            FastCacheMatch::Match
-        }
+        if ambiguous { FastCacheMatch::Ambiguous } else { FastCacheMatch::Match }
     }
 
     pub(super) fn fast_resolved_peer_matches(
@@ -109,11 +94,7 @@ impl Walker<'_> {
                 cached_node_id,
                 NodeId::Leaf(cached_pkg_id) if cached_pkg_id.as_ref() == child_pkg_id,
             );
-        if child_is_stable {
-            FastCacheMatch::Match
-        } else {
-            FastCacheMatch::Ambiguous
-        }
+        if child_is_stable { FastCacheMatch::Match } else { FastCacheMatch::Ambiguous }
     }
 
     pub(super) fn fast_provider_for_name<'a>(

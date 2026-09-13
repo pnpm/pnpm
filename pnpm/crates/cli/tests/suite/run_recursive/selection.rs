@@ -64,10 +64,7 @@ fn recursive_run_finds_workspace_root_bin_on_path() {
     );
     let bin_dir = workspace.join("node_modules").join(".bin");
     fs::create_dir_all(&bin_dir).expect("create workspace-root node_modules/.bin");
-    write_executable(
-        &bin_dir.join("root-tool"),
-        "#!/bin/sh\ntouch root-tool-ran.txt\n",
-    );
+    write_executable(&bin_dir.join("root-tool"), "#!/bin/sh\ntouch root-tool-ran.txt\n");
 
     pacquet
         .with_arg("-r")
@@ -105,16 +102,10 @@ fn recursive_run_prefers_project_bin_over_workspace_root_bin() {
             }),
         )],
     );
-    for (dir, version) in [
-        (workspace.clone(), "2.0.0"),
-        (workspace.join("project-1"), "1.0.0"),
-    ] {
+    for (dir, version) in [(workspace.clone(), "2.0.0"), (workspace.join("project-1"), "1.0.0")] {
         let bin_dir = dir.join("node_modules").join(".bin");
         fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
-        write_executable(
-            &bin_dir.join("print-version"),
-            &format!("#!/bin/sh\necho {version}\n"),
-        );
+        write_executable(&bin_dir.join("print-version"), &format!("#!/bin/sh\necho {version}\n"));
     }
 
     pacquet
@@ -126,11 +117,7 @@ fn recursive_run_prefers_project_bin_over_workspace_root_bin() {
 
     let version = fs::read_to_string(workspace.join("project-1").join("version.txt"))
         .expect("read version.txt");
-    assert_eq!(
-        version.trim(),
-        "1.0.0",
-        "the project's own bin must win over the root's",
-    );
+    assert_eq!(version.trim(), "1.0.0", "the project's own bin must win over the root's");
 
     drop(root);
 }
@@ -325,10 +312,7 @@ fn filtered_run_prints_the_script_command_unless_silent() {
         .with_arg("build")
         .output()
         .expect("run silent filtered build");
-    assert!(
-        output.status.success(),
-        "silent filtered build failed: {output:?}",
-    );
+    assert!(output.status.success(), "silent filtered build failed: {output:?}");
     assert!(
         workspace
             .join("project-2")
@@ -351,15 +335,9 @@ fn filtered_run_prints_the_script_command_unless_silent() {
         .with_arg("build")
         .output()
         .expect("run filtered build with the NDJSON reporter");
-    assert!(
-        output.status.success(),
-        "NDJSON filtered build failed: {output:?}",
-    );
+    assert!(output.status.success(), "NDJSON filtered build failed: {output:?}");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !stderr.is_empty(),
-        "NDJSON filtered build must emit reporter records",
-    );
+    assert!(!stderr.is_empty(), "NDJSON filtered build must emit reporter records");
     assert!(
         stderr
             .lines()
@@ -386,14 +364,8 @@ fn recursive_run_auto_excludes_workspace_root() {
         .assert()
         .success();
 
-    assert!(
-        workspace.join("packages/project-1/ran.txt").exists(),
-        "project-1 should run",
-    );
-    assert!(
-        workspace.join("packages/project-2/ran.txt").exists(),
-        "project-2 should run",
-    );
+    assert!(workspace.join("packages/project-1/ran.txt").exists(), "project-1 should run");
+    assert!(workspace.join("packages/project-2/ran.txt").exists(), "project-2 should run");
     assert!(
         !workspace.join("root-ran.txt").exists(),
         "the workspace root must be auto-excluded from a default recursive run",
@@ -418,18 +390,9 @@ fn include_workspace_root_flag_keeps_the_root_in_a_recursive_run() {
         .assert()
         .success();
 
-    assert!(
-        workspace.join("root-ran.txt").exists(),
-        "the root must run under the flag",
-    );
-    assert!(
-        workspace.join("packages/project-1/ran.txt").exists(),
-        "project-1 should run",
-    );
-    assert!(
-        workspace.join("packages/project-2/ran.txt").exists(),
-        "project-2 should run",
-    );
+    assert!(workspace.join("root-ran.txt").exists(), "the root must run under the flag");
+    assert!(workspace.join("packages/project-1/ran.txt").exists(), "project-1 should run");
+    assert!(workspace.join("packages/project-2/ran.txt").exists(), "project-2 should run");
 
     drop(root);
 }
@@ -460,11 +423,7 @@ fn include_workspace_root_setting_is_read_from_the_workspace_manifest() {
         .assert()
         .success();
     for marker in &markers {
-        assert!(
-            marker.exists(),
-            "{} should run under the setting",
-            marker.display(),
-        );
+        assert!(marker.exists(), "{} should run under the setting", marker.display());
         fs::remove_file(marker).expect("clear the marker");
     }
 
@@ -474,10 +433,7 @@ fn include_workspace_root_setting_is_read_from_the_workspace_manifest() {
         .args(["-r", "--no-include-workspace-root", "run", "build"])
         .assert()
         .success();
-    assert!(
-        !markers[0].exists(),
-        "--no-include-workspace-root must override the setting",
-    );
+    assert!(!markers[0].exists(), "--no-include-workspace-root must override the setting");
     // The negation drops the root, not the selection: a run that
     // selected nothing would leave these missing too.
     for marker in &markers[1..] {
@@ -506,10 +462,7 @@ fn recursive_run_all_exclusion_filter_also_drops_root() {
         .assert()
         .success();
 
-    assert!(
-        workspace.join("packages/project-1/ran.txt").exists(),
-        "project-1 should run",
-    );
+    assert!(workspace.join("packages/project-1/ran.txt").exists(), "project-1 should run");
     assert!(
         !workspace.join("packages/project-2/ran.txt").exists(),
         "project-2 is excluded by the !project-2 selector",
@@ -542,14 +495,8 @@ fn recursive_run_from_subdirectory_still_excludes_root() {
         .assert()
         .success();
 
-    assert!(
-        workspace.join("packages/project-1/ran.txt").exists(),
-        "project-1 should run",
-    );
-    assert!(
-        workspace.join("packages/project-2/ran.txt").exists(),
-        "project-2 should run",
-    );
+    assert!(workspace.join("packages/project-1/ran.txt").exists(), "project-1 should run");
+    assert!(workspace.join("packages/project-2/ran.txt").exists(), "project-2 should run");
     assert!(
         !workspace.join("root-ran.txt").exists(),
         "the workspace root must stay excluded even when run from a subdirectory",
@@ -578,10 +525,7 @@ fn recursive_run_filter_prod_all_exclusion_also_drops_root() {
         .assert()
         .success();
 
-    assert!(
-        workspace.join("packages/project-1/ran.txt").exists(),
-        "project-1 should run",
-    );
+    assert!(workspace.join("packages/project-1/ran.txt").exists(), "project-1 should run");
     assert!(
         !workspace.join("packages/project-2/ran.txt").exists(),
         "project-2 is excluded by the !project-2 production selector",
@@ -605,10 +549,7 @@ fn recursive_run_filter_no_matching_script_reports_no_selected_packages() {
         &workspace,
         &[
             ("project-1", build_writes_marker("project-1")),
-            (
-                "project-2",
-                json!({ "name": "project-2", "version": "1.0.0" }),
-            ),
+            ("project-2", json!({ "name": "project-2", "version": "1.0.0" })),
         ],
     );
 
@@ -620,10 +561,7 @@ fn recursive_run_filter_no_matching_script_reports_no_selected_packages() {
         .with_arg("build")
         .output()
         .expect("spawn pacquet");
-    assert!(
-        !output.status.success(),
-        "a selected package without the script must fail",
-    );
+    assert!(!output.status.success(), "a selected package without the script must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT"),
@@ -649,10 +587,7 @@ fn recursive_run_filter_prod_follows_production_deps_only() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let mut app = build_writes_marker("app");
     app["devDependencies"] = json!({ "lib": "workspace:*" });
-    write_workspace(
-        &workspace,
-        &[("lib", build_writes_marker("lib")), ("app", app)],
-    );
+    write_workspace(&workspace, &[("lib", build_writes_marker("lib")), ("app", app)]);
 
     pacquet
         .with_arg("-r")
@@ -690,10 +625,7 @@ fn recursive_run_mixed_filter_runs_prod_selected_before_regular() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
-        &[
-            ("alpha", build_appends_run_order("alpha")),
-            ("beta", build_appends_run_order("beta")),
-        ],
+        &[("alpha", build_appends_run_order("alpha")), ("beta", build_appends_run_order("beta"))],
     );
 
     pacquet
@@ -724,10 +656,7 @@ fn recursive_run_mixed_filter_runs_prod_selected_before_regular() {
 #[test]
 fn recursive_run_filter_no_match_is_a_noop() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(
-        &workspace,
-        &[("project-1", build_writes_marker("project-1"))],
-    );
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
 
     pacquet
         .with_arg("-r")
@@ -786,10 +715,7 @@ fn filtered_run_without_script_name_lists_selected_and_root_scripts() {
         .with_arg("run")
         .output()
         .expect("spawn pacquet");
-    assert!(
-        output.status.success(),
-        "filtered script listing must succeed",
-    );
+    assert!(output.status.success(), "filtered script listing must succeed");
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("STDOUT:\n{stdout}\n");
     assert!(stdout.contains("Lifecycle scripts:\n  test\n    echo tested"));
@@ -797,10 +723,7 @@ fn filtered_run_without_script_name_lists_selected_and_root_scripts() {
     assert!(stdout.contains(
         "Commands of the root workspace project (to run them, use \"pnpm -w run\"):\n  root-build\n    echo root",
     ));
-    assert!(
-        !stdout.contains("touch ran.txt"),
-        "unselected project scripts must not be listed",
-    );
+    assert!(!stdout.contains("touch ran.txt"), "unselected project scripts must not be listed");
 
     drop(root);
 }
@@ -839,6 +762,66 @@ fn recursive_run_filters_hidden_regexp_matches_when_a_visible_script_matches() {
             .join("project")
             .join("hidden.txt")
             .exists(),
+    );
+
+    drop(root);
+}
+
+/// A `[<since>]` changed-packages selector scopes a recursive `run` to
+/// the projects the git diff touches.
+#[test]
+fn recursive_run_diff_selector_selects_changed_projects() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+    let git = |args: &[&str]| {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(&workspace)
+            .output()
+            .expect("spawn git");
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+    };
+    git(&["init", "--initial-branch=main"]);
+    git(&["config", "user.email", "x@y.z"]);
+    git(&["config", "user.name", "xyz"]);
+    git(&["add", "."]);
+    git(&["commit", "-m", "base", "--no-gpg-sign"]);
+    fs::write(workspace.join("project-1").join("changed.js"), "").expect("write changed file");
+    git(&["add", "."]);
+    git(&["commit", "-m", "change project-1", "--no-gpg-sign"]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("[HEAD~1]")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(
+        workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
+        "the changed project-1 should run the build script",
+    );
+    assert!(
+        !workspace
+            .join("project-2")
+            .join("ran.txt")
+            .exists(),
+        "the unchanged project-2 must stay outside the selection",
     );
 
     drop(root);

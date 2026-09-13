@@ -24,9 +24,7 @@ use serde_json::Value;
 #[must_use]
 pub fn split_spec(spec: &str) -> (&str, Option<&str>) {
     let separator = if let Some(rest) = spec.strip_prefix('@') {
-        rest
-            .find('@')
-            .map(|index| index + 1)
+        rest.find('@').map(|index| index + 1)
     } else {
         spec.find('@')
     };
@@ -40,9 +38,7 @@ pub fn split_spec(spec: &str) -> (&str, Option<&str>) {
 /// build corepack records the downloaded artifact with.
 #[must_use]
 pub fn version_without_build(reference: &str) -> &str {
-    reference
-        .split_once('+')
-        .map_or(reference, |(version, _)| version)
+    reference.split_once('+').map_or(reference, |(version, _)| version)
 }
 
 /// Whether `reference` asks for a released version — a version, a range,

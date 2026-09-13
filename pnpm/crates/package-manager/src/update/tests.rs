@@ -33,11 +33,7 @@ fn test_update(
             lockfile: None,
             lockfile_path: None,
             lockfile_only: false,
-            selection: crate::UpdateSelection {
-                packages,
-                depth: 0,
-                workspace_packages: None,
-            },
+            selection: crate::UpdateSelection { packages, depth: 0, workspace_packages: None },
             version: crate::UpdateVersionOptions {
                 latest,
                 patches: false,
@@ -113,10 +109,7 @@ fn an_npm_alias_selector_targets_the_aliased_package_name() {
 #[test]
 fn a_jsr_alias_selector_targets_the_npm_package_name_it_installs() {
     let selectors = vec![parse_update_param("bar-from-jsr@jsr:@pnpm-e2e/bar@^1.0.0")];
-    assert_eq!(
-        update_target_name(&selectors, "bar-from-jsr"),
-        "@jsr/pnpm-e2e__bar",
-    );
+    assert_eq!(update_target_name(&selectors, "bar-from-jsr"), "@jsr/pnpm-e2e__bar");
 }
 
 #[test]
@@ -139,10 +132,8 @@ fn a_bare_selector_targets_the_name_it_names() {
 
 #[test]
 fn a_wildcard_selector_does_not_shadow_an_alias_selector_that_also_matches() {
-    let selectors = vec![
-        parse_update_param("*"),
-        parse_update_param("alias@npm:@scope/real@^1.0.0"),
-    ];
+    let selectors =
+        vec![parse_update_param("*"), parse_update_param("alias@npm:@scope/real@^1.0.0")];
     assert_eq!(update_target_name(&selectors, "alias"), "@scope/real");
     assert_eq!(update_target_name(&selectors, "other"), "other");
 }
@@ -174,10 +165,7 @@ fn a_requested_version_is_recorded_under_the_declared_operator() {
         requested_version_rewrite("^100.1.0", "~100.0.0", RangeSpecStyle::Major),
         "^100.1.0",
     );
-    assert_eq!(
-        requested_version_rewrite("next", "^100.0.0", RangeSpecStyle::Major),
-        "next",
-    );
+    assert_eq!(requested_version_rewrite("next", "^100.0.0", RangeSpecStyle::Major), "next");
 }
 
 #[test]
@@ -190,10 +178,7 @@ fn workspace_local_path_specifiers_are_detected() {
         "workspace:~/home/path",
         r"workspace:C:\packages\foo",
     ] {
-        assert!(
-            is_workspace_local_path_specifier(spec),
-            "expected {spec} to be a local path",
-        );
+        assert!(is_workspace_local_path_specifier(spec), "expected {spec} to be a local path");
     }
 }
 
@@ -210,10 +195,7 @@ fn workspace_range_specifiers_are_not_local_paths() {
         "^1.0.0",
         "link:../foo",
     ] {
-        assert!(
-            !is_workspace_local_path_specifier(spec),
-            "expected {spec} not to be a local path",
-        );
+        assert!(!is_workspace_local_path_specifier(spec), "expected {spec} not to be a local path");
     }
 }
 
@@ -236,20 +218,11 @@ fn a_bumped_range_lands_in_the_group_it_was_read_from() {
     .expect("write package.json");
     let mut manifest = PackageManifest::from_path(package_json).expect("read package.json");
 
-    let bumped = BTreeMap::from([(
-        "foo".to_string(),
-        (DependencyGroup::Optional, "^1.2.0".to_string()),
-    )]);
-    assert!(apply_bumped_manifest_specs::<SilentReporter>(
-        &mut manifest,
-        &bumped,
-        false
-    ));
+    let bumped =
+        BTreeMap::from([("foo".to_string(), (DependencyGroup::Optional, "^1.2.0".to_string()))]);
+    assert!(apply_bumped_manifest_specs::<SilentReporter>(&mut manifest, &bumped, false));
 
-    assert_eq!(
-        dependency_specifier_in(&manifest, DependencyGroup::Prod, "foo"),
-        Some("1.0.0"),
-    );
+    assert_eq!(dependency_specifier_in(&manifest, DependencyGroup::Prod, "foo"), Some("1.0.0"));
     assert_eq!(
         dependency_specifier_in(&manifest, DependencyGroup::Optional, "foo"),
         Some("^1.2.0"),
@@ -269,24 +242,12 @@ fn a_bump_for_an_undeclared_group_writes_nothing() {
     .expect("write package.json");
     let mut manifest = PackageManifest::from_path(package_json).expect("read package.json");
 
-    let bumped = BTreeMap::from([(
-        "foo".to_string(),
-        (DependencyGroup::Dev, "^1.2.0".to_string()),
-    )]);
-    assert!(!apply_bumped_manifest_specs::<SilentReporter>(
-        &mut manifest,
-        &bumped,
-        false
-    ));
+    let bumped =
+        BTreeMap::from([("foo".to_string(), (DependencyGroup::Dev, "^1.2.0".to_string()))]);
+    assert!(!apply_bumped_manifest_specs::<SilentReporter>(&mut manifest, &bumped, false));
 
-    assert_eq!(
-        dependency_specifier_in(&manifest, DependencyGroup::Prod, "foo"),
-        Some("1.0.0"),
-    );
-    assert_eq!(
-        dependency_specifier_in(&manifest, DependencyGroup::Dev, "foo"),
-        None,
-    );
+    assert_eq!(dependency_specifier_in(&manifest, DependencyGroup::Prod, "foo"), Some("1.0.0"));
+    assert_eq!(dependency_specifier_in(&manifest, DependencyGroup::Dev, "foo"), None);
 }
 
 fn dependency_specifier_in<'a>(
@@ -303,11 +264,8 @@ fn dependency_specifier_in<'a>(
 #[tokio::test]
 async fn selected_update_prepares_and_persists_only_selected_projects() {
     let dir = tempdir().expect("create tempdir");
-    std::fs::write(
-        dir.path().join("pnpm-workspace.yaml"),
-        "packages:\n  - '*'\n",
-    )
-    .expect("write workspace manifest");
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - '*'\n")
+        .expect("write workspace manifest");
     let mut projects = ["a", "b", "c"]
         .into_iter()
         .map(|name| project_with_foo(dir.path(), name))
@@ -346,11 +304,8 @@ async fn selected_update_prepares_and_persists_only_selected_projects() {
 #[tokio::test]
 async fn selected_update_no_save_mutates_in_memory_without_persisting() {
     let dir = tempdir().expect("create tempdir");
-    std::fs::write(
-        dir.path().join("pnpm-workspace.yaml"),
-        "packages:\n  - '*'\n",
-    )
-    .expect("write workspace manifest");
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - '*'\n")
+        .expect("write workspace manifest");
     let mut projects = ["a", "b"]
         .into_iter()
         .map(|name| project_with_foo(dir.path(), name))
@@ -393,11 +348,8 @@ async fn selected_update_no_save_mutates_in_memory_without_persisting() {
 #[tokio::test]
 async fn selected_update_no_save_skips_a_selector_outside_the_kept_range() {
     let dir = tempdir().expect("create tempdir");
-    std::fs::write(
-        dir.path().join("pnpm-workspace.yaml"),
-        "packages:\n  - '*'\n",
-    )
-    .expect("write workspace manifest");
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - '*'\n")
+        .expect("write workspace manifest");
     let mut projects = vec![project_with_foo(dir.path(), "a")];
     let ordered_dirs = [projects[0].root_dir.clone()];
     let selected_dirs = ordered_dirs
@@ -430,10 +382,7 @@ async fn selected_update_no_save_skips_a_selector_outside_the_kept_range() {
 #[tokio::test]
 async fn selected_update_depth_zero_skips_projects_without_a_matching_dependency() {
     let dir = tempdir().expect("create tempdir");
-    let mut projects = [
-        project_without_foo(dir.path(), "a"),
-        project_with_foo(dir.path(), "b"),
-    ];
+    let mut projects = [project_without_foo(dir.path(), "a"), project_with_foo(dir.path(), "b")];
     let selected_indices = [0, 1];
     let config = Config::new();
 
@@ -459,10 +408,7 @@ async fn selected_update_depth_zero_skips_projects_without_a_matching_dependency
 #[tokio::test]
 async fn selected_update_latest_depth_zero_errors_when_no_project_matches() {
     let dir = tempdir().expect("create tempdir");
-    let mut projects = [
-        project_without_foo(dir.path(), "a"),
-        project_without_foo(dir.path(), "b"),
-    ];
+    let mut projects = [project_without_foo(dir.path(), "a"), project_without_foo(dir.path(), "b")];
     let selected_indices = [0, 1];
     let config = Config::new();
 
@@ -543,10 +489,7 @@ async fn latest_rewrites_a_specifier_the_npm_resolver_claims() {
     )
     .await;
 
-    assert!(
-        result.is_err(),
-        "a range specifier is the registry's to bump, so it must be fetched",
-    );
+    assert!(result.is_err(), "a range specifier is the registry's to bump, so it must be fetched");
 }
 
 fn project_with_foo(root: &std::path::Path, name: &str) -> Project {
@@ -573,11 +516,7 @@ fn project_with_foo_specifier(root: &std::path::Path, name: &str, specifier: &st
 // loudly instead of hitting the network. Retries are off so that failure is
 // immediate rather than a minute of backoff.
 fn unroutable_registry_config() -> Config {
-    Config {
-        registry: "http://127.0.0.1:1/".to_string(),
-        fetch_retries: 0,
-        ..Config::new()
-    }
+    Config { registry: "http://127.0.0.1:1/".to_string(), fetch_retries: 0, ..Config::new() }
 }
 
 fn project_without_foo(root: &std::path::Path, name: &str) -> Project {
@@ -608,10 +547,7 @@ fn saved_dependency_specifier(manifest: &PackageManifest) -> String {
 
 #[test]
 fn requested_version_outside_the_kept_range_is_excluded() {
-    assert!(matches!(
-        judge_against_kept_range("7.8.5", "^6.0.0"),
-        KeptRangeVerdict::Excluded,
-    ));
+    assert!(matches!(judge_against_kept_range("7.8.5", "^6.0.0"), KeptRangeVerdict::Excluded,));
     assert!(matches!(
         judge_against_kept_range("2.0.0-beta.1", "^2.0.0"),
         KeptRangeVerdict::Excluded,
@@ -620,10 +556,7 @@ fn requested_version_outside_the_kept_range_is_excluded() {
 
 #[test]
 fn requested_version_inside_the_kept_range_is_admitted() {
-    assert!(matches!(
-        judge_against_kept_range("6.3.0", "^6.0.0"),
-        KeptRangeVerdict::Admitted
-    ));
+    assert!(matches!(judge_against_kept_range("6.3.0", "^6.0.0"), KeptRangeVerdict::Admitted));
     // A range that admits prereleases admits this one.
     assert!(matches!(
         judge_against_kept_range("2.0.0-beta.1", "^2.0.0-0"),
@@ -636,17 +569,11 @@ fn only_a_requested_version_gets_a_verdict() {
     // Range-against-range containment is not decided consistently across
     // semver implementations, so a request that names no version is left to
     // the specifier the manifest keeps.
-    for (requested, kept) in [
-        (">=6", "^6.0.0"),
-        ("^7.0.0", "^6.0.0"),
-        ("beta", "^6.0.0"),
-        ("6.3.0", "workspace:*"),
-    ] {
+    for (requested, kept) in
+        [(">=6", "^6.0.0"), ("^7.0.0", "^6.0.0"), ("beta", "^6.0.0"), ("6.3.0", "workspace:*")]
+    {
         assert!(
-            matches!(
-                judge_against_kept_range(requested, kept),
-                KeptRangeVerdict::Undecided
-            ),
+            matches!(judge_against_kept_range(requested, kept), KeptRangeVerdict::Undecided),
             "{requested:?} against {kept:?} should be undecided",
         );
     }
@@ -672,42 +599,27 @@ fn covers(selectors: &[&str], name: &str, versions: &[&str]) -> Vec<bool> {
 #[test]
 fn a_pinned_selector_targets_only_its_version_line() {
     assert_eq!(
-        covers(
-            &["js-yaml@3.15.1"],
-            "js-yaml",
-            &["3.15.0", "3.15.1", "4.3.0"]
-        ),
+        covers(&["js-yaml@3.15.1"], "js-yaml", &["3.15.0", "3.15.1", "4.3.0"]),
         [true, true, false],
     );
 }
 
 #[test]
 fn a_pinned_zero_x_selector_targets_only_its_minor_line() {
-    assert_eq!(
-        covers(&["foo@0.2.5"], "foo", &["0.2.1", "0.3.0", "1.0.0"]),
-        [true, false, false],
-    );
+    assert_eq!(covers(&["foo@0.2.5"], "foo", &["0.2.1", "0.3.0", "1.0.0"]), [true, false, false]);
 }
 
 #[test]
 fn a_selector_that_names_no_single_version_targets_every_line() {
     for selector in ["foo", "foo@^3.15.1", "foo@latest"] {
-        assert_eq!(
-            covers(&[selector], "foo", &["3.15.0", "4.3.0"]),
-            [true, true],
-            "{selector}",
-        );
+        assert_eq!(covers(&[selector], "foo", &["3.15.0", "4.3.0"]), [true, true], "{selector}");
     }
 }
 
 #[test]
 fn every_selector_that_claims_a_name_widens_its_lines() {
     assert_eq!(
-        covers(
-            &["foo@1.0.0", "foo@2.0.0"],
-            "foo",
-            &["1.5.0", "2.5.0", "3.0.0"]
-        ),
+        covers(&["foo@1.0.0", "foo@2.0.0"], "foo", &["1.5.0", "2.5.0", "3.0.0"]),
         [true, true, false],
     );
 }
@@ -717,10 +629,7 @@ fn an_alias_selector_scopes_the_aliased_package_by_version_line() {
     // `expand_update_selectors` turns `alias@npm:foo@100.1.0` into a
     // selector for `foo` on the 100.x line, which is the name the resolver
     // resolves the edge under.
-    assert_eq!(
-        covers(&["alias@npm:foo@100.1.0"], "foo", &["100.0.0", "101.0.0"]),
-        [true, false],
-    );
+    assert_eq!(covers(&["alias@npm:foo@100.1.0"], "foo", &["100.0.0", "101.0.0"]), [true, false]);
 }
 
 #[test]
@@ -759,11 +668,7 @@ fn reject_indirect(selectors: &[&str]) -> Result<(), super::UpdateError> {
     reject_versions_of_indirect_update_specs::<SilentReporter>(
         &parsed,
         &[&manifest],
-        &[
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-        ],
+        &[DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         "prefix",
     )
 }
@@ -772,10 +677,7 @@ fn reject_indirect(selectors: &[&str]) -> Result<(), super::UpdateError> {
 fn an_exact_version_nothing_declares_directly_is_rejected() {
     let err = reject_indirect(&["bar@1.2.3"]).expect_err("bar is not a direct dependency");
     let rendered = err.to_string();
-    assert!(
-        rendered.contains(r#""bar" (requested "1.2.3")"#),
-        "{rendered}",
-    );
+    assert!(rendered.contains(r#""bar" (requested "1.2.3")"#), "{rendered}");
 }
 
 #[test]

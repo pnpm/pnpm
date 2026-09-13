@@ -83,14 +83,8 @@ fn prune_removes_dead_project_slots_and_keeps_live_slots() {
 
     store_dir.prune().expect("prune");
 
-    assert!(
-        live_slot.exists(),
-        "slot referenced by live project must survive",
-    );
-    assert!(
-        !dead_slot.exists(),
-        "slot only referenced by dead project must be swept",
-    );
+    assert!(live_slot.exists(), "slot referenced by live project must survive");
+    assert!(!dead_slot.exists(), "slot only referenced by dead project must be swept");
     assert!(
         !links
             .join("@")
@@ -136,10 +130,7 @@ fn prune_keeps_slot_referenced_by_any_surviving_project() {
     assert!(!b_path.exists());
 
     store_dir.prune().expect("prune");
-    assert!(
-        shared_slot.exists(),
-        "shared slot survives when one referencer remains",
-    );
+    assert!(shared_slot.exists(), "shared slot survives when one referencer remains");
 }
 
 #[test]
@@ -175,11 +166,8 @@ fn prune_marks_transitive_slot_reachable() {
     let foo = make_slot(&links, "@", "foo", "1.0.0", "fooh01");
     let bar = make_slot(&links, "@", "bar", "1.0.0", "barh01");
     // Wire foo's internal node_modules/bar → bar's slot.
-    symlink_dir(
-        &bar.join("node_modules").join("bar"),
-        &foo.join("node_modules").join("bar"),
-    )
-    .unwrap();
+    symlink_dir(&bar.join("node_modules").join("bar"), &foo.join("node_modules").join("bar"))
+        .unwrap();
 
     let project = tempdir().unwrap();
     fs::create_dir_all(project.path().join("node_modules")).unwrap();

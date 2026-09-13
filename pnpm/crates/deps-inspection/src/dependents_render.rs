@@ -38,11 +38,7 @@ pub fn render_dependents_tree(trees: &[DependentsTree], opts: &RenderDependentsO
         .join("\n\n");
 
     let summary = why_summary(trees);
-    if summary.is_empty() {
-        output
-    } else {
-        format!("{output}\n\n{summary}")
-    }
+    if summary.is_empty() { output } else { format!("{output}\n\n{summary}") }
 }
 
 fn render_one_tree(
@@ -80,11 +76,7 @@ fn root_label(
     }
     if long && let Some(path) = &tree.path {
         let info = read_long_pkg_info(Path::new(path));
-        parts.extend(
-            long_info_fields(&info)
-                .into_iter()
-                .map(|field| plain(&field)),
-        );
+        parts.extend(long_info_fields(&info).into_iter().map(|field| plain(&field)));
         parts.push(plain(path));
     }
     parts.join("\n")
@@ -108,20 +100,20 @@ fn why_summary(trees: &[DependentsTree]) -> String {
         return String::new();
     }
 
+    struct Entry {
+        versions: Vec<String>,
+        count: usize,
+    }
     let mut order: Vec<String> = Vec::new();
-    let mut by_name: HashMap<String, WhySummaryEntry> = HashMap::new();
+    let mut by_name: HashMap<String, Entry> = HashMap::new();
     for tree in trees {
-        let displayed_name = tree.display_name
-            .clone()
-            .unwrap_or_else(|| tree.name.clone());
+        let displayed_name =
+            tree.display_name.clone().unwrap_or_else(|| tree.name.clone());
         let entry = by_name
             .entry(displayed_name.clone())
             .or_insert_with(|| {
                 order.push(displayed_name);
-                WhySummaryEntry {
-                    versions: Vec::new(),
-                    count: 0,
-                }
+                Entry { versions: Vec::new(), count: 0 }
             });
         if !entry.versions.contains(&tree.version) {
             entry.versions.push(tree.version.clone());
@@ -131,7 +123,16 @@ fn why_summary(trees: &[DependentsTree]) -> String {
 
     let lines: Vec<String> = order
         .iter()
-        .map(|name| by_name[name].summary_line(name))
+        .map(|name| {
+            let entry = &by_name[name];
+            let versions = entry.versions.len();
+            let mut parts =
+                vec![format!("{versions} version{}", if versions == 1 { "" } else { "s" })];
+            if entry.count > versions {
+                parts.push(format!("{} instances", entry.count));
+            }
+            format!("Found {} of {name}", parts.join(", "))
+        })
         .collect();
     dim(&lines.join("\n"))
 }
@@ -272,10 +273,7 @@ pub fn render_dependents_parseable(
         let displayed_name = tree.display_name.as_deref().unwrap_or(&tree.name);
         let root_segment = match (&tree.path, opts.long) {
             (Some(path), true) => {
-                format!(
-                    "{path}:{}",
-                    plain_name_at_version(displayed_name, &tree.version),
-                )
+                format!("{path}:{}", plain_name_at_version(displayed_name, &tree.version))
             }
             _ => plain_name_at_version(displayed_name, &tree.version),
         };
@@ -311,31 +309,8 @@ fn collect_paths(
 }
 
 fn plain_name_at_version(name: &str, version: &str) -> String {
-    if version.is_empty() {
-        plain(name)
-    } else {
-        plain(&format!("{name}@{version}"))
-    }
+    if version.is_empty() { plain(name) } else { plain(&format!("{name}@{version}")) }
 }
 
 #[cfg(test)]
 mod tests;
-
-struct WhySummaryEntry {
-    versions: Vec<String>,
-    count: usize,
-}
-
-impl WhySummaryEntry {
-    fn summary_line(&self, name: &str) -> String {
-        let versions = self.versions.len();
-        let mut parts = vec![format!(
-            "{versions} version{}",
-            if versions == 1 { "" } else { "s" }
-        )];
-        if self.count > versions {
-            parts.push(format!("{} instances", self.count));
-        }
-        format!("Found {} of {name}", parts.join(", "))
-    }
-}

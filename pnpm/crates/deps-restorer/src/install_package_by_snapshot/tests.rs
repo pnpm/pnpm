@@ -94,10 +94,7 @@ fn scripted_session(
     response: Result<serde_json::Value, pnpm_hooks::HookError>,
 ) -> std::sync::Arc<crate::CustomFetcherSession> {
     std::sync::Arc::new(crate::CustomFetcherSession::new(vec![std::sync::Arc::new(
-        ScriptedCustomFetcher {
-            claims,
-            response,
-        },
+        ScriptedCustomFetcher { claims, response },
     )]))
 }
 

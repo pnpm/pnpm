@@ -17,13 +17,9 @@ pub(super) async fn apply_before_packing<Reporter: self::Reporter>(
 ) -> Result<Value, PackError> {
     let prefix = project_dir.to_string_lossy();
     for hook in hooks {
-        let pnpmfile = hook
-            .source_path()
-            .unwrap_or_else(|| Path::new("<pnpmfile>"));
-        let ctx = HookContext {
-            log: before_packing_logger::<Reporter>(pnpmfile, &prefix),
-            dir: None,
-        };
+        let pnpmfile = hook.source_path().unwrap_or_else(|| Path::new("<pnpmfile>"));
+        let ctx =
+            HookContext { log: before_packing_logger::<Reporter>(pnpmfile, &prefix), dir: None };
         manifest = hook
             .before_packing(manifest, publish_dir, ctx)
             .await
@@ -98,9 +94,7 @@ impl PackScripts {
         let parent_env: HashMap<String, String> = std::env::vars().collect();
 
         for &script_name in script_names {
-            let Some(script) = script_body(scripts, script_name) else {
-                continue;
-            };
+            let Some(script) = script_body(scripts, script_name) else { continue };
             run_lifecycle_hook::<Reporter>(script_name, script, &run_opts, manifest, &parent_env)
                 .map_err(PackError::Lifecycle)?;
         }

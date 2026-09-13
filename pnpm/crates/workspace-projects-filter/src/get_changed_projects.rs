@@ -63,10 +63,7 @@ pub fn get_changed_projects(
             None => {}
         }
     }
-    Ok(ChangedProjects {
-        changed_projects,
-        ignore_dependent_for_projects,
-    })
+    Ok(ChangedProjects { changed_projects, ignore_dependent_for_projects })
 }
 
 /// The project a changed directory belongs to: itself if it is one, else the
@@ -83,9 +80,7 @@ fn owning_project(
         repo_root.join(changed_dir)
     };
     while !project_change_types.contains_key(&current) {
-        let Some(parent) = current.parent() else {
-            break;
-        };
+        let Some(parent) = current.parent() else { break };
         current = parent.to_path_buf();
     }
     current
@@ -155,9 +150,7 @@ fn git_diff_names(commit: &str, workspace_dir: &Path) -> Result<String, FilterEr
         .arg(workspace_dir)
         .current_dir(workspace_dir)
         .output()
-        .map_err(|err| FilterError::FilterChanged {
-            stderr: err.to_string(),
-        })?;
+        .map_err(|err| FilterError::FilterChanged { stderr: err.to_string() })?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(FilterError::FilterChanged {

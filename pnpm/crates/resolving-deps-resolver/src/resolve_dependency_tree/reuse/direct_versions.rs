@@ -22,9 +22,7 @@ pub(crate) fn record_changed_direct_deps(
     let lockfile = ctx.workspace.reuse.lockfile.as_deref();
     let prior = lockfile.and_then(|lockfile| lockfile.importers.get(importer_id));
     let mut changed = lock_recoverable(&ctx.workspace.versions.changed_direct_deps);
-    let bucket = changed
-        .entry(importer_id.to_string())
-        .or_default();
+    let bucket = changed.entry(importer_id.to_string()).or_default();
     for (alias, spec, _optional, _injected) in wanted {
         let unchanged = prior
             .and_then(|importer| importer_dep_specifier(importer, alias))
@@ -60,11 +58,7 @@ pub(super) fn catalog_specifier_unchanged(
     let Some(catalog_name) = recorded.strip_prefix("catalog:") else {
         return false;
     };
-    let catalog_name = if catalog_name.is_empty() {
-        "default"
-    } else {
-        catalog_name
-    };
+    let catalog_name = if catalog_name.is_empty() { "default" } else { catalog_name };
     lockfile
         .and_then(|lockfile| lockfile.catalogs.as_ref())
         .and_then(|catalogs| catalogs.get(catalog_name))
@@ -96,19 +90,11 @@ pub(in super::super) fn record_direct_dep_versions(
     level: &BTreeMap<String, Vec<String>>,
 ) {
     let mut versions = lock_recoverable(&ctx.workspace.versions.direct_dep_versions);
-    let by_name = Arc::make_mut(
-        versions
-            .entry(importer_id.to_string())
-            .or_default(),
-    );
+    let by_name = Arc::make_mut(versions.entry(importer_id.to_string()).or_default());
     for (name, level_versions) in level {
-        let bucket = by_name
-            .entry(name.clone())
-            .or_default();
+        let bucket = by_name.entry(name.clone()).or_default();
         for version in level_versions {
-            let Ok(parsed) = version.parse::<node_semver::Version>() else {
-                continue;
-            };
+            let Ok(parsed) = version.parse::<node_semver::Version>() else { continue };
             if !bucket.contains(&parsed) {
                 bucket.push(parsed);
             }

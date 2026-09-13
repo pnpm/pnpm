@@ -357,13 +357,7 @@ pub async fn should_install_package_from_pre_resolved_result() {
         dunce::canonicalize(&virtual_store_path).expect("canonicalize virtual store path"),
     );
 
-    drop((
-        store_dir,
-        modules_dir,
-        virtual_store_dir,
-        cache_dir,
-        mock_instance,
-    ));
+    drop((store_dir, modules_dir, virtual_store_dir, cache_dir, mock_instance));
 }
 
 /// Progress events are per-package signals upstream, not per-edge.
@@ -372,10 +366,7 @@ pub async fn should_install_package_from_pre_resolved_result() {
 #[tokio::test]
 async fn second_visit_skips_progress_emits_but_still_links() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -445,10 +436,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     .run::<RecordingReporter>()
     .await
     .expect("first visit installs cleanly");
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     InstallPackageFromRegistry {
         fetching: crate::RegistryFetchContext {
@@ -478,9 +466,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
         .unwrap()
         .iter()
         .filter_map(|event| {
-            let LogEvent::Progress(log) = event else {
-                return None;
-            };
+            let LogEvent::Progress(log) = event else { return None };
             Some(match &log.message {
                 ProgressMessage::Resolved { .. } => "resolved",
                 ProgressMessage::Fetched { .. } => "fetched",
@@ -489,25 +475,12 @@ async fn second_visit_skips_progress_emits_but_still_links() {
             })
         })
         .collect();
-    assert!(
-        kinds.is_empty(),
-        "second visit must not emit progress events, got {kinds:?}",
-    );
+    assert!(kinds.is_empty(), "second visit must not emit progress events, got {kinds:?}");
 
     let symlink_path = second_parent_dir.path().join("second-alias");
-    assert!(
-        symlink_path.exists() || symlink_path.is_symlink(),
-        "per-parent symlink missing",
-    );
+    assert!(symlink_path.exists() || symlink_path.is_symlink(), "per-parent symlink missing");
 
-    drop((
-        store_dir,
-        modules_dir,
-        second_parent_dir,
-        virtual_store_dir,
-        cache_dir,
-        mock_instance,
-    ));
+    drop((store_dir, modules_dir, second_parent_dir, virtual_store_dir, cache_dir, mock_instance));
 }
 
 /// Pin the order with a recording reporter — a regression in either
@@ -517,10 +490,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
 #[tokio::test]
 async fn install_emits_progress_sequence() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -624,13 +594,7 @@ async fn install_emits_progress_sequence() {
         other => panic!("first event must be Resolved; got {other:?}"),
     }
 
-    drop((
-        store_dir,
-        modules_dir,
-        virtual_store_dir,
-        cache_dir,
-        mock_instance,
-    ));
+    drop((store_dir, modules_dir, virtual_store_dir, cache_dir, mock_instance));
 }
 
 /// A missing `name_ver` (every non-npm resolver — git / tarball /

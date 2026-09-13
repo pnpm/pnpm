@@ -18,11 +18,7 @@ const GIT_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 /// No declared server type — the strict default every registry but
 /// registry.npmjs.org is read with.
 fn undeclared_form(registry: &str, include_tarball_url: bool) -> LockfileFormOptions<'_> {
-    LockfileFormOptions {
-        registry,
-        server_type: None,
-        include_tarball_url,
-    }
+    LockfileFormOptions { registry, server_type: None, include_tarball_url }
 }
 
 fn integrity(integrity_str: &str) -> Integrity {
@@ -66,26 +62,15 @@ fn binary_resolution(url: &str) -> LockfileResolution {
 }
 
 fn target(os: &str, cpu: &str, libc: Option<&str>) -> PlatformAssetTarget {
-    PlatformAssetTarget {
-        os: os.to_string(),
-        cpu: cpu.to_string(),
-        libc: libc.map(str::to_string),
-    }
+    PlatformAssetTarget { os: os.to_string(), cpu: cpu.to_string(), libc: libc.map(str::to_string) }
 }
 
 fn variant(url: &str, targets: Vec<PlatformAssetTarget>) -> PlatformAssetResolution {
-    PlatformAssetResolution {
-        resolution: binary_resolution(url),
-        targets,
-    }
+    PlatformAssetResolution { resolution: binary_resolution(url), targets }
 }
 
 fn selector(os: &str, cpu: &str, libc: Option<&str>) -> PlatformSelector {
-    PlatformSelector {
-        os: os.to_string(),
-        cpu: cpu.to_string(),
-        libc: libc.map(str::to_string),
-    }
+    PlatformSelector { os: os.to_string(), cpu: cpu.to_string(), libc: libc.map(str::to_string) }
 }
 
 const SHA512: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
@@ -99,10 +84,7 @@ fn custom_cdn_resolution() -> LockfileResolution {
         "url".to_string(),
         serde_json::Value::String("https://cdn.example.com/pkg.tgz".to_string()),
     );
-    extra.insert(
-        "integrity".to_string(),
-        serde_json::Value::String(SHA512.to_string()),
-    );
+    extra.insert("integrity".to_string(), serde_json::Value::String(SHA512.to_string()));
     LockfileResolution::Custom(super::CustomResolution {
         resolution_type: "custom:cdn"
             .to_string()

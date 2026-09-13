@@ -98,10 +98,7 @@ fn is_public_ci_project<Sys: EnvVar>(payload: &Value) -> bool {
 }
 
 fn visibility_url(registry: &str, package_name: &str) -> Result<String, DetermineProvenanceError> {
-    let path = format!(
-        "/-/package/{}/visibility",
-        escaped_package_name(package_name),
-    );
+    let path = format!("/-/package/{}/visibility", escaped_package_name(package_name));
     Url::parse(registry)
         .and_then(|base| base.join(&path))
         .map_err(DetermineProvenanceError::InvalidUrl)
@@ -134,12 +131,7 @@ pub enum ProvenanceError {
         "Failed to fetch visibility for package {package_name} from registry {registry} due to {message} (status code {status})"
     )]
     #[diagnostic(code(ERR_PNPM_PROVENANCE_FAILED_TO_FETCH_VISIBILITY))]
-    FailedToFetchVisibility {
-        message: String,
-        status: u16,
-        package_name: String,
-        registry: String,
-    },
+    FailedToFetchVisibility { message: String, status: u16, package_name: String, registry: String },
 }
 
 impl ProvenanceError {

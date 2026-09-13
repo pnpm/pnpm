@@ -30,18 +30,19 @@ pub(super) fn insert_graph_node(
                 || (candidate.depth == existing.depth && order < existing_order);
             if !replace {
                 let existing = entry.get_mut();
-                existing.edges.transitive_peer_dependencies.extend(
-                    candidate.edges.transitive_peer_dependencies,
-                );
-                existing.edges.optional_children.extend(candidate.edges.optional_children);
-                merge_preferred_child_edges(
-                    existing,
-                    candidate.edges.children,
-                    transitive_by_dep_path,
-                );
+                merge_additional_edges(existing, candidate, transitive_by_dep_path);
                 return;
             }
-            merge_replaced_graph_edges(&mut candidate, existing, transitive_by_dep_path);
+            let edges = &mut candidate.edges;
+            edges.transitive_peer_dependencies.extend(
+                existing.edges.transitive_peer_dependencies.iter().cloned(),
+            );
+            edges.optional_children.extend(existing.edges.optional_children.iter().cloned());
+            merge_preferred_child_edges(
+                &mut candidate,
+                existing.edges.children.clone(),
+                transitive_by_dep_path,
+            );
             graph_order.insert(dep_path, order);
             entry.insert(candidate);
         }
@@ -191,9 +192,7 @@ impl<'a> PeerNameTarjan<'a> {
     }
 
     pub(super) fn visit_neighbors(&mut self, name: &'a str) {
-        let Some(neighbors) = self.graph.get(name) else {
-            return;
-        };
+        let Some(neighbors) = self.graph.get(name) else { return };
         for child in neighbors {
             if !self.index_of.contains_key(child) {
                 self.strongconnect(child);
@@ -236,19 +235,14 @@ impl<'a> PeerNameTarjan<'a> {
     }
 }
 
-fn merge_replaced_graph_edges(
-    candidate: &mut DependenciesGraphNode,
-    existing: &DependenciesGraphNode,
+fn merge_additional_edges(
+    existing: &mut DependenciesGraphNode,
+    candidate: DependenciesGraphNode,
     transitive_by_dep_path: &HashMap<DepPath, HashSet<String>>,
 ) {
-    let edges = &mut candidate.edges;
-    edges.transitive_peer_dependencies.extend(
-        existing.edges.transitive_peer_dependencies.iter().cloned(),
+    existing.edges.transitive_peer_dependencies.extend(
+        candidate.edges.transitive_peer_dependencies,
     );
-    edges.optional_children.extend(existing.edges.optional_children.iter().cloned());
-    merge_preferred_child_edges(
-        candidate,
-        existing.edges.children.clone(),
-        transitive_by_dep_path,
-    );
+    existing.edges.optional_children.extend(candidate.edges.optional_children);
+    merge_preferred_child_edges(existing, candidate.edges.children, transitive_by_dep_path);
 }

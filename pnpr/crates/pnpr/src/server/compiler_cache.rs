@@ -104,11 +104,7 @@ pub(super) async fn authorize_request(
             Ok(permit) => Some(permit),
             Err(_) => {
                 return private_no_cache(
-                    (
-                        StatusCode::SERVICE_UNAVAILABLE,
-                        [(header::RETRY_AFTER, "1")],
-                    )
-                        .into_response(),
+                    (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "1")]).into_response(),
                 );
             }
         }
@@ -147,10 +143,7 @@ pub(super) async fn directory(
     // sccache probes parents before PUT. Collections are virtual; only entries
     // occupy storage, so probing one must not create a directory or consume quota.
     let cache: String = url::form_urlencoded::byte_serialize(path.cache.as_bytes()).collect();
-    let href = format!(
-        "/-/pnpr/v0/compiler-cache/{cache}/{}",
-        path.key.unwrap_or_default(),
-    );
+    let href = format!("/-/pnpr/v0/compiler-cache/{cache}/{}", path.key.unwrap_or_default());
     private_no_cache((
         StatusCode::MULTI_STATUS,
         [(header::CONTENT_TYPE, "application/xml")],

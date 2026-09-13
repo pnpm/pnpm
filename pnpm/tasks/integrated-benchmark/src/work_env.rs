@@ -154,9 +154,6 @@ impl fmt::Display for BenchId<'_> {
     }
 }
 
-#[cfg(test)]
-mod tests;
-
 impl WorkEnv {
     const INIT_PROXY_CACHE: BenchId<'static> = BenchId::Static(INIT_PROXY_CACHE_ID);
     const SYSTEM_PNPM: BenchId<'static> = BenchId::Static("pnpm");
@@ -185,15 +182,11 @@ impl WorkEnv {
     /// pacquet repo when the caller didn't override it — useful when
     /// the same monorepo checkout contains both code bases.
     fn pnpm_repository(&self) -> &'_ Path {
-        self.options.build.pnpm_repository
-            .as_deref()
-            .unwrap_or_else(|| self.repository())
+        self.options.build.pnpm_repository.as_deref().unwrap_or_else(|| self.repository())
     }
 
     fn bench_dir(&self, id: BenchId) -> PathBuf {
-        self
-            .root()
-            .join(id.to_string())
+        self.root().join(id.to_string())
     }
 
     fn script_path(&self, id: BenchId) -> PathBuf {
@@ -239,11 +232,8 @@ impl WorkEnv {
                 // whichever this revision's build produced at script
                 // runtime, the same way the pnpm branch below resolves
                 // its bundle path.
-                let candidates = [
-                    "./pacquet/target/release/pnpm",
-                    "./pacquet/target/release/pacquet",
-                ]
-                .join(" ");
+                let candidates =
+                    ["./pacquet/target/release/pnpm", "./pacquet/target/release/pacquet"].join(" ");
                 format!(
                     r#""$(for f in {candidates}; do if [ -f "$f" ]; then echo "$f"; break; fi; done)""#,
                 )
@@ -289,7 +279,18 @@ impl WorkEnv {
             eprintln!("ID: {id}");
             let dir = self.bench_dir(id);
             let registry = self.registry_for(id, direct_registry, revision_mocks);
-            self.initialize_bench_dir(&dir, registry, scenario, id);
+            fs::create_dir_all(&dir).expect("create directory for the revision");
+            create_package_json(&dir, self.options.selection.fixture_dir.as_deref(), scenario);
+            create_pnpm_workspace(
+                &dir,
+                self.options.selection.fixture_dir.as_deref(),
+                registry,
+                scenario,
+            );
+            create_install_script(&dir, scenario, &WorkEnv::install_command(id), id);
+            create_npmrc(&dir, registry, scenario);
+            may_create_lockfile(&dir, scenario, self.options.selection.fixture_dir.as_deref());
+            save_pristine_copies(&dir);
         }
 
         if populate_proxy_cache {
@@ -297,36 +298,6 @@ impl WorkEnv {
             Command::new("bash")
                 .arg(self.script_path(WorkEnv::INIT_PROXY_CACHE))
                 .pipe_mut(executor("install.bash"));
-        }
-    }
-
-    fn initialize_bench_dir(
-        &self,
-        dir: &Path,
-        registry: &str,
-        scenario: crate::cli_args::BenchmarkScenario,
-        id: BenchId<'_>,
-    ) {
-        fs::create_dir_all(dir).expect("create directory for the revision");
-        create_package_json(dir, self.options.selection.fixture_dir.as_deref(), scenario);
-        create_pnpm_workspace(
-            dir,
-            self.options.selection.fixture_dir.as_deref(),
-            registry,
-            scenario,
-        );
-        create_install_script(dir, scenario, &WorkEnv::install_command(id), id);
-        create_npmrc(dir, registry, scenario);
-        may_create_lockfile(dir, scenario, self.options.selection.fixture_dir.as_deref());
-        save_pristine_copies(dir);
-    }
-
-    fn wipe_bench_dirs(&self) {
-        for dir in self
-            .benchmarked_ids()
-            .map(|id| self.bench_dir(id))
-        {
-            wipe_bench_dir(&dir);
         }
     }
 
@@ -358,7 +329,12 @@ impl WorkEnv {
         // long-running server even while the client is cold. `cold-mock-storage`
         // (only the cold-pnpr scenario) is wiped here too so the warmup run
         // starts cold even on a reused work-env, not just the timed iterations.
-        self.wipe_bench_dirs();
+        for dir in self
+            .benchmarked_ids()
+            .map(|id| self.bench_dir(id))
+        {
+            wipe_bench_dir(&dir);
+        }
 
         // Spawn each revision's own tarball-serving mock (see
         // `plan_revision_mocks`). Done after `build()` produced the
@@ -413,11 +389,19 @@ impl WorkEnv {
             self.prewarm_caches(&cleanup_command);
         }
 
+        self.run_hyperfine(&cleanup_command);
+        if scenario.uses_peer_heavy_fixture() {
+            self.install_for_lockfile_comparison(&cleanup_command);
+        }
+        self.write_benchmark_diagnostics();
+    }
+
+    fn run_hyperfine(&self, cleanup_command: &str) {
         let mut command = Command::new("hyperfine");
         command
             .current_dir(self.root())
             .arg("--prepare")
-            .arg(&cleanup_command);
+            .arg(cleanup_command);
 
         self.options.hyperfine_options.append_to(&mut command);
 
@@ -435,10 +419,6 @@ impl WorkEnv {
             .arg(self.root().join("BENCHMARK_REPORT.md"));
 
         executor("hyperfine")(&mut command);
-        if scenario.uses_peer_heavy_fixture() {
-            self.install_for_lockfile_comparison(&cleanup_command);
-        }
-        self.write_benchmark_diagnostics();
     }
 
     /// Prime the install state for the scenarios whose contract is "GVS
@@ -527,3 +507,6 @@ impl WorkEnv {
         self.verify_benchmark_diagnostics();
     }
 }
+
+#[cfg(test)]
+mod tests;

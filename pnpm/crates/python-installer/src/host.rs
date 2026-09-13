@@ -58,10 +58,7 @@ pub(super) async fn run<Output: DeserializeOwned>(
     let (written, output) = tokio::join!(write, output);
     let output = output.into_diagnostic()?;
     if !output.status.success() {
-        bail!(
-            "Python {operation} failed: {}",
-            String::from_utf8_lossy(&output.stderr),
-        );
+        bail!("Python {operation} failed: {}", String::from_utf8_lossy(&output.stderr));
     }
     written?;
     serde_json::from_slice(&output.stdout).into_diagnostic()

@@ -30,18 +30,12 @@ fn includes_a_hint_about_re_running_the_command() {
         .help()
         .expect("a help hint")
         .to_string();
-    assert!(
-        help.contains("Re-run"),
-        "help should mention re-running, got {help:?}",
-    );
+    assert!(help.contains("Re-run"), "help should mention re-running, got {help:?}");
 }
 
 #[test]
 fn has_a_descriptive_message() {
     let err = WebAuthTimeoutError::new(0, 0, 0);
     let message = err.to_string();
-    assert!(
-        message.contains("timed out"),
-        "message should mention timing out, got {message:?}",
-    );
+    assert!(message.contains("timed out"), "message should mention timing out, got {message:?}");
 }

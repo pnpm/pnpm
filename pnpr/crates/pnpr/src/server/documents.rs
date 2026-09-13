@@ -159,9 +159,7 @@ fn merge_into_stored<Document: HostedDocument>(
         Some(bytes) => Document::parse(bytes).map_err(RegistryError::Json)?,
         None => Document::empty(merge.name.as_str()),
     };
-    Ok(stored
-        .merge(journaled, merge.lost_blobs)
-        .then(|| stored.to_bytes()))
+    Ok(stored.merge(journaled, merge.lost_blobs).then(|| stored.to_bytes()))
 }
 
 /// The hosted document of `key` through `source`'s read gate: `None` when the
@@ -201,16 +199,13 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     addition: Document,
 ) -> Result<(), RegistryError> {
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
-    let staged = stage_hosted_artifact(state, org, key, filename, bytes, &refuse, addition)
-        .await?;
+    let staged = stage_hosted_artifact(state, org, key, filename, bytes, &refuse, addition).await?;
     let outcome = commit_publishes(state, vec![staged]).await?;
     if outcome.lost_blobs
         .iter()
         .any(|lost| lost.filename == filename)
     {
-        return Err(RegistryError::DocumentWriteConflict {
-            package: key.as_str().to_string(),
-        });
+        return Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() });
     }
     // Another writer recorded this blob's entry between the read and the
     // commit, so what the store serves under it is theirs. Answer with the

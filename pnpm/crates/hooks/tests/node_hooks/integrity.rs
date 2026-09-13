@@ -29,10 +29,7 @@ async fn calculate_pnpmfile_checksum_is_none_when_no_hooks_exported() {
 /// drift — the removal itself is what the gate must see.
 #[tokio::test]
 async fn current_pnpmfile_checksum_is_none_without_a_pnpmfile() {
-    assert_eq!(
-        pnpm_hooks::current_pnpmfile_checksum(None, Some("sha256-abc")).await,
-        None,
-    );
+    assert_eq!(pnpm_hooks::current_pnpmfile_checksum(None, Some("sha256-abc")).await, None);
 }
 
 #[tokio::test]
@@ -58,10 +55,7 @@ async fn current_pnpmfile_checksum_is_none_when_the_pnpmfile_exports_no_hooks() 
         .expect("write pnpmfile");
 
     let hooks = finder::load_pnpmfile(tmp.path());
-    assert_eq!(
-        pnpm_hooks::current_pnpmfile_checksum(hooks.as_ref(), None).await,
-        None,
-    );
+    assert_eq!(pnpm_hooks::current_pnpmfile_checksum(hooks.as_ref(), None).await, None);
 }
 
 /// A lockfile that already records a checksum settles the comparison
@@ -77,8 +71,7 @@ async fn current_pnpmfile_checksum_trusts_the_hash_when_the_lockfile_records_one
     let hooks = finder::load_pnpmfile(tmp.path());
     let recorded = pnpm_crypto_hash::create_hash(src);
     assert_eq!(
-        pnpm_hooks::current_pnpmfile_checksum(hooks.as_ref(), Some(&recorded))
-            .await,
+        pnpm_hooks::current_pnpmfile_checksum(hooks.as_ref(), Some(&recorded)).await,
         Some(recorded),
     );
 }

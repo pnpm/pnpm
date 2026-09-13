@@ -24,12 +24,7 @@ fn assert_resolved_dep(project: &Path, version: &str) {
         .map(|(key, _)| key)
         .collect();
     dbg!(&keys);
-    assert_eq!(
-        keys,
-        vec![format!("{DEP}@{version}")],
-        "in {}",
-        project.display(),
-    );
+    assert_eq!(keys, vec![format!("{DEP}@{version}")], "in {}", project.display());
 }
 
 fn lockfile_overrides(project: &Path) -> Option<IndexMap<String, String>> {
@@ -52,18 +47,12 @@ fn overrides_apply_to_the_named_project_only() {
     let pinned = fixture.project(
         "pinned",
         "pinned",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
     let unpinned = fixture.project(
         "unpinned",
         "unpinned",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
 
     fixture.run(["install"]);
@@ -85,26 +74,17 @@ fn the_list_form_overrides_every_matched_project() {
     let first = fixture.project(
         "first",
         "first",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
     let second = fixture.project(
         "second",
         "second",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
     let third = fixture.project(
         "third",
         "third",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
 
     fixture.run(["install"]);
@@ -125,10 +105,7 @@ fn overrides_apply_to_a_filtered_install_of_the_project() {
     let pinned = fixture.project(
         "pinned",
         "pinned",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
 
     fixture.run_at(&pinned, ["install"]);
@@ -143,18 +120,12 @@ fn hoist_false_disables_hoisting_for_the_named_project_only() {
     let hoisted = fixture.project(
         "hoisted",
         "hoisted",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
     let unhoisted = fixture.project(
         "unhoisted",
         "unhoisted",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
 
     fixture.run(["install"]);
@@ -177,18 +148,12 @@ fn modules_dir_moves_only_the_named_project() {
     let moved = fixture.project(
         "moved",
         "moved",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
     let stayed = fixture.project(
         "stayed",
         "stayed",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
 
     fixture.run(["install"]);
@@ -200,10 +165,7 @@ fn modules_dir_moves_only_the_named_project() {
             .is_symlink(),
         "the moved project links into modules",
     );
-    assert!(
-        !has_link(&moved, PARENT),
-        "the moved project must not link into node_modules",
-    );
+    assert!(!has_link(&moved, PARENT), "the moved project must not link into node_modules");
     assert!(has_link(&stayed, PARENT));
 }
 
@@ -221,14 +183,8 @@ fn save_exact_and_save_prefix_apply_to_the_named_projects_only() {
     }
 
     let exact_spec = dependency_spec(&exact, "dependencies", PARENT).expect("exact saved a spec");
-    assert_eq!(
-        dependency_spec(&tilde, "dependencies", PARENT),
-        Some(format!("~{exact_spec}")),
-    );
-    assert_eq!(
-        dependency_spec(&ranged, "dependencies", PARENT),
-        Some(format!("^{exact_spec}")),
-    );
+    assert_eq!(dependency_spec(&tilde, "dependencies", PARENT), Some(format!("~{exact_spec}")));
+    assert_eq!(dependency_spec(&ranged, "dependencies", PARENT), Some(format!("^{exact_spec}")));
 }
 
 /// Workspace discovery accepts a `package.yaml` project, so the name the
@@ -262,27 +218,18 @@ fn a_filtered_recursive_install_applies_the_entry() {
     let pinned = fixture.project(
         "pinned",
         "pinned",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
     let other = fixture.project(
         "other",
         "other",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
 
     fixture.run(["--filter", "pinned", "install"]);
 
     assert_resolved_dep(&pinned, "100.0.0");
-    assert!(
-        !other.join("pnpm-lock.yaml").exists(),
-        "an unselected project is not installed",
-    );
+    assert!(!other.join("pnpm-lock.yaml").exists(), "an unselected project is not installed");
 }
 
 /// The workspace root installs with the projects it declares but is not
@@ -294,18 +241,12 @@ fn the_workspace_root_gets_its_own_entry() {
     ));
     fixture.write_root_manifest(
         "root",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
     let child = fixture.project(
         "child",
         "child",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
 
     fixture.run(["install"]);
@@ -323,18 +264,12 @@ fn update_keeps_the_entry_overrides() {
     let pinned = fixture.project(
         "pinned",
         "pinned",
-        ManifestDeps {
-            prod: &[(PARENT, "^100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "^100.0.0")], ..Default::default() },
     );
     let other = fixture.project(
         "other",
         "other",
-        ManifestDeps {
-            prod: &[(PARENT, "^100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "^100.0.0")], ..Default::default() },
     );
 
     for project in [&pinned, &other] {
@@ -355,10 +290,7 @@ fn remove_keeps_the_entry_overrides() {
     let pinned = fixture.project(
         "pinned",
         "pinned",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0"), (HELLO, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0"), (HELLO, "1.0.0")], ..Default::default() },
     );
 
     fixture.run_at(&pinned, ["install"]);
@@ -389,10 +321,7 @@ fn an_unsupported_setting_is_rejected() {
     let output = fixture.command_at(&fixture.workspace, ["install"]);
     let stderr = String::from_utf8_lossy(&output.stderr);
     println!("{stderr}");
-    assert!(
-        !output.status.success(),
-        "an unsupported packageConfigs field must fail the install",
-    );
+    assert!(!output.status.success(), "an unsupported packageConfigs field must fail the install");
     assert!(stderr.contains("saveExactly"), "{stderr}");
 }
 
@@ -407,20 +336,14 @@ fn a_shared_lockfile_reports_the_ignored_settings() {
     fixture.project(
         "pinned",
         "pinned",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
 
     let output = fixture.command_at(&fixture.workspace, ["install"]);
     assert_success(&output);
     let stderr = String::from_utf8_lossy(&output.stderr);
     println!("{stderr}");
-    assert!(
-        stderr.contains(r#""pinned.overrides", "pinned.saveExact""#),
-        "{stderr}",
-    );
+    assert!(stderr.contains(r#""pinned.overrides", "pinned.saveExact""#), "{stderr}");
 
     assert_eq!(fixture.wanted().overrides, None);
     assert!(has_snapshot(&fixture.wanted(), DEP, "100.1.0"));
@@ -434,10 +357,7 @@ fn dedicated_lockfiles_report_no_ignored_settings() {
     fixture.project(
         "pinned",
         "pinned",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
 
     let output = fixture.command_at(&fixture.workspace, ["install"]);

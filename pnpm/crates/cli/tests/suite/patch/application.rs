@@ -61,20 +61,14 @@ fn install_level_patch_that_adds_install_scripts_asks_for_approval() {
         String::from_utf8_lossy(&output.stderr),
     );
     eprintln!("unapproved install:\n{combined}");
-    assert!(
-        !output.status.success(),
-        "an unapproved build must fail under strictDepBuilds",
-    );
+    assert!(!output.status.success(), "an unapproved build must fail under strictDepBuilds");
     // The package name is not matched here: the diagnostic wraps it
     // across lines. The `allowBuilds` entry asserted below names it.
     assert!(
         combined.contains("ERR_PNPM_IGNORED_BUILDS") && combined.contains("Ignored build scripts"),
         "expected the patched package to be reported as an ignored build; got:\n{combined}",
     );
-    assert!(
-        !marker.exists(),
-        "the postinstall must not run before it is approved",
-    );
+    assert!(!marker.exists(), "the postinstall must not run before it is approved");
 
     // The failed install left an `allowBuilds` entry for the user to
     // decide on; answering it is what `pnpm approve-builds` writes.
@@ -84,11 +78,8 @@ fn install_level_patch_that_adds_install_scripts_asks_for_approval() {
         yaml.contains("is-positive: set this to true or false"),
         "expected an undecided allowBuilds entry; got:\n{yaml}",
     );
-    fs::write(
-        &yaml_path,
-        yaml.replace("set this to true or false", "true"),
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(&yaml_path, yaml.replace("set this to true or false", "true"))
+        .expect("write pnpm-workspace.yaml");
     remove_dir_if_exists(&workspace.join("node_modules"));
     pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
     assert!(marker.exists(), "the approved postinstall must run");
@@ -115,16 +106,8 @@ fn install_level_patch_that_adds_install_scripts_outlives_a_pre_fix_cache_entry(
     .expect("write the postinstall patch");
     let marker = workspace.join("node_modules/is-positive/postinstall-ran.txt");
 
-    pacquet(
-        &workspace,
-        ["install", "--ignore-scripts", "--reporter=silent"],
-    )
-    .assert()
-    .success();
-    assert!(
-        !marker.exists(),
-        "--ignore-scripts must not run the postinstall",
-    );
+    pacquet(&workspace, ["install", "--ignore-scripts", "--reporter=silent"]).assert().success();
+    assert!(!marker.exists(), "--ignore-scripts must not run the postinstall");
     let cache_keys: Vec<String> = is_positive_store_row(&store_dir).side_effects
         .expect("a patched package populates `sideEffects`")
         .into_keys()
@@ -138,10 +121,7 @@ fn install_level_patch_that_adds_install_scripts_outlives_a_pre_fix_cache_entry(
 
     remove_dir_if_exists(&workspace.join("node_modules"));
     pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
-    assert!(
-        marker.exists(),
-        "the pre-fix cache entry must not suppress the build",
-    );
+    assert!(marker.exists(), "the pre-fix cache entry must not suppress the build");
 
     drop((root, mock_instance));
 }
@@ -166,10 +146,7 @@ fn install_level_patch_that_adds_a_binding_gyp_asks_for_approval() {
         String::from_utf8_lossy(&output.stderr),
     );
     eprintln!("unapproved install:\n{combined}");
-    assert!(
-        !output.status.success(),
-        "an unapproved native build must fail the install",
-    );
+    assert!(!output.status.success(), "an unapproved native build must fail the install");
     assert!(
         combined.contains("ERR_PNPM_IGNORED_BUILDS"),
         "expected the patched package to be reported as an ignored build; got:\n{combined}",
@@ -198,10 +175,7 @@ fn install_level_patch_that_adds_a_hooks_file_does_not_ask_for_approval() {
         String::from_utf8_lossy(&output.stderr),
     );
     eprintln!("install:\n{combined}");
-    assert!(
-        output.status.success(),
-        "a plain `.hooks` file must not fail the install",
-    );
+    assert!(output.status.success(), "a plain `.hooks` file must not fail the install");
     assert!(
         !combined.contains("ERR_PNPM_IGNORED_BUILDS"),
         "the package must not be reported as an ignored build; got:\n{combined}",
@@ -243,11 +217,8 @@ fn git_dependency_patch_applies_on_fresh_and_frozen_install() {
     )
     .expect("write package.json");
     fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
-    fs::write(
-        workspace.join("patches/is-positive@3.1.0.patch"),
-        MARKER_PATCH,
-    )
-    .expect("write patch file");
+    fs::write(workspace.join("patches/is-positive@3.1.0.patch"), MARKER_PATCH)
+        .expect("write patch file");
     append_workspace_yaml_key(
         &workspace,
         "patchedDependencies",
@@ -256,10 +227,7 @@ fn git_dependency_patch_applies_on_fresh_and_frozen_install() {
 
     pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
     let marker = workspace.join("node_modules/is-positive/patched-marker.txt");
-    assert_eq!(
-        fs::read_to_string(&marker).expect("read fresh marker"),
-        "patched\n",
-    );
+    assert_eq!(fs::read_to_string(&marker).expect("read fresh marker"), "patched\n");
     let patch_hash = patch_file_hash(&workspace, "is-positive@3.1.0.patch");
     let snapshots = snapshot_keys(&read_wanted_lockfile(&workspace));
     assert!(
@@ -272,16 +240,8 @@ fn git_dependency_patch_applies_on_fresh_and_frozen_install() {
     remove_dir_if_exists(&workspace.join("node_modules"));
     remove_dir_if_exists(&store_dir);
     remove_dir_if_exists(&cache_dir);
-    pacquet(
-        &workspace,
-        ["install", "--frozen-lockfile", "--reporter=silent"],
-    )
-    .assert()
-    .success();
-    assert_eq!(
-        fs::read_to_string(&marker).expect("read frozen marker"),
-        "patched\n",
-    );
+    pacquet(&workspace, ["install", "--frozen-lockfile", "--reporter=silent"]).assert().success();
+    assert_eq!(fs::read_to_string(&marker).expect("read frozen marker"), "patched\n");
 
     drop((root, mock_instance));
 }
@@ -332,12 +292,7 @@ fn install_reads_patched_dependencies_written_by_pnpm_10() {
     fs::write(&lockfile_path, &pnpm_10_text).expect("write the pnpm 10 lockfile");
 
     remove_dir_if_exists(&workspace.join("node_modules"));
-    pacquet(
-        &workspace,
-        ["install", "--frozen-lockfile", "--reporter=silent"],
-    )
-    .assert()
-    .success();
+    pacquet(&workspace, ["install", "--frozen-lockfile", "--reporter=silent"]).assert().success();
     let frozen = read_installed_index(&workspace);
     assert!(frozen.contains("// patched"), "frozen: {frozen}");
     assert_eq!(
@@ -353,10 +308,7 @@ fn install_reads_patched_dependencies_written_by_pnpm_10() {
         .expect("rewrite the patch file");
     pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
     let installed = read_installed_index(&workspace);
-    assert!(
-        installed.contains("// edited patch"),
-        "installed: {installed}",
-    );
+    assert!(installed.contains("// edited patch"), "installed: {installed}");
 
     let edited_hash = patch_file_hash(&workspace, "is-positive@1.0.0.patch");
     let rewritten = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -445,10 +397,8 @@ fn hoisted_patch_reaches_every_nested_copy_of_a_package() {
         "\n  debug@2.6.9: patches/debug.patch",
     );
 
-    let nested_copies = [
-        workspace.join("node_modules/send"),
-        workspace.join("node_modules/finalhandler"),
-    ];
+    let nested_copies =
+        [workspace.join("node_modules/send"), workspace.join("node_modules/finalhandler")];
 
     for frozen in [false, true] {
         remove_dir_if_exists(&workspace.join("node_modules"));

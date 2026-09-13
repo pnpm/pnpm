@@ -269,21 +269,16 @@ fn write_file(path: &Path, contents: &str) {
 fn load_with_project_and_user(project_npmrc: &str, user_file: PathBuf) -> Config {
     let project = tempdir().expect("project tempdir");
     write_file(&project.path().join(".npmrc"), project_npmrc);
-    Config {
-        npmrc_auth_file: Some(user_file),
-        ..Config::default()
-    }
-    .current::<HostNoHome>(project.path())
-    .expect("load config")
+    Config { npmrc_auth_file: Some(user_file), ..Config::default() }
+        .current::<HostNoHome>(project.path())
+        .expect("load config")
 }
 
 /// Load a config from a workspace whose `pnpm-workspace.yaml` holds `yaml`.
 fn config_from_workspace_yaml(yaml: &str) -> Config {
     let tmp = tempdir().expect("workspace tempdir");
     fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml).expect("write to pnpm-workspace.yaml");
-    Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("config loads")
+    Config::new().current::<HostNoHome>(tmp.path()).expect("config loads")
 }
 
 const NPM_DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
@@ -345,13 +340,7 @@ fn load_with_auth_file(auth_yaml: &str, project_yaml: Option<&str>) -> Config {
         fs::write(project.path().join("pnpm-workspace.yaml"), project_yaml)
             .expect("write pnpm-workspace.yaml");
     }
-    set_fake_env(&[(
-        "XDG_CONFIG_HOME",
-        xdg
-            .path()
-            .to_str()
-            .unwrap(),
-    )]);
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
 
     load_with_fake_env(project.path())
 }
@@ -372,13 +361,7 @@ fn load_with_auth_file_and_npmrc(auth_yaml: &str, npmrc: &str) -> Config {
 
     let project = tempdir().expect("project tempdir");
     fs::write(project.path().join(".npmrc"), npmrc).expect("write .npmrc");
-    set_fake_env(&[(
-        "XDG_CONFIG_HOME",
-        xdg
-            .path()
-            .to_str()
-            .unwrap(),
-    )]);
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
 
     load_with_fake_env(project.path())
 }

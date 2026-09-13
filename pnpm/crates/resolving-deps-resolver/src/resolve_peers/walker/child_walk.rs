@@ -19,8 +19,7 @@ impl Walker<'_> {
         if !self.traversal.discovery {
             return None;
         }
-        let TreeChildren::Lazy { parent_ids } =
-            &self.tree.dependencies_tree[node_id].children
+        let TreeChildren::Lazy { parent_ids } = &self.tree.dependencies_tree[node_id].children
         else {
             return None;
         };
@@ -114,12 +113,7 @@ impl Walker<'_> {
                     continue;
                 }
                 let child_output = self.resolve_node(child_node_id, walk);
-                child_outputs.push(
-                    alias,
-                    child_output,
-                    &child_aliases,
-                    !self.traversal.discovery,
-                );
+                child_outputs.push(alias, child_output, &child_aliases, !self.traversal.discovery);
             }
         }
         child_outputs
@@ -202,11 +196,7 @@ impl Walker<'_> {
             }
         }
 
-        ChildParentRefs {
-            refs: child_parent_refs,
-            own: new_parent_refs,
-            changed: refs_changed,
-        }
+        ChildParentRefs { refs: child_parent_refs, own: new_parent_refs, changed: refs_changed }
     }
 
     /// What this node itself contributes to its descendants' parent context:
@@ -217,9 +207,7 @@ impl Walker<'_> {
     ) -> ParentRefs {
         let mut new_parent_refs = ParentRefs::default();
         for (alias, child_node_id) in provider_children {
-            let Some(child_tree) = self.tree.dependencies_tree.get(child_node_id) else {
-                continue;
-            };
+            let Some(child_tree) = self.tree.dependencies_tree.get(child_node_id) else { continue };
             let Some(child_pkg) = self.tree.packages.get(&child_tree.resolved_package_id) else {
                 continue;
             };

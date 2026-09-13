@@ -17,13 +17,7 @@ fn dir(path: &str) -> Option<PathBuf> {
 
 #[test]
 fn plain_name() {
-    assert_eq!(
-        parse("foo"),
-        ProjectSelector {
-            name_pattern: name("foo"),
-            ..Default::default()
-        },
-    );
+    assert_eq!(parse("foo"), ProjectSelector { name_pattern: name("foo"), ..Default::default() });
 }
 
 #[test]
@@ -108,22 +102,13 @@ fn name_with_dependents_excluding_self() {
 fn relative_path_selector() {
     assert_eq!(
         parse("./foo"),
-        ProjectSelector {
-            parent_dir: dir("/prefix/foo"),
-            ..Default::default()
-        },
+        ProjectSelector { parent_dir: dir("/prefix/foo"), ..Default::default() },
     );
 }
 
 #[test]
 fn parent_relative_path_selector() {
-    assert_eq!(
-        parse("../foo"),
-        ProjectSelector {
-            parent_dir: dir("/foo"),
-            ..Default::default()
-        },
-    );
+    assert_eq!(parse("../foo"), ProjectSelector { parent_dir: dir("/foo"), ..Default::default() });
 }
 
 #[test]
@@ -149,43 +134,25 @@ fn absolute_brace_dir_extends_prefix() {
     // the workspace prefix.
     assert_eq!(
         parse("{/pkg}"),
-        ProjectSelector {
-            parent_dir: dir("/prefix/pkg"),
-            ..Default::default()
-        },
+        ProjectSelector { parent_dir: dir("/prefix/pkg"), ..Default::default() },
     );
 }
 
 #[test]
 fn dot_selects_prefix() {
-    assert_eq!(
-        parse("."),
-        ProjectSelector {
-            parent_dir: dir("/prefix"),
-            ..Default::default()
-        },
-    );
+    assert_eq!(parse("."), ProjectSelector { parent_dir: dir("/prefix"), ..Default::default() });
 }
 
 #[test]
 fn dotdot_selects_parent_of_prefix() {
-    assert_eq!(
-        parse(".."),
-        ProjectSelector {
-            parent_dir: dir("/"),
-            ..Default::default()
-        },
-    );
+    assert_eq!(parse(".."), ProjectSelector { parent_dir: dir("/"), ..Default::default() });
 }
 
 #[test]
 fn diff_selector() {
     assert_eq!(
         parse("[master]"),
-        ProjectSelector {
-            diff: Some("master".to_string()),
-            ..Default::default()
-        },
+        ProjectSelector { diff: Some("master".to_string()), ..Default::default() },
     );
 }
 
@@ -270,11 +237,7 @@ fn diff_with_dependencies_and_dependents() {
 fn exclude_with_leading_brace_name_keeps_exclude() {
     assert_eq!(
         parse("!{foo"),
-        ProjectSelector {
-            exclude: true,
-            name_pattern: name("{foo"),
-            ..Default::default()
-        },
+        ProjectSelector { exclude: true, name_pattern: name("{foo"), ..Default::default() },
     );
 }
 
@@ -306,10 +269,7 @@ fn leading_brace_name_then_dir() {
 fn unparsable_braces_fall_back_to_name() {
     assert_eq!(
         parse("foo}bar"),
-        ProjectSelector {
-            name_pattern: name("foo}bar"),
-            ..Default::default()
-        },
+        ProjectSelector { name_pattern: name("foo}bar"), ..Default::default() },
     );
 }
 
@@ -329,22 +289,10 @@ fn triple_dots_reduces_to_dependencies_only() {
 
 #[test]
 fn empty_braces_fall_back_to_name() {
-    assert_eq!(
-        parse("{}"),
-        ProjectSelector {
-            name_pattern: name("{}"),
-            ..Default::default()
-        },
-    );
+    assert_eq!(parse("{}"), ProjectSelector { name_pattern: name("{}"), ..Default::default() });
 }
 
 #[test]
 fn dot_prefixed_name_is_not_a_location() {
-    assert_eq!(
-        parse(".foo"),
-        ProjectSelector {
-            name_pattern: name(".foo"),
-            ..Default::default()
-        },
-    );
+    assert_eq!(parse(".foo"), ProjectSelector { name_pattern: name(".foo"), ..Default::default() });
 }

@@ -79,9 +79,7 @@ fn key(name_text: &str, version: &str) -> PackageKey {
 fn create_buildable_pkg(virtual_store_dir: &Path, key: &PackageKey) -> PathBuf {
     let key_str = key.without_peer().to_string();
     let name_version = key_str.strip_prefix('/').unwrap_or(&key_str);
-    let at_idx = name_version
-        .rfind('@')
-        .unwrap_or(name_version.len());
+    let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
     let pkg_name = &name_version[..at_idx];
     let store_name = name_version.replace('/', "+");
     let pkg_dir = virtual_store_dir
@@ -102,10 +100,7 @@ fn root_importers(deps: &[(&str, &str)]) -> HashMap<String, ProjectSnapshot> {
         .map(|(n, v)| {
             (
                 name(n),
-                ResolvedDependencySpec {
-                    specifier: (*v).to_string(),
-                    version: ver(v).into(),
-                },
+                ResolvedDependencySpec { specifier: (*v).to_string(), version: ver(v).into() },
             )
         })
         .collect();
@@ -153,9 +148,7 @@ fn gvs_layout(dir: &Path) -> &'static VirtualStoreLayout {
     config.global_virtual_store_dir = dir.join("store/links");
     config.virtual_store_dir = dir.join("node_modules/.pacquet");
     let config = config.leak();
-    Box::leak(Box::new(VirtualStoreLayout::new(
-        config, None, None, None, None, None,
-    )))
+    Box::leak(Box::new(VirtualStoreLayout::new(config, None, None, None, None, None)))
 }
 
 /// Run [`BuildModules`] over a single patched `is-positive@1.0.0`
@@ -170,13 +163,8 @@ fn frozen_backstop_run(
     optional: bool,
 ) -> Result<crate::BuildModulesOutput, crate::build_modules::BuildModulesError> {
     let pkg_key = key("is-positive", "1.0.0");
-    let snapshots = HashMap::from([(
-        pkg_key.clone(),
-        SnapshotEntry {
-            optional,
-            ..SnapshotEntry::default()
-        },
-    )]);
+    let snapshots =
+        HashMap::from([(pkg_key.clone(), SnapshotEntry { optional, ..SnapshotEntry::default() })]);
     let patches = single_patch(&pkg_key);
     let importers = root_importers(&[("is-positive", "1.0.0")]);
     let policy = policy_from_specs([], false);
@@ -240,9 +228,7 @@ fn frozen_backstop_run(
 fn create_failing_postinstall_fixture(virtual_store_dir: &Path, key: &PackageKey) -> PathBuf {
     let key_str = key.without_peer().to_string();
     let name_version = key_str.strip_prefix('/').unwrap_or(&key_str);
-    let at_idx = name_version
-        .rfind('@')
-        .unwrap_or(name_version.len());
+    let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
     let pkg_name = &name_version[..at_idx];
     let store_name = name_version.replace('/', "+");
     let pkg_dir = virtual_store_dir
@@ -282,9 +268,7 @@ fn create_postinstall_modifies_source_fixture(
 
     let key_str = key.without_peer().to_string();
     let name_version = key_str.strip_prefix('/').unwrap_or(&key_str);
-    let at_idx = name_version
-        .rfind('@')
-        .unwrap_or(name_version.len());
+    let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
     let pkg_name = &name_version[..at_idx];
     let store_name = name_version.replace('/', "+");
     let pkg_dir = virtual_store_dir
@@ -345,9 +329,7 @@ fn create_postinstall_with_unreadable_fixture(
 ) -> PathBuf {
     let key_str = key.without_peer().to_string();
     let name_version = key_str.strip_prefix('/').unwrap_or(&key_str);
-    let at_idx = name_version
-        .rfind('@')
-        .unwrap_or(name_version.len());
+    let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
     let pkg_name = &name_version[..at_idx];
     let store_name = name_version.replace('/', "+");
     let pkg_dir = virtual_store_dir
@@ -408,9 +390,7 @@ fn snapshot_regular_files(root: &Path) -> std::collections::BTreeMap<PathBuf, Ve
 fn create_marker_pkg(virtual_store_dir: &Path, key: &PackageKey) -> PathBuf {
     let key_str = key.without_peer().to_string();
     let name_version = key_str.strip_prefix('/').unwrap_or(&key_str);
-    let at_idx = name_version
-        .rfind('@')
-        .unwrap_or(name_version.len());
+    let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
     let pkg_name = &name_version[..at_idx];
     let store_name = name_version.replace('/', "+");
     let pkg_dir = virtual_store_dir

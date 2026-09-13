@@ -17,10 +17,7 @@ async fn read_package_err(source: &str) -> String {
     hooks
         .read_package(
             serde_json::json!({ "name": "foo", "version": "1.0.0" }),
-            pnpm_hooks::HookContext {
-                log: Arc::new(|_| {}),
-                dir: None,
-            },
+            pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
         )
         .await
         .expect_err("readPackage should fail")
@@ -28,10 +25,7 @@ async fn read_package_err(source: &str) -> String {
 }
 
 fn noop_context() -> pnpm_hooks::HookContext {
-    pnpm_hooks::HookContext {
-        log: Arc::new(|_| {}),
-        dir: None,
-    }
+    pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None }
 }
 
 fn write_custom_resolvers_pnpmfile(dir: &std::path::Path) -> std::path::PathBuf {

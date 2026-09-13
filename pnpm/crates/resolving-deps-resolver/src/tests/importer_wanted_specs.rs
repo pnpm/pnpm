@@ -13,22 +13,14 @@ fn manifest_with(groups: serde_json::Value) -> (tempfile::TempDir, PackageManife
     json
         .as_object_mut()
         .unwrap()
-        .extend(
-            groups
-                .as_object()
-                .unwrap()
-                .clone(),
-        );
+        .extend(groups.as_object().unwrap().clone());
     std::fs::write(&path, serde_json::to_string(&json).unwrap()).expect("write package.json");
     let manifest = PackageManifest::from_path(path).expect("parse package.json");
     (tmp, manifest)
 }
 
-const ALL_GROUPS: [DependencyGroup; 3] = [
-    DependencyGroup::Prod,
-    DependencyGroup::Dev,
-    DependencyGroup::Optional,
-];
+const ALL_GROUPS: [DependencyGroup; 3] =
+    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
 
 #[test]
 fn regular_dep_wins_over_own_peer_with_auto_install_peers() {
@@ -43,10 +35,7 @@ fn regular_dep_wins_over_own_peer_with_auto_install_peers() {
         &pnpm_catalogs_types::Catalogs::new(),
     )
     .unwrap();
-    assert_eq!(
-        wanted,
-        vec![("foo".to_string(), "workspace:*".to_string(), false, false)],
-    );
+    assert_eq!(wanted, vec![("foo".to_string(), "workspace:*".to_string(), false, false)]);
 }
 
 #[test]
@@ -61,10 +50,7 @@ fn peer_only_dep_is_wanted_with_auto_install_peers() {
         &pnpm_catalogs_types::Catalogs::new(),
     )
     .unwrap();
-    assert_eq!(
-        wanted,
-        vec![("peer-only".to_string(), "^2.0.0".to_string(), false, false)],
-    );
+    assert_eq!(wanted, vec![("peer-only".to_string(), "^2.0.0".to_string(), false, false)]);
 }
 
 #[test]
@@ -80,10 +66,7 @@ fn peer_only_dep_is_not_wanted_without_auto_install_peers() {
         &pnpm_catalogs_types::Catalogs::new(),
     )
     .unwrap();
-    assert_eq!(
-        wanted,
-        vec![("regular".to_string(), "^1.0.0".to_string(), false, false)],
-    );
+    assert_eq!(wanted, vec![("regular".to_string(), "^1.0.0".to_string(), false, false)]);
 }
 
 #[test]
@@ -99,10 +82,7 @@ fn later_regular_group_range_replaces_earlier_one() {
         &pnpm_catalogs_types::Catalogs::new(),
     )
     .unwrap();
-    assert_eq!(
-        wanted,
-        vec![("foo".to_string(), "^2.0.0".to_string(), true, false)],
-    );
+    assert_eq!(wanted, vec![("foo".to_string(), "^2.0.0".to_string(), true, false)]);
 }
 
 /// Matches `filterDependenciesByType` in `@pnpm/pkg-manifest.utils`
@@ -123,8 +103,5 @@ fn regular_dep_range_wins_over_dev_range_of_same_alias() {
         &pnpm_catalogs_types::Catalogs::new(),
     )
     .unwrap();
-    assert_eq!(
-        wanted,
-        vec![("foo".to_string(), "1.0.0".to_string(), false, false)],
-    );
+    assert_eq!(wanted, vec![("foo".to_string(), "1.0.0".to_string(), false, false)]);
 }

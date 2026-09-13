@@ -65,10 +65,9 @@ impl NpmResolutionVerifier {
             // from a version genuinely absent from the metadata, otherwise
             // it reports a 403 as a tampering-style mismatch.
             match fetch_full_metadata_cached(&name.to_string(), &opts).await {
-                Ok(meta) => Ok(project_abbreviated_meta(
-                    &meta,
-                    self.metadata.registry_supports_time_field,
-                )),
+                Ok(meta) => {
+                    Ok(project_abbreviated_meta(&meta, self.metadata.registry_supports_time_field))
+                }
                 Err(error) => Err(render_fetch_metadata_error(&error)),
             }
         })

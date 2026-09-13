@@ -23,23 +23,16 @@ impl SqlAuth<PostgresDatabase> {
     ) -> Result<Self> {
         let startup_options =
             postgres_pool_options(settings, settings.startup_timeout, settings.startup_timeout)?;
-        let startup_pool = with_auth_timeout(
-            settings.startup_timeout,
-            startup_options.connect(&settings.url),
-        )
-        .await?;
-        let startup_db = PostgresDatabase {
-            pool: startup_pool,
-        };
-        with_auth_timeout(settings.startup_timeout, startup_db.init_schema())
-            .await?;
+        let startup_pool =
+            with_auth_timeout(settings.startup_timeout, startup_options.connect(&settings.url))
+                .await?;
+        let startup_db = PostgresDatabase { pool: startup_pool };
+        with_auth_timeout(settings.startup_timeout, startup_db.init_schema()).await?;
         startup_db.pool.close().await;
 
         let pool = postgres_pool_options(settings, settings.timeout, settings.timeout)?
             .connect_lazy(&settings.url)?;
-        let db = PostgresDatabase {
-            pool,
-        };
+        let db = PostgresDatabase { pool };
         Ok(SqlAuth::new(db, max_users, settings.timeout))
     }
 }
@@ -56,10 +49,8 @@ fn postgres_pool_options(
         }
         options = options.max_connections(max_connections);
     }
-    let statement_timeout_sql = format!(
-        "SET statement_timeout = {}",
-        timeout_millis(session_timeout)
-    );
+    let statement_timeout_sql =
+        format!("SET statement_timeout = {}", timeout_millis(session_timeout));
     options = options.after_connect(move |conn, _meta| {
         let statement_timeout_sql = statement_timeout_sql.clone();
         Box::pin(async move {
@@ -79,10 +70,7 @@ impl AuthSqlBackend for PostgresDatabase {
             .await?;
         row
             .map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
-                Ok(StoredUser {
-                    username: row.try_get(0)?,
-                    bcrypt_hash: row.try_get(1)?,
-                })
+                Ok(StoredUser { username: row.try_get(0)?, bcrypt_hash: row.try_get(1)? })
             })
             .transpose()
             .map_err(RegistryError::from)
@@ -179,9 +167,7 @@ impl AuthSqlBackend for PostgresDatabase {
         .bind(token_hash)
         .fetch_optional(&self.pool)
         .await?;
-        row
-            .map(|row| token_record_from_row(&row, token_hash))
-            .transpose()
+        row.map(|row| token_record_from_row(&row, token_hash)).transpose()
     }
 
     async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
@@ -210,12 +196,9 @@ impl AuthSqlBackend for PostgresDatabase {
 impl PostgresDatabase {
     async fn init_schema(&self) -> Result<()> {
         sqlx::query(super::super::USERS_TABLE_SQL).execute(&self.pool).await?;
-        sqlx::query(super::super::token_store::TOKENS_TABLE_SQL).execute(&self.pool)
-            .await?;
-        sqlx::query(super::super::token_store::TOKENS_INDEX_SQL).execute(&self.pool)
-            .await?;
-        sqlx::query(super::super::AUTH_COUNTERS_TABLE_SQL).execute(&self.pool)
-            .await?;
+        sqlx::query(super::super::token_store::TOKENS_TABLE_SQL).execute(&self.pool).await?;
+        sqlx::query(super::super::token_store::TOKENS_INDEX_SQL).execute(&self.pool).await?;
+        sqlx::query(super::super::AUTH_COUNTERS_TABLE_SQL).execute(&self.pool).await?;
         self.ensure_user_counter().await
     }
 
@@ -240,8 +223,8 @@ impl PostgresDatabase {
     }
 
     async fn actual_user_count(&self) -> Result<i64> {
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool)
-            .await?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
         Ok(count.max(0))
     }
 
@@ -278,8 +261,8 @@ impl PostgresDatabase {
             tx.commit().await?;
             return Ok(false);
         };
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&mut *tx)
-            .await?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&mut *tx).await?;
         if counter <= count {
             tx.commit().await?;
             return Ok(false);

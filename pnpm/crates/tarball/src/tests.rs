@@ -74,10 +74,7 @@ fn fast_fail_client() -> ThrottledClient {
 /// timeouts; tests that specifically want to *prove* the retry
 /// loop runs should construct their own [`RetryOpts`].
 fn test_retry_opts() -> RetryOpts {
-    RetryOpts {
-        retries: 0,
-        ..RetryOpts::default()
-    }
+    RetryOpts { retries: 0, ..RetryOpts::default() }
 }
 
 /// **Problem:**
@@ -107,12 +104,7 @@ fn seed_row_holding_another_package(store_path: &StoreDir, index_key: &str) {
     let mut files = HashMap::new();
     files.insert(
         "package.json".to_string(),
-        CafsFileInfo {
-            digest: "0".repeat(128),
-            mode: 0o644,
-            size: 0,
-            checked_at: None,
-        },
+        CafsFileInfo { digest: "0".repeat(128), mode: 0o644, size: 0, checked_at: None },
     );
     let entry = PackageFilesIndex {
         manifest: Some(serde_json::json!({ "name": "other-package", "version": "9.9.9" })),
@@ -266,11 +258,7 @@ fn gzipped_archive(entries: &[(&str, &str)]) -> Vec<u8> {
             header.set_entry_type(tar::EntryType::Regular);
             header.set_cksum();
             builder
-                .append_data(
-                    &mut header,
-                    format!("repo-abc123/{path}"),
-                    contents.as_bytes(),
-                )
+                .append_data(&mut header, format!("repo-abc123/{path}"), contents.as_bytes())
                 .expect("append entry");
         }
         builder.finish().expect("finalize tar");
@@ -387,36 +375,17 @@ mod normalize_bundled_manifest_tests {
         }))
         .expect("non-empty pick");
         let map = result.as_object().expect("object");
-        assert_eq!(
-            map
-                .get("name")
-                .and_then(|v| v.as_str()),
-            Some("foo"),
-        );
-        assert_eq!(
-            map
-                .get("version")
-                .and_then(|v| v.as_str()),
-            Some("1.0.0"),
-        );
+        assert_eq!(map.get("name").and_then(|v| v.as_str()), Some("foo"));
+        assert_eq!(map.get("version").and_then(|v| v.as_str()), Some("1.0.0"));
         assert_eq!(map.get("bin"), Some(&json!({ "foo": "./bin/foo.js" })));
         assert_eq!(map.get("engines"), Some(&json!({ "node": ">=18" })));
         assert_eq!(map.get("cpu"), Some(&json!(["x64"])));
         assert_eq!(map.get("os"), Some(&json!(["linux"])));
         assert_eq!(map.get("libc"), Some(&json!(["glibc"])));
         assert_eq!(map.get("dependencies"), Some(&json!({ "bar": "^1.0.0" })));
-        assert_eq!(
-            map.get("devDependencies"),
-            Some(&json!({ "qux": "^3.0.0" })),
-        );
-        assert_eq!(
-            map.get("optionalDependencies"),
-            Some(&json!({ "baz": "^2.0.0" })),
-        );
-        assert_eq!(
-            map.get("peerDependencies"),
-            Some(&json!({ "react": "^18" })),
-        );
+        assert_eq!(map.get("devDependencies"), Some(&json!({ "qux": "^3.0.0" })));
+        assert_eq!(map.get("optionalDependencies"), Some(&json!({ "baz": "^2.0.0" })));
+        assert_eq!(map.get("peerDependencies"), Some(&json!({ "react": "^18" })));
         assert_eq!(
             map.get("peerDependenciesMeta"),
             Some(&json!({ "react": { "optional": true } })),
@@ -486,22 +455,9 @@ mod normalize_bundled_manifest_tests {
         }))
         .expect("non-empty pick");
         assert!(result.get("bin").is_none(), "null `bin` must be dropped");
-        assert!(
-            result.get("engines").is_none(),
-            "null `engines` must be dropped",
-        );
-        assert_eq!(
-            result
-                .get("name")
-                .and_then(|v| v.as_str()),
-            Some("foo"),
-        );
-        assert_eq!(
-            result
-                .get("version")
-                .and_then(|v| v.as_str()),
-            Some("1.0.0"),
-        );
+        assert!(result.get("engines").is_none(), "null `engines` must be dropped");
+        assert_eq!(result.get("name").and_then(|v| v.as_str()), Some("foo"));
+        assert_eq!(result.get("version").and_then(|v| v.as_str()), Some("1.0.0"));
     }
 
     /// The bundled manifest is downstream-fed into
@@ -521,10 +477,7 @@ mod normalize_bundled_manifest_tests {
             },
         }))
         .expect("non-empty pick");
-        assert_eq!(
-            result.get("optionalDependencies"),
-            Some(&json!({ "sharp": "^0.34.0" })),
-        );
+        assert_eq!(result.get("optionalDependencies"), Some(&json!({ "sharp": "^0.34.0" })));
         assert_eq!(
             result.get("peerDependenciesMeta"),
             Some(&json!({
@@ -556,9 +509,7 @@ fn incompressible_tarball(min_bytes: usize) -> Vec<u8> {
         header.set_entry_type(tar::EntryType::Regular);
         header.set_path("package/noise.bin").expect("set entry path");
         header.set_cksum();
-        builder
-            .append(&header, payload.as_slice())
-            .expect("append entry");
+        builder.append(&header, payload.as_slice()).expect("append entry");
         builder.finish().expect("finalize tar");
     }
 
@@ -603,10 +554,7 @@ fn tar_with_root_level_entries() -> Vec<u8> {
     tar_with_entries(&[
         ("._package", b""),
         ("README", b"a file that sits at the archive root\n"),
-        (
-            "package/package.json",
-            br#"{"name":"pkg-root-entry","version":"1.0.0"}"#,
-        ),
+        ("package/package.json", br#"{"name":"pkg-root-entry","version":"1.0.0"}"#),
         ("package/index.js", b"module.exports = 'hello'\n"),
     ])
 }

@@ -26,14 +26,7 @@ fn legacy_deploy_installs_selected_project() {
         .success();
     let workspace_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
     pacquet_cmd(&workspace)
-        .with_args([
-            "--filter",
-            "app",
-            "deploy",
-            "--legacy",
-            "--prod",
-            "legacy-deploy",
-        ])
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
         .assert()
         .success();
 
@@ -68,24 +61,11 @@ fn legacy_deploy_excludes_fetched_dependencies_of_unselected_projects() {
         .assert()
         .success();
     pacquet_cmd(&workspace)
-        .with_args([
-            "--filter",
-            "app...",
-            "install",
-            "--frozen-lockfile",
-            "--offline",
-        ])
+        .with_args(["--filter", "app...", "install", "--frozen-lockfile", "--offline"])
         .assert()
         .success();
     pacquet_cmd(&workspace)
-        .with_args([
-            "--filter",
-            "app",
-            "deploy",
-            "--legacy",
-            "--prod",
-            "legacy-deploy",
-        ])
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
         .assert()
         .success();
 
@@ -144,14 +124,7 @@ fn legacy_deploy_injects_transitive_workspace_dependencies() {
         .assert()
         .success();
     pacquet_cmd(&workspace)
-        .with_args([
-            "--filter",
-            "app",
-            "deploy",
-            "--legacy",
-            "--prod",
-            "legacy-deploy",
-        ])
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
         .assert()
         .success();
 
@@ -222,14 +195,7 @@ fn legacy_deploy_prefers_workspace_lockfile_versions() {
     set_app_foo_dependency(&workspace, "^100.0.0");
 
     pacquet_cmd(&workspace)
-        .with_args([
-            "--filter",
-            "app",
-            "deploy",
-            "--legacy",
-            "--prod",
-            "legacy-deploy",
-        ])
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
         .assert()
         .success();
 
@@ -416,10 +382,7 @@ fn legacy_deploy_prefers_git_branch_lockfile_versions() {
         .success();
 
     let deploy_dir = workspace.join("legacy-deploy-with-branch-lockfile");
-    assert_eq!(
-        deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"),
-        "100.0.0",
-    );
+    assert_eq!(deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"), "100.0.0");
     assert_eq!(
         fs::read(&source_lockfile_path).expect("reread source branch lockfile"),
         source_lockfile,
@@ -455,10 +418,7 @@ fn legacy_deploy_without_dedicated_lockfile_fresh_resolves() {
         .success();
 
     let deploy_dir = workspace.join("legacy-deploy-without-dedicated-lockfile");
-    assert_eq!(
-        deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"),
-        "100.1.0",
-    );
+    assert_eq!(deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"), "100.1.0");
     assert!(!workspace.join(Lockfile::FILE_NAME).exists());
     assert!(!app_dir.join(Lockfile::FILE_NAME).exists());
     assert!(!deploy_dir.join(Lockfile::FILE_NAME).exists());
@@ -489,11 +449,8 @@ fn legacy_deploy_ignores_malformed_dedicated_lockfile() {
     let source_lockfile_path = app_dir.join(Lockfile::FILE_NAME);
     let source_lockfile =
         fs::read_to_string(&source_lockfile_path).expect("read source project lockfile");
-    fs::write(
-        &source_lockfile_path,
-        format!("{source_lockfile}\nlockfileVersion: '9.0'\n"),
-    )
-    .expect("duplicate a source project lockfile key");
+    fs::write(&source_lockfile_path, format!("{source_lockfile}\nlockfileVersion: '9.0'\n"))
+        .expect("duplicate a source project lockfile key");
     let malformed_source_lockfile =
         fs::read(&source_lockfile_path).expect("read malformed source project lockfile");
 
@@ -511,10 +468,7 @@ fn legacy_deploy_ignores_malformed_dedicated_lockfile() {
         .expect("deploy with a malformed source project lockfile");
     assert_ignored_broken_source_lockfile(&output, &app_dir);
     let deploy_dir = workspace.join("legacy-deploy-with-malformed-dedicated-lockfile");
-    assert_eq!(
-        deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"),
-        "100.1.0",
-    );
+    assert_eq!(deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"), "100.1.0");
     assert!(!workspace.join(Lockfile::FILE_NAME).exists());
     assert!(!deploy_dir.join(Lockfile::FILE_NAME).exists());
     assert_eq!(
@@ -560,10 +514,7 @@ fn legacy_deploy_preserves_source_pnpmfile_hooks() {
     let deploy_dir = workspace.join("legacy-deploy-with-pnpmfile");
     assert!(!workspace.join(Lockfile::FILE_NAME).exists());
     assert!(!deploy_dir.join(".pnpmfile.cjs").exists());
-    assert_eq!(
-        deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"),
-        "100.0.0",
-    );
+    assert_eq!(deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"), "100.0.0");
     let deploy_manifest: serde_json::Value = serde_json::from_slice(
         &fs::read(deploy_dir.join("package.json")).expect("read deploy manifest"),
     )
@@ -607,14 +558,7 @@ fn legacy_deploy_of_the_workspace_root_injects_its_workspace_dependencies() {
         .success();
     let workspace_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
     pacquet_cmd(&workspace)
-        .with_args([
-            "--filter",
-            ".",
-            "deploy",
-            "--legacy",
-            "--prod",
-            "legacy-deploy",
-        ])
+        .with_args(["--filter", ".", "deploy", "--legacy", "--prod", "legacy-deploy"])
         .assert()
         .success();
 
@@ -662,29 +606,16 @@ fn legacy_deploy_without_lockfile_installs_selected_project_at_root() {
 
     pacquet_cmd(&workspace)
         .with_env("PNPM_CONFIG_LOCKFILE", "false")
-        .with_args([
-            "--filter",
-            "app",
-            "deploy",
-            "--legacy",
-            "--prod",
-            "legacy-deploy-no-lockfile",
-        ])
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy-no-lockfile"])
         .assert()
         .success();
 
     let deploy_dir = workspace.join("legacy-deploy-no-lockfile");
     assert!(deploy_dir.join("node_modules/lib").exists());
-    assert_eq!(
-        deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"),
-        "100.1.0",
-    );
+    assert_eq!(deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"), "100.1.0");
     assert!(!deploy_dir.join("legacy-deploy-no-lockfile/node_modules").exists());
     assert!(!deploy_dir.join(Lockfile::FILE_NAME).exists());
-    assert_eq!(
-        fs::read(&source_lockfile_path).expect("reread source lockfile"),
-        source_lockfile,
-    );
+    assert_eq!(fs::read(&source_lockfile_path).expect("reread source lockfile"), source_lockfile);
 
     drop((root, mock_instance));
 }
@@ -710,10 +641,7 @@ fn legacy_deploy_without_source_lockfile_fresh_resolves() {
         .success();
 
     let deploy_dir = workspace.join("legacy-deploy-without-source-lockfile");
-    assert_eq!(
-        deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"),
-        "100.1.0",
-    );
+    assert_eq!(deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"), "100.1.0");
     assert!(!workspace.join(Lockfile::FILE_NAME).exists());
     assert!(!deploy_dir.join(Lockfile::FILE_NAME).exists());
 
@@ -740,11 +668,8 @@ fn legacy_deploy_ignores_malformed_source_lockfile() {
     set_app_foo_dependency(&workspace, "^100.0.0");
     let source_lockfile_path = workspace.join(Lockfile::FILE_NAME);
     let source_lockfile = fs::read_to_string(&source_lockfile_path).expect("read source lockfile");
-    fs::write(
-        &source_lockfile_path,
-        format!("{source_lockfile}\nlockfileVersion: '9.0'\n"),
-    )
-    .expect("duplicate a source lockfile key");
+    fs::write(&source_lockfile_path, format!("{source_lockfile}\nlockfileVersion: '9.0'\n"))
+        .expect("duplicate a source lockfile key");
     let malformed_source_lockfile =
         fs::read(&source_lockfile_path).expect("read malformed source lockfile");
 
@@ -762,10 +687,7 @@ fn legacy_deploy_ignores_malformed_source_lockfile() {
         .expect("deploy with a malformed source lockfile");
     assert_ignored_broken_source_lockfile(&output, &workspace);
     let deploy_dir = workspace.join("legacy-deploy-with-malformed-source-lockfile");
-    assert_eq!(
-        deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"),
-        "100.1.0",
-    );
+    assert_eq!(deployed_package_version(&deploy_dir, "@pnpm.e2e/foo"), "100.1.0");
     assert!(
         !deploy_dir.join(Lockfile::FILE_NAME).exists(),
         "legacy deploy must not write a wanted lockfile after ignoring the malformed source lockfile",

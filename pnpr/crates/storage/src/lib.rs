@@ -24,8 +24,6 @@ pub(crate) use self::backend::HostedBackend;
 
 pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVersion};
 
-mod upstream_blobs;
-
 mod staged_records;
 
 mod atomic_write;
@@ -156,14 +154,8 @@ pub struct Storage {
 
 /// A partial blob read, including the full size needed for HTTP range headers.
 pub enum RangedBlob {
-    Read {
-        body: Body,
-        range: std::ops::Range<u64>,
-        size: u64,
-    },
-    Unsatisfiable {
-        size: u64,
-    },
+    Read { body: Body, range: std::ops::Range<u64>, size: u64 },
+    Unsatisfiable { size: u64 },
 }
 
 /// A file in the hosted namespace, for offline maintenance.
@@ -215,10 +207,7 @@ impl Storage {
                 cache_storage,
             )),
         };
-        Ok(Self {
-            hosted,
-            cached,
-        })
+        Ok(Self { hosted, cached })
     }
 
     /// Inventory all regular files, including repositories with no document
@@ -289,10 +278,7 @@ impl Storage {
     /// legacy path-less hosted surface.
     #[must_use]
     pub fn for_hosted(&self, org: &str) -> Storage {
-        Storage {
-            hosted: self.hosted.namespaced(org),
-            cached: self.cached.clone(),
-        }
+        Storage { hosted: self.hosted.namespaced(org), cached: self.cached.clone() }
     }
 
     // --- Authoritative (hosted) store -----------------------------------
@@ -350,9 +336,7 @@ impl Storage {
             let Some(new_bytes) = build(existing_bytes.as_deref())? else {
                 return Ok(DocumentUpdate::NotFound);
             };
-            match self.write_hosted_document_if_current(name, &new_bytes, version.as_ref())
-                .await?
-            {
+            match self.write_hosted_document_if_current(name, &new_bytes, version.as_ref()).await? {
                 DocumentWrite::Written => return Ok(DocumentUpdate::Written),
                 DocumentWrite::Conflict => {
                     if attempt + 1 < retries {
@@ -361,9 +345,7 @@ impl Storage {
                 }
             }
         }
-        Err(RegistryError::DocumentWriteConflict {
-            package: name.as_str().to_string(),
-        })
+        Err(RegistryError::DocumentWriteConflict { package: name.as_str().to_string() })
     }
 
     /// Open a blob from the authoritative hosted store. Hosted
@@ -397,11 +379,7 @@ impl Storage {
         filename: &str,
     ) -> Result<BlobSlot> {
         let tmp_path = self.hosted.reserve_blob_tmp(name, filename).await?;
-        Ok(BlobSlot {
-            tmp_path,
-            name: name.clone(),
-            filename: filename.to_string(),
-        })
+        Ok(BlobSlot { tmp_path, name: name.clone(), filename: filename.to_string() })
     }
 
     /// Remove a hosted blob without changing any proxy-cache namespace.
@@ -441,11 +419,101 @@ impl Storage {
     // or under another upstream. A rotation (new generation) moves to a fresh
     // namespace, so entries fetched with a since-rotated credential age out.
 
+    /// A fresh cached document for an upstream route, or `None` when it is
+    /// absent or older than `ttl`. The upstream path refetches a stale entry
+    /// rather than conditionally revalidating it.
+    pub async fn read_upstream_document(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+        ttl: Duration,
+    ) -> Result<Option<Vec<u8>>> {
+        match self.cached.namespaced(namespace).read_document_entry(name, ttl).await? {
+            Some(CachedDocument::Fresh(bytes)) => Ok(Some(bytes)),
+            Some(CachedDocument::Stale) | None => Ok(None),
+        }
+    }
+
+    /// The cached upstream document regardless of freshness (fresh or stale).
+    /// A defensive fallback for an unsolicited upstream `304`: the upstream path
+    /// sends no conditional validators, so a `304` means "unchanged" and the
+    /// cached body — even past `ttl` — is the right thing to serve rather than
+    /// a spurious `404`.
+    pub async fn read_upstream_document_any(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+    ) -> Result<Option<Vec<u8>>> {
+        // `Duration::MAX` classifies any existing entry as fresh, so its body
+        // is returned regardless of age (the stale arm can't be reached here).
+        match self.cached.namespaced(namespace).read_document_entry(name, Duration::MAX).await? {
+            Some(CachedDocument::Fresh(bytes)) => Ok(Some(bytes)),
+            Some(CachedDocument::Stale) | None => Ok(None),
+        }
+    }
+
+    pub async fn write_upstream_document(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+        bytes: &[u8],
+    ) -> Result<()> {
+        self.cached.namespaced(namespace).write_document(name, bytes).await
+    }
+
+    /// Purge an upstream's cached entry for `name` — the document and any
+    /// cached blobs. Called on a definitive upstream 404: without the
+    /// purge, the stale entry would linger past its TTL and a later transient
+    /// outage could resurrect the unpublished package through the
+    /// stale-if-error fallback.
+    pub async fn remove_upstream_package(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+    ) -> Result<bool> {
+        self.cached.namespaced(namespace).remove_package(name).await
+    }
+
+    pub async fn open_upstream_blob_tmp(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> Result<BlobWrite> {
+        self.cached.namespaced(namespace).open_blob_tmp(name, filename).await
+    }
+
+    pub async fn open_upstream_blob(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> Result<Option<(fs::File, u64)>> {
+        self.cached.namespaced(namespace).open_blob(name, filename).await
+    }
+
+    pub async fn open_upstream_revision_blob_tmp(
+        &self,
+        namespace: &str,
+        digest: &str,
+    ) -> Result<BlobWrite> {
+        validate_revision_digest(digest)?;
+        self.cached.namespaced(namespace).open_revision_blob_tmp(digest).await
+    }
+
+    pub async fn open_upstream_revision_blob(
+        &self,
+        namespace: &str,
+        digest: &str,
+    ) -> Result<Option<(fs::File, u64)>> {
+        validate_revision_digest(digest)?;
+        self.cached.namespaced(namespace).open_revision_blob(digest).await
+    }
+
     /// Promote a tmp blob written by the publish flow to its final
     /// home: a rename on the fs backend, an upload on the S3 backend.
     pub async fn finalize_blob_slot(&self, slot: BlobSlot) -> Result<BlobFinalize> {
-        self.hosted.finalize_blob(&slot.tmp_path, &slot.name, &slot.filename)
-            .await
+        self.hosted.finalize_blob(&slot.tmp_path, &slot.name, &slot.filename).await
     }
 
     /// Where the hosted backend stages locally: the store root on the fs
@@ -499,11 +567,7 @@ pub(crate) const PIPELINE_RUNS_DIR: &str = ".pipeline-runs/v0";
 /// A run's key within its namespace. The identifiers are the client's, so
 /// they are checked here as well as by the endpoint that accepts them.
 fn pipeline_run_key(workspace: &str, run_id: &str) -> Result<String> {
-    Ok(format!(
-        "{}/{}",
-        validated_record_name(workspace)?,
-        validated_record_name(run_id)?,
-    ))
+    Ok(format!("{}/{}", validated_record_name(workspace)?, validated_record_name(run_id)?))
 }
 
 /// Reject any identifier that could smuggle a path segment before it reaches
@@ -517,26 +581,18 @@ fn validated_record_name(name: &str) -> Result<&str> {
     if valid {
         Ok(name)
     } else {
-        Err(RegistryError::BadRequest {
-            reason: format!("invalid record name {name:?}"),
-        })
+        Err(RegistryError::BadRequest { reason: format!("invalid record name {name:?}") })
     }
 }
 const STAGED_META_SUFFIX: &str = ".json";
 const STAGED_BODY_SUFFIX: &str = ".body.json";
 
 fn staged_meta_object(stage_id: &str) -> Result<String> {
-    Ok(format!(
-        "{}{STAGED_META_SUFFIX}",
-        validated_stage_id(stage_id)?,
-    ))
+    Ok(format!("{}{STAGED_META_SUFFIX}", validated_stage_id(stage_id)?))
 }
 
 fn staged_body_object(stage_id: &str) -> Result<String> {
-    Ok(format!(
-        "{}{STAGED_BODY_SUFFIX}",
-        validated_stage_id(stage_id)?,
-    ))
+    Ok(format!("{}{STAGED_BODY_SUFFIX}", validated_stage_id(stage_id)?))
 }
 
 /// Reject any stage id that could smuggle a path segment before it reaches a
@@ -550,9 +606,7 @@ fn validated_stage_id(stage_id: &str) -> Result<&str> {
     if valid {
         Ok(stage_id)
     } else {
-        Err(RegistryError::BadRequest {
-            reason: format!("invalid stage id {stage_id:?}"),
-        })
+        Err(RegistryError::BadRequest { reason: format!("invalid stage id {stage_id:?}") })
     }
 }
 

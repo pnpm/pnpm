@@ -148,9 +148,7 @@ impl CasPrefetch {
         // progress with cache misses.
         let store_index = match store_context.and_then(|context| context.index) {
             Some(index) => Some(Arc::clone(index)),
-            None => {
-                StoreIndex::open_shared(store_dir, config.frozen_store).await
-            }
+            None => StoreIndex::open_shared(store_dir, config.frozen_store).await,
         };
         // Install-scoped `verifiedFilesCache`: one `Arc<DashSet>` for
         // the duration of the install, so a CAFS path verified for one
@@ -172,12 +170,7 @@ impl CasPrefetch {
             PrefetchIntegrityCheck::deferred_if(config.verify_store_integrity),
             SharedVerifiedFilesCache::clone(&verified_files_cache),
         ));
-        CasPrefetch {
-            store_index,
-            verified_files_cache,
-            cache_keys,
-            task,
-        }
+        CasPrefetch { store_index, verified_files_cache, cache_keys, task }
     }
 }
 
@@ -270,10 +263,7 @@ pub enum CreateVirtualStoreError {
         "Lockfile has a snapshot entry `{snapshot_key}` with no matching metadata entry (`{metadata_key}`) in `packages:`."
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_MISSING_PACKAGE_METADATA))]
-    MissingPackageMetadata {
-        snapshot_key: String,
-        metadata_key: String,
-    },
+    MissingPackageMetadata { snapshot_key: String, metadata_key: String },
 
     #[display(
         "Lockfile has a `snapshots:` section but no `packages:` section; every entry in `snapshots:` must have a matching metadata entry. The lockfile is malformed."
@@ -388,9 +378,7 @@ fn removed_child_aliases(
     fn child_aliases(snapshot: &SnapshotEntry) -> impl Iterator<Item = &PkgName> {
         let deps = snapshot.dependencies.iter().flatten();
         let opt_deps = snapshot.optional_dependencies.iter().flatten();
-        deps
-            .chain(opt_deps)
-            .map(|(alias, _)| alias)
+        deps.chain(opt_deps).map(|(alias, _)| alias)
     }
     let wanted_aliases: HashSet<&PkgName> = child_aliases(wanted).collect();
     let mut seen: HashSet<&PkgName> = HashSet::new();
@@ -452,9 +440,7 @@ fn publish_planned_canonical_fetches(
     packages: &HashMap<PackageKey, PackageMetadata>,
     has_custom_fetcher: bool,
 ) {
-    let Some(cell) = planned_canonical_fetches else {
-        return;
-    };
+    let Some(cell) = planned_canonical_fetches else { return };
     let mut planned = HashSet::with_capacity(cold.len());
     for (snapshot_key, _snapshot) in cold {
         if let Some(entry) = planned_canonical_fetch(snapshot_key, packages, has_custom_fetcher) {
@@ -504,9 +490,7 @@ fn removed_aliases_by_key(
     current_snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     snapshot_entries: &[SnapshotWithCacheKey<'_>],
 ) -> HashMap<PackageKey, Vec<PkgName>> {
-    let Some(current_snapshots) = current_snapshots else {
-        return HashMap::new();
-    };
+    let Some(current_snapshots) = current_snapshots else { return HashMap::new() };
     snapshot_entries
         .iter()
         .filter_map(|(snapshot_key, snapshot, _)| {

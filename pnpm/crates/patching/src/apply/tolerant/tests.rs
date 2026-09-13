@@ -152,10 +152,7 @@ fn applies_several_hunks_against_the_same_baseline() {
 +K
  l
 ";
-    assert_eq!(
-        applied(original, patch),
-        "a\nA\nb\nc\nd\ne\nf\ng\nh\ni\nj\nK\nl\n",
-    );
+    assert_eq!(applied(original, patch), "a\nA\nb\nc\nd\ne\nf\ng\nh\ni\nj\nK\nl\n");
 }
 
 #[test]

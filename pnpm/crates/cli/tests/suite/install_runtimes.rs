@@ -55,10 +55,7 @@ fn installs_node_deno_and_bun_then_reinstalls_them_offline() {
         ]
     };
     for relative in node_extras {
-        assert!(
-            !node_root.join(relative).exists(),
-            "Node extra was not stripped: {relative}",
-        );
+        assert!(!node_root.join(relative).exists(), "Node extra was not stripped: {relative}");
     }
 
     fs::remove_dir_all(workspace.join("node_modules")).unwrap();
@@ -107,31 +104,16 @@ fn installs_node_runtime_for_the_requested_target_architecture() {
     let root = tempfile::tempdir().unwrap();
     let workspace = prepare_workspace(&root, "");
     let mut server = mockito::Server::new();
-    let target_os = if host_platform() == "win32" {
-        "linux"
-    } else {
-        "win32"
-    };
+    let target_os = if host_platform() == "win32" { "linux" } else { "win32" };
     let fixture = runtime_fixture(&mut server, "node", "22.0.0", target_os, "x64");
     write_runtime_manifest(&workspace, std::slice::from_ref(&fixture));
     write_runtime_lockfile(&workspace, std::slice::from_ref(&fixture));
 
     command(&workspace)
-        .with_args([
-            "install",
-            "--frozen-lockfile",
-            "--os",
-            target_os,
-            "--cpu",
-            "x64",
-        ])
+        .with_args(["install", "--frozen-lockfile", "--os", target_os, "--cpu", "x64"])
         .assert()
         .success();
-    let expected_bin = if target_os == "win32" {
-        "node.exe"
-    } else {
-        "bin/node"
-    };
+    let expected_bin = if target_os == "win32" { "node.exe" } else { "bin/node" };
     assert!(
         workspace
             .join("node_modules/node")
@@ -176,11 +158,7 @@ fn installs_node_runtime_from_an_authenticated_mirror() {
     );
     let server_url = server.url();
     let authority = server_url.trim_start_matches("http:");
-    fs::write(
-        workspace.join(".npmrc"),
-        format!("{authority}/:_authToken=mirror-token\n"),
-    )
-    .unwrap();
+    fs::write(workspace.join(".npmrc"), format!("{authority}/:_authToken=mirror-token\n")).unwrap();
     fs::write(
         workspace.join("package.json"),
         json!({ "dependencies": { "node": format!("runtime:{version}") } }).to_string(),
@@ -207,11 +185,7 @@ fn update_latest_keeps_runtime_dependency_on_the_runtime_resolver() {
         &root,
         format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
     );
-    fs::write(
-        workspace.join(".npmrc"),
-        format!("registry={}/npm/\n", server.url()),
-    )
-    .unwrap();
+    fs::write(workspace.join(".npmrc"), format!("registry={}/npm/\n", server.url())).unwrap();
     fs::write(
         workspace.join("package.json"),
         json!({ "dependencies": { "node": format!("runtime:{version}") } }).to_string(),
@@ -267,10 +241,7 @@ fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
     );
     let bin_dir = workspace.join("node_modules/.bin");
     for bin in ["node", "node.exe", "node.cmd"] {
-        assert!(
-            !bin_dir.join(bin).exists(),
-            "runtime bin {bin} must not be linked",
-        );
+        assert!(!bin_dir.join(bin).exists(), "runtime bin {bin} must not be linked");
     }
     // A follow-up plain install treats the modules state as up to date
     // and does not restore the runtime — same as the TypeScript CLI.
@@ -279,10 +250,7 @@ fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
         .assert()
         .success();
     assert!(!workspace.join("node_modules/node").exists());
-    assert!(
-        !archive.matched(),
-        "the runtime archive must never be downloaded",
-    );
+    assert!(!archive.matched(), "the runtime archive must never be downloaded");
 }
 
 #[test]
@@ -337,11 +305,7 @@ fn runtime_on_fail_download_reifies_the_manifest_runtime() {
     let mut server = mockito::Server::new();
     let fixture = runtime_fixture(&mut server, "node", "24.0.0", host_platform(), host_arch());
     write_devengines_manifest(&workspace, fixture.version, None);
-    write_runtime_lockfile_for_group(
-        &workspace,
-        std::slice::from_ref(&fixture),
-        "devDependencies",
-    );
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
 
     command(&workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -357,11 +321,7 @@ fn devengines_runtime_with_download_is_installed() {
     let mut server = mockito::Server::new();
     let fixture = runtime_fixture(&mut server, "node", "24.0.0", host_platform(), host_arch());
     write_devengines_manifest(&workspace, fixture.version, Some("download"));
-    write_runtime_lockfile_for_group(
-        &workspace,
-        std::slice::from_ref(&fixture),
-        "devDependencies",
-    );
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
 
     command(&workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -418,10 +378,7 @@ fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts() {
         .assert()
         .success();
     let lifecycle_marker = workspace.join("node_modules/dependency/lifecycle-ran");
-    assert!(
-        lifecycle_marker.exists(),
-        "missing lifecycle marker: {lifecycle_marker:?}",
-    );
+    assert!(lifecycle_marker.exists(), "missing lifecycle marker: {lifecycle_marker:?}");
 
     fs::remove_dir_all(workspace.join("node_modules")).unwrap();
     command(&workspace)
@@ -429,10 +386,7 @@ fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts() {
         .with_args(["install", "--frozen-lockfile", "--offline"])
         .assert()
         .success();
-    assert!(
-        lifecycle_marker.exists(),
-        "missing lifecycle marker: {lifecycle_marker:?}",
-    );
+    assert!(lifecycle_marker.exists(), "missing lifecycle marker: {lifecycle_marker:?}");
 }
 
 #[test]
@@ -446,10 +400,7 @@ fn devengines_runtime_without_download_is_not_installed() {
         .assert()
         .success();
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
-    assert!(
-        !lockfile.contains("node@runtime:"),
-        "lockfile was:\n{lockfile}",
-    );
+    assert!(!lockfile.contains("node@runtime:"), "lockfile was:\n{lockfile}");
 }
 
 #[test]
@@ -475,10 +426,7 @@ fn runtime_on_fail_ignore_removes_the_synthesized_runtime_dependency() {
         .assert()
         .success();
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
-    assert!(
-        !lockfile.contains("node@runtime:"),
-        "lockfile was:\n{lockfile}",
-    );
+    assert!(!lockfile.contains("node@runtime:"), "lockfile was:\n{lockfile}");
 }
 
 #[test]
@@ -577,10 +525,7 @@ fn assert_runtime_bad_integrity(name: &'static str, version: &'static str) {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(
-        stderr.contains("Integrity check failed"),
-        "stderr was:\n{stderr}",
-    );
+    assert!(stderr.contains("Integrity check failed"), "stderr was:\n{stderr}");
 }
 
 fn prepare_workspace(root: &TempDir, extra_yaml: &str) -> PathBuf {
@@ -651,17 +596,11 @@ fn write_runtime_manifest(workspace: &Path, fixtures: &[RuntimeFixture]) {
     let dependencies = fixtures
         .iter()
         .map(|fixture| {
-            (
-                fixture.name.to_string(),
-                Value::String(format!("runtime:{}", fixture.version)),
-            )
+            (fixture.name.to_string(), Value::String(format!("runtime:{}", fixture.version)))
         })
         .collect::<Map<_, _>>();
-    fs::write(
-        workspace.join("package.json"),
-        json!({ "dependencies": dependencies }).to_string(),
-    )
-    .unwrap();
+    fs::write(workspace.join("package.json"), json!({ "dependencies": dependencies }).to_string())
+        .unwrap();
 }
 
 fn write_runtime_lockfile(workspace: &Path, fixtures: &[RuntimeFixture]) {
@@ -694,21 +633,15 @@ fn write_runtime_lockfile_for_group(
         snapshots.insert(key, json!({}));
     }
     let mut importer = Map::new();
-    importer.insert(
-        dependency_group.to_string(),
-        Value::Object(importer_dependencies),
-    );
+    importer.insert(dependency_group.to_string(), Value::Object(importer_dependencies));
     let lockfile = json!({
         "lockfileVersion": "9.0",
         "importers": { ".": importer },
         "packages": packages,
         "snapshots": snapshots,
     });
-    fs::write(
-        workspace.join("pnpm-lock.yaml"),
-        serde_saphyr::to_string(&lockfile).unwrap(),
-    )
-    .unwrap();
+    fs::write(workspace.join("pnpm-lock.yaml"), serde_saphyr::to_string(&lockfile).unwrap())
+        .unwrap();
 }
 
 fn write_devengines_manifest(workspace: &Path, version: &str, on_fail: Option<&str>) {
@@ -774,12 +707,7 @@ fn build_tarball(name: &str, version: &str, node_extras: bool) -> Vec<u8> {
             "bin/npx",
             "bin/corepack",
         ] {
-            append_tar(
-                &mut tar,
-                format!("{prefix}/{path}").as_str(),
-                b"extra",
-                0o755,
-            );
+            append_tar(&mut tar, format!("{prefix}/{path}").as_str(), b"extra", 0o755);
         }
     }
     let tar = tar.into_inner().unwrap();

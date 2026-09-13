@@ -131,16 +131,10 @@ impl PublishArgs {
         if self.flags.output.json {
             match &published {
                 PublishedPackages::Single(summary) => {
-                    println!(
-                        "{}",
-                        summary.pipe(serde_json::to_string_pretty).into_diagnostic()?,
-                    );
+                    println!("{}", summary.pipe(serde_json::to_string_pretty).into_diagnostic()?);
                 }
                 PublishedPackages::Recursive(published) => {
-                    println!(
-                        "{}",
-                        published.pipe(serde_json::to_string_pretty).into_diagnostic()?,
-                    );
+                    println!("{}", published.pipe(serde_json::to_string_pretty).into_diagnostic()?);
                 }
             }
         }
@@ -175,35 +169,29 @@ impl PublishArgs {
 
         if recursive {
             let published =
-                self.run_recursive::<Reporter>(dir, config, stage, &before_packing_hooks)
-                    .await?;
+                self.run_recursive::<Reporter>(dir, config, stage, &before_packing_hooks).await?;
             return Ok(PublishedPackages::Recursive(published));
         }
 
         let otp = resolve_otp_from_env::<Host>(self.flags.registry.otp.clone());
         let opts = self.publish_options(config, otp, stage);
         let http_client = build_registry_client(config)?;
-        let network = PublishNetwork {
-            client: &http_client,
-            auth_headers: &config.auth_headers,
-        };
+        let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
 
-        let summary = if let Some(package) = self.package
-            .as_deref()
-            .filter(|path| is_tarball_path(path))
-        {
-            self.publish_tarball::<Reporter>(package, &opts, &network).await?
-        } else {
-            let project_dir = self.package.as_deref().map_or(dir, Path::new);
-            self.publish_directory::<Reporter>(
-                project_dir,
-                config,
-                &opts,
-                &network,
-                &before_packing_hooks,
-            )
-            .await?
-        };
+        let summary =
+            if let Some(package) = self.package.as_deref().filter(|path| is_tarball_path(path)) {
+                self.publish_tarball::<Reporter>(package, &opts, &network).await?
+            } else {
+                let project_dir = self.package.as_deref().map_or(dir, Path::new);
+                self.publish_directory::<Reporter>(
+                    project_dir,
+                    config,
+                    &opts,
+                    &network,
+                    &before_packing_hooks,
+                )
+                .await?
+            };
         Ok(PublishedPackages::Single(Box::new(summary)))
     }
 
@@ -245,10 +233,10 @@ impl PublishArgs {
         network: &PublishNetwork<'_>,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
     ) -> miette::Result<PublishSummary> {
-        let packed = self.pack_directory::<Reporter>(project_dir, config, before_packing_hooks)
-            .await?;
-        let summary = publish_packed_pkg::<Host, Reporter>(&packed.packed_pkg(), opts, network)
-            .await?;
+        let packed =
+            self.pack_directory::<Reporter>(project_dir, config, before_packing_hooks).await?;
+        let summary =
+            publish_packed_pkg::<Host, Reporter>(&packed.packed_pkg(), opts, network).await?;
 
         self.run_post_publish_scripts::<Reporter>(&packed, config)?;
         Ok(summary)
@@ -371,8 +359,7 @@ impl PublishArgs {
                 locks: None,
             },
         };
-        crate::cli_args::pack::set_injected_changelog(&mut options, config, dir)
-            .await?;
+        crate::cli_args::pack::set_injected_changelog(&mut options, config, dir).await?;
         pack_api::<Reporter, PackHost>(&options).await
             .map_err(miette::Report::new)
             .wrap_err(crate::cli_args::pack::PACK_ERROR_CONTEXT)
@@ -392,9 +379,7 @@ impl PublishArgs {
                 default: config.registry.clone(),
                 scoped: config.registries_by_scope.clone(),
                 access: self.flags.registry.access.as_deref().and_then(Access::parse),
-                tag: self.flags.registry.tag
-                    .clone()
-                    .unwrap_or_else(|| "latest".to_owned()),
+                tag: self.flags.registry.tag.clone().unwrap_or_else(|| "latest".to_owned()),
                 otp,
                 // An absent `--provenance` leaves the decision to the OIDC flow.
                 provenance: self.flags.registry.provenance.then_some(true),
@@ -454,9 +439,7 @@ fn run_publish_scripts<Reporter: self::Reporter>(
     let parent_env: HashMap<String, String> = std::env::vars().collect();
 
     for &name in script_names {
-        let Some(script) = declares(name) else {
-            continue;
-        };
+        let Some(script) = declares(name) else { continue };
         run_lifecycle_hook::<Reporter>(name, script, &run_opts, manifest, &parent_env)
             .map_err(miette::Report::new)
             .wrap_err_with(|| format!("run the {name} script"))?;

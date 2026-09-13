@@ -42,10 +42,7 @@ async fn should_throw_in_non_interactive_terminal_when_web_login_is_unsupported(
 
     login_mock.assert_async().await;
     assert!(matches!(err, LoginError::NonInteractive), "got {err:?}");
-    assert_eq!(
-        err.to_string(),
-        "The login command requires an interactive terminal",
-    );
+    assert_eq!(err.to_string(), "The login command requires an interactive terminal");
     assert_eq!(
         err
             .pipe_ref(miette::Diagnostic::code)

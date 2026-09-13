@@ -7,18 +7,11 @@ use pretty_assertions::assert_eq;
 const ZERO_HASH: &str = "00000000000000000000000000000000";
 
 fn input(hash: &str) -> PatchInput {
-    PatchInput {
-        hash: hash.to_string(),
-        patch_file_path: None,
-    }
+    PatchInput { hash: hash.to_string(), patch_file_path: None }
 }
 
 fn info(key: &str, hash: &str) -> ExtendedPatchInfo {
-    ExtendedPatchInfo {
-        hash: hash.to_string(),
-        patch_file_path: None,
-        key: key.to_string(),
-    }
+    ExtendedPatchInfo { hash: hash.to_string(), patch_file_path: None, key: key.to_string() }
 }
 
 /// Groups `patchedDependencies` according to names, match types, and
@@ -89,16 +82,10 @@ fn groups_by_name_match_type_and_version() {
     let without_versions = result.get("without-versions").expect("without-versions group present");
     assert!(without_versions.exact.is_empty());
     assert!(without_versions.range.is_empty());
-    assert_eq!(
-        without_versions.all,
-        Some(info("without-versions", ZERO_HASH)),
-    );
+    assert_eq!(without_versions.all, Some(info("without-versions", ZERO_HASH)));
 
     let mixed = result.get("mixed-style").expect("mixed-style group present");
-    assert_eq!(
-        mixed.exact.get("0.1.2"),
-        Some(&info("mixed-style@0.1.2", ZERO_HASH)),
-    );
+    assert_eq!(mixed.exact.get("0.1.2"), Some(&info("mixed-style@0.1.2", ZERO_HASH)));
     assert_eq!(
         mixed.range,
         vec![PatchGroupRangeItem {

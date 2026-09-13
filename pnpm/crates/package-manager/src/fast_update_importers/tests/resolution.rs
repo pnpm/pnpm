@@ -84,10 +84,7 @@ fn moves_a_group_alongside_a_satisfied_range_change() {
 fn rejects_a_widened_range_when_resolution_would_pick_its_lowest_locked_version() {
     let manifest = manifest_from(json!({ "dependencies": { "foo": "^1.0.0" } }));
     let other = manifest_from(json!({ "dependencies": { "foo": "1.2.0" } }));
-    let config = pnpm_config::Config {
-        resolution_mode: LOWEST_DIRECT,
-        ..Default::default()
-    };
+    let config = pnpm_config::Config { resolution_mode: LOWEST_DIRECT, ..Default::default() };
 
     assert!(
         crate::fast_update_compose::try_compose_fast_updates(
@@ -128,11 +125,7 @@ fn drops_a_dependency_whose_version_no_surviving_peer_suffix_names() {
 
     assert_eq!(
         sorted_snapshot_keys(&updated),
-        vec![
-            "baz@4.0.0(foo@1.2.0)".to_string(),
-            "foo@1.2.0".to_string(),
-            "qux@5.0.0".to_string()
-        ],
+        vec!["baz@4.0.0(foo@1.2.0)".to_string(), "foo@1.2.0".to_string(), "qux@5.0.0".to_string()],
     );
 }
 #[test]
@@ -193,11 +186,7 @@ fn moves_a_range_past_a_peer_suffix_naming_the_version_it_moves_to() {
     );
     assert_eq!(
         sorted_snapshot_keys(&updated),
-        vec![
-            "baz@4.0.0(foo@1.2.0)".to_string(),
-            "foo@1.2.0".to_string(),
-            "qux@5.0.0".to_string()
-        ],
+        vec!["baz@4.0.0(foo@1.2.0)".to_string(), "foo@1.2.0".to_string(), "qux@5.0.0".to_string()],
     );
 }
 #[test]
@@ -253,11 +242,8 @@ fn rejects_moving_a_range_onto_a_version_locked_only_as_a_peer_variant() {
     );
 
     assert!(
-        try_fast_update_importers(
-            &with_a_lower_peerless_foo(),
-            &[(".".to_string(), &manifest)]
-        )
-        .is_none(),
+        try_fast_update_importers(&with_a_lower_peerless_foo(), &[(".".to_string(), &manifest)])
+            .is_none(),
         "the only locked 1.1.0 is a peer variant, which a moved edge cannot name unsuffixed",
     );
 }

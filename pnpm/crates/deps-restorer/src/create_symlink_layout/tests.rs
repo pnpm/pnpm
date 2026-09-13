@@ -212,10 +212,7 @@ fn skips_dep_entries_whose_alias_matches_self_name() {
         .unwrap()
         .map(|entry| entry.unwrap().path())
         .collect();
-    assert!(
-        entries.is_empty(),
-        "self-named entries must not become symlinks; got {entries:?}",
-    );
+    assert!(entries.is_empty(), "self-named entries must not become symlinks; got {entries:?}");
 }
 
 #[test]
@@ -242,10 +239,7 @@ fn both_dep_maps_absent_is_a_noop() {
     .expect("create_symlink_layout should succeed with no deps");
 
     let entries: Vec<_> = fs::read_dir(&virtual_node_modules_dir).unwrap().collect();
-    assert!(
-        entries.is_empty(),
-        "no symlinks should be created when both dep maps are absent",
-    );
+    assert!(entries.is_empty(), "no symlinks should be created when both dep maps are absent");
 }
 
 #[test]
@@ -320,10 +314,7 @@ fn rejects_traversal_dependency_alias() {
         &virtual_node_modules_dir,
     )
     .expect_err("traversal alias must be rejected");
-    assert!(
-        matches!(error, SymlinkPackageError::InvalidAlias(_)),
-        "got {error:?}",
-    );
+    assert!(matches!(error, SymlinkPackageError::InvalidAlias(_)), "got {error:?}");
 
     // The guard fires before any symlink is created, so nothing was
     // linked into (or out of) the slot's node_modules.

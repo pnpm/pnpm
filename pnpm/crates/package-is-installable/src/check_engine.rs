@@ -44,13 +44,7 @@ impl UnsupportedEngineError {
     fn new(package_id: String, wanted: WantedEngine, current: Engine) -> Self {
         let wanted_json = engine_json(wanted.node.as_deref(), wanted.pnpm.as_deref());
         let current_json = engine_json(Some(current.node.as_str()), current.pnpm.as_deref());
-        Self {
-            package_id,
-            wanted,
-            current,
-            wanted_json,
-            current_json,
-        }
+        Self { package_id, wanted, current, wanted_json, current_json }
     }
 }
 
@@ -89,9 +83,7 @@ pub fn check_engine(
             Ok(true) => {}
             Ok(false) => unsatisfied.node = Some(wanted_node.clone()),
             Err(InvalidVersion) => {
-                return Err(InvalidNodeVersionError {
-                    node_version: current.node.clone(),
-                });
+                return Err(InvalidNodeVersionError { node_version: current.node.clone() });
             }
         }
     }

@@ -69,9 +69,7 @@ pub fn shell_from_args(
     extra: &[String],
 ) -> Result<CompletionShell, CompletionError> {
     if !extra.is_empty() {
-        return Err(CompletionError::RedundantParameters {
-            count: extra.len(),
-        });
+        return Err(CompletionError::RedundantParameters { count: extra.len() });
     }
 
     let Some(shell) = shell
@@ -82,9 +80,7 @@ pub fn shell_from_args(
     };
 
     CompletionShell::from_name(shell)
-        .ok_or_else(|| CompletionError::UnsupportedShell {
-            shell: shell.to_string(),
-        })
+        .ok_or_else(|| CompletionError::UnsupportedShell { shell: shell.to_string() })
 }
 
 impl CompletionArgs {
@@ -179,11 +175,7 @@ impl<'a> CompletionContext<'a> {
             index += 1;
         }
 
-        Self {
-            root,
-            command,
-            command_name,
-        }
+        Self { root, command, command_name }
     }
 }
 
@@ -335,16 +327,12 @@ fn find_option_argument<'a>(context: &'a CompletionContext<'_>, option: &str) ->
 }
 
 fn find_option_argument_in_command<'a>(command: &'a Command, option: &str) -> Option<&'a Arg> {
-    command
-        .get_arguments()
-        .find(|argument| argument_matches(argument, option))
+    command.get_arguments().find(|argument| argument_matches(argument, option))
 }
 
 fn argument_matches(argument: &Arg, option: &str) -> bool {
     if let Some(long) = option.strip_prefix("--") {
-        let long = long
-            .split_once('=')
-            .map_or(long, |(name, _)| name);
+        let long = long.split_once('=').map_or(long, |(name, _)| name);
         return argument.get_long() == Some(long)
             || argument
                 .get_all_aliases()
@@ -366,9 +354,7 @@ fn argument_matches(argument: &Arg, option: &str) -> bool {
 }
 
 fn argument_takes_value(argument: &Arg) -> bool {
-    argument
-        .get_num_args()
-        .is_some_and(|range| range.takes_values())
+    argument.get_num_args().is_some_and(|range| range.takes_values())
         || matches!(argument.get_action(), ArgAction::Set | ArgAction::Append)
 }
 

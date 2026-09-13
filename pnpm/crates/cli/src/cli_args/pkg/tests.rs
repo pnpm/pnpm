@@ -45,12 +45,8 @@ fn test_get_hyphenated_key_nested() {
             "some-package-name": "0.23.4"
         }
     });
-    let result = get_output(
-        &manifest,
-        &["dependencies.some-package-name".to_string()],
-        false,
-    )
-    .unwrap();
+    let result =
+        get_output(&manifest, &["dependencies.some-package-name".to_string()], false).unwrap();
     assert_eq!(result, "0.23.4");
 }
 
@@ -81,12 +77,8 @@ fn test_get_multiple_keys() {
         "version": "1.0.0",
         "description": "a test"
     });
-    let result = get_output(
-        &manifest,
-        &["name".to_string(), "version".to_string()],
-        false,
-    )
-    .unwrap();
+    let result =
+        get_output(&manifest, &["name".to_string(), "version".to_string()], false).unwrap();
     let parsed: Value = serde_json::from_str(&result).unwrap();
     assert_eq!(parsed["name"], "test-pkg");
     assert_eq!(parsed["version"], "1.0.0");
@@ -100,10 +92,7 @@ fn test_get_no_keys_returns_full_manifest() {
         "version": "1.0.0"
     });
     let result = get_output(&manifest, &[] as &[String], false).unwrap();
-    assert_eq!(
-        result,
-        "{\n  \"name\": \"test-pkg\",\n  \"version\": \"1.0.0\"\n}",
-    );
+    assert_eq!(result, "{\n  \"name\": \"test-pkg\",\n  \"version\": \"1.0.0\"\n}");
 }
 
 #[test]
@@ -257,10 +246,7 @@ fn test_set_hyphenated_key_nested() {
         json!("0.23.4"),
     )
     .unwrap();
-    assert_eq!(
-        value["dependencies"],
-        json!({ "some-package-name": "0.23.4" }),
-    );
+    assert_eq!(value["dependencies"], json!({ "some-package-name": "0.23.4" }));
 }
 
 #[test]

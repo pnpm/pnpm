@@ -36,10 +36,7 @@ const PACKAGE_BODY: &str = r#"{
 }"#;
 
 fn no_retry_opts() -> RetryOpts {
-    RetryOpts {
-        retries: 0,
-        ..Default::default()
-    }
+    RetryOpts { retries: 0, ..Default::default() }
 }
 
 fn fast_retry_opts() -> RetryOpts {
@@ -126,10 +123,7 @@ async fn assert_cache_loss_after_304_recovers(
     assert_eq!(manifest.other.contains_key("scripts"), scripts_expected);
     let persisted = load_meta(&mirror_path).expect("mirror readable");
     let persisted_manifest = persisted.versions.get("1.0.0").expect("persisted version");
-    assert_eq!(
-        persisted_manifest.other.contains_key("scripts"),
-        scripts_expected,
-    );
+    assert_eq!(persisted_manifest.other.contains_key("scripts"), scripts_expected);
     let headers = load_meta_headers(&mirror_path).expect("headers readable");
     assert_eq!(headers.etag.as_deref(), Some(r#"W/"fresh""#));
     first.assert_async().await;

@@ -24,9 +24,7 @@ pub(super) fn load_workspace_projects(
     workspace_root: &std::path::Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
-    let Some(manifest) = workspace_manifest else {
-        return Ok(None);
-    };
+    let Some(manifest) = workspace_manifest else { return Ok(None) };
     let opts = pnpm_workspace::FindWorkspaceProjectsOpts {
         patterns: Some(pnpm_workspace::workspace_package_patterns(manifest)),
     };
@@ -61,9 +59,7 @@ pub(super) fn project_lifecycle_graph<'a>(
         .collect::<HashMap<_, _>>();
     let missing_projects = projects_outside_order(projects, &dependencies, &projects_by_dir);
     if !missing_projects.is_empty() {
-        return Err(InstallError::ProjectLifecycleOrder {
-            projects: missing_projects.join(", "),
-        });
+        return Err(InstallError::ProjectLifecycleOrder { projects: missing_projects.join(", ") });
     }
     Ok(ProjectLifecycleGraph {
         dependencies: retain_known_projects(&dependencies, &projects_by_dir),
@@ -105,10 +101,7 @@ fn lifecycle_dependencies<'a>(
                 lockfile,
             ))
         } else if let Some(ordered_dirs) = ordered_dirs {
-            return Err(project_lifecycle_order_error(
-                normalized_project_dirs,
-                &ordered_dirs,
-            ));
+            return Err(missing_lifecycle_order(normalized_project_dirs, &ordered_dirs));
         } else {
             std::borrow::Cow::Owned(
                 normalized_project_dirs
@@ -143,14 +136,10 @@ fn link_dependencies_from_lockfile(
                 .get(&importer_id)
                 .into_iter()
                 .flat_map(|snapshot| {
-                    [
-                        DependencyGroup::Prod,
-                        DependencyGroup::Dev,
-                        DependencyGroup::Optional,
-                    ]
-                    .into_iter()
-                    .filter_map(|group| snapshot.get_map_by_group(group))
-                    .flat_map(|dependencies| dependencies.values())
+                    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
+                        .into_iter()
+                        .filter_map(|group| snapshot.get_map_by_group(group))
+                        .flat_map(|dependencies| dependencies.values())
                 })
                 .filter_map(|dependency| match &dependency.version {
                     pnpm_lockfile::ImporterDepVersion::Link(target) => {
@@ -209,9 +198,7 @@ fn retain_known_projects(
 }
 
 pub(super) fn modules_dir_basename(config: &Config) -> &std::ffi::OsStr {
-    config.modules_dir
-        .file_name()
-        .unwrap_or_else(|| std::ffi::OsStr::new("node_modules"))
+    config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"))
 }
 
 /// [`Config::extra_env_with_node_options`] plus the `NODE_OPTIONS` entry for
@@ -320,12 +307,8 @@ impl ProjectScriptRunner<'_> {
         manifest: &PackageManifest,
     ) -> Result<(), InstallError> {
         let root_modules_dir = project_dir.join(self.modules_dir_basename);
-        link_project_bins(
-            &root_modules_dir,
-            &direct_dep_names(manifest),
-            &self.link_options,
-        )
-        .map_err(InstallError::ProjectBinLink)?;
+        link_project_bins(&root_modules_dir, &direct_dep_names(manifest), &self.link_options)
+            .map_err(InstallError::ProjectBinLink)?;
         let dep_path = project_dir.to_string_lossy();
         run_project_lifecycle_scripts::<Reporter>(&RunPostinstallHooks {
             environment: pnpm_executor::ScriptEnvironment {
@@ -432,15 +415,15 @@ pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
         .map_or(Ok(()), Err)
 }
 
-fn project_lifecycle_order_error(
-    normalized_project_dirs: &[PathBuf],
+fn missing_lifecycle_order(
+    project_dirs: &[PathBuf],
     ordered_dirs: &HashSet<PathBuf>,
 ) -> InstallError {
     InstallError::ProjectLifecycleOrder {
-        projects: normalized_project_dirs
+        projects: project_dirs
             .iter()
-            .filter(|project_dir| !ordered_dirs.contains(*project_dir))
-            .map(|project_dir| project_dir.display().to_string())
+            .filter(|dir| !ordered_dirs.contains(*dir))
+            .map(|dir| dir.display().to_string())
             .collect::<Vec<_>>()
             .join(", "),
     }

@@ -95,11 +95,7 @@ impl LockedWheel {
         let digest = self.hashes
             .get("sha256")
             .ok_or_else(|| miette::miette!("Python wheel {} has no SHA-256 digest", self.name))?;
-        if digest.len() != 64
-            || !digest
-                .bytes()
-                .all(|byte| byte.is_ascii_hexdigit())
-        {
+        if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             bail!("invalid Python wheel SHA-256 digest for {}", self.name);
         }
         ssri::Integrity::from_hex(digest, ssri::Algorithm::Sha256).into_diagnostic()
@@ -141,16 +137,10 @@ impl Lockfile {
                 .into_iter()
                 .map(|(name, version)| {
                     let wheel = packages.candidates[&name][&version].wheel.clone();
-                    LockedPackage {
-                        name,
-                        version,
-                        wheels: vec![wheel],
-                    }
+                    LockedPackage { name, version, wheels: vec![wheel] }
                 })
                 .collect(),
-            tool: ToolMetadata {
-                pnpm: inputs,
-            },
+            tool: ToolMetadata { pnpm: inputs },
         })
     }
 
@@ -170,10 +160,7 @@ impl Lockfile {
                     package.name.clone(),
                     BTreeMap::from([(
                         package.version.clone(),
-                        Candidate {
-                            wheel: wheel.clone(),
-                            core_metadata: None,
-                        },
+                        Candidate { wheel: wheel.clone(), core_metadata: None },
                     )]),
                 )
                 .is_some()

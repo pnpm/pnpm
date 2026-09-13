@@ -80,17 +80,11 @@ async fn resolve_rejects_duplicate_authorization_headers() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
-    let app = router_with_auth(
-        config_for("http://127.0.0.1:1", tmp.path().to_path_buf()),
-        auth,
-    );
+    let app = router_with_auth(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()), auth);
     let mut request = git_resolve_request(&repo_url, Some(&format!("Bearer {token}")));
     request
         .headers_mut()
-        .append(
-            header::AUTHORIZATION,
-            HeaderValue::from_static("Bearer invalid-second-value"),
-        );
+        .append(header::AUTHORIZATION, HeaderValue::from_static("Bearer invalid-second-value"));
 
     let response = app
         .clone()
@@ -102,16 +96,10 @@ async fn resolve_rejects_duplicate_authorization_headers() {
     let mut reversed = git_resolve_request(&repo_url, None);
     reversed
         .headers_mut()
-        .append(
-            header::AUTHORIZATION,
-            HeaderValue::from_static("Bearer invalid-first-value"),
-        );
+        .append(header::AUTHORIZATION, HeaderValue::from_static("Bearer invalid-first-value"));
     reversed
         .headers_mut()
-        .append(
-            header::AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {token}")).unwrap(),
-        );
+        .append(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {token}")).unwrap());
     let response = app
         .clone()
         .oneshot(reversed)
@@ -122,10 +110,7 @@ async fn resolve_rejects_duplicate_authorization_headers() {
     let mut non_text = git_resolve_request(&repo_url, None);
     non_text
         .headers_mut()
-        .insert(
-            header::AUTHORIZATION,
-            HeaderValue::from_bytes(&[0xff]).unwrap(),
-        );
+        .insert(header::AUTHORIZATION, HeaderValue::from_bytes(&[0xff]).unwrap());
     let response = app.oneshot(non_text).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     assert_eq!(request_count.load(Ordering::SeqCst), 0);
@@ -183,10 +168,7 @@ async fn authenticated_resolve_preserves_git_dependencies() {
     });
     let app = router_with_auth(config, auth);
     let response = app
-        .oneshot(git_resolve_request(
-            &repo_url,
-            Some(&format!("Bearer {token}")),
-        ))
+        .oneshot(git_resolve_request(&repo_url, Some(&format!("Bearer {token}"))))
         .await
         .unwrap();
     assert_eq!(

@@ -120,14 +120,12 @@ impl<'a> FrozenInputs<'a> {
                 progress_reported,
                 tarball_mem_cache: install.drivers.tarball_mem_cache,
                 custom_fetcher_session,
-                planned_canonical_fetches: install.lockfiles
-                    .planned_canonical_fetches,
+                planned_canonical_fetches: install.lockfiles.planned_canonical_fetches,
             },
             selection: crate::SnapshotSelection {
                 skipped,
                 include_optional: install.included().optional_dependencies,
-                supported_architectures: install.platform
-                    .supported_architectures,
+                supported_architectures: install.platform.supported_architectures,
             },
             ctx,
 
@@ -437,11 +435,7 @@ pub(super) async fn plan_engine_name(
         crate::materialization_plan::HostDetection::Pending { .. } => {
             let name = crate::materialization_plan::engine_name_from_runtime_pin(snapshots);
             if name.is_some() {
-                return EngineNamePlan {
-                    name,
-                    deferred: None,
-                    pending_slot: None,
-                };
+                return EngineNamePlan { name, deferred: None, pending_slot: None };
             }
             return EngineNamePlan {
                 name: None,
@@ -458,9 +452,5 @@ pub(super) async fn plan_engine_name(
         host_node.as_ref(),
     )
     .await;
-    EngineNamePlan {
-        name,
-        deferred,
-        pending_slot: None,
-    }
+    EngineNamePlan { name, deferred, pending_slot: None }
 }

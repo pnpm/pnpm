@@ -47,8 +47,7 @@ async fn verify_skips_age_check_when_package_matches_exclude_pattern() {
     let verifier = create_npm_resolution_verifier(opts);
     let name: PkgName = "acme-widget".parse().expect("parse");
 
-    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.0.0"))
-        .await;
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.0.0")).await;
 
     assert_eq!(result, ResolutionVerification::Ok);
 }
@@ -63,8 +62,7 @@ async fn verify_skips_age_check_for_an_exact_version_in_a_union() {
     let verifier = create_npm_resolution_verifier(opts);
     let name: PkgName = "acme".parse().expect("parse");
 
-    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0"))
-        .await;
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0")).await;
 
     assert_eq!(result, ResolutionVerification::Ok);
 }
@@ -131,10 +129,7 @@ async fn min_age_fail_when_published_within_cutoff() {
         panic!("expected Err, got {result:?}");
     };
     assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
-    assert!(
-        reason.contains("within the minimumReleaseAge cutoff"),
-        "got reason: {reason}",
-    );
+    assert!(reason.contains("within the minimumReleaseAge cutoff"), "got reason: {reason}");
 }
 
 #[tokio::test]
@@ -282,19 +277,10 @@ fn can_trust_past_check_accepts_looser_min_age() {
 
     let mut cached = verifier.policy().clone();
     cached.insert("minimumReleaseAge".to_string(), (60 * 24 * 7).into()); // past: 7 days
-    cached.insert(
-        "minimumReleaseAgeExclude".to_string(),
-        serde_json::Value::Array(vec![]),
-    );
+    cached.insert("minimumReleaseAgeExclude".to_string(), serde_json::Value::Array(vec![]));
     cached.insert("trustPolicy".to_string(), serde_json::Value::Null);
-    cached.insert(
-        "trustPolicyExclude".to_string(),
-        serde_json::Value::Array(vec![]),
-    );
-    cached.insert(
-        "trustPolicyIgnoreAfter".to_string(),
-        serde_json::Value::Null,
-    );
+    cached.insert("trustPolicyExclude".to_string(), serde_json::Value::Array(vec![]));
+    cached.insert("trustPolicyIgnoreAfter".to_string(), serde_json::Value::Null);
     assert!(verifier.can_trust_past_check(&cached));
 }
 
@@ -311,19 +297,10 @@ fn can_trust_past_check_rejects_tighter_min_age() {
     cached.insert("tarballUrlBinding".to_string(), true.into());
     cached.insert("integrityRequired".to_string(), true.into());
     cached.insert("minimumReleaseAge".to_string(), (60 * 24).into()); // past: 1 day
-    cached.insert(
-        "minimumReleaseAgeExclude".to_string(),
-        serde_json::Value::Array(vec![]),
-    );
+    cached.insert("minimumReleaseAgeExclude".to_string(), serde_json::Value::Array(vec![]));
     cached.insert("trustPolicy".to_string(), serde_json::Value::Null);
-    cached.insert(
-        "trustPolicyExclude".to_string(),
-        serde_json::Value::Array(vec![]),
-    );
-    cached.insert(
-        "trustPolicyIgnoreAfter".to_string(),
-        serde_json::Value::Null,
-    );
+    cached.insert("trustPolicyExclude".to_string(), serde_json::Value::Array(vec![]));
+    cached.insert("trustPolicyIgnoreAfter".to_string(), serde_json::Value::Null);
     assert!(!verifier.can_trust_past_check(&cached));
 }
 

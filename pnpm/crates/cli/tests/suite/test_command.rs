@@ -46,10 +46,7 @@ fn t_alias_runs_declared_test_script() {
     });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 
-    pacquet
-        .with_arg("t")
-        .assert()
-        .success();
+    pacquet.with_arg("t").assert().success();
 
     assert_eq!(fs::read_to_string(marker).expect("read marker"), "ran_test");
 

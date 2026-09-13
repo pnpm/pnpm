@@ -58,9 +58,7 @@ pub struct PipelineRunStore {
 impl PipelineRunStore {
     #[must_use]
     pub fn new(storage: Storage) -> Self {
-        Self {
-            storage,
-        }
+        Self { storage }
     }
 
     /// Record one run. Append-only: a run id that already exists for the
@@ -79,9 +77,7 @@ impl PipelineRunStore {
         }
         let document = serde_json::to_vec(&run)?;
         let key = format!("{}{RECORD_SUFFIX}", run.run_id);
-        if self.storage.create_pipeline_run(&run.workspace, &key, &document)
-            .await?
-        {
+        if self.storage.create_pipeline_run(&run.workspace, &key, &document).await? {
             return Ok(());
         }
         Err(RegistryError::BadRequest {
@@ -110,11 +106,7 @@ impl PipelineRunStore {
         let mut entries = Vec::with_capacity(newest.len());
         for (run_id, workspace) in newest.into_iter().rev() {
             if let Some(record) = self.get(&workspace, &run_id).await? {
-                entries.push(PipelineRunEntry {
-                    workspace,
-                    run_id,
-                    summary: record.summary,
-                });
+                entries.push(PipelineRunEntry { workspace, run_id, summary: record.summary });
             }
         }
         Ok(entries)
@@ -151,9 +143,7 @@ fn keep_newest_runs(
     limit: usize,
 ) {
     for key in keys {
-        let Some(run_id) = key.strip_suffix(RECORD_SUFFIX) else {
-            continue;
-        };
+        let Some(run_id) = key.strip_suffix(RECORD_SUFFIX) else { continue };
         if validate_name(run_id, "runId").is_err() {
             continue;
         }

@@ -91,12 +91,7 @@ fn pnp_install_without_symlinks_still_writes_modules_manifest_and_bin_directory(
 
     Command::new("node")
         .with_current_dir(&workspace)
-        .with_args([
-            "--require",
-            "./.pnp.cjs",
-            "--eval",
-            "require('@pnpm.e2e/pkg-with-1-dep')",
-        ])
+        .with_args(["--require", "./.pnp.cjs", "--eval", "require('@pnpm.e2e/pkg-with-1-dep')"])
         .assert()
         .success();
     Command::new("node")
@@ -346,12 +341,7 @@ fn public_hoist_uses_the_project_root_when_the_lockfile_is_external() {
     Command::cargo_bin("pnpm")
         .expect("find pnpm binary")
         .with_current_dir(&workspace)
-        .with_args([
-            "--filter",
-            "external-lockfile-project",
-            "install",
-            "--frozen-lockfile",
-        ])
+        .with_args(["--filter", "external-lockfile-project", "install", "--frozen-lockfile"])
         .assert()
         .success();
 
@@ -404,18 +394,12 @@ fn unreadable_modules_manifest_fails_the_install_without_purging_node_modules() 
         .output()
         .expect("run pnpm install");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !output.status.success(),
-        "an unparsable .modules.yaml must fail the install",
-    );
+    assert!(!output.status.success(), "an unparsable .modules.yaml must fail the install");
     assert!(
         stderr.contains("ERR_PNPM_MODULES_YAML_PARSE_YAML") && stderr.contains(".modules.yaml"),
         "the install must report the unparsable modules manifest:\n{stderr}",
     );
-    assert!(
-        vendored.is_dir(),
-        "the failed install must not purge node_modules:\n{stderr}",
-    );
+    assert!(vendored.is_dir(), "the failed install must not purge node_modules:\n{stderr}");
     assert!(
         modules_dir.join("@pnpm.e2e/hello-world-js-bin/package.json").exists(),
         "the failed install must leave the materialized tree alone:\n{stderr}",
@@ -480,10 +464,7 @@ fn expired_modules_cache_is_pruned_during_frozen_install() {
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
-    assert!(
-        stale_slot.exists(),
-        "an unexpired cache entry must be retained",
-    );
+    assert!(stale_slot.exists(), "an unexpired cache entry must be retained");
     let current_lockfile =
         fs::read_to_string(workspace.join("node_modules/.pnpm/lock.yaml")).expect("read current");
     assert!(!current_lockfile.contains("@pnpm.e2e/foo"));
@@ -513,10 +494,7 @@ fn expired_modules_cache_is_pruned_during_frozen_install() {
         .expect("read virtual store")
         .map(|entry| entry.expect("read entry").file_name())
         .collect::<Vec<_>>();
-    assert!(
-        !stale_slot.exists(),
-        "the expired orphaned slot must be pruned: {entries:?}",
-    );
+    assert!(!stale_slot.exists(), "the expired orphaned slot must be pruned: {entries:?}");
 
     drop((root, mock_instance));
 }
@@ -548,11 +526,8 @@ fn rewrites_node_modules_created_by_npm() {
         r#"{"name":"@pnpm.e2e/hello-world-js-bin","version":"0.0.0"}"#,
     )
     .expect("write npm-style package");
-    fs::write(
-        workspace.join("package-lock.json"),
-        r#"{"lockfileVersion":3}"#,
-    )
-    .expect("write npm lockfile");
+    fs::write(workspace.join("package-lock.json"), r#"{"lockfileVersion":3}"#)
+        .expect("write npm lockfile");
 
     pacquet
         .with_arg("install")

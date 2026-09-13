@@ -76,11 +76,8 @@ fn custom_resolver_takes_precedence_over_builtin_resolvers() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace);
-    fs::write(
-        workspace.join(".pnpmfile.cjs"),
-        overriding_pnpmfile(&mock_instance.url(), "false"),
-    )
-    .expect("write pnpmfile");
+    fs::write(workspace.join(".pnpmfile.cjs"), overriding_pnpmfile(&mock_instance.url(), "false"))
+        .expect("write pnpmfile");
 
     pacquet
         .with_arg("install")
@@ -139,11 +136,8 @@ fn should_refresh_resolution_forces_re_resolution_past_the_frozen_path() {
     // `shouldRefreshResolution` returning true must force the
     // fresh-resolve path, where the custom resolver now overrides the
     // pinned version.
-    fs::write(
-        workspace.join(".pnpmfile.cjs"),
-        overriding_pnpmfile(&mock_instance.url(), "true"),
-    )
-    .expect("rewrite pnpmfile");
+    fs::write(workspace.join(".pnpmfile.cjs"), overriding_pnpmfile(&mock_instance.url(), "true"))
+        .expect("rewrite pnpmfile");
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
@@ -203,10 +197,7 @@ fn failing_should_refresh_resolution_aborts_the_install() {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    assert!(
-        unwrapped.contains("refresh check crashed"),
-        "stderr: {stderr}",
-    );
+    assert!(unwrapped.contains("refresh check crashed"), "stderr: {stderr}");
 
     drop((root, mock_instance)); // cleanup
 }
@@ -273,11 +264,7 @@ module.exports = {
         .assert()
         .success();
 
-    assert_eq!(
-        installed_version(&workspace),
-        "100.0.0",
-        "echoing currentPkg keeps the pin",
-    );
+    assert_eq!(installed_version(&workspace), "100.0.0", "echoing currentPkg keeps the pin");
     let opts: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(workspace.join("resolver-opts.json")).expect("resolver dumped opts"),
     )

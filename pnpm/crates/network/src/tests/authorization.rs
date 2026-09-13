@@ -32,11 +32,7 @@ async fn mockito_integration_http_proxy_forwards_request_with_basic_auth() {
     // `p@ss` and base64-encodes the pair as `dXNlckBuYW1lOnBAc3M=` —
     // the value the mock matches above.
     let with_auth = proxy_url.replacen("//", "//user%40name:p%40ss@", 1);
-    let cfg = ProxyConfig {
-        https_proxy: None,
-        http_proxy: Some(with_auth),
-        no_proxy: None,
-    };
+    let cfg = ProxyConfig { https_proxy: None, http_proxy: Some(with_auth), no_proxy: None };
     let client = ThrottledClient::for_installs(
         &cfg,
         &TlsConfig::default(),
@@ -207,10 +203,7 @@ fn for_installs_ignores_ca_entries_that_carry_no_certificate() {
     );
     ThrottledClient::for_installs(
         &ProxyConfig::default(),
-        &TlsConfig {
-            ca,
-            ..TlsConfig::default()
-        },
+        &TlsConfig { ca, ..TlsConfig::default() },
         &PerRegistryTls::default(),
         &NetworkSettings::default(),
     )
@@ -310,10 +303,7 @@ async fn default_tls_rejects_an_untrusted_certificate_without_panicking() {
             .await
             .expect_err("untrusted certificate must fail verification");
         eprintln!("TLS error: {error:?}");
-        assert!(
-            error.is_connect(),
-            "expected a TLS connection error: {error:?}",
-        );
+        assert!(error.is_connect(), "expected a TLS connection error: {error:?}");
         server.join().expect("TLS server thread");
     }
 }
@@ -324,11 +314,7 @@ fn for_installs_with_cert_but_no_key_skips_identity() {
     // without `key` is silently ignored (pnpm's undici plumbing has
     // the same "both or neither" expectation). The client must still
     // build cleanly.
-    let tls = TlsConfig {
-        cert: Some(TEST_CA_PEM.to_string()),
-        key: None,
-        ..TlsConfig::default()
-    };
+    let tls = TlsConfig { cert: Some(TEST_CA_PEM.to_string()), key: None, ..TlsConfig::default() };
     ThrottledClient::for_installs(
         &ProxyConfig::default(),
         &tls,
@@ -347,10 +333,7 @@ fn for_installs_does_not_retain_per_registry_tls_material() {
     let mut map = HashMap::new();
     map.insert(
         "//reg.example.com/".to_string(),
-        RegistryTls {
-            key: Some(PRIVATE_KEY_MARKER.to_string()),
-            ..RegistryTls::default()
-        },
+        RegistryTls { key: Some(PRIVATE_KEY_MARKER.to_string()), ..RegistryTls::default() },
     );
     let per_registry = PerRegistryTls::from_map(map);
     let client = ThrottledClient::for_installs(
@@ -362,10 +345,7 @@ fn for_installs_does_not_retain_per_registry_tls_material() {
     .expect("per-registry config builds");
 
     let debug = format!("{client:?}");
-    assert!(
-        !debug.contains(PRIVATE_KEY_MARKER),
-        "finished client retained TLS key: {debug}",
-    );
+    assert!(!debug.contains(PRIVATE_KEY_MARKER), "finished client retained TLS key: {debug}");
 }
 
 #[test]
@@ -377,10 +357,7 @@ fn for_installs_ignores_a_per_registry_ca_that_carries_no_certificate() {
     let mut map = HashMap::new();
     map.insert(
         "//bad.example.com/".to_string(),
-        RegistryTls {
-            ca: Some("not a pem".to_string()),
-            ..RegistryTls::default()
-        },
+        RegistryTls { ca: Some("not a pem".to_string()), ..RegistryTls::default() },
     );
     let per_registry = PerRegistryTls::from_map(map);
     ThrottledClient::for_installs(
@@ -405,14 +382,8 @@ fn a_blank_scoped_cert_shadows_the_top_level_identity() {
         key: Some(TEST_CLIENT_PKCS1_KEY.to_string()),
         ..TlsConfig::default()
     };
-    let scoped = RegistryTls {
-        cert: Some(String::new()),
-        ..RegistryTls::default()
-    };
-    assert_eq!(
-        super::super::merge_tls(&top, &scoped).cert.as_deref(),
-        Some(""),
-    );
+    let scoped = RegistryTls { cert: Some(String::new()), ..RegistryTls::default() };
+    assert_eq!(super::super::merge_tls(&top, &scoped).cert.as_deref(), Some(""));
 }
 
 /// The blocked-redirect error must name only the origin, never the path or
@@ -423,10 +394,7 @@ fn blocked_redirect_error_redacts_token() {
     let url = Url::parse("https://cdn.example:8443/asset.tgz?X-Amz-Signature=topsecret#frag")
         .expect("valid url");
     let message = crate::client_builder::BlockedRedirect(url).to_string();
-    assert!(
-        message.contains("https://cdn.example:8443"),
-        "got: {message}",
-    );
+    assert!(message.contains("https://cdn.example:8443"), "got: {message}");
     assert!(!message.contains("topsecret"), "token leaked: {message}");
     assert!(!message.contains("asset.tgz"), "path leaked: {message}");
     assert!(!message.contains("frag"), "fragment leaked: {message}");

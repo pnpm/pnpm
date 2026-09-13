@@ -8,9 +8,7 @@ fn from_path_errors_no_importer_when_missing() {
         .join("does-not-exist")
         .join("package.json");
     let result = PackageManifest::from_path(missing);
-    let Err(err) = result else {
-        panic!("missing package.json should not parse")
-    };
+    let Err(err) = result else { panic!("missing package.json should not parse") };
     assert!(
         matches!(err, PackageManifestError::NoImporterManifestFound(_)),
         "expected NoImporterManifestFound, got {err:?}",

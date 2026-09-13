@@ -10,10 +10,7 @@ use std::{
 };
 
 fn manifest(text: &str) -> Manifest {
-    Manifest {
-        text: text.to_string(),
-        document: toml::from_str(text).expect("parse manifest"),
-    }
+    Manifest { text: text.to_string(), document: toml::from_str(text).expect("parse manifest") }
 }
 
 fn source_id(source: &str) -> cargo_lock::SourceId {
@@ -84,30 +81,15 @@ workspace = true
     let document: toml::Table = toml::from_str(&vendored.manifest).expect("valid TOML");
     dbg!(&document);
     assert_eq!(document["package"]["edition"].as_str(), Some("2021"));
-    assert_eq!(
-        document["dependencies"]["libc"]["version"].as_str(),
-        Some("0.2"),
-    );
-    assert_eq!(
-        document["dependencies"]["libc"]["optional"].as_bool(),
-        Some(true),
-    );
-    assert_eq!(
-        document["dependencies"]["libc"]["default-features"].as_bool(),
-        Some(false),
-    );
+    assert_eq!(document["dependencies"]["libc"]["version"].as_str(), Some("0.2"));
+    assert_eq!(document["dependencies"]["libc"]["optional"].as_bool(), Some(true));
+    assert_eq!(document["dependencies"]["libc"]["default-features"].as_bool(), Some(false));
     assert_eq!(
         document["dependencies"]["libc"]["features"].as_array().map(Vec::as_slice),
         Some(["extra".into(), "std".into()].as_slice()),
     );
-    assert_eq!(
-        document["build-dependencies"]["serde"]["version"].as_str(),
-        Some("1"),
-    );
-    assert_eq!(
-        document["lints"]["rust"]["unsafe_code"].as_str(),
-        Some("forbid"),
-    );
+    assert_eq!(document["build-dependencies"]["serde"]["version"].as_str(), Some("1"));
+    assert_eq!(document["lints"]["rust"]["unsafe_code"].as_str(), Some("forbid"));
 }
 
 #[test]
@@ -125,11 +107,7 @@ members = ["member"]
 
     let vendored = vendored_package(&root, Some(&root.document)).unwrap();
 
-    assert!(
-        !vendored.manifest.contains("[workspace]"),
-        "{}",
-        vendored.manifest,
-    );
+    assert!(!vendored.manifest.contains("[workspace]"), "{}", vendored.manifest);
 }
 
 #[test]
@@ -168,11 +146,7 @@ fn a_branch_source_keeps_the_branch_it_was_locked_from() {
     ))
     .unwrap();
 
-    assert!(
-        source.config_block().contains("branch = \"next\"\n"),
-        "{}",
-        source.config_block(),
-    );
+    assert!(source.config_block().contains("branch = \"next\"\n"), "{}", source.config_block());
 }
 
 #[test]
@@ -200,10 +174,7 @@ fn a_source_that_names_a_transport_pnpm_does_not_fetch_over_is_refused() {
     .unwrap_err()
     .to_string();
 
-    assert!(
-        error.contains("does not fetch a git dependency over"),
-        "{error}",
-    );
+    assert!(error.contains("does not fetch a git dependency over"), "{error}");
 }
 
 #[test]
@@ -264,10 +235,7 @@ fn a_workspace_member_is_vendored_without_the_repository_around_it() {
                 "Cargo.toml",
                 "[workspace]\nmembers = [\"member\"]\n\n[workspace.package]\nversion = \"0.3.0\"\n",
             ),
-            (
-                "member/Cargo.toml",
-                "[package]\nname = \"member\"\nversion.workspace = true\n",
-            ),
+            ("member/Cargo.toml", "[package]\nname = \"member\"\nversion.workspace = true\n"),
             ("member/src/lib.rs", "pub fn answer() -> u8 { 42 }\n"),
         ],
     );
@@ -306,22 +274,15 @@ fn a_root_package_leaves_the_members_nested_in_it_to_their_own_slots() {
                 "[package]\nname = \"root\"\nversion = \"1.0.0\"\n\n[workspace]\nmembers = [\"member\"]\n",
             ),
             ("src/lib.rs", "pub fn root() {}\n"),
-            (
-                "member/Cargo.toml",
-                "[package]\nname = \"member\"\nversion = \"0.3.0\"\n",
-            ),
+            ("member/Cargo.toml", "[package]\nname = \"member\"\nversion = \"0.3.0\"\n"),
             ("member/src/lib.rs", "pub fn member() {}\n"),
         ],
     );
     let store_dir = StoreDir::from(temp_dir.path().join("store"));
     store_dir.init().unwrap();
 
-    let linked = vendor_from(
-        &repository,
-        &commit,
-        &store_dir,
-        &[("root", "1.0.0"), ("member", "0.3.0")],
-    );
+    let linked =
+        vendor_from(&repository, &commit, &store_dir, &[("root", "1.0.0"), ("member", "0.3.0")]);
 
     let root = &linked
         .iter()
@@ -339,10 +300,7 @@ fn a_vendored_package_is_taken_from_the_store_without_a_second_checkout() {
     let (repository, commit) = commit_repository(
         temp_dir.path(),
         &[
-            (
-                "Cargo.toml",
-                "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n",
-            ),
+            ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n"),
             ("src/lib.rs", "pub fn demo() {}\n"),
         ],
     );
@@ -392,10 +350,7 @@ fn a_symlinked_file_is_vendored_as_its_contents_unless_it_leaves_the_checkout() 
     let outside = temp_dir.path().join("outside");
     fs::write(&outside, "not repository content\n").unwrap();
     let repository = GitRepoFixture::init(temp_dir.path(), "repo");
-    repository.write_file(
-        "Cargo.toml",
-        "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n",
-    );
+    repository.write_file("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n");
     repository.write_file("LICENSE-MIT", "the license\n");
     repository.write_symlink("LICENSE", "LICENSE-MIT");
     repository.write_symlink("src/lib.rs", "../LICENSE-MIT");
@@ -404,22 +359,11 @@ fn a_symlinked_file_is_vendored_as_its_contents_unless_it_leaves_the_checkout() 
     let store_dir = StoreDir::from(temp_dir.path().join("store"));
     store_dir.init().unwrap();
 
-    let linked = vendor_from(
-        &repository.file_url(),
-        &commit,
-        &store_dir,
-        &[("demo", "1.0.0")],
-    );
+    let linked = vendor_from(&repository.file_url(), &commit, &store_dir, &[("demo", "1.0.0")]);
 
     let (_, slot) = linked.first().expect("the crate is vendored");
-    assert_eq!(
-        fs::read_to_string(slot.join("LICENSE")).unwrap(),
-        "the license\n",
-    );
-    assert_eq!(
-        fs::read_to_string(slot.join("src/lib.rs")).unwrap(),
-        "the license\n",
-    );
+    assert_eq!(fs::read_to_string(slot.join("LICENSE")).unwrap(), "the license\n");
+    assert_eq!(fs::read_to_string(slot.join("src/lib.rs")).unwrap(), "the license\n");
     assert!(!slot.join("escaped").exists());
 }
 
@@ -430,14 +374,8 @@ fn a_crate_is_found_past_a_manifest_that_shares_its_name_and_reads_no_version() 
         temp_dir.path(),
         &[
             // Sorts before `wanted`, so the scan reaches it first.
-            (
-                "fixture/Cargo.toml",
-                "[package]\nname = \"demo\"\nversion.workspace = true\n",
-            ),
-            (
-                "wanted/Cargo.toml",
-                "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n",
-            ),
+            ("fixture/Cargo.toml", "[package]\nname = \"demo\"\nversion.workspace = true\n"),
+            ("wanted/Cargo.toml", "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n"),
             ("wanted/src/lib.rs", "pub fn demo() {}\n"),
         ],
     );
@@ -485,10 +423,7 @@ fn a_crate_the_checkout_does_not_hold_is_reported() {
     let temp_dir = tempfile::tempdir().unwrap();
     let (repository, commit) = commit_repository(
         temp_dir.path(),
-        &[(
-            "Cargo.toml",
-            "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n",
-        )],
+        &[("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n")],
     );
     let store_dir = StoreDir::from(temp_dir.path().join("store"));
     store_dir.init().unwrap();

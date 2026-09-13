@@ -107,12 +107,9 @@ fn write_changelog_section(
         ChangelogStorage::Repository => {
             prepend_changelog_section(&release.root_dir, &release.name, &section)
         }
-        ChangelogStorage::Registry => write_pending_changelog(
-            workspace_dir,
-            &release.name,
-            &release.version.next,
-            &section,
-        ),
+        ChangelogStorage::Registry => {
+            write_pending_changelog(workspace_dir, &release.name, &release.version.next, &section)
+        }
     }
 }
 
@@ -174,14 +171,7 @@ fn remove_consumed_intents(
         let deletable = intent.releases
             .iter()
             .all(|(reference, bump_type)| {
-                is_release_consumed(
-                    intent,
-                    reference,
-                    *bump_type,
-                    refs,
-                    &consumption,
-                    &lane_dirs,
-                )
+                is_release_consumed(intent, reference, *bump_type, refs, &consumption, &lane_dirs)
             });
         if deletable {
             fs::remove_file(&intent.file_path)

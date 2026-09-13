@@ -61,11 +61,7 @@ enum PromptRow {
     Separator(String),
     /// Checking it selects `value`, which the confirmed answer names by
     /// `short`.
-    Choice {
-        label: String,
-        short: String,
-        value: String,
-    },
+    Choice { label: String, short: String, value: String },
 }
 
 /// The look of the prompt: pnpm's own theme for the dependency list, the
@@ -161,10 +157,7 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
     http_client: &Arc<ThrottledClient>,
     options: InteractiveUpdateOptions<'_>,
 ) -> miette::Result<Option<Vec<String>>> {
-    let projects = [InteractiveUpdateProject {
-        manifest,
-        importer_id: importer_id.to_string(),
-    }];
+    let projects = [InteractiveUpdateProject { manifest, importer_id: importer_id.to_string() }];
     let mut choices = collect_choices(
         &projects,
         lockfile,
@@ -254,11 +247,7 @@ async fn collect_choices(
     latest: bool,
     include_direct: &[DependencyGroup],
 ) -> miette::Result<Vec<OutdatedPackage>> {
-    let target_version = if latest {
-        TargetVersion::Latest
-    } else {
-        TargetVersion::WithinRange
-    };
+    let target_version = if latest { TargetVersion::Latest } else { TargetVersion::WithinRange };
     let ignored = ignored_dependencies_matcher(config);
     let query = OutdatedQuery {
         target_version,
@@ -282,10 +271,41 @@ async fn collect_choices(
             }),
     )
     .await;
+    unique_choices(choices)
+}
+
+fn unique_choices(
+    choices: Vec<miette::Result<Vec<OutdatedPackage>>>,
+) -> miette::Result<Vec<OutdatedPackage>> {
     // Keyed by workspace as well, so an entry each project contributed
     // survives to [`choices::update_choices`] — that is what lets a
     // collapsed row name every project it covers instead of the first.
-    unique_choices(choices)
+    let mut unique = HashSet::new();
+    let mut collected = Vec::new();
+    for choices in choices {
+        for choice in choices? {
+            let key = (
+                choice.alias.clone(),
+                choice.package_name.clone(),
+                choice.current.to_string(),
+                choice.target.to_string(),
+                choice.metadata.workspace.clone(),
+            );
+            if unique.insert(key) {
+                collected.push(choice);
+            }
+        }
+    }
+    Ok(collected)
+}
+
+fn print_up_to_date(latest: bool) {
+    let message = if latest {
+        "All of your dependencies are already up to date"
+    } else {
+        "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
+    };
+    println!("{message}");
 }
 
 fn prompt_for_packages<Reporter: self::Reporter>(
@@ -295,23 +315,15 @@ fn prompt_for_packages<Reporter: self::Reporter>(
     prompt: UpdatePrompt,
 ) -> miette::Result<Option<Vec<String>>> {
     if choices.is_empty() {
-        let message = if latest {
-            "All of your dependencies are already up to date"
-        } else {
-            "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
-        };
-        println!("{message}");
+        print_up_to_date(latest);
         return Ok(None);
     }
 
     let groups = choices::update_choices(&choices.iter().collect::<Vec<_>>(), workspaces_enabled);
     let rows = flatten_groups(&groups);
 
-    let Some(selected_indices) = prompt.select(
-        &dependencies_prompt_message(),
-        &rows,
-        PromptStyle::Dependencies,
-    )?
+    let Some(selected_indices) =
+        prompt.select(&dependencies_prompt_message(), &rows, PromptStyle::Dependencies)?
     else {
         report_cancelled::<Reporter>();
         return Ok(None);
@@ -362,9 +374,7 @@ fn selected_packages(rows: &[PromptRow], indices: &[usize]) -> Vec<String> {
     let mut selected = Vec::new();
     let mut seen = HashSet::new();
     for &index in indices {
-        let Some(PromptRow::Choice { value, .. }) = rows.get(index) else {
-            continue;
-        };
+        let Some(PromptRow::Choice { value, .. }) = rows.get(index) else { continue };
         if seen.insert(value.as_str()) {
             selected.push(value.clone());
         }
@@ -373,15 +383,11 @@ fn selected_packages(rows: &[PromptRow], indices: &[usize]) -> Vec<String> {
 }
 
 fn bold(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |text| text.bold())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |text| text.bold()).to_string()
 }
 
 fn cyan(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |text| text.cyan())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |text| text.cyan()).to_string()
 }
 
 mod choices;
@@ -390,25 +396,3 @@ mod choices;
 mod tests;
 
 mod global;
-
-fn unique_choices(
-    choices: Vec<miette::Result<Vec<OutdatedPackage>>>,
-) -> miette::Result<Vec<OutdatedPackage>> {
-    let mut unique = HashSet::new();
-    let mut collected = Vec::new();
-    for choices in choices {
-        for choice in choices? {
-            let key = (
-                choice.alias.clone(),
-                choice.package_name.clone(),
-                choice.current.to_string(),
-                choice.target.to_string(),
-                choice.metadata.workspace.clone(),
-            );
-            if unique.insert(key) {
-                collected.push(choice);
-            }
-        }
-    }
-    Ok(collected)
-}

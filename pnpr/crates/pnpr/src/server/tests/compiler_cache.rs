@@ -40,19 +40,12 @@ async fn parallel_uploads_are_rejected_before_buffering_and_cancellation_release
     ));
     let rejected = app
         .clone()
-        .oneshot(request(
-            Method::PUT,
-            &ENTRY.replace("/acme/", "/other/"),
-            body,
-        ))
+        .oneshot(request(Method::PUT, &ENTRY.replace("/acme/", "/other/"), body))
         .await
         .unwrap();
     assert_eq!(rejected.status(), StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(rejected.headers()[header::RETRY_AFTER], "1");
-    assert_eq!(
-        rejected.headers()[header::CACHE_CONTROL],
-        "private, no-store",
-    );
+    assert_eq!(rejected.headers()[header::CACHE_CONTROL], "private, no-store");
     let read = app
         .clone()
         .oneshot(request(Method::GET, ENTRY, Body::empty()))
@@ -61,10 +54,7 @@ async fn parallel_uploads_are_rejected_before_buffering_and_cancellation_release
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
     for upload in uploads {
         upload.abort();
-        assert!(
-            upload.await.unwrap_err().is_cancelled(),
-            "upload must be cancelled",
-        );
+        assert!(upload.await.unwrap_err().is_cancelled(), "upload must be cancelled");
     }
     let published = app
         .oneshot(request(Method::PUT, ENTRY, Body::from("compiled")))
@@ -82,20 +72,13 @@ async fn compiler_cache_limits_upload_size_and_rejects_invalid_keys() {
         .oneshot(request(
             Method::PUT,
             ENTRY,
-            Body::from(vec![
-                0_u8;
-                pnpr_shared_artifacts::MAX_COMPILER_CACHE_ENTRY_SIZE + 1
-            ]),
+            Body::from(vec![0_u8; pnpr_shared_artifacts::MAX_COMPILER_CACHE_ENTRY_SIZE + 1]),
         ))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
     let response = app
-        .oneshot(request(
-            Method::PUT,
-            "/-/pnpr/v0/compiler-cache/acme/a/%2e%2e/b",
-            Body::empty(),
-        ))
+        .oneshot(request(Method::PUT, "/-/pnpr/v0/compiler-cache/acme/a/%2e%2e/b", Body::empty()))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -175,11 +158,7 @@ async fn ci_publishes_and_developers_read_but_cannot_publish() {
         .unwrap();
     assert_eq!(to_bytes(read.into_body(), 100).await.unwrap(), "compiled");
     let other = ci
-        .oneshot(request(
-            Method::GET,
-            &ENTRY.replace("/acme/", "/other/"),
-            Body::empty(),
-        ))
+        .oneshot(request(Method::GET, &ENTRY.replace("/acme/", "/other/"), Body::empty()))
         .await
         .unwrap();
     assert_eq!(other.status(), StatusCode::NOT_FOUND);
@@ -252,9 +231,7 @@ fn pending_upload(started: tokio::sync::mpsc::UnboundedSender<()>) -> Body {
     Body::from_stream(futures_util::stream::poll_fn(
         move |_| -> std::task::Poll<Option<Result<Bytes, std::io::Error>>> {
             if let Some(started) = started.take() {
-                started
-                    .send(())
-                    .unwrap();
+                started.send(()).unwrap();
             }
             std::task::Poll::Pending
         },

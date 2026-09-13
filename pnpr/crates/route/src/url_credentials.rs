@@ -1,3 +1,5 @@
+use pnpm_network::nerf_dart;
+
 /// Whether a registry/dependency/tarball spec carries inline
 /// `user:pass@host` (or `user@host`) credentials. Such URLs must be
 /// rejected before any fetch: pnpr must not turn a client-embedded
@@ -65,7 +67,37 @@ pub fn sanitize_registry_tarball_url(url: &str) -> String {
 }
 
 pub(super) fn scheme_of(url: &str) -> Option<&str> {
-    url
-        .split_once("://")
-        .map(|(scheme, _)| scheme)
+    url.split_once("://").map(|(scheme, _)| scheme)
+}
+
+/// The nerf-darted registry prefix used to match fetches to a hosted, public,
+/// or proxied-upstream route. Path-preserving (`//host/base/`), unlike a bare
+/// host: a pnpr served under a path prefix (`https://host/pnpr/`) still
+/// recognizes its own `/pnpr/~<name>/` endpoints, and a public/upstream route
+/// declared for `https://host/base/` does not also match a sibling
+/// `https://host/other/` path on the same host.
+pub(super) fn nerf_prefix(url: &str) -> Option<String> {
+    let nerfed = nerf_dart(url);
+    if nerfed.is_empty() { None } else { Some(nerfed) }
+}
+
+/// The registry a `/~<name>/` endpoint path addresses, if it names one.
+pub(super) fn addressed_registry_segment<'a>(
+    fetch: &'a str,
+    npm_endpoint: &str,
+) -> Option<&'a str> {
+    let rest = fetch.strip_prefix(npm_endpoint)?;
+    let registry = rest
+        .strip_prefix('~')?
+        .split('/')
+        .next()?;
+    (!registry.is_empty()).then_some(registry)
+}
+
+/// Whether a nerf-darted key (`//host/path/`) has a `.` or `..` path segment,
+/// which could escape a path-scoped prefix match in [`crate::RouteContext::allows_registry`].
+pub(super) fn contains_dot_segment(nerfed: &str) -> bool {
+    nerfed
+        .split('/')
+        .any(|segment| segment == "." || segment == "..")
 }

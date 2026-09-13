@@ -85,9 +85,7 @@ pub fn add_files_from_dir(
         store_dir,
     };
     walk(&mut ctx, pkg_root, "", &canonical_root)?;
-    Ok(AddedFiles {
-        files: ctx.files,
-    })
+    Ok(AddedFiles { files: ctx.files })
 }
 
 struct WalkCtx<'a> {
@@ -104,10 +102,7 @@ fn walk(
     current_real_path: &Path,
 ) -> Result<(), AddFilesFromDirError> {
     let entries = fs::read_dir(dir)
-        .map_err(|source| AddFilesFromDirError::ReadDir {
-            dir: dir.to_path_buf(),
-            source,
-        })?;
+        .map_err(|source| AddFilesFromDirError::ReadDir { dir: dir.to_path_buf(), source })?;
     for entry in entries {
         let entry = entry.map_err(|source| AddFilesFromDirError::ReadDir {
             dir: dir.to_path_buf(),
@@ -162,39 +157,25 @@ fn resolve_entry(
     let absolute = entry.path();
     let file_type = entry
         .file_type()
-        .map_err(|source| AddFilesFromDirError::Stat {
-            path: absolute.clone(),
-            source,
-        })?;
+        .map_err(|source| AddFilesFromDirError::Stat { path: absolute.clone(), source })?;
 
     if file_type.is_dir() {
         return Ok(Some(EntryTarget::Directory(current_real_path.join(name))));
     }
     if !file_type.is_symlink() {
-        return Ok(Some(EntryTarget::File {
-            read_path: absolute,
-            meta: None,
-        }));
+        return Ok(Some(EntryTarget::File { read_path: absolute, meta: None }));
     }
 
-    let Ok(real) = dunce::canonicalize(&absolute) else {
-        return Ok(None);
-    };
+    let Ok(real) = dunce::canonicalize(&absolute) else { return Ok(None) };
     if !real.starts_with(&ctx.canonical_root) {
         return Ok(None);
     }
     let meta = fs::metadata(&real)
-        .map_err(|source| AddFilesFromDirError::Stat {
-            path: real.clone(),
-            source,
-        })?;
+        .map_err(|source| AddFilesFromDirError::Stat { path: real.clone(), source })?;
     if meta.is_dir() {
         return Ok(Some(EntryTarget::Directory(real)));
     }
-    Ok(Some(EntryTarget::File {
-        read_path: real,
-        meta: Some(meta),
-    }))
+    Ok(Some(EntryTarget::File { read_path: real, meta: Some(meta) }))
 }
 
 /// Recurse via the resolved directory so a symlinked sub-directory's

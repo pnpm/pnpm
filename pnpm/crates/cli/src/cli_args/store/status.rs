@@ -61,10 +61,7 @@ pub(super) async fn run<Reporter: self::Reporter>(
         return report_untouched::<Reporter>(dir);
     }
     modified.sort_unstable();
-    Err(ModifiedDependencyError {
-        modified,
-    }
-    .into())
+    Err(ModifiedDependencyError { modified }.into())
 }
 
 /// Every installed package the store can verify, with where each lives.

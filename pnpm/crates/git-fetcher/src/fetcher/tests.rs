@@ -35,11 +35,7 @@ fn make_bare_repo_with_prepare_script(tmp: &Path, prepare_script: &str) -> (Path
     let bare = tmp.join("repo.git");
     fs::create_dir_all(&work).unwrap();
     exec_git(&["init", "-q", "-b", "main"], Some(&work)).unwrap();
-    exec_git(
-        &["config", "user.email", "test@example.invalid"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["config", "user.email", "test@example.invalid"], Some(&work)).unwrap();
     exec_git(&["config", "user.name", "Test"], Some(&work)).unwrap();
     // Manifest with no dependencies so the synthesized `<pm>-install`
     // step has nothing to fetch from a network registry — the test
@@ -50,26 +46,13 @@ fn make_bare_repo_with_prepare_script(tmp: &Path, prepare_script: &str) -> (Path
     fs::write(work.join("package.json"), manifest).unwrap();
     fs::write(work.join("index.js"), "module.exports = 'src';\n").unwrap();
     exec_git(&["add", "-A"], Some(&work)).unwrap();
-    exec_git(
-        &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
     let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
         .unwrap()
         .trim()
         .to_string();
-    exec_git(
-        &[
-            "clone",
-            "--bare",
-            "-q",
-            &work.to_string_lossy(),
-            &bare.to_string_lossy(),
-        ],
-        None,
-    )
-    .unwrap();
+    exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
+        .unwrap();
     (bare, commit)
 }
 
@@ -88,41 +71,21 @@ fn make_bare_repo(tmp: &Path) -> (PathBuf, String) {
     fs::create_dir_all(&work).unwrap();
 
     exec_git(&["init", "-q", "-b", "main"], Some(&work)).unwrap();
-    exec_git(
-        &["config", "user.email", "test@example.invalid"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["config", "user.email", "test@example.invalid"], Some(&work)).unwrap();
     exec_git(&["config", "user.name", "Test"], Some(&work)).unwrap();
-    fs::write(
-        work.join("package.json"),
-        r#"{"name":"pkg","version":"1.0.0","main":"index.js"}"#,
-    )
-    .unwrap();
+    fs::write(work.join("package.json"), r#"{"name":"pkg","version":"1.0.0","main":"index.js"}"#)
+        .unwrap();
     fs::write(work.join("index.js"), "module.exports = 42;\n").unwrap();
     exec_git(&["add", "-A"], Some(&work)).unwrap();
     // `-c commit.gpgsign=false` neutralises a user-global `gpgsign=true`
     // setting that would otherwise demand a real signing key in CI.
-    exec_git(
-        &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
     let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
         .unwrap()
         .trim()
         .to_string();
-    exec_git(
-        &[
-            "clone",
-            "--bare",
-            "-q",
-            &work.to_string_lossy(),
-            &bare.to_string_lossy(),
-        ],
-        None,
-    )
-    .unwrap();
+    exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
+        .unwrap();
     (bare, commit)
 }
 
@@ -136,48 +99,23 @@ fn make_bare_repo_with_sub_package(tmp: &Path) -> (PathBuf, String) {
     fs::create_dir_all(work.join("packages/no-manifest")).unwrap();
 
     exec_git(&["init", "-q", "-b", "main"], Some(&work)).unwrap();
-    exec_git(
-        &["config", "user.email", "test@example.invalid"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["config", "user.email", "test@example.invalid"], Some(&work)).unwrap();
     exec_git(&["config", "user.name", "Test"], Some(&work)).unwrap();
-    fs::write(
-        work.join("package.json"),
-        r#"{"name":"the-monorepo","version":"0.0.0"}"#,
-    )
-    .unwrap();
+    fs::write(work.join("package.json"), r#"{"name":"the-monorepo","version":"0.0.0"}"#).unwrap();
     fs::write(
         work.join("packages/foo/package.json"),
         r#"{"name":"@scope/foo","version":"2.0.0","main":"index.js"}"#,
     )
     .unwrap();
-    fs::write(
-        work.join("packages/no-manifest/readme.md"),
-        "no manifest here\n",
-    )
-    .unwrap();
+    fs::write(work.join("packages/no-manifest/readme.md"), "no manifest here\n").unwrap();
     exec_git(&["add", "-A"], Some(&work)).unwrap();
-    exec_git(
-        &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
     let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
         .unwrap()
         .trim()
         .to_string();
-    exec_git(
-        &[
-            "clone",
-            "--bare",
-            "-q",
-            &work.to_string_lossy(),
-            &bare.to_string_lossy(),
-        ],
-        None,
-    )
-    .unwrap();
+    exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
+        .unwrap();
     (bare, commit)
 }
 
@@ -197,58 +135,27 @@ fn make_monorepo_bare_repo(tmp: &Path) -> (PathBuf, String) {
     fs::create_dir_all(work.join("packages/other")).unwrap();
 
     exec_git(&["init", "-q", "-b", "main"], Some(&work)).unwrap();
-    exec_git(
-        &["config", "user.email", "test@example.invalid"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["config", "user.email", "test@example.invalid"], Some(&work)).unwrap();
     exec_git(&["config", "user.name", "Test"], Some(&work)).unwrap();
-    fs::write(
-        work.join("package.json"),
-        r#"{"name":"monorepo","version":"0.0.0","private":true}"#,
-    )
-    .unwrap();
+    fs::write(work.join("package.json"), r#"{"name":"monorepo","version":"0.0.0","private":true}"#)
+        .unwrap();
     fs::write(
         work.join("packages/sub/package.json"),
         r#"{"name":"sub","version":"1.0.0","main":"index.js"}"#,
     )
     .unwrap();
-    fs::write(
-        work.join("packages/sub/index.js"),
-        "module.exports = 'sub';\n",
-    )
-    .unwrap();
-    fs::write(
-        work.join("packages/other/package.json"),
-        r#"{"name":"other","version":"1.0.0"}"#,
-    )
-    .unwrap();
-    fs::write(
-        work.join("packages/other/index.js"),
-        "module.exports = 'other';\n",
-    )
-    .unwrap();
+    fs::write(work.join("packages/sub/index.js"), "module.exports = 'sub';\n").unwrap();
+    fs::write(work.join("packages/other/package.json"), r#"{"name":"other","version":"1.0.0"}"#)
+        .unwrap();
+    fs::write(work.join("packages/other/index.js"), "module.exports = 'other';\n").unwrap();
     exec_git(&["add", "-A"], Some(&work)).unwrap();
-    exec_git(
-        &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
     let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
         .unwrap()
         .trim()
         .to_string();
-    exec_git(
-        &[
-            "clone",
-            "--bare",
-            "-q",
-            &work.to_string_lossy(),
-            &bare.to_string_lossy(),
-        ],
-        None,
-    )
-    .unwrap();
+    exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
+        .unwrap();
     (bare, commit)
 }
 
@@ -261,35 +168,18 @@ fn make_bare_repo_without_manifest(tmp: &Path) -> (PathBuf, String) {
     let bare = tmp.join("repo.git");
     fs::create_dir_all(&work).unwrap();
     exec_git(&["init", "-q", "-b", "main"], Some(&work)).unwrap();
-    exec_git(
-        &["config", "user.email", "test@example.invalid"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["config", "user.email", "test@example.invalid"], Some(&work)).unwrap();
     exec_git(&["config", "user.name", "Test"], Some(&work)).unwrap();
     fs::write(work.join("README.md"), "# bare\n").unwrap();
     fs::write(work.join("index.js"), "module.exports = 1;\n").unwrap();
     exec_git(&["add", "-A"], Some(&work)).unwrap();
-    exec_git(
-        &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
     let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
         .unwrap()
         .trim()
         .to_string();
-    exec_git(
-        &[
-            "clone",
-            "--bare",
-            "-q",
-            &work.to_string_lossy(),
-            &bare.to_string_lossy(),
-        ],
-        None,
-    )
-    .unwrap();
+    exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
+        .unwrap();
     (bare, commit)
 }
 

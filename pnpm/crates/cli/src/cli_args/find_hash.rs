@@ -41,9 +41,7 @@ pub struct FindHashArgs {
 
 impl From<StoreIndexError> for FindHashError {
     fn from(source: StoreIndexError) -> Self {
-        Self::StoreIndex {
-            source,
-        }
+        Self::StoreIndex { source }
     }
 }
 
@@ -59,7 +57,7 @@ impl FindHashArgs {
         let hash = parse_hash(self.hash)?;
 
         let config = config()?;
-        let store_index = open_search_index(config)?;
+        let store_index = open_store_index(config)?;
 
         let mut results = Vec::new();
 
@@ -99,14 +97,25 @@ impl FindHashArgs {
     }
 }
 
+fn open_store_index(config: &Config) -> miette::Result<StoreIndex> {
+    let store_dir = &config.store_dir;
+
+    if config.frozen_store {
+        StoreIndex::open_immutable(store_dir.root())
+            .into_diagnostic()
+            .wrap_err("Failed to open store index (frozen)")
+    } else {
+        StoreIndex::open_readonly_in(store_dir)
+            .into_diagnostic()
+            .wrap_err("Failed to open store index")
+    }
+}
+
 fn parse_hash(mut hash: String) -> miette::Result<String> {
     if hash.contains('-') {
         return parse_sri_hash(&hash);
     }
-    if !hash
-        .chars()
-        .all(|c| c.is_ascii_hexdigit())
-    {
+    if !hash.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(miette::miette!(
             "Invalid hash format: \"{hash}\" contains non-hexadecimal characters. \
              Expected a 128-character hex string or a sha512-base64 format."
@@ -191,14 +200,9 @@ struct FindHashSideEffectsDiff {
 }
 
 fn decode_find_hash_index(bytes: &[u8]) -> Result<FindHashPackageIndex, StoreIndexError> {
-    let plain = transcode_to_plain_msgpack(bytes)
-        .map_err(|source| StoreIndexError::Transcode {
-            source,
-        })?;
-    rmp_serde::from_slice(&plain)
-        .map_err(|source| StoreIndexError::Decode {
-            source,
-        })
+    let plain =
+        transcode_to_plain_msgpack(bytes).map_err(|source| StoreIndexError::Transcode { source })?;
+    rmp_serde::from_slice(&plain).map_err(|source| StoreIndexError::Decode { source })
 }
 
 fn contains_hash(data: &FindHashPackageIndex, hash: &str) -> bool {
@@ -271,19 +275,4 @@ fn index_path(text: &str) -> String {
         .as_ref()
         .if_supports_color(Stream::Stdout, |t| t.color(Rgb(7, 132, 135)))
         .to_string()
-}
-
-fn open_search_index(config: &Config) -> miette::Result<StoreIndex> {
-    let store_dir = &config.store_dir;
-
-    let store_index = if config.frozen_store {
-        StoreIndex::open_immutable(store_dir.root())
-            .into_diagnostic()
-            .wrap_err("Failed to open store index (frozen)")?
-    } else {
-        StoreIndex::open_readonly_in(store_dir)
-            .into_diagnostic()
-            .wrap_err("Failed to open store index")?
-    };
-    Ok(store_index)
 }

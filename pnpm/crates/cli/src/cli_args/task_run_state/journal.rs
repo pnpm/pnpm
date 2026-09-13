@@ -1,9 +1,8 @@
 use super::{
     FINISHED_SUFFIX, File, HashSet, IntoDiagnostic, JournalRecord, LOCK_ABANDONED_AFTER, LOCK_WAIT,
-    OsStr, OsString, PUBLISHED_SUFFIX, Path, PathBuf, RUN_GENERATION_LENGTH, START_LOCK_DIR,
-    STATE_VERSION, StateHeader, StateStorageError, SystemTime, TaskId, TaskKey,
-    TaskRunStateContext, UNIX_EPOCH, fs, initial_journal_contents, io, is_state_unavailable_error,
-    open_journal_for_append, run_id,
+    OpenOptions, OsStr, OsString, PUBLISHED_SUFFIX, Path, PathBuf, RUN_GENERATION_LENGTH,
+    START_LOCK_DIR, STATE_VERSION, StateHeader, StateStorageError, SystemTime, TaskId, TaskKey,
+    TaskRecord, TaskRunStateContext, UNIX_EPOCH, fs, io, is_state_unavailable_error, run_id,
 };
 use miette::WrapErr as _;
 
@@ -104,9 +103,7 @@ impl TaskRunStateContext {
                     .wrap_err_with(|| format!("reading {}", self.latest_state_path.display()));
             }
         };
-        let Some(latest) = latest else {
-            return Ok(None);
-        };
+        let Some(latest) = latest else { return Ok(None) };
         if latest.version != STATE_VERSION
             || latest.invocation != self.invocation
             || !is_run_id(&latest.run)
@@ -142,15 +139,10 @@ impl TaskRunStateContext {
             let record = serde_json::from_str::<JournalRecord>(line).ok()?;
             match record {
                 JournalRecord::Task(record) if record.run == header.run => {
-                    let id = TaskId {
-                        project: record.project,
-                        task: record.task,
-                    };
+                    let id = TaskId { project: record.project, task: record.task };
                     completed.insert(self.keys_by_id.get(&id)?.clone());
                 }
-                JournalRecord::Finish(record)
-                    if record.run == header.run && record.finished =>
-                {
+                JournalRecord::Finish(record) if record.run == header.run && record.finished => {
                     return None;
                 }
                 _ => {}
@@ -178,8 +170,11 @@ impl TaskRunStateContext {
             invocation: self.invocation.clone(),
             run: run.clone(),
         };
+        let contents = initial_journal_contents(&header, completed);
         let file_path = self.journal_path(&run);
-        let file = create_journal(&file_path, &header, completed)?;
+        pnpm_fs::write_atomic(&file_path, contents.as_bytes())
+            .map_err(|error| StateStorageError::io(error, "writing", &file_path))?;
+        let file = open_journal_for_append(&file_path)?;
         match lock.is_owner() {
             Ok(true) => {}
             Ok(false) => {
@@ -214,11 +209,7 @@ impl TaskRunStateContext {
         if let Err(error) = latest_write {
             drop(file);
             let _ = fs::remove_file(file_path);
-            return Err(StateStorageError::io(
-                error,
-                "writing",
-                &self.latest_state_path,
-            ));
+            return Err(StateStorageError::io(error, "writing", &self.latest_state_path));
         }
         let published_path = self.published_path(&header.run);
         if let Err(error) = pnpm_fs::write_atomic(&published_path, &[]) {
@@ -244,9 +235,8 @@ impl TaskRunStateContext {
                 entry.map_err(|error| StateStorageError::io(error, "reading", &self.state_dir))?;
             names.insert(entry.file_name());
         }
-        let mut finished = names.contains(OsStr::new(&format!(
-            "{prefix}{latest_run}{FINISHED_SUFFIX}",
-        )));
+        let mut finished =
+            names.contains(OsStr::new(&format!("{prefix}{latest_run}{FINISHED_SUFFIX}")));
         for name in &names {
             let Some((run, candidate_finished)) = Self::state_file_run(name, &prefix, &names)
             else {
@@ -295,11 +285,7 @@ impl TaskRunStateContext {
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => {
-                return Err(StateStorageError::io(
-                    error,
-                    "reading",
-                    &self.latest_state_path,
-                ));
+                return Err(StateStorageError::io(error, "reading", &self.latest_state_path));
             }
         }
         newest_run = self.newest_state(&newest_run)?.0;
@@ -310,20 +296,14 @@ impl TaskRunStateContext {
     }
 
     fn cleanup_older_finished_state(&self, run: &str) {
-        let Ok(entries) = fs::read_dir(&self.state_dir) else {
-            return;
-        };
+        let Ok(entries) = fs::read_dir(&self.state_dir) else { return };
         let prefix = format!("{}.", self.invocation);
         let generation = run_generation(run);
         for entry in entries.flatten() {
             let name = entry.file_name();
             let Some(name) = name.to_str() else { continue };
-            let Some(name) = name.strip_prefix(&prefix) else {
-                continue;
-            };
-            let Some(older_run) = name.strip_suffix(FINISHED_SUFFIX) else {
-                continue;
-            };
+            let Some(name) = name.strip_prefix(&prefix) else { continue };
+            let Some(older_run) = name.strip_suffix(FINISHED_SUFFIX) else { continue };
             if !is_run_id(older_run) || run_generation(older_run) >= generation {
                 continue;
             }
@@ -332,13 +312,28 @@ impl TaskRunStateContext {
     }
 }
 
-fn create_journal(
-    file_path: &Path,
-    header: &StateHeader,
-    completed: &[&TaskId],
-) -> Result<File, StateStorageError> {
-    let contents = initial_journal_contents(header, completed);
-    pnpm_fs::write_atomic(file_path, contents.as_bytes())
-        .map_err(|error| StateStorageError::io(error, "writing", file_path))?;
-    open_journal_for_append(file_path)
+pub(super) fn initial_journal_contents(header: &StateHeader, completed: &[&TaskId]) -> String {
+    let mut contents = serde_json::to_string(header).expect("task state header serializes");
+    contents.push('\n');
+    for id in completed {
+        let record = TaskRecord {
+            run: header.run.clone(),
+            project: id.project.clone(),
+            task: id.task.clone(),
+        };
+        contents.push_str(&serde_json::to_string(&record).expect("task record serializes"));
+        contents.push('\n');
+    }
+    contents
+}
+
+/// Remove an unpublished journal if it cannot be reopened for appending.
+pub(super) fn open_journal_for_append(file_path: &Path) -> Result<File, StateStorageError> {
+    OpenOptions::new()
+        .append(true)
+        .open(file_path)
+        .map_err(|error| {
+            let _ = fs::remove_file(file_path);
+            StateStorageError::io(error, "opening", file_path)
+        })
 }

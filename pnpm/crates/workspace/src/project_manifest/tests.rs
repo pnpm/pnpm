@@ -137,11 +137,5 @@ fn reads_a_package_yaml_that_starts_with_a_utf8_bom() {
     fs::write(&path, "\u{feff}name: bom\nversion: 1.0.0\n").unwrap();
 
     let manifest = read_exact_project_manifest(&path).unwrap();
-    assert_eq!(
-        manifest
-            .value()
-            .get("name")
-            .unwrap(),
-        "bom",
-    );
+    assert_eq!(manifest.value().get("name").unwrap(), "bom");
 }

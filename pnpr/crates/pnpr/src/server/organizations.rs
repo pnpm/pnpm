@@ -16,24 +16,33 @@ pub(super) async fn serve_org_packages(
     raw_scope: &str,
 ) -> Response {
     let scope = raw_scope.strip_prefix('@').unwrap_or(raw_scope);
-    if CanonicalPackageName::parse(
-        &format!("@{scope}/package"),
-        pnpr_package_name::Ecosystem::Npm,
-    )
-    .is_err()
+    if CanonicalPackageName::parse(&format!("@{scope}/package"), pnpr_package_name::Ecosystem::Npm)
+        .is_err()
     {
         return not_found();
     }
-    let Some(registry) = registry
-        .map(str::to_string)
-        .or_else(|| default_registry_target(state, Ecosystem::Npm))
+    let Some(registry) =
+        registry.map(str::to_string).or_else(|| default_registry_target(state, Ecosystem::Npm))
     else {
         return not_found();
     };
-    let packages = match org_packages(state, identity, &registry, scope).await {
-        Ok(packages) => packages,
-        Err(err) => return err.into_response(),
-    };
+    let prefix = format!("@{scope}/");
+    let mut packages = Map::new();
+    for source in discovery_sources(state, &registry, Ecosystem::Npm) {
+        let scanned = match source {
+            DiscoverySource::Hosted(source) => {
+                let scan = OrgScan { registry: &registry, source: &source, prefix: &prefix };
+                add_hosted_org_packages(state, identity, scan, &mut packages).await
+            }
+            DiscoverySource::Upstream(source) => {
+                let scan = OrgScan { registry: &registry, source: &source, prefix: &prefix };
+                add_upstream_org_packages(state, identity, scan, scope, &mut packages).await
+            }
+        };
+        if let Err(err) = scanned {
+            return err.into_response();
+        }
+    }
     if packages.is_empty() {
         return not_found();
     }
@@ -97,10 +106,7 @@ pub(super) fn hosted_org_package_is_visible(
             resolve_registry_source(state, scan.registry, name),
             RegistrySource::Hosted(candidate) if candidate == scan.source,
         )
-        && matches!(
-            hosted_gate(state, identity, scan.source, name),
-            HostedGate::Allowed(_),
-        )
+        && matches!(hosted_gate(state, identity, scan.source, name), HostedGate::Allowed(_))
 }
 
 /// Add the scope's upstream packages, which are always read-only here.
@@ -133,9 +139,7 @@ pub(super) async fn add_upstream_org_packages(
         if !upstream_org_package_is_visible(state, identity, &scan, &resolved, &name) {
             continue;
         }
-        packages
-            .entry(name)
-            .or_insert_with(|| Value::String("read".to_string()));
+        packages.entry(name).or_insert_with(|| Value::String("read".to_string()));
     }
     Ok(())
 }
@@ -260,42 +264,5 @@ pub(super) fn reject_team_mutation(
     if let Err(response) = team_registry(state, identity, registry, scope) {
         return response.into_response();
     }
-    RegistryError::TeamsConfigManaged {
-        action,
-    }
-    .into_response()
-}
-
-async fn org_packages(
-    state: &AppState,
-    identity: &Identity,
-    registry: &str,
-    scope: &str,
-) -> Result<Map<String, Value>, RegistryError> {
-    let prefix = format!("@{scope}/");
-    let mut packages = Map::new();
-    for source in discovery_sources(state, registry, Ecosystem::Npm) {
-        let scanned = match source {
-            DiscoverySource::Hosted(source) => {
-                let scan = OrgScan {
-                    registry,
-                    source: &source,
-                    prefix: &prefix,
-                };
-                add_hosted_org_packages(state, identity, scan, &mut packages)
-                    .await
-            }
-            DiscoverySource::Upstream(source) => {
-                let scan = OrgScan {
-                    registry,
-                    source: &source,
-                    prefix: &prefix,
-                };
-                add_upstream_org_packages(state, identity, scan, scope, &mut packages)
-                    .await
-            }
-        };
-        scanned?;
-    }
-    Ok(packages)
+    RegistryError::TeamsConfigManaged { action }.into_response()
 }

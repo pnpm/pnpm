@@ -86,10 +86,7 @@ fn package_integrity(lockfile: &str, package_key: &str) -> Option<String> {
             let key_at = line
                 .match_indices("integrity:")
                 .find(|(idx, _)| {
-                    matches!(
-                        line[..*idx].chars().next_back(),
-                        None | Some(' ' | '{' | ','),
-                    )
+                    matches!(line[..*idx].chars().next_back(), None | Some(' ' | '{' | ','))
                 })?;
             let rest = line[key_at.0 + "integrity:".len()..].trim_start();
             let end = rest
@@ -408,11 +405,7 @@ fn a_remote_tarball_is_indexed_once_under_the_bare_url() {
         .iter()
         .filter(|key| key.contains("pkg-from-tarball"))
         .collect::<Vec<_>>();
-    assert_eq!(
-        rows.len(),
-        1,
-        "one tarball dependency must occupy one store-index row: {keys:?}",
-    );
+    assert_eq!(rows.len(), 1, "one tarball dependency must occupy one store-index row: {keys:?}");
     assert!(
         rows[0].ends_with(&format!("\t{tarball_url}")),
         "the store-index row must be keyed by the bare tarball URL: {:?}",
@@ -491,10 +484,7 @@ fn remote_tarball_behind_an_immutable_redirect_reuses_the_warm_store() {
         .success();
 
     let after = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
-    assert_eq!(
-        after, lockfile,
-        "a warm re-resolve must not rewrite the entry",
-    );
+    assert_eq!(after, lockfile, "a warm re-resolve must not rewrite the entry");
 
     drop((root, mock_instance));
 }

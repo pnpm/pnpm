@@ -89,11 +89,7 @@ pub(super) fn selected_add_seed(
                 .extend(selectors);
         }
     }
-    AddSeed {
-        seed_policies,
-        preferred_versions_override,
-        catalogs_override,
-    }
+    AddSeed { seed_policies, preferred_versions_override, catalogs_override }
 }
 /// What the install resolves from: the importers whose catalog pins are
 /// withheld, the versions the add named, and the catalogs as it rewrote

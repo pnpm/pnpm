@@ -25,10 +25,7 @@ fn scripts(workspace: &Path) -> Value {
 #[test]
 fn exposes_the_ss_alias() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &json!({ "name": "test-package", "version": "1.0.0" }),
-    );
+    write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
     pacquet
         .with_args(["ss", "build", "tsc"])
@@ -42,10 +39,7 @@ fn exposes_the_ss_alias() {
 #[test]
 fn adds_a_script_when_none_exist() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &json!({ "name": "test-package", "version": "1.0.0" }),
-    );
+    write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
     pacquet
         .with_args(["set-script", "build", "tsc -b"])
@@ -59,10 +53,7 @@ fn adds_a_script_when_none_exist() {
 #[test]
 fn overwrites_an_existing_script() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &json!({ "name": "test-package", "scripts": { "build": "old" } }),
-    );
+    write_manifest(&workspace, &json!({ "name": "test-package", "scripts": { "build": "old" } }));
 
     pacquet
         .with_args(["set-script", "build", "tsc -b"])
@@ -76,10 +67,7 @@ fn overwrites_an_existing_script() {
 #[test]
 fn joins_remaining_params_into_the_command() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &json!({ "name": "test-package", "version": "1.0.0" }),
-    );
+    write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
     pacquet
         .with_args(["set-script", "lint", "eslint", "--fix", "src"])
@@ -93,10 +81,7 @@ fn joins_remaining_params_into_the_command() {
 #[test]
 fn accepts_script_names_with_dots_hyphens_and_quotes() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &json!({ "name": "test-package", "version": "1.0.0" }),
-    );
+    write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
     pacquet
         .with_args(["set-script", "my-build", "tsc -b"])
@@ -121,10 +106,7 @@ fn accepts_script_names_with_dots_hyphens_and_quotes() {
 #[test]
 fn accepts_script_names_containing_an_equals_sign() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &json!({ "name": "test-package", "version": "1.0.0" }),
-    );
+    write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
     pacquet
         .with_args(["set-script", "with=eq", "echo", "with=eq"])
@@ -138,10 +120,7 @@ fn accepts_script_names_containing_an_equals_sign() {
 #[test]
 fn fails_when_arguments_are_missing() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &json!({ "name": "test-package", "version": "1.0.0" }),
-    );
+    write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
     let output = pacquet
         .with_args(["set-script", "build"])
@@ -163,10 +142,7 @@ fn fails_when_arguments_are_missing() {
 #[test]
 fn fails_when_no_arguments_are_given() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &json!({ "name": "test-package", "version": "1.0.0" }),
-    );
+    write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
     // No arguments at all exercises the missing-name branch, separate from the
     // missing-command branch covered above.
@@ -190,10 +166,7 @@ fn fails_when_no_arguments_are_given() {
 #[test]
 fn rejects_unsafe_script_names() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &json!({ "name": "test-package", "version": "1.0.0" }),
-    );
+    write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
 
     let output = pacquet
         .with_args(["set-script", "__proto__", "echo"])
@@ -220,20 +193,11 @@ fn rejects_unsafe_script_names() {
 #[test]
 fn manifest_commands_edit_the_enclosing_npm_project() {
     for (manifest, contents) in [
-        (
-            "Cargo.toml",
-            "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
-        ),
-        (
-            "pyproject.toml",
-            "[project]\nname = 'member'\nversion = '1.0'\n",
-        ),
+        ("Cargo.toml", "[package]\nname = \"member\"\nversion = \"0.1.0\"\n"),
+        ("pyproject.toml", "[project]\nname = 'member'\nversion = '1.0'\n"),
     ] {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-        write_manifest(
-            &workspace,
-            &json!({ "name": "test-package", "version": "1.0.0" }),
-        );
+        write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
         let member = workspace.join("member");
         fs::create_dir(&member).expect("create the member dir");
         fs::write(member.join(manifest), contents).expect("write the ecosystem manifest");
@@ -247,20 +211,12 @@ fn manifest_commands_edit_the_enclosing_npm_project() {
             .assert()
             .success();
 
-        assert_eq!(
-            scripts(&workspace)["build"],
-            json!("tsc -b"),
-            "manifest: {manifest}",
-        );
+        assert_eq!(scripts(&workspace)["build"], json!("tsc -b"), "manifest: {manifest}");
         let edited = PackageManifest::from_path(workspace.join("package.json"))
             .expect("read package.json")
             .value()
             .clone();
-        assert_eq!(
-            edited["description"],
-            json!("set from the member"),
-            "manifest: {manifest}",
-        );
+        assert_eq!(edited["description"], json!("set from the member"), "manifest: {manifest}");
         assert!(
             !member.join("package.json").exists(),
             "no package.json should be created beside the {manifest}",

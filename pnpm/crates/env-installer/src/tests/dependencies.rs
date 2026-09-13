@@ -30,26 +30,13 @@ async fn records_optional_subdeps_with_platform_fields() {
     let optionals = env.snapshots[&parent_key].optional_dependencies
         .as_ref()
         .expect("optional subdeps recorded");
-    assert_eq!(
-        optionals.len(),
-        8,
-        "all eight platform variants are recorded",
-    );
+    assert_eq!(optionals.len(), 8, "all eight platform variants are recorded");
 
     let only_linux = "@pnpm.e2e/only-linux-x64-glibc@1.0.0".parse().unwrap();
     let metadata = env.packages.get(&only_linux).expect("platform subdep recorded in packages");
-    assert_eq!(
-        metadata.os.as_deref(),
-        Some(["linux".to_string()].as_slice()),
-    );
-    assert_eq!(
-        metadata.cpu.as_deref(),
-        Some(["x64".to_string()].as_slice()),
-    );
-    assert_eq!(
-        metadata.libc.as_deref(),
-        Some(["glibc".to_string()].as_slice()),
-    );
+    assert_eq!(metadata.os.as_deref(), Some(["linux".to_string()].as_slice()));
+    assert_eq!(metadata.cpu.as_deref(), Some(["x64".to_string()].as_slice()));
+    assert_eq!(metadata.libc.as_deref(), Some(["glibc".to_string()].as_slice()));
 }
 
 #[tokio::test]
@@ -110,15 +97,9 @@ async fn resolves_package_manager_dependencies_graph() {
     let platform_key: PackageKey = "@pnpm/linuxstatic-x64@11.0.0".parse().unwrap();
 
     assert_eq!(env.packages[&pnpm_key].has_bin, Some(true));
-    assert_eq!(
-        env.packages[&pnpm_key].engines.as_ref().unwrap()["node"],
-        ">=22.0.0",
-    );
+    assert_eq!(env.packages[&pnpm_key].engines.as_ref().unwrap()["node"], ">=22.0.0");
     assert_eq!(env.packages[&exe_key].has_bin, Some(true));
-    assert_eq!(
-        env.packages[&platform_key].libc.as_deref(),
-        Some(["musl".to_string()].as_slice()),
-    );
+    assert_eq!(env.packages[&platform_key].libc.as_deref(), Some(["musl".to_string()].as_slice()));
 
     let exe_snapshot = &env.snapshots[&exe_key];
     let detect_libc_name = "detect-libc".parse().unwrap();
@@ -144,16 +125,9 @@ async fn resolves_package_manager_dependencies_graph() {
         .unwrap()
         .insert(
             "yarn".to_string(),
-            SpecifierAndResolution {
-                specifier: "1.0.0".to_string(),
-                version: "1.0.0".to_string(),
-            },
+            SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
         );
-    assert!(!is_package_manager_resolved(
-        &env_with_extra_pm_dep,
-        "^11.0.0",
-        "11.0.0",
-    ));
+    assert!(!is_package_manager_resolved(&env_with_extra_pm_dep, "^11.0.0", "11.0.0",));
 }
 
 #[tokio::test]

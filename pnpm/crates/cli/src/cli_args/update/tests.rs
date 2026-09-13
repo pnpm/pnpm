@@ -16,12 +16,7 @@ fn update_args(args: &[&str]) -> UpdateArgs {
 }
 
 fn options(prod: bool, dev: bool, optional: bool, no_optional: bool) -> UpdateDependencyOptions {
-    UpdateDependencyOptions {
-        prod,
-        dev,
-        optional,
-        no_optional,
-    }
+    UpdateDependencyOptions { prod, dev, optional, no_optional }
 }
 
 #[test]
@@ -29,11 +24,7 @@ fn no_flags_includes_all_groups() {
     let groups = options(false, false, false, false).include_direct();
     assert_eq!(
         groups,
-        vec![
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional
-        ],
+        vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
     );
 }
 
@@ -54,11 +45,7 @@ fn no_optional_alone_does_not_drop_optional() {
     let groups = options(false, false, false, true).include_direct();
     assert_eq!(
         groups,
-        vec![
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional
-        ],
+        vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
     );
 }
 
@@ -129,18 +116,12 @@ fn workspace_option_is_checked_before_anything_is_read() {
     let outside = update_args(&["--workspace"])
         .check_workspace_option(None)
         .expect_err("--workspace outside a workspace");
-    assert_eq!(
-        outside.to_string(),
-        "--workspace can only be used inside a workspace",
-    );
+    assert_eq!(outside.to_string(), "--workspace can only be used inside a workspace");
 
     let with_latest = update_args(&["--workspace", "--latest"])
         .check_workspace_option(Some(workspace_root))
         .expect_err("--workspace with --latest");
-    assert_eq!(
-        with_latest.to_string(),
-        "Cannot use --latest with --workspace simultaneously",
-    );
+    assert_eq!(with_latest.to_string(), "Cannot use --latest with --workspace simultaneously");
 }
 
 #[test]
@@ -164,16 +145,10 @@ fn ignore_scripts_flags_apply_to_config() {
 
     config.ignore_scripts = false;
     update_args(&["--ignore-scripts"]).apply_cli_config(&mut config);
-    assert!(
-        config.ignore_scripts,
-        "--ignore-scripts enables the setting",
-    );
+    assert!(config.ignore_scripts, "--ignore-scripts enables the setting");
 
     update_args(&["--no-ignore-scripts"]).apply_cli_config(&mut config);
-    assert!(
-        !config.ignore_scripts,
-        "--no-ignore-scripts disables the setting",
-    );
+    assert!(!config.ignore_scripts, "--no-ignore-scripts disables the setting");
 }
 
 #[test]
@@ -182,10 +157,7 @@ fn pnpr_server_flag_applies_to_config() {
 
     update_args(&["--pnpr-server", "https://pnpr.example.test/"]).apply_cli_config(&mut config);
 
-    assert_eq!(
-        config.pnpr_server.as_deref(),
-        Some("https://pnpr.example.test/"),
-    );
+    assert_eq!(config.pnpr_server.as_deref(), Some("https://pnpr.example.test/"));
 }
 
 #[test]
@@ -211,11 +183,7 @@ fn patches_is_a_selectorless_update_mode() {
 
 #[test]
 fn constrained_patch_refresh_stays_on_the_client() {
-    let all_groups = vec![
-        DependencyGroup::Prod,
-        DependencyGroup::Dev,
-        DependencyGroup::Optional,
-    ];
+    let all_groups = vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
     let prod_only = vec![DependencyGroup::Prod];
 
     assert!(update_args(&["--patches"]).can_delegate_patch_refresh(false, &all_groups));

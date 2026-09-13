@@ -32,12 +32,9 @@ fn restart_runs_stop_restart_start_in_order() {
         }),
     );
     let config = test_config();
-    RestartArgs {
-        args: vec![],
-        if_present: false,
-    }
-    .run(dir, &config, ReporterType::Silent)
-    .expect("restart should succeed");
+    RestartArgs { args: vec![], if_present: false }
+        .run(dir, &config, ReporterType::Silent)
+        .expect("restart should succeed");
     let content = std::fs::read_to_string(&log_file).expect("read log file");
     let lines: Vec<&str> = content
         .lines()
@@ -59,12 +56,9 @@ fn restart_with_if_present_skips_missing_stop_and_restart() {
         }),
     );
     let config = test_config();
-    RestartArgs {
-        args: vec![],
-        if_present: true,
-    }
-    .run(dir, &config, ReporterType::Silent)
-    .expect("--if-present should skip missing stop/restart");
+    RestartArgs { args: vec![], if_present: true }
+        .run(dir, &config, ReporterType::Silent)
+        .expect("--if-present should skip missing stop/restart");
 }
 
 #[cfg(unix)]
@@ -94,12 +88,9 @@ fn restart_passes_args_to_each_script() {
     });
     std::fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
     let config = test_config();
-    RestartArgs {
-        args: vec!["myarg".to_string()],
-        if_present: false,
-    }
-    .run(dir, &config, ReporterType::Silent)
-    .expect("restart should succeed");
+    RestartArgs { args: vec!["myarg".to_string()], if_present: false }
+        .run(dir, &config, ReporterType::Silent)
+        .expect("restart should succeed");
     let content = std::fs::read_to_string(&log_file).expect("read log file");
     let lines: Vec<&str> = content
         .lines()

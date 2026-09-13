@@ -7,15 +7,8 @@ use super::{
 /// sort the entries by name, and drop the field entirely when it holds no
 /// entries.
 pub(super) fn normalize_dependency_fields(manifest: &mut Value) {
-    let Some(manifest) = manifest.as_object_mut() else {
-        return;
-    };
-    for field in [
-        "dependencies",
-        "devDependencies",
-        "optionalDependencies",
-        "peerDependencies",
-    ] {
+    let Some(manifest) = manifest.as_object_mut() else { return };
+    for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] {
         let is_empty_object = match manifest.get_mut(field) {
             Some(Value::Object(deps)) => {
                 deps.sort_keys();
@@ -81,10 +74,7 @@ pub fn safe_read_package_json_from_dir(dir: &Path) -> Result<Option<Value>, Pack
     };
     parse_manifest(&text)
         .map(Some)
-        .map_err(|source| PackageManifestError::Parse {
-            path,
-            source,
-        })
+        .map_err(|source| PackageManifestError::Parse { path, source })
 }
 
 /// Parse the contents of a `package.json`.
@@ -134,13 +124,9 @@ impl PackageManifest {
         // when overwriting an existing package.json (write-file-atomic does the
         // same) so the rename doesn't silently tighten its permissions.
         if let Ok(metadata) = fs::metadata(path) {
-            tmp
-                .as_file()
-                .set_permissions(metadata.permissions())?;
+            tmp.as_file().set_permissions(metadata.permissions())?;
         }
-        tmp
-            .persist(path)
-            .map_err(|err| err.error)?;
+        tmp.persist(path).map_err(|err| err.error)?;
         Ok(())
     }
 
@@ -148,10 +134,7 @@ impl PackageManifest {
         let file_contents = fs::read_to_string(&path)?;
         let contents = strip_utf8_bom(&file_contents);
         let mut value: Value = parse_manifest(contents)
-            .map_err(|source| PackageManifestError::Parse {
-                path: path.clone(),
-                source,
-            })?;
+            .map_err(|source| PackageManifestError::Parse { path: path.clone(), source })?;
         let mut on_disk = value.clone();
         normalize_dependency_fields(&mut on_disk);
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");

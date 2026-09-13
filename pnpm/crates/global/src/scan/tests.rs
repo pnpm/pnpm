@@ -49,18 +49,12 @@ fn runtime_engines_are_reified_as_a_direct_dependency() {
     let tmp = TempDir::new().unwrap();
     write_runtime_group(tmp.path());
 
-    assert_eq!(
-        read_direct_dependency_aliases(tmp.path()),
-        vec!["node".to_string()],
-    );
+    assert_eq!(read_direct_dependency_aliases(tmp.path()), vec!["node".to_string()]);
 
     let pkgs = read_installed_packages(tmp.path());
     assert_eq!(pkgs.len(), 1);
     assert_eq!(pkgs[0].location, tmp.path().join("node_modules/node"));
-    assert_eq!(
-        pkgs[0].manifest.get("bin"),
-        Some(&json!({ "node": "bin/node" })),
-    );
+    assert_eq!(pkgs[0].manifest.get("bin"), Some(&json!({ "node": "bin/node" })));
 }
 
 #[test]
@@ -88,10 +82,7 @@ fn ordinary_engines_node_range_is_not_reified() {
     // packages) is not a downloaded runtime, so reification must leave it
     // out of the dependency aliases and installed packages entirely.
     let tmp = TempDir::new().unwrap();
-    write_json(
-        &tmp.path().join("package.json"),
-        &json!({ "engines": { "node": ">=18" } }),
-    );
+    write_json(&tmp.path().join("package.json"), &json!({ "engines": { "node": ">=18" } }));
 
     assert!(read_direct_dependency_aliases(tmp.path()).is_empty());
     assert!(read_installed_packages(tmp.path()).is_empty());
@@ -106,10 +97,7 @@ fn installed_bin_names_accepts_a_readable_binless_manifest() {
     );
     let info = package_group(tmp.path(), &["binless"]);
 
-    assert_eq!(
-        get_installed_bin_names(&info).unwrap(),
-        Vec::<String>::new(),
-    );
+    assert_eq!(get_installed_bin_names(&info).unwrap(), Vec::<String>::new());
 }
 
 #[test]
@@ -156,10 +144,7 @@ fn installed_bin_names_does_not_return_a_partial_set_when_one_manifest_is_missin
     );
     assert_eq!(
         get_installed_bin_names(&info).unwrap(),
-        vec![
-            "missing-command".to_string(),
-            "readable-command".to_string()
-        ],
+        vec!["missing-command".to_string(), "readable-command".to_string()],
     );
 }
 
@@ -203,10 +188,7 @@ fn scan_finds_a_globally_installed_runtime() {
     let groups = scan_global_packages(global_dir.path()).unwrap();
     assert_eq!(groups.len(), 1);
     assert!(groups[0].has_alias("node"));
-    assert_eq!(
-        get_installed_bin_names(&groups[0]).unwrap(),
-        vec!["node".to_string()],
-    );
+    assert_eq!(get_installed_bin_names(&groups[0]).unwrap(), vec!["node".to_string()]);
 
     assert!(find_global_package(global_dir.path(), "node").unwrap().is_some());
 }

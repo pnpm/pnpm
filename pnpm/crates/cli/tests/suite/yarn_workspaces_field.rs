@@ -53,10 +53,7 @@ fn a_repeat_install_taking_the_up_to_date_path_warns_too() {
 
     assert_success(&second);
     let printed = format!("{}{}", stdout(&second), stderr(&second));
-    assert!(
-        printed.contains("Already up to date"),
-        "the short-circuit ran:\n{printed}",
-    );
+    assert!(printed.contains("Already up to date"), "the short-circuit ran:\n{printed}");
     assert_contains(&stderr(&second), WARNING);
 }
 
@@ -129,10 +126,7 @@ fn assert_success(output: &Output) {
 
 fn assert_quiet(output: &Output) {
     let stderr = stderr(output);
-    assert!(
-        !stderr.contains("workspaces"),
-        "expected no workspaces warning; got:\n{stderr}",
-    );
+    assert!(!stderr.contains("workspaces"), "expected no workspaces warning; got:\n{stderr}");
 }
 
 fn stdout(output: &Output) -> String {

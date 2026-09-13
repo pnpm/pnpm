@@ -60,11 +60,7 @@ impl Resolver for StubResolver {
         _query: &'a LatestQuery,
         _opts: &'a ResolveOptions,
     ) -> ResolveLatestFuture<'a> {
-        Box::pin(async {
-            Ok(Some(LatestInfo {
-                latest_manifest: None,
-            }))
-        })
+        Box::pin(async { Ok(Some(LatestInfo { latest_manifest: None })) })
     }
 }
 
@@ -122,10 +118,7 @@ fn parsed_override() -> Vec<VersionOverride> {
     vec![VersionOverride {
         selector: "target".to_string(),
         parent_pkg: None,
-        target_pkg: PackageSelector {
-            name: "target".to_string(),
-            bare_specifier: None,
-        },
+        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
         new_bare_specifier: "2.0.0".to_string(),
         converge: false,
     }]
@@ -138,10 +131,8 @@ async fn try_update(
     resolver: &dyn Resolver,
 ) -> Option<Lockfile> {
     let resolve_options = ResolveOptions::default();
-    let registries = HashMap::from([(
-        "default".to_string(),
-        "https://registry.npmjs.org/".to_string(),
-    )]);
+    let registries =
+        HashMap::from([("default".to_string(), "https://registry.npmjs.org/".to_string())]);
     try_fast_update_overrides(FastOverrideOptions {
         context: super::RewriteContext {
             lockfile,
@@ -162,10 +153,7 @@ async fn update_with_manifest(manifest: serde_json::Value) -> (Option<Lockfile>,
     let lockfile = lockfile();
     let parsed = parsed_override();
     let overrides = IndexMap::from([("target".to_string(), "2.0.0".to_string())]);
-    let resolver = StubResolver {
-        calls: AtomicUsize::new(0),
-        manifest,
-    };
+    let resolver = StubResolver { calls: AtomicUsize::new(0), manifest };
     let result = try_update(&lockfile, &parsed, &overrides, &resolver).await;
     (result, resolver.calls.load(Ordering::Relaxed))
 }
@@ -333,10 +321,7 @@ async fn remove_target(lockfile: &Lockfile) -> (Option<Lockfile>, usize) {
     let parsed = vec![VersionOverride {
         selector: "target".to_string(),
         parent_pkg: None,
-        target_pkg: PackageSelector {
-            name: "target".to_string(),
-            bare_specifier: None,
-        },
+        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
         new_bare_specifier: "-".to_string(),
         converge: false,
     }];
@@ -389,10 +374,7 @@ async fn falls_back_when_the_removed_dependency_is_used_as_a_peer() {
         .as_mut()
         .and_then(|packages| packages.get_mut(&"parent@1.0.0".parse().unwrap()))
         .expect("parent metadata")
-        .peer_dependencies = Some(HashMap::from([(
-        "target".to_string(),
-        "^1.0.0".to_string(),
-    )]));
+        .peer_dependencies = Some(HashMap::from([("target".to_string(), "^1.0.0".to_string())]));
 
     let (updated, calls) = remove_target(&lockfile).await;
 
@@ -410,10 +392,7 @@ async fn removes_a_dependency_only_from_matching_parent_snapshots() {
             name: "parent".to_string(),
             bare_specifier: Some("^1".to_string()),
         }),
-        target_pkg: PackageSelector {
-            name: "target".to_string(),
-            bare_specifier: None,
-        },
+        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
         new_bare_specifier: "-".to_string(),
         converge: false,
     }];
@@ -461,19 +440,13 @@ async fn applies_exact_replacements_and_dependency_removals_together() {
         .and_then(|snapshots| snapshots.get_mut(&"parent@1.0.0".parse().unwrap()))
         .and_then(|parent| parent.dependencies.as_mut())
         .expect("parent dependencies")
-        .insert(
-            PkgName::parse("obsolete").unwrap(),
-            "1.0.0".parse().unwrap(),
-        );
+        .insert(PkgName::parse("obsolete").unwrap(), "1.0.0".parse().unwrap());
     let parsed = vec![
         parsed_override().remove(0),
         VersionOverride {
             selector: "obsolete".to_string(),
             parent_pkg: None,
-            target_pkg: PackageSelector {
-                name: "obsolete".to_string(),
-                bare_specifier: None,
-            },
+            target_pkg: PackageSelector { name: "obsolete".to_string(), bare_specifier: None },
             new_bare_specifier: "-".to_string(),
             converge: false,
         },
@@ -571,10 +544,7 @@ fn range_override(value: &str) -> Vec<VersionOverride> {
     vec![VersionOverride {
         selector: "target".to_string(),
         parent_pkg: None,
-        target_pkg: PackageSelector {
-            name: "target".to_string(),
-            bare_specifier: None,
-        },
+        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
         new_bare_specifier: value.to_string(),
         converge: false,
     }]
@@ -613,14 +583,11 @@ impl Resolver for RecordingResolver {
 async fn a_range_override_moves_to_the_version_the_graph_already_holds() {
     let lockfile = lockfile_with_two_target_versions();
     let overrides = IndexMap::from([("target".to_string(), "^1.2.0".to_string())]);
-    let resolver = RecordingResolver {
-        requested: std::sync::Mutex::new(Vec::new()),
-    };
+    let resolver = RecordingResolver { requested: std::sync::Mutex::new(Vec::new()) };
 
     // The rewrite itself stops at the stub's empty resolution; the version
     // it asked for is the decision under test.
-    let _ = try_update(&lockfile, &range_override("^1.2.0"), &overrides, &resolver)
-        .await;
+    let _ = try_update(&lockfile, &range_override("^1.2.0"), &overrides, &resolver).await;
 
     assert_eq!(
         *resolver.requested.lock().expect("requested versions"),
@@ -633,10 +600,7 @@ async fn a_range_override_moves_to_the_version_the_graph_already_holds() {
 async fn a_range_override_no_locked_version_satisfies_falls_back() {
     let lockfile = lockfile_with_two_target_versions();
     let overrides = IndexMap::from([("target".to_string(), "^3.0.0".to_string())]);
-    let resolver = StubResolver {
-        calls: AtomicUsize::new(0),
-        manifest: json!({}),
-    };
+    let resolver = StubResolver { calls: AtomicUsize::new(0), manifest: json!({}) };
 
     assert!(
         try_update(&lockfile, &range_override("^3.0.0"), &overrides, &resolver)
@@ -644,11 +608,7 @@ async fn a_range_override_no_locked_version_satisfies_falls_back() {
             .is_none(),
         "only the resolver can fetch a version the lockfile does not hold",
     );
-    assert_eq!(
-        resolver.calls.load(Ordering::Relaxed),
-        0,
-        "and it bails before resolving",
-    );
+    assert_eq!(resolver.calls.load(Ordering::Relaxed), 0, "and it bails before resolving");
 }
 
 /// `parent` and `other` both depend on `target@1.0.0`, so a selector
@@ -689,14 +649,8 @@ fn lockfile_with_two_dependents() -> Lockfile {
 fn parent_scoped_override() -> Vec<VersionOverride> {
     vec![VersionOverride {
         selector: "parent>target".to_string(),
-        parent_pkg: Some(PackageSelector {
-            name: "parent".to_string(),
-            bare_specifier: None,
-        }),
-        target_pkg: PackageSelector {
-            name: "target".to_string(),
-            bare_specifier: None,
-        },
+        parent_pkg: Some(PackageSelector { name: "parent".to_string(), bare_specifier: None }),
+        target_pkg: PackageSelector { name: "target".to_string(), bare_specifier: None },
         new_bare_specifier: "2.0.0".to_string(),
         converge: false,
     }]
@@ -724,16 +678,8 @@ async fn a_parent_scoped_override_moves_only_that_parents_edge() {
             .and_then(|dependencies| dependencies.get(&target))
             .map(ToString::to_string)
     };
-    assert_eq!(
-        edge_of("parent@1.0.0").as_deref(),
-        Some("2.0.0"),
-        "the named parent moves",
-    );
-    assert_eq!(
-        edge_of("other@1.0.0").as_deref(),
-        Some("1.0.0"),
-        "the other dependent does not",
-    );
+    assert_eq!(edge_of("parent@1.0.0").as_deref(), Some("2.0.0"), "the named parent moves");
+    assert_eq!(edge_of("other@1.0.0").as_deref(), Some("1.0.0"), "the other dependent does not");
     let mut keys: Vec<_> = updated.snapshots
         .as_ref()
         .expect("snapshots")
@@ -777,9 +723,5 @@ async fn a_parent_scoped_override_prunes_the_old_version_when_nothing_else_holds
         .map(ToString::to_string)
         .filter(|key| key.starts_with("target@"))
         .collect();
-    assert_eq!(
-        keys,
-        vec!["target@2.0.0".to_string()],
-        "the version it left is unreachable",
-    );
+    assert_eq!(keys, vec!["target@2.0.0".to_string()], "the version it left is unreachable");
 }

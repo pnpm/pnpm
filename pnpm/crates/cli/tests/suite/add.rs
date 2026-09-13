@@ -69,11 +69,8 @@ fn cargo_add_project() -> (TempDir, PathBuf) {
         "# stale lockfile that pnpm add must refresh\nversion = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\n",
     )
     .expect("write stale Cargo lockfile");
-    std::fs::write(
-        root.path().join("pnpm-workspace.yaml"),
-        "cargo:\n  enabled: true\n",
-    )
-    .expect("enable Cargo dependency management");
+    std::fs::write(root.path().join("pnpm-workspace.yaml"), "cargo:\n  enabled: true\n")
+        .expect("enable Cargo dependency management");
     (root, cache_dir)
 }
 
@@ -185,10 +182,7 @@ fn should_install_all_dependencies() {
     eprintln!("Ensure that @pnpm.e2e/hello-world-js-bin has no other dependencies than itself");
     let path = virtual_store_dir.join("@pnpm.e2e+hello-world-js-bin@1.0.0/node_modules");
     assert_eq!(get_filenames_in_folder(&path), ["@pnpm.e2e"]);
-    assert_eq!(
-        get_filenames_in_folder(&path.join("@pnpm.e2e")),
-        ["hello-world-js-bin"],
-    );
+    assert_eq!(get_filenames_in_folder(&path.join("@pnpm.e2e")), ["hello-world-js-bin"]);
 
     eprintln!("Ensure that @pnpm.e2e/hello-world-js-bin-parent has correct dependencies");
     let path = virtual_store_dir.join("@pnpm.e2e+hello-world-js-bin-parent@1.0.0/node_modules");
@@ -350,12 +344,7 @@ fn add_existing_dependency_moves_it_to_the_target_group() {
     .unwrap();
 
     pacquet
-        .with_args([
-            "add",
-            "@pnpm.e2e/dep-of-pkg-with-1-dep",
-            "--save-dev",
-            "--lockfile-only",
-        ])
+        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep", "--save-dev", "--lockfile-only"])
         .assert()
         .success();
 
@@ -366,10 +355,7 @@ fn add_existing_dependency_moves_it_to_the_target_group() {
             .find(|(key, _)| *key == "@pnpm.e2e/dep-of-pkg-with-1-dep")
             .map(|(_, spec)| spec.to_string())
     };
-    assert_eq!(
-        group_spec(DependencyGroup::Dev).as_deref(),
-        Some("~100.0.0"),
-    );
+    assert_eq!(group_spec(DependencyGroup::Dev).as_deref(), Some("~100.0.0"));
     assert_eq!(group_spec(DependencyGroup::Prod), None);
     drop((root, npmrc_info)); // cleanup
 }
@@ -408,10 +394,7 @@ fn add_existing_dependency_ignores_pin_from_peer_range() {
             .map(|(_, spec)| spec.to_string())
     };
     assert_eq!(group_spec(DependencyGroup::Dev).as_deref(), Some("100.1.0"));
-    assert_eq!(
-        group_spec(DependencyGroup::Peer).as_deref(),
-        Some("^100.0.0"),
-    );
+    assert_eq!(group_spec(DependencyGroup::Peer).as_deref(), Some("^100.0.0"));
     drop((root, npmrc_info)); // cleanup
 }
 
@@ -425,10 +408,7 @@ fn add_aliasing_a_package_manager_name_installs_the_aliased_package() {
         "yarn@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
         "--lockfile-only",
     ]);
-    assert_eq!(
-        prod_spec(&dir, "yarn"),
-        "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0",
-    );
+    assert_eq!(prod_spec(&dir, "yarn"), "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0");
     let manifest: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(dir.join("package.json")).unwrap()).unwrap();
     assert_eq!(manifest.get("devEngines"), None, "{manifest}");
@@ -447,29 +427,19 @@ fn add_registry_tarball_url_is_kept_verbatim() {
         npmrc_info,
         ..
     } = CommandTempCwd::init().add_mocked_registry();
-    std::fs::write(
-        workspace.join("package.json"),
-        r#"{ "name": "p", "version": "1.0.0" }"#,
-    )
-    .unwrap();
+    std::fs::write(workspace.join("package.json"), r#"{ "name": "p", "version": "1.0.0" }"#)
+        .unwrap();
 
     let url = format!(
         "{}@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz",
         npmrc_info.mock_instance.url(),
     );
     pacquet
-        .with_args([
-            "add",
-            &format!("@pnpm.e2e/dep-of-pkg-with-1-dep@{url}"),
-            "--lockfile-only",
-        ])
+        .with_args(["add", &format!("@pnpm.e2e/dep-of-pkg-with-1-dep@{url}"), "--lockfile-only"])
         .assert()
         .success();
 
-    assert_eq!(
-        prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"),
-        url,
-    );
+    assert_eq!(prod_spec(&workspace, "@pnpm.e2e/dep-of-pkg-with-1-dep"), url);
     drop((root, npmrc_info)); // cleanup
 }
 
@@ -606,10 +576,7 @@ fn add_moves_dependency_to_new_group_and_keeps_other_groups() {
         ["@pnpm.e2e/bar", "@pnpm.e2e/foo", "@pnpm.e2e/qar"],
     );
     assert_eq!(group_members(DependencyGroup::Dev), Vec::<String>::new());
-    assert_eq!(
-        group_members(DependencyGroup::Optional),
-        Vec::<String>::new(),
-    );
+    assert_eq!(group_members(DependencyGroup::Optional), Vec::<String>::new());
 
     let current = read_current_lockfile(&workspace);
     let importer = current.importers
@@ -622,10 +589,7 @@ fn add_moves_dependency_to_new_group_and_keeps_other_groups() {
         .map(ToString::to_string)
         .collect();
     dependencies.sort();
-    assert_eq!(
-        dependencies,
-        ["@pnpm.e2e/bar", "@pnpm.e2e/foo", "@pnpm.e2e/qar"],
-    );
+    assert_eq!(dependencies, ["@pnpm.e2e/bar", "@pnpm.e2e/foo", "@pnpm.e2e/qar"]);
 
     drop((root, npmrc_info)); // cleanup
 }
@@ -683,12 +647,7 @@ fn add_updates_dependency_in_the_group_it_already_occupies() {
     .expect("write package.json");
 
     pacquet
-        .with_args([
-            "add",
-            "@pnpm.e2e/foo@100.1.0",
-            "@pnpm.e2e/bar@100.1.0",
-            "--lockfile-only",
-        ])
+        .with_args(["add", "@pnpm.e2e/foo@100.1.0", "@pnpm.e2e/bar@100.1.0", "--lockfile-only"])
         .assert()
         .success();
 
@@ -700,14 +659,8 @@ fn add_updates_dependency_in_the_group_it_already_occupies() {
             .find(|(dep, _)| *dep == name)
             .map(|(_, spec)| spec.to_string())
     };
-    assert_eq!(
-        group_spec(DependencyGroup::Dev, "@pnpm.e2e/foo").as_deref(),
-        Some("^100.1.0"),
-    );
-    assert_eq!(
-        group_spec(DependencyGroup::Optional, "@pnpm.e2e/bar").as_deref(),
-        Some("^100.1.0"),
-    );
+    assert_eq!(group_spec(DependencyGroup::Dev, "@pnpm.e2e/foo").as_deref(), Some("^100.1.0"));
+    assert_eq!(group_spec(DependencyGroup::Optional, "@pnpm.e2e/bar").as_deref(), Some("^100.1.0"));
     assert_eq!(group_spec(DependencyGroup::Prod, "@pnpm.e2e/foo"), None);
     assert_eq!(group_spec(DependencyGroup::Prod, "@pnpm.e2e/bar"), None);
 
@@ -770,10 +723,7 @@ fn workspace_with_lib(
         format!("{HERMETIC_STORE_YAML}packages:\n  - packages/*\n{settings}"),
     )
     .expect("write workspace yaml");
-    write_json(
-        &workspace.join("package.json"),
-        &serde_json::json!({ "name": "root" }),
-    );
+    write_json(&workspace.join("package.json"), &serde_json::json!({ "name": "root" }));
     for (index, (name, version)) in libs.iter().enumerate() {
         let package_dir = workspace
             .join("packages")

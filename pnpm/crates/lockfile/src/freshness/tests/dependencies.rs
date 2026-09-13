@@ -227,10 +227,7 @@ fn peer_only_dependency_is_stale_without_auto_install_peers() {
     let StalenessReason::SpecifiersDiffer(diff) = err else {
         panic!("expected SpecifiersDiffer, got {err:?}");
     };
-    assert_eq!(
-        diff.removed,
-        BTreeMap::from([("bar".to_string(), "^1.0.0".to_string())]),
-    );
+    assert_eq!(diff.removed, BTreeMap::from([("bar".to_string(), "^1.0.0".to_string())]));
     assert!(diff.added.is_empty());
     assert!(diff.modified.is_empty());
 }

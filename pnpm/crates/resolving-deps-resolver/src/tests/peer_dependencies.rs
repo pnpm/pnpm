@@ -25,19 +25,14 @@ async fn peer_shadowing_follows_the_occurrence_that_wins_the_level() {
     // own peer-shadowing scope is the level of the parent that reaches
     // it: only `a-parent`'s level resolves `pin`.
     let mut versions = settlement_versions([
-        dependency_result(
-            "a-parent",
-            &serde_json::json!({ "mid-a": "1.0.0", "pin": "1.0.0" }),
-        ),
+        dependency_result("a-parent", &serde_json::json!({ "mid-a": "1.0.0", "pin": "1.0.0" })),
         dependency_result("mid-a", &serde_json::json!({ "shared": "^1.0.0" })),
         dependency_result("b-parent", &serde_json::json!({ "mid-b": "1.0.0" })),
         dependency_result("mid-b", &serde_json::json!({ "shared": "1.0.0" })),
     ]);
     versions.insert("shared".to_string(), vec![shadowing_shared]);
-    let resolver = OverlayPickResolver {
-        versions,
-        delayed: ("shared".to_string(), "^1.0.0".to_string()),
-    };
+    let resolver =
+        OverlayPickResolver { versions, delayed: ("shared".to_string(), "^1.0.0".to_string()) };
 
     let tree = resolve_settlement_tree(
         &resolver,

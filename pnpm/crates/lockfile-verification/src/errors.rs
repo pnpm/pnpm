@@ -128,10 +128,7 @@ impl VerifyError {
             breakdown.pop();
         }
 
-        VerifyError::InvalidDependencyAlias {
-            count,
-            breakdown,
-        }
+        VerifyError::InvalidDependencyAlias { count, breakdown }
     }
 
     /// Build the appropriate variant from a list of rendered
@@ -150,52 +147,31 @@ impl VerifyError {
         let breakdown = violation_breakdown(violations, mixed);
 
         if mixed {
-            VerifyError::LockfileResolutionVerification {
-                count,
-                breakdown,
-            }
+            VerifyError::LockfileResolutionVerification { count, breakdown }
         } else {
             // Safe: distinct_codes has exactly one element.
             let code = *distinct_codes
                 .iter()
                 .next()
                 .expect("at least one code");
-            Self::from_code(code, count, breakdown)
-        }
-    }
-    fn from_code(code: &str, count: usize, breakdown: String) -> Self {
-        match code {
-            pnpm_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION => {
-                VerifyError::MinimumReleaseAgeViolation {
-                    count,
-                    breakdown,
+            match code {
+                pnpm_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION => {
+                    VerifyError::MinimumReleaseAgeViolation { count, breakdown }
                 }
-            }
-            pnpm_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE => {
-                VerifyError::TrustDowngrade {
-                    count,
-                    breakdown,
+                pnpm_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE => {
+                    VerifyError::TrustDowngrade { count, breakdown }
                 }
-            }
-            pnpm_resolving_npm_resolver_violation_codes::MISSING_TARBALL_INTEGRITY => {
-                VerifyError::MissingTarballIntegrity {
-                    count,
-                    breakdown,
+                pnpm_resolving_npm_resolver_violation_codes::MISSING_TARBALL_INTEGRITY => {
+                    VerifyError::MissingTarballIntegrity { count, breakdown }
                 }
-            }
-            crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE => {
-                VerifyError::ResolutionShapeMismatch {
-                    count,
-                    breakdown,
+                crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE => {
+                    VerifyError::ResolutionShapeMismatch { count, breakdown }
                 }
+                // Unknown verifier code (future-proofing): fall back
+                // to the generic envelope rather than fabricating a
+                // variant we don't have.
+                _ => VerifyError::LockfileResolutionVerification { count, breakdown },
             }
-            // Unknown verifier code (future-proofing): fall back
-            // to the generic envelope rather than fabricating a
-            // variant we don't have.
-            _ => VerifyError::LockfileResolutionVerification {
-                count,
-                breakdown,
-            },
         }
     }
 }

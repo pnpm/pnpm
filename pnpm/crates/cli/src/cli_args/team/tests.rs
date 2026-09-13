@@ -56,45 +56,24 @@ fn render_teams_empty_returns_no_teams_message() {
 
 #[test]
 fn render_teams_returns_formatted_list() {
-    let teams = [
-        TeamInfo {
-            name: "developers".to_string(),
-        },
-        TeamInfo {
-            name: "admins".to_string(),
-        },
-    ];
+    let teams =
+        [TeamInfo { name: "developers".to_string() }, TeamInfo { name: "admins".to_string() }];
     let result = render_teams("myorg", &teams, false, false).expect("should render");
-    assert_eq!(
-        result,
-        "@myorg has the following teams:\n  @myorg:developers\n  @myorg:admins",
-    );
+    assert_eq!(result, "@myorg has the following teams:\n  @myorg:developers\n  @myorg:admins");
 }
 
 #[test]
 fn render_teams_parseable_format() {
-    let teams = [
-        TeamInfo {
-            name: "developers".to_string(),
-        },
-        TeamInfo {
-            name: "admins".to_string(),
-        },
-    ];
+    let teams =
+        [TeamInfo { name: "developers".to_string() }, TeamInfo { name: "admins".to_string() }];
     let result = render_teams("myorg", &teams, true, false).expect("should render");
     assert_eq!(result, "developers\nadmins");
 }
 
 #[test]
 fn render_teams_json_format() {
-    let teams = [
-        TeamInfo {
-            name: "developers".to_string(),
-        },
-        TeamInfo {
-            name: "admins".to_string(),
-        },
-    ];
+    let teams =
+        [TeamInfo { name: "developers".to_string() }, TeamInfo { name: "admins".to_string() }];
     let result = render_teams("myorg", &teams, false, true).expect("should render");
     assert_eq!(result, "[\n  \"developers\",\n  \"admins\"\n]");
 }
@@ -107,45 +86,21 @@ fn render_members_empty_returns_no_members_message() {
 
 #[test]
 fn render_members_returns_formatted_list() {
-    let members = [
-        UserInfo {
-            name: "alice".to_string(),
-        },
-        UserInfo {
-            name: "bob".to_string(),
-        },
-    ];
+    let members = [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
     let result = render_members("myorg", "team1", &members, false, false).expect("should render");
-    assert_eq!(
-        result,
-        "@myorg:team1 has the following members:\n  alice\n  bob",
-    );
+    assert_eq!(result, "@myorg:team1 has the following members:\n  alice\n  bob");
 }
 
 #[test]
 fn render_members_parseable_format() {
-    let members = [
-        UserInfo {
-            name: "alice".to_string(),
-        },
-        UserInfo {
-            name: "bob".to_string(),
-        },
-    ];
+    let members = [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
     let result = render_members("myorg", "team1", &members, true, false).expect("should render");
     assert_eq!(result, "alice\nbob");
 }
 
 #[test]
 fn render_members_json_format() {
-    let members = [
-        UserInfo {
-            name: "alice".to_string(),
-        },
-        UserInfo {
-            name: "bob".to_string(),
-        },
-    ];
+    let members = [UserInfo { name: "alice".to_string() }, UserInfo { name: "bob".to_string() }];
     let result = render_members("myorg", "team1", &members, false, true).expect("should render");
     assert_eq!(result, "[\n  \"alice\",\n  \"bob\"\n]");
 }
@@ -171,10 +126,7 @@ fn org_team_url_encodes_scopes() {
 #[test]
 fn team_user_url_constructs_correctly() {
     let url = team_user_url("https://registry.example.com/", "myorg", "developers");
-    assert_eq!(
-        url,
-        "https://registry.example.com/-/team/myorg/developers/user",
-    );
+    assert_eq!(url, "https://registry.example.com/-/team/myorg/developers/user");
 }
 
 #[test]

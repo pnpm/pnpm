@@ -95,10 +95,7 @@ fn a_local_tarball_path_saves_as_a_file_spec() {
         .assert()
         .success();
 
-    assert_eq!(
-        prod_spec(&workspace, "pkg-from-tarball"),
-        "file:pkg-from-tarball-1.0.0.tgz",
-    );
+    assert_eq!(prod_spec(&workspace, "pkg-from-tarball"), "file:pkg-from-tarball-1.0.0.tgz");
     assert!(
         workspace.join("node_modules/pkg-from-tarball/package.json").exists(),
         "the tarball package must be installed",
@@ -191,10 +188,7 @@ fn a_directory_declaring_no_name_is_refused() {
     } = CommandTempCwd::init().add_mocked_registry();
     let package_dir = workspace.join("nameless");
     fs::create_dir_all(&package_dir).expect("create local package dir");
-    write_json(
-        &package_dir.join("package.json"),
-        &serde_json::json!({ "version": "1.0.0" }),
-    );
+    write_json(&package_dir.join("package.json"), &serde_json::json!({ "version": "1.0.0" }));
     write_json(
         &workspace.join("package.json"),
         &serde_json::json!({ "name": "project", "version": "1.0.0" }),
@@ -209,10 +203,7 @@ fn a_directory_declaring_no_name_is_refused() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!output.status.success());
-    assert!(
-        stderr.contains("ERR_PNPM_MISSING_PACKAGE_NAME"),
-        "stderr:\n{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_MISSING_PACKAGE_NAME"), "stderr:\n{stderr}");
     assert_eq!(
         fs::read_to_string(workspace.join("package.json")).expect("reread manifest"),
         manifest_before,

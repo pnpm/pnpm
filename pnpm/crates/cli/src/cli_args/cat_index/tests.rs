@@ -9,24 +9,9 @@ fn request_does_not_reuse_lockfile_entry_for_different_exact_version() {
         version: "3.1.2".parse().expect("parse importer dep version"),
     };
 
-    assert!(request_matches_dependency(
-        "bytes",
-        Some("^3.1.0"),
-        &dependency,
-        "bytes@3.1.2"
-    ));
-    assert!(request_matches_dependency(
-        "bytes",
-        Some("3.1.2"),
-        &dependency,
-        "bytes@3.1.2"
-    ));
-    assert!(!request_matches_dependency(
-        "bytes",
-        Some("3.1.1"),
-        &dependency,
-        "bytes@3.1.2"
-    ));
+    assert!(request_matches_dependency("bytes", Some("^3.1.0"), &dependency, "bytes@3.1.2"));
+    assert!(request_matches_dependency("bytes", Some("3.1.2"), &dependency, "bytes@3.1.2"));
+    assert!(!request_matches_dependency("bytes", Some("3.1.1"), &dependency, "bytes@3.1.2"));
 }
 
 #[test]

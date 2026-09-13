@@ -111,8 +111,7 @@ pub fn build_resolution_verifiers(
         },
         metadata: pnpm_resolving_npm_resolver::VerificationMetadataClient {
             registry_supports_time_field: config.registry_supports_time_field,
-            ignore_missing_time_field: config
-                .minimum_release_age_ignore_missing_time,
+            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
             http_client,
             auth_headers: auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers)),
             cache_dir: Some(config.cache_dir.clone()),
@@ -164,25 +163,16 @@ fn verifier_policies(config: &Config) -> Result<VerifierPolicies, BuildVerifiers
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect(),
     )
-    .map_err(|source| BuildVerifiersError::InvalidNamedRegistries {
-        source,
-    })?;
+    .map_err(|source| BuildVerifiersError::InvalidNamedRegistries { source })?;
 
-    Ok((
-        min_age_exclude,
-        trust_exclude,
-        registries,
-        registries_by_prefix,
-    ))
+    Ok((min_age_exclude, trust_exclude, registries, registries_by_prefix))
 }
 
 fn build_policy(
     patterns: Option<&[String]>,
     wrap_error: fn(VersionPolicyError) -> BuildVerifiersError,
 ) -> Result<Option<PackageVersionPolicy>, BuildVerifiersError> {
-    let Some(patterns) = patterns else {
-        return Ok(None);
-    };
+    let Some(patterns) = patterns else { return Ok(None) };
     if patterns.is_empty() {
         return Ok(None);
     }
@@ -191,15 +181,11 @@ fn build_policy(
 
 impl BuildVerifiersError {
     fn invalid_minimum_release_age_exclude(source: VersionPolicyError) -> Self {
-        BuildVerifiersError::InvalidMinimumReleaseAgeExclude {
-            source,
-        }
+        BuildVerifiersError::InvalidMinimumReleaseAgeExclude { source }
     }
 
     fn invalid_trust_policy_exclude(source: VersionPolicyError) -> Self {
-        BuildVerifiersError::InvalidTrustPolicyExclude {
-            source,
-        }
+        BuildVerifiersError::InvalidTrustPolicyExclude { source }
     }
 }
 

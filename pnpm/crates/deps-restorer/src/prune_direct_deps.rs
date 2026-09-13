@@ -122,9 +122,8 @@ pub fn prune_direct_deps_excluded_by_groups(
     // Same per-importer `modulesDir` suffix peeling as
     // [`crate::SymlinkDirectDependencies`], so removal targets exactly
     // where the linker writes.
-    let modules_dir_name: &OsStr = config.modules_dir
-        .file_name()
-        .unwrap_or_else(|| OsStr::new("node_modules"));
+    let modules_dir_name: &OsStr =
+        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
 
     for (importer_id, snapshot) in &current_lockfile.importers {
         // A malformed importer key is rejected with a typed error by
@@ -236,10 +235,7 @@ pub fn remove_direct_dep_link(modules_dir: &Path, name: &str) -> Result<(), Prun
     match remove_symlink_dir(&link) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(PruneDirectDepsError::RemoveLink {
-            path: link,
-            error,
-        }),
+        Err(error) => Err(PruneDirectDepsError::RemoveLink { path: link, error }),
     }
 }
 
@@ -253,10 +249,7 @@ fn remove_dep_bins(modules_dir: &Path, link: &Path) -> Result<(), PruneDirectDep
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => {
-            return Err(PruneDirectDepsError::ReadManifest {
-                path: manifest_path,
-                error,
-            });
+            return Err(PruneDirectDepsError::ReadManifest { path: manifest_path, error });
         }
     };
     let Ok(manifest) = parse_manifest_bytes(&bytes) else {
@@ -273,10 +266,7 @@ fn remove_dep_bins(modules_dir: &Path, link: &Path) -> Result<(), PruneDirectDep
     for command in get_bins_from_package_manifest::<Host>(&manifest, link) {
         let shim_path = bins_dir.join(&command.name);
         remove_bin(&shim_path)
-            .map_err(|error| PruneDirectDepsError::RemoveBin {
-                path: shim_path,
-                error,
-            })?;
+            .map_err(|error| PruneDirectDepsError::RemoveBin { path: shim_path, error })?;
     }
     Ok(())
 }

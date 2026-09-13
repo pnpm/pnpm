@@ -73,13 +73,11 @@ pub(super) fn collect_resolved_entries<'a>(
         // never participate in the virtual store, so they are
         // exempt from the skipped check (the resolved snapshot key
         // wouldn't exist in the set anyway).
-        .filter(|(name, spec, _)| {
-            match spec.version.resolved_key(name) {
-                Some(resolved) => !skipped.contains(&resolved),
-                // `link:` deps have no virtual-store slot and so
-                // cannot be in `skipped` — keep them.
-                None => true,
-            }
+        .filter(|(name, spec, _)| match spec.version.resolved_key(name) {
+            Some(resolved) => !skipped.contains(&resolved),
+            // `link:` deps have no virtual-store slot and so
+            // cannot be in `skipped` — keep them.
+            None => true,
         })
         // Hoisted-mode filter: `link_only` keeps only `link:`
         // entries (workspace siblings) and drops every regular
@@ -88,23 +86,15 @@ pub(super) fn collect_resolved_entries<'a>(
         // directories; re-symlinking them here would either no-op
         // or replace the real dir with a slot symlink that points
         // at a slot that doesn't exist under hoisted.
-        .filter(|(_, spec, _)| {
-            if link_only {
-                matches!(spec.version, ImporterDepVersion::Link(_))
-            } else {
-                true
-            }
-        })
+        .filter(
+            |(_, spec, _)| {
+                if link_only { matches!(spec.version, ImporterDepVersion::Link(_)) } else { true }
+            },
+        )
         .map(|(name, spec, group)| {
             let name_str = name.to_string();
             let target = resolve_target_path(layout, project_dir, name, spec, &name_str);
-            ResolvedEntry {
-                name,
-                spec,
-                group,
-                name_str,
-                target,
-            }
+            ResolvedEntry { name, spec, group, name_str, target }
         })
         .collect()
 }

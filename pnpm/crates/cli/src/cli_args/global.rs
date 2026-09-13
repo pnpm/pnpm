@@ -124,11 +124,7 @@ pub enum GlobalError {
         code(ERR_PNPM_GLOBAL_BIN_CONFLICT),
         help(r#"Remove the shim first with "pnpm shim rm {shim_package}"."#)
     )]
-    VirtualShimBinConflict {
-        packages: String,
-        bin: String,
-        shim_package: String,
-    },
+    VirtualShimBinConflict { packages: String, bin: String, shim_package: String },
 }
 
 /// Resolve the global packages and global bin directories, erroring with

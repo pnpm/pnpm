@@ -17,20 +17,14 @@ fn make_metadata(libc_yaml: &str) -> String {
 fn libc_as_string() {
     let yaml = make_metadata("libc: glibc\n");
     let metadata: PackageMetadata = serde_saphyr::from_str(&yaml).unwrap();
-    assert_eq!(
-        metadata.libc,
-        Some(StringOrList::String("glibc".to_string())),
-    );
+    assert_eq!(metadata.libc, Some(StringOrList::String("glibc".to_string())));
 }
 
 #[test]
 fn libc_as_array() {
     let yaml = make_metadata("libc: [glibc]\n");
     let metadata: PackageMetadata = serde_saphyr::from_str(&yaml).unwrap();
-    assert_eq!(
-        metadata.libc,
-        Some(StringOrList::List(vec!["glibc".to_string()])),
-    );
+    assert_eq!(metadata.libc, Some(StringOrList::List(vec!["glibc".to_string()])));
 }
 
 #[test]
@@ -68,10 +62,7 @@ fn bundled_dependencies_from_a_name_list() {
     let manifest = serde_json::json!({ "bundledDependencies": ["a", "b"] });
     assert_eq!(
         BundledDependencies::from_manifest(Some(&manifest)),
-        Some(BundledDependencies::Names(vec![
-            "a".to_string(),
-            "b".to_string()
-        ])),
+        Some(BundledDependencies::Names(vec!["a".to_string(), "b".to_string()])),
     );
 }
 
@@ -136,10 +127,7 @@ fn bundled_dependencies_absent() {
 fn bundled_dependencies_boolean_roundtrip() {
     let yaml = format!("{}\nbundledDependencies: true\n", make_metadata(""));
     let metadata: PackageMetadata = serde_saphyr::from_str(&yaml).unwrap();
-    assert_eq!(
-        metadata.bundled_dependencies,
-        Some(BundledDependencies::Boolean(true)),
-    );
+    assert_eq!(metadata.bundled_dependencies, Some(BundledDependencies::Boolean(true)));
     let serialized = serialize_yaml::to_string(&metadata).unwrap();
     let reparsed: PackageMetadata = serde_saphyr::from_str(&serialized).unwrap();
     assert_eq!(metadata.bundled_dependencies, reparsed.bundled_dependencies);

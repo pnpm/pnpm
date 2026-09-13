@@ -44,9 +44,7 @@ pub(super) fn parse_htpasswd_line(line: &str) -> std::result::Result<(&str, &str
         return Err(format!("invalid username {user:?}: {reason}"));
     }
     if !is_supported_hash(hash) {
-        return Err(format!(
-            "unsupported hash format for user {user:?} (only bcrypt is accepted)",
-        ));
+        return Err(format!("unsupported hash format for user {user:?} (only bcrypt is accepted)"));
     }
     Ok((user, hash))
 }
@@ -142,8 +140,6 @@ pub(super) async fn verify_returning_user(
     if verify_bcrypt(password.to_string(), stored).await? {
         Ok((UpsertOutcome::LoggedIn, username.to_string()))
     } else {
-        Err(RegistryError::Unauthenticated {
-            resource: format!("user {username:?}"),
-        })
+        Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
     }
 }

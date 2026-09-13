@@ -1,7 +1,5 @@
 pub(crate) use release::selected_projects;
 
-use errors::VersionError;
-
 use crate::cli_args::{
     change::{render_release_plan, to_engine_projects},
     changelog::{self, confirmed_published_versions, unpublished_release_dirs},
@@ -78,6 +76,58 @@ pub struct VersionGitArgs {
     pub tag_version_prefix: String,
 }
 
+/// Errors of `pnpm version`. Codes and messages match the TypeScript CLI.
+#[derive(Debug, Display, Error, Diagnostic)]
+enum VersionError {
+    #[display(
+        "A version argument is required. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git"
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_VERSION_BUMP))]
+    MissingBump,
+
+    #[display(
+        "Invalid version argument: {raw}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git"
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_VERSION_BUMP))]
+    InvalidBump { raw: String },
+
+    #[display(
+        "Could not determine a valid version from Git in {dir:?} using tag prefix {tag_version_prefix:?}: {reason}"
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_VERSION_FROM_GIT))]
+    InvalidVersionFromGit { dir: String, tag_version_prefix: String, reason: String },
+
+    #[display("Invalid version in {dir}: {version}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_VERSION))]
+    InvalidVersion { dir: String, version: String },
+
+    #[display("Version was not changed: {version}")]
+    #[diagnostic(code(ERR_PNPM_VERSION_NOT_CHANGED))]
+    VersionNotChanged { version: String },
+
+    #[display("No packages to version")]
+    #[diagnostic(code(ERR_PNPM_NO_PACKAGES_TO_VERSION))]
+    NoPackagesToVersion,
+
+    #[display("Cannot stage manifest outside of git cwd: {path}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_MANIFEST_PATH))]
+    InvalidManifestPath { path: String },
+
+    #[display("git {args} failed: {stderr}")]
+    #[diagnostic(code(ERR_PNPM_GIT_COMMAND_FAILED))]
+    GitCommandFailed { args: String, stderr: String },
+
+    #[display(
+        r#"The bare "pnpm version -r" form consumes change intents and is only supported in a workspace"#
+    )]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_ONLY))]
+    ReleaseOutsideWorkspace,
+
+    #[display("Working tree is not clean. Commit or stash your changes.")]
+    #[diagnostic(code(ERR_PNPM_UNCLEAN_WORKING_TREE))]
+    UncleanWorkingTree,
+}
+
 impl VersionArgs {
     pub async fn run<Reporter: pnpm_reporter::Reporter>(
         self,
@@ -104,9 +154,7 @@ impl VersionArgs {
         recursive: bool,
     ) -> miette::Result<()> {
         let raw = self.params[0].as_str();
-        let git_cwd = config.workspace_dir
-            .clone()
-            .unwrap_or_else(|| dir.to_path_buf());
+        let git_cwd = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         let bump = if raw == "from-git" {
             Bump::Explicit(version_from_git(&git_cwd, &self.git.tag_version_prefix)?)
         } else {
@@ -164,9 +212,7 @@ impl VersionArgs {
             let change = self.bump_package_version::<Reporter>(dir, bump, config, dir)?;
             return Ok(change.into_iter().collect());
         }
-        let base = config.workspace_dir
-            .clone()
-            .unwrap_or_else(|| dir.to_path_buf());
+        let base = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         let (projects, _) = discover_workspace_projects(&base, config)?;
         let selection =
             select_recursive_projects(&projects, config, &base, AutoExcludeRoot::Disabled)?;
@@ -193,10 +239,7 @@ impl VersionArgs {
                     })
                 })
                 .collect();
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&entries).expect("serialize changes"),
-            );
+            println!("{}", serde_json::to_string_pretty(&entries).expect("serialize changes"));
             return;
         }
 
@@ -232,7 +275,7 @@ impl VersionArgs {
         let mut manifest = PackageManifest::from_path(manifest_path.clone())
             .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
 
-        let Some((name, current)) = versioned_package_identity(&manifest) else {
+        let Some((name, current)) = package_version_identity(&manifest) else {
             return Ok(None);
         };
 
@@ -317,10 +360,7 @@ impl VersionArgs {
         .to_string();
 
         if new_version == current && !self.allow_same_version {
-            return Err(VersionError::VersionNotChanged {
-                version: current.to_string(),
-            }
-            .into());
+            return Err(VersionError::VersionNotChanged { version: current.to_string() }.into());
         }
 
         Ok(new_version)
@@ -391,18 +431,7 @@ struct VersionChange {
     manifest_path: PathBuf,
 }
 
-#[cfg(test)]
-mod tests;
-
-mod bump;
-
-mod release;
-
-mod git;
-
-mod errors;
-
-fn versioned_package_identity(manifest: &PackageManifest) -> Option<(String, String)> {
+fn package_version_identity(manifest: &PackageManifest) -> Option<(String, String)> {
     let name = manifest
         .value()
         .get("name")
@@ -418,3 +447,12 @@ fn versioned_package_identity(manifest: &PackageManifest) -> Option<(String, Str
     }
     Some((name.to_string(), current.to_string()))
 }
+
+#[cfg(test)]
+mod tests;
+
+mod bump;
+
+mod release;
+
+mod git;

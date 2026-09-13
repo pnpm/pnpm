@@ -146,11 +146,7 @@ fn check_dependency_fields(
         .filter(|(name, _)| !is_ignored_optional(name))
         .collect();
 
-    for field in [
-        DependencyGroup::Prod,
-        DependencyGroup::Dev,
-        DependencyGroup::Optional,
-    ] {
+    for field in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
         let manifest_field = manifest_field_specs(
             manifest,
             field,
@@ -243,10 +239,7 @@ fn check_resolution_satisfies(
     let (Some(dep), Ok(range)) = (importer_dep, manifest_spec.parse::<node_semver::Range>()) else {
         return Ok(());
     };
-    let Some(version) = dep.version
-        .ver_peer()
-        .and_then(|version| version.version_semver())
-    else {
+    let Some(version) = dep.version.ver_peer().and_then(|version| version.version_semver()) else {
         return Ok(());
     };
     if range.satisfies(version) {
@@ -324,11 +317,7 @@ pub(crate) fn auto_installed_peer_deps(
         return BTreeMap::new();
     }
     let declared: BTreeSet<&str> = manifest
-        .dependencies([
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-        ])
+        .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
         .map(|(name, _)| name)
         .collect();
     manifest
@@ -349,11 +338,7 @@ fn flat_manifest_specs(
     is_ignored_optional: &dyn Fn(&str) -> bool,
 ) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
-    for group in [
-        DependencyGroup::Dev,
-        DependencyGroup::Prod,
-        DependencyGroup::Optional,
-    ] {
+    for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
         for (name, spec) in manifest.dependencies([group]) {
             if matches!(group, DependencyGroup::Prod | DependencyGroup::Optional)
                 && is_ignored_optional(name)
@@ -374,11 +359,7 @@ fn flat_manifest_specs(
 /// but doesn't use here).
 fn flat_importer_specs(importer: &ProjectSnapshot) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
-    for group in [
-        DependencyGroup::Dev,
-        DependencyGroup::Prod,
-        DependencyGroup::Optional,
-    ] {
+    for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
         if let Some(map) = importer.get_map_by_group(group) {
             for (name, spec) in map {
                 out.insert(name.to_string(), spec.specifier.clone());

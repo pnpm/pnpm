@@ -33,12 +33,7 @@ fn require_stage_id_validates_presence_and_shape() {
     assert_eq!(id, STAGE_ID);
 
     let missing = require_stage_id(&params(&["view"]), "view").expect_err("no id given");
-    assert!(matches!(
-        missing,
-        StageError::StageIdRequired {
-            subcommand: "view"
-        }
-    ));
+    assert!(matches!(missing, StageError::StageIdRequired { subcommand: "view" }));
 
     let empty = require_stage_id(&params(&["view", ""]), "view").expect_err("an empty id");
     assert!(matches!(empty, StageError::StageIdRequired { .. }));
@@ -70,14 +65,8 @@ fn parse_package_filter_rejects_version_specifiers() {
 #[test]
 fn render_stage_publish_summary_covers_the_three_outcomes() {
     let mut summary = sample_summary("pkg", "1.0.0");
-    assert_eq!(
-        render_stage_publish_summary(&summary, true),
-        "+ pkg@1.0.0 (would stage)",
-    );
-    assert_eq!(
-        render_stage_publish_summary(&summary, false),
-        "+ pkg@1.0.0 (staged)",
-    );
+    assert_eq!(render_stage_publish_summary(&summary, true), "+ pkg@1.0.0 (would stage)");
+    assert_eq!(render_stage_publish_summary(&summary, false), "+ pkg@1.0.0 (staged)");
     summary.stage_id = Some(STAGE_ID.to_owned());
     assert_eq!(
         render_stage_publish_summary(&summary, false),
@@ -136,19 +125,13 @@ fn create_tarball_filename_rejects_traversal_through_name_and_version() {
 
     let bad_version = create_tarball_filename("@scope/pkg", "1.0.0/../../outside", None)
         .expect_err("a traversal version");
-    assert!(matches!(
-        bad_version,
-        StageError::InvalidPackageVersion { .. }
-    ));
+    assert!(matches!(bad_version, StageError::InvalidPackageVersion { .. }));
 }
 
 #[test]
 fn summarize_tarball_reads_the_manifest_files_and_digests() {
     let tarball = gzipped_tarball(&[
-        (
-            "package/package.json",
-            r#"{"name":"@scope/pkg","version":"1.0.0"}"#,
-        ),
+        ("package/package.json", r#"{"name":"@scope/pkg","version":"1.0.0"}"#),
         ("package/lib/index.js", "module.exports = 1"),
         ("package/README.md", "hi"),
     ]);
@@ -166,21 +149,14 @@ fn summarize_tarball_reads_the_manifest_files_and_digests() {
         .map(|file| file.path.as_str())
         .collect();
     assert_eq!(paths, ["lib/index.js", "package.json", "README.md"]);
-    assert!(
-        summary.integrity.starts_with("sha512-"),
-        "integrity: {}",
-        summary.integrity,
-    );
+    assert!(summary.integrity.starts_with("sha512-"), "integrity: {}", summary.integrity);
     assert_eq!(summary.shasum.len(), 40);
     assert!(summary.bundled.is_empty());
 }
 
 #[test]
 fn summarize_tarball_accepts_a_plain_uncompressed_tarball() {
-    let tarball = plain_tarball(&[(
-        "package/package.json",
-        r#"{"name":"pkg","version":"2.0.0"}"#,
-    )]);
+    let tarball = plain_tarball(&[("package/package.json", r#"{"name":"pkg","version":"2.0.0"}"#)]);
     let summary = summarize_tarball(&tarball).expect("a plain tarball");
     assert_eq!(summary.name, "pkg");
     assert_eq!(summary.version, "2.0.0");
@@ -189,10 +165,7 @@ fn summarize_tarball_accepts_a_plain_uncompressed_tarball() {
 #[test]
 fn summarize_tarball_collects_bundled_dependencies_from_node_modules() {
     let tarball = gzipped_tarball(&[
-        (
-            "package/package.json",
-            r#"{"name":"pkg","version":"1.0.0"}"#,
-        ),
+        ("package/package.json", r#"{"name":"pkg","version":"1.0.0"}"#),
         ("package/node_modules/dep/index.js", ""),
         ("package/node_modules/@scope/other/index.js", ""),
     ]);
@@ -212,11 +185,9 @@ fn summarize_tarball_requires_a_manifest_with_name_and_version() {
         Some("ERR_PNPM_STAGE_TARBALL_MANIFEST_NOT_FOUND"),
     );
 
-    let nameless = summarize_tarball(&gzipped_tarball(&[(
-        "package/package.json",
-        r#"{"version":"1.0.0"}"#,
-    )]))
-    .expect_err("a manifest without a name");
+    let nameless =
+        summarize_tarball(&gzipped_tarball(&[("package/package.json", r#"{"version":"1.0.0"}"#)]))
+            .expect_err("a manifest without a name");
     assert_eq!(
         nameless
             .code()
@@ -230,10 +201,7 @@ fn summarize_tarball_requires_a_manifest_with_name_and_version() {
 fn summarize_tarball_uses_the_final_duplicate_manifest() {
     let tarball = gzipped_tarball(&[
         ("package/package.json", "{"),
-        (
-            "package/package.json",
-            r#"{"name":"pkg","version":"2.0.0"}"#,
-        ),
+        ("package/package.json", r#"{"name":"pkg","version":"2.0.0"}"#),
     ]);
 
     let summary = summarize_tarball(&tarball).expect("the final manifest is valid");
@@ -262,10 +230,7 @@ fn summarize_tarball_validates_the_manifest_identity() {
         r#"{"name":"__proto__","version":"1.0.0"}"#,
     )]))
     .expect_err("an invalid package name");
-    assert!(matches!(
-        invalid_name.downcast_ref(),
-        Some(StageError::InvalidPackageName { .. })
-    ));
+    assert!(matches!(invalid_name.downcast_ref(), Some(StageError::InvalidPackageName { .. })));
 
     let invalid_version = summarize_tarball(&gzipped_tarball(&[(
         "package/package.json",
@@ -282,12 +247,8 @@ fn summarize_tarball_validates_the_manifest_identity() {
 fn render_tarball_summary_matches_the_pnpm_layout() {
     let mut summary = sample_summary("pkg", "1.0.0");
     summary.files = vec![
-        pnpm_publish::PublishSummaryFile {
-            path: "index.js".to_owned(),
-        },
-        pnpm_publish::PublishSummaryFile {
-            path: "package.json".to_owned(),
-        },
+        pnpm_publish::PublishSummaryFile { path: "index.js".to_owned() },
+        pnpm_publish::PublishSummaryFile { path: "package.json".to_owned() },
     ];
     summary.entry_count = 2;
     let rendered = render_tarball_summary(&summary);
@@ -323,9 +284,7 @@ fn plain_tarball(entries: &[(&str, &str)]) -> Vec<u8> {
         header.set_size(contents.len() as u64);
         header.set_mode(0o644);
         header.set_cksum();
-        builder
-            .append_data(&mut header, path, contents.as_bytes())
-            .expect("append tar entry");
+        builder.append_data(&mut header, path, contents.as_bytes()).expect("append tar entry");
     }
     builder.into_inner().expect("finish the tar archive")
 }

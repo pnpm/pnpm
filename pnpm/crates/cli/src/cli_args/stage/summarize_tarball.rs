@@ -75,26 +75,22 @@ fn read_tarball_contents(
     for entry in entries {
         let mut entry = entry.into_diagnostic().wrap_err("read a staged tarball entry")?;
         let path = String::from_utf8_lossy(&entry.path_bytes()).into_owned();
-        if include_summary
-            && entry
-                .header()
-                .entry_type()
-                .is_file()
-        {
-            contents.push_file(
-                &path,
-                entry
-                    .header()
-                    .size()
-                    .unwrap_or(0),
-            );
+        if include_summary && entry.header().entry_type().is_file() {
+            contents.push_file(&path, entry.header().size().unwrap_or(0));
         }
         if path == "package/package.json" {
             manifest_text = Some(read_entry_text(&mut entry)?);
         }
     }
 
-    let manifest = require_tarball_manifest(manifest_text)?;
+    let manifest = parse_manifest(&manifest_text.ok_or(StageError::TarballManifestNotFound)?)
+        .map_err(|_| StageError::TarballManifestNotFound)?;
+    let name = manifest_string(&manifest, "name");
+    let version = manifest_string(&manifest, "version");
+    if name.is_empty() || version.is_empty() {
+        return Err(StageError::TarballManifestNotFound.into());
+    }
+    validate_package_identity(&name, &version)?;
 
     Ok(TarballContents {
         files: contents.files,
@@ -151,23 +147,17 @@ pub(super) fn create_tarball_filename(
     // The name/version validation above should already exclude separators;
     // reject outright if a validated component still smuggled one in.
     if filename.contains(['/', '\\', ':']) {
-        return Err(StageError::InvalidTarballFilename {
-            filename,
-        });
+        return Err(StageError::InvalidTarballFilename { filename });
     }
     Ok(filename)
 }
 
 fn validate_package_identity(name: &str, version: &str) -> Result<(), StageError> {
     if !is_valid_old_npm_package_name(name) {
-        return Err(StageError::InvalidPackageName {
-            name: name.to_owned(),
-        });
+        return Err(StageError::InvalidPackageName { name: name.to_owned() });
     }
     if version.parse::<node_semver::Version>().is_err() {
-        return Err(StageError::InvalidPackageVersion {
-            version: version.to_owned(),
-        });
+        return Err(StageError::InvalidPackageVersion { version: version.to_owned() });
     }
     Ok(())
 }
@@ -228,16 +218,4 @@ fn manifest_string(manifest: &Value, key: &str) -> String {
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_owned()
-}
-
-fn require_tarball_manifest(manifest_text: Option<String>) -> miette::Result<Value> {
-    let manifest = parse_manifest(&manifest_text.ok_or(StageError::TarballManifestNotFound)?)
-        .map_err(|_| StageError::TarballManifestNotFound)?;
-    let name = manifest_string(&manifest, "name");
-    let version = manifest_string(&manifest, "version");
-    if name.is_empty() || version.is_empty() {
-        return Err(StageError::TarballManifestNotFound.into());
-    }
-    validate_package_identity(&name, &version)?;
-    Ok(manifest)
 }

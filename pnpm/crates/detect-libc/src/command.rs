@@ -74,10 +74,7 @@ fn parse_ldd(combined: &str) -> Option<Implementation> {
 }
 
 fn parse_glibc_version(output: &str) -> Option<(u32, u32)> {
-    if !matches!(
-        parse_getconf(output).or_else(|| parse_ldd(output)),
-        Some(Implementation::Glibc),
-    ) {
+    if !matches!(parse_getconf(output).or_else(|| parse_ldd(output)), Some(Implementation::Glibc)) {
         return None;
     }
     output
@@ -90,12 +87,8 @@ fn parse_glibc_version(output: &str) -> Option<(u32, u32)> {
             let (major, minor) = token.split_once('.')?;
             if major.is_empty()
                 || minor.is_empty()
-                || !major
-                    .bytes()
-                    .all(|byte| byte.is_ascii_digit())
-                || !minor
-                    .bytes()
-                    .all(|byte| byte.is_ascii_digit())
+                || !major.bytes().all(|byte| byte.is_ascii_digit())
+                || !minor.bytes().all(|byte| byte.is_ascii_digit())
             {
                 return None;
             }

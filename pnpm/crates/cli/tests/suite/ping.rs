@@ -73,15 +73,8 @@ fn reports_ping_and_pong_for_a_reachable_registry() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let lines: Vec<&str> = stdout
-        .trim()
-        .lines()
-        .collect();
-    assert_eq!(
-        lines.len(),
-        2,
-        "an empty JSON body produces no details: {stdout:?}",
-    );
+    let lines: Vec<&str> = stdout.trim().lines().collect();
+    assert_eq!(lines.len(), 2, "an empty JSON body produces no details: {stdout:?}");
     assert_eq!(lines[0], format!("PING {registry}"));
     let pong = lines[1]
         .strip_prefix("PONG ")
@@ -113,15 +106,9 @@ fn includes_details_when_the_body_is_non_empty_json() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains(&format!("PING {registry}")),
-        "missing PING line: {stdout:?}",
-    );
+    assert!(stdout.contains(&format!("PING {registry}")), "missing PING line: {stdout:?}");
     assert!(stdout.contains("PONG "), "missing PONG line: {stdout:?}");
-    assert!(
-        stdout.contains(r#""host": "npm""#),
-        "missing pretty-printed details: {stdout:?}",
-    );
+    assert!(stdout.contains(r#""host": "npm""#), "missing pretty-printed details: {stdout:?}");
     drop((root, server));
 }
 
@@ -129,11 +116,8 @@ fn includes_details_when_the_body_is_non_empty_json() {
 fn uses_the_configured_registry_when_no_flag_is_given() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
-    fs::write(
-        workspace.join(".npmrc"),
-        format!("registry={}\n", server.url()),
-    )
-    .expect("write project .npmrc");
+    fs::write(workspace.join(".npmrc"), format!("registry={}\n", server.url()))
+        .expect("write project .npmrc");
     let mock = ping_mock(&mut server, "")
         .with_status(200)
         .with_body("{}")
@@ -207,10 +191,7 @@ fn preserves_a_registry_path_prefix() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains(&format!("PING {registry}")),
-        "PING must echo the raw URL: {stdout:?}",
-    );
+    assert!(stdout.contains(&format!("PING {registry}")), "PING must echo the raw URL: {stdout:?}");
     drop((root, server));
 }
 
@@ -256,10 +237,7 @@ fn fails_on_a_network_failure() {
     socket
         .bind("127.0.0.1:0".parse().expect("loopback address"))
         .expect("reserve registry port");
-    let registry = format!(
-        "http://{}/",
-        socket.local_addr().expect("registry socket address"),
-    );
+    let registry = format!("http://{}/", socket.local_addr().expect("registry socket address"));
 
     let output = run_ping(&workspace, &auth_file, Some(&registry));
 

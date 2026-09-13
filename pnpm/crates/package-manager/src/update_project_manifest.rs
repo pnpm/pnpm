@@ -78,9 +78,7 @@ pub fn update_project_manifest(
 ) -> Result<(), PackageManifestError> {
     let mut specs: Vec<PackageSpecObject> = Vec::new();
     for resolved in opts.direct_dependencies {
-        let Some(wanted) = resolved.wanted_dependency.as_ref() else {
-            continue;
-        };
+        let Some(wanted) = resolved.wanted_dependency.as_ref() else { continue };
         if !wanted.update_spec {
             continue;
         }
@@ -98,7 +96,7 @@ pub fn update_project_manifest(
         });
     }
 
-    add_unresolved_specs(&mut specs, opts);
+    preserve_unresolved_specs(&mut specs, opts);
 
     update_project_manifest_object(manifest, &specs)
 }
@@ -123,10 +121,7 @@ fn get_bare_specifier_to_save(
         .unwrap_or_else(|| wanted.bare_specifier.clone())
 }
 
-#[cfg(test)]
-mod tests;
-
-fn add_unresolved_specs(
+fn preserve_unresolved_specs(
     specs: &mut Vec<PackageSpecObject>,
     opts: &UpdateProjectManifestOptions<'_>,
 ) {
@@ -153,3 +148,6 @@ fn add_unresolved_specs(
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -39,11 +39,7 @@ pub struct NoMatchingVersionError {
 impl NoMatchingVersionError {
     #[must_use]
     pub fn new(dep: String, registry: String, meta: &Package) -> Self {
-        Self {
-            dep,
-            registry,
-            published_versions: describe_published_versions(meta),
-        }
+        Self { dep, registry, published_versions: describe_published_versions(meta) }
     }
 }
 
@@ -296,9 +292,7 @@ fn https_transport_hint(repo: &str) -> Option<String> {
         .split('/')
         .next()
         .unwrap_or(authority);
-    let host = host
-        .rsplit_once('@')
-        .map_or(host, |(_userinfo, host)| host);
+    let host = host.rsplit_once('@').map_or(host, |(_userinfo, host)| host);
     if host.is_empty() {
         return None;
     }
@@ -306,9 +300,7 @@ fn https_transport_hint(repo: &str) -> Option<String> {
     // for after the closing bracket rather than at the first colon.
     let hostname = match host.split_once(']') {
         Some((address, _port)) if host.starts_with('[') => &host[..=address.len()],
-        _ => host
-            .split_once(':')
-            .map_or(host, |(hostname, _port)| hostname),
+        _ => host.split_once(':').map_or(host, |(hostname, _port)| hostname),
     };
     // The scheme's own port is dropped from the `insteadOf` prefix, matching
     // what git and the TypeScript CLI's `URL` both normalize the remote to.

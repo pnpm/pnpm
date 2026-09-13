@@ -69,10 +69,7 @@ fn install_resolves_a_reference_and_a_frozen_install_accepts_the_lockfile() {
     let stdout = String::from_utf8_lossy(&output.get_output().stdout).into_owned();
     eprintln!("STDOUT:\n{stdout}\n");
 
-    assert_eq!(
-        lockfile_overrides(&workspace),
-        vec![(DEP.to_string(), "^100.0.0".to_string())],
-    );
+    assert_eq!(lockfile_overrides(&workspace), vec![(DEP.to_string(), "^100.0.0".to_string())]);
     assert!(
         stdout.contains(&format!(
             "The \"$\" version reference syntax in overrides is deprecated (used by: {DEP}). \
@@ -116,10 +113,7 @@ fn install_rejects_a_reference_to_a_package_that_is_not_a_direct_dependency() {
     let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
     eprintln!("STDERR:\n{stderr}\n");
 
-    assert!(
-        stderr.contains("ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION"),
-        "{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION"), "{stderr}");
     // miette wraps the message across terminal-width lines, so compare
     // against a whitespace-collapsed rendering.
     let unwrapped = stderr

@@ -52,10 +52,8 @@ importers:
     config.registry = registry;
     config.cache_dir = temp.path().join("cache");
     config.minimum_release_age = Some(60);
-    let projects = [InteractiveUpdateProject {
-        manifest: &manifest,
-        importer_id: "packages/a".to_string(),
-    }];
+    let projects =
+        [InteractiveUpdateProject { manifest: &manifest, importer_id: "packages/a".to_string() }];
 
     let choices = collect_choices(
         &projects,
@@ -117,14 +115,8 @@ importers:
     config.registry = registry;
     config.cache_dir = temp.path().join("cache");
     let projects = [
-        InteractiveUpdateProject {
-            manifest: &foo,
-            importer_id: "packages/a".to_string(),
-        },
-        InteractiveUpdateProject {
-            manifest: &bar,
-            importer_id: "packages/b".to_string(),
-        },
+        InteractiveUpdateProject { manifest: &foo, importer_id: "packages/a".to_string() },
+        InteractiveUpdateProject { manifest: &bar, importer_id: "packages/b".to_string() },
     ];
 
     let choices = collect_choices(
@@ -195,14 +187,8 @@ importers:
     config.registry = registry;
     config.cache_dir = temp.path().join("cache");
     let projects = [
-        InteractiveUpdateProject {
-            manifest: &direct,
-            importer_id: "packages/a".to_string(),
-        },
-        InteractiveUpdateProject {
-            manifest: &alias,
-            importer_id: "packages/b".to_string(),
-        },
+        InteractiveUpdateProject { manifest: &direct, importer_id: "packages/a".to_string() },
+        InteractiveUpdateProject { manifest: &alias, importer_id: "packages/b".to_string() },
     ];
 
     let choices = collect_choices(
@@ -265,14 +251,8 @@ importers:
     config.registry = registry;
     config.cache_dir = temp.path().join("cache");
     let projects = [
-        InteractiveUpdateProject {
-            manifest: &first,
-            importer_id: "packages/a".to_string(),
-        },
-        InteractiveUpdateProject {
-            manifest: &second,
-            importer_id: "packages/b".to_string(),
-        },
+        InteractiveUpdateProject { manifest: &first, importer_id: "packages/a".to_string() },
+        InteractiveUpdateProject { manifest: &second, importer_id: "packages/b".to_string() },
     ];
 
     let choices = collect_choices(
@@ -477,10 +457,8 @@ mod selection {
     /// them outright.
     #[test]
     fn headings_and_headers_select_nothing() {
-        let groups = [group(
-            "dependencies",
-            &[("Package Current", None), ("foo 1 ❯ 2", Some("foo"))],
-        )];
+        let groups =
+            [group("dependencies", &[("Package Current", None), ("foo 1 ❯ 2", Some("foo"))])];
 
         let rows = flatten_groups(&groups);
 
@@ -496,10 +474,7 @@ mod selection {
     fn a_package_checked_twice_is_returned_once() {
         let groups = [
             group("dependencies", &[("hdr", None), ("foo", Some("foo"))]),
-            group(
-                "devDependencies",
-                &[("hdr", None), ("bar", Some("bar")), ("foo", Some("foo"))],
-            ),
+            group("devDependencies", &[("hdr", None), ("bar", Some("bar")), ("foo", Some("foo"))]),
         ];
 
         let rows = flatten_groups(&groups);
@@ -514,10 +489,7 @@ mod selection {
     /// An out-of-range index cannot panic the selection.
     #[test]
     fn an_unknown_index_is_ignored() {
-        let groups = [group(
-            "dependencies",
-            &[("hdr", None), ("foo", Some("foo"))],
-        )];
+        let groups = [group("dependencies", &[("hdr", None), ("foo", Some("foo"))])];
 
         let rows = flatten_groups(&groups);
 
@@ -550,10 +522,8 @@ struct PromptScript {
     seen: Vec<SeenPrompt>,
 }
 
-static SCRIPT: Mutex<PromptScript> = Mutex::new(PromptScript {
-    answers: VecDeque::new(),
-    seen: Vec::new(),
-});
+static SCRIPT: Mutex<PromptScript> =
+    Mutex::new(PromptScript { answers: VecDeque::new(), seen: Vec::new() });
 
 fn script() -> std::sync::MutexGuard<'static, PromptScript> {
     SCRIPT.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -579,10 +549,7 @@ fn scripted_prompts() -> ScriptedPrompts {
     script.answers.clear();
     script.seen.clear();
     drop(script);
-    ScriptedPrompts {
-        script: &SCRIPT,
-        _claim: claim,
-    }
+    ScriptedPrompts { script: &SCRIPT, _claim: claim }
 }
 
 impl ScriptedPrompts {
@@ -629,9 +596,7 @@ pub(super) fn answer_prompt(message: &str, rows: &[PromptRow]) -> Option<Vec<usi
             })
             .collect(),
     });
-    let ScriptedAnswer::Check(answer) = answer else {
-        return None;
-    };
+    let ScriptedAnswer::Check(answer) = answer else { return None };
     Some(
         rows.iter()
             .enumerate()
@@ -655,11 +620,7 @@ fn offered(prompt: &SeenPrompt) -> Vec<(String, String, String)> {
             let arrow = columns
                 .iter()
                 .position(|column| *column == "❯")?;
-            Some((
-                package.clone(),
-                columns[arrow - 1].to_string(),
-                columns[arrow + 1].to_string(),
-            ))
+            Some((package.clone(), columns[arrow - 1].to_string(), columns[arrow + 1].to_string()))
         })
         .collect()
 }
@@ -709,23 +670,14 @@ impl UpdateFixture {
         let cache_dir = dir.path().join("cache");
         let mut config = Config::new();
         config.registry = registry.url();
-        config.store_dir = dir
-            .path()
-            .join("store")
-            .into();
+        config.store_dir = dir.path().join("store").into();
         config.cache_dir = cache_dir.clone();
         config.modules_dir = project.join("node_modules");
         config.virtual_store_dir = project.join("node_modules/.pnpm");
         config.enable_global_virtual_store = false;
         customize(&mut config);
         let config = Config::leak(config);
-        Self {
-            _dir: dir,
-            project,
-            cache_dir,
-            config,
-            registry,
-        }
+        Self { _dir: dir, project, cache_dir, config, registry }
     }
 
     fn write_manifest(&self, dependencies: &Value) {
@@ -802,25 +754,13 @@ async fn interactively_update() {
     assert_eq!(
         offered(&prompts[0]),
         [
-            (
-                MULTI_A.to_string(),
-                "1.0.0".to_string(),
-                "1.0.1".to_string()
-            ),
-            (
-                MULTI_C.to_string(),
-                "3.0.0".to_string(),
-                "3.1.10".to_string()
-            ),
+            (MULTI_A.to_string(), "1.0.0".to_string(), "1.0.1".to_string()),
+            (MULTI_C.to_string(), "3.0.0".to_string(), "3.1.10".to_string()),
         ],
     );
     assert_eq!(
         fixture.lockfile_packages(),
-        [
-            format!("{MULTI_A}@1.0.1"),
-            format!("{MULTI_B}@2.0.0"),
-            format!("{MULTI_C}@3.0.0")
-        ],
+        [format!("{MULTI_A}@1.0.1"), format!("{MULTI_B}@2.0.0"), format!("{MULTI_C}@3.0.0")],
     );
 
     scripted.answer_next(&[MULTI_A]);
@@ -831,30 +771,14 @@ async fn interactively_update() {
     assert_eq!(
         offered(&prompts[0]),
         [
-            (
-                MULTI_A.to_string(),
-                "1.0.1".to_string(),
-                "2.1.0".to_string()
-            ),
-            (
-                MULTI_B.to_string(),
-                "2.0.0".to_string(),
-                "3.1.0".to_string()
-            ),
-            (
-                MULTI_C.to_string(),
-                "3.0.0".to_string(),
-                "4.0.0".to_string()
-            ),
+            (MULTI_A.to_string(), "1.0.1".to_string(), "2.1.0".to_string()),
+            (MULTI_B.to_string(), "2.0.0".to_string(), "3.1.0".to_string()),
+            (MULTI_C.to_string(), "3.0.0".to_string(), "4.0.0".to_string()),
         ],
     );
     assert_eq!(
         fixture.lockfile_packages(),
-        [
-            format!("{MULTI_A}@2.1.0"),
-            format!("{MULTI_B}@2.0.0"),
-            format!("{MULTI_C}@3.0.0")
-        ],
+        [format!("{MULTI_A}@2.1.0"), format!("{MULTI_B}@2.0.0"), format!("{MULTI_C}@3.0.0")],
     );
 }
 
@@ -878,19 +802,11 @@ async fn interactively_update_skips_ignored_dependencies() {
     assert_eq!(prompts.len(), 1);
     assert_eq!(
         offered(&prompts[0]),
-        [(
-            MULTI_C.to_string(),
-            "3.0.0".to_string(),
-            "3.1.10".to_string()
-        )],
+        [(MULTI_C.to_string(), "3.0.0".to_string(), "3.1.10".to_string())],
     );
     assert_eq!(
         fixture.lockfile_packages(),
-        [
-            format!("{MULTI_A}@1.0.0"),
-            format!("{MULTI_B}@2.0.0"),
-            format!("{MULTI_C}@3.1.10")
-        ],
+        [format!("{MULTI_A}@1.0.0"), format!("{MULTI_B}@2.0.0"), format!("{MULTI_C}@3.1.10")],
     );
 }
 
@@ -918,8 +834,7 @@ async fn interactive_update_leaves_without_an_error_when_the_prompt_is_canceled(
 
     let scripted = scripted_prompts();
     scripted.cancel_next();
-    fixture.update_reporting::<RecordingReporter>(&["update", "--interactive"])
-        .await;
+    fixture.update_reporting::<RecordingReporter>(&["update", "--interactive"]).await;
 
     assert_eq!(scripted.seen().len(), 1);
     assert_eq!(fixture.lockfile_packages(), [format!("{MULTI_A}@1.0.0")]);
@@ -952,10 +867,7 @@ async fn global_interactive_update_handles_an_empty_global_directory() {
     .expect("select global package groups");
 
     assert!(selected.is_none());
-    assert!(
-        scripted.seen().is_empty(),
-        "an empty global directory must not prompt",
-    );
+    assert!(scripted.seen().is_empty(), "an empty global directory must not prompt");
 }
 
 /// Ports `interactive recursive should not error on git specifier
@@ -983,10 +895,8 @@ importers:
     // Any request would be a bug: a resolution that names no version has
     // nothing to compare a registry version against.
     config.registry = "http://127.0.0.1:1/".to_string();
-    let projects = [InteractiveUpdateProject {
-        manifest: &manifest,
-        importer_id: "project-1".to_string(),
-    }];
+    let projects =
+        [InteractiveUpdateProject { manifest: &manifest, importer_id: "project-1".to_string() }];
 
     let choices = collect_choices(
         &projects,

@@ -42,10 +42,21 @@ pub(super) fn project_trust_package_version(version: &PackageVersion) -> Package
     let attestations = version.dist.attestations
         .as_ref()
         .and_then(|att| att.provenance.as_ref())
-        .map(|prov| pnpm_registry::AttestationsDist {
-            provenance: Some(prov.clone()),
-            url: None,
-        });
+        .map(|prov| pnpm_registry::AttestationsDist { provenance: Some(prov.clone()), url: None });
+    // `get_trust_evidence` only reads `npm_user.approver` (presence) and
+    // `npm_user.trusted_publisher`; drop the maintainer `name` / `email`
+    // PII — including the approver's — so the projected cache entry
+    // doesn't hold per-version publisher metadata that downstream
+    // doesn't need.
+    let approver = version.npm_user.as_ref().and_then(|user| user.approver.as_ref());
+    let trusted_publisher =
+        version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref());
+    let npm_user = (approver.is_some() || trusted_publisher.is_some()).then(|| NpmUser {
+        name: None,
+        email: None,
+        approver: approver.map(|_| Approver { name: None, email: None }),
+        trusted_publisher: trusted_publisher.cloned(),
+    });
     PackageVersion {
         // `fail_if_trust_downgraded` keys off the outer `meta.versions`
         // map and the version-level npm_user / attestations fields. The
@@ -70,7 +81,7 @@ pub(super) fn project_trust_package_version(version: &PackageVersion) -> Package
         peer_dependencies: None,
         optional_dependencies: None,
         peer_dependencies_meta: None,
-        npm_user: project_trust_user(version),
+        npm_user,
         deprecated: None,
         other: HashMap::new(),
     }
@@ -170,27 +181,4 @@ pub(super) fn project_artifact_history(
         },
         revisions,
     }
-}
-
-fn project_trust_user(version: &PackageVersion) -> Option<NpmUser> {
-    // `get_trust_evidence` only reads `npm_user.approver` (presence) and
-    // `npm_user.trusted_publisher`; drop the maintainer `name` / `email`
-    // PII — including the approver's — so the projected cache entry
-    // doesn't hold per-version publisher metadata that downstream
-    // doesn't need.
-    let approver = version.npm_user
-        .as_ref()
-        .and_then(|user| user.approver.as_ref());
-    let trusted_publisher = version.npm_user
-        .as_ref()
-        .and_then(|user| user.trusted_publisher.as_ref());
-    (approver.is_some() || trusted_publisher.is_some()).then(|| NpmUser {
-        name: None,
-        email: None,
-        approver: approver.map(|_| Approver {
-            name: None,
-            email: None,
-        }),
-        trusted_publisher: trusted_publisher.cloned(),
-    })
 }

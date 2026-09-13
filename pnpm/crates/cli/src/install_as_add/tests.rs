@@ -71,10 +71,7 @@ fn a_value_taking_option_is_not_mistaken_for_a_package_name() {
 
 #[test]
 fn install_test_is_left_alone() {
-    assert_eq!(
-        rewritten(&["pnpm", "install-test"]),
-        ["pnpm", "install-test"],
-    );
+    assert_eq!(rewritten(&["pnpm", "install-test"]), ["pnpm", "install-test"]);
 }
 
 #[test]
@@ -87,10 +84,7 @@ fn a_package_name_after_the_separator_becomes_add() {
 
 #[test]
 fn a_trailing_separator_alone_stays_install() {
-    assert_eq!(
-        rewritten(&["pnpm", "install", "--"]),
-        ["pnpm", "install", "--"],
-    );
+    assert_eq!(rewritten(&["pnpm", "install", "--"]), ["pnpm", "install", "--"]);
 }
 
 #[test]
@@ -127,14 +121,7 @@ fn the_separator_spelling_parses_as_add() {
 #[test]
 fn install_with_offline_after_the_package_parses_as_add() {
     let (overrides, argv) = ConfigOverrides::extract(
-        [
-            "pnpm",
-            "install",
-            "valibot",
-            "--offline",
-            "--ignore-scripts",
-        ]
-        .map(OsString::from),
+        ["pnpm", "install", "valibot", "--offline", "--ignore-scripts"].map(OsString::from),
     );
     let args = parse_argv(argv);
 

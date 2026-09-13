@@ -43,42 +43,17 @@ pub(crate) fn publish_body(metadata: &serde_json::Value, archive: &[u8]) -> Vec<
 
 #[test]
 fn crate_names_follow_crates_io_rules() {
-    for valid in [
-        "a",
-        "serde",
-        "serde_json",
-        "Inflector",
-        "_private",
-        "a-b_c9",
-    ] {
+    for valid in ["a", "serde", "serde_json", "Inflector", "_private", "a-b_c9"] {
         validate_crate_name(valid).unwrap_or_else(|err| panic!("{valid}: {err}"));
     }
     assert_eq!(validate_crate_name(""), Err(CrateNameError::Empty));
-    assert!(matches!(
-        validate_crate_name("9lives"),
-        Err(CrateNameError::InvalidStart { .. })
-    ));
-    assert!(matches!(
-        validate_crate_name("-dash"),
-        Err(CrateNameError::InvalidStart { .. })
-    ));
-    assert!(matches!(
-        validate_crate_name("a.b"),
-        Err(CrateNameError::InvalidCharacter { .. })
-    ));
-    assert!(matches!(
-        validate_crate_name("a/b"),
-        Err(CrateNameError::InvalidCharacter { .. })
-    ));
-    assert!(matches!(
-        validate_crate_name("é"),
-        Err(CrateNameError::InvalidStart { .. })
-    ));
+    assert!(matches!(validate_crate_name("9lives"), Err(CrateNameError::InvalidStart { .. })));
+    assert!(matches!(validate_crate_name("-dash"), Err(CrateNameError::InvalidStart { .. })));
+    assert!(matches!(validate_crate_name("a.b"), Err(CrateNameError::InvalidCharacter { .. })));
+    assert!(matches!(validate_crate_name("a/b"), Err(CrateNameError::InvalidCharacter { .. })));
+    assert!(matches!(validate_crate_name("é"), Err(CrateNameError::InvalidStart { .. })));
     let long = "a".repeat(65);
-    assert!(matches!(
-        validate_crate_name(&long),
-        Err(CrateNameError::TooLong { .. })
-    ));
+    assert!(matches!(validate_crate_name(&long), Err(CrateNameError::TooLong { .. })));
 }
 
 #[test]
@@ -139,10 +114,7 @@ fn index_config_for_a_registry_points_back_at_it() {
 
 #[test]
 fn publish_body_splits_into_metadata_and_archive() {
-    let archive = crate_archive(
-        "demo-0.1.0",
-        &[("Cargo.toml", "[package]\nname = \"demo\"")],
-    );
+    let archive = crate_archive("demo-0.1.0", &[("Cargo.toml", "[package]\nname = \"demo\"")]);
     let metadata = json!({ "name": "demo", "vers": "0.1.0" });
     let body = publish_body(&metadata, &archive);
     let (parsed, bytes) = parse_publish_body(&body).unwrap();
@@ -155,32 +127,21 @@ fn publish_body_splits_into_metadata_and_archive() {
 fn publish_body_rejects_truncation_and_trailing_bytes() {
     assert!(matches!(
         parse_publish_body(&[1, 0]),
-        Err(PublishBodyError::Truncated {
-            expected: 2
-        })
+        Err(PublishBodyError::Truncated { expected: 2 })
     ));
     let overrun = [10, 0, 0, 0, b'{', b'}'];
     assert!(matches!(
         parse_publish_body(&overrun),
-        Err(PublishBodyError::LengthOverrun {
-            field: "metadata",
-            declared: 10,
-            remaining: 2
-        }),
+        Err(PublishBodyError::LengthOverrun { field: "metadata", declared: 10, remaining: 2 }),
     ));
     let mut body = publish_body(&json!({ "name": "demo", "vers": "0.1.0" }), b"crate");
     body.push(0);
     assert!(matches!(
         parse_publish_body(&body),
-        Err(PublishBodyError::TrailingBytes {
-            trailing: 1
-        })
+        Err(PublishBodyError::TrailingBytes { trailing: 1 })
     ));
     let not_json = publish_body(&json!("string"), b"");
-    assert!(matches!(
-        parse_publish_body(&not_json),
-        Err(PublishBodyError::Metadata(_))
-    ));
+    assert!(matches!(parse_publish_body(&not_json), Err(PublishBodyError::Metadata(_))));
 }
 
 #[test]
@@ -296,21 +257,12 @@ fn index_parse_reports_the_offending_line() {
 fn crate_archive_must_hold_the_crate_it_claims() {
     let good = crate_archive(
         "demo-0.1.0",
-        &[
-            (
-                "Cargo.toml",
-                "[package]\nname = \"demo\"\nversion = \"0.1.0\"",
-            ),
-            ("src/lib.rs", ""),
-        ],
+        &[("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\""), ("src/lib.rs", "")],
     );
     validate_crate_archive(&good, "demo", "0.1.0").unwrap();
 
     let renamed = validate_crate_archive(&good, "demo", "0.2.0").unwrap_err();
-    assert!(
-        matches!(renamed, CrateArchiveError::EntryOutsideRoot { .. }),
-        "{renamed}",
-    );
+    assert!(matches!(renamed, CrateArchiveError::EntryOutsideRoot { .. }), "{renamed}");
 
     let no_manifest = crate_archive("demo-0.1.0", &[("src/lib.rs", "")]);
     assert!(matches!(
@@ -330,10 +282,7 @@ fn crate_archive_must_hold_the_crate_it_claims() {
 fn crate_archive_limit_allows_equality_and_rejects_overflow() {
     let archive = crate_archive(
         "demo-0.1.0",
-        &[(
-            "Cargo.toml",
-            "[package]\nname = \"demo\"\nversion = \"0.1.0\"",
-        )],
+        &[("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"")],
     );
     let mut decoder = flate2::read::GzDecoder::new(archive.as_slice());
     let size = std::io::copy(&mut decoder, &mut std::io::sink()).unwrap();
@@ -406,20 +355,13 @@ fn crate_archive_manifest_must_match_publish_metadata() {
 fn crate_archive_limit_counts_concatenated_gzip_members() {
     let mut archive = crate_archive(
         "demo-0.1.0",
-        &[(
-            "Cargo.toml",
-            "[package]\nname = \"demo\"\nversion = \"0.1.0\"",
-        )],
+        &[("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"")],
     );
-    let size = std::io::copy(
-        &mut flate2::read::GzDecoder::new(archive.as_slice()),
-        &mut std::io::sink(),
-    )
-    .unwrap();
+    let size =
+        std::io::copy(&mut flate2::read::GzDecoder::new(archive.as_slice()), &mut std::io::sink())
+            .unwrap();
     let mut second = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
-    second
-        .write_all(&[0; 1024])
-        .unwrap();
+    second.write_all(&[0; 1024]).unwrap();
     archive.extend(second.finish().unwrap());
     assert!(matches!(
         validate_crate_archive_with_limit(&archive, "demo", "0.1.0", size),
@@ -432,10 +374,7 @@ fn crate_archive_limit_counts_concatenated_gzip_members() {
 fn crate_archive_accepts_an_explicit_root_directory() {
     let archive = crate_archive(
         "demo-0.1.0",
-        &[(
-            "Cargo.toml",
-            "[package]\nname = \"demo\"\nversion = \"0.1.0\"",
-        )],
+        &[("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"")],
     );
     for entry_type in [tar::EntryType::Directory, tar::EntryType::Regular] {
         let mut root = tar::Header::new_gnu();
@@ -445,14 +384,8 @@ fn crate_archive_accepts_an_explicit_root_directory() {
         root.set_mode(0o755);
         root.set_cksum();
         let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
-        encoder
-            .write_all(root.as_bytes())
-            .unwrap();
-        std::io::copy(
-            &mut flate2::read::GzDecoder::new(archive.as_slice()),
-            &mut encoder,
-        )
-        .unwrap();
+        encoder.write_all(root.as_bytes()).unwrap();
+        std::io::copy(&mut flate2::read::GzDecoder::new(archive.as_slice()), &mut encoder).unwrap();
         let with_root = encoder.finish().unwrap();
         assert_eq!(
             validate_crate_archive(&with_root, "demo", "0.1.0").is_ok(),
@@ -479,11 +412,7 @@ fn entry(vers: &str, yanked: bool) -> IndexEntry {
 #[test]
 fn max_version_prefers_the_newest_release_that_is_not_yanked() {
     let mut document = CrateDocument::new("demo");
-    document.versions = vec![
-        entry("0.9.0", false),
-        entry("1.10.0", false),
-        entry("1.9.0", false),
-    ];
+    document.versions = vec![entry("0.9.0", false), entry("1.10.0", false), entry("1.9.0", false)];
 
     // Semver ordering, not lexicographic: 1.10.0 is newer than 1.9.0.
     assert_eq!(document.max_version().as_deref(), Some("1.10.0"));
@@ -524,10 +453,7 @@ fn a_description_is_cut_to_the_documented_length() {
     assert_eq!(bounded_description(Some("short")).as_deref(), Some("short"));
 
     let long = "d".repeat(MAX_DESCRIPTION_LEN + 1);
-    assert_eq!(
-        bounded_description(Some(&long)).unwrap().len(),
-        MAX_DESCRIPTION_LEN,
-    );
+    assert_eq!(bounded_description(Some(&long)).unwrap().len(), MAX_DESCRIPTION_LEN);
 
     // Cut by character, so a multi-byte description stays valid UTF-8.
     let wide = "é".repeat(MAX_DESCRIPTION_LEN + 1);

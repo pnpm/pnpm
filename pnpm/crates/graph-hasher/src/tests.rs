@@ -15,10 +15,7 @@ fn hash_object_known_base64_value() {
 
 #[test]
 fn hash_object_sorts_object_keys() {
-    assert_eq!(
-        hash_object(&json!({ "b": 1, "a": 2 })),
-        hash_object(&json!({ "a": 2, "b": 1 })),
-    );
+    assert_eq!(hash_object(&json!({ "b": 1, "a": 2 })), hash_object(&json!({ "a": 2, "b": 1 })));
 }
 
 #[test]
@@ -46,11 +43,9 @@ fn hash_object_with_encoding_hex_matches_decoded_base64() {
     let value = json!({ "b": 1, "a": 2 });
     let base64 = hash_object(&value);
     let hex = hash_object_with_encoding(&value, HashEncoding::Hex, /* sort */ true);
-    let from_b64 = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        base64.as_bytes(),
-    )
-    .expect("decode base64");
+    let from_b64 =
+        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, base64.as_bytes())
+            .expect("decode base64");
     let from_hex = hex_decode(&hex);
     assert_eq!(from_b64, from_hex);
 }
@@ -92,10 +87,7 @@ fn hash_object_string_length_counts_utf16_code_units() {
     // as `"é"` under a wrong byte-length implementation, so the
     // hashes would collide if pacquet measured bytes.
     let two_bytes_ascii = hash_object(&json!({ "k": "ab" }));
-    assert_ne!(
-        one_unit, two_bytes_ascii,
-        "utf-16 length must differ from byte length",
-    );
+    assert_ne!(one_unit, two_bytes_ascii, "utf-16 length must differ from byte length");
 }
 
 /// `null`, booleans, and arrays each go through their own arm of

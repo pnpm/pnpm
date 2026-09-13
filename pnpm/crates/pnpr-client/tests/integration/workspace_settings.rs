@@ -26,12 +26,8 @@ async fn multi_project_request_sends_every_workspace_project_without_a_synthetic
     let capture = tokio::spawn(capture_one_request_with_response(listener, response));
 
     let client = PnprClient::new(format!("http://{addr}/"));
-    let mut opts: ResolveProjectsOptions = options(
-        "https://registry.example.test/",
-        "Bearer token",
-        BTreeMap::new(),
-    )
-    .into();
+    let mut opts: ResolveProjectsOptions =
+        options("https://registry.example.test/", "Bearer token", BTreeMap::new()).into();
     opts.projects = vec![
         ResolveProject {
             dir: "packages/app".to_string(),
@@ -57,10 +53,7 @@ async fn multi_project_request_sends_every_workspace_project_without_a_synthetic
         .cloned()
         .collect::<Vec<_>>();
     importer_ids.sort();
-    assert_eq!(
-        importer_ids,
-        ["packages/app".to_string(), "packages/lib".to_string()],
-    );
+    assert_eq!(importer_ids, ["packages/app".to_string(), "packages/lib".to_string()]);
 
     let request = capture.await.expect("capture task");
     let (_, body) = request.split_once("\r\n\r\n").expect("captured HTTP request has a body");

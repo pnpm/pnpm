@@ -73,13 +73,16 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
         }
         started.report::<Reporter>();
         force_symlink(&paths.pkg_dir_in_gvs, &paths.config_dep_path)?;
-        installed.push(InstalledConfigDep {
-            name: name.clone(),
-            version: dep.version.clone(),
-        });
+        installed.push(InstalledConfigDep { name: name.clone(), version: dep.version.clone() });
     }
 
-    report_installed::<Reporter>(installed);
+    if !installed.is_empty() {
+        Reporter::emit(&LogEvent::InstallingConfigDeps(InstallingConfigDepsLog {
+            level: LogLevel::Debug,
+            status: InstallingConfigDepsStatus::Done,
+            deps: installed,
+        }));
+    }
     Ok(())
 }
 
@@ -156,10 +159,7 @@ fn config_dep_paths(
     let subdep_ids: BTreeMap<String, String> = dep.optional_subdeps
         .iter()
         .map(|subdep| {
-            (
-                subdep.name.clone(),
-                full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity),
-            )
+            (subdep.name.clone(), full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity))
         })
         .collect();
     let rel_path = calc_global_virtual_store_path_with_subdeps(
@@ -181,17 +181,11 @@ fn config_dep_paths(
 fn force_symlink(target: &Path, link_path: &Path) -> Result<(), ConfigDepError> {
     if let Some(parent) = link_path.parent() {
         fs::create_dir_all(parent)
-            .map_err(|error| ConfigDepError::Symlink {
-                path: link_path.to_path_buf(),
-                error,
-            })?;
+            .map_err(|error| ConfigDepError::Symlink { path: link_path.to_path_buf(), error })?;
     }
     pnpm_fs::force_symlink_dir(target, link_path)
         .map(|_| ())
-        .map_err(|error| ConfigDepError::Symlink {
-            path: link_path.to_path_buf(),
-            error,
-        })
+        .map_err(|error| ConfigDepError::Symlink { path: link_path.to_path_buf(), error })
 }
 
 /// Lazily emits the single `pnpm:installing-config-deps started` event,
@@ -202,9 +196,7 @@ struct StartedGate {
 
 impl StartedGate {
     fn new() -> Self {
-        StartedGate {
-            emitted: false,
-        }
+        StartedGate { emitted: false }
     }
 
     fn report<Reporter: self::Reporter>(&mut self) {
@@ -260,9 +252,7 @@ async fn materialize<Reporter: self::Reporter>(
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<Reporter>()
     .await
@@ -310,11 +300,7 @@ fn prune_unexpected_siblings<Reporter: self::Reporter>(
 /// but "already gone") is logged rather than silently swallowed.
 fn prune_link(path: &Path) {
     let is_link = fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink());
-    let result = if is_link {
-        pnpm_fs::remove_symlink_dir(path)
-    } else {
-        fs::remove_dir_all(path)
-    };
+    let result = if is_link { pnpm_fs::remove_symlink_dir(path) } else { fs::remove_dir_all(path) };
     if let Err(error) = result
         && error.kind() != std::io::ErrorKind::NotFound
     {
@@ -361,10 +347,7 @@ fn dir_entry_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => {
-            return Err(ConfigDepError::ReadConfigModules {
-                path: dir.to_path_buf(),
-                error,
-            });
+            return Err(ConfigDepError::ReadConfigModules { path: dir.to_path_buf(), error });
         }
     };
     let mut names = Vec::new();
@@ -393,13 +376,3 @@ fn symlink_points_to(link_path: &Path, expected: &Path) -> bool {
 
 mod optional_dependencies;
 use optional_dependencies::{install_optional_subdeps, normalize_from_lockfile};
-
-fn report_installed<Reporter: self::Reporter>(installed: Vec<InstalledConfigDep>) {
-    if !installed.is_empty() {
-        Reporter::emit(&LogEvent::InstallingConfigDeps(InstallingConfigDepsLog {
-            level: LogLevel::Debug,
-            status: InstallingConfigDepsStatus::Done,
-            deps: installed,
-        }));
-    }
-}

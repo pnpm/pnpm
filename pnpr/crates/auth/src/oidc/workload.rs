@@ -10,9 +10,7 @@ pub(super) fn verify_workload(
     metadata: &CoreProviderMetadata,
     raw: &str,
 ) -> Result<()> {
-    let token: CoreIdToken = raw
-        .parse()
-        .map_err(|_| rejected())?;
+    let token: CoreIdToken = raw.parse().map_err(|_| rejected())?;
     let verifier = token_verifier(config, metadata)?;
     token
         .claims(&verifier, |_: Option<&Nonce>| Ok(()))
@@ -70,9 +68,7 @@ pub(super) fn token_payload(raw: &str) -> Result<Value> {
         .split('.')
         .nth(1)
         .ok_or_else(rejected)?;
-    let bytes = BASE64_URL_SAFE_NO_PAD
-        .decode(payload)
-        .map_err(|_| rejected())?;
+    let bytes = BASE64_URL_SAFE_NO_PAD.decode(payload).map_err(|_| rejected())?;
     serde_json::from_slice(&bytes).map_err(|_| rejected())
 }
 

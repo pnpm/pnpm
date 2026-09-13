@@ -153,10 +153,7 @@ fn decode_basic_auth(raw: &RawCreds) -> Option<BasicAuth> {
     {
         let decoded = base64_decode(pair)?;
         let (username, password) = decoded.split_once(':')?;
-        return Some(BasicAuth {
-            username: username.to_owned(),
-            password: password.to_owned(),
-        });
+        return Some(BasicAuth { username: username.to_owned(), password: password.to_owned() });
     }
     let username = raw.username
         .clone()
@@ -165,10 +162,7 @@ fn decode_basic_auth(raw: &RawCreds) -> Option<BasicAuth> {
         .as_ref()
         .filter(|password| !password.is_empty())?;
     let password = base64_decode(password_b64).unwrap_or_else(|| password_b64.clone());
-    Some(BasicAuth {
-        username,
-        password,
-    })
+    Some(BasicAuth { username, password })
 }
 
 /// The registry a file's unscoped settings pin to: the one it declares, or
@@ -183,9 +177,7 @@ fn pinned_registry(declared: &str) -> String {
 /// The raw `_authToken` of a default-scope credential, kept alongside the
 /// baked header for `pnpm logout`.
 fn default_scope_token(scope: &str, raw: &RawCreds) -> Option<String> {
-    (scope == DEFAULT_REGISTRY_SCOPE)
-        .then(|| raw.auth_token.clone())
-        .flatten()
+    (scope == DEFAULT_REGISTRY_SCOPE).then(|| raw.auth_token.clone()).flatten()
 }
 
 /// Record a per-registry value in the default-scope map or in the
@@ -245,9 +237,7 @@ fn creds_to_header(creds: &RawCreds) -> Result<Option<String>, LoadWorkspaceYaml
         .filter(|pair| !pair.is_empty())
     {
         let decoded = base64_decode_bytes(pair)
-            .ok_or(LoadWorkspaceYamlError::AuthInvalidBase64 {
-                key: "_auth",
-            })?;
+            .ok_or(LoadWorkspaceYamlError::AuthInvalidBase64 { key: "_auth" })?;
         if !decoded.contains(&b':') {
             return Err(LoadWorkspaceYamlError::AuthMissingSeparator);
         }
@@ -258,10 +248,7 @@ fn creds_to_header(creds: &RawCreds) -> Result<Option<String>, LoadWorkspaceYaml
         // header itself is `Basic base64(user:password)`, so we decode
         // the password back and re-encode the pair.
         let password = base64_decode(pass_b64).unwrap_or_else(|| pass_b64.clone());
-        return Ok(Some(format!(
-            "Basic {}",
-            base64_encode(&format!("{user}:{password}")),
-        )));
+        return Ok(Some(format!("Basic {}", base64_encode(&format!("{user}:{password}")))));
     }
     Ok(None)
 }
@@ -442,9 +429,7 @@ impl NpmrcAuth {
                 .fill_from(creds);
         }
         if cert.is_some() || private_key.is_some() {
-            let entry = self.tls.by_uri
-                .entry(uri.to_owned())
-                .or_default();
+            let entry = self.tls.by_uri.entry(uri.to_owned()).or_default();
             entry.cert = entry.cert.take().or(cert);
             entry.key = entry.key.take().or(private_key);
         }
@@ -466,9 +451,7 @@ impl NpmrcAuth {
                 self.raw_ini_config
                     .remove(*key)
                     .or_else(|| {
-                        (*key == "tokenHelper")
-                            .then(|| creds.token_helper.clone())
-                            .flatten()
+                        (*key == "tokenHelper").then(|| creds.token_helper.clone()).flatten()
                     })
                     .map(|value| (*key, value))
             })

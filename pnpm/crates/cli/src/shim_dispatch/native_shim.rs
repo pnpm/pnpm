@@ -181,10 +181,7 @@ pub(crate) fn native_shims(bin_dir: &Path) -> io::Result<Vec<String>> {
 
 /// The files a shim `name` occupies: its executable and its sidecar.
 pub(crate) fn native_shim_paths(bin_dir: &Path, name: &str) -> [PathBuf; 2] {
-    [
-        executable_path(bin_dir, name),
-        target_file_path(bin_dir, name),
-    ]
+    [executable_path(bin_dir, name), target_file_path(bin_dir, name)]
 }
 
 /// Republish every shim in `bin_dir` from `source`, migrating legacy
@@ -212,10 +209,7 @@ pub(crate) fn migrate_legacy_shims_from(source: &Path, bin_dir: &Path) -> io::Re
     };
     for entry in entries {
         let file_name = entry.file_name();
-        let Some(name) = file_name
-            .to_str()
-            .filter(|name| is_safe_bin_name(name))
-        else {
+        let Some(name) = file_name.to_str().filter(|name| is_safe_bin_name(name)) else {
             continue;
         };
         // Migrating one shim removes its Windows siblings, which the
@@ -225,10 +219,8 @@ pub(crate) fn migrate_legacy_shims_from(source: &Path, bin_dir: &Path) -> io::Re
         };
         install_native_shim_from(source, bin_dir, name, &target)?;
     }
-    let dispatcher = bin_dir.join(format!(
-        "{LEGACY_DISPATCHER_NAME}{}",
-        std::env::consts::EXE_SUFFIX,
-    ));
+    let dispatcher =
+        bin_dir.join(format!("{LEGACY_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX));
     // The dispatcher may still be executing on behalf of a shim launched
     // before the migration, which Windows reports as a sharing violation;
     // the next migration pass removes it.
@@ -294,11 +286,7 @@ pub(super) fn dispatch_legacy_shim(rest: &[OsString]) -> i32 {
     };
     try_migrate_legacy_shims(&bin_dir);
     let settings = trusted_shim_settings();
-    let invocation = super::ShimInvocation {
-        name,
-        bin_dir: &bin_dir,
-        target: &target,
-    };
+    let invocation = super::ShimInvocation { name, bin_dir: &bin_dir, target: &target };
     dispatch_target(&invocation, args, &settings.shims, &settings.state_dir)
 }
 
@@ -348,9 +336,7 @@ fn parse_legacy_shim_argv(rest: &[OsString]) -> Option<(&str, &Path, ShimTarget,
     if separator.to_str() != Some("--") {
         return None;
     }
-    let name = name
-        .to_str()
-        .filter(|name| is_safe_bin_name(name))?;
+    let name = name.to_str().filter(|name| is_safe_bin_name(name))?;
     let target = match target.to_str() {
         Some(target) => ShimTarget::from_legacy_marker(target)?,
         None => ShimTarget::Installed(PathBuf::from(target)),
@@ -379,20 +365,9 @@ pub(super) fn try_native_dispatch(argv: &[OsString]) -> Option<i32> {
         return Some(1);
     }
     let settings = trusted_shim_settings();
-    let invocation = super::ShimInvocation {
-        name: &name,
-        bin_dir,
-        target: &target,
-    };
-    let args = argv
-        .get(1..)
-        .unwrap_or_default();
-    Some(dispatch_target(
-        &invocation,
-        args,
-        &settings.shims,
-        &settings.state_dir,
-    ))
+    let invocation = super::ShimInvocation { name: &name, bin_dir, target: &target };
+    let args = argv.get(1..).unwrap_or_default();
+    Some(dispatch_target(&invocation, args, &settings.shims, &settings.state_dir))
 }
 
 fn executable_path(bin_dir: &Path, name: &str) -> PathBuf {
@@ -415,9 +390,7 @@ fn remove_if_exists(path: &Path) -> io::Result<()> {
 fn shim_name(file_name: &OsStr) -> Option<String> {
     let file_name = file_name.to_str()?;
     let name = file_name.get(..file_name.len().checked_sub(4)?)?;
-    file_name[name.len()..]
-        .eq_ignore_ascii_case(".exe")
-        .then(|| name.to_string())
+    file_name[name.len()..].eq_ignore_ascii_case(".exe").then(|| name.to_string())
 }
 
 #[cfg(not(windows))]

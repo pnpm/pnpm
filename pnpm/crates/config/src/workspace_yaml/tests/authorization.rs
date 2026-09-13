@@ -16,10 +16,7 @@ fn rejects_credentials_in_a_registry_declaration() {
         .expect_err("credentials in a declaration must not load")
         .to_string();
     assert!(error.contains("_authToken"), "the field is named: {error}");
-    assert!(
-        !error.contains("hunter2"),
-        "the token must not be echoed: {error}",
-    );
+    assert!(!error.contains("hunter2"), "the token must not be echoed: {error}");
 }
 
 /// A credential in the key is the same secret in the same committed file as a
@@ -37,18 +34,9 @@ fn rejects_a_registry_key_that_embeds_credentials() {
     let error = WorkspaceSettings::load_at(dir.path())
         .expect_err("a key with credentials must not load")
         .to_string();
-    assert!(
-        !error.contains("hunter2"),
-        "the password must not be echoed: {error}",
-    );
-    assert!(
-        !error.contains("ci-user-6e42"),
-        "the username must not be echoed: {error}",
-    );
-    assert!(
-        error.contains("npm.example.com"),
-        "the host is still named: {error}",
-    );
+    assert!(!error.contains("hunter2"), "the password must not be echoed: {error}");
+    assert!(!error.contains("ci-user-6e42"), "the username must not be echoed: {error}");
+    assert!(error.contains("npm.example.com"), "the host is still named: {error}");
 }
 
 /// `.npmrc` scopes settings with a scheme-less `//host/`, and this setting's
@@ -66,12 +54,6 @@ fn rejects_a_scheme_less_registry_key_that_embeds_credentials() {
     let error = WorkspaceSettings::load_at(dir.path())
         .expect_err("a scheme-less key with credentials must not load")
         .to_string();
-    assert!(
-        !error.contains("hunter2"),
-        "the password must not be echoed: {error}",
-    );
-    assert!(
-        !error.contains("ci-user-6e42"),
-        "the username must not be echoed: {error}",
-    );
+    assert!(!error.contains("hunter2"), "the password must not be echoed: {error}");
+    assert!(!error.contains("ci-user-6e42"), "the username must not be echoed: {error}");
 }

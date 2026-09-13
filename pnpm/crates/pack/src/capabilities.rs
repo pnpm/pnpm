@@ -111,9 +111,7 @@ impl FsAtomicWrite for Host {
                 .set_permissions(std::fs::Permissions::from_mode(mode))?;
         }
         tmp.as_file().sync_all()?;
-        tmp
-            .persist(dest)
-            .map_err(|error| error.error)?;
+        tmp.persist(dest).map_err(|error| error.error)?;
         Ok(())
     }
 }

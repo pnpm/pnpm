@@ -54,10 +54,7 @@ fn parses_ini_quoted_values() {
     ] {
         let ini = format!("//reg.com/:_authToken={quoted}\n");
         let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
-        assert_eq!(
-            default_auth_token(&auth, "//reg.com/"),
-            Some(Some(expected)),
-        );
+        assert_eq!(default_auth_token(&auth, "//reg.com/"), Some(Some(expected)));
     }
 }
 
@@ -68,10 +65,7 @@ fn project_ini_keeps_literal_dollar_brace_fragments() {
         Path::new(""),
     );
 
-    assert_eq!(
-        default_auth_token(&auth, "//attacker.example/"),
-        Some(Some("literal${token")),
-    );
+    assert_eq!(default_auth_token(&auth, "//attacker.example/"), Some(Some("literal${token")));
     assert_eq!(auth.warnings, Vec::<String>::new());
 }
 
@@ -137,10 +131,7 @@ fn invalid_base64_password_falls_back_to_raw_value() {
 /// `decodeBase64Credential` answers for the same value.
 #[test]
 fn base64_decode_matches_atob() {
-    assert_eq!(
-        base64_decode(&base64_encode("alice:hunter2")).as_deref(),
-        Some("alice:hunter2"),
-    );
+    assert_eq!(base64_decode(&base64_encode("alice:hunter2")).as_deref(), Some("alice:hunter2"));
     assert_eq!(base64_decode("Pz8/").as_deref(), Some("???"));
     assert_eq!(base64_decode("fn5+").as_deref(), Some("~~~"));
     assert_eq!(base64_decode("aGk=").as_deref(), Some("hi"));
@@ -171,29 +162,20 @@ fn base64_decode_matches_atob() {
 fn parses_https_proxy_from_ini() {
     let auth =
         NpmrcAuth::from_ini::<NoEnv>("https-proxy=http://proxy.example:8080\n", Path::new(""));
-    assert_eq!(
-        auth.proxy.https.as_deref(),
-        Some("http://proxy.example:8080"),
-    );
+    assert_eq!(auth.proxy.https.as_deref(), Some("http://proxy.example:8080"));
 }
 
 #[test]
 fn parses_http_proxy_from_ini() {
     let auth =
         NpmrcAuth::from_ini::<NoEnv>("http-proxy=http://proxy.example:3128\n", Path::new(""));
-    assert_eq!(
-        auth.proxy.http.as_deref(),
-        Some("http://proxy.example:3128"),
-    );
+    assert_eq!(auth.proxy.http.as_deref(), Some("http://proxy.example:3128"));
 }
 
 #[test]
 fn parses_legacy_proxy_key_from_ini() {
     let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=http://legacy.example:8080\n", Path::new(""));
-    assert_eq!(
-        auth.proxy.legacy.as_deref(),
-        Some("http://legacy.example:8080"),
-    );
+    assert_eq!(auth.proxy.legacy.as_deref(), Some("http://legacy.example:8080"));
     assert_eq!(auth.proxy.https, None, "legacy `proxy` is its own slot");
 }
 
@@ -217,10 +199,7 @@ fn cascade_https_proxy_uses_legacy_proxy_when_unset() {
     let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=http://legacy.example:8080\n", Path::new(""));
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
-    assert_eq!(
-        config.proxy.https_proxy.as_deref(),
-        Some("http://legacy.example:8080"),
-    );
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://legacy.example:8080"));
 }
 
 #[test]
@@ -231,29 +210,20 @@ fn cascade_explicit_https_proxy_wins_over_legacy_key() {
     );
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
-    assert_eq!(
-        config.proxy.https_proxy.as_deref(),
-        Some("http://https.example:8080"),
-    );
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://https.example:8080"));
 }
 
 #[test]
 fn cascade_http_proxy_uses_resolved_https_proxy() {
     static_env!(
         EnvHttpButOverridden,
-        &[
-            ("HTTP_PROXY", "http://env.example:80"),
-            ("PROXY", "http://envproxy.example:80")
-        ]
+        &[("HTTP_PROXY", "http://env.example:80"), ("PROXY", "http://envproxy.example:80")]
     );
     let auth =
         NpmrcAuth::from_ini::<NoEnv>("https-proxy=http://https.example:8080\n", Path::new(""));
     let mut config = Config::new();
     auth.apply_to::<EnvHttpButOverridden>(&mut config);
-    assert_eq!(
-        config.proxy.http_proxy.as_deref(),
-        Some("http://https.example:8080"),
-    );
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://https.example:8080"));
 }
 
 #[test]
@@ -272,10 +242,7 @@ fn cascade_no_proxy_comma_list_trimmed() {
     auth.apply_to::<NoEnv>(&mut config);
     assert_eq!(
         config.proxy.no_proxy,
-        Some(NoProxySetting::List(vec![
-            "foo.example".to_string(),
-            "bar.example".to_string()
-        ])),
+        Some(NoProxySetting::List(vec!["foo.example".to_string(), "bar.example".to_string()])),
     );
 }
 
@@ -304,29 +271,17 @@ fn cascade_https_proxy_key_wins_over_a_disabling_legacy_proxy() {
     );
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
-    assert_eq!(
-        config.proxy.https_proxy.as_deref(),
-        Some("http://https.example:8080"),
-    );
-    assert_eq!(
-        config.proxy.http_proxy.as_deref(),
-        Some("http://https.example:8080"),
-    );
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://https.example:8080"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://https.example:8080"));
 }
 
 #[test]
 fn cascade_empty_legacy_proxy_key_falls_through_to_env() {
-    static_env!(
-        HttpsEnv,
-        &[("HTTPS_PROXY", "http://https-env.example:8080")]
-    );
+    static_env!(HttpsEnv, &[("HTTPS_PROXY", "http://https-env.example:8080")]);
     let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=\n", Path::new(""));
     let mut config = Config::new();
     auth.apply_to::<HttpsEnv>(&mut config);
-    assert_eq!(
-        config.proxy.https_proxy.as_deref(),
-        Some("http://https-env.example:8080"),
-    );
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://https-env.example:8080"));
 }
 
 #[test]
@@ -337,10 +292,7 @@ fn cascade_empty_https_proxy_key_falls_through_to_legacy_proxy_key() {
     );
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
-    assert_eq!(
-        config.proxy.https_proxy.as_deref(),
-        Some("http://legacy.example:8080"),
-    );
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://legacy.example:8080"));
 }
 
 #[test]
@@ -355,13 +307,11 @@ fn parses_inline_ca_from_ini() {
 #[test]
 fn parses_strict_ssl_true_and_false() {
     assert_eq!(
-        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=true\n", Path::new("")).tls
-            .strict_ssl,
+        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=true\n", Path::new("")).tls.strict_ssl,
         Some(true),
     );
     assert_eq!(
-        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\n", Path::new("")).tls
-            .strict_ssl,
+        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\n", Path::new("")).tls.strict_ssl,
         Some(false),
     );
 }
@@ -399,10 +349,7 @@ fn applies_local_address_parsed_as_ipaddr() {
     };
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
-    assert_eq!(
-        config.tls.local_address,
-        Some(Ipv4Addr::new(192, 168, 1, 42).into()),
-    );
+    assert_eq!(config.tls.local_address, Some(Ipv4Addr::new(192, 168, 1, 42).into()));
 }
 
 #[test]
@@ -430,12 +377,7 @@ fn ca_with_an_unresolved_placeholder_still_builds_a_client() {
     let auth = NpmrcAuth::from_ini::<NoEnv>("ca=${CORP_CA}\n", Path::new(""));
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
-    assert_eq!(
-        config.tls.ca,
-        vec![String::new()],
-        "tls.ca={:?}",
-        config.tls.ca,
-    );
+    assert_eq!(config.tls.ca, vec![String::new()], "tls.ca={:?}", config.tls.ca);
     pnpm_network::ThrottledClient::for_installs(
         &config.proxy,
         &config.tls,
@@ -455,12 +397,6 @@ fn parses_scoped_inline_ca() {
     );
     let entry = auth.tls.by_uri.get("//reg.example.com/").expect("entry present");
     let ca = entry.ca.as_deref().expect("ca set");
-    assert!(
-        ca.contains('\n'),
-        r"expected `\n` → newline expansion: {ca:?}",
-    );
-    assert!(
-        ca.contains("BEGIN CERTIFICATE"),
-        "expected PEM header: {ca:?}",
-    );
+    assert!(ca.contains('\n'), r"expected `\n` → newline expansion: {ca:?}");
+    assert!(ca.contains("BEGIN CERTIFICATE"), "expected PEM header: {ca:?}");
 }

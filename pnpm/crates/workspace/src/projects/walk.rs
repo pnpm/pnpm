@@ -127,10 +127,7 @@ fn workspace_walk_error(
     workspace_root: &Path,
     source: std::io::Error,
 ) -> FindWorkspaceProjectsError {
-    FindWorkspaceProjectsError::Walk {
-        root: workspace_root.to_path_buf(),
-        source,
-    }
+    FindWorkspaceProjectsError::Walk { root: workspace_root.to_path_buf(), source }
 }
 
 fn is_ignored_manifest(
@@ -190,10 +187,7 @@ pub(super) fn split_parent_prefix<'root, 'pattern>(
 /// ignore.
 pub(super) fn positional_dot_ignores(pattern: &str) -> Option<Vec<String>> {
     let segments: Vec<&str> = pattern.split('/').collect();
-    if !segments
-        .iter()
-        .any(|segment| names_a_dot_component(segment))
-    {
+    if !segments.iter().any(|segment| names_a_dot_component(segment)) {
         return None;
     }
     let ignores = segments

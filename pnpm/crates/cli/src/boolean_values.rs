@@ -47,9 +47,7 @@ use std::{
 pub fn resolve_boolean_values(mut argv: Vec<OsString>) -> Vec<OsString> {
     let flags = boolean_flags();
     let arity = union_arity();
-    let owned_by_pnpm = passthrough_from(&argv)
-        .unwrap_or(argv.len())
-        .min(argv.len());
+    let owned_by_pnpm = passthrough_from(&argv).unwrap_or(argv.len()).min(argv.len());
 
     let mut index = 1;
     while index < owned_by_pnpm {
@@ -93,18 +91,12 @@ impl BooleanFlags {
     /// report.
     fn spelling_for(&self, name: &str, value: &str) -> Option<OsString> {
         let opposite = self.opposites.get(name)?;
-        let long = if parse_bool(value)? {
-            name
-        } else {
-            opposite.as_deref()?
-        };
+        let long = if parse_bool(value)? { name } else { opposite.as_deref()? };
         Some(OsString::from(format!("--{long}")))
     }
 
     fn collect(command: &Command) -> Self {
-        let mut flags = Self {
-            opposites: HashMap::new(),
-        };
+        let mut flags = Self { opposites: HashMap::new() };
         let mut value_taking = HashSet::new();
         flags.absorb(command, &mut value_taking);
         // A name some command spells as a value-taking option is left
@@ -151,22 +143,16 @@ impl BooleanFlags {
         let opposite = match long.strip_prefix("no-") {
             // A negation pairs with the flag it negates, when the
             // command declares one.
-            Some(positive) => longs
-                .contains(positive)
-                .then(|| positive.to_string()),
+            Some(positive) => longs.contains(positive).then(|| positive.to_string()),
             // Every other boolean flag is paired by
             // [`crate::boolean_negations`].
             None => Some(negation_of(long)),
         };
         for spelling in spellings(arg) {
-            self.opposites
-                .entry(spelling.to_string())
-                .or_insert_with(|| opposite.clone());
+            self.opposites.entry(spelling.to_string()).or_insert_with(|| opposite.clone());
         }
         if let Some(opposite) = opposite {
-            self.opposites
-                .entry(opposite)
-                .or_insert_with(|| Some(long.to_string()));
+            self.opposites.entry(opposite).or_insert_with(|| Some(long.to_string()));
         }
     }
 }

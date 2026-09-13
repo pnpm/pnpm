@@ -96,28 +96,19 @@ pub enum InstallPackageBySnapshotError {
         code(ERR_PNPM_MISSING_NAMED_REGISTRY),
         help("Add a registries entry with \"prefix: {registry_name}\" to pnpm-workspace.yaml.")
     )]
-    MissingNamedRegistry {
-        package_key: String,
-        registry_name: String,
-    },
+    MissingNamedRegistry { package_key: String, registry_name: String },
 
     #[display(
         "Cannot install package \"{package_key}\": its lockfile entry with a revision {reason}."
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_TARBALL_REVISION))]
-    InvalidTarballRevision {
-        package_key: String,
-        reason: &'static str,
-    },
+    InvalidTarballRevision { package_key: String, reason: &'static str },
 
     #[display(
         "Package `{package_key}` uses a `{resolution_kind}` resolution, which pnpm does not yet support."
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNSUPPORTED_RESOLUTION))]
-    UnsupportedResolution {
-        package_key: String,
-        resolution_kind: &'static str,
-    },
+    UnsupportedResolution { package_key: String, resolution_kind: &'static str },
 
     /// Failure from either git fetcher: the git-CLI path for
     /// `type: git` resolutions (clone / checkout / preparePackage /
@@ -190,10 +181,7 @@ pub enum InstallPackageBySnapshotError {
         "Package `{package_key}` carries a runtime variant whose inner resolution is `{inner_kind}` rather than `binary`; pnpm only knows how to install binary-shaped variants."
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_VARIANT_HAS_NON_BINARY_RESOLUTION))]
-    VariantHasNonBinaryResolution {
-        package_key: String,
-        inner_kind: &'static str,
-    },
+    VariantHasNonBinaryResolution { package_key: String, inner_kind: &'static str },
 
     /// Serializing the synthesized runtime `package.json` failed.
     /// The manifest is a small fixed-shape JSON object (`name`,

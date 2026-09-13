@@ -44,9 +44,7 @@ pub(super) fn reconcile_catalog_rewrites<Reporter: self::Reporter>(
         }
     }
     *rewrites = reconciled;
-    Ok(ctx.workspace_dir_opt
-        .clone()
-        .or_else(|| Some(ctx.manifest_dir.clone())))
+    Ok(ctx.workspace_dir_opt.clone().or_else(|| Some(ctx.manifest_dir.clone())))
 }
 /// The specifier one rewrite records in the manifest, or `None` when the
 /// catalog mode moved it into a catalog instead.
@@ -68,11 +66,8 @@ pub(super) fn reconcile_rewrite<Reporter: self::Reporter>(
     if config.catalog_mode == CatalogMode::Manual {
         return Ok(Some(specifier.to_string()));
     }
-    let dependency = CatalogModeDep {
-        alias: name,
-        bare_specifier: specifier,
-        prev_specifier: previous,
-    };
+    let dependency =
+        CatalogModeDep { alias: name, bare_specifier: specifier, prev_specifier: previous };
     let decision = decide_catalog::<Reporter>(
         config.catalog_mode,
         None,
@@ -96,9 +91,7 @@ pub(super) fn reconcile_rewrite<Reporter: self::Reporter>(
 }
 pub(super) fn merge_catalogs(target: &mut Catalogs, updates: &Catalogs) {
     for (catalog_name, entries) in updates {
-        let catalog = target
-            .entry(catalog_name.clone())
-            .or_default();
+        let catalog = target.entry(catalog_name.clone()).or_default();
         for (dependency, specifier) in entries {
             catalog.insert(dependency.clone(), specifier.clone());
         }
@@ -180,12 +173,7 @@ pub(super) fn read_catalog_ctx(
         .unwrap_or(&manifest_dir)
         .to_string_lossy()
         .into_owned();
-    Ok(CatalogCtx {
-        catalogs,
-        workspace_dir_opt,
-        manifest_dir,
-        prefix,
-    })
+    Ok(CatalogCtx { catalogs, workspace_dir_opt, manifest_dir, prefix })
 }
 pub(super) fn read_catalog_ctx_with_catalogs(
     manifest: &PackageManifest,
@@ -203,10 +191,5 @@ pub(super) fn read_catalog_ctx_with_catalogs(
         .unwrap_or(&manifest_dir)
         .to_string_lossy()
         .into_owned();
-    Ok(CatalogCtx {
-        catalogs,
-        workspace_dir_opt,
-        manifest_dir,
-        prefix,
-    })
+    Ok(CatalogCtx { catalogs, workspace_dir_opt, manifest_dir, prefix })
 }

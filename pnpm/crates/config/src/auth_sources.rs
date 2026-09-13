@@ -102,9 +102,7 @@ fn env_json_auth_source<Sys: EnvVar>(
     let json_auth = global_settings
         .and_then(|settings| settings.auth.as_ref())
         .pipe(NpmrcAuth::from_json_sources::<Sys>)
-        .map_err(|source| LoadWorkspaceYamlError::InvalidJsonAuth {
-            source,
-        })?;
+        .map_err(|source| LoadWorkspaceYamlError::InvalidJsonAuth { source })?;
     let json_auth_has_content = !json_auth.creds_by_scope_by_uri.is_empty()
         || !json_auth.routes.json_env.is_empty();
     Ok(json_auth_has_content.then_some(json_auth))
@@ -175,9 +173,8 @@ impl Config {
         // parsed and rescoped independently before being folded together.
         // The rescope warning names the file it read, so each source
         // labels itself with the path it was actually loaded from.
-        let project_npmrc_dir = workspace_yaml
-            .as_ref()
-            .map_or(start_dir, |(base_dir, _)| base_dir.as_path());
+        let project_npmrc_dir =
+            workspace_yaml.as_ref().map_or(start_dir, |(base_dir, _)| base_dir.as_path());
         let project_source =
             project_auth_source::<Sys>(project_npmrc_dir, user_npmrc_path.as_deref());
         let auth_ini_source = auth_ini_source::<Sys>(global_config_dir);
@@ -219,10 +216,7 @@ impl Config {
         // trusted-only merge before either is consumed below.
         crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth)?;
 
-        Ok(AuthSources {
-            npmrc_auth,
-            trusted_auth,
-        })
+        Ok(AuthSources { npmrc_auth, trusted_auth })
     }
 
     /// Resolve the user-level `.npmrc` path. Precedence: the

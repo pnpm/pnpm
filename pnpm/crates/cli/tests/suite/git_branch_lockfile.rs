@@ -89,14 +89,8 @@ fn a_branch_without_a_lockfile_starts_from_the_shared_one() {
 
     let branch_lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.other.yaml")).expect("read branch lockfile");
-    assert!(
-        branch_lockfile.contains("@pnpm.e2e/foo@1.0.0"),
-        "{branch_lockfile}",
-    );
-    assert!(
-        branch_lockfile.contains("@pnpm.e2e/bar@100.0.0"),
-        "{branch_lockfile}",
-    );
+    assert!(branch_lockfile.contains("@pnpm.e2e/foo@1.0.0"), "{branch_lockfile}");
+    assert!(branch_lockfile.contains("@pnpm.e2e/bar@100.0.0"), "{branch_lockfile}");
     assert_eq!(
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("re-read pnpm-lock.yaml"),
         shared,
@@ -320,18 +314,11 @@ fn merging_drops_a_dependency_the_manifest_no_longer_declares() {
         .success();
 
     pacquet_in(&workspace)
-        .with_args([
-            "install",
-            "--merge-git-branch-lockfiles",
-            "--frozen-lockfile",
-        ])
+        .with_args(["install", "--merge-git-branch-lockfiles", "--frozen-lockfile"])
         .assert()
         .success();
 
-    assert!(
-        !branch_lockfile.exists(),
-        "the merged branch lockfile is deleted",
-    );
+    assert!(!branch_lockfile.exists(), "the merged branch lockfile is deleted");
     let shared = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
     assert!(!shared.contains("@pnpm.e2e/qar"), "{shared}");
     assert!(
@@ -377,11 +364,7 @@ fn merging_with_nothing_to_merge_still_rejects_an_outdated_lockfile() {
         }
 
         let assert = pacquet_in(&workspace)
-            .with_args([
-                "install",
-                "--merge-git-branch-lockfiles",
-                "--frozen-lockfile",
-            ])
+            .with_args(["install", "--merge-git-branch-lockfiles", "--frozen-lockfile"])
             .assert()
             .failure();
         let stderr = String::from_utf8_lossy(&assert.get_output().stderr);

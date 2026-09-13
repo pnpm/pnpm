@@ -53,11 +53,8 @@ pub async fn compose_registry_changelog(
     let Some(section) = read_pending_changelog(workspace_dir, &name, &version)? else {
         return Ok(None);
     };
-    let previous = fetch_changelog(config, &published, VersionPick::PreviousTo(&version))
-        .await;
-    Ok(Some(
-        render_changelog(previous.as_deref(), &published, &section).into_bytes(),
-    ))
+    let previous = fetch_changelog(config, &published, VersionPick::PreviousTo(&version)).await;
+    Ok(Some(render_changelog(previous.as_deref(), &published, &section).into_bytes()))
 }
 
 /// The set of `package@version` keys the registry confirms are published with
@@ -82,11 +79,8 @@ pub async fn confirmed_published_versions(
             let section = read_pending_changelog(workspace_dir, &name, &version).ok()??;
             // The parked file is keyed by the manifest name, which is what the
             // ledger joins on; the registry only knows the published one.
-            let probe = published_names
-                .get(&name)
-                .map_or(name.as_str(), String::as_str);
-            let changelog = fetch_changelog(config, probe, VersionPick::Exact(&version))
-                .await?;
+            let probe = published_names.get(&name).map_or(name.as_str(), String::as_str);
+            let changelog = fetch_changelog(config, probe, VersionPick::Exact(&version)).await?;
             changelog
                 .contains(section.trim())
                 .then(|| format!("{name}@{version}"))
@@ -104,10 +98,9 @@ pub fn published_names(projects: &[pnpm_workspace::Project]) -> HashMap<String, 
     let mut renames = HashMap::new();
     for project in projects {
         let manifest = project.manifest.value();
-        let (Some(name), Some(published)) = (
-            manifest.get("name").and_then(serde_json::Value::as_str),
-            published_name(manifest),
-        ) else {
+        let (Some(name), Some(published)) =
+            (manifest.get("name").and_then(serde_json::Value::as_str), published_name(manifest))
+        else {
             continue;
         };
         if published != name {
@@ -140,13 +133,11 @@ pub async fn unpublished_release_dirs(
         .iter()
         .map(|release| {
             let client = &client;
-            let probe = published_names
-                .get(&release.name)
-                .map_or(release.name.as_str(), String::as_str);
+            let probe =
+                published_names.get(&release.name).map_or(release.name.as_str(), String::as_str);
             async move {
                 let published =
-                    is_version_published(client, config, probe, &release.version.current)
-                        .await?;
+                    is_version_published(client, config, probe, &release.version.current).await?;
                 Ok::<_, miette::Report>((release.dir.clone(), published))
             }
         });
@@ -208,9 +199,9 @@ async fn fetch_changelog(config: &Config, name: &str, pick: VersionPick<'_>) -> 
         .await
         .ok()?;
     let version = match pick {
-        VersionPick::Exact(version) => package.versions
-            .contains_key(version)
-            .then(|| version.to_string())?,
+        VersionPick::Exact(version) => {
+            package.versions.contains_key(version).then(|| version.to_string())?
+        }
         VersionPick::PreviousTo(version) => previous_version(&package, version)?,
     };
     let tarball_url = package.versions
@@ -264,11 +255,7 @@ fn registry_for(config: &Config, name: &str) -> String {
         .into_iter()
         .collect();
     let registry = pick_registry_for_package(&registries, name, None);
-    if registry.ends_with('/') {
-        registry
-    } else {
-        format!("{registry}/")
-    }
+    if registry.ends_with('/') { registry } else { format!("{registry}/") }
 }
 
 /// Reads one entry's contents out of a gzipped tarball buffer. Decompression is
@@ -278,12 +265,7 @@ fn extract_entry(gzipped_tarball: &[u8], entry_name: &str) -> Option<String> {
     let mut archive = Archive::new(GzDecoder::new(gzipped_tarball).take(MAX_TARBALL_BYTES));
     for entry in archive.entries().ok()? {
         let mut entry = entry.ok()?;
-        if entry
-            .path()
-            .ok()?
-            .to_str()
-            == Some(entry_name)
-        {
+        if entry.path().ok()?.to_str() == Some(entry_name) {
             let mut contents = String::new();
             entry.read_to_string(&mut contents).ok()?;
             return Some(contents);
@@ -301,10 +283,7 @@ fn read_name_version(project_dir: &Path) -> Option<(String, String, String)> {
     let manifest =
         pnpm_package_manifest::PackageManifest::from_path(project_dir.join("package.json")).ok()?;
     let value = manifest.value();
-    let name = value
-        .get("name")?
-        .as_str()?
-        .to_string();
+    let name = value.get("name")?.as_str()?.to_string();
     let published = published_name(value).map_or_else(|| name.clone(), ToString::to_string);
     let version = value
         .get("version")?

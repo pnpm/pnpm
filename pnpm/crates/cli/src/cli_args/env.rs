@@ -38,10 +38,7 @@ const DEPRECATION_WARNING: &str =
 #[non_exhaustive]
 pub enum EnvError {
     #[display("Please specify the subcommand")]
-    #[diagnostic(
-        code(ERR_PNPM_ENV_NO_SUBCOMMAND),
-        help("Supported subcommands are: use, list")
-    )]
+    #[diagnostic(code(ERR_PNPM_ENV_NO_SUBCOMMAND), help("Supported subcommands are: use, list"))]
     NoSubcommand,
 
     #[display("This subcommand is not known")]
@@ -106,9 +103,7 @@ impl EnvArgs {
                     .map(|version| version.trim())
                     .filter(|version| !version.is_empty())
                     .ok_or(EnvError::MissingNodeVersion)?;
-                Ok(EnvSubcommand::Use {
-                    package_name: format!("node@runtime:{version}"),
-                })
+                Ok(EnvSubcommand::Use { package_name: format!("node@runtime:{version}") })
             }
             "list" | "ls" => Ok(EnvSubcommand::List {
                 version_spec: self.params
@@ -150,10 +145,8 @@ impl EnvArgs {
     pub async fn run_list(version_spec: Option<String>, config: &Config) -> miette::Result<String> {
         let specifier = parse_node_specifier(version_spec.as_deref().unwrap_or_default())
             .map_err(miette::Report::new)?;
-        let mirror = get_node_mirror(
-            Some(&config.node_download_mirrors),
-            &specifier.release_channel,
-        );
+        let mirror =
+            get_node_mirror(Some(&config.node_download_mirrors), &specifier.release_channel);
         let http_client = build_registry_client(config)?;
         let mut versions = resolve_node_versions_with_auth(
             &http_client,

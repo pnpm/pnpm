@@ -1,11 +1,10 @@
-pub(super) use completion::collect_resolution;
-
 pub(super) use early_materializer::{
     FastOverrideFit, fast_override_eligible, interactive_policy, start_early_materialization,
 };
 
 mod completion;
 mod early_materializer;
+use completion::collect_resolution;
 
 use super::{
     FreshInputs, OwnedInputs, PatchUsageScope, check_patch_usage,
@@ -83,10 +82,7 @@ pub(super) struct ManifestSlots<'a> {
 pub(super) type ManifestsView<'m> = std::borrow::Cow<'m, BTreeMap<String, &'m PackageManifest>>;
 impl<'a> ManifestSlots<'a> {
     pub(super) fn declared(declared: BTreeMap<String, &'a PackageManifest>) -> Self {
-        Self {
-            declared,
-            effective: BTreeMap::new(),
-        }
+        Self { declared, effective: BTreeMap::new() }
     }
 
     /// Build the read-package hook chain and rewrite every importer's
@@ -133,27 +129,15 @@ pub(super) async fn resolve_graph<'a: 'm, 'm, Reporter: self::Reporter + 'static
     manifests: &'m mut ManifestSlots<'a>,
 ) -> Result<Resolved<'m, Reporter>, InstallWithFreshLockfileError> {
     let registries = std::mem::take(&mut setup.registries);
-    let prep = prepare_resolution::<Reporter>(install, owned, setup, manifests)
-        .await?;
+    let prep = prepare_resolution::<Reporter>(install, owned, setup, manifests).await?;
     let importer_manifests = manifests.view();
     let pass = run_prepared_resolve(
-        ResolutionContext {
-            install,
-            owned,
-            setup,
-            prep: &prep,
-            registries,
-        },
+        ResolutionContext { install, owned, setup, prep: &prep, registries },
         importer_manifests,
     )
     .await?;
-    collect_resolution::<Reporter>(
-        install,
-        owned.resolution.peer_issues_sink.as_ref(),
-        prep,
-        pass,
-    )
-    .await
+    collect_resolution::<Reporter>(install, owned.resolution.peer_issues_sink.as_ref(), prep, pass)
+        .await
 }
 pub(super) struct ResolutionContext<'a, Reporter> {
     install: FreshInputs<'a>,
@@ -213,8 +197,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
                 has_pnpmfile_hook: self.prep.hooks.pnpmfile_hook.is_some(),
                 has_custom_resolvers: !self.setup.chain.custom_resolvers.is_empty(),
                 has_patches: self.prep.patches.record.is_some(),
-                can_fast_update_overrides: self.setup.observer
-                    .can_fast_update_overrides,
+                can_fast_update_overrides: self.setup.observer.can_fast_update_overrides,
             }),
             npm_resolver: &*self.setup.chain.npm_resolver,
             resolve_options: &shared_resolve_options.build(
@@ -332,8 +315,8 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
             context.owned.resolution.preferred_versions_override.as_ref(),
         );
     let shared_resolve_options = context.shared_options();
-    let lockfile_reuse_seed = context.reuse_seed(&shared_resolve_options, &preferred_versions_seed)
-        .await;
+    let lockfile_reuse_seed =
+        context.reuse_seed(&shared_resolve_options, &preferred_versions_seed).await;
     let phase_start = std::time::Instant::now();
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,
@@ -361,7 +344,6 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
     ))
 }
 
-/// A finished resolve pass, with what the phase around it decided.
 pub(super) struct ResolvePass<'m> {
     result: pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
     full_resolution: bool,
@@ -369,14 +351,4 @@ pub(super) struct ResolvePass<'m> {
     /// Importers whose linked packages consume peers.
     linked_peer_importers: HashSet<String>,
     importer_manifests: ManifestsView<'m>,
-}
-
-impl From<manifest_transforms::ManifestTransforms> for ResolvedOverrides {
-    fn from(transforms: manifest_transforms::ManifestTransforms) -> Self {
-        Self {
-            parsed_overrides: transforms.parsed_overrides,
-            overrides: transforms.resolved_overrides,
-            versions_overrider: transforms.versions_overrider,
-        }
-    }
 }

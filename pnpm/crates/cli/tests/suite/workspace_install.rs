@@ -49,17 +49,11 @@ fn two_project_workspace(
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
     fs::create_dir(fixture.workspace.join("pkg-a")).expect("mkdir pkg-a");
-    fs::write(
-        fixture.workspace.join("pkg-a/package.json"),
-        pkg_a.to_string(),
-    )
-    .expect("write pkg-a/package.json");
+    fs::write(fixture.workspace.join("pkg-a/package.json"), pkg_a.to_string())
+        .expect("write pkg-a/package.json");
     fs::create_dir(fixture.workspace.join("pkg-b")).expect("mkdir pkg-b");
-    fs::write(
-        fixture.workspace.join("pkg-b/package.json"),
-        pkg_b.to_string(),
-    )
-    .expect("write pkg-b/package.json");
+    fs::write(fixture.workspace.join("pkg-b/package.json"), pkg_b.to_string())
+        .expect("write pkg-b/package.json");
     fixture
 }
 
@@ -109,11 +103,7 @@ fn assert_workspace_links_above_root_resolve(workspace_depth: &str, node_linker:
     for (dir, name) in [("b", "b"), ("c", "@scope/c")] {
         write_project_manifest(&libs.join(dir), name, ManifestDeps::default());
     }
-    let pattern = if workspace_depth == "app" {
-        "../libs/*"
-    } else {
-        "../../libs/*"
-    };
+    let pattern = if workspace_depth == "app" { "../libs/*" } else { "../../libs/*" };
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!(
@@ -123,11 +113,8 @@ fn assert_workspace_links_above_root_resolve(workspace_depth: &str, node_linker:
     )
     .unwrap();
 
-    for args in [
-        vec!["install"],
-        vec!["install", "--frozen-lockfile"],
-        vec!["install", "--force"],
-    ] {
+    for args in [vec!["install"], vec!["install", "--frozen-lockfile"], vec!["install", "--force"]]
+    {
         pacquet_in(&workspace)
             .with_args(args)
             .assert()
@@ -163,18 +150,13 @@ fn normalized_workspace_patterns_select_install_list_and_script_projects() {
             "scripts": { "probe": "node probe.cjs" },
         })
     };
-    let fixture = two_project_workspace(
-        &manifest("pkg-a", "is-positive"),
-        &manifest("pkg-b", "is-negative"),
-    );
+    let fixture =
+        two_project_workspace(&manifest("pkg-a", "is-positive"), &manifest("pkg-b", "is-negative"));
     let workspace = &fixture.workspace;
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&yaml_path)
         .unwrap()
-        .replace(
-            "  - 'pkg-a'\n  - 'pkg-b'\n",
-            "  - './missing/../*'\n  - '!./pkg-b'\n",
-        );
+        .replace("  - 'pkg-a'\n  - 'pkg-b'\n", "  - './missing/../*'\n  - '!./pkg-b'\n");
     fs::write(yaml_path, yaml).unwrap();
     for name in ["pkg-a", "pkg-b"] {
         fs::write(
@@ -361,10 +343,7 @@ fn fresh_resolve_walks_every_workspace_importer() {
         .expect("run install");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        output.status.success(),
-        "install failed\nstdout:\n{stdout}\nstderr:\n{stderr}",
-    );
+    assert!(output.status.success(), "install failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
     assert!(
         !stdout.contains("\n+ @pnpm.e2e/hello-world-js-bin-parent")
             && !stdout.contains("\n+ @pnpm.e2e/hello-world-js-bin"),
@@ -505,11 +484,7 @@ fn optional_peer_stays_out_of_the_importer_without_auto_install_peers() {
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
     let pkg_a = importer(&lockfile, "pkg-a");
     let peer_c: PkgName = "@pnpm.e2e/peer-c".parse().expect("parse peer name");
-    for group in [
-        &pkg_a.dependencies,
-        &pkg_a.dev_dependencies,
-        &pkg_a.optional_dependencies,
-    ] {
+    for group in [&pkg_a.dependencies, &pkg_a.dev_dependencies, &pkg_a.optional_dependencies] {
         assert!(
             !group
                 .as_ref()
@@ -578,10 +553,7 @@ fn no_peer_is_hoisted_when_auto_install_peers_and_dedupe_peer_dependents_are_off
         .success();
 
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
-    assert_eq!(
-        importer_version(&lockfile, "pkg-a", "@pnpm.e2e/abc-optional-peers"),
-        "1.0.0",
-    );
+    assert_eq!(importer_version(&lockfile, "pkg-a", "@pnpm.e2e/abc-optional-peers"), "1.0.0");
     assert!(
         matches!(
             fs::symlink_metadata(workspace.join("pkg-a/node_modules/@pnpm.e2e/peer-c")),
@@ -679,10 +651,7 @@ fn shared_workspace_dep_link_is_relative_to_each_importer() {
     let root_link = importer_link(".");
     let app_link = importer_link("packages/app");
     eprintln!("root_link={root_link:?} app_link={app_link:?}");
-    assert_eq!(
-        root_link, "link:packages/lib",
-        "root importer link must be relative to root",
-    );
+    assert_eq!(root_link, "link:packages/lib", "root importer link must be relative to root");
     assert_eq!(
         app_link, "link:../lib",
         "packages/app link must be relative to packages/app, not reused from the root importer",
@@ -826,10 +795,7 @@ fn workspace_specs_do_not_resolve_a_non_string_version_as_zero() {
         .output()
         .expect("run install with malformed workspace version");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !output.status.success(),
-        "malformed workspace version unexpectedly resolved",
-    );
+    assert!(!output.status.success(), "malformed workspace version unexpectedly resolved");
     // miette wraps error output at terminal width (where the wrap point depends
     // on the temp dir path length), so flatten the decorated lines before
     // matching the message text.
@@ -895,10 +861,7 @@ fn install_does_not_scaffold_a_root_manifest_in_a_workspace() {
 /// shell shims — pnpm's `deps-installer` "prefer-symlinked-executables"
 /// install coverage.
 #[test]
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "preferSymlinkedExecutables is inert on Windows"
-)]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
 fn prefer_symlinked_executables_symlinks_workspace_bins() {
     use _utils::{ManifestDeps, WorkspaceFixture, read_manifest, write_manifest_value};
     let fixture = WorkspaceFixture::new();
@@ -906,20 +869,14 @@ fn prefer_symlinked_executables_symlinks_workspace_bins() {
     let consumer = fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            prod: &[("project-2", "workspace:*")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[("project-2", "workspace:*")], ..Default::default() },
     );
     let provider = fixture.project("project-2", "project-2", ManifestDeps::default());
     let mut provider_manifest = read_manifest(&provider);
     provider_manifest["bin"] = serde_json::json!({ "project-2": "index.js" });
     write_manifest_value(&provider, &provider_manifest);
-    fs::write(
-        provider.join("index.js"),
-        "#!/usr/bin/env node\nconsole.log('hello')\n",
-    )
-    .expect("write project bin");
+    fs::write(provider.join("index.js"), "#!/usr/bin/env node\nconsole.log('hello')\n")
+        .expect("write project bin");
 
     fixture.run(["install"]);
 

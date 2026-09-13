@@ -22,14 +22,7 @@ fn node_gyp_comes_after_node_modules_dot_bin() {
     let wd = Path::new("/Users/x/project");
     let node_gyp = PathBuf::from("/lib/node-gyp-bin");
     let extra: Vec<PathBuf> = vec![];
-    let path = extend_path(
-        wd,
-        None,
-        Some(&node_gyp),
-        &extra,
-        ScriptsPrependNodePath::Never,
-        None,
-    );
+    let path = extend_path(wd, None, Some(&node_gyp), &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
     let bin_idx = parts
         .iter()
@@ -59,16 +52,8 @@ fn no_ancestors_when_wd_has_no_node_modules_segment() {
     let extra: Vec<PathBuf> = vec![];
     let path = extend_path(wd, None, None, &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
-    assert_eq!(
-        parts.len(),
-        1,
-        "expected exactly one .bin entry, got {parts:?}",
-    );
-    assert!(
-        parts[0].ends_with(".bin"),
-        "must be a .bin path: {:?}",
-        parts[0],
-    );
+    assert_eq!(parts.len(), 1, "expected exactly one .bin entry, got {parts:?}");
+    assert!(parts[0].ends_with(".bin"), "must be a .bin path: {:?}", parts[0]);
 }
 
 /// Unix-only because `path::absolute("/proj")` on Windows resolves
@@ -111,10 +96,7 @@ fn virtual_store_walk_orders_deepest_first() {
     for window in parts.windows(2) {
         let deeper = &window[0];
         let shallower = &window[1];
-        assert!(
-            deeper.len() > shallower.len(),
-            "{deeper:?} must be deeper than {shallower:?}",
-        );
+        assert!(deeper.len() > shallower.len(), "{deeper:?} must be deeper than {shallower:?}");
         assert!(deeper.ends_with(".bin") && shallower.ends_with(".bin"));
     }
 }
@@ -127,14 +109,7 @@ fn extra_bin_paths_come_after_bins_and_node_gyp() {
     let wd = Path::new("/proj");
     let node_gyp = PathBuf::from("/bundled/node-gyp-bin");
     let extra: Vec<PathBuf> = vec![PathBuf::from("/extra/one"), PathBuf::from("/extra/two")];
-    let path = extend_path(
-        wd,
-        None,
-        Some(&node_gyp),
-        &extra,
-        ScriptsPrependNodePath::Never,
-        None,
-    );
+    let path = extend_path(wd, None, Some(&node_gyp), &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
     let bin_idx = parts
         .iter()
@@ -169,14 +144,7 @@ fn original_path_is_appended_last() {
         text.push("/usr/bin");
         text
     };
-    let path = extend_path(
-        wd,
-        Some(&sys_path),
-        None,
-        &extra,
-        ScriptsPrependNodePath::Never,
-        None,
-    );
+    let path = extend_path(wd, Some(&sys_path), None, &extra, ScriptsPrependNodePath::Never, None);
     let parts = segments(&path);
     assert_eq!(parts.len(), 3, "1 bin + 2 sys = 3 entries, got {parts:?}");
     assert_eq!(parts[1], "/usr/local/bin");
@@ -188,14 +156,7 @@ fn scripts_prepend_node_path_always_appends_dirname_of_node() {
     let wd = Path::new("/proj");
     let node = PathBuf::from("/opt/node/bin/node");
     let extra: Vec<PathBuf> = vec![];
-    let path = extend_path(
-        wd,
-        None,
-        None,
-        &extra,
-        ScriptsPrependNodePath::Always,
-        Some(&node),
-    );
+    let path = extend_path(wd, None, None, &extra, ScriptsPrependNodePath::Always, Some(&node));
     let parts = segments(&path);
     assert!(
         parts
@@ -227,14 +188,8 @@ fn separator_in_path_component_does_not_drop_other_entries() {
         None,
     );
     let text = path.to_string_lossy();
-    assert!(
-        text.contains("/proj/node_modules/.bin"),
-        "wd .bin must survive: {text:?}",
-    );
-    assert!(
-        text.contains("/tmp/a:b/.bin"),
-        "the weird extra path must survive verbatim: {text:?}",
-    );
+    assert!(text.contains("/proj/node_modules/.bin"), "wd .bin must survive: {text:?}");
+    assert!(text.contains("/tmp/a:b/.bin"), "the weird extra path must survive verbatim: {text:?}");
 }
 
 /// `WarnOnly` would emit a warning; that reporter-side emission is
@@ -245,10 +200,7 @@ fn scripts_prepend_node_path_never_and_warn_only_do_not_prepend() {
     let wd = Path::new("/proj");
     let node = PathBuf::from("/opt/node/bin/node");
     let extra: Vec<PathBuf> = vec![];
-    for variant in [
-        ScriptsPrependNodePath::Never,
-        ScriptsPrependNodePath::WarnOnly,
-    ] {
+    for variant in [ScriptsPrependNodePath::Never, ScriptsPrependNodePath::WarnOnly] {
         let path = extend_path(wd, None, None, &extra, variant, Some(&node));
         let parts = segments(&path);
         assert!(

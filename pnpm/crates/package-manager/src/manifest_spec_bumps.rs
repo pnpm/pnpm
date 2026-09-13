@@ -102,9 +102,8 @@ pub(crate) fn apply_manifest_spec_bumps(
     apply_catalog_bumps(lockfile, &catalogs);
 
     let mut applied = bumps.applied.lock().expect("the spec-bump sink is never poisoned");
-    applied.manifests = render_aliases(manifests, |(group, specifier)| {
-        (IMPORTER_GROUPS[group], specifier)
-    });
+    applied.manifests =
+        render_aliases(manifests, |(group, specifier)| (IMPORTER_GROUPS[group], specifier));
     applied.catalogs = render_aliases(catalogs, |specifier| specifier);
 }
 
@@ -118,9 +117,7 @@ fn collect_importer_bumps(
     let mut manifests: ImporterBumps = BTreeMap::new();
     let mut cataloged: HashSet<(String, PkgName)> = HashSet::new();
     for (importer_id, targets) in &bumps.targets {
-        let Some(importer) = lockfile.importers.get(importer_id) else {
-            continue;
-        };
+        let Some(importer) = lockfile.importers.get(importer_id) else { continue };
         let override_matcher =
             overridden.and_then(|overridden| overridden.matcher_for(importer_id));
         for (alias, (manifest_group, manifest_specifier)) in targets {
@@ -132,12 +129,7 @@ fn collect_importer_bumps(
                 manifest_specifier,
                 range_spec_style: bumps.range_spec_style,
             };
-            record_spec_bump(
-                &mut manifests,
-                &mut cataloged,
-                importer_id,
-                spec_bump(&target),
-            );
+            record_spec_bump(&mut manifests, &mut cataloged, importer_id, spec_bump(&target));
         }
     }
     (manifests, cataloged)
@@ -207,9 +199,7 @@ fn spec_bump(target: &SpecBumpTarget<'_>) -> SpecBump {
     }) {
         return SpecBump::Skip;
     }
-    let Ok(alias) = PkgName::parse(target.alias) else {
-        return SpecBump::Skip;
-    };
+    let Ok(alias) = PkgName::parse(target.alias) else { return SpecBump::Skip };
     let Some((group, declared)) =
         declared_dependency(target.importer, &alias, target.manifest_group)
     else {
@@ -219,23 +209,14 @@ fn spec_bump(target: &SpecBumpTarget<'_>) -> SpecBump {
         return SpecBump::Skip;
     }
     if let Some(catalog_name) = parse_catalog_protocol(&declared.specifier) {
-        return SpecBump::Cataloged {
-            catalog_name: catalog_name.to_string(),
-            alias,
-        };
+        return SpecBump::Cataloged { catalog_name: catalog_name.to_string(), alias };
     }
-    let Some(bumped) = bumped_range(
-        &declared.specifier,
-        &declared.version,
-        target.range_spec_style,
-    ) else {
+    let Some(bumped) =
+        bumped_range(&declared.specifier, &declared.version, target.range_spec_style)
+    else {
         return SpecBump::Skip;
     };
-    SpecBump::Manifest {
-        alias,
-        group,
-        bumped,
-    }
+    SpecBump::Manifest { alias, group, bumped }
 }
 
 fn collect_catalog_bumps(
@@ -252,9 +233,7 @@ fn collect_catalog_bumps(
         else {
             continue;
         };
-        let Ok(version) = entry.version.parse::<ImporterDepVersion>() else {
-            continue;
-        };
+        let Ok(version) = entry.version.parse::<ImporterDepVersion>() else { continue };
         let Some(bumped) = bumped_range(&entry.specifier, &version, range_spec_style) else {
             continue;
         };
@@ -268,9 +247,7 @@ fn collect_catalog_bumps(
 
 fn apply_importer_bumps(lockfile: &mut Lockfile, manifests: &ImporterBumps) {
     for (importer_id, bumped) in manifests {
-        let Some(importer) = lockfile.importers.get_mut(importer_id) else {
-            continue;
-        };
+        let Some(importer) = lockfile.importers.get_mut(importer_id) else { continue };
         let mut groups = dependency_maps_mut(importer);
         for (alias, (group, specifier)) in bumped {
             if let Some(declared) = groups[*group]
@@ -344,12 +321,8 @@ fn bumped_range(
         // A link or an injected directory has no version to pin.
         ImporterDepVersion::Link(_) | ImporterDepVersion::File(_) => return None,
     };
-    let range = calc_version_range(
-        resolved,
-        infer_range_spec_style(declared_range),
-        None,
-        default_style,
-    );
+    let range =
+        calc_version_range(resolved, infer_range_spec_style(declared_range), None, default_style);
     let bumped = format!("{prefix}{range}");
     (bumped != declared).then_some(bumped)
 }
@@ -382,10 +355,7 @@ pub(crate) fn split_registry_alias(declared: &str) -> Option<(Cow<'_, str>, &str
     {
         Some(at) => {
             let prefix_len = protocol.len() + at + 1;
-            Some((
-                Cow::Borrowed(&declared[..prefix_len]),
-                &declared[prefix_len..],
-            ))
+            Some((Cow::Borrowed(&declared[..prefix_len]), &declared[prefix_len..]))
         }
         None => Some((Cow::Owned(format!("{declared}@")), "")),
     }
@@ -399,11 +369,8 @@ type DependencyGroupIndex = usize;
 
 /// The manifest group each of an importer's dependency maps is built from,
 /// in [`DependencyGroupIndex`] order.
-const IMPORTER_GROUPS: [DependencyGroup; 3] = [
-    DependencyGroup::Prod,
-    DependencyGroup::Dev,
-    DependencyGroup::Optional,
-];
+const IMPORTER_GROUPS: [DependencyGroup; 3] =
+    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
 
 /// The importer's entry for `alias` under the group the manifest declares it
 /// in. Anchoring on that group rather than on the first map that happens to
@@ -417,11 +384,8 @@ fn declared_dependency<'a>(
     let index = IMPORTER_GROUPS
         .iter()
         .position(|candidate| *candidate == group)?;
-    let maps = [
-        &importer.dependencies,
-        &importer.dev_dependencies,
-        &importer.optional_dependencies,
-    ];
+    let maps =
+        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
     Some((index, maps[index].as_ref()?.get(alias)?))
 }
 

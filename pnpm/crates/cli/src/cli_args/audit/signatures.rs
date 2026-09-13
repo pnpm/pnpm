@@ -11,13 +11,9 @@
 //! signature is present but does not validate is **invalid** — a tamper
 //! signal.
 
-pub(super) use errors::SignaturesError;
-pub(super) use render::render_signature_verification_result;
-
 use super::{bold, red, retry_opts_from_config, sanitize_response_body};
 use base64::Engine as _;
-
-use owo_colors::Stream;
+use owo_colors::{OwoColorize, Stream};
 use p256::{
     ecdsa::{Signature, VerifyingKey, signature::Verifier},
     pkcs8::DecodePublicKey,
@@ -62,6 +58,56 @@ pub(super) struct SignatureVerificationResult {
     pub verified: usize,
 }
 
+#[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
+#[non_exhaustive]
+pub(super) enum SignaturesError {
+    // `reason` is the registry error already passed through
+    // `redact_url_credentials`; the raw `reqwest::Error` is not carried as a
+    // diagnostic source, so embedded `user:pass@` credentials cannot leak via
+    // its `Display` or the miette cause chain.
+    #[display("Failed to request the registry keys endpoint (at {url}): {reason}")]
+    #[diagnostic(code(ERR_PNPM_AUDIT_SIGNATURE_KEYS_FETCH_FAIL))]
+    KeysNetwork { url: String, reason: String },
+
+    #[display("The registry keys endpoint (at {url}) responded with {status}: {body}")]
+    #[diagnostic(code(ERR_PNPM_AUDIT_SIGNATURE_KEYS_FETCH_FAIL))]
+    KeysBadStatus { url: String, status: u16, body: String },
+
+    #[display(
+        "The registry keys endpoint (at {url}) returned invalid JSON: {reason}. Response body: {body}"
+    )]
+    #[diagnostic(code(ERR_PNPM_AUDIT_SIGNATURE_KEYS_FETCH_FAIL))]
+    KeysInvalidJson { url: String, reason: String, body: String },
+
+    #[display(
+        "The registry keys endpoint (at {url}) returned an unexpected body. Expected an object with a keys array; got: {body}"
+    )]
+    #[diagnostic(code(ERR_PNPM_AUDIT_SIGNATURE_KEYS_FETCH_FAIL))]
+    KeysUnexpectedBody { url: String, body: String },
+
+    /// See [`SignaturesError::KeysNetwork`] for why the error is stored as a
+    /// pre-redacted string rather than a `reqwest::Error` source.
+    #[display("Failed to request the packument endpoint (at {url}): {reason}")]
+    #[diagnostic(code(ERR_PNPM_AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL))]
+    PackumentNetwork { url: String, reason: String },
+
+    #[display("The packument endpoint (at {url}) responded with {status}: {body}")]
+    #[diagnostic(code(ERR_PNPM_AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL))]
+    PackumentBadStatus { url: String, status: u16, body: String },
+
+    #[display(
+        "The packument endpoint (at {url}) returned invalid JSON: {reason}. Response body: {body}"
+    )]
+    #[diagnostic(code(ERR_PNPM_AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL))]
+    PackumentInvalidJson { url: String, reason: String, body: String },
+
+    #[display(
+        "The packument endpoint (at {url}) returned an unexpected body. Expected an object with versions; got: {body}"
+    )]
+    #[diagnostic(code(ERR_PNPM_AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL))]
+    PackumentUnexpectedBody { url: String, body: String },
+}
+
 /// Verify registry signatures for every package in `packages`. Keys are
 /// fetched once per registry; packuments once per `(registry, name)` and
 /// reused across a package's installed versions. A keys-endpoint failure is
@@ -72,10 +118,9 @@ pub(super) async fn verify_signatures(
     config: &Config,
     http_client: &ThrottledClient,
 ) -> Result<SignatureVerificationResult, SignaturesError> {
-    let keys_by_registry = fetch_keys_by_registry(packages, config, http_client)
-        .await?;
-    let packuments = fetch_needed_packuments(packages, &keys_by_registry, config, http_client)
-        .await;
+    let keys_by_registry = fetch_keys_by_registry(packages, config, http_client).await?;
+    let packuments =
+        fetch_needed_packuments(packages, &keys_by_registry, config, http_client).await;
 
     let mut result = SignatureVerificationResult::default();
     for pkg in packages {
@@ -174,15 +219,26 @@ fn process_version(
         result.invalid.push(issue(pkg, None, None, Some(reason)));
         return;
     }
-    verify_version_dist(
+    let Some(integrity) = integrity else {
+        result.missing.push(issue(pkg, None, resolved, None));
+        return;
+    };
+    if signatures.is_empty() {
+        result.missing.push(issue(pkg, Some(integrity), resolved, None));
+        return;
+    }
+
+    match verify_package_signatures(
         pkg,
-        integrity,
-        resolved,
+        &integrity,
         published_at.as_deref(),
+        resolved.as_deref(),
         &signatures,
         keys,
-        result,
-    );
+    ) {
+        Some(invalid) => result.invalid.push(invalid),
+        None => result.verified += 1,
+    }
 }
 
 /// The `dist.signatures` entries; `None` when the field is present but is
@@ -220,13 +276,27 @@ fn verify_package_signatures(
 
     let mut failures = Vec::new();
     for signature in signatures {
-        let key = match usable_signature_key(pkg, signature, keys, published_time) {
-            Ok(key) => key,
-            Err(reason) => {
-                failures.push(reason);
-                continue;
-            }
+        let Some(key) = keys
+            .iter()
+            .find(|key| key.keyid == signature.keyid)
+        else {
+            failures.push(format!(
+                "{}@{} has a registry signature with keyid {} but no corresponding public key can be found",
+                pkg.name, pkg.version, signature.keyid,
+            ));
+            continue;
         };
+        let expired = key_is_expired(key, published_time);
+        if expired {
+            failures.push(format!(
+                "{}@{} has a registry signature with keyid {} but the corresponding public key has expired {}",
+                pkg.name,
+                pkg.version,
+                signature.keyid,
+                key.expires.as_deref().unwrap_or_default(),
+            ));
+            continue;
+        }
         if verify_one(&key.key, &message, &signature.sig) {
             return None;
         }
@@ -244,26 +314,27 @@ fn verify_package_signatures(
     ))
 }
 
+fn key_is_expired(key: &RegistryKey, published_time: Option<i64>) -> bool {
+    // Key expiry is a consistency check, not a security boundary: the
+    // publish time comes from the same unauthenticated packument as the
+    // signatures. A missing or unparsable publish time therefore keeps the
+    // key usable — the signature check below is what gates acceptance.
+    match (key.expires.as_deref().and_then(parse_timestamp), published_time) {
+        (Some(expires), Some(published)) => published >= expires,
+        _ => false,
+    }
+}
+
 /// Verify one base64 ECDSA-P256 signature over `message` against a base64
 /// SPKI public key. Any malformed key material or signature bytes count as a
 /// non-match rather than an error, so one bad key can't abort the audit.
 fn verify_one(public_key_base64: &str, message: &str, signature_base64: &str) -> bool {
     let engine = base64::engine::general_purpose::STANDARD;
-    let Ok(key_der) = engine.decode(public_key_base64) else {
-        return false;
-    };
-    let Ok(verifying_key) = VerifyingKey::from_public_key_der(&key_der) else {
-        return false;
-    };
-    let Ok(signature_der) = engine.decode(signature_base64) else {
-        return false;
-    };
-    let Ok(signature) = Signature::from_der(&signature_der) else {
-        return false;
-    };
-    verifying_key
-        .verify(message.as_bytes(), &signature)
-        .is_ok()
+    let Ok(key_der) = engine.decode(public_key_base64) else { return false };
+    let Ok(verifying_key) = VerifyingKey::from_public_key_der(&key_der) else { return false };
+    let Ok(signature_der) = engine.decode(signature_base64) else { return false };
+    let Ok(signature) = Signature::from_der(&signature_der) else { return false };
+    verifying_key.verify(message.as_bytes(), &signature).is_ok()
 }
 
 fn most_telling_failure(pkg: &SignaturePackage, failures: &[String]) -> String {
@@ -297,91 +368,114 @@ fn issue(
 }
 
 fn malformed_reason(pkg: &SignaturePackage) -> String {
-    format!(
-        "Malformed registry signatures metadata for {}@{}",
-        pkg.name, pkg.version,
-    )
+    format!("Malformed registry signatures metadata for {}@{}", pkg.name, pkg.version)
 }
 
 fn sort_key(issue: &SignatureIssue) -> String {
     format!("{}@{}", issue.name, issue.version)
 }
 
+pub(super) fn render_signature_verification_result(result: &SignatureVerificationResult) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    lines.push(format!("audited {} {}", result.audited, plural(result.audited, "package")));
+    lines.push(String::new());
+
+    if result.verified > 0 {
+        lines.push(format!(
+            "{} {} {} registry {}",
+            result.verified,
+            if result.verified == 1 { "package has a" } else { "packages have" },
+            bold("verified"),
+            plural(result.verified, "signature"),
+        ));
+        lines.push(String::new());
+    }
+    push_missing_signatures(&mut lines, &result.missing);
+    push_invalid_signatures(&mut lines, &result.invalid);
+
+    if result.audited == 0
+        && result.invalid.is_empty()
+        && result.missing.is_empty()
+        && result.verified == 0
+    {
+        lines.push("No dependencies were installed from a registry with signing keys".to_string());
+        lines.push(String::new());
+    }
+
+    lines.join("\n")
+}
+
+/// Packages the registry has signing keys for but published unsigned.
+fn push_missing_signatures(lines: &mut Vec<String>, missing: &[SignatureIssue]) {
+    let count = missing.len();
+    if count == 0 {
+        return;
+    }
+    lines.push(format!(
+        "{count} {} {} registry {} but the registry is providing signing keys:",
+        if count == 1 { "package is" } else { "packages are" },
+        bright_red("missing"),
+        plural(count, "signature"),
+    ));
+    lines.push(String::new());
+    lines.push(issue_table(missing, false));
+    lines.push(String::new());
+}
+
+/// Packages whose signature did not verify — the tampering warning.
+fn push_invalid_signatures(lines: &mut Vec<String>, invalid: &[SignatureIssue]) {
+    let count = invalid.len();
+    if count == 0 {
+        return;
+    }
+    lines.push(format!(
+        "{count} {} {} registry {}:",
+        if count == 1 { "package has an" } else { "packages have" },
+        bright_red("invalid"),
+        plural(count, "signature"),
+    ));
+    lines.push(String::new());
+    lines.push(issue_table(invalid, true));
+    lines.push(String::new());
+    lines.push(
+        if count == 1 {
+            "Someone might have tampered with this package since it was published on the registry!"
+        } else {
+            "Someone might have tampered with these packages since they were published on the registry!"
+        }
+        .to_string(),
+    );
+    lines.push(String::new());
+}
+
+fn issue_table(issues: &[SignatureIssue], with_reason: bool) -> String {
+    use tabled::{builder::Builder, settings::Style};
+
+    let mut builder = Builder::default();
+    for issue in issues {
+        let package = red(&format!("{}@{}", issue.name, issue.version));
+        if with_reason {
+            let reason =
+                issue.reason.clone().unwrap_or_else(|| "Invalid registry signature".to_string());
+            builder.push_record(vec![package, issue.registry.clone(), reason]);
+        } else {
+            builder.push_record(vec![package, issue.registry.clone()]);
+        }
+    }
+    let mut table = builder.build();
+    table.with(Style::modern());
+    table.to_string()
+}
+
+fn plural(count: usize, word: &str) -> String {
+    if count == 1 { word.to_string() } else { format!("{word}s") }
+}
+
+fn bright_red(text: &str) -> String {
+    text.if_supports_color(Stream::Stdout, |t| t.bright_red()).to_string()
+}
+
 #[cfg(test)]
 mod tests;
 
 mod registry;
-
-mod errors;
-
-fn usable_signature_key<'a>(
-    pkg: &SignaturePackage,
-    signature: &PackageSignature,
-    keys: &'a [RegistryKey],
-    published_time: Option<i64>,
-) -> Result<&'a RegistryKey, String> {
-    let Some(key) = keys
-        .iter()
-        .find(|key| key.keyid == signature.keyid)
-    else {
-        return Err(format!(
-            "{}@{} has a registry signature with keyid {} but no corresponding public key can be found",
-            pkg.name, pkg.version, signature.keyid,
-        ));
-    };
-    // Key expiry is a consistency check, not a security boundary: the
-    // publish time comes from the same unauthenticated packument as the
-    // signatures. A missing or unparsable publish time therefore keeps the
-    // key usable — the signature check below is what gates acceptance.
-    let expired = match (
-        key.expires.as_deref().and_then(parse_timestamp),
-        published_time,
-    ) {
-        (Some(expires), Some(published)) => published >= expires,
-        _ => false,
-    };
-    if expired {
-        return Err(format!(
-            "{}@{} has a registry signature with keyid {} but the corresponding public key has expired {}",
-            pkg.name,
-            pkg.version,
-            signature.keyid,
-            key.expires.as_deref().unwrap_or_default(),
-        ));
-    }
-
-    Ok(key)
-}
-
-fn verify_version_dist(
-    pkg: &SignaturePackage,
-    integrity: Option<String>,
-    resolved: Option<String>,
-    published_at: Option<&str>,
-    signatures: &[PackageSignature],
-    keys: &[RegistryKey],
-    result: &mut SignatureVerificationResult,
-) {
-    let Some(integrity) = integrity else {
-        result.missing.push(issue(pkg, None, resolved, None));
-        return;
-    };
-    if signatures.is_empty() {
-        result.missing.push(issue(pkg, Some(integrity), resolved, None));
-        return;
-    }
-
-    match verify_package_signatures(
-        pkg,
-        &integrity,
-        published_at,
-        resolved.as_deref(),
-        signatures,
-        keys,
-    ) {
-        Some(invalid) => result.invalid.push(invalid),
-        None => result.verified += 1,
-    }
-}
-
-mod render;

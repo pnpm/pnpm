@@ -101,10 +101,7 @@ pub struct PackArgs {
 
     /// Keep the original `packageManager` field and publish-lifecycle
     /// scripts in the packed manifest instead of stripping them.
-    #[clap(
-        long = "skip-manifest-obfuscation",
-        overrides_with = "no_skip_manifest_obfuscation"
-    )]
+    #[clap(long = "skip-manifest-obfuscation", overrides_with = "no_skip_manifest_obfuscation")]
     pub skip_manifest_obfuscation: bool,
     /// Apply pnpm's normal packed-manifest filtering.
     #[clap(
@@ -126,8 +123,7 @@ impl PackArgs {
         before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<String> {
         if recursive {
-            self.run_recursive::<Reporter>(dir, config, before_packing_hooks)
-                .await
+            self.run_recursive::<Reporter>(dir, config, before_packing_hooks).await
         } else {
             let mut options = self.pack_options(
                 dir.to_path_buf(),
@@ -141,11 +137,7 @@ impl PackArgs {
             let result = api::<Reporter, Host>(&options).await
                 .map_err(miette::Report::new)
                 .wrap_err(PACK_ERROR_CONTEXT)?;
-            Ok(format_pack_output(
-                &[to_pack_result_json(&result)],
-                self.json,
-                false,
-            ))
+            Ok(format_pack_output(&[to_pack_result_json(&result)], self.json, false))
         }
     }
 
@@ -288,10 +280,7 @@ impl RecursivePack<'_, '_> {
                 self.results.packed
                     .lock()
                     .expect("packed results lock is not poisoned")
-                    .push((
-                        self.results.order_index[&root],
-                        to_pack_result_json(&result),
-                    ));
+                    .push((self.results.order_index[&root], to_pack_result_json(&result)));
                 TaskCompletion::Passed
             }
             Err(error) => {
@@ -330,8 +319,7 @@ pub(crate) async fn set_injected_changelog(
     project_dir: &Path,
 ) -> miette::Result<()> {
     if let Some(changelog) =
-        crate::cli_args::changelog::compose_registry_changelog(config, project_dir)
-            .await?
+        crate::cli_args::changelog::compose_registry_changelog(config, project_dir).await?
     {
         options.output.injected_files = vec![("package/CHANGELOG.md".to_string(), changelog)];
     }
@@ -341,11 +329,7 @@ pub(crate) async fn set_injected_changelog(
 /// Resolve `path` against `base` when it is relative, mirroring node's
 /// `path.resolve(base, path)`.
 fn absolute_against(base: &Path, path: &str) -> String {
-    let path = if Path::new(path).is_absolute() {
-        PathBuf::from(path)
-    } else {
-        base.join(path)
-    };
+    let path = if Path::new(path).is_absolute() { PathBuf::from(path) } else { base.join(path) };
     pnpm_fs::lexical_normalize(&path).to_string_lossy().into_owned()
 }
 

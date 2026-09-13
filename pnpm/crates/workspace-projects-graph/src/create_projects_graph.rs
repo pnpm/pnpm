@@ -78,19 +78,10 @@ where
         .into_iter()
         .zip(fields.node_keys.into_iter().zip(all_edges))
     {
-        graph.insert(
-            key,
-            ProjectGraphNode {
-                package,
-                dependencies,
-            },
-        );
+        graph.insert(key, ProjectGraphNode { package, dependencies });
     }
 
-    CreateProjectsGraphResult {
-        graph,
-        unmatched,
-    }
+    CreateProjectsGraphResult { graph, unmatched }
 }
 
 /// The per-project fields edge resolution reads, taken before the projects
@@ -222,10 +213,7 @@ fn resolve_edge(
     let is_workspace_spec = raw_spec.starts_with("workspace:");
     let (effective_name, effective_spec) = if is_workspace_spec {
         let spec = WorkspaceSpec::parse(raw_spec)?;
-        (
-            spec.alias.unwrap_or_else(|| dep_name.to_string()),
-            spec.version,
-        )
+        (spec.alias.unwrap_or_else(|| dep_name.to_string()), spec.version)
     } else {
         (dep_name.to_string(), raw_spec.to_string())
     };
@@ -266,10 +254,7 @@ fn resolve_by_name_version(
     let candidates = lookups.by_name.get(dep_name)?;
 
     if lookups.link_workspace_packages == Some(false) && !is_workspace_spec {
-        unmatched.push(Unmatched {
-            pkg_name: dep_name.to_string(),
-            range: raw_spec.to_string(),
-        });
+        unmatched.push(Unmatched { pkg_name: dep_name.to_string(), range: raw_spec.to_string() });
         return None;
     }
 
@@ -292,14 +277,25 @@ fn resolve_by_name_version(
         return Some(lookups.node_keys[index].clone());
     }
 
-    resolve_candidate_range(
-        dep_name,
-        raw_spec,
-        &candidate_versions,
-        candidates,
-        lookups,
-        unmatched,
-    )
+    let owned_versions: Vec<String> = candidate_versions
+        .iter()
+        .map(|&version| version.to_string())
+        .collect();
+    match resolve_workspace_range(raw_spec, &owned_versions) {
+        None => {
+            unmatched.push(Unmatched {
+                pkg_name: dep_name.to_string(),
+                range: raw_spec.to_string(),
+            });
+            None
+        }
+        Some(matched) => {
+            let index = *candidates
+                .iter()
+                .find(|&&index| lookups.versions[index].as_deref() == Some(matched.as_str()))?;
+            Some(lookups.node_keys[index].clone())
+        }
+    }
 }
 
 /// Classify a non-`workspace:` specifier into the three shapes
@@ -347,32 +343,3 @@ fn has_windows_drive_prefix(spec: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
-
-fn resolve_candidate_range(
-    dep_name: &str,
-    raw_spec: &str,
-    candidate_versions: &[&str],
-    candidates: &[usize],
-    lookups: &Lookups,
-    unmatched: &mut Vec<Unmatched>,
-) -> Option<PathBuf> {
-    let owned_versions: Vec<String> = candidate_versions
-        .iter()
-        .map(|&version| version.to_string())
-        .collect();
-    match resolve_workspace_range(raw_spec, &owned_versions) {
-        None => {
-            unmatched.push(Unmatched {
-                pkg_name: dep_name.to_string(),
-                range: raw_spec.to_string(),
-            });
-            None
-        }
-        Some(matched) => {
-            let index = *candidates
-                .iter()
-                .find(|&&index| lookups.versions[index].as_deref() == Some(matched.as_str()))?;
-            Some(lookups.node_keys[index].clone())
-        }
-    }
-}

@@ -94,11 +94,7 @@ async fn outdated_for_project(
         (project_lockfile, Lockfile::ROOT_IMPORTER_KEY.to_string())
     };
     let Some(lockfile) = lockfile else {
-        let lockfile_dir = if shares_one_lockfile {
-            inputs.lockfile_root
-        } else {
-            project_dir
-        };
+        let lockfile_dir = if shares_one_lockfile { inputs.lockfile_root } else { project_dir };
         return Err(no_lockfile_error(lockfile_dir));
     };
     let project_outdated = collect_outdated_for_importer_in_run(
@@ -131,11 +127,7 @@ pub(super) fn recursive_project_inputs<'a>(
     for (project_dir, node) in &selection.selected {
         let project = node.package.project;
         let has_any_dependency = project.manifest
-            .dependencies([
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-            ])
+            .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
             .next()
             .is_some();
         if !has_any_dependency {
@@ -162,18 +154,12 @@ fn group_workspace_outdated(
         let (project_outdated, dependent) = result?;
         for package in project_outdated {
             let dependency_type: &'static str = package.belongs_to.into();
-            let key = format!(
-                "{}\0{}\0{}",
-                package.package_name, package.current, dependency_type,
-            );
+            let key = format!("{}\0{}\0{}", package.package_name, package.current, dependency_type);
             if let Some(&index) = outdated_indexes.get(&key) {
                 outdated[index].dependents.push(dependent.clone());
             } else {
                 outdated_indexes.insert(key, outdated.len());
-                outdated.push(OutdatedInWorkspace {
-                    package,
-                    dependents: vec![dependent.clone()],
-                });
+                outdated.push(OutdatedInWorkspace { package, dependents: vec![dependent.clone()] });
             }
         }
     }

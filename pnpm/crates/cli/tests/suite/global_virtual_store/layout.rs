@@ -13,10 +13,7 @@ fn pnp_without_symlinks_repairs_a_missing_global_virtual_store_package() {
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     set_gvs_workspace_yaml(&workspace, "nodeLinker: pnp\nsymlink: false\n");
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
     pacquet(&workspace)
         .with_arg("install")
@@ -47,10 +44,7 @@ fn virtual_store_only_populates_standard_virtual_store_without_importer_symlinks
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
     append_workspace_yaml_key(&workspace, "virtualStoreOnly", true);
 
     pacquet(&workspace)
@@ -108,10 +102,7 @@ fn virtual_store_only_with_no_modules_dir_works_when_gvs_is_enabled() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
     eprintln!("First install with the modules dir enabled, to produce a lockfile...");
     set_gvs_workspace_yaml(&workspace, "");
@@ -124,10 +115,7 @@ fn virtual_store_only_with_no_modules_dir_works_when_gvs_is_enabled() {
     fs::remove_dir_all(gvs_root(&store_dir)).expect("remove the GVS root");
 
     eprintln!("Now virtualStoreOnly + enableModulesDir=false + GVS — must not throw...");
-    set_gvs_workspace_yaml(
-        &workspace,
-        "virtualStoreOnly: true\nenableModulesDir: false\n",
-    );
+    set_gvs_workspace_yaml(&workspace, "virtualStoreOnly: true\nenableModulesDir: false\n");
     pacquet(&workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()
@@ -151,10 +139,7 @@ fn virtual_store_only_with_gvs_populates_the_store_without_importer_links() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
     set_gvs_workspace_yaml(&workspace, "virtualStoreOnly: true\n");
 
     pacquet(&workspace)
@@ -186,10 +171,7 @@ fn virtual_store_only_with_frozen_lockfile_populates_the_gvs_without_importer_sy
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
     eprintln!("First install to produce a lockfile...");
     set_gvs_workspace_yaml(&workspace, "");
@@ -232,10 +214,7 @@ fn virtual_store_only_with_frozen_lockfile_populates_the_standard_store() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
     eprintln!("First install to produce a lockfile...");
     pacquet(&workspace)
@@ -273,10 +252,7 @@ fn virtual_store_only_suppresses_hoisting_even_with_explicit_hoist_pattern() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
     append_workspace_yaml_key(&workspace, "virtualStoreOnly", true);
     append_workspace_yaml_key(&workspace, "hoistPattern", "['*']");
     append_workspace_yaml_key(&workspace, "publicHoistPattern", "['*']");
@@ -310,10 +286,7 @@ fn ordinary_install_after_virtual_store_only_completes_the_linking() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
     append_workspace_yaml_key(&workspace, "virtualStoreOnly", true);
     append_workspace_yaml_key(&workspace, "hoistPattern", "['*']");
 
@@ -403,9 +376,8 @@ fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
     let node_options =
         fs::read_to_string(workspace.join("node-options.txt")).expect("read node-options.txt");
     assert!(
-        node_options.contains(
-            pnpm_config::esm_node_path_loader::esm_node_path_loader_import_flag()
-        ),
+        node_options
+            .contains(pnpm_config::esm_node_path_loader::esm_node_path_loader_import_flag()),
         "NODE_OPTIONS must carry the ESM NODE_PATH loader flag: {node_options}",
     );
     assert_eq!(
@@ -424,14 +396,8 @@ fn virtual_store_type_selects_where_packages_are_materialized() {
         ("virtualStoreType: project\n", false),
         ("virtualStoreType: global\n", true),
         ("enableGlobalVirtualStore: false\n", false),
-        (
-            "virtualStoreType: global\nenableGlobalVirtualStore: false\n",
-            true,
-        ),
-        (
-            "virtualStoreType: project\nenableGlobalVirtualStore: true\n",
-            false,
-        ),
+        ("virtualStoreType: global\nenableGlobalVirtualStore: false\n", true),
+        ("virtualStoreType: project\nenableGlobalVirtualStore: true\n", false),
     ] {
         let CommandTempCwd { root, workspace, npmrc_info, .. } =
             CommandTempCwd::init().add_mocked_registry();
@@ -441,10 +407,7 @@ fn virtual_store_type_selects_where_packages_are_materialized() {
         workspace_yaml.push_str(yaml);
         fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
             .expect("write pnpm-workspace.yaml");
-        write_manifest(
-            &workspace,
-            &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-        );
+        write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
         pacquet(&workspace)
             .with_arg("install")
@@ -491,10 +454,7 @@ fn an_isolated_install_clears_a_package_map_it_stops_maintaining() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
     set_gvs_workspace_yaml(&workspace, "nodeExperimentalPackageMap: true\n");
     pacquet(&workspace)
         .with_arg("install")
@@ -502,10 +462,7 @@ fn an_isolated_install_clears_a_package_map_it_stops_maintaining() {
         .success();
 
     let package_map = workspace.join("node_modules/.package-map.json");
-    assert!(
-        package_map.is_file(),
-        "the setting must produce a map to begin with",
-    );
+    assert!(package_map.is_file(), "the setting must produce a map to begin with");
 
     eprintln!("Adding a dependency with the setting back off...");
     set_gvs_workspace_yaml(&workspace, "");

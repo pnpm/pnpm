@@ -16,10 +16,7 @@ use serde_json::json;
 #[test]
 fn purl_encodes_only_the_leading_scope_at() {
     assert_eq!(npm_purl("pkg", "1.0.0"), "pkg:npm/pkg@1.0.0");
-    assert_eq!(
-        npm_purl("@scope/pkg", "1.2.3"),
-        "pkg:npm/%40scope/pkg@1.2.3",
-    );
+    assert_eq!(npm_purl("@scope/pkg", "1.2.3"), "pkg:npm/%40scope/pkg@1.2.3");
 }
 
 /// A fake environment that mirrors the variables GitHub Actions sets, so the
@@ -59,16 +56,10 @@ fn github_statement_shapes_the_slsa_v1_predicate() {
     assert_eq!(workflow["ref"], "refs/heads/main");
     assert_eq!(workflow["repository"], "https://github.com/pnpm/pnpm");
     let resolved = &statement["predicate"]["buildDefinition"]["resolvedDependencies"][0];
-    assert_eq!(
-        resolved["uri"],
-        "git+https://github.com/pnpm/pnpm@refs/heads/main",
-    );
+    assert_eq!(resolved["uri"], "git+https://github.com/pnpm/pnpm@refs/heads/main");
     assert_eq!(resolved["digest"]["gitCommit"], "abc123");
     let run = &statement["predicate"]["runDetails"];
-    assert_eq!(
-        run["builder"]["id"],
-        "https://github.com/actions/runner/github-hosted",
-    );
+    assert_eq!(run["builder"]["id"], "https://github.com/actions/runner/github-hosted");
     assert_eq!(
         run["metadata"]["invocationId"],
         "https://github.com/pnpm/pnpm/actions/runs/42/attempts/1",
@@ -102,15 +93,9 @@ fn gitlab_statement_shapes_the_slsa_v02_predicate() {
     let statement = gitlab_statement::<GlEnv>(&subject);
 
     assert_eq!(statement["_type"], "https://in-toto.io/Statement/v0.1");
-    assert_eq!(
-        statement["predicateType"],
-        "https://slsa.dev/provenance/v0.2",
-    );
+    assert_eq!(statement["predicateType"], "https://slsa.dev/provenance/v0.2");
     let predicate = &statement["predicate"];
-    assert_eq!(
-        predicate["builder"]["id"],
-        "https://gitlab.com/pnpm/pnpm/-/runners/77",
-    );
+    assert_eq!(predicate["builder"]["id"], "https://gitlab.com/pnpm/pnpm/-/runners/77");
     let config_source = &predicate["invocation"]["configSource"];
     assert_eq!(config_source["uri"], "git+https://gitlab.com/pnpm/pnpm");
     assert_eq!(config_source["digest"]["sha1"], "abc123");
@@ -119,10 +104,7 @@ fn gitlab_statement_shapes_the_slsa_v02_predicate() {
         predicate["metadata"]["buildInvocationId"],
         "https://gitlab.com/pnpm/pnpm/-/jobs/555",
     );
-    assert_eq!(
-        predicate["materials"][0]["uri"],
-        "git+https://gitlab.com/pnpm/pnpm",
-    );
+    assert_eq!(predicate["materials"][0]["uri"], "git+https://gitlab.com/pnpm/pnpm");
     assert_eq!(predicate["materials"][0]["digest"]["sha1"], "abc123");
 }
 
@@ -306,16 +288,8 @@ impl EnvVar for GhSignSys {
 }
 impl OidcFetch for GhSignSys {
     async fn fetch(request: OidcRequest<'_>) -> Result<OidcResponse, OidcFetchError> {
-        assert!(
-            request.url.contains("audience=sigstore"),
-            "unexpected request: {}",
-            request.url,
-        );
-        Ok(OidcResponse {
-            ok: true,
-            status: 200,
-            body: r#"{"value":"sigstore-token"}"#.to_owned(),
-        })
+        assert!(request.url.contains("audience=sigstore"), "unexpected request: {}", request.url);
+        Ok(OidcResponse { ok: true, status: 200, body: r#"{"value":"sigstore-token"}"#.to_owned() })
     }
 }
 impl SignProvenance for GhSignSys {
@@ -324,10 +298,7 @@ impl SignProvenance for GhSignSys {
         statement: &[u8],
         timeout: Option<Duration>,
     ) -> Result<SignedProvenance, ProvenanceGenError> {
-        assert_eq!(
-            jwt, "sigstore-token",
-            "the sigstore-audience token is passed to the signer",
-        );
+        assert_eq!(jwt, "sigstore-token", "the sigstore-audience token is passed to the signer");
         assert!(!statement.is_empty(), "a serialized statement is signed");
         assert_eq!(timeout, None, "no fetch-timeout was configured");
         Ok(SignedProvenance {
@@ -351,14 +322,8 @@ async fn generate_provenance_builds_the_signed_attachment() {
     .expect("provenance generation succeeds");
 
     assert_eq!(attachment.bundle_name, "@scope/pkg-1.2.3.sigstore");
-    assert_eq!(
-        attachment.content_type,
-        "application/vnd.dev.sigstore.bundle.v0.3+json",
-    );
-    assert_eq!(
-        attachment.data,
-        r#"{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}"#,
-    );
+    assert_eq!(attachment.content_type, "application/vnd.dev.sigstore.bundle.v0.3+json");
+    assert_eq!(attachment.data, r#"{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}"#);
 }
 
 /// The configured `fetch-timeout` (milliseconds) reaches the signer as its
@@ -388,17 +353,11 @@ async fn generate_provenance_forwards_fetch_timeout_to_the_signer() {
             timeout: Option<Duration>,
         ) -> Result<SignedProvenance, ProvenanceGenError> {
             assert_eq!(timeout, Some(Duration::from_millis(1234)));
-            Ok(SignedProvenance {
-                media_type: "bundle".to_owned(),
-                data: "{}".to_owned(),
-            })
+            Ok(SignedProvenance { media_type: "bundle".to_owned(), data: "{}".to_owned() })
         }
     }
 
-    let options = OidcHttpOptions {
-        fetch_timeout: Some(1234),
-        ..OidcHttpOptions::default()
-    };
+    let options = OidcHttpOptions { fetch_timeout: Some(1234), ..OidcHttpOptions::default() };
     generate_provenance::<TimeoutSys, SilentReporter>("pkg", "1.0.0", b"tarball", &options)
         .await
         .expect("provenance generation succeeds");
@@ -429,9 +388,7 @@ async fn generate_provenance_surfaces_a_signer_failure() {
             _: &[u8],
             _: Option<Duration>,
         ) -> Result<SignedProvenance, ProvenanceGenError> {
-            Err(ProvenanceGenError::Sign {
-                source: "fulcio rejected the request".to_owned(),
-            })
+            Err(ProvenanceGenError::Sign { source: "fulcio rejected the request".to_owned() })
         }
     }
 
@@ -443,10 +400,7 @@ async fn generate_provenance_surfaces_a_signer_failure() {
     )
     .await
     .expect_err("a signer failure aborts provenance generation");
-    assert!(
-        matches!(err, ProvenanceGenError::Sign { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, ProvenanceGenError::Sign { .. }), "got {err:?}");
 }
 
 /// A zero-delay policy so the retry tests don't sleep.
@@ -461,19 +415,13 @@ const INSTANT_RETRIES: pnpm_network::RetryOpts = pnpm_network::RetryOpts {
 async fn with_sign_deadline_times_out_a_hung_attempt() {
     let err = with_sign_deadline(Duration::ZERO, std::future::pending()).await
         .expect_err("a hung exchange hits the deadline");
-    assert!(
-        matches!(err, ProvenanceGenError::Sign { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, ProvenanceGenError::Sign { .. }), "got {err:?}");
 }
 
 #[tokio::test]
 async fn with_sign_deadline_passes_a_completed_attempt_through() {
     let signed = with_sign_deadline(Duration::from_secs(5), async {
-        Ok(SignedProvenance {
-            media_type: "bundle".to_owned(),
-            data: "{}".to_owned(),
-        })
+        Ok(SignedProvenance { media_type: "bundle".to_owned(), data: "{}".to_owned() })
     })
     .await
     .expect("a completed attempt is returned unchanged");
@@ -492,10 +440,7 @@ async fn sign_with_retry_recovers_from_transient_failures() {
                     source: "Failed to get timestamp".to_owned(),
                 });
             }
-            Ok(SignedProvenance {
-                media_type: "bundle".to_owned(),
-                data: "{}".to_owned(),
-            })
+            Ok(SignedProvenance { media_type: "bundle".to_owned(), data: "{}".to_owned() })
         }
     })
     .await
@@ -509,18 +454,11 @@ async fn sign_with_retry_surfaces_the_final_failure_once_retries_are_exhausted()
     let attempts = Cell::new(0u32);
     let err = sign_with_retry(INSTANT_RETRIES, || {
         attempts.set(attempts.get() + 1);
-        async {
-            Err(ProvenanceGenError::Sign {
-                source: "Failed to get timestamp".to_owned(),
-            })
-        }
+        async { Err(ProvenanceGenError::Sign { source: "Failed to get timestamp".to_owned() }) }
     })
     .await
     .expect_err("every attempt fails");
-    assert!(
-        matches!(err, ProvenanceGenError::Sign { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, ProvenanceGenError::Sign { .. }), "got {err:?}");
     assert_eq!(attempts.get(), INSTANT_RETRIES.retries + 1);
 }
 

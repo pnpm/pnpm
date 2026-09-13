@@ -59,11 +59,8 @@ fn install_options_for(
     let project_dir_string = project_dir.to_string_lossy().into_owned();
     let mut options = install_options();
     options.dir = project_dir_string.clone();
-    options.projects = vec![NodeApiProject {
-        root_dir: project_dir_string,
-        manifest,
-        dependency_manifest: None,
-    }];
+    options.projects =
+        vec![NodeApiProject { root_dir: project_dir_string, manifest, dependency_manifest: None }];
     options.store_dir = Some(
         temp_dir
             .join("store")

@@ -66,7 +66,10 @@ impl WorkEnv {
         let mock_port = pick_unused_port().expect("pick a port for the revision mock");
 
         let bench_dir = self.bench_dir(BenchId::PnprRevision(revision));
-        let (stdout, stderr) = revision_mock_logs(&bench_dir);
+        let stdout = File::create(bench_dir.join("revision-mock.stdout.log"))
+            .expect("create revision mock stdout log");
+        let stderr = File::create(bench_dir.join("revision-mock.stderr.log"))
+            .expect("create revision mock stderr log");
 
         // The mock advertises its tarball URLs at the client-facing proxy
         // URL (`registry.url`), not its own loopback port, so downloads cross
@@ -86,16 +89,9 @@ impl WorkEnv {
             .stdout(stdout)
             .stderr(stderr)
             .spawn()
-            .expect(if cold {
-                "spawn cold revision mock"
-            } else {
-                "spawn revision mock"
-            });
+            .expect(if cold { "spawn cold revision mock" } else { "spawn revision mock" });
 
-        let mut server = PnprServer {
-            process,
-            latency_proxy: None,
-        };
+        let mut server = PnprServer { process, latency_proxy: None };
         wait_for_pnpr_ready(mock_port);
         server.latency_proxy =
             Some(self.front_revision_mock(revision, registry.listener, mock_port));
@@ -112,11 +108,8 @@ impl WorkEnv {
     ) -> Command {
         let cold_storage = bench_dir.join("cold-mock-storage");
         let config_path = bench_dir.join("cold-mock-config.yaml");
-        fs::write(
-            &config_path,
-            cold_mock_config_yaml(&cold_storage, &self.registry.client),
-        )
-        .expect("write cold mock config");
+        fs::write(&config_path, cold_mock_config_yaml(&cold_storage, &self.registry.client))
+            .expect("write cold mock config");
         eprintln!(
             "Serving {revision}'s tarballs from a COLD mock built from pnpr@{revision} on 127.0.0.1:{mock_port} (origin {})...",
             self.registry.client,
@@ -319,10 +312,7 @@ impl WorkEnv {
     pub(super) fn start_client_registry_proxy(&self) -> Option<LatencyProxy> {
         let rate_limit = mbps_to_bytes_per_sec(self.options.network.registry_bandwidth_mbps);
         if (self.options.network.registry_latency_ms == 0 && rate_limit.is_none())
-            || matches!(
-                self.options.network.registry,
-                RegistryMode::Npm | RegistryMode::Verdaccio,
-            )
+            || matches!(self.options.network.registry, RegistryMode::Npm | RegistryMode::Verdaccio)
         {
             return None;
         }
@@ -437,12 +427,4 @@ impl WorkEnv {
         }
         mocks
     }
-}
-
-fn revision_mock_logs(bench_dir: &std::path::Path) -> (File, File) {
-    let stdout = File::create(bench_dir.join("revision-mock.stdout.log"))
-        .expect("create revision mock stdout log");
-    let stderr = File::create(bench_dir.join("revision-mock.stderr.log"))
-        .expect("create revision mock stderr log");
-    (stdout, stderr)
 }

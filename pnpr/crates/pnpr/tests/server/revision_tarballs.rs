@@ -50,13 +50,8 @@ async fn upstream_endpoint_preserves_and_serves_revision_tarballs() {
         .headers
         .insert("x-upstream-auth", HeaderValue::from_static("secret"));
     config.routing.registries = Registries::new(
-        std::iter::once((
-            "npmjs".to_string(),
-            Registry::Upstream {
-                patterns: Vec::new(),
-            },
-        ))
-        .collect(),
+        std::iter::once(("npmjs".to_string(), Registry::Upstream { patterns: Vec::new() }))
+            .collect(),
         Some("npmjs".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -82,10 +77,7 @@ async fn upstream_endpoint_preserves_and_serves_revision_tarballs() {
         format!("http://example.test/~npmjs/{revision_path}"),
     );
 
-    for path in [
-        format!("/~npmjs/{revision_path}"),
-        format!("/{revision_path}"),
-    ] {
+    for path in [format!("/~npmjs/{revision_path}"), format!("/{revision_path}")] {
         let response = app
             .clone()
             .oneshot(
@@ -165,10 +157,7 @@ async fn revision_tarballs_require_a_concrete_registry_without_package_access_ru
         router_config(&upstream.url(), &upstream.url(), tmp.path().join("router")),
         AuthState::in_memory(),
     );
-    for path in [
-        format!("/~main/{revision_path}"),
-        format!("/{revision_path}"),
-    ] {
+    for path in [format!("/~main/{revision_path}"), format!("/{revision_path}")] {
         let response = router_app
             .clone()
             .oneshot(

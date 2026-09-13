@@ -54,9 +54,7 @@ fn is_referenced(references: &CatalogReferences, pkg: &str, specs: &[&str]) -> b
 
 fn remove_unused_default_catalog(manifest: &mut Manifest, references: &CatalogReferences) -> bool {
     const BLOCK: &str = "catalog";
-    let Some(catalog) = manifest.catalogs.default.as_ref() else {
-        return false;
-    };
+    let Some(catalog) = manifest.catalogs.default.as_ref() else { return false };
     let to_remove: Vec<String> = catalog
         .keys()
         .filter(|pkg| !is_referenced(references, pkg, &["catalog:"]))
@@ -85,9 +83,7 @@ fn remove_unused_default_catalog(manifest: &mut Manifest, references: &CatalogRe
 
 fn remove_unused_named_catalogs(manifest: &mut Manifest, references: &CatalogReferences) -> bool {
     const BLOCK: &str = "catalogs";
-    let Some(catalogs) = manifest.catalogs.named.as_ref() else {
-        return false;
-    };
+    let Some(catalogs) = manifest.catalogs.named.as_ref() else { return false };
 
     let (names_to_drop, entry_removals) = unreferenced_catalog_entries(catalogs, references);
 

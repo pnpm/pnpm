@@ -74,10 +74,7 @@ pub fn check_global_bin_conflicts(
         return Ok(bins_to_skip);
     }
 
-    let installed = InstalledBins {
-        new_bin_owners: &new_bin_owners,
-        conflicting: &conflicting,
-    };
+    let installed = InstalledBins { new_bin_owners: &new_bin_owners, conflicting: &conflicting };
     for existing_pkg in
         scan_global_packages(global_dir).map_err(CheckGlobalBinConflictsError::Scan)?
     {
@@ -86,12 +83,7 @@ pub fn check_global_bin_conflicts(
         }
         let modules_dir = existing_pkg.install_dir.join("node_modules");
         for (alias, _) in &existing_pkg.dependencies {
-            check_installed_dep(
-                alias,
-                &modules_dir.join(alias),
-                &installed,
-                &mut bins_to_skip,
-            )?;
+            check_installed_dep(alias, &modules_dir.join(alias), &installed, &mut bins_to_skip)?;
         }
     }
     Ok(bins_to_skip)
@@ -131,9 +123,7 @@ fn check_installed_dep(
     installed: &InstalledBins<'_>,
     bins_to_skip: &mut HashSet<String>,
 ) -> Result<(), CheckGlobalBinConflictsError> {
-    let Some(manifest) = read_package_json(dep_dir) else {
-        return Ok(());
-    };
+    let Some(manifest) = read_package_json(dep_dir) else { return Ok(()) };
     let manifest_name = manifest
         .get("name")
         .and_then(Value::as_str)
@@ -149,13 +139,11 @@ fn check_installed_dep(
                 bins_to_skip.insert(bin.name.clone());
             }
             BinOwnership::Contested => {
-                return Err(CheckGlobalBinConflictsError::Conflict(
-                    GlobalBinConflictError {
-                        bin_name: bin.name,
-                        conflict_display: conflict_display(alias, &manifest_name),
-                        alias: alias.to_string(),
-                    },
-                ));
+                return Err(CheckGlobalBinConflictsError::Conflict(GlobalBinConflictError {
+                    bin_name: bin.name,
+                    conflict_display: conflict_display(alias, &manifest_name),
+                    alias: alias.to_string(),
+                }));
             }
         }
     }
@@ -178,9 +166,8 @@ fn bin_ownership(
     manifest_name: &str,
     installed: &InstalledBins<'_>,
 ) -> BinOwnership {
-    let new_owns = installed.new_bin_owners[bin_name]
-        .iter()
-        .any(|owner| pkg_owns_bin(bin_name, owner));
+    let new_owns =
+        installed.new_bin_owners[bin_name].iter().any(|owner| pkg_owns_bin(bin_name, owner));
     let existing_owns = pkg_owns_bin(bin_name, manifest_name);
     match (new_owns, existing_owns) {
         (true, false) => BinOwnership::NewPackage,

@@ -58,10 +58,7 @@ pub(super) fn selector_weights(
     selectors: &VersionSelectors,
     lockfile_version: &str,
 ) -> Option<SelectorWeights> {
-    let mut weights = SelectorWeights {
-        guaranteed: 0,
-        maximum_other: 0,
-    };
+    let mut weights = SelectorWeights { guaranteed: 0, maximum_other: 0 };
     for (selector, entry) in selectors {
         if selector == version_range {
             continue;

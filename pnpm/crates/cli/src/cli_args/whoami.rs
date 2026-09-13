@@ -4,6 +4,7 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{RetryOpts, ThrottledClient, send_with_retry};
 use serde::Deserialize;
+use std::time::Duration;
 
 /// Errors from `pacquet whoami`.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -35,7 +36,12 @@ pub async fn whoami(config: &Config) -> miette::Result<String> {
     let auth_header =
         config.auth_headers.for_url(&config.registry).ok_or(WhoamiError::Unauthorized)?;
     let http_client = build_registry_client(config)?;
-    let retry_opts = config.retry_opts();
+    let retry_opts = RetryOpts {
+        retries: config.fetch_retries,
+        factor: config.fetch_retry_factor,
+        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
+        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
+    };
     fetch_whoami(&config.registry, &http_client, &auth_header, retry_opts).await
 }
 

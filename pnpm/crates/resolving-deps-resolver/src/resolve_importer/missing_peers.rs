@@ -16,10 +16,7 @@ pub(super) fn partition_missing_peers(
     missing: &HashMap<String, Vec<MissingPeer>>,
     parent_pkg_aliases: &HashSet<String>,
     auto_install_peers_from_highest_match: bool,
-) -> (
-    BTreeMap<String, MissingPeerInfo>,
-    BTreeMap<String, Vec<String>>,
-) {
+) -> (BTreeMap<String, MissingPeerInfo>, BTreeMap<String, Vec<String>>) {
     let mut missing_required: BTreeMap<String, MissingPeerInfo> = BTreeMap::new();
     let mut missing_optional: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for (peer_name, entries) in missing {
@@ -28,12 +25,7 @@ pub(super) fn partition_missing_peers(
         }
         match classify_missing_peer(entries, auto_install_peers_from_highest_match) {
             MissingPeerKind::Required(range) => {
-                missing_required.insert(
-                    peer_name.clone(),
-                    MissingPeerInfo {
-                        range,
-                    },
-                );
+                missing_required.insert(peer_name.clone(), MissingPeerInfo { range });
             }
             MissingPeerKind::Optional(ranges) => {
                 missing_optional.insert(peer_name.clone(), ranges);

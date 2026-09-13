@@ -43,9 +43,7 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
     config: &Config,
     catalogs: Option<&Catalogs>,
 ) -> Result<(), InstallError> {
-    let Some(lockfile) = resolved_lockfile else {
-        return Ok(());
-    };
+    let Some(lockfile) = resolved_lockfile else { return Ok(()) };
     let mut importer_ids: Vec<String> = peer_issue_importer_ids
         .iter()
         .filter(|importer_id| {

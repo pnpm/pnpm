@@ -285,10 +285,7 @@ impl PackageVersion {
         // request URL byte-identical and saves two formats.
         let encoded_name = pnpm_network::encode_package_name(name);
         let url = format!("{registry}{encoded_name}/{}", tag.registry_path_segment());
-        let network_error = |error| NetworkError {
-            error,
-            url: url.clone(),
-        };
+        let network_error = |error| NetworkError { error, url: url.clone() };
 
         // Hold the semaphore permit across send + body consumption so the
         // socket-bound stays effective under concurrent fan-out. See the

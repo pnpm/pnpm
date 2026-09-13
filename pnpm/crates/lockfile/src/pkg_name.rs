@@ -38,18 +38,12 @@ impl PkgName {
                 let (scope, bare) = rest.split_once('/').ok_or(ParsePkgNameError::MissingName)?;
                 let scope = scope.to_string().pipe(Some);
                 let bare = bare.to_string();
-                Ok(PkgName {
-                    scope,
-                    bare,
-                })
+                Ok(PkgName { scope, bare })
             }
             Some(_) => {
                 let scope = None;
                 let bare = input.into();
-                Ok(PkgName {
-                    scope,
-                    bare,
-                })
+                Ok(PkgName { scope, bare })
             }
             None => Err(ParsePkgNameError::EmptyName),
         }

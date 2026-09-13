@@ -603,10 +603,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
     .run::<SilentReporter>()
     .await;
 
-    assert!(
-        result.is_err(),
-        "non-optional fetch failure must abort the install, got {result:?}",
-    );
+    assert!(result.is_err(), "non-optional fetch failure must abort the install, got {result:?}");
 
     drop(dirs.dir);
 }

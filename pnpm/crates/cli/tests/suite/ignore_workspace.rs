@@ -99,11 +99,7 @@ fn a_configured_ignore_workspace_does_not_suppress_the_search() {
 #[test]
 fn workspace_packages_overrides_the_manifest_patterns() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(
-        &workspace,
-        &["packages/*"],
-        &["packages/alfa", "packages/beta"],
-    );
+    write_workspace(&workspace, &["packages/*"], &["packages/alfa", "packages/beta"]);
 
     let stdout = stdout_of(pacquet.with_args([
         "--workspace-packages",
@@ -115,10 +111,7 @@ fn workspace_packages_overrides_the_manifest_patterns() {
     ]));
     let selected = stdout.lines().collect::<Vec<_>>();
     assert_eq!(selected.len(), 1, "only alfa should be selected: {stdout}");
-    assert!(
-        selected[0].ends_with("packages/alfa"),
-        "wrong project selected: {stdout}",
-    );
+    assert!(selected[0].ends_with("packages/alfa"), "wrong project selected: {stdout}");
 
     drop(root);
 }

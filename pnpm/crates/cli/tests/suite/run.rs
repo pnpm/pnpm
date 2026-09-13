@@ -43,10 +43,7 @@ fn run_executes_declared_script() {
         .with_arg("touch-marker")
         .assert()
         .success();
-    assert!(
-        marker_path.exists(),
-        "script should have created the marker file",
-    );
+    assert!(marker_path.exists(), "script should have created the marker file");
 
     drop(root);
 }
@@ -188,10 +185,7 @@ fn run_start_without_script_or_server_errors() {
         .with_arg("start")
         .output()
         .expect("spawn pacquet run");
-    assert!(
-        !output.status.success(),
-        "run start without script or server.js must fail",
-    );
+    assert!(!output.status.success(), "run start without script or server.js must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_NO_SCRIPT_OR_SERVER")
@@ -222,10 +216,7 @@ fn run_empty_start_script_hits_server_js_guard() {
         .with_arg("start")
         .output()
         .expect("spawn pacquet run");
-    assert!(
-        !output.status.success(),
-        "empty start without server.js must fail",
-    );
+    assert!(!output.status.success(), "empty start without server.js must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_NO_SCRIPT_OR_SERVER")
@@ -289,11 +280,7 @@ fn run_propagates_failing_script_exit_code() {
         .with_arg("fail")
         .output()
         .expect("spawn pacquet run");
-    assert_eq!(
-        output.status.code(),
-        Some(5),
-        "the script's exit code must propagate",
-    );
+    assert_eq!(output.status.code(), Some(5), "the script's exit code must propagate");
 
     drop(root);
 }
@@ -320,14 +307,8 @@ fn run_preserves_embedded_quotes_in_script() {
         .output()
         .expect("spawn pacquet run");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        output.status.success(),
-        "the script must exit 0, got: {output:?}",
-    );
-    assert!(
-        stdout.contains("verbatim-ok"),
-        "embedded quotes must survive; stdout: {stdout:?}",
-    );
+    assert!(output.status.success(), "the script must exit 0, got: {output:?}");
+    assert!(stdout.contains("verbatim-ok"), "embedded quotes must survive; stdout: {stdout:?}");
 
     drop(root);
 }
@@ -352,11 +333,7 @@ fn run_failing_test_script_prints_test_failed_message() {
         .with_arg("test")
         .output()
         .expect("spawn pacquet run");
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "the script's exit code must propagate",
-    );
+    assert_eq!(output.status.code(), Some(1), "the script's exit code must propagate");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("Test failed. See above for more details."),
@@ -389,10 +366,7 @@ scripts:
         .with_arg("prepareFixtures")
         .assert()
         .success();
-    assert_eq!(
-        fs::read_to_string(&marker).expect("read marker"),
-        "prepared",
-    );
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "prepared");
 
     drop(root);
 }
@@ -432,10 +406,7 @@ fn prefix_selects_the_dir_before_the_subcommand_and_is_the_script_s_after_it() {
         .with_arg("forwarded")
         .assert()
         .success();
-    assert_eq!(
-        fs::read_to_string(&marker).expect("read marker"),
-        "--prefix forwarded",
-    );
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--prefix forwarded");
 
     drop(root);
 }
@@ -574,10 +545,7 @@ fn run_start_fallback_uses_dir_for_server_js_probe() {
     let marker = workspace.join("node-cwd-and-args.txt");
     write_executable(
         &shim_dir.join("node"),
-        &format!(
-            "#!/bin/sh\nprintf '%s\\n%s' \"$(pwd)\" \"$*\" > \"{}\"\n",
-            marker.display(),
-        ),
+        &format!("#!/bin/sh\nprintf '%s\\n%s' \"$(pwd)\" \"$*\" > \"{}\"\n", marker.display()),
     );
 
     let existing_path = std::env::var("PATH").unwrap_or_default();
@@ -722,11 +690,7 @@ mod shell_emulator {
     #[test]
     fn runs_the_script_without_the_configured_shell() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-        write_project(
-            &workspace,
-            &json!({ "build": "echo emulated > marker.txt" }),
-            true,
-        );
+        write_project(&workspace, &json!({ "build": "echo emulated > marker.txt" }), true);
 
         pacquet
             .with_args(["run", "build"])
@@ -757,11 +721,7 @@ mod shell_emulator {
 
         for streamed in [false, true] {
             let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
-            write_project(
-                &workspace,
-                &json!({ "record": "node record-args.cjs" }),
-                true,
-            );
+            write_project(&workspace, &json!({ "record": "node record-args.cjs" }), true);
             fs::write(
                 workspace.join("record-args.cjs"),
                 "require('node:fs').writeFileSync('args.json', JSON.stringify(process.argv.slice(2)))",
@@ -790,20 +750,13 @@ mod shell_emulator {
     #[test]
     fn without_the_setting_the_same_project_cannot_spawn_its_shell() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-        write_project(
-            &workspace,
-            &json!({ "build": "echo emulated > marker.txt" }),
-            false,
-        );
+        write_project(&workspace, &json!({ "build": "echo emulated > marker.txt" }), false);
 
         pacquet
             .with_args(["run", "build"])
             .assert()
             .failure();
-        assert!(
-            !workspace.join("marker.txt").exists(),
-            "the script must not have run",
-        );
+        assert!(!workspace.join("marker.txt").exists(), "the script must not have run");
 
         drop(root);
     }
@@ -817,11 +770,7 @@ mod shell_emulator {
             .with_args(["run", "fail"])
             .output()
             .expect("spawn pacquet run");
-        assert_eq!(
-            output.status.code(),
-            Some(5),
-            "the script's exit code must propagate",
-        );
+        assert_eq!(output.status.code(), Some(5), "the script's exit code must propagate");
 
         drop(root);
     }

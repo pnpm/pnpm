@@ -21,21 +21,13 @@ pub enum PrefixError {
     /// IO error while looking up the prefix.
     #[display("failed to access {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_CLI_PREFIX_IO_ERROR))]
-    Io {
-        path: PathBuf,
-        source: std::io::Error,
-    },
+    Io { path: PathBuf, source: std::io::Error },
 }
 
 /// The markers that make a directory an npm project, as pnpm's
 /// `findLocalPrefix` counts them.
-const NPM_PROJECT_MARKERS: &[&str] = &[
-    "node_modules",
-    "package.json",
-    "package.json5",
-    "package.yaml",
-    "pnpm-workspace.yaml",
-];
+const NPM_PROJECT_MARKERS: &[&str] =
+    &["node_modules", "package.json", "package.json5", "package.yaml", "pnpm-workspace.yaml"];
 
 /// [`NPM_PROJECT_MARKERS`] plus the manifests pnpm v12 manages beyond
 /// `package.json` — a Cargo or Python package without a `package.json` is
@@ -83,11 +75,7 @@ fn find_prefix(start_dir: &Path, targets: &[&str]) -> miette::Result<PathBuf> {
         }
     }
 
-    if name == start_dir {
-        find_prefix_up(&name, &name, targets)
-    } else {
-        Ok(name)
-    }
+    if name == start_dir { find_prefix_up(&name, &name, targets) } else { Ok(name) }
 }
 
 fn find_prefix_up(name: &Path, original: &Path, targets: &[&str]) -> miette::Result<PathBuf> {
@@ -134,11 +122,7 @@ fn probe_project_markers(
             Ok(true) => return Ok(MarkerProbe::Found),
             Ok(false) => continue,
             Err(error) if current == original => {
-                return Err(PrefixError::Io {
-                    path: target_path,
-                    source: error,
-                }
-                .into());
+                return Err(PrefixError::Io { path: target_path, source: error }.into());
             }
             Err(_) => return Ok(MarkerProbe::Unreadable),
         }

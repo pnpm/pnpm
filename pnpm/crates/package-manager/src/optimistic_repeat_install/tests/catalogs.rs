@@ -83,17 +83,9 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
             .path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        dir.path(),
-        backdate_existing_files(dir.path()),
-        settings,
-        projects,
-    );
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -122,10 +114,7 @@ fn returns_skipped_when_an_override_maps_through_a_catalog_to_a_local_path() {
         "1.0.0",
         r#""dependencies":{"foo":"^1.0.0"}"#,
         |config| {
-            config.overrides = Some(IndexMap::from([(
-                "bar".to_string(),
-                "catalog:".to_string(),
-            )]));
+            config.overrides = Some(IndexMap::from([("bar".to_string(), "catalog:".to_string())]));
         },
     );
 
@@ -180,17 +169,9 @@ fn returns_outdated_when_workspace_catalog_cache_changes() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     let current_catalogs = Catalogs::from([(
         "default".to_string(),
@@ -203,12 +184,7 @@ fn returns_outdated_when_workspace_catalog_cache_changes() {
         &[(workspace_root.to_path_buf(), &manifest)],
         &current_catalogs,
     );
-    assert_eq!(
-        decision,
-        Decision::Skipped {
-            reason: "catalogs cache outdated"
-        },
-    );
+    assert_eq!(decision, Decision::Skipped { reason: "catalogs cache outdated" });
 }
 #[test]
 fn returns_outdated_when_single_project_catalog_cache_changes() {
@@ -239,17 +215,9 @@ fn returns_outdated_when_single_project_catalog_cache_changes() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     let current_catalogs = Catalogs::from([(
         "default".to_string(),
@@ -263,10 +231,5 @@ fn returns_outdated_when_single_project_catalog_cache_changes() {
         false,
         &current_catalogs,
     );
-    assert_eq!(
-        decision,
-        Decision::Skipped {
-            reason: "catalogs cache outdated"
-        },
-    );
+    assert_eq!(decision, Decision::Skipped { reason: "catalogs cache outdated" });
 }

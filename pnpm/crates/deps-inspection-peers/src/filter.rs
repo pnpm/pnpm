@@ -10,10 +10,7 @@ pub(super) fn merge_missing_peers(
     let mut intersections = BTreeMap::new();
 
     for (peer_name, issues) in missing {
-        if issues
-            .iter()
-            .all(|issue| issue.optional)
-        {
+        if issues.iter().all(|issue| issue.optional) {
             continue;
         }
         if issues.len() == 1 {
@@ -40,10 +37,7 @@ pub(super) fn merge_missing_peers(
         }
     }
 
-    MergeResult {
-        conflicts,
-        intersections,
-    }
+    MergeResult { conflicts, intersections }
 }
 
 pub(super) struct MergeResult {
@@ -104,9 +98,7 @@ fn filter_missing_issues(
         .iter()
         .filter(|(peer_name, peer_issues)| {
             !ignore_missing_matcher.matches(peer_name)
-                && !peer_issues
-                    .iter()
-                    .all(|issue| issue.optional)
+                && !peer_issues.iter().all(|issue| issue.optional)
         })
         .map(|(peer_name, peer_issues)| (peer_name.clone(), peer_issues.clone()))
         .collect();
@@ -121,9 +113,7 @@ fn is_version_allowed(
     allow_by_parent: &AllowByParentMatcher,
 ) -> bool {
     if let Some(ranges) = allow_all.get(peer_name)
-        && ranges
-            .iter()
-            .any(|range| satisfies(&issue.found_version, range))
+        && ranges.iter().any(|range| satisfies(&issue.found_version, range))
     {
         return true;
     }
@@ -137,18 +127,12 @@ fn is_version_allowed(
         .iter()
         .filter(|rule| parent_range_matches(rule, &declaring_parent.version))
         .filter_map(|rule| rule.peer_rules.get(peer_name))
-        .any(|ranges| {
-            ranges
-                .iter()
-                .any(|range| satisfies(&issue.found_version, range))
-        })
+        .any(|ranges| ranges.iter().any(|range| satisfies(&issue.found_version, range)))
 }
 
 /// A rule with no parent range applies to every version of the parent.
 fn parent_range_matches(rule: &ParentRule, parent_version: &str) -> bool {
-    rule.parent_range
-        .as_ref()
-        .is_none_or(|range| satisfies(parent_version, range))
+    rule.parent_range.as_ref().is_none_or(|range| satisfies(parent_version, range))
 }
 
 type AllowAllMatcher = HashMap<String, Vec<String>>;
@@ -202,10 +186,7 @@ fn add_parent_rule(by_parent: &mut AllowByParentMatcher, parent: &str, target: &
     } else {
         let mut peer_rules = HashMap::new();
         peer_rules.insert(peer_name, split_ranges(spec));
-        parent_entry.push(ParentRule {
-            parent_range,
-            peer_rules,
-        });
+        parent_entry.push(ParentRule { parent_range, peer_rules });
     }
 }
 

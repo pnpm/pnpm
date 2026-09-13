@@ -90,15 +90,8 @@ pub fn get_tree(
     let mut ancestors = HashSet::new();
     ancestors.insert(parent_id.clone());
 
-    let result = materialize_children(
-        opts,
-        cache,
-        &mut ancestors,
-        parent_id,
-        max_depth,
-        parent_dir,
-        0,
-    );
+    let result =
+        materialize_children(opts, cache, &mut ancestors, parent_id, max_depth, parent_dir, 0);
 
     // Circular back-edges are marked in a post-pass: materialization
     // truncates dependencies at cycle boundaries but leaves cached
@@ -182,8 +175,14 @@ struct TraversalState<'a> {
 }
 
 fn materialize_edge(inputs: MaterializeEdge<'_>) {
-    let package_info = inputs.package_info();
     let MaterializeEdge { opts, edge, result, .. } = inputs;
+    let edge_ctx = EdgeContext {
+        peers: Some(inputs.peers),
+        linked_path_base_dir: inputs.linked_path_base_dir.to_path_buf(),
+        rewrite_link_version_dir: Some(opts.rewrite_link_version_dir.clone()),
+        parent_dir: inputs.parent_dir.map(Path::to_path_buf),
+    };
+    let (package_info, _) = get_pkg_info(opts.env, edge, &edge_ctx);
     let search_match = opts.search.map(|search| {
         search.matches(
             &edge.alias,
@@ -204,7 +203,9 @@ fn materialize_edge(inputs: MaterializeEdge<'_>) {
             traversal: inputs.traversal,
         }),
     };
-    result.record_subtree_search(&subtree);
+    result.has_search_match |= subtree.walked_has_search_match || subtree.deduped_has_search_match;
+    result.search_messages.extend(subtree.walked_search_messages.iter().cloned());
+    result.search_messages.extend(subtree.deduped_search_messages.iter().cloned());
 
     // An entry is kept when it has children to show, when it matched the
     // search itself, or when it stands in for an elided subtree that did.
@@ -239,11 +240,7 @@ fn record_materialized_edge(
     {
         return;
     }
-    result.count += 1 + if entry.dependencies.is_empty() {
-        0
-    } else {
-        subtree.count
-    };
+    result.count += 1 + if entry.dependencies.is_empty() { 0 } else { subtree.count };
     result.nodes.push(entry);
 }
 
@@ -316,10 +313,10 @@ fn materialize_subtree(walk: SubtreeWalk<'_>) -> Subtree {
             search_messages: child_result.search_messages.clone(),
         }),
     );
-    walked_subtree(child_result, opts.show_deduped_search_matches)
+    expanded_subtree(child_result, opts.show_deduped_search_matches)
 }
 
-fn walked_subtree(child_result: MaterializationResult, show_matches: bool) -> Subtree {
+fn expanded_subtree(child_result: MaterializationResult, show_matches: bool) -> Subtree {
     Subtree {
         dependencies: child_result.nodes,
         count: child_result.count,
@@ -403,25 +400,3 @@ fn fix_circular_refs(
 
 #[cfg(test)]
 mod tests;
-
-impl MaterializationResult {
-    fn record_subtree_search(&mut self, subtree: &Subtree) {
-        self.has_search_match |=
-            subtree.walked_has_search_match || subtree.deduped_has_search_match;
-        self.search_messages.extend(subtree.walked_search_messages.iter().cloned());
-        self.search_messages.extend(subtree.deduped_search_messages.iter().cloned());
-    }
-}
-
-impl MaterializeEdge<'_> {
-    fn package_info(&self) -> DependencyNode {
-        let edge_ctx = EdgeContext {
-            peers: Some(self.peers),
-            linked_path_base_dir: self.linked_path_base_dir.to_path_buf(),
-            rewrite_link_version_dir: Some(self.opts.rewrite_link_version_dir.clone()),
-            parent_dir: self.parent_dir.map(Path::to_path_buf),
-        };
-        let (package_info, _) = get_pkg_info(self.opts.env, self.edge, &edge_ctx);
-        package_info
-    }
-}

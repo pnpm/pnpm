@@ -127,11 +127,7 @@ fn filesystem_root(path: &Path) -> PathBuf {
             _ => break,
         }
     }
-    if root.as_os_str().is_empty() {
-        path.to_path_buf()
-    } else {
-        root
-    }
+    if root.as_os_str().is_empty() { path.to_path_buf() } else { root }
 }
 
 /// Given `from` (an ancestor of `to`), return `from` with one more
@@ -187,9 +183,7 @@ pub(crate) fn host_can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool
 /// once and removes it.
 fn path_temp_in(folder: &Path) -> PathBuf {
     let pid = std::process::id();
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.subsec_nanos());
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.subsec_nanos());
     folder.join(format!("_tmp_{pid}_{nanos:08x}"))
 }
 

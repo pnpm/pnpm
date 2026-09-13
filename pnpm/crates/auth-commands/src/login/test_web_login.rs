@@ -53,28 +53,14 @@ async fn should_use_web_login_when_registry_supports_it() {
     );
 
     let messages = infos();
-    assert_eq!(
-        messages.len(),
-        2,
-        "expected the auth-URL and Press-ENTER lines: {messages:?}",
-    );
-    assert!(
-        messages[0].contains("https://example.com/auth/login"),
-        "got {messages:?}",
-    );
+    assert_eq!(messages.len(), 2, "expected the auth-URL and Press-ENTER lines: {messages:?}");
+    assert!(messages[0].contains("https://example.com/auth/login"), "got {messages:?}");
     assert_eq!(messages[1], "Press ENTER to open the URL in your browser.");
 }
 
 #[tokio::test]
 async fn should_complete_web_login_without_an_interactive_terminal() {
-    web_auth_fake!(
-        FakeHost,
-        RecordingReporter,
-        set_stdin_tty,
-        set_stdout_tty,
-        set_fetch,
-        infos
-    );
+    web_auth_fake!(FakeHost, RecordingReporter, set_stdin_tty, set_stdout_tty, set_fetch, infos);
     login_fake!(FakeHost, login_writes);
     reset();
     reset_login();
@@ -106,10 +92,7 @@ async fn should_complete_web_login_without_an_interactive_terminal() {
     );
 
     // No QR code (stdout is not a terminal) and no "Press ENTER" prompt.
-    assert_eq!(
-        infos(),
-        ["Authenticate your account at:\nhttps://example.com/auth/login"],
-    );
+    assert_eq!(infos(), ["Authenticate your account at:\nhttps://example.com/auth/login"]);
 }
 
 #[tokio::test]
@@ -151,9 +134,7 @@ async fn should_succeed_when_config_file_does_not_exist() {
     reset();
     reset_login();
     set_fetch(Box::new(|| Ok(ok_token("new-token"))));
-    set_ini_read(Box::new(|_| {
-        Err(io::Error::new(io::ErrorKind::NotFound, "ENOENT"))
-    }));
+    set_ini_read(Box::new(|_| Err(io::Error::new(io::ErrorKind::NotFound, "ENOENT"))));
 
     let mut server = mockito::Server::new_async().await;
     server

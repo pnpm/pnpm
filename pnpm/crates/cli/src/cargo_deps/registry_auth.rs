@@ -32,11 +32,7 @@ where
         return Ok(Arc::clone(configured));
     }
     let cargo_home = cargo_home::<Sys>();
-    crates_io_from_sources(
-        configured,
-        Sys::var(CRATES_IO_TOKEN_ENV),
-        cargo_home.as_deref(),
-    )
+    crates_io_from_sources(configured, Sys::var(CRATES_IO_TOKEN_ENV), cargo_home.as_deref())
 }
 
 fn crates_io_from_sources(
@@ -51,9 +47,7 @@ fn crates_io_from_sources(
             .transpose()?
             .flatten(),
     };
-    let Some(token) = token else {
-        return Ok(Arc::clone(configured));
-    };
+    let Some(token) = token else { return Ok(Arc::clone(configured)) };
 
     let mut auth_headers = (**configured).clone();
     auth_headers.insert_url_header(pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX, token);

@@ -57,10 +57,7 @@ async fn trust_check_fails_at_resolve_time_when_the_registry_serves_no_time_fiel
         ..WantedDependency::default()
     };
     let err = resolver.resolve(&wanted, &opts).await.expect_err("missing time should fail closed");
-    assert!(
-        err.to_string().contains(r#"missing the "time" field"#),
-        "got {err}",
-    );
+    assert!(err.to_string().contains(r#"missing the "time" field"#), "got {err}");
 }
 
 #[tokio::test]

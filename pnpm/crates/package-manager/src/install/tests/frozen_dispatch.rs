@@ -129,10 +129,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
         "expected NoMatchingPlatformVariant in the error chain, got: {rendered}",
     );
     let displayed = err.to_string();
-    assert!(
-        !displayed.is_empty(),
-        "Display impl should produce a non-empty user-facing message",
-    );
+    assert!(!displayed.is_empty(), "Display impl should produce a non-empty user-facing message");
 
     drop(dirs.dir);
 }
@@ -292,11 +289,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/hello-world-js-bin",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 
@@ -397,10 +390,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
     // The gate must short-circuit before any virtual-store
     // materialization — no slot, no project-side symlink.
     let slot = dirs.project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
-    assert!(
-        !slot.exists(),
-        "the gate must fail before any virtual-store materialization",
-    );
+    assert!(!slot.exists(), "the gate must fail before any virtual-store materialization");
     assert!(
         !dirs.project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
         "the gate must fail before any project-side symlinks are created",
@@ -418,11 +408,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
     let manifest_path = dirs.project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/hello-world-js-bin",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 
@@ -762,10 +748,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
 #[tokio::test]
 async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {

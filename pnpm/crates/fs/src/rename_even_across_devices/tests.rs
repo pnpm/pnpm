@@ -88,14 +88,8 @@ fn a_cross_device_rename_falls_back_to_copying_the_tree_over() {
     let dst = tmp.path().join("staged_node_modules");
     rename_even_across_devices::<CrossDevice>(&src, &dst).unwrap();
 
-    assert_eq!(
-        fs::read(dst.join("inner/index.js")).unwrap(),
-        b"// inner dep",
-    );
-    assert!(
-        !src.exists(),
-        "the fallback must leave the source moved, not duplicated",
-    );
+    assert_eq!(fs::read(dst.join("inner/index.js")).unwrap(), b"// inner dep");
+    assert!(!src.exists(), "the fallback must leave the source moved, not duplicated");
 }
 
 #[cfg(unix)]
@@ -190,10 +184,7 @@ fn a_cross_device_rename_onto_an_occupied_directory_reports_the_collision() {
     let error = rename_even_across_devices::<CrossDevice>(&src, &dst).unwrap_err();
 
     assert_eq!(error.kind(), io::ErrorKind::DirectoryNotEmpty);
-    assert!(
-        !dst.join("dep.js").exists(),
-        "the destination must be left for the caller to merge",
-    );
+    assert!(!dst.join("dep.js").exists(), "the destination must be left for the caller to merge");
     assert_eq!(fs::read(src.join("dep.js")).unwrap(), b"// preserved dep");
 }
 
@@ -259,10 +250,7 @@ fn a_source_that_cannot_be_removed_does_not_undo_the_move() {
     rename_even_across_devices::<CrossDeviceThenUnremovable>(&src, &dst)
         .expect("the destination is committed, so the move succeeded");
 
-    assert_eq!(
-        fs::read(dst.join("inner/index.js")).unwrap(),
-        b"// inner dep",
-    );
+    assert_eq!(fs::read(dst.join("inner/index.js")).unwrap(), b"// inner dep");
 }
 
 /// A destination that cannot be read is the caller's problem, not a

@@ -140,12 +140,8 @@ fn write_cas_file_from_reader_matches_write_cas_file() {
         assert_eq!(streamed_hash, buffered_hash);
         assert_eq!(streamed_size, content.len() as u64);
         assert_eq!(
-            streamed_path
-                .strip_prefix(streamed_store.root())
-                .unwrap(),
-            buffered_path
-                .strip_prefix(buffered_store.root())
-                .unwrap(),
+            streamed_path.strip_prefix(streamed_store.root()).unwrap(),
+            buffered_path.strip_prefix(buffered_store.root()).unwrap(),
         );
         assert_eq!(std::fs::read(&streamed_path).unwrap(), content);
         #[cfg(unix)]
@@ -190,19 +186,10 @@ fn write_cas_file_from_reader_keeps_existing_live_entry_and_removes_temp() {
     let stray: Vec<_> = std::fs::read_dir(store_dir.files_dir())
         .unwrap()
         .map(|dirent| dirent.unwrap())
-        .filter(|dirent| {
-            !dirent
-                .file_type()
-                .unwrap()
-                .is_dir()
-        })
+        .filter(|dirent| !dirent.file_type().unwrap().is_dir())
         .map(|dirent| dirent.file_name())
         .collect();
-    assert_eq!(
-        stray,
-        Vec::<std::ffi::OsString>::new(),
-        "no temp files may leak into files/",
-    );
+    assert_eq!(stray, Vec::<std::ffi::OsString>::new(), "no temp files may leak into files/");
 }
 
 /// A same-length blob at the target whose bytes differ (disk
@@ -227,11 +214,7 @@ fn write_cas_file_from_reader_replaces_same_length_corrupt_entry() {
         .unwrap();
 
     assert_eq!(second_path, file_path);
-    assert_eq!(
-        std::fs::read(&file_path).unwrap(),
-        content,
-        "corrupt blob must be healed",
-    );
+    assert_eq!(std::fs::read(&file_path).unwrap(), content, "corrupt blob must be healed");
 }
 
 /// A shard-directory failure after the bytes have already streamed
@@ -283,11 +266,7 @@ fn write_cas_file_from_reader_rejects_short_reader_without_committing() {
     let content = b"cut short";
 
     let err = store_dir
-        .write_cas_file_from_reader(
-            &mut content.as_slice(),
-            false,
-            Some(content.len() as u64 + 7),
-        )
+        .write_cas_file_from_reader(&mut content.as_slice(), false, Some(content.len() as u64 + 7))
         .expect_err("a short reader must not commit to the store");
     assert!(
         matches!(err, WriteCasFileFromReaderError::Read(_)),
@@ -334,11 +313,7 @@ fn write_cas_file_from_reader_cleans_up_temp_on_reader_error() {
         .unwrap()
         .map(|dirent| dirent.unwrap().file_name())
         .collect();
-    assert_eq!(
-        leftovers,
-        Vec::<std::ffi::OsString>::new(),
-        "failed stream must remove its temp",
-    );
+    assert_eq!(leftovers, Vec::<std::ffi::OsString>::new(), "failed stream must remove its temp");
 }
 
 #[test]

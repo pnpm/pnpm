@@ -98,11 +98,7 @@ fn multi_process_concurrent_writes_converge_on_correct_content() {
     }
 
     let final_content = fs::read(&target_path).expect("read target");
-    assert_eq!(
-        final_content.len(),
-        content.len(),
-        "size mismatch after concurrent writes",
-    );
+    assert_eq!(final_content.len(), content.len(), "size mismatch after concurrent writes");
     assert_eq!(
         sha512_hex(&final_content),
         expected_digest,

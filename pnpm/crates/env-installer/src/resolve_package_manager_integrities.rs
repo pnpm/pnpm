@@ -3,7 +3,6 @@ use crate::{
     manifest_lockfile::{package_metadata, read_dependency_map},
     options::ConfigDepsInstallOptions,
     prune::prune_env_lockfile,
-    resolve_and_install_config_deps::resolve_options,
     resolve_optional_subdeps::resolution_has_integrity,
     verify_env_lockfile::{verify_env_lockfile, write_verified_env_lockfile},
 };
@@ -11,8 +10,11 @@ use pnpm_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PkgName, PkgVerPeer, RegistryResolution,
     SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, TarballResolution,
 };
-use pnpm_resolving_resolver_base::{ResolveResult, Resolver, WantedDependency};
-use std::collections::{BTreeMap, HashMap};
+use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+};
 
 const PACKAGE_MANAGER_DEPS_WITH_EXE: [&str; 2] = ["pnpm", "@pnpm/exe"];
 const PACKAGE_MANAGER_DEPS_PNPM_ONLY: [&str; 1] = ["pnpm"];
@@ -57,18 +59,20 @@ pub async fn resolve_package_manager_integrities(
         return frozen_lockfile_result(env_lockfile, version, package_manager_deps);
     }
 
-    let (package_manager_dependencies, resolved) = resolve_direct_deps(
-        package_manager_deps,
-        wanted_specifier,
-        version,
-        resolver,
-        opts,
-    )
-    .await?;
+    let (package_manager_dependencies, mut resolved) =
+        resolve_direct_deps(package_manager_deps, wanted_specifier, version, resolver, opts).await?;
     env_lockfile.root_importer_mut().package_manager_dependencies =
         Some(package_manager_dependencies);
 
-    record_package_closure(&mut env_lockfile, resolved, resolver, opts).await?;
+    let mut seen = std::collections::HashSet::new();
+    while let Some(package) = resolved.pop() {
+        if !seen.insert(package.key.clone()) {
+            clear_optional(&mut env_lockfile, &package);
+            continue;
+        }
+        let children = record_package(&mut env_lockfile, package, resolver, opts).await?;
+        resolved.extend(children);
+    }
 
     prune_env_lockfile(&mut env_lockfile);
     if repair_in_memory {
@@ -139,14 +143,9 @@ async fn record_package(
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<Vec<EnvPackage>, ConfigDepError> {
     let registry = opts.pick_registry(&package.name);
-    let mut metadata = package_metadata(
-        &package.name,
-        &package.version,
-        &package.result,
-        registry,
-        false,
-    )
-    .map_err(ConfigDepError::LockfileForm)?;
+    let mut metadata =
+        package_metadata(&package.name, &package.version, &package.result, registry, false)
+            .map_err(ConfigDepError::LockfileForm)?;
     metadata.resolution = strip_registry_tarball_url(metadata.resolution);
     env_lockfile.packages.insert(package.key.clone(), metadata);
 
@@ -155,8 +154,7 @@ async fn record_package(
 
     let mut dependencies = HashMap::new();
     for (alias, specifier) in read_dependency_map(manifest, "dependencies") {
-        let child = resolve_dep(&alias, &specifier, false, resolver, opts)
-            .await?;
+        let child = resolve_dep(&alias, &specifier, false, resolver, opts).await?;
         dependencies.insert(snapshot_dep_name(&alias)?, child.snapshot_ref(&alias)?);
         children.push(child);
     }
@@ -199,10 +197,9 @@ fn strip_registry_tarball_url(resolution: LockfileResolution) -> LockfileResolut
             revision: None,
             git_hosted: None | Some(false),
             path: None,
-        }) if !tarball.starts_with("file:") => LockfileResolution::Registry(RegistryResolution {
-            integrity,
-            revision: None,
-        }),
+        }) if !tarball.starts_with("file:") => {
+            LockfileResolution::Registry(RegistryResolution { integrity, revision: None })
+        }
         other => other,
     }
 }
@@ -353,21 +350,24 @@ async fn resolve_dep(
         optional: optional.then_some(true),
         ..WantedDependency::default()
     };
-    let resolve_opts = resolve_options(opts.root_dir);
+    let resolve_opts = ResolveOptions {
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: PathBuf::from(opts.root_dir),
+            lockfile_dir: PathBuf::from(opts.root_dir),
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
     let result = resolver
         .resolve(&wanted, &resolve_opts)
         .await
-        .map_err(|error| ConfigDepError::Resolve {
-            spec: format!("{alias}@{specifier}"),
-            error,
-        })?
+        .map_err(|error| ConfigDepError::Resolve { spec: format!("{alias}@{specifier}"), error })?
         .ok_or_else(|| no_integrity(alias, specifier))?;
     if !resolution_has_integrity(&result.resolution) {
         return Err(no_integrity(alias, specifier));
     }
-    let name_ver = result.package.name_ver
-        .as_ref()
-        .ok_or_else(|| no_integrity(alias, specifier))?;
+    let name_ver =
+        result.package.name_ver.as_ref().ok_or_else(|| no_integrity(alias, specifier))?;
     let name = name_ver.name.to_string();
     let version = name_ver.suffix.to_string();
     let key = format!("{name}@{version}").parse::<PackageKey>().map_err(|_| {
@@ -377,13 +377,7 @@ async fn resolve_dep(
             ),
         }
     })?;
-    Ok(EnvPackage {
-        name,
-        version,
-        key,
-        optional,
-        result,
-    })
+    Ok(EnvPackage { name, version, key, optional, result })
 }
 
 fn no_integrity(alias: &str, specifier: &str) -> ConfigDepError {
@@ -400,24 +394,4 @@ fn snapshot_dep_name(alias: &str) -> Result<PkgName, ConfigDepError> {
         .map_err(|_| ConfigDepError::BadConfigDep {
             message: format!("Resolved package manager dependency name {alias} is invalid"),
         })
-}
-
-async fn record_package_closure(
-    env_lockfile: &mut EnvLockfile,
-    mut resolved: Vec<EnvPackage>,
-    resolver: &dyn Resolver,
-    opts: &ConfigDepsInstallOptions<'_>,
-) -> Result<(), ConfigDepError> {
-    let mut seen = std::collections::HashSet::new();
-    while let Some(package) = resolved.pop() {
-        if !seen.insert(package.key.clone()) {
-            clear_optional(env_lockfile, &package);
-            continue;
-        }
-        let children = record_package(env_lockfile, package, resolver, opts)
-            .await?;
-        resolved.extend(children);
-    }
-
-    Ok(())
 }

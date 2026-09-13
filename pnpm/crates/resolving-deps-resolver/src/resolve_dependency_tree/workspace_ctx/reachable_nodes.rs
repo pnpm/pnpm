@@ -68,9 +68,7 @@ pub(super) fn push_unvisited_children(
     queue: &mut Vec<String>,
     visited: &HashSet<String>,
 ) {
-    let Some(children) = children_by_id.get(pkg_id) else {
-        return;
-    };
+    let Some(children) = children_by_id.get(pkg_id) else { return };
     for child in children.edges.iter() {
         if !visited.contains(&*child.pkg_id) {
             queue.push(child.pkg_id.to_string());
@@ -122,9 +120,7 @@ pub(super) fn walk_reachable_nodes(
             continue;
         };
         reachable_pkg_ids.insert(Arc::<str>::clone(&node.resolved_package_id));
-        if let crate::resolved_tree::TreeChildren::Realized(children) =
-            &node.children
-        {
+        if let crate::resolved_tree::TreeChildren::Realized(children) = &node.children {
             pending_node_ids.extend(children.values().cloned());
         }
     }

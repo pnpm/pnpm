@@ -200,9 +200,7 @@ pub fn validate_declarations<'a>(
         if let Some(prefix) = declaration.prefix.as_deref()
             && !declared_prefixes.insert(prefix)
         {
-            return Err(LoadWorkspaceYamlError::PrefixDeclaredTwice {
-                prefix: prefix.to_owned(),
-            });
+            return Err(LoadWorkspaceYamlError::PrefixDeclaredTwice { prefix: prefix.to_owned() });
         }
     }
     Ok(())
@@ -234,9 +232,7 @@ fn validate_declaration_fields(
     // refuses credential fields for that reason; a credential in the key
     // is the same secret in the same file.
     if registry_url_has_userinfo(registry) {
-        return Err(LoadWorkspaceYamlError::CredentialsInRegistryKey {
-            registry: redacted,
-        });
+        return Err(LoadWorkspaceYamlError::CredentialsInRegistryKey { registry: redacted });
     }
     Ok(())
 }
@@ -369,15 +365,10 @@ pub fn to_declarations(lookups: &RegistryLookups) -> BTreeMap<String, RegistryDe
             .push(scope.clone());
     }
     for (prefix, registry) in &lookups.registries_by_prefix {
-        declarations
-            .entry(registry.clone())
-            .or_default()
-            .prefix = Some(prefix.clone());
+        declarations.entry(registry.clone()).or_default().prefix = Some(prefix.clone());
     }
     for (registry, options) in &lookups.registry_options_by_url {
-        let declaration = declarations
-            .entry(registry.clone())
-            .or_default();
+        let declaration = declarations.entry(registry.clone()).or_default();
         declaration.server_type = options.server_type;
         declaration.supports_time_field = options.supports_time_field;
     }

@@ -36,10 +36,7 @@ fn store_path_accepts_the_silent_shorthand() {
             .with_args(["store", "path", silent_arg])
             .output()
             .expect("run pacquet store path with the silent shorthand");
-        assert!(
-            output.status.success(),
-            "store path {silent_arg} must succeed: {output:?}",
-        );
+        assert!(output.status.success(), "store path {silent_arg} must succeed: {output:?}");
 
         let normalize = |path: &str| path.replace('\\', "/");
         assert_eq!(
@@ -92,11 +89,8 @@ fn store_path_should_return_store_dir_from_pnpm_workspace_yaml() {
 #[test]
 fn store_path_resolves_global_and_dotted_overrides_from_workspace_root() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
     let package_dir = workspace.join("packages/app");
     fs::create_dir_all(&package_dir).expect("create nested workspace package");
 
@@ -164,22 +158,13 @@ fn empty_store_dir_override_restores_the_platform_default() {
         .output()
         .expect("read the default store path");
     eprintln!("default status={}", default_output.status);
-    eprintln!(
-        "default stdout={}",
-        String::from_utf8_lossy(&default_output.stdout),
-    );
-    eprintln!(
-        "default stderr={}",
-        String::from_utf8_lossy(&default_output.stderr),
-    );
+    eprintln!("default stdout={}", String::from_utf8_lossy(&default_output.stdout));
+    eprintln!("default stderr={}", String::from_utf8_lossy(&default_output.stderr));
     assert!(default_output.status.success());
     let default_store = String::from_utf8_lossy(&default_output.stdout).trim_end().to_owned();
 
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "storeDir: yaml-store\n",
-    )
-    .expect("write configured store directory");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "storeDir: yaml-store\n")
+        .expect("write configured store directory");
     for store_arg in ["--store-dir=", "--config.store-dir="] {
         let output = Command::cargo_bin("pnpm")
             .expect("find the pnpm binary")
@@ -189,10 +174,7 @@ fn empty_store_dir_override_restores_the_platform_default() {
             .expect("run store path with an empty override");
         eprintln!("stderr={}", String::from_utf8_lossy(&output.stderr));
         assert!(output.status.success());
-        assert_eq!(
-            String::from_utf8_lossy(&output.stdout).trim_end(),
-            default_store,
-        );
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), default_store);
     }
 
     drop(root);
@@ -217,14 +199,8 @@ fn store_status_reports_an_untouched_store() {
         .expect("run pacquet store status");
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("stderr={stderr}");
-    assert!(
-        output.status.success(),
-        "store status must succeed on a clean store",
-    );
-    assert!(
-        stderr.contains("Packages in the store are untouched"),
-        "stderr={stderr}",
-    );
+    assert!(output.status.success(), "store status must succeed on a clean store");
+    assert!(stderr.contains("Packages in the store are untouched"), "stderr={stderr}");
 }
 
 #[test]
@@ -239,11 +215,8 @@ fn store_status_reports_a_package_edited_after_it_was_linked_out() {
         .success();
 
     let installed_index = workspace.join("node_modules/.pnpm/is-odd@3.0.1/node_modules/is-odd");
-    fs::write(
-        installed_index.join("index.js"),
-        "module.exports = 'tampered'\n",
-    )
-    .expect("edit the installed package");
+    fs::write(installed_index.join("index.js"), "module.exports = 'tampered'\n")
+        .expect("edit the installed package");
 
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
@@ -253,14 +226,8 @@ fn store_status_reports_a_package_edited_after_it_was_linked_out() {
         .expect("run pacquet store status");
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("stderr={stderr}");
-    assert!(
-        !output.status.success(),
-        "store status must fail once a package is modified",
-    );
-    assert!(
-        stderr.contains("ERR_PNPM_MODIFIED_DEPENDENCY"),
-        "stderr={stderr}",
-    );
+    assert!(!output.status.success(), "store status must fail once a package is modified");
+    assert!(stderr.contains("ERR_PNPM_MODIFIED_DEPENDENCY"), "stderr={stderr}");
     assert!(stderr.contains("is-odd@3.0.1"), "stderr={stderr}");
 }
 
@@ -279,18 +246,9 @@ fn store_add_fetches_a_package_without_touching_the_project() {
         .assert()
         .success();
 
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "store add must not install anything",
-    );
-    assert!(
-        !workspace.join("package.json").exists(),
-        "store add must not write a manifest",
-    );
-    assert!(
-        !workspace.join("pnpm-lock.yaml").exists(),
-        "store add must not write a lockfile",
-    );
+    assert!(!workspace.join("node_modules").exists(), "store add must not install anything");
+    assert!(!workspace.join("package.json").exists(), "store add must not write a manifest");
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "store add must not write a lockfile");
 
     // The package is now in the store, which is the whole point: the row
     // the fetch wrote is what a later install reuses.
@@ -316,14 +274,8 @@ fn store_add_fails_when_a_package_cannot_be_fetched() {
         .expect("run pacquet store add for a missing package");
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("stderr={stderr}");
-    assert!(
-        !output.status.success(),
-        "store add must fail when a package cannot be fetched",
-    );
-    assert!(
-        stderr.contains("ERR_PNPM_STORE_ADD_FAILURE"),
-        "stderr={stderr}",
-    );
+    assert!(!output.status.success(), "store add must fail when a package cannot be fetched");
+    assert!(stderr.contains("ERR_PNPM_STORE_ADD_FAILURE"), "stderr={stderr}");
 }
 
 /// The resolver chain claims every protocol pnpm supports, but only an
@@ -335,11 +287,8 @@ fn store_add_refuses_a_specifier_with_no_archive_to_fetch() {
         CommandTempCwd::init().add_mocked_registry();
     let local_package = workspace.join("local-pkg");
     fs::create_dir_all(&local_package).expect("create the local package");
-    fs::write(
-        local_package.join("package.json"),
-        r#"{"name":"local-pkg","version":"1.0.0"}"#,
-    )
-    .expect("write the local package manifest");
+    fs::write(local_package.join("package.json"), r#"{"name":"local-pkg","version":"1.0.0"}"#)
+        .expect("write the local package manifest");
 
     let output = pacquet
         .with_args(["store", "add", "./local-pkg"])
@@ -348,8 +297,5 @@ fn store_add_refuses_a_specifier_with_no_archive_to_fetch() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("stderr={stderr}");
     assert!(!output.status.success());
-    assert!(
-        stderr.contains("ERR_PNPM_STORE_ADD_UNSUPPORTED_SPEC"),
-        "stderr={stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_STORE_ADD_UNSUPPORTED_SPEC"), "stderr={stderr}");
 }

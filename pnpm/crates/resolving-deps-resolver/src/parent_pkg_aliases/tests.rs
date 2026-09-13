@@ -18,10 +18,7 @@ fn a_level_sees_every_alias_above_it() {
     assert!(level2.contains("child"));
     assert!(level2.contains("grandchild"));
     assert!(!level2.contains("unrelated"));
-    assert!(
-        !root.contains("child"),
-        "a level's aliases stay out of the scopes above it",
-    );
+    assert!(!root.contains("child"), "a level's aliases stay out of the scopes above it");
 }
 
 #[test]
@@ -32,10 +29,7 @@ fn only_in_scope_peers_shadow_the_own_dependency() {
     });
     let scope = ParentPkgAliases::root(names(["in-scope"]));
 
-    assert_eq!(
-        peer_shadowed_dependencies(Some(&manifest), &scope, false),
-        names(["in-scope"]),
-    );
+    assert_eq!(peer_shadowed_dependencies(Some(&manifest), &scope, false), names(["in-scope"]));
 }
 
 #[test]

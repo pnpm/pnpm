@@ -18,9 +18,7 @@ pub(super) fn added_diff(added: &AddedRoot) -> (DepKind, PackageDiff) {
             from: added.linked_from.clone(),
             name: added.name.clone(),
             real_name: Some(added.real_name.clone()),
-            version: added.version
-                .clone()
-                .or_else(|| added.id.clone()),
+            version: added.version.clone().or_else(|| added.id.clone()),
             latest: added.latest.clone(),
         },
     )
@@ -45,12 +43,7 @@ pub(super) fn remove_optional_from_prod(manifest: &Value) -> Value {
     let optional: Vec<String> = manifest
         .get("optionalDependencies")
         .and_then(Value::as_object)
-        .map(|obj| {
-            obj
-                .keys()
-                .cloned()
-                .collect()
-        })
+        .map(|obj| obj.keys().cloned().collect())
         .unwrap_or_default();
     if let Some(deps) = manifest.get_mut("dependencies").and_then(Value::as_object_mut) {
         for name in optional {

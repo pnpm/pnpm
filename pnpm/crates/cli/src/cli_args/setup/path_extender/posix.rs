@@ -59,9 +59,7 @@ fn update_shell(
         }
         Some("fish") => setup_fish_shell(pnpm_home_dir, opts),
         Some("nu") => setup_nu_shell(pnpm_home_dir, opts),
-        Some(other) => Err(PathExtenderError::UnsupportedShell {
-            shell: other.to_string(),
-        }),
+        Some(other) => Err(PathExtenderError::UnsupportedShell { shell: other.to_string() }),
         None => Err(PathExtenderError::UnknownShell),
     }
 }
@@ -76,10 +74,7 @@ fn setup_shell(
     let content = wrap_settings(opts.config_section_name, &new_settings);
     let (change_type, old_settings) = update_shell_config(&config_file, &content, opts)?;
     Ok(PathExtenderReport {
-        config_file: Some(ConfigReport {
-            path: config_file,
-            change_type,
-        }),
+        config_file: Some(ConfigReport { path: config_file, change_type }),
         old_settings,
         new_settings,
     })
@@ -133,9 +128,7 @@ fn get_config_file_path(shell: &str) -> Result<PathBuf, PathExtenderError> {
             .filter(|env| !env.is_empty())
         {
             Some(env) => Ok(PathBuf::from(env)),
-            None => Err(PathExtenderError::NoShellConfig {
-                shell: shell.to_string(),
-            }),
+            None => Err(PathExtenderError::NoShellConfig { shell: shell.to_string() }),
         },
         _ => Ok(home_dir()?.join(format!(".{shell}rc"))),
     }
@@ -150,10 +143,7 @@ fn setup_fish_shell(
     let content = wrap_settings(opts.config_section_name, &new_settings);
     let (change_type, old_settings) = update_shell_config(&config_file, &content, opts)?;
     Ok(PathExtenderReport {
-        config_file: Some(ConfigReport {
-            path: config_file,
-            change_type,
-        }),
+        config_file: Some(ConfigReport { path: config_file, change_type }),
         old_settings,
         new_settings,
     })
@@ -209,10 +199,7 @@ fn setup_nu_shell(
     let content = wrap_settings(opts.config_section_name, &new_settings);
     let (change_type, old_settings) = update_shell_config(&config_file, &content, opts)?;
     Ok(PathExtenderReport {
-        config_file: Some(ConfigReport {
-            path: config_file,
-            change_type,
-        }),
+        config_file: Some(ConfigReport { path: config_file, change_type }),
         old_settings,
         new_settings,
     })
@@ -229,10 +216,7 @@ fn render_nu_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
                 Some(sub_dir) => format!(r#"($env.{proxy} | path join "{sub_dir}")"#),
                 None => format!("$env.{proxy}"),
             };
-            (
-                format!("$env.{proxy} = {value}\n", value = nu_quote(dir)),
-                path_ref,
-            )
+            (format!("$env.{proxy} = {value}\n", value = nu_quote(dir)), path_ref)
         }
         None => (String::new(), nu_quote(dir)),
     };

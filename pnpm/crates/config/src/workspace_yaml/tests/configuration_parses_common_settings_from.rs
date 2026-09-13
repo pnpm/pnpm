@@ -28,10 +28,7 @@ packages:
     assert_eq!(settings.prefer_workspace_packages, Some(true));
     assert!(matches!(settings.node_linker, Some(NodeLinker::Hoisted)));
     assert_eq!(settings.node_experimental_package_map, Some(true));
-    assert_eq!(
-        settings.node_package_map_type,
-        Some(NodePackageMapType::Loose),
-    );
+    assert_eq!(settings.node_package_map_type, Some(NodePackageMapType::Loose));
 }
 
 #[test]
@@ -123,10 +120,7 @@ registry: https://reg.example
 
     settings.apply_to(&mut config, Path::new("/irrelevant-for-absolute-paths"));
 
-    assert_eq!(
-        config.store_dir,
-        StoreDir::from(Path::new("/absolute/store").to_path_buf()),
-    );
+    assert_eq!(config.store_dir, StoreDir::from(Path::new("/absolute/store").to_path_buf()));
     assert!(!config.lockfile);
     assert_eq!(config.registry, "https://reg.example/");
     assert_ne!(before_registry, config.registry);
@@ -209,24 +203,13 @@ namedRegistries:
     settings.substitute_env_trusted::<EnvWithHost>();
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(
-        config.pnpr_server.as_deref(),
-        Some("https://internal.example.com/pnpr/"),
-    );
+    assert_eq!(config.pnpr_server.as_deref(), Some("https://internal.example.com/pnpr/"));
     assert_eq!(config.registry, "https://internal.example.com/npm/");
-    assert_eq!(
-        config.proxy.https_proxy.as_deref(),
-        Some("http://internal.example.com:8080/"),
-    );
-    assert_eq!(
-        config.proxy.http_proxy.as_deref(),
-        Some("http://internal.example.com:8081/"),
-    );
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://internal.example.com:8080/"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://internal.example.com:8081/"));
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pnpm_network::NoProxySetting::List(vec![
-            "internal.example.com".to_string()
-        ])),
+        Some(pnpm_network::NoProxySetting::List(vec!["internal.example.com".to_string()])),
     );
     assert_eq!(
         config.registries_by_prefix.get("stable").map(String::as_str),
@@ -255,9 +238,7 @@ configDependencies:
         expected
             .as_ref()
             .and_then(|m| m.get("@pnpm/pacquet")),
-        Some(&ConfigDependency::VersionWithIntegrity(
-            "0.2.2-14".to_string()
-        )),
+        Some(&ConfigDependency::VersionWithIntegrity("0.2.2-14".to_string())),
     );
 
     let mut config = Config::new();
@@ -336,13 +317,7 @@ fn the_remote_tier_reads_both_environment_spellings() {
         config
     }
 
-    for suffix in [
-        "KEY_ID",
-        "BUILDER_ID",
-        "IMAGE_DIGEST",
-        "ARCHITECTURE_BASELINE",
-        "PRIVATE_KEY",
-    ] {
+    for suffix in ["KEY_ID", "BUILDER_ID", "IMAGE_DIGEST", "ARCHITECTURE_BASELINE", "PRIVATE_KEY"] {
         for prefixes in [vec![CANONICAL], vec![OLDER], vec![CANONICAL, OLDER]] {
             let config = read(&prefixes, suffix, "value");
             let shared = config.remote_side_effects_cache.expect("shared cache config");
@@ -353,19 +328,14 @@ fn the_remote_tier_reads_both_environment_spellings() {
                 "ARCHITECTURE_BASELINE" => shared.architecture_baseline,
                 _ => shared.private_key,
             };
-            assert_eq!(
-                read_back.as_deref(),
-                Some("value"),
-                "{suffix} under {prefixes:?}",
-            );
+            assert_eq!(read_back.as_deref(), Some("value"), "{suffix} under {prefixes:?}");
         }
     }
 
     for prefixes in [vec![CANONICAL], vec![OLDER], vec![CANONICAL, OLDER]] {
         let config = read(&prefixes, "PUBLISH", "true");
         assert_eq!(
-            config.remote_side_effects_cache.expect("shared cache config")
-                .publish,
+            config.remote_side_effects_cache.expect("shared cache config").publish,
             Some(true),
             "PUBLISH under {prefixes:?}",
         );
@@ -523,10 +493,7 @@ trustPolicyIgnoreAfter: 525600
     assert_eq!(settings.minimum_release_age_strict, Some(true));
     assert_eq!(settings.trust_lockfile, Some(true));
     assert_eq!(settings.trust_policy, Some(TrustPolicy::NoDowngrade));
-    assert_eq!(
-        settings.trust_policy_exclude.as_deref(),
-        Some(&["@scope/legacy".to_string()][..]),
-    );
+    assert_eq!(settings.trust_policy_exclude.as_deref(), Some(&["@scope/legacy".to_string()][..]));
     assert_eq!(settings.trust_policy_ignore_after, Some(525_600));
 
     let mut config = Config::new();
@@ -542,10 +509,7 @@ trustPolicyIgnoreAfter: 525600
     assert!(config.resolved_minimum_release_age_strict());
     assert!(config.trust_lockfile);
     assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
-    assert_eq!(
-        config.trust_policy_exclude.as_deref(),
-        Some(&["@scope/legacy".to_string()][..]),
-    );
+    assert_eq!(config.trust_policy_exclude.as_deref(), Some(&["@scope/legacy".to_string()][..]));
     assert_eq!(config.trust_policy_ignore_after, Some(525_600));
 }
 
@@ -562,10 +526,7 @@ updateConfig:
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
 
     let mut config = Config::new();
-    assert!(
-        config.update_config.ignore_dependencies.is_none(),
-        "default is unset",
-    );
+    assert!(config.update_config.ignore_dependencies.is_none(), "default is unset");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(
         config.update_config.ignore_dependencies.as_deref(),
@@ -611,10 +572,7 @@ auditConfig:
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.audit_level, Some(AuditLevel::Critical));
-    assert_eq!(
-        config.audit_config.ignore_ghsas,
-        vec!["GHSA-new".to_string()],
-    );
+    assert_eq!(config.audit_config.ignore_ghsas, vec!["GHSA-new".to_string()]);
 }
 
 /// The `add`-time save settings parse from `pnpm-workspace.yaml` and
@@ -744,11 +702,7 @@ fn load_at_ignores_keys_nested_under_a_setting() {
         .expect("load pnpm-workspace.yaml")
         .expect("pnpm-workspace.yaml is present");
 
-    assert!(
-        settings.key_issues.is_empty(),
-        "unexpected issues: {:?}",
-        settings.key_issues,
-    );
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
 }
 
 #[test]

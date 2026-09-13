@@ -11,11 +11,8 @@ fn pacquet_at(workspace: &Path) -> Command {
 }
 
 fn write_project_config(root: &Path, workspace: &Path, registry: &str, credentials: &str) {
-    fs::write(
-        workspace.join(".npmrc"),
-        format!("registry={registry}/\n{credentials}"),
-    )
-    .expect("write .npmrc");
+    fs::write(workspace.join(".npmrc"), format!("registry={registry}/\n{credentials}"))
+        .expect("write .npmrc");
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "storeDir: ../store\ncacheDir: ../cache\nenableGlobalVirtualStore: false\nfetchRetries: 0\n",
@@ -41,12 +38,7 @@ fn assert_authenticated_install(
     let mut registry = mockito::Server::new();
     let registry_url = registry.url();
     let authority = registry_url.strip_prefix("http://").expect("mock registry is HTTP");
-    write_project_config(
-        root.path(),
-        &workspace,
-        &registry_url,
-        &credentials(authority),
-    );
+    write_project_config(root.path(), &workspace, &registry_url, &credentials(authority));
 
     let tarball = minimal_tarball(package, "1.0.0");
     let integrity = sha512_integrity(&tarball);
@@ -202,11 +194,8 @@ fn metadata_authorization_failure_is_reported() {
         .with_body("Forbidden")
         .expect(1)
         .create();
-    fs::write(
-        workspace.join("package.json"),
-        r#"{"dependencies":{"private-pkg":"1.0.0"}}"#,
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"private-pkg":"1.0.0"}}"#)
+        .expect("write package.json");
 
     let output = install_command(&workspace, root.path())
         .with_arg("install")
@@ -246,11 +235,8 @@ fn inline_registry_credentials_are_redacted_but_still_reported() {
         .with_body("Not Found")
         .expect(1)
         .create();
-    fs::write(
-        workspace.join("package.json"),
-        r#"{"dependencies":{"private-pkg":"1.0.0"}}"#,
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"private-pkg":"1.0.0"}}"#)
+        .expect("write package.json");
 
     let output = install_command(&workspace, root.path())
         .with_arg("install")
@@ -310,11 +296,8 @@ fn tarball_authorization_failure_is_reported() {
         .with_body("Forbidden")
         .expect_at_least(1)
         .create();
-    fs::write(
-        workspace.join("package.json"),
-        r#"{"dependencies":{"private-pkg":"1.0.0"}}"#,
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"private-pkg":"1.0.0"}}"#)
+        .expect("write package.json");
 
     let output = install_command(&workspace, root.path())
         .with_arg("install")

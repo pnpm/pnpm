@@ -7,10 +7,7 @@ fn plain_name_at_version_round_trips() {
 
 #[test]
 fn scoped_name_keeps_at_replaces_slash_with_plus() {
-    assert_eq!(
-        dep_path_to_filename("@scope/foo@1.0.0", 120),
-        "@scope+foo@1.0.0",
-    );
+    assert_eq!(dep_path_to_filename("@scope/foo@1.0.0", 120), "@scope+foo@1.0.0");
 }
 
 #[test]
@@ -23,10 +20,7 @@ fn peer_suffix_is_flattened_with_underscores() {
 
 #[test]
 fn file_scheme_keeps_path_separators_via_plus_escape() {
-    assert_eq!(
-        dep_path_to_filename("file:packages/foo", 120),
-        "file+packages+foo",
-    );
+    assert_eq!(dep_path_to_filename("file:packages/foo", 120), "file+packages+foo");
 }
 
 #[test]
@@ -36,11 +30,7 @@ fn exceeding_length_replaces_with_hash_suffix() {
     assert_eq!(got.len(), 60);
     assert!(got.contains('_'));
     let hash_part = &got[got.len() - 32..];
-    assert!(
-        hash_part
-            .chars()
-            .all(|c| c.is_ascii_hexdigit()),
-    );
+    assert!(hash_part.chars().all(|c| c.is_ascii_hexdigit()));
 }
 
 #[test]

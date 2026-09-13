@@ -64,22 +64,32 @@ impl ReporterState {
     }
 
     pub(super) fn on_lockfile_verification(&mut self, message: &LockfileVerificationMessage) {
-        let msg = self.lockfile_verification_message(message);
-        let mut slot = std::mem::take(&mut self.display.lockfile_verification_slot);
-        self.display.frame.emit(&mut slot, msg, false);
-        self.display.lockfile_verification_slot = slot;
-    }
-
-    fn lockfile_verification_message(&self, message: &LockfileVerificationMessage) -> String {
-        match message {
+        let msg = match message {
             LockfileVerificationMessage::Cached { verified_at, lockfile_path } => {
-                self.cached_lockfile_verification(verified_at.as_deref(), lockfile_path.as_deref())
+                let path = self.lockfile_path_suffix(lockfile_path.as_deref());
+                format!(
+                    "{} Lockfile{path} passes supply-chain policies ({})",
+                    self.rendering.colors.green("✓"),
+                    cached_verdict(verified_at.as_deref(), Utc::now()),
+                )
             }
             LockfileVerificationMessage::Started { entries, lockfile_path } => {
-                self.started_lockfile_verification(*entries, lockfile_path.as_deref())
+                let path = self.lockfile_path_suffix(lockfile_path.as_deref());
+                format!(
+                    "{} Verifying lockfile{path} against supply-chain policies ({})...",
+                    self.rendering.colors.cyan("?"),
+                    entries_label(*entries),
+                )
             }
-            LockfileVerificationMessage::Done { entries, elapsed_ms, lockfile_path } => self
-                .successful_lockfile_verification(*entries, *elapsed_ms, lockfile_path.as_deref()),
+            LockfileVerificationMessage::Done { entries, elapsed_ms, lockfile_path } => {
+                let path = self.lockfile_path_suffix(lockfile_path.as_deref());
+                format!(
+                    "{} Lockfile{path} passes supply-chain policies ({} in {})",
+                    self.rendering.colors.green("✓"),
+                    entries_label(*entries),
+                    pretty_ms(u128::from(*elapsed_ms)),
+                )
+            }
             LockfileVerificationMessage::Failed { entries, elapsed_ms, lockfile_path } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
                 format!(
@@ -89,50 +99,14 @@ impl ReporterState {
                     pretty_ms(u128::from(*elapsed_ms)),
                 )
             }
-        }
-    }
-
-    fn started_lockfile_verification(&self, entries: u64, lockfile_path: Option<&str>) -> String {
-        let path = self.lockfile_path_suffix(lockfile_path);
-        format!(
-            "{} Verifying lockfile{path} against supply-chain policies ({})...",
-            self.rendering.colors.cyan("?"),
-            entries_label(entries),
-        )
-    }
-
-    fn successful_lockfile_verification(
-        &self,
-        entries: u64,
-        elapsed_ms: u64,
-        lockfile_path: Option<&str>,
-    ) -> String {
-        let path = self.lockfile_path_suffix(lockfile_path);
-        format!(
-            "{} Lockfile{path} passes supply-chain policies ({} in {})",
-            self.rendering.colors.green("✓"),
-            entries_label(entries),
-            pretty_ms(u128::from(elapsed_ms)),
-        )
-    }
-
-    fn cached_lockfile_verification(
-        &self,
-        verified_at: Option<&str>,
-        lockfile_path: Option<&str>,
-    ) -> String {
-        let path = self.lockfile_path_suffix(lockfile_path);
-        format!(
-            "{} Lockfile{path} passes supply-chain policies ({})",
-            self.rendering.colors.green("✓"),
-            cached_verdict(verified_at, Utc::now()),
-        )
+        };
+        let mut slot = std::mem::take(&mut self.display.lockfile_verification_slot);
+        self.display.frame.emit(&mut slot, msg, false);
+        self.display.lockfile_verification_slot = slot;
     }
 
     pub(super) fn lockfile_path_suffix(&self, lockfile_path: Option<&str>) -> String {
-        let Some(path) = lockfile_path else {
-            return String::new();
-        };
+        let Some(path) = lockfile_path else { return String::new() };
         let from_expected = relative(&self.rendering.cwd, path);
         let is_direct_child = !from_expected.contains('/') && !from_expected.starts_with("..");
         if is_direct_child {
@@ -206,11 +180,8 @@ impl ReporterState {
 
     pub(super) fn on_execution_time(&mut self, log: &ExecutionTimeLog) {
         let elapsed = log.ended_at.saturating_sub(log.started_at);
-        let msg = format!(
-            "Done in {} using pnpm v{}",
-            pretty_ms(elapsed),
-            crate::package_version(),
-        );
+        let msg =
+            format!("Done in {} using pnpm v{}", pretty_ms(elapsed), crate::package_version());
         let mut slot = std::mem::take(&mut self.display.exec_slot);
         self.display.frame.emit(&mut slot, msg, true);
         self.display.exec_slot = slot;
@@ -295,11 +266,7 @@ impl ReporterState {
     /// `reportHooks.ts` format. When the hook's `prefix` differs from
     /// `self.rendering.cwd` the message is zoomed out with the prefix.
     pub(super) fn on_hook(&mut self, log: &HookLog) {
-        let msg = format!(
-            "{}: {}",
-            self.rendering.colors.magenta_bright(&log.hook),
-            log.message,
-        );
+        let msg = format!("{}: {}", self.rendering.colors.magenta_bright(&log.hook), log.message);
         if log.prefix.is_empty() || log.prefix == self.rendering.cwd {
             self.display.frame.push_block(msg);
         } else {

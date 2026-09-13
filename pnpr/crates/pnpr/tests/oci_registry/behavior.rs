@@ -49,10 +49,7 @@ async fn a_challenged_ping_does_not_stop_an_anonymous_pull() {
     push_image(&app, &auth, "acme/app", "1.0").await;
 
     assert_eq!(get(&app, "/v2/").await.status(), StatusCode::UNAUTHORIZED);
-    assert_eq!(
-        get(&app, "/v2/acme/app/manifests/1.0").await.status(),
-        StatusCode::OK,
-    );
+    assert_eq!(get(&app, "/v2/acme/app/manifests/1.0").await.status(), StatusCode::OK);
 }
 
 #[tokio::test]
@@ -78,17 +75,12 @@ async fn an_image_pushed_in_one_request_each_pulls_back() {
             .unwrap(),
         "application/vnd.oci.image.manifest.v1+json",
     );
-    assert_eq!(
-        body_bytes(response.into_body()).await,
-        image_manifest("config", &["layer"]),
-    );
+    assert_eq!(body_bytes(response.into_body()).await, image_manifest("config", &["layer"]));
 
-    let response = get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}"))
-        .await;
+    let response = get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}")).await;
     assert_eq!(response.status(), StatusCode::OK);
 
-    let response = get(&app, &format!("/v2/acme/app/blobs/{}", digest_of(b"layer")))
-        .await;
+    let response = get(&app, &format!("/v2/acme/app/blobs/{}", digest_of(b"layer"))).await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, b"layer".as_slice());
 }
@@ -100,10 +92,9 @@ async fn a_head_request_carries_the_headers_without_the_body() {
     let auth = basic(&token(&app).await);
     push_image(&app, &auth, "acme/app", "1.0").await;
 
-    for path in [
-        "/v2/acme/app/manifests/1.0",
-        &format!("/v2/acme/app/blobs/{}", digest_of(b"layer")),
-    ] {
+    for path in
+        ["/v2/acme/app/manifests/1.0", &format!("/v2/acme/app/blobs/{}", digest_of(b"layer"))]
+    {
         let request = Request::head(path)
             .body(Body::empty())
             .unwrap();
@@ -113,14 +104,8 @@ async fn a_head_request_carries_the_headers_without_the_body() {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{path}");
-        assert!(
-            response.headers().contains_key("docker-content-digest"),
-            "{path}",
-        );
-        assert!(
-            response.headers().contains_key(header::CONTENT_LENGTH),
-            "{path}",
-        );
+        assert!(response.headers().contains_key("docker-content-digest"), "{path}");
+        assert!(response.headers().contains_key(header::CONTENT_LENGTH), "{path}");
         assert!(body_bytes(response.into_body()).await.is_empty(), "{path}");
     }
 }
@@ -230,10 +215,7 @@ async fn an_index_over_pushed_children_publishes() {
     .unwrap();
     let request = Request::put("/v2/acme/app/manifests/multi")
         .header(header::AUTHORIZATION, &auth)
-        .header(
-            header::CONTENT_TYPE,
-            "application/vnd.oci.image.index.v1+json",
-        )
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.index.v1+json")
         .body(Body::from(index))
         .unwrap();
     assert_eq!(
@@ -245,10 +227,7 @@ async fn an_index_over_pushed_children_publishes() {
             .status(),
         StatusCode::CREATED,
     );
-    assert_eq!(
-        get(&app, "/v2/acme/app/manifests/multi").await.status(),
-        StatusCode::OK,
-    );
+    assert_eq!(get(&app, "/v2/acme/app/manifests/multi").await.status(), StatusCode::OK);
 }
 
 #[tokio::test]
@@ -319,11 +298,7 @@ async fn a_path_that_names_no_endpoint_is_not_found() {
     // leaves a tail naming no endpoint rather than a manifest with an odd
     // name. Nothing is served there, which is not the same as a method being
     // refused on something that is.
-    for path in [
-        "/v2/acme/app/manifests/has%2Fslash",
-        "/v2/acme/app/nonsense/1.0",
-        "/v2/acme",
-    ] {
+    for path in ["/v2/acme/app/manifests/has%2Fslash", "/v2/acme/app/nonsense/1.0", "/v2/acme"] {
         let response = get(&app, path).await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
     }
@@ -429,8 +404,7 @@ async fn protocol_surface_on_object_store() {
     let hosted = config.routing.hosted.get_mut("images").unwrap();
     hosted.rules = std::mem::take(&mut hosted.rules)
         .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
-    check_protocol_surface(router_with_auth(config, AuthState::in_memory()))
-        .await;
+    check_protocol_surface(router_with_auth(config, AuthState::in_memory())).await;
 }
 
 #[tokio::test]
@@ -466,16 +440,8 @@ async fn scoped_bearer_credentials_cannot_write_escape_repository_or_survive_rev
     let scoped = format!("Bearer {}", payload["token"].as_str().unwrap());
     for (method, path, expected) in [
         ("GET", "/v2/acme/app/manifests/latest", StatusCode::OK),
-        (
-            "GET",
-            "/v2/acme/other/manifests/latest",
-            StatusCode::UNAUTHORIZED,
-        ),
-        (
-            "POST",
-            "/v2/acme/app/blobs/uploads/",
-            StatusCode::UNAUTHORIZED,
-        ),
+        ("GET", "/v2/acme/other/manifests/latest", StatusCode::UNAUTHORIZED),
+        ("POST", "/v2/acme/app/blobs/uploads/", StatusCode::UNAUTHORIZED),
         ("GET", "/-/npm/v1/tokens", StatusCode::UNAUTHORIZED),
     ] {
         let response = app

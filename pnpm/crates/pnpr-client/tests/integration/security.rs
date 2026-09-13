@@ -30,12 +30,8 @@ async fn an_importer_outside_the_request_is_rejected() {
     let capture = tokio::spawn(capture_one_request_with_response(listener, response));
 
     let client = PnprClient::new(format!("http://{addr}/"));
-    let mut opts: ResolveProjectsOptions = options(
-        "https://registry.example.test/",
-        "Bearer token",
-        BTreeMap::new(),
-    )
-    .into();
+    let mut opts: ResolveProjectsOptions =
+        options("https://registry.example.test/", "Bearer token", BTreeMap::new()).into();
     opts.projects = vec![ResolveProject {
         dir: "packages/app".to_string(),
         name: Some("app".to_string()),
@@ -49,10 +45,7 @@ async fn an_importer_outside_the_request_is_rejected() {
         Ok(_) => panic!("an unrequested importer must not be accepted"),
         Err(error) => error.to_string(),
     };
-    assert!(
-        error.contains("packages/attacker"),
-        "unexpected error: {error}",
-    );
+    assert!(error.contains("packages/attacker"), "unexpected error: {error}");
 
     capture.await.expect("capture task");
 }

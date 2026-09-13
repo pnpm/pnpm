@@ -24,10 +24,7 @@ impl SharedArtifactStore {
         match self.store.put_opts(
             &self.object_path(relative),
             bytes.into(),
-            PutOptions {
-                mode: PutMode::Create,
-                ..PutOptions::default()
-            },
+            PutOptions { mode: PutMode::Create, ..PutOptions::default() },
         )
         .await
         {

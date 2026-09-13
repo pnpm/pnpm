@@ -196,11 +196,8 @@ fn selected_entry(
     if !releasable_dirs.contains(&dir) {
         return None;
     }
-    let reference = if refs.name_to_dirs(&name).len() > 1 {
-        format!("./{dir}")
-    } else {
-        name.clone()
-    };
+    let reference =
+        if refs.name_to_dirs(&name).len() > 1 { format!("./{dir}") } else { name.clone() };
     Some((name, dir, reference))
 }
 
@@ -209,20 +206,14 @@ fn selected_entry(
 /// semantics.
 fn check_lane_name(lane_name: &str) -> Result<(), LaneError> {
     if lane_name.eq_ignore_ascii_case(MAIN_LANE) {
-        return Err(LaneError::ReservedLaneName {
-            name: lane_name.to_owned(),
-        });
+        return Err(LaneError::ReservedLaneName { name: lane_name.to_owned() });
     }
     let valid_name = lane_name
         .chars()
         .all(|character| character.is_ascii_alphanumeric() || character == '-')
-        && !lane_name
-            .chars()
-            .all(|character| character.is_ascii_digit());
+        && !lane_name.chars().all(|character| character.is_ascii_digit());
     if !valid_name {
-        return Err(LaneError::InvalidLaneName {
-            name: lane_name.to_owned(),
-        });
+        return Err(LaneError::InvalidLaneName { name: lane_name.to_owned() });
     }
     Ok(())
 }

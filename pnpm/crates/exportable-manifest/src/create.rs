@@ -47,14 +47,8 @@ use std::{fs, io, path::Path};
 /// Lifecycle scripts removed from the published manifest's `scripts`
 /// map during obfuscation, so they don't re-run when the package is
 /// installed from the registry.
-const PREPUBLISH_SCRIPTS: &[&str] = &[
-    "prepublishOnly",
-    "prepack",
-    "prepare",
-    "postpack",
-    "publish",
-    "postpublish",
-];
+const PREPUBLISH_SCRIPTS: &[&str] =
+    &["prepublishOnly", "prepack", "prepare", "postpack", "publish", "postpublish"];
 
 /// Manifest keys hoisted from `publishConfig` onto the manifest root.
 ///
@@ -136,7 +130,7 @@ pub fn create_exportable_manifest(
     let empty = Map::new();
     let original = original_manifest.as_object().unwrap_or(&empty);
 
-    let mut publish = publish_manifest_fields(original, opts.skip_manifest_obfuscation);
+    let mut publish = publication_fields(original, opts.skip_manifest_obfuscation);
 
     for field in ["dependencies", "devDependencies", "optionalDependencies"] {
         if let Some(deps) =
@@ -169,6 +163,21 @@ pub fn create_exportable_manifest(
 
     transform(&mut publish).map_err(CreateExportableManifestError::Transform)?;
     Ok(Value::Object(publish))
+}
+
+fn publication_fields(original: &Map<String, Value>, skip_obfuscation: bool) -> Map<String, Value> {
+    if skip_obfuscation {
+        omit_keys(original, &["pnpm"])
+    } else {
+        let mut publish = omit_keys(original, &["scripts", "packageManager", "pnpm"]);
+        if let Some(scripts) = original.get("scripts").and_then(Value::as_object) {
+            publish.insert(
+                "scripts".to_string(),
+                Value::Object(omit_keys(scripts, PREPUBLISH_SCRIPTS)),
+            );
+        }
+        publish
+    }
 }
 
 /// Whether a dependency map's specifiers carry the regular-dependency
@@ -238,16 +247,13 @@ fn replace_catalog_protocol(
     spec: &str,
     catalogs: &Catalogs,
 ) -> Result<String, CreateExportableManifestError> {
-    let wanted = WantedDependency {
-        alias: alias.to_string(),
-        bare_specifier: spec.to_string(),
-    };
+    let wanted = WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() };
     match resolve_from_catalog(catalogs, &wanted) {
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(spec.to_string()),
-        CatalogResolutionResult::Misconfiguration(misconfiguration) => Err(
-            CreateExportableManifestError::Catalog(misconfiguration.error),
-        ),
+        CatalogResolutionResult::Misconfiguration(misconfiguration) => {
+            Err(CreateExportableManifestError::Catalog(misconfiguration.error))
+        }
     }
 }
 
@@ -258,10 +264,9 @@ fn replace_jsr_protocol(
     spec: &str,
 ) -> Result<String, CreateExportableManifestError> {
     match parse_jsr_specifier(spec, Some(dep_name)).map_err(CreateExportableManifestError::Jsr)? {
-        Some(jsr) => Ok(create_npm_aliased_specifier(
-            &jsr.npm_pkg_name,
-            jsr.version_selector.as_deref(),
-        )),
+        Some(jsr) => {
+            Ok(create_npm_aliased_specifier(&jsr.npm_pkg_name, jsr.version_selector.as_deref()))
+        }
         None => Ok(spec.to_string()),
     }
 }
@@ -365,21 +370,3 @@ fn omit_keys(map: &Map<String, Value>, keys: &[&str]) -> Map<String, Value> {
 
 #[cfg(test)]
 mod tests;
-
-fn publish_manifest_fields(
-    original: &Map<String, Value>,
-    skip_manifest_obfuscation: bool,
-) -> Map<String, Value> {
-    if skip_manifest_obfuscation {
-        omit_keys(original, &["pnpm"])
-    } else {
-        let mut publish = omit_keys(original, &["scripts", "packageManager", "pnpm"]);
-        if let Some(scripts) = original.get("scripts").and_then(Value::as_object) {
-            publish.insert(
-                "scripts".to_string(),
-                Value::Object(omit_keys(scripts, PREPUBLISH_SCRIPTS)),
-            );
-        }
-        publish
-    }
-}

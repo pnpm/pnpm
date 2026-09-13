@@ -6,10 +6,7 @@ fn writes_content_and_creates_parent_dirs() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("nested/auth.ini");
     write_atomic(&path, b"//host/:_authToken=tok\n").unwrap();
-    assert_eq!(
-        std::fs::read_to_string(&path).unwrap(),
-        "//host/:_authToken=tok\n",
-    );
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "//host/:_authToken=tok\n");
 }
 
 #[test]
@@ -61,20 +58,13 @@ fn does_not_follow_a_symlinked_target() {
             .is_symlink(),
     );
     assert_eq!(std::fs::read_to_string(&link).unwrap(), "new");
-    assert_eq!(
-        std::fs::read_to_string(&real).unwrap(),
-        "secret",
-        "link target untouched",
-    );
+    assert_eq!(std::fs::read_to_string(&real).unwrap(), "secret", "link target untouched");
     let mode = std::fs::metadata(&link)
         .unwrap()
         .permissions()
         .mode()
         & 0o777;
-    assert_eq!(
-        mode, 0o600,
-        "a replaced symlink keeps the conservative default, got {mode:o}",
-    );
+    assert_eq!(mode, 0o600, "a replaced symlink keeps the conservative default, got {mode:o}");
 }
 
 /// A credential must not inherit a world-readable mode from the settings file

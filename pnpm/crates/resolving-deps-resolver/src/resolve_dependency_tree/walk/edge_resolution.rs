@@ -24,8 +24,7 @@ where
     'e: 'async_recursion,
     Chain: Resolver + ?Sized,
 {
-    let current_is_optional =
-        wanted.optional.unwrap_or(false) || edge.parent_optional;
+    let current_is_optional = wanted.optional.unwrap_or(false) || edge.parent_optional;
 
     // The edge's recorded snapshot key in the prior lockfile, if any.
     // Feeds both subtree reuse (below) and — when the edge re-resolves
@@ -71,8 +70,7 @@ where
     let mut wanted = wanted;
     pin_locked_version(ctx, &mut wanted, prior_key.as_ref(), edge.depth);
 
-    let Some(result) = resolve_edge(ctx, resolver, &mut wanted, &edge, prior_key.as_ref())
-        .await?
+    let Some(result) = resolve_edge(ctx, resolver, &mut wanted, &edge, prior_key.as_ref()).await?
     else {
         return Ok(NodeSeed::Done(None));
     };
@@ -91,17 +89,7 @@ where
         return Ok(NodeSeed::Done(None));
     }
 
-    seed_pending(
-        ctx,
-        &wanted,
-        result,
-        &edge,
-        ResolvedEdge {
-            id,
-            prior_key,
-            current_is_optional,
-        },
-    )
+    seed_pending(ctx, &wanted, result, &edge, ResolvedEdge { id, prior_key, current_is_optional })
 }
 
 /// Memoise the per-wanted resolve. The first caller for a given
@@ -130,15 +118,8 @@ where
     let base = edge_opts(ctx, wanted, edge, prior_key);
     let opts = opts_relative_to_declaring_manifest(&base, wanted, edge.parent_dir);
     let cache_key = edge_cache_key(ctx, wanted, &opts, edge, prior_key);
-    match resolve_wanted_cached(
-        ctx,
-        resolver,
-        wanted,
-        &opts,
-        edge.pick_overlay.as_ref(),
-        cache_key,
-    )
-    .await
+    match resolve_wanted_cached(ctx, resolver, wanted, &opts, edge.pick_overlay.as_ref(), cache_key)
+        .await
     {
         Ok(result) => Ok(Some(result)),
         Err(err) => {
@@ -264,8 +245,7 @@ pub(super) fn seed_pending(
             id: &resolved.id,
             result: &result,
             peer_shadowed: &peer_shadowed,
-            resolves_children_through_catalogs: identity
-                .resolves_children_through_catalogs,
+            resolves_children_through_catalogs: identity.resolves_children_through_catalogs,
             current_is_optional: resolved.current_is_optional,
             is_link: identity.is_link,
             is_leaf: identity.is_leaf,
@@ -274,20 +254,17 @@ pub(super) fn seed_pending(
         emit_deprecation_if_needed(ctx, &result, &resolved.id, edge.depth);
     }
 
+    let ancestry = edge.pending_ancestry(&resolved.id, resolved.current_is_optional);
+
     Ok(NodeSeed::Pending(Box::new(PendingNode {
         result,
         is_link: identity.is_link,
-        resolves_children_through_catalogs: identity
-            .resolves_children_through_catalogs,
+        resolves_children_through_catalogs: identity.resolves_children_through_catalogs,
         peer_shadowed,
         claim: None,
         prior_key: resolved.prior_key,
-        ancestry: edge.pending_ancestry(&resolved.id, resolved.current_is_optional),
-        identity: super::PendingNodeIdentity {
-            id: resolved.id,
-            alias,
-            node_id: identity.node_id,
-        },
+        identity: super::PendingNodeIdentity { id: resolved.id, alias, node_id: identity.node_id },
+        ancestry,
     })))
 }
 
@@ -334,11 +311,7 @@ impl NodeIdentity {
 /// node. Non-leaves get a fresh per-occurrence id so the peer resolver can
 /// attach different peer suffixes per call site.
 pub(in super::super) fn node_id_for(is_leaf: bool, id: &str) -> NodeId {
-    if is_leaf {
-        NodeId::leaf(id)
-    } else {
-        NodeId::next()
-    }
+    if is_leaf { NodeId::leaf(id) } else { NodeId::next() }
 }
 
 /// Cycle break: a direct self-edge and the second lap of a longer cycle are
@@ -424,9 +397,7 @@ pub(super) fn record_workspace_manifest_identity(
     if !names_a_workspace_project {
         return;
     }
-    let Some(manifest) = result.package.manifest.as_deref() else {
-        return;
-    };
+    let Some(manifest) = result.package.manifest.as_deref() else { return };
     let (Some(name), Some(version)) = (
         manifest.get("name").and_then(Value::as_str),
         manifest.get("version").and_then(Value::as_str),
@@ -475,9 +446,7 @@ pub(super) fn drop_failed_optional_edge(
         return Err(err);
     }
     if wanted_lockfile_contains_satisfying_entry(ctx.workspace.reuse.lockfile.as_deref(), wanted) {
-        return Err(ResolveDependencyTreeError::LockedOptionalResolutionFailure(
-            Box::new(err),
-        ));
+        return Err(ResolveDependencyTreeError::LockedOptionalResolutionFailure(Box::new(err)));
     }
     if let Some(log) = ctx.workspace.hooks.skipped_optional_log.as_ref() {
         log(SkippedOptionalDependency {
@@ -509,9 +478,14 @@ pub(super) fn is_droppable_resolve_error(err: &ResolveDependencyTreeError) -> bo
 
 impl ChildEdge<'_> {
     fn pending_ancestry(&self, id: &str, current_is_optional: bool) -> super::PendingNodeAncestry {
+        let next_ancestors = self.ancestor_ids
+            .iter()
+            .cloned()
+            .chain(std::iter::once(id.to_owned()))
+            .collect();
         super::PendingNodeAncestry {
             parent_ancestors: Arc::clone(self.ancestor_ids),
-            next_ancestors: super::super::child_ancestor_ids(self.ancestor_ids, id),
+            next_ancestors: Arc::new(next_ancestors),
             depth: self.depth,
             current_is_optional,
         }

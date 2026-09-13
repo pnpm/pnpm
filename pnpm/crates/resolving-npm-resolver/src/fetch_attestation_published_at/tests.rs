@@ -7,11 +7,7 @@ fn opts<'a>(
     http_client: &'a ThrottledClient,
     auth_headers: &'a AuthHeaders,
 ) -> FetchAttestationOptions<'a> {
-    FetchAttestationOptions {
-        registry,
-        http_client,
-        auth_headers,
-    }
+    FetchAttestationOptions { registry, http_client, auth_headers }
 }
 
 #[tokio::test]

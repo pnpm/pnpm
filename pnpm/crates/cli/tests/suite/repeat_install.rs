@@ -142,10 +142,7 @@ fn subdeps_updated_when_outer_lockfile_diverges_from_inner() {
     let subdep_in_parent_slot = workspace.join(
         "node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep",
     );
-    assert_eq!(
-        version_of(&workspace, subdep_in_parent_slot.to_str().expect("utf-8")),
-        "100.0.0",
-    );
+    assert_eq!(version_of(&workspace, subdep_in_parent_slot.to_str().expect("utf-8")), "100.0.0");
 
     // Bump the pin and regenerate only the outer lockfile: the inner
     // one (and node_modules) still holds 100.0.0 while the outer now
@@ -218,10 +215,7 @@ fn installing_non_prod_deps_then_all_deps() {
                 .keys()
                 .any(|key| key.to_string() == "is-positive@1.0.0")
         });
-    assert!(
-        !has_is_positive,
-        "the excluded prod dep must not enter the current lockfile",
-    );
+    assert!(!has_is_positive, "the excluded prod dep must not enter the current lockfile");
 
     pacquet_in(&workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -237,10 +231,7 @@ fn installing_non_prod_deps_then_all_deps() {
                 .keys()
                 .any(|key| key.to_string() == "is-positive@1.0.0")
         });
-    assert!(
-        has_is_positive,
-        "the full install must record the prod dep in the current lockfile",
-    );
+    assert!(has_is_positive, "the full install must record the prod dep in the current lockfile");
 
     drop((root, mock_instance));
 }
@@ -436,12 +427,7 @@ fn available_packages_are_relinked_during_forced_install() {
     fs::remove_file(&foobarqar_manifest).expect("remove a file of the materialized package");
 
     let output = pacquet_in(&workspace)
-        .with_args([
-            "install",
-            "--frozen-lockfile",
-            "--force",
-            "--reporter=ndjson",
-        ])
+        .with_args(["install", "--frozen-lockfile", "--force", "--reporter=ndjson"])
         .output()
         .expect("run pacquet");
     assert_success(&output);
@@ -456,10 +442,7 @@ fn available_packages_are_relinked_during_forced_install() {
         .filter(|record| record["name"] == "pnpm:progress" && record["status"] == "resolved")
         .filter_map(|record| record["packageId"].as_str().map(str::to_string))
         .collect();
-    for package_id in [
-        "@pnpm.e2e/foobarqar@1.0.0",
-        "@pnpm.e2e/pkg-with-1-dep@100.0.0",
-    ] {
+    for package_id in ["@pnpm.e2e/foobarqar@1.0.0", "@pnpm.e2e/pkg-with-1-dep@100.0.0"] {
         assert!(
             resolved
                 .iter()
@@ -716,10 +699,7 @@ fn repeat_hoisted_install_reports_nothing_broken() {
         !second_events.contains("pnpm:_broken_node_modules"),
         "a hoisted tree has no virtual-store slots to report broken: {second_events}",
     );
-    assert!(
-        hoisted_manifest.is_file(),
-        "the hoisted dep must still be in place",
-    );
+    assert!(hoisted_manifest.is_file(), "the hoisted dep must still be in place");
 
     drop((root, mock_instance));
 }

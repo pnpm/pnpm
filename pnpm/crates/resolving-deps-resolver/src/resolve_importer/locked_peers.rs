@@ -16,15 +16,7 @@ impl LockedPeers {
                 .map(AsRef::as_ref),
             importer_id,
         ));
-        Self {
-            names: Arc::new(
-                versions
-                    .keys()
-                    .cloned()
-                    .collect(),
-            ),
-            versions,
-        }
+        Self { names: Arc::new(versions.keys().cloned().collect()), versions }
     }
 }
 
@@ -109,7 +101,11 @@ pub(super) fn locked_peer_versions_for_key(
     let (Some(snapshot), Some(metadata)) = (snapshot, metadata) else {
         return Vec::new();
     };
-    let peer_names = declared_peer_names(metadata);
+    let peer_names = metadata.peer_dependencies
+        .iter()
+        .flatten()
+        .filter_map(|(name, _)| name.parse::<PkgName>().ok())
+        .collect::<HashSet<_>>();
     snapshot.dependencies
         .iter()
         .chain(snapshot.optional_dependencies.iter())
@@ -258,10 +254,7 @@ pub(super) fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
         .rsplit_once('(')
         .and_then(|(_, tail)| tail.strip_suffix(')'))
         .is_some_and(|hash| {
-            hash.len() == 32
-                && hash
-                    .chars()
-                    .all(|character| character.is_ascii_hexdigit())
+            hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
         })
 }
 
@@ -277,12 +270,4 @@ pub(super) fn peer_suffix_versions(
             let (name, version) = segment.rsplit_once('@')?;
             (!name.is_empty()).then(|| (name.to_string(), version.to_string()))
         })
-}
-
-fn declared_peer_names(metadata: &pnpm_lockfile::PackageMetadata) -> HashSet<PkgName> {
-    metadata.peer_dependencies
-        .iter()
-        .flatten()
-        .filter_map(|(name, _)| name.parse::<PkgName>().ok())
-        .collect::<HashSet<_>>()
 }

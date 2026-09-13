@@ -78,11 +78,7 @@ impl MirrorFile {
                 std::sync::atomic::Ordering::Relaxed,
                 std::sync::atomic::Ordering::Relaxed,
             ) {
-                Ok(_) => {
-                    return Ok(Arc::new(MirrorFile {
-                        file,
-                    }));
-                }
+                Ok(_) => return Ok(Arc::new(MirrorFile { file })),
                 Err(current) => held = current,
             }
         }
@@ -107,11 +103,7 @@ enum FragmentSource {
     /// packument cache out of resident memory. See
     /// [`PackageVersions::from_file_spans`] for the inode-pinning
     /// contract the held handle provides.
-    FileSpan {
-        file: Arc<MirrorFile>,
-        offset: u64,
-        len: u32,
-    },
+    FileSpan { file: Arc<MirrorFile>, offset: u64, len: u32 },
     /// No fragment — the slot was constructed from an already-typed
     /// manifest (tests, the publish-date filter's slot moves).
     None,
@@ -253,9 +245,7 @@ impl PackageVersions {
     pub fn decode_error(&self, version: &str) -> Option<String> {
         let slot = self.slot(version)?;
         let json = slot.source.json()?;
-        serde_json::from_str::<PackageVersion>(&json)
-            .err()
-            .map(|error| error.to_string())
+        serde_json::from_str::<PackageVersion>(&json).err().map(|error| error.to_string())
     }
 
     /// Whether `version` is marked deprecated, equivalent to
@@ -271,17 +261,11 @@ impl PackageVersions {
     /// dominated warm-resolve CPU.
     #[must_use]
     pub fn is_deprecated(&self, version: &str) -> bool {
-        let Some(slot) = self.slot(version) else {
-            return false;
-        };
+        let Some(slot) = self.slot(version) else { return false };
         if let Some(parsed) = slot.parsed.get() {
-            return parsed
-                .as_ref()
-                .is_some_and(|manifest| manifest.deprecated.is_some());
+            return parsed.as_ref().is_some_and(|manifest| manifest.deprecated.is_some());
         }
-        let Some(json) = slot.source.json() else {
-            return false;
-        };
+        let Some(json) = slot.source.json() else { return false };
         if !json.contains(r#""deprecated""#) {
             return false;
         }
@@ -291,9 +275,7 @@ impl PackageVersions {
 
     /// Version strings in lexical order. Never hydrates.
     pub fn keys(&self) -> impl Iterator<Item = &String> {
-        self.slots
-            .iter()
-            .map(|(version, _)| version)
+        self.slots.iter().map(|(version, _)| version)
     }
 
     #[must_use]
@@ -342,9 +324,7 @@ impl PackageVersions {
         if !slots.is_sorted_by(|left, right| left.0 <= right.0) {
             slots.sort_unstable_by(|left, right| left.0.cmp(&right.0));
         }
-        PackageVersions {
-            slots,
-        }
+        PackageVersions { slots }
     }
 }
 

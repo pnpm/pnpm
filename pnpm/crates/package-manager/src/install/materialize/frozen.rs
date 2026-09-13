@@ -27,6 +27,20 @@ impl<'a> MaterializationInputs<'a, '_> {
         }
     }
 
+    fn take_frozen_seed<'b>(
+        &mut self,
+        frozen_verification_override: Option<crate::LockfileVerificationOverride<'b>>,
+    ) -> pnpm_deps_restorer::FrozenInstallSeed<'b> {
+        pnpm_deps_restorer::FrozenInstallSeed {
+            early_host_detection: self.execution.early_host_detection.take(),
+            node_version: self.execution.effective_node_version.take(),
+            skipped: self.modules.modules_manifest.map(|manifest| {
+                manifest.skipped.clone()
+            }),
+            lockfile_verification_override: frozen_verification_override,
+        }
+    }
+
     fn frozen_installer<'b>(
         &'b mut self,
         scope: &'b FrozenScope<'a>,
@@ -34,14 +48,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         frozen_verification_override: Option<crate::LockfileVerificationOverride<'b>>,
         prior_unbuilt_builds: &'b pnpm_deps_restorer::UnbuiltBuilds,
     ) -> InstallFrozenLockfile<'b> {
-        let seed = pnpm_deps_restorer::FrozenInstallSeed {
-            early_host_detection: self.execution.early_host_detection.take(),
-            node_version: self.execution.effective_node_version.take(),
-            skipped: self.modules.modules_manifest.map(|manifest| {
-                manifest.skipped.clone()
-            }),
-            lockfile_verification_override: frozen_verification_override,
-        };
+        let seed = self.take_frozen_seed(frozen_verification_override);
         InstallFrozenLockfile {
             drivers: pnpm_deps_restorer::FrozenInstallDrivers {
                 config: self.install.context.config,
@@ -55,7 +62,17 @@ impl<'a> MaterializationInputs<'a, '_> {
                 skip_runtimes: self.install.execution.skip_runtimes,
                 node_linker: self.install.execution.node_linker,
             },
-            prior: self.prior_materialization(prior_unbuilt_builds),
+            prior: pnpm_deps_restorer::PriorMaterialization {
+                rebuild: self.modules.rebuild,
+                hoisted_dependencies: self.modules.prior_hoisted_dependencies,
+                hoisted_locations: self.modules.prior_hoisted_locations,
+                allow_builds_changed: allow_builds_changed_since(
+                    self.modules.modules_manifest,
+                    self.install.context.config,
+                ),
+                unbuilt_builds: prior_unbuilt_builds,
+                prune_orphans: self.modules.prune_orphans,
+            },
             projects: pnpm_deps_restorer::FrozenProjectInputs {
                 workspace_root: self.workspace.workspace_root,
                 requester: self.execution.prefix,
@@ -66,23 +83,6 @@ impl<'a> MaterializationInputs<'a, '_> {
             seed,
 
             logged_methods: self.modules.logged_methods,
-        }
-    }
-
-    fn prior_materialization<'b>(
-        &'b self,
-        prior_unbuilt_builds: &'b pnpm_deps_restorer::UnbuiltBuilds,
-    ) -> pnpm_deps_restorer::PriorMaterialization<'b> {
-        pnpm_deps_restorer::PriorMaterialization {
-            rebuild: self.modules.rebuild,
-            hoisted_dependencies: self.modules.prior_hoisted_dependencies,
-            hoisted_locations: self.modules.prior_hoisted_locations,
-            allow_builds_changed: allow_builds_changed_since(
-                self.modules.modules_manifest,
-                self.install.context.config,
-            ),
-            unbuilt_builds: prior_unbuilt_builds,
-            prune_orphans: self.modules.prune_orphans,
         }
     }
 
@@ -117,12 +117,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         .await?;
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let frozen_result = self
-            .frozen_installer(
-                &scope,
-                lockfile,
-                frozen_verification_override,
-                &prior_unbuilt,
-            )
+            .frozen_installer(&scope, lockfile, frozen_verification_override, &prior_unbuilt)
             .run::<Reporter>()
             .await
             // Surface a verification failure as the same top-level

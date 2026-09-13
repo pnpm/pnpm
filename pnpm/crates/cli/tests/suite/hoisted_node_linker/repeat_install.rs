@@ -44,10 +44,9 @@ fn lifecycle_scripts_do_not_fail_on_repeat_hoisted_install() {
         .assert()
         .success();
 
-    for package_dir in [
-        workspace.join("node_modules").join(SCRIPTS),
-        workspace.join("node_modules/example"),
-    ] {
+    for package_dir in
+        [workspace.join("node_modules").join(SCRIPTS), workspace.join("node_modules/example")]
+    {
         assert!(package_dir.join("generated-by-preinstall.js").exists());
         assert!(package_dir.join("generated-by-postinstall.js").exists());
     }
@@ -97,20 +96,14 @@ fn a_repeat_frozen_install_leaves_present_hoisted_packages_alone() {
     // `optimisticRepeatInstall` would answer the second install from
     // the manifest mtimes without running the linker; the linker is
     // what is under test here.
-    write_workspace_yaml(
-        &workspace,
-        "nodeLinker: hoisted\noptimisticRepeatInstall: false\n",
-    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\noptimisticRepeatInstall: false\n");
     pacquet
         .with_args(["install"])
         .assert()
         .success();
 
-    let registry_dirs = [
-        "node_modules/ms",
-        "node_modules/send",
-        "node_modules/send/node_modules/ms",
-    ];
+    let registry_dirs =
+        ["node_modules/ms", "node_modules/send", "node_modules/send/node_modules/ms"];
     let inode = |relative: &str| fs::metadata(workspace.join(relative)).unwrap().ino();
     let before: Vec<u64> = registry_dirs
         .iter()
@@ -189,10 +182,7 @@ fn a_repeat_frozen_install_does_not_rebuild_present_hoisted_packages() {
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
-    assert!(
-        !generated.exists(),
-        "a repeat install does not rerun scripts of a present package",
-    );
+    assert!(!generated.exists(), "a repeat install does not rerun scripts of a present package");
 
     pacquet_at(&workspace)
         .with_arg("rebuild")
@@ -216,21 +206,15 @@ fn adding_a_dependency_leaves_present_hoisted_packages_alone() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        serde_json::json!({ "send": "0.17.2", "ms": "1.0.0" }),
-    );
+    write_manifest(&workspace, serde_json::json!({ "send": "0.17.2", "ms": "1.0.0" }));
     write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
     pacquet
         .with_args(["install"])
         .assert()
         .success();
 
-    let registry_dirs = [
-        "node_modules/ms",
-        "node_modules/send",
-        "node_modules/send/node_modules/ms",
-    ];
+    let registry_dirs =
+        ["node_modules/ms", "node_modules/send", "node_modules/send/node_modules/ms"];
     let inode = |relative: &str| fs::metadata(workspace.join(relative)).unwrap().ino();
     let before: Vec<u64> = registry_dirs
         .iter()
@@ -245,18 +229,12 @@ fn adding_a_dependency_leaves_present_hoisted_packages_alone() {
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(stdout.contains("Packages: +1\n"), "stdout:\n{stdout}");
 
-    assert!(
-        is_real_dir(&workspace, "node_modules/is-positive"),
-        "the new package landed",
-    );
+    assert!(is_real_dir(&workspace, "node_modules/is-positive"), "the new package landed");
     let after: Vec<u64> = registry_dirs
         .iter()
         .map(|relative| inode(relative))
         .collect();
-    assert_eq!(
-        before, after,
-        "the packages already in place were left alone",
-    );
+    assert_eq!(before, after, "the packages already in place were left alone");
 
     drop((root, mock_instance));
 }
@@ -276,14 +254,8 @@ fn a_repeat_frozen_install_restores_a_removed_or_altered_hoisted_package() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        serde_json::json!({ "send": "0.17.2", "ms": "1.0.0" }),
-    );
-    write_workspace_yaml(
-        &workspace,
-        "nodeLinker: hoisted\noptimisticRepeatInstall: false\n",
-    );
+    write_manifest(&workspace, serde_json::json!({ "send": "0.17.2", "ms": "1.0.0" }));
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\noptimisticRepeatInstall: false\n");
     pacquet
         .with_args(["install"])
         .assert()
@@ -300,20 +272,14 @@ fn a_repeat_frozen_install_restores_a_removed_or_altered_hoisted_package() {
     // first, the way an editor that writes a new file would.
     fs::remove_file(&ms_manifest).expect("unlink ms/package.json");
     fs::write(&ms_manifest, altered).expect("alter ms/package.json");
-    assert_eq!(
-        read_pkg_version(&workspace, "node_modules/ms"),
-        "0.0.0-stale",
-    );
+    assert_eq!(read_pkg_version(&workspace, "node_modules/ms"), "0.0.0-stale");
 
     pacquet_at(&workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
 
-    assert!(
-        is_real_dir(&workspace, "node_modules/send"),
-        "the removed package is back",
-    );
+    assert!(is_real_dir(&workspace, "node_modules/send"), "the removed package is back");
     assert_eq!(read_pkg_version(&workspace, "node_modules/send"), "0.17.2");
     assert_eq!(
         read_pkg_version(&workspace, "node_modules/ms"),
@@ -357,10 +323,7 @@ fn a_repeat_frozen_install_reimports_a_hoisted_package_whose_resolution_changed(
             "local-pkg": "file:./local-pkg",
         }),
     );
-    write_workspace_yaml(
-        &workspace,
-        "nodeLinker: hoisted\noptimisticRepeatInstall: false\n",
-    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\noptimisticRepeatInstall: false\n");
     pacquet
         .with_args(["install"])
         .assert()
@@ -382,15 +345,8 @@ fn a_repeat_frozen_install_reimports_a_hoisted_package_whose_resolution_changed(
         inode("node_modules/is-positive"),
         "the package whose resolution changed was imported again",
     );
-    assert_eq!(
-        ms_before,
-        inode("node_modules/ms"),
-        "its unchanged sibling was left in place",
-    );
-    assert_eq!(
-        read_pkg_version(&workspace, "node_modules/is-positive"),
-        "1.0.0",
-    );
+    assert_eq!(ms_before, inode("node_modules/ms"), "its unchanged sibling was left in place");
+    assert_eq!(read_pkg_version(&workspace, "node_modules/is-positive"), "1.0.0");
 
     drop((root, mock_instance));
 }
@@ -411,14 +367,8 @@ fn adding_a_dependency_reimports_a_hoisted_package_whose_resolution_changed() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        serde_json::json!({ "ms": "1.0.0", "is-positive": "1.0.0" }),
-    );
-    write_workspace_yaml(
-        &workspace,
-        "nodeLinker: hoisted\noptimisticRepeatInstall: false\n",
-    );
+    write_manifest(&workspace, serde_json::json!({ "ms": "1.0.0", "is-positive": "1.0.0" }));
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\noptimisticRepeatInstall: false\n");
     pacquet
         .with_args(["install"])
         .assert()
@@ -440,11 +390,7 @@ fn adding_a_dependency_reimports_a_hoisted_package_whose_resolution_changed() {
         inode("node_modules/is-positive"),
         "the package whose resolution changed was imported again on the fresh path",
     );
-    assert_eq!(
-        ms_before,
-        inode("node_modules/ms"),
-        "its unchanged sibling was left in place",
-    );
+    assert_eq!(ms_before, inode("node_modules/ms"), "its unchanged sibling was left in place");
 
     drop((root, mock_instance));
 }
@@ -482,10 +428,7 @@ fn a_repeat_frozen_install_replaces_a_hoisted_package_behind_a_link() {
         &workspace,
         serde_json::json!({ "ms": "1.0.0", "local-pkg": "file:./local-pkg" }),
     );
-    write_workspace_yaml(
-        &workspace,
-        "nodeLinker: hoisted\noptimisticRepeatInstall: false\n",
-    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\noptimisticRepeatInstall: false\n");
     pacquet
         .with_args(["install"])
         .assert()
@@ -504,10 +447,7 @@ fn a_repeat_frozen_install_replaces_a_hoisted_package_behind_a_link() {
         .assert()
         .success();
 
-    assert!(
-        is_real_dir(&workspace, "node_modules/ms"),
-        "the link was replaced by a real copy",
-    );
+    assert!(is_real_dir(&workspace, "node_modules/ms"), "the link was replaced by a real copy");
     assert_eq!(read_pkg_version(&workspace, "node_modules/ms"), "1.0.0");
 
     // Now leave the directory real and link only its manifest, again at
@@ -567,10 +507,7 @@ fn a_repeat_frozen_install_replaces_a_hoisted_package_behind_a_linked_scope() {
         &workspace,
         serde_json::json!({ SCOPED: "100.0.0", "local-pkg": "file:./local-pkg" }),
     );
-    write_workspace_yaml(
-        &workspace,
-        "nodeLinker: hoisted\noptimisticRepeatInstall: false\n",
-    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\noptimisticRepeatInstall: false\n");
     pacquet
         .with_args(["install"])
         .assert()
@@ -582,10 +519,7 @@ fn a_repeat_frozen_install_replaces_a_hoisted_package_behind_a_linked_scope() {
     let elsewhere = workspace.join("scope-elsewhere");
     fs::rename(&scope, &elsewhere).expect("move the scope directory aside");
     symlink(&elsewhere, &scope).expect("link the scope directory back");
-    assert_eq!(
-        read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foo"),
-        "100.0.0",
-    );
+    assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foo"), "100.0.0");
     // A re-import stages and swaps the package directory, so the inode
     // of what the link resolves to is the evidence it was written again.
     let linked_package = elsewhere.join("foo");
@@ -601,10 +535,7 @@ fn a_repeat_frozen_install_replaces_a_hoisted_package_behind_a_linked_scope() {
         fs::metadata(&linked_package).expect("stat the linked package").ino(),
         "the package behind the linked scope was imported again",
     );
-    assert_eq!(
-        read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foo"),
-        "100.0.0",
-    );
+    assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foo"), "100.0.0");
 
     drop((root, mock_instance));
 }
@@ -651,10 +582,7 @@ fn a_newly_allowed_build_runs_on_a_present_hoisted_package() {
         .with_arg("install")
         .assert()
         .success();
-    assert!(
-        generated.exists(),
-        "the newly allowed build ran on the package already in place",
-    );
+    assert!(generated.exists(), "the newly allowed build ran on the package already in place");
 
     drop((root, mock_instance));
 }
@@ -762,9 +690,60 @@ fn an_explicit_denial_turned_approval_builds_a_present_hoisted_package() {
         .with_args(["add", "ms@1.0.0"])
         .assert()
         .success();
-    assert!(
-        generated.exists(),
-        "the newly approved build ran on the package already in place",
+    assert!(generated.exists(), "the newly approved build ran on the package already in place");
+
+    drop((root, mock_instance));
+}
+
+/// The hoisted linker imports directly into the flat `node_modules/`
+/// rather than into a virtual-store slot, so it needs its own guard
+/// that a `file:` dependency's copy is retaken when the source moves.
+#[test]
+fn a_directory_dependency_is_recopied_under_the_hoisted_linker() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    let local = workspace.join("local-pkg");
+    fs::create_dir_all(&local).expect("create the local package dir");
+    let write_local = |marker: &str| {
+        fs::write(
+            local.join("package.json"),
+            serde_json::json!({ "name": "local-pkg", "version": "1.0.0" }).to_string(),
+        )
+        .expect("write the local package.json");
+        fs::write(local.join("marker.txt"), marker).expect("write the marker");
+    };
+    write_local("first");
+    write_manifest(&workspace, serde_json::json!({ "local-pkg": "file:./local-pkg" }));
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let installed_marker = workspace.join("node_modules/local-pkg/marker.txt");
+    assert_eq!(
+        fs::read_to_string(&installed_marker).expect("read the installed marker"),
+        "first",
+        "the first install should materialize the directory dependency",
+    );
+
+    write_local("second");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_eq!(
+        fs::read_to_string(&installed_marker).expect("read the installed marker"),
+        "second",
+        "the second install should re-copy the directory into node_modules",
     );
 
     drop((root, mock_instance));

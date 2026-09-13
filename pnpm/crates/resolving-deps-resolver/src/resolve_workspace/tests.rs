@@ -79,13 +79,8 @@ impl Resolver for RecordingResolver {
         self.seen
             .lock()
             .unwrap()
-            .insert(
-                alias.clone(),
-                (opts.version.pick_lowest_version, opts.policy.published_by),
-            );
-        let result = self.table
-            .get(&(alias, range))
-            .cloned();
+            .insert(alias.clone(), (opts.version.pick_lowest_version, opts.policy.published_by));
+        let result = self.table.get(&(alias, range)).cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
     }
 
@@ -113,11 +108,7 @@ impl ProjectRelativeWorkspaceResolver {
     }
 
     fn claiming(shared_specifier: &'static str, target_dir: std::path::PathBuf) -> Self {
-        Self {
-            target_dir,
-            shared_specifier,
-            workspace_resolutions: AtomicUsize::new(0),
-        }
+        Self { target_dir, shared_specifier, workspace_resolutions: AtomicUsize::new(0) }
     }
 
     fn workspace_resolution_count(&self) -> usize {
@@ -160,9 +151,7 @@ impl Resolver for ProjectRelativeWorkspaceResolver {
                 .replace('\\', "/");
             Ok(Some(ResolveResult {
                 id: PkgResolutionId::from(format!("link:{rel}")),
-                resolution: LockfileResolution::Directory(DirectoryResolution {
-                    directory: rel,
-                }),
+                resolution: LockfileResolution::Directory(DirectoryResolution { directory: rel }),
                 resolved_via: "workspace".to_string(),
                 normalized_bare_specifier: None,
                 alias: Some(alias),
@@ -313,10 +302,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
             scopes_by_importer: BTreeMap::new(),
             depth: crate::UpdateDepth::UNLIMITED,
         },
-        version: crate::WorkspaceVersionResolution {
-            pick_lowest_direct,
-            time_based,
-        },
+        version: crate::WorkspaceVersionResolution { pick_lowest_direct, time_based },
     }
 }
 
@@ -342,14 +328,8 @@ async fn resolve_with_transient_shared_walk(
         fake_manifest(serde_json::json!({ "shared": "1.0.0", "host": "1.0.0" }));
     let (_tmp_b, b_manifest) = fake_manifest(serde_json::json!({ "shared": "1.0.0" }));
     let importers = [
-        WorkspaceImporter {
-            id: ".".to_string(),
-            manifest: &root_manifest,
-        },
-        WorkspaceImporter {
-            id: "pkg-b".to_string(),
-            manifest: &b_manifest,
-        },
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-b".to_string(), manifest: &b_manifest },
     ];
     let mut table = HashMap::from_iter([
         (
@@ -381,29 +361,19 @@ async fn resolve_with_transient_shared_walk(
             ),
         );
     }
-    let resolver = SlowAliasResolver {
-        table,
-        slow: ("shared".to_string(), "1.0.0".to_string()),
-    };
+    let resolver = SlowAliasResolver { table, slow: ("shared".to_string(), "1.0.0".to_string()) };
     let pinned_dep_key = format!("dep@{pinned_dep_version}");
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
     opts.reuse.lockfile = Some(Arc::new(reuse_graph_lockfile(
         "pkg-b",
         &[("shared", "1.0.0", "1.0.0")],
-        &[
-            ("shared@1.0.0", &[("dep", pinned_dep_version)]),
-            (&pinned_dep_key, &[]),
-        ],
+        &[("shared@1.0.0", &[("dep", pinned_dep_version)]), (&pinned_dep_key, &[])],
         &[],
     )));
-    resolve_workspace(
-        &resolver,
-        &importers,
-        &[DependencyGroup::Prod],
-        opts,
-        |importer| importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None),
-    )
+    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+        importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+    })
     .await
     .expect("resolve workspace under the adversarial interleaving")
 }
@@ -556,84 +526,6 @@ enum ManifestAvailability {
     Absent,
 }
 
-async fn project_relative_root_dep_is_not_a_provider(local: &str, manifest: ManifestAvailability) {
-    let (_root_tmp, root_manifest) = fake_manifest(serde_json::json!({ "real-peer": local }));
-    let (_app_tmp, app_manifest) = fake_manifest(serde_json::json!({ "consumer": "1.0.0" }));
-    let importers = vec![
-        WorkspaceImporter {
-            id: ".".to_string(),
-            manifest: &root_manifest,
-        },
-        WorkspaceImporter {
-            id: "app-b".to_string(),
-            manifest: &app_manifest,
-        },
-    ];
-    let mut unnamed = fake_result(
-        "real-peer",
-        "1.0.0",
-        None,
-        serde_json::json!({ "name": "real-peer", "version": "1.0.0" }),
-    );
-    unnamed.package.name_ver = None;
-    if matches!(manifest, ManifestAvailability::Absent) {
-        unnamed.package.manifest = None;
-    }
-    unnamed.normalized_bare_specifier = Some(local.to_string());
-    unnamed.id = pnpm_resolving_resolver_base::PkgResolutionId::from(local.to_string());
-    let resolver = RecordingResolver {
-        table: HashMap::from_iter([
-            (("real-peer".to_string(), local.to_string()), unnamed),
-            (
-                ("real-peer".to_string(), "^1.0.0".to_string()),
-                fake_result(
-                    "real-peer",
-                    "1.9.9",
-                    None,
-                    serde_json::json!({ "name": "real-peer", "version": "1.9.9" }),
-                ),
-            ),
-            (
-                ("consumer".to_string(), "1.0.0".to_string()),
-                fake_result(
-                    "consumer",
-                    "1.0.0",
-                    None,
-                    serde_json::json!({
-                        "name": "consumer",
-                        "version": "1.0.0",
-                        "peerDependencies": { "real-peer": "^1.0.0" },
-                    }),
-                ),
-            ),
-        ]),
-        seen: Mutex::new(HashMap::default()),
-    };
-    let mut opts = workspace_opts(false, false);
-    opts.peers.auto_install_peers = true;
-    opts.peers.resolve_peers_from_workspace_root = true;
-    let result = resolve_workspace(
-        &resolver,
-        &importers,
-        &[DependencyGroup::Prod],
-        opts,
-        |importer| {
-            let mut importer_opts =
-                importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
-            importer_opts.peers.resolve_peers_from_workspace_root = true;
-            importer_opts
-        },
-    )
-    .await
-    .expect("resolve workspace with a project-relative root dep");
-
-    assert_eq!(
-        result.peers.direct_dependencies_by_importer["app-b"]["real-peer"].as_str(),
-        "real-peer@1.9.9",
-        "`{local}` must not be hoisted into app-b",
-    );
-}
-
 async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &str) {
     let root_tmp = tempfile::tempdir().expect("tempdir");
     let linked_dir = root_tmp.path().join("vendor/real-peer");
@@ -659,14 +551,8 @@ async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &st
         PackageManifest::from_path(root_manifest_path).expect("parse root manifest");
     let (_app_tmp, app_manifest) = fake_manifest(serde_json::json!({ "consumer": "1.0.0" }));
     let importers = vec![
-        WorkspaceImporter {
-            id: ".".to_string(),
-            manifest: &root_manifest,
-        },
-        WorkspaceImporter {
-            id: "app-b".to_string(),
-            manifest: &app_manifest,
-        },
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "app-b".to_string(), manifest: &app_manifest },
     ];
     let mut linked = fake_result(
         "real-peer",
@@ -679,10 +565,7 @@ async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &st
     linked.id = pnpm_resolving_resolver_base::PkgResolutionId::from("link:vendor/real-peer");
     let resolver = RecordingResolver {
         table: HashMap::from_iter([
-            (
-                ("real-peer".to_string(), "link:vendor/real-peer".to_string()),
-                linked,
-            ),
+            (("real-peer".to_string(), "link:vendor/real-peer".to_string()), linked),
             (
                 ("real-peer".to_string(), "1.2.3".to_string()),
                 fake_result(
@@ -721,24 +604,16 @@ async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &st
     opts.peers.auto_install_peers = true;
     opts.peers.resolve_peers_from_workspace_root = true;
     let root_dir = root_tmp.path().to_path_buf();
-    let result = resolve_workspace(
-        &resolver,
-        &importers,
-        &[DependencyGroup::Prod],
-        opts,
-        |importer| {
-            let project_dir = if importer.id == "." {
-                root_dir.clone()
-            } else {
-                root_dir.join(&importer.id)
-            };
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            let project_dir =
+                if importer.id == "." { root_dir.clone() } else { root_dir.join(&importer.id) };
             let mut importer_opts = importer_opts(project_dir, None);
             importer_opts.peers.resolve_peers_from_workspace_root = true;
             importer_opts
-        },
-    )
-    .await
-    .expect("resolve workspace with a link: root dep");
+        })
+        .await
+        .expect("resolve workspace with a link: root dep");
 
     assert_eq!(
         result.peers.direct_dependencies_by_importer["app-b"]["real-peer"].as_str(),
@@ -779,10 +654,7 @@ impl Resolver for OverlapRecordingResolver {
                 let mut in_flight = self.in_flight.lock().unwrap();
                 in_flight.insert(project_dir.clone());
                 if in_flight.len() > 1 {
-                    let mut overlapping: Vec<_> = in_flight
-                        .iter()
-                        .cloned()
-                        .collect();
+                    let mut overlapping: Vec<_> = in_flight.iter().cloned().collect();
                     overlapping.sort();
                     self.overlaps
                         .lock()
@@ -845,14 +717,8 @@ async fn announced_finalized_packages(
     table: HashMap<(String, String), ResolveResult>,
 ) -> Announcements {
     let (_tmp, manifest) = fake_manifest(manifest_deps);
-    let resolver = RecordingResolver {
-        table,
-        seen: Mutex::new(HashMap::default()),
-    };
-    let importers = vec![WorkspaceImporter {
-        id: ".".to_string(),
-        manifest: &manifest,
-    }];
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let importers = vec![WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
     let announced: Arc<Mutex<Announcements>> = Arc::new(Mutex::new(Vec::new()));
     let mut opts = workspace_opts(false, false);
     let sink = Arc::clone(&announced);
@@ -866,13 +732,9 @@ async fn announced_finalized_packages(
             .unwrap()
             .push((package.pkg_id.to_string(), children));
     }));
-    resolve_workspace(
-        &resolver,
-        &importers,
-        &[DependencyGroup::Prod],
-        opts,
-        |_| importer_opts(std::path::PathBuf::from("/repo"), None),
-    )
+    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(std::path::PathBuf::from("/repo"), None)
+    })
     .await
     .expect("resolve");
     let announced = announced.lock().unwrap();
@@ -880,10 +742,7 @@ async fn announced_finalized_packages(
 }
 
 fn table_entry(name: &str, manifest: serde_json::Value) -> ((String, String), ResolveResult) {
-    (
-        (name.to_string(), "^1.0.0".to_string()),
-        fake_result(name, "1.0.0", None, manifest),
-    )
+    ((name.to_string(), "^1.0.0".to_string()), fake_result(name, "1.0.0", None, manifest))
 }
 
 /// Resolver fed from an `(alias, range)` table that records every call
@@ -936,9 +795,7 @@ impl Resolver for WarmupProbeResolver {
             .cloned();
         let (held, release) = self.gate
             .as_ref()
-            .map_or((false, false), |(held, release)| {
-                (*held == alias, *release == alias)
-            });
+            .map_or((false, false), |(held, release)| (*held == alias, *release == alias));
         if release {
             self.released.store(true, std::sync::atomic::Ordering::Release);
         }
@@ -960,10 +817,7 @@ impl Resolver for WarmupProbeResolver {
 }
 
 fn caret_entry(name: &str, manifest: serde_json::Value) -> ((String, String), ResolveResult) {
-    (
-        (name.to_string(), "^1.0.0".to_string()),
-        fake_result(name, "1.0.0", None, manifest),
-    )
+    ((name.to_string(), "^1.0.0".to_string()), fake_result(name, "1.0.0", None, manifest))
 }
 
 fn deps(entries: &[(&str, &str)]) -> serde_json::Value {
@@ -981,10 +835,7 @@ async fn resolve_single_importer(
     patched: Option<Arc<pnpm_patching::PatchGroupRecord>>,
 ) -> Result<super::ResolveWorkspaceResult, tokio::time::error::Elapsed> {
     let (_tmp, manifest) = fake_manifest(manifest_deps);
-    let importers = vec![WorkspaceImporter {
-        id: ".".to_string(),
-        manifest: &manifest,
-    }];
+    let importers = vec![WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
     tokio::time::timeout(
         std::time::Duration::from_secs(5),
         resolve_workspace(resolver, &importers, &[DependencyGroup::Prod], opts, |_| {

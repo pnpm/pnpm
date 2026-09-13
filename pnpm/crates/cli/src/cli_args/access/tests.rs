@@ -3,10 +3,7 @@ use pnpm_config::Config;
 
 #[tokio::test]
 async fn test_normalize_registry_url() {
-    assert_eq!(
-        normalize_registry_url("https://registry.npmjs.org"),
-        "https://registry.npmjs.org/",
-    );
+    assert_eq!(normalize_registry_url("https://registry.npmjs.org"), "https://registry.npmjs.org/");
     assert_eq!(
         normalize_registry_url("https://registry.npmjs.org/"),
         "https://registry.npmjs.org/",
@@ -19,24 +16,16 @@ async fn test_normalize_registry_url() {
 
 #[tokio::test]
 async fn test_escaped_package_name() {
-    assert_eq!(
-        escaped_package_name("@scope/pkg"),
-        "@scope%2fpkg".to_string(),
-    );
+    assert_eq!(escaped_package_name("@scope/pkg"), "@scope%2fpkg".to_string());
     assert_eq!(escaped_package_name("simple-pkg"), "simple-pkg".to_string());
 }
 
 #[tokio::test]
 async fn test_access_subcommand_required() {
-    let err = AccessArgs {
-        registry: None,
-        json: false,
-        otp: None,
-        params: vec![],
-    }
-    .run(&Config::default())
-    .await
-    .unwrap_err();
+    let err = AccessArgs { registry: None, json: false, otp: None, params: vec![] }
+        .run(&Config::default())
+        .await
+        .unwrap_err();
 
     let err_str = format!("{err:?}");
     assert!(err_str.contains("ERR_PNPM_ACCESS_SUBCOMMAND_REQUIRED"));
@@ -44,15 +33,11 @@ async fn test_access_subcommand_required() {
 
 #[tokio::test]
 async fn test_access_unknown_subcommand() {
-    let err = AccessArgs {
-        registry: None,
-        json: false,
-        otp: None,
-        params: vec!["foobar".to_string()],
-    }
-    .run(&Config::default())
-    .await
-    .unwrap_err();
+    let err =
+        AccessArgs { registry: None, json: false, otp: None, params: vec!["foobar".to_string()] }
+            .run(&Config::default())
+            .await
+            .unwrap_err();
 
     let err_str = format!("{err:?}");
     assert!(err_str.contains("ERR_PNPM_ACCESS_UNKNOWN_SUBCOMMAND"));
@@ -64,11 +49,7 @@ async fn test_set_status_unscoped_error() {
         registry: None,
         json: false,
         otp: None,
-        params: vec![
-            "set".to_string(),
-            "status=public".to_string(),
-            "unscoped-pkg".to_string(),
-        ],
+        params: vec!["set".to_string(), "status=public".to_string(), "unscoped-pkg".to_string()],
     }
     .run(&Config::default())
     .await
@@ -84,11 +65,7 @@ async fn test_set_status_invalid_value() {
         registry: None,
         json: false,
         otp: None,
-        params: vec![
-            "set".to_string(),
-            "status=invalid".to_string(),
-            "@scope/pkg".to_string(),
-        ],
+        params: vec!["set".to_string(), "status=invalid".to_string(), "@scope/pkg".to_string()],
     }
     .run(&Config::default())
     .await
@@ -104,11 +81,7 @@ async fn test_set_mfa_invalid_value() {
         registry: None,
         json: false,
         otp: None,
-        params: vec![
-            "set".to_string(),
-            "mfa=invalid".to_string(),
-            "@scope/pkg".to_string(),
-        ],
+        params: vec!["set".to_string(), "mfa=invalid".to_string(), "@scope/pkg".to_string()],
     }
     .run(&Config::default())
     .await
@@ -210,15 +183,11 @@ async fn test_set_mfa_missing_package() {
 
 #[tokio::test]
 async fn test_grant_missing_args() {
-    let err = AccessArgs {
-        registry: None,
-        json: false,
-        otp: None,
-        params: vec!["grant".to_string()],
-    }
-    .run(&Config::default())
-    .await
-    .unwrap_err();
+    let err =
+        AccessArgs { registry: None, json: false, otp: None, params: vec!["grant".to_string()] }
+            .run(&Config::default())
+            .await
+            .unwrap_err();
 
     let err_str = format!("{err:?}");
     assert!(err_str.contains("ERR_PNPM_ACCESS_GRANT_ARGS_REQUIRED"));
@@ -226,15 +195,11 @@ async fn test_grant_missing_args() {
 
 #[tokio::test]
 async fn test_revoke_missing_args() {
-    let err = AccessArgs {
-        registry: None,
-        json: false,
-        otp: None,
-        params: vec!["revoke".to_string()],
-    }
-    .run(&Config::default())
-    .await
-    .unwrap_err();
+    let err =
+        AccessArgs { registry: None, json: false, otp: None, params: vec!["revoke".to_string()] }
+            .run(&Config::default())
+            .await
+            .unwrap_err();
 
     let err_str = format!("{err:?}");
     assert!(err_str.contains("ERR_PNPM_ACCESS_REVOKE_ARGS_REQUIRED"));
@@ -277,11 +242,7 @@ async fn test_deprecated_public_form_resolves_to_set_status() {
     let result = {
         let mut params = vec!["public".to_string(), "@scope/pkg".to_string()];
         let first = params.remove(0);
-        let second = if params.is_empty() {
-            None
-        } else {
-            Some(params.remove(0))
-        };
+        let second = if params.is_empty() { None } else { Some(params.remove(0)) };
         match (first.as_str(), second.as_deref()) {
             ("public", _) => Some("set_status"),
             _ => None,
@@ -295,11 +256,7 @@ async fn test_deprecated_restricted_form_resolves_to_set_status() {
     let result = {
         let mut params = vec!["restricted".to_string(), "@scope/pkg".to_string()];
         let first = params.remove(0);
-        let second = if params.is_empty() {
-            None
-        } else {
-            Some(params.remove(0))
-        };
+        let second = if params.is_empty() { None } else { Some(params.remove(0)) };
         match (first.as_str(), second.as_deref()) {
             ("restricted", _) => Some("set_status"),
             _ => None,
@@ -313,22 +270,10 @@ async fn test_deprecated_restricted_form_resolves_to_set_status() {
 #[test]
 fn list_packages_url_classifies_each_entity() {
     let url = |param: &str| super::list_packages_url("https://registry.example/", &[param.into()]);
-    assert_eq!(
-        url("@scope:team"),
-        "https://registry.example/-/team/scope/team/package?format=cli",
-    );
-    assert_eq!(
-        url("scope:team"),
-        "https://registry.example/-/team/scope/team/package?format=cli",
-    );
-    assert_eq!(
-        url("@org"),
-        "https://registry.example/-/org/org/package?format=cli",
-    );
-    assert_eq!(
-        url("someone"),
-        "https://registry.example/-/user/someone/package?format=cli",
-    );
+    assert_eq!(url("@scope:team"), "https://registry.example/-/team/scope/team/package?format=cli");
+    assert_eq!(url("scope:team"), "https://registry.example/-/team/scope/team/package?format=cli");
+    assert_eq!(url("@org"), "https://registry.example/-/org/org/package?format=cli");
+    assert_eq!(url("someone"), "https://registry.example/-/user/someone/package?format=cli");
     assert_eq!(
         super::list_packages_url("https://registry.example/", &[]),
         "https://registry.example/-/-/package?format=cli",

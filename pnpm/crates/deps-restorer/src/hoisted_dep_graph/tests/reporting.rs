@@ -40,10 +40,7 @@ fn walker_single_root_dep_emits_one_node() {
     assert_eq!(node.package.name, "a");
     assert_eq!(node.package.version, "1.0.0");
 
-    assert_eq!(
-        result.hoisted_locations["a@1.0.0"],
-        vec!["node_modules/a".to_string()],
-    );
+    assert_eq!(result.hoisted_locations["a@1.0.0"], vec!["node_modules/a".to_string()]);
     assert_eq!(
         result.direct_dependencies_by_importer_id[Lockfile::ROOT_IMPORTER_KEY]["a"],
         expected_dir,
@@ -73,15 +70,8 @@ fn walker_emits_required_dep_with_unsupported_platform_as_warning() {
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &host_aware_opts())
         .expect("walker proceeds");
 
-    assert_eq!(
-        result.graph.len(),
-        1,
-        "required incompatible dep emitted as warning",
-    );
-    assert!(
-        result.skipped.is_empty(),
-        "required dep not added to skipped",
-    );
+    assert_eq!(result.graph.len(), 1, "required incompatible dep emitted as warning");
+    assert!(result.skipped.is_empty(), "required dep not added to skipped");
 }
 /// Sanity check that the installability path doesn't drop packages it
 /// shouldn't.

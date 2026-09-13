@@ -20,10 +20,7 @@ pub(super) fn parse_update_param(input: &str) -> ParsedSelector {
             pattern: input[..idx].to_string(),
             version: Some(input[idx + 1..].to_string()),
         },
-        None => ParsedSelector {
-            pattern: input.to_string(),
-            version: None,
-        },
+        None => ParsedSelector { pattern: input.to_string(), version: None },
     }
 }
 pub(super) fn parse_selectors(packages: &[String]) -> Vec<ParsedSelector> {
@@ -72,10 +69,7 @@ pub(super) fn expand_update_selectors(selectors: &[ParsedSelector]) -> Vec<Parse
         } else {
             alias.pattern
         };
-        expanded.push(ParsedSelector {
-            pattern,
-            version: alias.version,
-        });
+        expanded.push(ParsedSelector { pattern, version: alias.version });
     }
     expanded
 }
@@ -98,10 +92,7 @@ pub(super) fn insert_update_target(
             continue;
         }
         claimed = true;
-        targets.insert(
-            name.to_string(),
-            selector.version.as_deref().and_then(VersionLine::parse),
-        );
+        targets.insert(name.to_string(), selector.version.as_deref().and_then(VersionLine::parse));
     }
     if !claimed {
         targets.insert(name.to_string(), None);
@@ -148,9 +139,7 @@ pub(super) fn reject_versions_of_indirect_update_specs<Reporter: self::Reporter>
 ) -> Result<(), UpdateError> {
     let mut pinned = Vec::new();
     for selector in selectors {
-        let Some(version) = selector.version.as_deref() else {
-            continue;
-        };
+        let Some(version) = selector.version.as_deref() else { continue };
         // A negated selector excludes names; a version on one asks for nothing.
         if selector.pattern.starts_with('!')
             || selector_matches_a_direct_dependency(selector, manifests, include_direct)

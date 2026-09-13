@@ -19,21 +19,20 @@ pub(super) async fn render_status(
             &intents,
             &ledger,
             Some(&config.versioning),
-            &AssembleReleasePlanOptions {
-                unpublished_dirs,
-                ..Default::default()
-            },
+            &AssembleReleasePlanOptions { unpublished_dirs, ..Default::default() },
         )
     };
     // Probe as the release does, so the preview matches it.
     let unpublished_dirs =
-        unpublished_release_dirs(config, &assemble(HashSet::new())?, published_names)
-            .await?;
+        unpublished_release_dirs(config, &assemble(HashSet::new())?, published_names).await?;
     let plan = assemble(unpublished_dirs)?;
     if plan.releases.is_empty() {
         return Ok("No pending changes.".to_string());
     }
-    let consumed_ids = consumed_intent_ids(&plan);
+    let consumed_ids: std::collections::HashSet<&str> = plan.releases
+        .iter()
+        .flat_map(|release| release.intents.iter().map(|intent| intent.id.as_str()))
+        .collect();
     use std::fmt::Write as _;
     let mut output = String::from("Pending change intents:\n");
     for intent in intents
@@ -68,10 +67,7 @@ pub(super) fn run_check(
     for violation in &violations {
         write!(message, "\n  - {}", violation.message).expect("write to string");
     }
-    Err(VersioningError::InvariantsViolated {
-        message,
-    }
-    .into())
+    Err(VersioningError::InvariantsViolated { message }.into())
 }
 
 /// Renders the plan the way the TypeScript CLI prints it, one line per
@@ -96,15 +92,4 @@ pub fn render_release_plan(plan: &ReleasePlan) -> String {
         .expect("write to string");
     }
     output
-}
-
-fn consumed_intent_ids(plan: &ReleasePlan) -> HashSet<&str> {
-    plan.releases
-        .iter()
-        .flat_map(|release| {
-            release.intents
-                .iter()
-                .map(|intent| intent.id.as_str())
-        })
-        .collect()
 }

@@ -52,20 +52,14 @@ pub fn materialization_closure(
     included: IncludedDependencies,
     skipped: &SkippedSnapshots,
 ) -> MaterializationClosure {
-    let reachable = collect_reachable(
-        lockfile,
-        workspace_root,
-        initial_importer_ids,
-        included,
-        |key| skipped.contains(key),
-    );
-    let metadata_reachable = collect_reachable(
-        lockfile,
-        workspace_root,
-        initial_importer_ids,
-        included,
-        |key| skipped.contains_optional_excluded(key),
-    );
+    let reachable =
+        collect_reachable(lockfile, workspace_root, initial_importer_ids, included, |key| {
+            skipped.contains(key)
+        });
+    let metadata_reachable =
+        collect_reachable(lockfile, workspace_root, initial_importer_ids, included, |key| {
+            skipped.contains_optional_excluded(key)
+        });
     let reachable_metadata = metadata_reachable.snapshot_keys
         .iter()
         .map(PackageKey::without_peer)
@@ -74,13 +68,18 @@ pub fn materialization_closure(
         .iter()
         .filter(|(id, _)| reachable.importer_ids.contains(*id))
         .map(|(id, importer)| {
-            (
-                id.clone(),
-                filter_importer(importer, included, &reachable.snapshot_keys),
-            )
+            (id.clone(), filter_importer(importer, included, &reachable.snapshot_keys))
         })
         .collect();
-    let snapshots = reachable_snapshots(lockfile, &reachable.snapshot_keys);
+    let snapshots = lockfile.snapshots
+        .as_ref()
+        .map(|snapshots| {
+            snapshots
+                .iter()
+                .filter(|(key, _)| reachable.snapshot_keys.contains(*key))
+                .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
+                .collect()
+        });
     let packages = reachable_package_metadata(lockfile, &reachable_metadata);
 
     MaterializationClosure {
@@ -156,11 +155,9 @@ fn resolution_inputs_match(previous: &Lockfile, fresh: &Lockfile) -> bool {
         && previous.settings == fresh.settings
         && previous.catalogs == fresh.catalogs
         && previous.overrides == fresh.overrides
-        && previous.package_extensions_checksum
-            == fresh.package_extensions_checksum
+        && previous.package_extensions_checksum == fresh.package_extensions_checksum
         && previous.pnpmfile_checksum == fresh.pnpmfile_checksum
-        && previous.ignored_optional_dependencies
-            == fresh.ignored_optional_dependencies
+        && previous.ignored_optional_dependencies == fresh.ignored_optional_dependencies
         && previous.patched_dependencies == fresh.patched_dependencies
 }
 
@@ -321,11 +318,7 @@ pub fn extend_skipped_with_dependency_closure(
 }
 
 fn all_dependencies() -> IncludedDependencies {
-    IncludedDependencies {
-        dependencies: true,
-        dev_dependencies: true,
-        optional_dependencies: true,
-    }
+    IncludedDependencies { dependencies: true, dev_dependencies: true, optional_dependencies: true }
 }
 
 fn overlay_package_maps<Value: Clone>(
@@ -441,35 +434,20 @@ fn retain_reachable(map: &mut ResolvedDependencyMap, reachable: &HashSet<Package
     });
 }
 
-#[cfg(test)]
-mod tests;
-
 fn reachable_package_metadata(
     lockfile: &Lockfile,
-    reachable_metadata: &HashSet<PackageKey>,
+    reachable: &HashSet<PackageKey>,
 ) -> Option<HashMap<PackageKey, pnpm_lockfile::PackageMetadata>> {
     lockfile.packages
         .as_ref()
         .map(|packages| {
             packages
                 .iter()
-                .filter(|(key, _)| reachable_metadata.contains(*key))
+                .filter(|(key, _)| reachable.contains(*key))
                 .map(|(key, package)| (key.clone(), package.clone()))
                 .collect()
         })
 }
 
-fn reachable_snapshots(
-    lockfile: &Lockfile,
-    keys: &HashSet<PackageKey>,
-) -> Option<HashMap<PackageKey, pnpm_lockfile::SnapshotEntry>> {
-    lockfile.snapshots
-        .as_ref()
-        .map(|snapshots| {
-            snapshots
-                .iter()
-                .filter(|(key, _)| keys.contains(*key))
-                .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
-                .collect()
-        })
-}
+#[cfg(test)]
+mod tests;

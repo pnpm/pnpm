@@ -9,11 +9,8 @@ use tempfile::tempdir;
 #[tokio::test]
 async fn selected_add_merges_catalog_updates_in_command_order() {
     let dir = tempdir().expect("create tempdir");
-    std::fs::write(
-        dir.path().join("pnpm-workspace.yaml"),
-        "packages:\n  - '*'\n",
-    )
-    .expect("write workspace manifest");
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - '*'\n")
+        .expect("write workspace manifest");
     let mut projects = vec![
         project_with_foo(dir.path(), "a", "1.0.0"),
         project_with_foo(dir.path(), "b", "2.0.0"),
@@ -34,14 +31,8 @@ async fn selected_add_merges_catalog_updates_in_command_order() {
             .await
             .expect("prepare selected manifests");
 
-    assert_eq!(
-        dependency_specifier(&projects[0].manifest, "foo"),
-        Some("1.0.0"),
-    );
-    assert_eq!(
-        dependency_specifier(&projects[1].manifest, "foo"),
-        Some("catalog:"),
-    );
+    assert_eq!(dependency_specifier(&projects[0].manifest, "foo"), Some("1.0.0"));
+    assert_eq!(dependency_specifier(&projects[1].manifest, "foo"), Some("catalog:"));
     assert_eq!(
         prepared.updated_catalogs
             .get("default")

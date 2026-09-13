@@ -36,7 +36,9 @@ pub enum UpdateSeedPolicy {
     RefreshRevisions,
     /// Withhold every lockfile pin. `pacquet update` with no package
     /// selectors — the whole graph re-resolves to highest-in-range.
-    DropAll { max_depth: UpdateDepth },
+    DropAll {
+        max_depth: UpdateDepth,
+    },
     /// Withhold only the update targets' pins. `pacquet update <pattern>`
     /// — a matched name re-resolves while everything else keeps its pin,
     /// and a selector that pinned an exact version narrows the target to
@@ -88,9 +90,7 @@ impl UpdateSeedPolicy {
     /// which expose a `--depth`.
     #[must_use]
     pub fn drop_all() -> Self {
-        UpdateSeedPolicy::DropAll {
-            max_depth: UpdateDepth::UNLIMITED,
-        }
+        UpdateSeedPolicy::DropAll { max_depth: UpdateDepth::UNLIMITED }
     }
 
     pub(super) fn max_depth(&self) -> UpdateDepth {

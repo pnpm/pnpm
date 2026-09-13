@@ -33,15 +33,8 @@ pub(crate) fn acquire_global_bin_lock(global_bin_dir: &Path) -> miette::Result<D
     let path = global_bin_dir.join(".pnpm-global-bin.lock");
     match DirLock::acquire(path.clone(), WAIT, ABANDONED_AFTER) {
         Ok(Some(lock)) => Ok(lock),
-        Ok(None) => Err(GlobalBinLockError::TimedOut {
-            path,
-        }
-        .into()),
-        Err(source) => Err(GlobalBinLockError::Failed {
-            path,
-            source,
-        }
-        .into()),
+        Ok(None) => Err(GlobalBinLockError::TimedOut { path }.into()),
+        Err(source) => Err(GlobalBinLockError::Failed { path, source }.into()),
     }
 }
 
@@ -50,13 +43,7 @@ pub(crate) fn try_acquire_global_bin_lock(
 ) -> miette::Result<Option<DirLock>> {
     let path = global_bin_dir.join(".pnpm-global-bin.lock");
     DirLock::acquire(path.clone(), Duration::ZERO, ABANDONED_AFTER)
-        .map_err(|source| {
-            GlobalBinLockError::Failed {
-                path,
-                source,
-            }
-            .into()
-        })
+        .map_err(|source| GlobalBinLockError::Failed { path, source }.into())
 }
 
 #[cfg(test)]

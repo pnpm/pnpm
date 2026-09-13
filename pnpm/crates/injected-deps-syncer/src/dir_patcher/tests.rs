@@ -65,10 +65,7 @@ fn extend_files_map_skips_an_inode_that_cannot_be_hardlinked() {
     let map = extend_files_map(&files_map(dir.path(), &["distribution/index.js", ".env"]))
         .expect("build inode map");
 
-    assert!(
-        !map.contains_key(".env"),
-        "a FIFO belongs in no inode map: {map:?}",
-    );
+    assert!(!map.contains_key(".env"), "a FIFO belongs in no inode map: {map:?}");
     assert!(map.contains_key("distribution/index.js"));
 }
 
@@ -104,10 +101,7 @@ fn sync_removes_what_the_source_no_longer_has() {
     sync(&source, &target);
 
     assert!(target.join("keep.txt").exists());
-    assert!(
-        !target.join("stale").exists(),
-        "a directory the source dropped is removed",
-    );
+    assert!(!target.join("stale").exists(), "a directory the source dropped is removed");
 }
 
 #[cfg(unix)]
@@ -123,10 +117,7 @@ fn sync_replaces_a_skipped_inode_the_target_holds() {
 
     sync(&source, &target);
 
-    assert_eq!(
-        fs::read_to_string(target.join("config.env")).expect("read replacement"),
-        "real",
-    );
+    assert_eq!(fs::read_to_string(target.join("config.env")).expect("read replacement"), "real");
     assert!(target.join("other.txt").exists());
 }
 
@@ -141,10 +132,7 @@ fn sync_leaves_a_skipped_inode_the_source_does_not_cover() {
     sync(&source, &target);
 
     let metadata = fs::symlink_metadata(target.join("own.env")).expect("stat the FIFO");
-    assert!(
-        metadata.file_type().is_fifo(),
-        "a FIFO of the target's own is left alone",
-    );
+    assert!(metadata.file_type().is_fifo(), "a FIFO of the target's own is left alone");
 }
 
 #[test]

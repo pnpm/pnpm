@@ -53,12 +53,9 @@ pub(super) fn is_variant_file(name: &str) -> bool {
 
 pub(super) fn is_blob_path(relative: &str) -> bool {
     let mut segments = relative.split('/');
-    let (Some(owner), Some("blobs"), Some(blob), None) = (
-        segments.next(),
-        segments.next(),
-        segments.next(),
-        segments.next(),
-    ) else {
+    let (Some(owner), Some("blobs"), Some(blob), None) =
+        (segments.next(), segments.next(), segments.next(), segments.next())
+    else {
         return false;
     };
     is_digest_segment(owner) && !blob.is_empty()
@@ -66,13 +63,9 @@ pub(super) fn is_blob_path(relative: &str) -> bool {
 
 pub(super) fn entry_owner(relative: &str) -> Option<&str> {
     let mut segments = relative.split('/');
-    let (Some(owner), Some("entries"), Some(entry), Some(variant), None) = (
-        segments.next(),
-        segments.next(),
-        segments.next(),
-        segments.next(),
-        segments.next(),
-    ) else {
+    let (Some(owner), Some("entries"), Some(entry), Some(variant), None) =
+        (segments.next(), segments.next(), segments.next(), segments.next(), segments.next())
+    else {
         return None;
     };
     (is_digest_segment(owner) && is_digest_segment(entry) && is_variant_file(variant)).then_some(
@@ -155,7 +148,5 @@ pub(super) fn artifact_matches_candidate(
     candidate: &ArtifactCandidate,
 ) -> bool {
     let ArtifactCandidate { key: input_key, subject, owner } = candidate;
-    payload.input_key == *input_key
-        && payload.subject == *subject
-        && payload.owner == *owner
+    payload.input_key == *input_key && payload.subject == *subject && payload.owner == *owner
 }

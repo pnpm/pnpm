@@ -91,19 +91,15 @@ fn parse_token(source: &str) -> Result<(Token, &str), ParsePropertyPathError> {
     // Unexpected: a single (char-boundary-safe) unit.
     let mut indices = source.char_indices();
     indices.next();
-    let split = indices
-        .next()
-        .map_or(source.len(), |(i, _)| i);
+    let split = indices.next().map_or(source.len(), |(i, _)| i);
     let (head, tail) = source.split_at(split);
     Ok((Token::Unexpected(head.to_string()), tail))
 }
 
 fn parse_exact(source: &str) -> Option<(Token, &str)> {
-    for (prefix, token) in [
-        ('.', Token::Dot),
-        ('[', Token::OpenBracket),
-        (']', Token::CloseBracket),
-    ] {
+    for (prefix, token) in
+        [('.', Token::Dot), ('[', Token::OpenBracket), (']', Token::CloseBracket)]
+    {
         if let Some(rest) = source.strip_prefix(prefix) {
             return Some((token, rest));
         }
@@ -146,9 +142,7 @@ fn parse_numeric_literal(source: &str) -> Result<Option<(Token, &str)>, ParsePro
             end = i + c.len_utf8();
         } else if c.is_ascii_alphabetic() {
             // Forbid `0x1A`, `1e20`, `123n`, ...
-            return Err(ParsePropertyPathError::UnsupportedNumericSuffix {
-                suffix: c.to_string(),
-            });
+            return Err(ParsePropertyPathError::UnsupportedNumericSuffix { suffix: c.to_string() });
         } else {
             break;
         }
@@ -173,19 +167,14 @@ fn parse_string_literal(source: &str) -> Result<Option<(Token, &str)>, ParseProp
             escaped = false;
             content.push(unescape(char)?);
         } else if char == quote {
-            return Ok(Some((
-                Token::StringLiteral(content),
-                &source[index + char.len_utf8()..],
-            )));
+            return Ok(Some((Token::StringLiteral(content), &source[index + char.len_utf8()..])));
         } else if char == '\\' {
             escaped = true;
         } else {
             content.push(char);
         }
     }
-    Err(ParsePropertyPathError::IncompleteStringLiteral {
-        quote,
-    })
+    Err(ParsePropertyPathError::IncompleteStringLiteral { quote })
 }
 
 /// The character a backslash escape stands for.
@@ -198,19 +187,15 @@ fn unescape(char: char) -> Result<char, ParsePropertyPathError> {
         'n' => Ok('\n'),
         'r' => Ok('\r'),
         't' => Ok('\t'),
-        other => Err(ParsePropertyPathError::UnsupportedEscapeSequence {
-            sequence: other.to_string(),
-        }),
+        other => {
+            Err(ParsePropertyPathError::UnsupportedEscapeSequence { sequence: other.to_string() })
+        }
     }
 }
 
 fn parse_whitespace(source: &str) -> Option<(Token, &str)> {
     let trimmed = source.trim_start();
-    if trimmed.len() == source.len() {
-        None
-    } else {
-        Some((Token::Whitespace, trimmed))
-    }
+    if trimmed.len() == source.len() { None } else { Some((Token::Whitespace, trimmed)) }
 }
 
 /// The parser's one-slot shift stack: what has been read but not yet
@@ -258,9 +243,7 @@ fn shift(
         }
         Token::Identifier(content) => {
             if !matches!(stack, None | Some(Stack::Dot)) {
-                return Err(ParsePropertyPathError::UnexpectedIdentifier {
-                    token: content,
-                });
+                return Err(ParsePropertyPathError::UnexpectedIdentifier { token: content });
             }
             segments.push(Segment::Key(content));
             Ok(None)
@@ -272,9 +255,9 @@ fn shift(
             Ok(Some(Stack::Bracketed(token)))
         }
         Token::Whitespace => Ok(stack),
-        Token::Unexpected(content) => Err(ParsePropertyPathError::UnexpectedToken {
-            token: content,
-        }),
+        Token::Unexpected(content) => {
+            Err(ParsePropertyPathError::UnexpectedToken { token: content })
+        }
         Token::Dot | Token::OpenBracket => Err(unexpected(&token)),
     }
 }
@@ -288,15 +271,11 @@ fn literal_to_segment(token: Token) -> Segment {
 }
 
 fn unexpected(token: &Token) -> ParsePropertyPathError {
-    ParsePropertyPathError::UnexpectedToken {
-        token: token_content(token),
-    }
+    ParsePropertyPathError::UnexpectedToken { token: token_content(token) }
 }
 
 fn unexpected_literal(token: &Token) -> ParsePropertyPathError {
-    ParsePropertyPathError::UnexpectedLiteral {
-        token: token_content(token),
-    }
+    ParsePropertyPathError::UnexpectedLiteral { token: token_content(token) }
 }
 
 fn token_content(token: &Token) -> String {

@@ -54,11 +54,7 @@ impl Resolver for StubResolver {
         _query: &'a LatestQuery,
         _opts: &'a ResolveOptions,
     ) -> ResolveLatestFuture<'a> {
-        Box::pin(async {
-            Ok(Some(LatestInfo {
-                latest_manifest: None,
-            }))
-        })
+        Box::pin(async { Ok(Some(LatestInfo { latest_manifest: None })) })
     }
 }
 
@@ -104,13 +100,9 @@ fn manifest_requiring_child(range: &str) -> Value {
 
 async fn try_update(lockfile: &Lockfile, catalogs: &Catalogs, manifest: Value) -> Option<Lockfile> {
     let resolve_options = ResolveOptions::default();
-    let registries = HashMap::from([(
-        "default".to_string(),
-        "https://registry.npmjs.org/".to_string(),
-    )]);
-    let resolver = StubResolver {
-        manifest,
-    };
+    let registries =
+        HashMap::from([("default".to_string(), "https://registry.npmjs.org/".to_string())]);
+    let resolver = StubResolver { manifest };
     try_fast_update_catalog_versions(
         &crate::fast_update_overrides::RewriteContext {
             lockfile,
@@ -139,23 +131,16 @@ fn snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
 
 #[tokio::test]
 async fn replaces_the_catalog_version_when_the_locked_child_still_fits() {
-    let updated = try_update(
-        &lockfile(),
-        &catalogs("2.0.0"),
-        manifest_requiring_child("^1.0.0"),
-    )
-    .await
-    .expect("the locked child satisfies the new manifest");
+    let updated = try_update(&lockfile(), &catalogs("2.0.0"), manifest_requiring_child("^1.0.0"))
+        .await
+        .expect("the locked child satisfies the new manifest");
 
     assert_eq!(
         snapshot_keys(&updated),
         vec!["child@1.1.0".to_string(), "target@2.0.0".to_string()],
     );
     let entry = &updated.catalogs.as_ref().expect("catalogs")["default"]["target"];
-    assert_eq!(
-        (entry.specifier.as_str(), entry.version.as_str()),
-        ("2.0.0", "2.0.0"),
-    );
+    assert_eq!((entry.specifier.as_str(), entry.version.as_str()), ("2.0.0", "2.0.0"));
     assert_eq!(
         updated.importers["."].dependencies.as_ref().expect("dependencies")
             [&"target".parse().expect("alias")]
@@ -169,13 +154,9 @@ async fn replaces_the_catalog_version_when_the_locked_child_still_fits() {
 #[tokio::test]
 async fn falls_back_when_the_locked_child_does_not_satisfy_the_new_version() {
     assert!(
-        try_update(
-            &lockfile(),
-            &catalogs("2.0.0"),
-            manifest_requiring_child("^2.0.0")
-        )
-        .await
-        .is_none(),
+        try_update(&lockfile(), &catalogs("2.0.0"), manifest_requiring_child("^2.0.0"))
+            .await
+            .is_none(),
         "resolving the new child is the resolver's job",
     );
 }
@@ -192,13 +173,9 @@ async fn falls_back_when_an_importer_depends_on_the_package_directly() {
     );
 
     assert!(
-        try_update(
-            &lockfile,
-            &catalogs("2.0.0"),
-            manifest_requiring_child("^1.0.0")
-        )
-        .await
-        .is_none(),
+        try_update(&lockfile, &catalogs("2.0.0"), manifest_requiring_child("^1.0.0"))
+            .await
+            .is_none(),
         "that importer pinned the old version, so the graph would need both",
     );
 }
@@ -216,13 +193,9 @@ async fn falls_back_when_a_package_depends_on_the_catalog_package() {
         );
 
     assert!(
-        try_update(
-            &lockfile,
-            &catalogs("2.0.0"),
-            manifest_requiring_child("^1.0.0")
-        )
-        .await
-        .is_none(),
+        try_update(&lockfile, &catalogs("2.0.0"), manifest_requiring_child("^1.0.0"))
+            .await
+            .is_none(),
         "the transitive dependent keeps the old version, so both would be needed",
     );
 }
@@ -240,13 +213,9 @@ async fn falls_back_when_a_catalog_reference_has_no_recorded_entry() {
     );
 
     assert!(
-        try_update(
-            &subject,
-            &catalogs("2.0.0"),
-            manifest_requiring_child("^1.0.0")
-        )
-        .await
-        .is_none(),
+        try_update(&subject, &catalogs("2.0.0"), manifest_requiring_child("^1.0.0"))
+            .await
+            .is_none(),
         "that importer's catalog entry was never recorded, so the graph is incomplete",
     );
 }
@@ -265,14 +234,8 @@ async fn falls_back_when_two_catalogs_move_the_same_alias() {
             .expect("catalog"),
         );
     let catalogs = Catalogs::from([
-        (
-            "default".to_string(),
-            BTreeMap::from([("target".to_string(), "2.0.0".to_string())]),
-        ),
-        (
-            "other".to_string(),
-            BTreeMap::from([("target".to_string(), "3.0.0".to_string())]),
-        ),
+        ("default".to_string(), BTreeMap::from([("target".to_string(), "2.0.0".to_string())])),
+        ("other".to_string(), BTreeMap::from([("target".to_string(), "3.0.0".to_string())])),
     ]);
 
     assert!(
@@ -310,10 +273,7 @@ async fn absorbs_a_range_only_entry_alongside_an_exact_move() {
 
     let recorded = &updated.catalogs.as_ref().expect("catalogs")["default"];
     assert_eq!(
-        (
-            recorded["child"].specifier.as_str(),
-            recorded["child"].version.as_str()
-        ),
+        (recorded["child"].specifier.as_str(), recorded["child"].version.as_str()),
         ("^1.1.0", "1.1.0"),
     );
     assert_eq!(recorded["target"].version.as_str(), "2.0.0");
@@ -322,13 +282,9 @@ async fn absorbs_a_range_only_entry_alongside_an_exact_move() {
 #[tokio::test]
 async fn declines_a_range_the_locked_version_still_satisfies() {
     assert!(
-        try_update(
-            &lockfile(),
-            &catalogs("^1.0.0"),
-            manifest_requiring_child("^1.0.0")
-        )
-        .await
-        .is_none(),
+        try_update(&lockfile(), &catalogs("^1.0.0"), manifest_requiring_child("^1.0.0"))
+            .await
+            .is_none(),
         "that change rewrites nothing and belongs to the range-only path",
     );
 }

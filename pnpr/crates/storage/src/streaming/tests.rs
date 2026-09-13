@@ -24,9 +24,7 @@ fn rejects_integrity_without_hashes() {
         assert!(err.to_string().contains("no supported hashes"));
     }
 
-    let zero_hash = Integrity {
-        hashes: Vec::new(),
-    };
+    let zero_hash = Integrity { hashes: Vec::new() };
     assert!(integrity_checker(&zero_hash).is_err());
 }
 
@@ -69,11 +67,7 @@ async fn spawn_stalled_response() -> (String, Arc<Notify>, tokio::task::JoinHand
         socket.flush().await.unwrap();
         release_for_server.notified().await;
     });
-    (
-        format!("http://{addr}/foo/-/foo-1.0.0.tgz"),
-        release,
-        server,
-    )
+    (format!("http://{addr}/foo/-/foo-1.0.0.tgz"), release, server)
 }
 
 async fn spawn_response(bytes: &'static [u8]) -> String {
@@ -91,10 +85,7 @@ async fn spawn_response(bytes: &'static [u8]) -> String {
              \r\n",
             bytes.len(),
         );
-        socket
-            .write_all(headers.as_bytes())
-            .await
-            .unwrap();
+        socket.write_all(headers.as_bytes()).await.unwrap();
         socket.write_all(bytes).await.unwrap();
         socket.flush().await.unwrap();
     });
@@ -131,10 +122,7 @@ async fn await_nonempty_blob_tmp(dir: &Path) -> Vec<String> {
         {
             return entries;
         }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "blob body was not written to tmp",
-        );
+        assert!(std::time::Instant::now() < deadline, "blob body was not written to tmp");
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
@@ -148,12 +136,8 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
 
     let tmp = TempDir::new().unwrap();
     let cache = tmp.path().join("cache");
-    let storage = Storage::new(
-        &HostedStoreConfig::Fs,
-        tmp.path().join("hosted"),
-        cache.clone(),
-    )
-    .unwrap();
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let write =
         storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
@@ -188,12 +172,8 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
 
     let tmp = TempDir::new().unwrap();
     let cache = tmp.path().join("cache");
-    let storage = Storage::new(
-        &HostedStoreConfig::Fs,
-        tmp.path().join("hosted"),
-        cache.clone(),
-    )
-    .unwrap();
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let write =
         storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
@@ -212,10 +192,6 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
 async fn throttled_response(url: String) -> pnpm_network::ThrottledResponse {
     let client = pnpm_network::ThrottledClient::new_for_installs();
     let guard = client.acquire_for_url(&url).await;
-    let response = guard
-        .get(url)
-        .send()
-        .await
-        .unwrap();
+    let response = guard.get(url).send().await.unwrap();
     guard.retain_for_body(response, Duration::from_secs(30))
 }

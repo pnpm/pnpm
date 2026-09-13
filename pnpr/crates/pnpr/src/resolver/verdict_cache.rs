@@ -60,9 +60,7 @@ impl VerdictCache {
                  verified_at_ms INTEGER NOT NULL
              );",
         )?;
-        Ok(Self {
-            conn: Mutex::new(conn),
-        })
+        Ok(Self { conn: Mutex::new(conn) })
     }
 
     /// Return `true` when a prior pass for `hash` is recorded under a

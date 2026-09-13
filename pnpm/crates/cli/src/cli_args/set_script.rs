@@ -63,9 +63,7 @@ impl SetScriptArgs {
 /// a key.
 fn reject_unsafe_key(key: &str) -> Result<(), SetScriptError> {
     if UNSAFE_KEYS.contains(&key) {
-        return Err(SetScriptError::UnsafeKey {
-            key: key.to_string(),
-        });
+        return Err(SetScriptError::UnsafeKey { key: key.to_string() });
     }
     Ok(())
 }
@@ -75,9 +73,7 @@ fn reject_unsafe_key(key: &str) -> Result<(), SetScriptError> {
 /// not an object, rebuilding an intermediate node whose shape disagrees with
 /// the path.
 fn set_script(manifest: &mut Value, name: String, command: String) {
-    let Some(manifest) = manifest.as_object_mut() else {
-        return;
-    };
+    let Some(manifest) = manifest.as_object_mut() else { return };
     let scripts = manifest
         .entry("scripts")
         .or_insert_with(|| Value::Object(Map::new()));

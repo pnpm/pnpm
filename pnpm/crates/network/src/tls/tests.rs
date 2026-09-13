@@ -25,10 +25,7 @@ fn tls_config_default_is_empty() {
     assert!(cfg.ca.is_empty(), "default CA list is empty");
     assert!(cfg.cert.is_none());
     assert!(cfg.key.is_none());
-    assert!(
-        cfg.strict_ssl.is_none(),
-        "default is None — true is applied at build site",
-    );
+    assert!(cfg.strict_ssl.is_none(), "default is None — true is applied at build site");
     assert!(cfg.local_address.is_none());
 }
 
@@ -46,14 +43,9 @@ fn tls_config_clone_round_trip() {
 
 #[test]
 fn tls_error_invalid_client_identity_includes_reason_in_display() {
-    let err = TlsError::InvalidClientIdentity {
-        reason: "garbage key".into(),
-    };
+    let err = TlsError::InvalidClientIdentity { reason: "garbage key".into() };
     let rendered = err.to_string();
-    assert!(
-        rendered.contains("garbage key"),
-        "expected reason in {rendered}",
-    );
+    assert!(rendered.contains("garbage key"), "expected reason in {rendered}");
 }
 
 // --- PerRegistryTls / pick_for_url tests ---
@@ -71,14 +63,8 @@ fn per_registry_from_map_drops_empty_entries() {
         ("//keep.example/", registry_with(Some("ca"), None, None)),
         ("//drop.example/", RegistryTls::default()),
     ]);
-    assert!(
-        tls_map.get("//keep.example/").is_some(),
-        "non-empty entry survived",
-    );
-    assert!(
-        tls_map.get("//drop.example/").is_none(),
-        "empty entry was dropped",
-    );
+    assert!(tls_map.get("//keep.example/").is_some(), "non-empty entry survived");
+    assert!(tls_map.get("//drop.example/").is_none(), "empty entry was dropped");
 }
 
 #[test]
@@ -86,20 +72,14 @@ fn pick_for_url_exact_match_wins() {
     let exact = "https://registry.example.com/pkg/-/pkg-1.0.0.tgz";
     let tls_map = build_map(&[
         (exact, registry_with(Some("exact-ca"), None, None)),
-        (
-            "//registry.example.com/",
-            registry_with(Some("registry-ca"), None, None),
-        ),
+        ("//registry.example.com/", registry_with(Some("registry-ca"), None, None)),
     ]);
     assert_eq!(tls_map.pick_for_url(exact), Some(exact));
 }
 
 #[test]
 fn pick_for_url_nerf_dart_match() {
-    let tls_map = build_map(&[(
-        "//registry.example.com/",
-        registry_with(Some("ca"), None, None),
-    )]);
+    let tls_map = build_map(&[("//registry.example.com/", registry_with(Some("ca"), None, None))]);
     assert_eq!(
         tls_map.pick_for_url("https://registry.example.com/pkg"),
         Some("//registry.example.com/"),
@@ -120,10 +100,7 @@ fn pick_for_url_shorter_path_prefix() {
 
 #[test]
 fn pick_for_url_strips_port_on_retry() {
-    let tls_map = build_map(&[(
-        "//registry.example.com/",
-        registry_with(Some("ca"), None, None),
-    )]);
+    let tls_map = build_map(&[("//registry.example.com/", registry_with(Some("ca"), None, None))]);
     assert_eq!(
         tls_map.pick_for_url("https://registry.example.com:8443/pkg"),
         Some("//registry.example.com/"),
@@ -132,23 +109,15 @@ fn pick_for_url_strips_port_on_retry() {
 
 #[test]
 fn pick_for_url_misses_when_host_differs() {
-    let tls_map = build_map(&[(
-        "//registry.example.com/",
-        registry_with(Some("ca"), None, None),
-    )]);
+    let tls_map = build_map(&[("//registry.example.com/", registry_with(Some("ca"), None, None))]);
     assert_eq!(tls_map.pick_for_url("https://other.example.org/pkg"), None);
 }
 
 #[test]
 fn pick_for_url_misses_when_path_doesnt_share_prefix() {
-    let tls_map = build_map(&[(
-        "//registry.example.com/foo/",
-        registry_with(Some("ca"), None, None),
-    )]);
-    assert_eq!(
-        tls_map.pick_for_url("https://registry.example.com/bar/pkg"),
-        None,
-    );
+    let tls_map =
+        build_map(&[("//registry.example.com/foo/", registry_with(Some("ca"), None, None))]);
+    assert_eq!(tls_map.pick_for_url("https://registry.example.com/bar/pkg"), None);
 }
 
 #[test]
@@ -166,10 +135,7 @@ fn strip_port_handles_common_shapes() {
         ("https://reg.com:8080/", "https://reg.com/"),
         ("https://reg.com:8080", "https://reg.com/"),
         ("https://reg.com/path", "https://reg.com/path"),
-        (
-            "https://user:pw@reg.com:8080/path",
-            "https://user:pw@reg.com/path",
-        ),
+        ("https://user:pw@reg.com:8080/path", "https://user:pw@reg.com/path"),
         ("https://[::1]:8080/path", "https://[::1]/path"),
         ("https://[::1]/path", "https://[::1]/path"),
     ] {

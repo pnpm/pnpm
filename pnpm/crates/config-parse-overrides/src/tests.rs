@@ -21,10 +21,7 @@ fn vo(
 }
 
 fn sel(name: &str, bare: Option<&str>) -> PackageSelector {
-    PackageSelector {
-        name: name.to_string(),
-        bare_specifier: bare.map(str::to_owned),
-    }
+    PackageSelector { name: name.to_string(), bare_specifier: bare.map(str::to_owned) }
 }
 
 /// `HashMap` iteration order is unspecified, so when comparing
@@ -77,24 +74,9 @@ fn parses_parent_child_selectors() {
         out,
         sorted(vec![
             vo("bar>foo", "2", Some(sel("bar", None)), sel("foo", None)),
-            vo(
-                "bar@1>foo",
-                "2",
-                Some(sel("bar", Some("1"))),
-                sel("foo", None)
-            ),
-            vo(
-                "bar>foo@1",
-                "2",
-                Some(sel("bar", None)),
-                sel("foo", Some("1"))
-            ),
-            vo(
-                "bar@1>foo@1",
-                "2",
-                Some(sel("bar", Some("1"))),
-                sel("foo", Some("1"))
-            ),
+            vo("bar@1>foo", "2", Some(sel("bar", Some("1"))), sel("foo", None)),
+            vo("bar>foo@1", "2", Some(sel("bar", None)), sel("foo", Some("1"))),
+            vo("bar@1>foo@1", "2", Some(sel("bar", Some("1"))), sel("foo", Some("1"))),
         ]),
     );
 }
@@ -112,12 +94,7 @@ fn range_operator_on_parent_does_not_split() {
     assert_eq!(
         out,
         sorted(vec![
-            vo(
-                "foo@>2>bar@>2",
-                "1",
-                Some(sel("foo", Some(">2"))),
-                sel("bar", Some(">2"))
-            ),
+            vo("foo@>2>bar@>2", "1", Some(sel("foo", Some(">2"))), sel("bar", Some(">2"))),
             vo(
                 "foo@3 || >=2>bar@3 || >=2",
                 "1",
@@ -133,9 +110,7 @@ fn rejects_invalid_selector() {
     let input = HashMap::from([("%".to_string(), "2".to_string())]);
     assert_eq!(
         parse_overrides(&input, &Catalogs::new()).unwrap_err(),
-        ParseOverridesError::InvalidSelector {
-            selector: "%".to_string()
-        },
+        ParseOverridesError::InvalidSelector { selector: "%".to_string() },
     );
 }
 
@@ -148,18 +123,13 @@ fn rejects_invalid_selector_with_whitespace() {
     let input = HashMap::from([("foo > bar".to_string(), "2".to_string())]);
     assert_eq!(
         parse_overrides(&input, &Catalogs::new()).unwrap_err(),
-        ParseOverridesError::InvalidSelector {
-            selector: "foo > bar".to_string()
-        },
+        ParseOverridesError::InvalidSelector { selector: "foo > bar".to_string() },
     );
 }
 
 #[test]
 fn parse_pkg_and_parent_selector_lone_target() {
-    assert_eq!(
-        parse_pkg_and_parent_selector("foo").unwrap(),
-        (None, sel("foo", None)),
-    );
+    assert_eq!(parse_pkg_and_parent_selector("foo").unwrap(), (None, sel("foo", None)));
 }
 
 #[test]
@@ -209,16 +179,13 @@ fn catalog_protocol_with_named_catalog_resolves() {
 
 #[test]
 fn parses_convergence_override() {
-    for (selector, version, name) in [
-        ("foo@", "1.2.3", "foo"),
-        ("@scope/foo@", "2.0.0-beta.1", "@scope/foo"),
-    ] {
+    for (selector, version, name) in
+        [("foo@", "1.2.3", "foo"), ("@scope/foo@", "2.0.0-beta.1", "@scope/foo")]
+    {
         let input = HashMap::from([(selector.to_string(), version.to_string())]);
         let out = parse_overrides(&input, &Catalogs::new()).unwrap();
-        let expected = VersionOverride {
-            converge: true,
-            ..vo(selector, version, None, sel(name, Some("")))
-        };
+        let expected =
+            VersionOverride { converge: true, ..vo(selector, version, None, sel(name, Some(""))) };
         assert_eq!(out, vec![expected]);
     }
 }
@@ -232,10 +199,8 @@ fn resolves_catalog_value_of_convergence_override() {
 
     let input = HashMap::from([("foo@".to_string(), "catalog:".to_string())]);
     let out = parse_overrides(&input, &catalogs).unwrap();
-    let expected = VersionOverride {
-        converge: true,
-        ..vo("foo@", "1.2.3", None, sel("foo", Some("")))
-    };
+    let expected =
+        VersionOverride { converge: true, ..vo("foo@", "1.2.3", None, sel("foo", Some(""))) };
     assert_eq!(out, vec![expected]);
 }
 

@@ -48,17 +48,13 @@ impl StoreIndex {
     /// the `SQLite` query and disk I/O.
     pub fn get(&self, key: &str) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
         let row: Option<Vec<u8>> = self.conn
-            .query_row(
-                "SELECT data FROM package_index WHERE key = ?",
-                [key],
-                |row| row.get::<_, Vec<u8>>(0),
-            )
+            .query_row("SELECT data FROM package_index WHERE key = ?", [key], |row| {
+                row.get::<_, Vec<u8>>(0)
+            })
             .map(Some)
             .or_else(|err| match err {
                 rusqlite::Error::QueryReturnedNoRows => Ok(None),
-                other => Err(StoreIndexError::Read {
-                    source: other,
-                }),
+                other => Err(StoreIndexError::Read { source: other }),
             })?;
 
         let Some(bytes) = row else { return Ok(None) };
@@ -84,9 +80,7 @@ impl StoreIndex {
             .map(Some)
             .or_else(|err| match err {
                 rusqlite::Error::QueryReturnedNoRows => Ok(None),
-                other => Err(StoreIndexError::Read {
-                    source: other,
-                }),
+                other => Err(StoreIndexError::Read { source: other }),
             })?;
 
         let Some(bytes) = row else { return Ok(None) };
@@ -164,21 +158,13 @@ impl StoreIndex {
             let sql = format!("SELECT key, data FROM package_index WHERE key IN ({placeholders})");
             let mut stmt = self.conn
                 .prepare(&sql)
-                .map_err(|source| StoreIndexError::Read {
-                    source,
-                })?;
+                .map_err(|source| StoreIndexError::Read { source })?;
             let params = rusqlite::params_from_iter(chunk.iter().map(String::as_str));
             let rows = stmt
-                .query_map(params, |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
-                })
-                .map_err(|source| StoreIndexError::Read {
-                    source,
-                })?;
+                .query_map(params, |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))
+                .map_err(|source| StoreIndexError::Read { source })?;
             for row in rows {
-                let row = row.map_err(|source| StoreIndexError::Read {
-                    source,
-                })?;
+                let row = row.map_err(|source| StoreIndexError::Read { source })?;
                 out.push(row);
             }
         }
@@ -196,26 +182,13 @@ impl StoreIndex {
     {
         let mut stmt = self.conn
             .prepare("SELECT key, data FROM package_index")
-            .map_err(|source| {
-                VisitError::from(StoreIndexError::Read {
-                    source,
-                })
-            })?;
+            .map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
         let rows = stmt
-            .query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
-            })
-            .map_err(|source| {
-                VisitError::from(StoreIndexError::Read {
-                    source,
-                })
-            })?;
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))
+            .map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
         for row in rows {
-            let (key, data) = row.map_err(|source| {
-                VisitError::from(StoreIndexError::Read {
-                    source,
-                })
-            })?;
+            let (key, data) =
+                row.map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
             visit(key, data)?;
         }
         Ok(())
@@ -236,19 +209,13 @@ impl StoreIndex {
             let sql = format!("SELECT key FROM package_index WHERE key IN ({placeholders})");
             let mut stmt = self.conn
                 .prepare(&sql)
-                .map_err(|source| StoreIndexError::Read {
-                    source,
-                })?;
+                .map_err(|source| StoreIndexError::Read { source })?;
             let params = rusqlite::params_from_iter(chunk.iter().map(String::as_str));
             let rows = stmt
                 .query_map(params, |row| row.get::<_, String>(0))
-                .map_err(|source| StoreIndexError::Read {
-                    source,
-                })?;
+                .map_err(|source| StoreIndexError::Read { source })?;
             for key in rows {
-                out.insert(key.map_err(|source| StoreIndexError::Read {
-                    source,
-                })?);
+                out.insert(key.map_err(|source| StoreIndexError::Read { source })?);
             }
         }
         Ok(out)
@@ -266,18 +233,14 @@ impl StoreIndex {
     /// inside pnpm's CAFS layer.
     pub fn set(&self, key: &str, value: &PackageFilesIndex) -> Result<(), StoreIndexError> {
         let buf = crate::msgpackr_records::encode_package_files_index(value)
-            .map_err(|source| StoreIndexError::Encode {
-                source,
-            })?;
+            .map_err(|source| StoreIndexError::Encode { source })?;
         self.conn
             .execute(
                 "INSERT OR REPLACE INTO package_index (key, data) VALUES (?1, ?2)",
                 rusqlite::params![key, buf],
             )
             .map(|_| ())
-            .map_err(|source| StoreIndexError::Write {
-                source,
-            })
+            .map_err(|source| StoreIndexError::Write { source })
     }
 
     /// Insert-or-replace a batch of rows in a single transaction.
@@ -324,42 +287,30 @@ impl StoreIndex {
 
         let tx = self.conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .map_err(|source| StoreIndexError::Write {
-                source,
-            })?;
+            .map_err(|source| StoreIndexError::Write { source })?;
         {
             let mut stmt = tx
                 .prepare_cached("INSERT OR REPLACE INTO package_index (key, data) VALUES (?1, ?2)")
-                .map_err(|source| StoreIndexError::Write {
-                    source,
-                })?;
+                .map_err(|source| StoreIndexError::Write { source })?;
             for (key, buf) in &encoded {
                 stmt
                     .execute(rusqlite::params![key, buf])
-                    .map_err(|source| StoreIndexError::Write {
-                        source,
-                    })?;
+                    .map_err(|source| StoreIndexError::Write { source })?;
             }
         }
         tx
             .commit()
-            .map_err(|source| StoreIndexError::Write {
-                source,
-            })
+            .map_err(|source| StoreIndexError::Write { source })
     }
 
     /// `true` iff a row with this key exists.
     pub fn contains_key(&self, key: &str) -> Result<bool, StoreIndexError> {
         let exists = self.conn
-            .query_row("SELECT 1 FROM package_index WHERE key = ?", [key], |_| {
-                Ok(())
-            })
+            .query_row("SELECT 1 FROM package_index WHERE key = ?", [key], |_| Ok(()))
             .map(|()| true)
             .or_else(|err| match err {
                 rusqlite::Error::QueryReturnedNoRows => Ok(false),
-                other => Err(StoreIndexError::Read {
-                    source: other,
-                }),
+                other => Err(StoreIndexError::Read { source: other }),
             })?;
         Ok(exists)
     }
@@ -369,19 +320,13 @@ impl StoreIndex {
     pub fn keys(&self) -> Result<Vec<String>, StoreIndexError> {
         let mut stmt = self.conn
             .prepare("SELECT key FROM package_index")
-            .map_err(|source| StoreIndexError::Read {
-                source,
-            })?;
+            .map_err(|source| StoreIndexError::Read { source })?;
         let rows = stmt
             .query_map([], |row| row.get::<_, String>(0))
-            .map_err(|source| StoreIndexError::Read {
-                source,
-            })?;
+            .map_err(|source| StoreIndexError::Read { source })?;
         let mut out = Vec::new();
         for row in rows {
-            out.push(row.map_err(|source| StoreIndexError::Read {
-                source,
-            })?);
+            out.push(row.map_err(|source| StoreIndexError::Read { source })?);
         }
         Ok(out)
     }

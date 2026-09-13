@@ -99,11 +99,7 @@ pub struct GitResolver<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'st
 
 impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<Probe, Runner> {
     pub fn new(probe: Arc<Probe>, runner: Arc<Runner>) -> Self {
-        Self {
-            probe,
-            runner,
-            fetch_context: None,
-        }
+        Self { probe, runner, fetch_context: None }
     }
 
     /// Attach the store/network handles that let resolution read the
@@ -141,12 +137,8 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
         wanted_dependency: &WantedDependency,
         _opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
-        let Some(bare) = wanted_dependency.bare_specifier.as_deref() else {
-            return Ok(None);
-        };
-        let Some(partial) = parse_bare_specifier(bare) else {
-            return Ok(None);
-        };
+        let Some(bare) = wanted_dependency.bare_specifier.as_deref() else { return Ok(None) };
+        let Some(partial) = parse_bare_specifier(bare) else { return Ok(None) };
         let spec = partial.finalize();
         let mut result = build_resolve_result(
             spec,
@@ -163,9 +155,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
     /// archive resolution's `integrity` from its fetched bytes. No-op without
     /// a fetch context (unit tests / resolve-only callers).
     async fn read_package_metadata(&self, result: &mut ResolveResult) -> Result<(), ResolveError> {
-        let Some(ctx) = self.fetch_context.as_ref() else {
-            return Ok(());
-        };
+        let Some(ctx) = self.fetch_context.as_ref() else { return Ok(()) };
         match &result.resolution {
             LockfileResolution::Tarball(tarball) => {
                 let tarball_url = tarball.tarball.clone();
@@ -195,9 +185,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 .map_err(|err| Box::new(err) as ResolveError)?;
 
                 result.package.manifest = resolved.manifest.map(Arc::new);
-                if let LockfileResolution::Tarball(tarball) =
-                    &mut result.resolution
-                {
+                if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
                     // A git host's archive carries no integrity of its
                     // own, and the install pass refuses a tarball
                     // resolution without one
@@ -208,7 +196,19 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 }
             }
             LockfileResolution::Git(git) => {
-                let manifest = read_checkout_manifest(ctx, git).await?;
+                // No archive endpoint to read, so the working tree is
+                // the only source of the name, and there is nothing to
+                // hash — the commit anchors the content.
+                let manifest = read_git_manifest(GitManifestQuery {
+                    source_cache: &ctx.source_cache,
+                    repo: &git.repo,
+                    commit: &git.commit,
+                    path: git.path.as_deref(),
+                    git_shallow_hosts: &ctx.git_shallow_hosts,
+                    git_bin: None,
+                })
+                .await
+                .map_err(|err| Box::new(err) as ResolveError)?;
                 result.package.manifest = manifest.map(Arc::new);
             }
             _ => {}
@@ -246,18 +246,27 @@ async fn build_resolve_result<Probe: GitProbe + ?Sized, Runner: GitCommandRunner
         Some(committish) if !committish.is_empty() => committish,
         _ => "HEAD",
     };
-    let commit = resolve_ref(
-        runner,
-        &spec.fetch_spec,
-        ref_for_ls_remote,
-        spec.git_range.as_deref(),
-    )
-    .await
-    .map_err(|err| ref_resolution_error(err, wanted_dependency, &spec.fetch_spec))?;
+    let commit =
+        resolve_ref(runner, &spec.fetch_spec, ref_for_ls_remote, spec.git_range.as_deref())
+            .await
+            .map_err(|err| ref_resolution_error(err, wanted_dependency, &spec.fetch_spec))?;
 
     let resolution = pick_resolution(&spec, probe, &commit).await;
 
-    let id_string = git_resolution_id(&resolution);
+    let id_string = match &resolution {
+        LockfileResolution::Tarball(t) => {
+            let mut id = t.tarball.clone();
+            if let Some(path) = &t.path {
+                id.push_str("#path:");
+                id.push_str(path);
+            }
+            id
+        }
+        LockfileResolution::Git(g) => {
+            create_git_hosted_pkg_id(&g.repo, &g.commit, g.path.as_deref())
+        }
+        _ => unreachable!("pick_resolution returns Tarball or Git only"),
+    };
 
     Ok(ResolveResult {
         id: id_string.into(),
@@ -290,11 +299,7 @@ fn ref_resolution_error(
         return Box::new(err) as ResolveError;
     };
     let specifier = wanted_dependency.bare_specifier.as_deref().unwrap_or_default();
-    Box::new(GitResolveError::new(
-        specifier,
-        repo,
-        &ls_remote.to_string(),
-    )) as ResolveError
+    Box::new(GitResolveError::new(specifier, repo, &ls_remote.to_string())) as ResolveError
 }
 
 /// Pick between a tarball and a git resolution — see [`GitProbe`] for
@@ -329,39 +334,3 @@ async fn pick_resolution<Probe: GitProbe + ?Sized>(
 
 #[cfg(test)]
 mod tests;
-
-async fn read_checkout_manifest(
-    ctx: &GitFetchContext,
-    git: &GitResolution,
-) -> Result<Option<serde_json::Value>, ResolveError> {
-    // No archive endpoint to read, so the working tree is
-    // the only source of the name, and there is nothing to
-    // hash — the commit anchors the content.
-    read_git_manifest(GitManifestQuery {
-        source_cache: &ctx.source_cache,
-        repo: &git.repo,
-        commit: &git.commit,
-        path: git.path.as_deref(),
-        git_shallow_hosts: &ctx.git_shallow_hosts,
-        git_bin: None,
-    })
-    .await
-    .map_err(|err| Box::new(err) as ResolveError)
-}
-
-fn git_resolution_id(resolution: &LockfileResolution) -> String {
-    match resolution {
-        LockfileResolution::Tarball(t) => {
-            let mut id = t.tarball.clone();
-            if let Some(path) = &t.path {
-                id.push_str("#path:");
-                id.push_str(path);
-            }
-            id
-        }
-        LockfileResolution::Git(g) => {
-            create_git_hosted_pkg_id(&g.repo, &g.commit, g.path.as_deref())
-        }
-        _ => unreachable!("pick_resolution returns Tarball or Git only"),
-    }
-}

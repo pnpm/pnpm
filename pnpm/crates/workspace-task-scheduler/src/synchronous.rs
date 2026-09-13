@@ -40,12 +40,7 @@ where
     };
     schedule_graph_with_concurrency_limits(
         &dependencies,
-        &ScheduleGraphOptions::new(
-            options.concurrency,
-            options.bail,
-            &run_node,
-            &on_node_skipped,
-        ),
+        &ScheduleGraphOptions::new(options.concurrency, options.bail, &run_node, &on_node_skipped),
         &concurrency_limit,
     )
     .expect("failed to start a task scheduler worker");
@@ -90,15 +85,11 @@ where
             .map(concurrency_limit)
             .collect(),
     };
-    let state = Mutex::new(initial_scheduler_state(
-        pending_dependencies,
-        &scheduling.concurrency_limits,
-    ));
+    let state =
+        Mutex::new(initial_scheduler_state(pending_dependencies, &scheduling.concurrency_limits));
     let progress = Condvar::new();
 
-    let workers = options.concurrency
-        .max(1)
-        .min(graph.len());
+    let workers = options.concurrency.max(1).min(graph.len());
     std::thread::scope(|scope| -> Result<(), std::io::Error> {
         for _ in 0..workers {
             std::thread::Builder::new().spawn_scoped(scope, || scheduling.work(&state, &progress))?;
@@ -137,10 +128,7 @@ pub(super) fn node_edges<Node: Clone + Eq + std::hash::Hash>(
             dependents[index_of[dependency]].push(index);
         }
     }
-    NodeEdges {
-        dependents,
-        pending_dependencies,
-    }
+    NodeEdges { dependents, pending_dependencies }
 }
 
 pub(super) fn task_concurrency(settings: &TaskSettings) -> Option<usize> {
@@ -150,10 +138,7 @@ pub(super) fn task_concurrency(settings: &TaskSettings) -> Option<usize> {
 fn sequenced_order<Node: Clone + Eq + std::hash::Hash>(
     graph: &IndexMap<Node, Vec<Node>>,
 ) -> Vec<Node> {
-    let included: Vec<Node> = graph
-        .keys()
-        .cloned()
-        .collect();
+    let included: Vec<Node> = graph.keys().cloned().collect();
     let edges: HashMap<Node, Vec<Node>> = graph
         .iter()
         .map(|(node, dependencies)| (node.clone(), dependencies.clone()))
@@ -217,10 +202,7 @@ where
             // workers: without this guard they would wait forever
             // on a Condvar nobody signals, and `thread::scope`
             // would never finish joining them.
-            let panic_guard = AbortOnUnwind {
-                state,
-                progress,
-            };
+            let panic_guard = AbortOnUnwind { state, progress };
             let completion = (self.options.run_node)(node);
             drop(panic_guard);
 

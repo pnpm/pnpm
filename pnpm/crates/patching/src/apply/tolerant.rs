@@ -64,11 +64,7 @@ fn plan_modifications<'a>(
     lines: &[&str],
 ) -> Result<Vec<Modification<'a>>, String> {
     let mut modifications = Vec::new();
-    for (index, hunk) in patch
-        .hunks()
-        .iter()
-        .enumerate()
-    {
+    for (index, hunk) in patch.hunks().iter().enumerate() {
         let parts = split_into_parts(hunk.lines());
         let old_range = hunk.old_range();
         // Empty ranges name the gap after the line; nonempty ranges are one-based.
@@ -109,11 +105,7 @@ enum Kind {
 /// replayed afterwards. `Push` / `Pop` add and remove the trailing
 /// empty element that stands for the file's final newline.
 enum Modification<'a> {
-    Splice {
-        index: usize,
-        delete: usize,
-        insert: Vec<&'a str>,
-    },
+    Splice { index: usize, delete: usize, insert: Vec<&'a str> },
     Pop,
     Push,
 }
@@ -133,11 +125,7 @@ fn split_into_parts<'a>(lines: &[Line<'a, str>]) -> Vec<Part<'a>> {
                 part.lines.push(text);
                 part.ends_file = ends_file;
             }
-            _ => parts.push(Part {
-                kind,
-                lines: vec![text],
-                ends_file,
-            }),
+            _ => parts.push(Part { kind, lines: vec![text], ends_file }),
         }
     }
     parts
@@ -203,11 +191,7 @@ fn push_deletion<'a>(modifications: &mut Vec<Modification<'a>>, part: &Part<'a>,
 }
 
 fn push_insertion<'a>(modifications: &mut Vec<Modification<'a>>, part: &Part<'a>, index: usize) {
-    modifications.push(Modification::Splice {
-        index,
-        delete: 0,
-        insert: part.lines.clone(),
-    });
+    modifications.push(Modification::Splice { index, delete: 0, insert: part.lines.clone() });
     if part.ends_file {
         modifications.push(Modification::Pop);
     }

@@ -34,9 +34,7 @@ pub(super) fn authorized_upstream<'a>(
             resource: format!("upstream {upstream:?}"),
         });
     }
-    state.inner.proxy.upstreams
-        .get(upstream)
-        .ok_or_else(|| RegistryError::NotFound)
+    state.inner.proxy.upstreams.get(upstream).ok_or_else(|| RegistryError::NotFound)
 }
 
 pub(super) fn authorized_revision_upstream<'a>(
@@ -132,10 +130,7 @@ pub(super) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) 
     // Public registry: a stable, secret-free namespace keyed by the registry name
     // and its origin URL (hashed so a path-unsafe value can't escape the
     // cache root).
-    format!(
-        "~public/{}",
-        pnpr_route::credential_digest(&format!("{upstream}\0{url}")),
-    )
+    format!("~public/{}", pnpr_route::credential_digest(&format!("{upstream}\0{url}")))
 }
 
 /// Require that an endpoint's caller is authenticated, returning their
@@ -146,9 +141,9 @@ pub(super) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) 
 pub(super) fn require_caller(identity: &Identity, resource: &str) -> Result<String, RegistryError> {
     match identity {
         Identity::User { username, .. } => Ok(username.clone()),
-        Identity::Anonymous => Err(RegistryError::Unauthenticated {
-            resource: resource.to_string(),
-        }),
+        Identity::Anonymous => {
+            Err(RegistryError::Unauthenticated { resource: resource.to_string() })
+        }
     }
 }
 
@@ -170,8 +165,7 @@ pub(super) async fn require_resolver_caller(
     request: Request,
     next: Next,
 ) -> Response {
-    require_protocol_caller(&state, request, next, "dependency resolution")
-        .await
+    require_protocol_caller(&state, request, next, "dependency resolution").await
 }
 
 pub(super) async fn require_artifact_caller(
@@ -198,10 +192,9 @@ pub(super) async fn require_protocol_caller(
 ) -> Response {
     match caller_username(state, request.headers()).await {
         Ok(Some(_username)) => next.run(request).await,
-        Ok(None) => RegistryError::Unauthenticated {
-            resource: resource.to_string(),
+        Ok(None) => {
+            RegistryError::Unauthenticated { resource: resource.to_string() }.into_response()
         }
-        .into_response(),
         Err(error) => error.into_response(),
     }
 }

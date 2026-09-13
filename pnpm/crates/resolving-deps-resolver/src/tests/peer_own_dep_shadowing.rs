@@ -32,11 +32,7 @@ fn parser_table() -> HashMap<(String, String), pnpm_resolving_resolver_base::Res
     );
     table.insert(
         ("types".to_string(), "^1.0.0".to_string()),
-        fake_result(
-            "types",
-            "1.0.0",
-            serde_json::json!({ "name": "types", "version": "1.0.0" }),
-        ),
+        fake_result("types", "1.0.0", serde_json::json!({ "name": "types", "version": "1.0.0" })),
     );
     table
 }
@@ -47,21 +43,14 @@ fn shadowing_table() -> HashMap<(String, String), pnpm_resolving_resolver_base::
     let mut table = parser_table();
     table.insert(
         ("types".to_string(), "^2.0.0".to_string()),
-        fake_result(
-            "types",
-            "2.0.0",
-            serde_json::json!({ "name": "types", "version": "2.0.0" }),
-        ),
+        fake_result("types", "2.0.0", serde_json::json!({ "name": "types", "version": "2.0.0" })),
     );
     table
 }
 
 #[tokio::test]
 async fn auto_install_peers_keeps_the_peer_and_drops_the_own_dep() {
-    let resolver = StubResolver {
-        table: parser_table(),
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table: parser_table(), calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "parser": "^1.0.0" }));
 
     let tree = resolve_dependency_tree(&resolver, &manifest, [DependencyGroup::Prod], opts(true))
@@ -81,10 +70,7 @@ async fn auto_install_peers_keeps_the_peer_and_drops_the_own_dep() {
 
 #[tokio::test]
 async fn without_auto_install_peers_the_own_dep_wins() {
-    let resolver = StubResolver {
-        table: parser_table(),
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table: parser_table(), calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "parser": "^1.0.0" }));
 
     let tree = resolve_dependency_tree(&resolver, &manifest, [DependencyGroup::Prod], opts(false))
@@ -96,10 +82,7 @@ async fn without_auto_install_peers_the_own_dep_wins() {
         !parser.peer_dependencies.contains_key("types"),
         "the peer is dropped when the package supplies the name itself",
     );
-    assert!(
-        tree.packages.contains_key("types@1.0.0"),
-        "the own dependency is walked",
-    );
+    assert!(tree.packages.contains_key("types@1.0.0"), "the own dependency is walked");
 }
 
 /// `types` is a direct dependency of the importer, so it is in
@@ -109,10 +92,7 @@ async fn without_auto_install_peers_the_own_dep_wins() {
 /// `autoInstallPeers` off.
 #[tokio::test]
 async fn a_peer_in_the_parent_scope_shadows_the_own_dep() {
-    let resolver = StubResolver {
-        table: shadowing_table(),
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table: shadowing_table(), calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) =
         fake_manifest(serde_json::json!({ "parser": "^1.0.0", "types": "^2.0.0" }));
 
@@ -129,10 +109,7 @@ async fn a_peer_in_the_parent_scope_shadows_the_own_dep() {
         !tree.packages.contains_key("types@1.0.0"),
         "the shadowed own dependency is not walked as a child",
     );
-    assert!(
-        tree.packages.contains_key("types@2.0.0"),
-        "the parent's copy is the one resolved",
-    );
+    assert!(tree.packages.contains_key("types@2.0.0"), "the parent's copy is the one resolved");
 }
 
 /// The scope accumulates level by level: `types` is the importer's
@@ -152,10 +129,7 @@ async fn the_parent_scope_reaches_every_level_below_it() {
             }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) =
         fake_manifest(serde_json::json!({ "wrapper": "^1.0.0", "types": "^2.0.0" }));
 
@@ -166,10 +140,7 @@ async fn the_parent_scope_reaches_every_level_below_it() {
     let parser = tree.packages.get("parser@1.0.0").expect("parser resolved");
     assert!(parser.peer_dependencies.contains_key("types"));
     assert!(!tree.packages.contains_key("types@1.0.0"));
-    assert!(
-        tree.packages.contains_key("types@2.0.0"),
-        "the importer's copy is the one resolved",
-    );
+    assert!(tree.packages.contains_key("types@2.0.0"), "the importer's copy is the one resolved");
 }
 
 #[tokio::test]
@@ -190,10 +161,7 @@ async fn non_optional_meta_only_entry_is_not_a_peer() {
             }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "pkg": "^1.0.0" }));
 
     let tree = resolve_dependency_tree(&resolver, &manifest, [DependencyGroup::Prod], opts(false))

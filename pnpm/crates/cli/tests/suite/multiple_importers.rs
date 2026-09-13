@@ -40,38 +40,23 @@ fn deps_of_other_importers_are_not_pruned_when_headless_installing_a_subset() {
     let project_1 = fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            prod: &[(FOO, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(FOO, "1.0.0")], ..Default::default() },
     );
     let project_2 = fixture.project(
         "project-2",
         "project-2",
-        ManifestDeps {
-            prod: &[(NO_DEPS, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(NO_DEPS, "1.0.0")], ..Default::default() },
     );
     fixture.run(["install"]);
     assert!(fixture.slot(FOO, "1.0.0").exists());
 
-    fixture.run([
-        "--filter",
-        "project-1",
-        "add",
-        &format!("{FOO}@2.0.0"),
-        "--lockfile-only",
-    ]);
+    fixture.run(["--filter", "project-1", "add", &format!("{FOO}@2.0.0"), "--lockfile-only"]);
     fixture.run(["--filter", "project-1", "install", "--frozen-lockfile"]);
 
     assert!(has_link(&project_1, FOO));
     assert!(has_link(&project_2, NO_DEPS));
     assert!(fixture.slot(FOO, "2.0.0").exists());
-    assert!(
-        !fixture.slot(FOO, "1.0.0").exists(),
-        "the replaced slot must be pruned",
-    );
+    assert!(!fixture.slot(FOO, "1.0.0").exists(), "the replaced slot must be pruned");
     assert!(
         fixture.slot(NO_DEPS, "1.0.0").exists(),
         "the unselected project's slot must survive the subset install",
@@ -90,26 +75,17 @@ fn stale_current_lockfile_importers_are_retained_on_subset_install() {
     fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            prod: &[(FOO, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(FOO, "1.0.0")], ..Default::default() },
     );
     fixture.project(
         "project-2",
         "project-2",
-        ManifestDeps {
-            prod: &[(NO_DEPS, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(NO_DEPS, "1.0.0")], ..Default::default() },
     );
     let project_3 = fixture.project(
         "project-3",
         "project-3",
-        ManifestDeps {
-            prod: &[(FOOBAR, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(FOOBAR, "100.0.0")], ..Default::default() },
     );
     fixture.run(["install"]);
     let before = fixture.current();
@@ -141,18 +117,12 @@ fn current_lockfile_contains_only_installed_dependencies() {
     fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            prod: &[(FOO, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(FOO, "1.0.0")], ..Default::default() },
     );
     fixture.project(
         "project-2",
         "project-2",
-        ManifestDeps {
-            prod: &[(NO_DEPS, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(NO_DEPS, "1.0.0")], ..Default::default() },
     );
     fixture.run(["--filter", "project-1", "install", "--lockfile-only"]);
     fixture.run(["--filter", "project-2", "install"]);
@@ -185,19 +155,13 @@ fn headless_install_is_used_when_package_is_linked_to_another_workspace_package(
     let project_2 = fixture.project(
         "project-2",
         "project-2",
-        ManifestDeps {
-            prod: &[(NO_DEPS, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(NO_DEPS, "1.0.0")], ..Default::default() },
     );
     fixture.run(["install", "--lockfile-only"]);
 
     let records = fixture.run(["--filter", "project-1", "install"]);
 
-    assert!(
-        has_up_to_date_log(&records),
-        "the subset install must go headless: {records:#?}",
-    );
+    assert!(has_up_to_date_log(&records), "the subset install must go headless: {records:#?}");
     assert!(has_link(&project_1, FOO));
     assert!(has_link(&project_1, "project-2"));
     assert!(!project_2.join("node_modules").exists());
@@ -221,19 +185,13 @@ fn headless_install_is_used_with_workspace_protocol_references() {
     let project_2 = fixture.project(
         "project-2",
         "project-2",
-        ManifestDeps {
-            prod: &[(NO_DEPS, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(NO_DEPS, "1.0.0")], ..Default::default() },
     );
     fixture.run(["install", "--lockfile-only"]);
 
     let records = fixture.run(["install"]);
 
-    assert!(
-        has_up_to_date_log(&records),
-        "the install must go headless: {records:#?}",
-    );
+    assert!(has_up_to_date_log(&records), "the install must go headless: {records:#?}");
     assert!(has_link(&project_1, FOO));
     assert!(has_link(&project_1, "project-2"));
     assert!(has_link(&project_2, NO_DEPS));
@@ -252,18 +210,12 @@ fn headless_install_is_used_when_packages_are_not_linked_from_the_workspace() {
     let foo_project = fixture.project(
         "foo",
         FOO,
-        ManifestDeps {
-            prod: &[(QAR, "workspace:*")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(QAR, "workspace:*")], ..Default::default() },
     );
     let bar_project = fixture.project(
         "bar",
         "@pnpm.e2e/bar",
-        ManifestDeps {
-            prod: &[(QAR, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(QAR, "100.0.0")], ..Default::default() },
     );
     let qar_project = fixture.project("qar", QAR, ManifestDeps::default());
     set_version(&qar_project, "100.0.0");
@@ -271,16 +223,10 @@ fn headless_install_is_used_when_packages_are_not_linked_from_the_workspace() {
 
     let records = fixture.run(["install"]);
 
-    assert!(
-        has_up_to_date_log(&records),
-        "the install must go headless: {records:#?}",
-    );
+    assert!(has_up_to_date_log(&records), "the install must go headless: {records:#?}");
     let foo_qar = fs::canonicalize(foo_project.join("node_modules").join(QAR))
         .expect("foo's workspace-range dependency is linked");
-    assert_eq!(
-        foo_qar,
-        fs::canonicalize(&qar_project).expect("canonicalize the qar project"),
-    );
+    assert_eq!(foo_qar, fs::canonicalize(&qar_project).expect("canonicalize the qar project"));
     let bar_qar = fs::canonicalize(bar_project.join("node_modules").join(QAR))
         .expect("bar's registry dependency is materialized");
     assert!(
@@ -304,18 +250,12 @@ fn partial_frozen_install_does_not_remove_dependencies_of_other_workspace_projec
     fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            prod: &[(FOO, "1.0.0"), (DEP, "101.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(FOO, "1.0.0"), (DEP, "101.0.0")], ..Default::default() },
     );
     fixture.project(
         "project-2",
         "project-2",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
     fixture.run(["install"]);
     assert!(fixture.slot(DEP, "100.1.0").exists());
@@ -400,10 +340,7 @@ fn resolve_a_subdependency_from_the_workspace() {
     fixture.project(
         "project",
         "project",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
     let dep_project = fixture.project("dep", DEP, ManifestDeps::default());
     set_version(&dep_project, "100.1.0");
@@ -436,10 +373,7 @@ fn resolve_a_subdependency_from_the_workspace_via_workspace_protocol_override() 
     fixture.project(
         "project",
         "project",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
     );
     let dep_project = fixture.project("dep", DEP, ManifestDeps::default());
     set_version(&dep_project, "100.1.0");
@@ -468,18 +402,12 @@ fn subset_headless_install_keeps_other_projects_packages_in_current_lockfile() {
     let foo_project = fixture.project(
         "foo",
         "foo",
-        ManifestDeps {
-            prod: &[(HELLO, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
     );
     let bar_project = fixture.project(
         "bar",
         "bar",
-        ManifestDeps {
-            prod: &[("foo", "workspace:*"), (NO_DEPS, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[("foo", "workspace:*"), (NO_DEPS, "1.0.0")], ..Default::default() },
     );
     fixture.run(["install"]);
     assert!(has_link(&bar_project, "foo"));
@@ -508,10 +436,7 @@ fn subset_headless_install_deeply_materializes_workspace_linked_dependencies() {
     let f_project = fixture.project(
         "f",
         "@pnpm.e2e/internal-f",
-        ManifestDeps {
-            prod: &[(HELLO, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
     );
     let g_project = fixture.project(
         "g",
@@ -536,17 +461,9 @@ fn subset_headless_install_deeply_materializes_workspace_linked_dependencies() {
         "link:packages/f",
     );
 
-    fixture.run([
-        "--filter",
-        "@pnpm.e2e/internal-g",
-        "install",
-        "--frozen-lockfile",
-    ]);
+    fixture.run(["--filter", "@pnpm.e2e/internal-g", "install", "--frozen-lockfile"]);
 
-    assert!(has_link(
-        &g_project,
-        "@pnpm.e2e/external-depend-on-internal-dep"
-    ));
+    assert!(has_link(&g_project, "@pnpm.e2e/external-depend-on-internal-dep"));
     assert!(
         has_link(&f_project, HELLO),
         "the snapshot-linked workspace project's own dependencies must be materialized",
@@ -571,27 +488,18 @@ fn links_workspace_package_bin_into_dependent_project() {
     let main_project = fixture.project(
         "main",
         "main",
-        ManifestDeps {
-            prod: &[("hello", "workspace:*")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[("hello", "workspace:*")], ..Default::default() },
     );
 
     fixture.run(["install"]);
     let bin_path = main_project.join("node_modules/.bin/hello");
-    assert!(
-        is_path_executable(&bin_path),
-        "expected an executable bin at {bin_path:?}",
-    );
+    assert!(is_path_executable(&bin_path), "expected an executable bin at {bin_path:?}");
 
     fs::remove_dir_all(main_project.join("node_modules")).expect("remove main's node_modules");
     fs::remove_dir_all(fixture.workspace.join("node_modules")).expect("remove root node_modules");
     fixture.run(["install", "--frozen-lockfile"]);
 
-    assert!(
-        is_path_executable(&bin_path),
-        "the frozen reinstall must re-link the bin",
-    );
+    assert!(is_path_executable(&bin_path), "the frozen reinstall must re-link the bin");
 }
 
 /// TS: `custom virtual store directory in a workspace with shared
@@ -605,10 +513,7 @@ fn custom_virtual_store_directory_in_a_workspace_with_shared_lockfile() {
     fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            prod: &[(FOO, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(FOO, "1.0.0")], ..Default::default() },
     );
 
     let expected = fixture.workspace.join("virtual-store");
@@ -616,7 +521,7 @@ fn custom_virtual_store_directory_in_a_workspace_with_shared_lockfile() {
         let modules = fixture.modules();
         assert_eq!(
             dunce::canonicalize(&modules.virtual_store_dir)
-                .unwrap_or_else(|_| { modules.virtual_store_dir.clone().into() }),
+                .unwrap_or_else(|_| modules.virtual_store_dir.clone().into()),
             dunce::canonicalize(&expected).expect("canonicalize the custom virtual store"),
             "[{phase}] .modules.yaml must record the custom virtualStoreDir",
         );
@@ -640,10 +545,7 @@ fn symlink_local_package_from_publish_config_directory() {
     let project_2 = fixture.project(
         "project-2",
         "project-2",
-        ManifestDeps {
-            prod: &[("project-1", "workspace:*")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
     );
     let mut project_1_manifest = read_manifest(&project_1);
     project_1_manifest["publishConfig"] = json!({
@@ -670,10 +572,7 @@ fn symlink_local_package_from_publish_config_directory() {
         fixture.wanted().importers["packages/project-1"].publish_directory.as_deref(),
         Some("dist"),
     );
-    assert_eq!(
-        fixture.wanted().importers["packages/project-1"].link_directory,
-        None,
-    );
+    assert_eq!(fixture.wanted().importers["packages/project-1"].link_directory, None);
 
     fs::remove_dir_all(fixture.workspace.join("node_modules")).expect("remove root node_modules");
     fs::remove_dir_all(project_2.join("node_modules")).expect("remove project-2 node_modules");
@@ -689,18 +588,12 @@ fn symlink_local_package_from_publish_config_directory() {
         !output.status.success(),
         "frozen install accepted linkDirectory drift\nstderr:\n{stderr}",
     );
-    assert!(
-        stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
-        "got:\n{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"), "got:\n{stderr}");
 
     fixture.run(["install"]);
     let linked = read_manifest(&project_2.join("node_modules/project-1"));
     assert_eq!(linked["name"], "project-1");
-    assert_eq!(
-        fixture.wanted().importers["packages/project-1"].link_directory,
-        Some(false),
-    );
+    assert_eq!(fixture.wanted().importers["packages/project-1"].link_directory, Some(false));
 }
 
 /// TS: `recursive install with shared-workspace-lockfile builds
@@ -712,18 +605,12 @@ fn recursive_install_builds_workspace_projects_in_correct_order() {
     let scriptless_intermediate = fixture.project(
         "project-500",
         "project-500",
-        ManifestDeps {
-            dev: &[("project-999", "workspace:*")],
-            ..Default::default()
-        },
+        ManifestDeps { dev: &[("project-999", "workspace:*")], ..Default::default() },
     );
     let dependent = fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            dev: &[("project-500", "workspace:*")],
-            ..Default::default()
-        },
+        ManifestDeps { dev: &[("project-500", "workspace:*")], ..Default::default() },
     );
     for (project, name) in [(&dependency, "project-999"), (&dependent, "project-1")] {
         let mut manifest = read_manifest(project);
@@ -747,10 +634,7 @@ fn recursive_install_builds_workspace_projects_in_correct_order() {
     expected.push('\n');
 
     fixture.run(["install"]);
-    assert_eq!(
-        fs::read_to_string(&order_path).expect("read fresh lifecycle order"),
-        expected,
-    );
+    assert_eq!(fs::read_to_string(&order_path).expect("read fresh lifecycle order"), expected);
 
     fs::remove_file(&order_path).expect("reset lifecycle order");
     for modules_dir in [
@@ -764,10 +648,7 @@ fn recursive_install_builds_workspace_projects_in_correct_order() {
         }
     }
     fixture.run(["install", "--frozen-lockfile"]);
-    assert_eq!(
-        fs::read_to_string(order_path).expect("read frozen lifecycle order"),
-        expected,
-    );
+    assert_eq!(fs::read_to_string(order_path).expect("read frozen lifecycle order"), expected);
 }
 
 /// TS: `link the bin file of a workspace project that is created by a
@@ -778,10 +659,7 @@ fn link_bin_of_workspace_project_created_by_lifecycle_script() {
     let consumer = fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            prod: &[("project-2", "link:../project-2")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[("project-2", "link:../project-2")], ..Default::default() },
     );
     let provider = fixture.project("project-2", "project-2", ManifestDeps::default());
     let mut consumer_manifest = read_manifest(&consumer);
@@ -878,10 +756,7 @@ fn custom_virtual_store_directory_with_dedicated_lockfiles() {
     let project = fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            prod: &[("is-positive", "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[("is-positive", "1.0.0")], ..Default::default() },
     );
 
     let expected = project.join("virtual-store");
@@ -893,7 +768,7 @@ fn custom_virtual_store_directory_with_dedicated_lockfiles() {
         .expect("project .modules.yaml exists");
         assert_eq!(
             dunce::canonicalize(&modules.virtual_store_dir)
-                .unwrap_or_else(|_| { modules.virtual_store_dir.clone().into() }),
+                .unwrap_or_else(|_| modules.virtual_store_dir.clone().into()),
             dunce::canonicalize(&expected).expect("canonicalize the custom virtual store"),
             "[{phase}] the project's .modules.yaml must record the per-project virtualStoreDir",
         );

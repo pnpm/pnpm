@@ -9,17 +9,11 @@ use serde_json::json;
 /// A `PublishArgs` with every flag at its default; a test overrides only the
 /// field it exercises.
 fn publish_args() -> PublishArgs {
-    PublishArgs {
-        package: None,
-        flags: publish_flags(),
-    }
+    PublishArgs { package: None, flags: publish_flags() }
 }
 
 fn publish_args_with(flags: PublishFlags) -> PublishArgs {
-    PublishArgs {
-        package: None,
-        flags,
-    }
+    PublishArgs { package: None, flags }
 }
 
 fn publish_flags() -> PublishFlags {
@@ -44,30 +38,18 @@ fn publish_flags() -> PublishFlags {
             publish_branch: None,
             no_git_checks: false,
         },
-        output: crate::cli_args::publish::PublishOutputArgs {
-            json: false,
-            report_summary: false,
-        },
+        output: crate::cli_args::publish::PublishOutputArgs { json: false, report_summary: false },
     }
 }
 
 #[test]
 fn should_ignore_scripts_ors_the_flag_with_the_config() {
-    let config_off = Config {
-        ignore_scripts: false,
-        ..Default::default()
-    };
-    let config_on = Config {
-        ignore_scripts: true,
-        ..Default::default()
-    };
+    let config_off = Config { ignore_scripts: false, ..Default::default() };
+    let config_on = Config { ignore_scripts: true, ..Default::default() };
     assert!(!publish_args().should_ignore_scripts(&config_off));
     assert!(
-        publish_args_with(PublishFlags {
-            ignore_scripts: true,
-            ..publish_flags()
-        })
-        .should_ignore_scripts(&config_off),
+        publish_args_with(PublishFlags { ignore_scripts: true, ..publish_flags() })
+            .should_ignore_scripts(&config_off),
     );
     assert!(publish_args().should_ignore_scripts(&config_on));
 }
@@ -107,17 +89,11 @@ fn publish_options_applies_tag_access_provenance_and_dry_run() {
 #[tokio::test]
 async fn pack_for_publish_writes_a_tarball_and_returns_the_manifest() {
     let dir = tempfile::tempdir().expect("a source dir");
-    std::fs::write(
-        dir.path().join("package.json"),
-        r#"{"name":"pkg","version":"1.0.0"}"#,
-    )
-    .expect("write the manifest");
+    std::fs::write(dir.path().join("package.json"), r#"{"name":"pkg","version":"1.0.0"}"#)
+        .expect("write the manifest");
     let dest = tempfile::tempdir().expect("a destination dir");
 
-    let args = publish_args_with(PublishFlags {
-        ignore_scripts: true,
-        ..publish_flags()
-    });
+    let args = publish_args_with(PublishFlags { ignore_scripts: true, ..publish_flags() });
     let result = args
         .pack_for_publish::<SilentReporter>(dir.path(), &Config::default(), dest.path(), &[])
         .await
@@ -170,12 +146,7 @@ fn run_publish_scripts_is_a_noop_when_no_script_is_declared() {
     )
     .expect("a no-op succeeds");
 
-    assert!(
-        !dir
-            .path()
-            .join("ran.txt")
-            .exists(),
-    );
+    assert!(!dir.path().join("ran.txt").exists());
 }
 
 /// Publishing a directory that has no `package.json` fails with
@@ -189,10 +160,7 @@ async fn publish_directory_errors_when_no_manifest_is_present() {
     let opts = args.publish_options(&config, None, false);
     let client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
-    let network = PublishNetwork {
-        client: &client,
-        auth_headers: &auth_headers,
-    };
+    let network = PublishNetwork { client: &client, auth_headers: &auth_headers };
 
     let err = args
         .publish_directory::<SilentReporter>(dir.path(), &config, &opts, &network, &[])
@@ -212,17 +180,9 @@ async fn publish_directory_errors_when_no_manifest_is_present() {
 /// publish is rejected before any git check or network work.
 #[tokio::test]
 async fn run_rejects_batch_without_recursive() {
-    let args = publish_args_with(PublishFlags {
-        batch: true,
-        ..publish_flags()
-    });
+    let args = publish_args_with(PublishFlags { batch: true, ..publish_flags() });
     let err = args
-        .run::<SilentReporter>(
-            std::path::Path::new("."),
-            &Config::default(),
-            false,
-            Vec::new(),
-        )
+        .run::<SilentReporter>(std::path::Path::new("."), &Config::default(), false, Vec::new())
         .await
         .expect_err("--batch requires --recursive");
     assert_eq!(

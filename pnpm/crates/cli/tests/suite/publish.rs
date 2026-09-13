@@ -142,10 +142,7 @@ fn dry_run_uploads_nothing() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
-    assert!(
-        combined.contains("dry run"),
-        "a dry run should announce itself; output: {combined}",
-    );
+    assert!(combined.contains("dry run"), "a dry run should announce itself; output: {combined}");
     mock.assert();
 }
 
@@ -193,9 +190,7 @@ fn tag_flag_registers_the_version_under_that_dist_tag() {
 
     let mock = server
         .mock("PUT", "/test-publish-tag")
-        .match_body(Matcher::PartialJsonString(
-            r#"{"dist-tags":{"next":"2.3.4"}}"#.to_owned(),
-        ))
+        .match_body(Matcher::PartialJsonString(r#"{"dist-tags":{"next":"2.3.4"}}"#.to_owned()))
         .with_status(200)
         .with_body("{}")
         .expect(1)
@@ -210,18 +205,12 @@ fn scoped_package_publishes_to_the_slash_escaped_path() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    write_project(
-        dir.path(),
-        &registry,
-        &json!({ "name": "@scope/pkg", "version": "1.0.0" }),
-    );
+    write_project(dir.path(), &registry, &json!({ "name": "@scope/pkg", "version": "1.0.0" }));
 
     // npm publishes a scoped package to the `%2f`-escaped path.
     let mock = server
         .mock("PUT", "/@scope%2fpkg")
-        .match_body(Matcher::PartialJsonString(
-            r#"{"access":"public"}"#.to_owned(),
-        ))
+        .match_body(Matcher::PartialJsonString(r#"{"access":"public"}"#.to_owned()))
         .with_status(200)
         .with_body("{}")
         .expect(1)
@@ -247,19 +236,9 @@ fn publish_from_a_prebuilt_tarball() {
         .with_arg("pack")
         .output()
         .expect("spawn pacquet pack");
-    assert!(
-        pack.status.success(),
-        "pack stderr: {}",
-        String::from_utf8_lossy(&pack.stderr),
-    );
+    assert!(pack.status.success(), "pack stderr: {}", String::from_utf8_lossy(&pack.stderr));
     let tarball = "test-publish-tgz-1.0.0.tgz";
-    assert!(
-        dir
-            .path()
-            .join(tarball)
-            .exists(),
-        "pack should write {tarball}",
-    );
+    assert!(dir.path().join(tarball).exists(), "pack should write {tarball}");
 
     let mock = server
         .mock("PUT", "/test-publish-tgz")
@@ -317,10 +296,7 @@ fn errors_when_the_registry_rejects_the_publish() {
         .create();
 
     let output = publish(dir.path(), &[]);
-    assert!(
-        !output.status.success(),
-        "a 5xx registry response must fail the publish",
-    );
+    assert!(!output.status.success(), "a 5xx registry response must fail the publish");
     assert!(
         String::from_utf8_lossy(&output.stderr).contains("test-publish-rejected"),
         "the failure should name the package; stderr: {}",
@@ -335,10 +311,7 @@ fn errors_when_publishing_a_nonexistent_tarball() {
     fs::write(dir.path().join(".npmrc"), format!("registry={registry}\n")).expect("write .npmrc");
 
     let output = publish(dir.path(), &["does-not-exist.tgz"]);
-    assert!(
-        !output.status.success(),
-        "publishing a missing tarball must fail",
-    );
+    assert!(!output.status.success(), "publishing a missing tarball must fail");
 }
 
 #[test]
@@ -410,10 +383,7 @@ fn json_flag_prints_errors_to_stdout() {
     );
 
     let output = publish(dir.path(), &["--dry-run", "--json"]);
-    assert!(
-        !output.status.success(),
-        "publish without a version must fail",
-    );
+    assert!(!output.status.success(), "publish without a version must fail");
     assert!(
         output.stderr.is_empty(),
         "--json errors must not be rendered to stderr; stderr: {}",
@@ -458,10 +428,7 @@ fn json_flag_preserves_webauth_urls_on_noninteractive_otp_errors() {
         .create();
 
     let output = publish(dir.path(), &["--json"]);
-    assert!(
-        !output.status.success(),
-        "publish requiring OTP must fail without a TTY",
-    );
+    assert!(!output.status.success(), "publish requiring OTP must fail without a TTY");
     assert!(
         output.stderr.is_empty(),
         "--json errors must not be rendered to stderr; stderr: {}",
@@ -480,14 +447,8 @@ fn json_flag_preserves_webauth_urls_on_noninteractive_otp_errors() {
         parsed["error"]["message"],
         "The registry requires additional authentication, but pnpm is not running in an interactive terminal",
     );
-    assert_eq!(
-        parsed["error"]["authUrl"],
-        "https://auth.example/login?token=abc",
-    );
-    assert_eq!(
-        parsed["error"]["doneUrl"],
-        "https://auth.example/done?token=abc",
-    );
+    assert_eq!(parsed["error"]["authUrl"], "https://auth.example/login?token=abc");
+    assert_eq!(parsed["error"]["doneUrl"], "https://auth.example/done?token=abc");
     mock.assert();
 }
 

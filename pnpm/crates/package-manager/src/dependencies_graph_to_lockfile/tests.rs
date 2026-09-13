@@ -64,10 +64,7 @@ fn single_importer_opts<'a>(
     let mut importers = BTreeMap::new();
     importers.insert(
         ".".to_string(),
-        ImporterLockfileInput {
-            manifest,
-            direct_dependencies_by_alias: direct,
-        },
+        ImporterLockfileInput { manifest, direct_dependencies_by_alias: direct },
     );
     GraphToLockfileOptions {
         importers,
@@ -185,11 +182,8 @@ fn make_node_with_optional(
 fn write_manifest(deps_value: serde_json::Value) -> (TempDir, PackageManifest) {
     let tmp = TempDir::new().expect("create tempdir");
     let manifest_path = tmp.path().join("package.json");
-    std::fs::write(
-        &manifest_path,
-        serde_json::to_string_pretty(&deps_value).unwrap(),
-    )
-    .expect("write manifest");
+    std::fs::write(&manifest_path, serde_json::to_string_pretty(&deps_value).unwrap())
+        .expect("write manifest");
     let manifest = PackageManifest::from_path(manifest_path).expect("read manifest");
     (tmp, manifest)
 }
@@ -220,9 +214,7 @@ fn git_hosted_node(alias: &str) -> (DepPath, DependenciesGraphNode) {
             name_ver: None,
             latest: None,
             published_at: None,
-            manifest: Some(Arc::new(
-                json!({ "name": "is-negative", "version": "1.0.0" }),
-            )),
+            manifest: Some(Arc::new(json!({ "name": "is-negative", "version": "1.0.0" }))),
         },
     };
     let node = DependenciesGraphNode {
@@ -369,10 +361,7 @@ fn previous_importers_with_link(
             version: ImporterDepVersion::Link(target.to_string()),
         },
     );
-    let snapshot = ProjectSnapshot {
-        dependencies: Some(deps),
-        ..Default::default()
-    };
+    let snapshot = ProjectSnapshot { dependencies: Some(deps), ..Default::default() };
     let mut importers = std::collections::HashMap::new();
     importers.insert(".".to_string(), snapshot);
     importers
@@ -381,12 +370,8 @@ fn previous_importers_with_link(
 /// A `consumer -> n` edge whose fresh resolution is a divergent `file:`
 /// injection, with a previous lockfile that recorded it as `link:`.
 /// Shared by the guard tests below.
-fn injected_link_fixture() -> (
-    TempDir,
-    PackageManifest,
-    DependenciesGraph,
-    BTreeMap<String, DepPath>,
-) {
+fn injected_link_fixture()
+-> (TempDir, PackageManifest, DependenciesGraph, BTreeMap<String, DepPath>) {
     let (tmp, manifest) = write_manifest(json!({
         "name": "consumer",
         "version": "1.0.0",
@@ -428,9 +413,7 @@ fn make_named_registry_node(
             name_ver: Some(name_ver),
             latest: None,
             published_at: None,
-            manifest: Some(std::sync::Arc::new(
-                json!({ "name": name, "version": version }),
-            )),
+            manifest: Some(std::sync::Arc::new(json!({ "name": name, "version": version }))),
         },
     };
     DependenciesGraphNode {

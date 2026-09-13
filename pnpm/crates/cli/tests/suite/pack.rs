@@ -201,11 +201,7 @@ fn before_packing_hook_rewrites_the_packed_manifest() {
         .success();
 
     let manifest = read_manifest_from_tarball(&out.join("pkg-1.0.0.tgz"));
-    assert_eq!(
-        manifest["packedByHook"],
-        json!(true),
-        "the hook's added field must be packed",
-    );
+    assert_eq!(manifest["packedByHook"], json!(true), "the hook's added field must be packed");
     assert!(
         manifest.get("devDependencies").is_none(),
         "the field the hook deleted must not be in the packed manifest",
@@ -221,11 +217,8 @@ fn before_packing_hook_rewrites_the_packed_manifest() {
 #[test]
 fn workspace_root_before_packing_hook_applies_to_a_filtered_package() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.join(".pnpmfile.cjs"),
         r"module.exports = {
@@ -280,11 +273,8 @@ fn workspace_root_before_packing_hook_applies_to_a_filtered_package() {
 #[test]
 fn recursive_pack_applies_before_packing_hook_to_every_project() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.join(".pnpmfile.cjs"),
         r"module.exports = {
@@ -333,16 +323,10 @@ fn recursive_pack_applies_before_packing_hook_to_every_project() {
 #[test]
 fn recursive_pack_serializes_projects_that_share_an_output_path() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write pnpm-workspace.yaml");
-    fs::write(
-        workspace.join("package.json"),
-        json!({ "private": true }).to_string(),
-    )
-    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), json!({ "private": true }).to_string())
+        .expect("write root package.json");
     let events = workspace.join("pack-events.txt");
     let events_json = serde_json::to_string(&events.to_string_lossy()).expect("encode events path");
     fs::write(
@@ -402,16 +386,10 @@ module.exports = {{
 #[test]
 fn recursive_pack_reports_results_in_dependency_order() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write pnpm-workspace.yaml");
-    fs::write(
-        workspace.join("package.json"),
-        json!({ "private": true }).to_string(),
-    )
-    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), json!({ "private": true }).to_string())
+        .expect("write root package.json");
     fs::write(
         workspace.join(".pnpmfile.cjs"),
         r"module.exports = {
@@ -502,10 +480,7 @@ fn config_ignore_scripts_override_suppresses_prepack() {
         .with_arg(out.to_str().expect("utf8 out dir"))
         .assert()
         .success();
-    assert!(
-        marker.exists(),
-        "prepack must run when nothing suppresses it",
-    );
+    assert!(marker.exists(), "prepack must run when nothing suppresses it");
     let tarball = out.join("pkg-1.0.0.tgz");
     fs::remove_file(&marker).expect("remove marker");
     fs::remove_file(&tarball).expect("remove the first tarball");
@@ -523,10 +498,7 @@ fn config_ignore_scripts_override_suppresses_prepack() {
         .with_arg(out.to_str().expect("utf8 out dir"))
         .assert()
         .success();
-    assert!(
-        !marker.exists(),
-        "--config.ignore-scripts=true must suppress prepack",
-    );
+    assert!(!marker.exists(), "--config.ignore-scripts=true must suppress prepack");
     assert!(tarball.exists(), "the tarball must still be packed");
 
     drop((root, ignoring_root));
@@ -614,16 +586,12 @@ process.exitCode = stage === process.env.FAILING_STAGE ? 1 : 0;
     let mut expected_stdout = String::new();
     let mut expected_stderr = String::new();
     for stage in stages {
-        writeln!(
-            expected_stdout,
-            "{{\"error\":{{\"code\":\"{stage}\"}}}}\n{stage} stdout",
-        )
-        .expect("write expected stdout");
-        writeln!(
-            expected_stderr,
-            "$ node lifecycle.cjs {stage}\n{stage} stderr",
-        )
-        .expect("write expected stderr");
+        writeln!(expected_stdout, "{{\"error\":{{\"code\":\"{stage}\"}}}}\n{stage} stdout").expect(
+            "write expected stdout",
+        );
+        writeln!(expected_stderr, "$ node lifecycle.cjs {stage}\n{stage} stderr").expect(
+            "write expected stderr",
+        );
         if Some(stage) == failing_stage {
             break;
         }
@@ -632,15 +600,10 @@ process.exitCode = stage === process.env.FAILING_STAGE ? 1 : 0;
     let result = stdout.strip_prefix(&expected_stdout).expect("lifecycle stdout precedes JSON");
     let result: serde_json::Value = serde_json::from_str(result).expect("final JSON result");
     if let Some(stage) = failing_stage {
-        assert_eq!(
-            result["error"]["code"],
-            "ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED",
-        );
+        assert_eq!(result["error"]["code"], "ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED");
         let message = result["error"]["message"].as_str().expect("error message");
         assert!(
-            message.contains(&format!(
-                "{stage}: `node lifecycle.cjs {stage}` exited with"
-            )),
+            message.contains(&format!("{stage}: `node lifecycle.cjs {stage}` exited with")),
             "{message}",
         );
     } else {
@@ -654,11 +617,8 @@ process.exitCode = stage === process.env.FAILING_STAGE ? 1 : 0;
 #[test]
 fn pack_json_prints_structured_errors_without_lifecycle_scripts() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("package.json"),
-        json!({ "name": "pack-json" }).to_string(),
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), json!({ "name": "pack-json" }).to_string())
+        .expect("write package.json");
 
     let output = pacquet
         .with_args(["pack", "--json"])
@@ -666,10 +626,7 @@ fn pack_json_prints_structured_errors_without_lifecycle_scripts() {
         .expect("run pack --json");
     let stdout = String::from_utf8(output.stdout).expect("UTF-8 stdout");
     let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
-    eprintln!(
-        "status: {}; stdout:\n{stdout}\nstderr:\n{stderr}",
-        output.status,
-    );
+    eprintln!("status: {}; stdout:\n{stdout}\nstderr:\n{stderr}", output.status);
     assert!(!output.status.success());
     assert_eq!(stderr, "");
     assert_eq!(

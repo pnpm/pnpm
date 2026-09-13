@@ -148,10 +148,7 @@ fn resolver_with_prefetch(
                 index_writer: Some(&store_index_writer),
                 verified_files_cache: &SharedVerifiedFilesCache::default(),
             },
-            policy: crate::PrefetchPolicy {
-                downloads: prefetch_downloads,
-                custom_session: None,
-            },
+            policy: crate::PrefetchPolicy { downloads: prefetch_downloads, custom_session: None },
         },
     )
 }
@@ -182,10 +179,7 @@ fn minimal_tarball(name: &str, version: &str) -> Vec<u8> {
 #[tokio::test]
 async fn skips_prefetch_for_unsupported_optional_manifest() {
     let resolver = resolver();
-    let wanted = WantedDependency {
-        optional: Some(true),
-        ..WantedDependency::default()
-    };
+    let wanted = WantedDependency { optional: Some(true), ..WantedDependency::default() };
     let result = result_with_manifest(
         "@pnpm.e2e/not-compatible-with-any-os",
         json!({
@@ -201,10 +195,7 @@ async fn skips_prefetch_for_unsupported_optional_manifest() {
 #[tokio::test]
 async fn skips_prefetch_for_platform_inferred_from_optional_name() {
     let resolver = resolver();
-    let wanted = WantedDependency {
-        optional: Some(true),
-        ..WantedDependency::default()
-    };
+    let wanted = WantedDependency { optional: Some(true), ..WantedDependency::default() };
     let result = result_with_manifest(
         "@esbuild/openharmony-arm64",
         json!({
@@ -219,10 +210,7 @@ async fn skips_prefetch_for_platform_inferred_from_optional_name() {
 #[tokio::test]
 async fn skips_prefetch_for_manifestless_platform_inferred_name() {
     let resolver = resolver();
-    let wanted = WantedDependency {
-        optional: Some(true),
-        ..WantedDependency::default()
-    };
+    let wanted = WantedDependency { optional: Some(true), ..WantedDependency::default() };
     let result = result_without_manifest("@esbuild/openharmony-arm64");
 
     assert!(resolver.should_skip_prefetch(&wanted, &result));
@@ -244,10 +232,7 @@ async fn skips_prefetch_using_alias_when_manifest_name_missing() {
 #[tokio::test]
 async fn skips_prefetch_for_anonymous_manifest_with_explicit_platform_constraint() {
     let resolver = resolver();
-    let wanted = WantedDependency {
-        optional: Some(true),
-        ..WantedDependency::default()
-    };
+    let wanted = WantedDependency { optional: Some(true), ..WantedDependency::default() };
     let result = anonymous_tarball_result(json!({
         "version": "1.0.0",
         "os": ["this-os-does-not-exist"]
@@ -284,16 +269,8 @@ async fn resolve_populates_integrity_before_skipping_optional_prefetch() {
         git_hosted: None,
         path: None,
     });
-    let resolver = resolver_with_inner(
-        dir.path(),
-        Box::new(FixedResolver {
-            result,
-        }),
-    );
-    let wanted = WantedDependency {
-        optional: Some(true),
-        ..WantedDependency::default()
-    };
+    let resolver = resolver_with_inner(dir.path(), Box::new(FixedResolver { result }));
+    let wanted = WantedDependency { optional: Some(true), ..WantedDependency::default() };
 
     let resolved = resolver
         .resolve(&wanted, &ResolveOptions::default())
@@ -304,20 +281,14 @@ async fn resolve_populates_integrity_before_skipping_optional_prefetch() {
     let LockfileResolution::Tarball(tarball) = resolved.resolution else {
         panic!("expected tarball resolution");
     };
-    assert!(
-        tarball.integrity.is_some(),
-        "unsupported optional tarball still needs integrity",
-    );
+    assert!(tarball.integrity.is_some(), "unsupported optional tarball still needs integrity");
     get_mock.assert_async().await;
 }
 
 #[tokio::test]
 async fn keeps_prefetch_check_off_non_tarball_resolutions() {
     let resolver = resolver();
-    let wanted = WantedDependency {
-        optional: Some(true),
-        ..WantedDependency::default()
-    };
+    let wanted = WantedDependency { optional: Some(true), ..WantedDependency::default() };
     let mut result = result_with_manifest(
         "@pnpm.e2e/not-compatible-with-any-os",
         json!({
@@ -336,10 +307,7 @@ async fn keeps_prefetch_check_off_non_tarball_resolutions() {
 #[tokio::test]
 async fn keeps_prefetch_for_required_manifest() {
     let resolver = resolver();
-    let wanted = WantedDependency {
-        optional: Some(false),
-        ..WantedDependency::default()
-    };
+    let wanted = WantedDependency { optional: Some(false), ..WantedDependency::default() };
     let result = result_with_manifest(
         "@pnpm.e2e/not-compatible-with-any-os",
         json!({
@@ -386,13 +354,7 @@ async fn populates_integrity_with_prefetching_off() {
         git_hosted: None,
         path: None,
     });
-    let resolver = resolver_with_prefetch(
-        dir.path(),
-        Box::new(FixedResolver {
-            result,
-        }),
-        false,
-    );
+    let resolver = resolver_with_prefetch(dir.path(), Box::new(FixedResolver { result }), false);
 
     let resolved = resolver
         .resolve(&WantedDependency::default(), &ResolveOptions::default())
@@ -403,10 +365,7 @@ async fn populates_integrity_with_prefetching_off() {
     let LockfileResolution::Tarball(tarball) = resolved.resolution else {
         panic!("expected tarball resolution");
     };
-    assert!(
-        tarball.integrity.is_some(),
-        "an unpinned tarball still needs its integrity",
-    );
+    assert!(tarball.integrity.is_some(), "an unpinned tarball still needs its integrity");
     get_mock.assert_async().await;
 }
 
@@ -416,9 +375,7 @@ async fn skips_the_background_download_with_prefetching_off() {
     let tarball_url = "https://registry.example/pinned-1.0.0.tgz";
     let resolver = resolver_with_prefetch(
         dir.path(),
-        Box::new(FixedResolver {
-            result: integrity_pinned_result(tarball_url),
-        }),
+        Box::new(FixedResolver { result: integrity_pinned_result(tarball_url) }),
         false,
     );
 
@@ -428,10 +385,7 @@ async fn skips_the_background_download_with_prefetching_off() {
         .expect("resolve succeeds")
         .expect("resolver returns a result");
 
-    assert!(
-        resolver.spawned_urls.is_empty(),
-        "no download may be claimed",
-    );
+    assert!(resolver.spawned_urls.is_empty(), "no download may be claimed");
 }
 
 #[tokio::test]
@@ -440,9 +394,7 @@ async fn claims_the_background_download_with_prefetching_on() {
     let tarball_url = "https://registry.example/pinned-1.0.0.tgz";
     let resolver = resolver_with_inner(
         dir.path(),
-        Box::new(FixedResolver {
-            result: integrity_pinned_result(tarball_url),
-        }),
+        Box::new(FixedResolver { result: integrity_pinned_result(tarball_url) }),
     );
 
     resolver
@@ -451,8 +403,5 @@ async fn claims_the_background_download_with_prefetching_on() {
         .expect("resolve succeeds")
         .expect("resolver returns a result");
 
-    assert!(
-        resolver.spawned_urls.contains(tarball_url),
-        "the download must be claimed",
-    );
+    assert!(resolver.spawned_urls.contains(tarball_url), "the download must be claimed");
 }

@@ -20,10 +20,7 @@ pub(crate) fn local_file_tarball_install_url<'a>(
     if path.starts_with("//") || Path::new(path).is_absolute() {
         return tarball_url;
     }
-    Cow::Owned(format!(
-        "file:{}",
-        lexical_normalize(&workspace_root.join(path)).display(),
-    ))
+    Cow::Owned(format!("file:{}", lexical_normalize(&workspace_root.join(path)).display()))
 }
 /// Resolve the tarball URL + integrity for tarball- and registry-shaped
 /// resolutions. Factored out so the per-resolution-type dispatch in
@@ -78,13 +75,7 @@ pub(super) fn tarball_resolution_url<'a>(
     let tarball_url = tarball_resolution.tarball.as_str();
     let integrity = resolution.checkable_integrity();
     if tarball_resolution.revision.is_some() {
-        check_tarball_revision(
-            tarball_url,
-            integrity,
-            tarball_resolution,
-            package_key,
-            config,
-        )?;
+        check_tarball_revision(tarball_url, integrity, tarball_resolution, package_key, config)?;
     }
     if integrity.is_none() && !unverified_fetch_is_allowed(tarball_url) {
         return Err(InstallPackageBySnapshotError::MissingTarballIntegrity {
@@ -104,23 +95,14 @@ pub(super) fn check_tarball_revision(
     config: &Config,
 ) -> Result<(), InstallPackageBySnapshotError> {
     if tarball_url.starts_with("file:") || tarball_resolution.is_git_hosted() {
-        return Err(invalid_tarball_revision(
-            package_key,
-            "does not identify a registry tarball",
-        ));
+        return Err(invalid_tarball_revision(package_key, "does not identify a registry tarball"));
     }
     let Some(integrity) = integrity else {
-        return Err(invalid_tarball_revision(
-            package_key,
-            "has invalid or missing integrity",
-        ));
+        return Err(invalid_tarball_revision(package_key, "has invalid or missing integrity"));
     };
     let (registry, _) = registry_and_version(package_key, config)?;
     if !is_integrity_addressed_registry_tarball_url(tarball_url, integrity, &registry) {
-        return Err(invalid_tarball_revision(
-            package_key,
-            "has a mismatched tarball URL",
-        ));
+        return Err(invalid_tarball_revision(package_key, "has a mismatched tarball URL"));
     }
     Ok(())
 }
@@ -132,10 +114,7 @@ pub(super) fn registry_resolution_url<'a>(
 ) -> Result<(Cow<'a, str>, Option<&'a ssri::Integrity>), InstallPackageBySnapshotError> {
     let Some(integrity) = resolution.checkable_integrity() else {
         if registry_resolution.revision.is_some() {
-            return Err(invalid_tarball_revision(
-                package_key,
-                "has invalid or missing integrity",
-            ));
+            return Err(invalid_tarball_revision(package_key, "has invalid or missing integrity"));
         }
         return Err(InstallPackageBySnapshotError::MissingTarballIntegrity {
             package_key: package_key.to_string(),

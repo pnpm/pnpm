@@ -78,10 +78,7 @@ fn dedupes_direct_deps_against_workspace_root() {
     let root_dep = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     let root_dep_linked = is_symlink_or_junction(&root_dep).expect("query root symlink");
     eprintln!("root_dep={root_dep:?} linked={root_dep_linked}");
-    assert!(
-        root_dep_linked,
-        "root node_modules direct-dep symlink missing",
-    );
+    assert!(root_dep_linked, "root node_modules direct-dep symlink missing");
 
     // The deduped sibling has no node_modules at all: when every dep
     // was deduped, the project's modules directory is removed. Pacquet
@@ -153,10 +150,7 @@ fn dedupe_direct_deps_disabled_keeps_per_project_symlinks() {
     let root_dep = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     let root_dep_linked = is_symlink_or_junction(&root_dep).expect("query root symlink");
     eprintln!("root_dep={root_dep:?} linked={root_dep_linked}");
-    assert!(
-        root_dep_linked,
-        "root node_modules direct-dep symlink missing",
-    );
+    assert!(root_dep_linked, "root node_modules direct-dep symlink missing");
     let sibling_dep = workspace.join("packages/dup/node_modules/@pnpm.e2e/hello-world-js-bin");
     let sibling_dep_linked = is_symlink_or_junction(&sibling_dep).expect("query sibling symlink");
     eprintln!("sibling_dep={sibling_dep:?} linked={sibling_dep_linked}");
@@ -243,10 +237,7 @@ fn dedupes_direct_deps_with_frozen_lockfile() {
     let root_dep_linked =
         is_symlink_or_junction(&root_dep).expect("query root symlink after frozen install");
     eprintln!("root_dep={root_dep:?} linked={root_dep_linked}");
-    assert!(
-        root_dep_linked,
-        "frozen-lockfile install should re-link the root's direct dep",
-    );
+    assert!(root_dep_linked, "frozen-lockfile install should re-link the root's direct dep");
     let dup_modules_exists_after_frozen = dup_modules.exists();
     eprintln!("after frozen: dup_modules={dup_modules:?} exists={dup_modules_exists_after_frozen}");
     assert!(
@@ -468,10 +459,7 @@ fn dedupes_only_overlapping_direct_deps() {
     let unique = mixed_modules.join("@pnpm.e2e/hello-world-js-bin-parent");
     let unique_linked = is_symlink_or_junction(&unique).expect("query unique symlink");
     eprintln!("unique={unique:?} linked={unique_linked}");
-    assert!(
-        unique_linked,
-        "unique direct-dep symlink missing under packages/mixed/node_modules",
-    );
+    assert!(unique_linked, "unique direct-dep symlink missing under packages/mixed/node_modules");
 
     drop((root, mock_instance));
 }
@@ -537,15 +525,9 @@ fn removes_a_project_link_the_root_starts_providing() {
     let dup_link = workspace.join("packages/dup/node_modules/@pnpm.e2e/hello-world-js-bin");
     let dup_link_linked = is_symlink_or_junction(&dup_link).expect("query dup symlink");
     eprintln!("dup_link={dup_link:?} linked={dup_link_linked}");
-    assert!(
-        dup_link_linked,
-        "project direct-dep symlink missing before the root declares it",
-    );
+    assert!(dup_link_linked, "project direct-dep symlink missing before the root declares it");
     let dup_bin = workspace.join("packages/dup/node_modules/.bin/hello-world-js-bin");
-    assert!(
-        dup_bin.exists(),
-        "project bin shim missing at {dup_bin:?} before dedupe",
-    );
+    assert!(dup_bin.exists(), "project bin shim missing at {dup_bin:?} before dedupe");
 
     write_root_manifest(serde_json::json!({ "@pnpm.e2e/hello-world-js-bin": "1.0.0" }));
     pacquet_at(&workspace)
@@ -556,10 +538,7 @@ fn removes_a_project_link_the_root_starts_providing() {
     let root_link = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     let root_link_linked = is_symlink_or_junction(&root_link).expect("query root symlink");
     eprintln!("root_link={root_link:?} linked={root_link_linked}");
-    assert!(
-        root_link_linked,
-        "root node_modules direct-dep symlink missing",
-    );
+    assert!(root_link_linked, "root node_modules direct-dep symlink missing");
     assert_absent(&dup_link, "the project link the root made redundant");
     assert_absent(&dup_bin, "the deduped dep's bin shim");
 
@@ -572,14 +551,8 @@ fn removes_a_project_link_the_root_starts_providing() {
 
     let dup_link_relinked = is_symlink_or_junction(&dup_link).expect("query relinked dup symlink");
     eprintln!("dup_link={dup_link:?} linked={dup_link_relinked}");
-    assert!(
-        dup_link_relinked,
-        "project direct-dep symlink not restored at {dup_link:?}",
-    );
-    assert!(
-        dup_bin.exists(),
-        "project bin shim not restored at {dup_bin:?}",
-    );
+    assert!(dup_link_relinked, "project direct-dep symlink not restored at {dup_link:?}");
+    assert!(dup_bin.exists(), "project bin shim not restored at {dup_bin:?}");
 
     drop((root, mock_instance));
 }
@@ -751,10 +724,7 @@ fn dedupes_direct_dep_against_publicly_hoisted_root_dep() {
     let root_direct = workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep");
     let root_direct_linked = is_symlink_or_junction(&root_direct).expect("query root direct dep");
     eprintln!("root_direct={root_direct:?} linked={root_direct_linked}");
-    assert!(
-        root_direct_linked,
-        "root should still have its direct dep symlinked",
-    );
+    assert!(root_direct_linked, "root should still have its direct dep symlinked");
     let root_hoisted = workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep");
     let root_hoisted_linked =
         is_symlink_or_junction(&root_hoisted).expect("query root public-hoisted dep");
@@ -845,10 +815,7 @@ fn dedupe_under_shamefully_hoist() {
         let entry = workspace.join("node_modules").join(alias);
         let entry_linked = is_symlink_or_junction(&entry).expect("query root entry");
         eprintln!("entry={entry:?} linked={entry_linked}");
-        assert!(
-            entry_linked,
-            "expected root/node_modules/{alias} to be a symlink",
-        );
+        assert!(entry_linked, "expected root/node_modules/{alias} to be a symlink");
     }
 
     // Project has neither its direct dep `foobar` (deduped against the

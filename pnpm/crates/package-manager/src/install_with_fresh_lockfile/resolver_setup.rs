@@ -68,12 +68,7 @@ pub(super) async fn open_store_index_handles(
 ) -> StoreIndexHandles {
     let index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
     let (writer, writer_task) = StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
-    StoreIndexHandles {
-        index,
-        writer,
-        writer_task,
-        caches: StoreCaches::default(),
-    }
+    StoreIndexHandles { index, writer, writer_task, caches: StoreCaches::default() }
 }
 
 #[derive(Default)]
@@ -198,12 +193,8 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
 ) -> Result<ResolverChain, InstallWithFreshLockfileError> {
     let caches = PackumentCaches::new();
     let npm_resolver = inputs.npm_resolver(&caches);
-    let pnpmfile = load_pnpmfile(
-        inputs.config,
-        inputs.project.root,
-        inputs.hooks.pnpmfile.take(),
-    )
-    .await?;
+    let pnpmfile =
+        load_pnpmfile(inputs.config, inputs.project.root, inputs.hooks.pnpmfile.take()).await?;
     let chain = inputs.chain(&npm_resolver, &pnpmfile.custom_resolvers, &caches);
     // The install pass later calls `IngestTarballToStore::run_with_mem_cache`
     // for the same URLs and either picks up `CacheValue::Available`
@@ -286,8 +277,7 @@ impl ResolverChainInputs<'_> {
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
                 offline: self.config.offline,
                 prefer_offline: self.config.prefer_offline,
-                ignore_missing_time_field: self.config
-                    .minimum_release_age_ignore_missing_time,
+                ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
             },
         })
     }
@@ -382,8 +372,7 @@ impl ResolverChainInputs<'_> {
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
                 offline: self.config.offline,
                 prefer_offline: self.config.prefer_offline,
-                ignore_missing_time_field: self.config
-                    .minimum_release_age_ignore_missing_time,
+                ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
             },
         }
     }
@@ -400,18 +389,14 @@ impl ResolverChainInputs<'_> {
                 .iter()
                 .filter(|custom| custom.has_can_resolve() && custom.has_resolve())
                 .map(|custom| {
-                    Box::new(
-                        pnpm_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
-                            Arc::clone(custom),
-                        ),
-                    ) as Box<dyn Resolver>
+                    Box::new(pnpm_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
+                        Arc::clone(custom),
+                    )) as Box<dyn Resolver>
                 }),
         );
         // Pacquet doesn't expose `preserveAbsolutePaths` yet, so absolute
         // `file:` / `link:` specs resolve as though it were off.
-        let local_ctx = LocalResolverContext {
-            preserve_absolute_paths: false,
-        };
+        let local_ctx = LocalResolverContext { preserve_absolute_paths: false };
         chain.extend([
             Box::new(Arc::clone(npm_resolver)) as Box<dyn Resolver>,
             Box::new(self.git_resolver()),

@@ -70,29 +70,14 @@ fn env_vars_stand_in_for_omitted_flags() {
 
     let args = Args::try_parse_from(["pnpr"]).unwrap();
 
-    assert_eq!(
-        args.config.as_deref(),
-        Some("/etc/pnpr/config.yaml".as_ref()),
-    );
+    assert_eq!(args.config.as_deref(), Some("/etc/pnpr/config.yaml".as_ref()));
     assert_eq!(args.listen, "0.0.0.0:4873".parse::<SocketAddr>().unwrap());
-    assert_eq!(
-        args.paths.storage.as_deref(),
-        Some("/var/lib/pnpr".as_ref()),
-    );
-    assert_eq!(
-        args.paths.cache.as_deref(),
-        Some("/var/cache/pnpr".as_ref()),
-    );
-    assert_eq!(
-        args.public_url.as_deref(),
-        Some("https://registry.example.com"),
-    );
+    assert_eq!(args.paths.storage.as_deref(), Some("/var/lib/pnpr".as_ref()));
+    assert_eq!(args.paths.cache.as_deref(), Some("/var/cache/pnpr".as_ref()));
+    assert_eq!(args.public_url.as_deref(), Some("https://registry.example.com"));
     assert_eq!(args.packument_ttl_secs, Some(90));
     assert!(args.osv_options.osv);
-    assert_eq!(
-        args.osv_options.osv_db.as_deref(),
-        Some("/var/cache/osv/all.zip".as_ref()),
-    );
+    assert_eq!(args.osv_options.osv_db.as_deref(), Some("/var/cache/osv/all.zip".as_ref()));
     assert!(args.features.disable_registry);
     assert!(args.features.disable_resolver);
     assert!(args.features.disable_artifacts);
@@ -104,10 +89,7 @@ fn omitted_flags_without_env_vars_keep_their_defaults() {
 
     let args = Args::try_parse_from(["pnpr"]).unwrap();
 
-    assert_eq!(
-        args.listen,
-        super::Config::DEFAULT_LISTEN.parse::<SocketAddr>().unwrap(),
-    );
+    assert_eq!(args.listen, super::Config::DEFAULT_LISTEN.parse::<SocketAddr>().unwrap());
     assert_eq!(args.config, None);
     assert_eq!(args.packument_ttl_secs, None);
     assert!(!args.osv_options.osv);

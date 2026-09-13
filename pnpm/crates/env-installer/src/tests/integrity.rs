@@ -80,8 +80,7 @@ async fn migrates_old_inline_integrity_format() {
         "migrated config dep is installed",
     );
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
-    let entry =
-        &env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["@pnpm.e2e/foo"];
+    let entry = &env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["@pnpm.e2e/foo"];
     assert_eq!(entry.specifier, "100.0.0");
     assert_eq!(entry.version, "100.0.0");
     assert!(env.packages.contains_key(&"@pnpm.e2e/foo@100.0.0".parse().unwrap()));

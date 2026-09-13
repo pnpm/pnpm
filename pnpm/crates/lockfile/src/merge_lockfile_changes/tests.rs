@@ -88,20 +88,9 @@ fn entries_only_one_side_records_all_survive() {
     names.sort();
     assert_eq!(
         names,
-        [
-            "is-positive@3.0.0",
-            "is-positive@3.1.0",
-            "only-ours@1.0.0",
-            "only-theirs@2.0.0"
-        ],
+        ["is-positive@3.0.0", "is-positive@3.1.0", "only-ours@1.0.0", "only-theirs@2.0.0"],
     );
-    assert_eq!(
-        merged.snapshots
-            .as_ref()
-            .unwrap()
-            .len(),
-        4,
-    );
+    assert_eq!(merged.snapshots.as_ref().unwrap().len(), 4);
 }
 
 /// An entry both sides record merges field by field, the way pnpm's
@@ -182,22 +171,13 @@ pnpmfileChecksum: theirs
 #[test]
 fn merging_unions_the_foreign_top_level_keys() {
     let mut ours = parse("lockfileVersion: '9.0'\n");
-    ours.extra.insert(
-        "bit".to_string(),
-        serde_json::json!({ "depsRequiringBuild": ["ours"] }),
-    );
+    ours.extra.insert("bit".to_string(), serde_json::json!({ "depsRequiringBuild": ["ours"] }));
     let mut theirs = parse("lockfileVersion: '9.0'\n");
-    theirs.extra.insert(
-        "bit".to_string(),
-        serde_json::json!({ "depsRequiringBuild": ["theirs"] }),
-    );
+    theirs.extra.insert("bit".to_string(), serde_json::json!({ "depsRequiringBuild": ["theirs"] }));
     theirs.extra.insert("other-tool".to_string(), serde_json::json!(true));
 
     let merged = merge_lockfile_changes(&ours, &theirs);
 
-    assert_eq!(
-        merged.extra["bit"],
-        serde_json::json!({ "depsRequiringBuild": ["ours"] }),
-    );
+    assert_eq!(merged.extra["bit"], serde_json::json!({ "depsRequiringBuild": ["ours"] }));
     assert_eq!(merged.extra["other-tool"], serde_json::json!(true));
 }

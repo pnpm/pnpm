@@ -50,10 +50,7 @@ where
     ResolveRangeFuture: Future<Output = Option<Version>>,
 {
     let mut stale = Vec::new();
-    for override_entry in parsed_overrides
-        .iter()
-        .filter(|entry| entry.converge)
-    {
+    for override_entry in parsed_overrides.iter().filter(|entry| entry.converge) {
         let Some(ranges) = converge_declared_ranges.get(&override_entry.target_pkg.name) else {
             continue;
         };

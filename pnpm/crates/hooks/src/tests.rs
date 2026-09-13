@@ -46,9 +46,7 @@ impl PnpmfileHooks for CheckedHooks {
 }
 
 fn wrapped_at(source: PathBuf) -> Arc<dyn PnpmfileHooks> {
-    let inner: Arc<dyn PnpmfileHooks> = Arc::new(CheckedHooks {
-        source,
-    });
+    let inner: Arc<dyn PnpmfileHooks> = Arc::new(CheckedHooks { source });
     Arc::new(ChecksumFreeHooks::from(inner))
 }
 
@@ -59,13 +57,7 @@ fn wrapped() -> Arc<dyn PnpmfileHooks> {
 #[tokio::test]
 async fn checksum_free_hooks_still_run_their_hooks() {
     let hooked = wrapped()
-        .read_package(
-            json!({ "name": "app" }),
-            HookContext {
-                log: Arc::new(|_| {}),
-                dir: None,
-            },
-        )
+        .read_package(json!({ "name": "app" }), HookContext { log: Arc::new(|_| {}), dir: None })
         .await
         .expect("run the wrapped readPackage hook");
 
@@ -90,8 +82,7 @@ async fn a_recorded_checksum_is_still_answered_from_the_pnpmfile() {
 
     assert_eq!(current_pnpmfile_checksum(Some(&hooks), None).await, None);
 
-    let against_recorded = current_pnpmfile_checksum(Some(&hooks), Some("sha256-recorded"))
-        .await;
+    let against_recorded = current_pnpmfile_checksum(Some(&hooks), Some("sha256-recorded")).await;
     assert_eq!(
         against_recorded,
         pnpm_crypto_hash::create_hash_from_file(&pnpmfile).ok(),

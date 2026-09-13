@@ -16,9 +16,7 @@ fn copy_fixture(name: &str) -> TempDir {
     };
     for entry in fs::read_dir(&fixture_dir).expect("read fixture dir") {
         let entry = entry.expect("read dir entry");
-        let dest = tmp
-            .path()
-            .join(entry.file_name());
+        let dest = tmp.path().join(entry.file_name());
         if entry
             .file_type()
             .expect("file type")
@@ -196,14 +194,7 @@ fn sbom_invalid_spec_version_fails() {
     let tmp = copy_fixture("simple-sbom");
     let output = pacquet(
         tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--sbom-spec-version",
-            "2.0",
-        ],
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--sbom-spec-version", "2.0"],
     )
     .output()
     .expect("run pacquet");
@@ -344,10 +335,7 @@ fn sbom_exclude_peers_drops_subtree() {
             .as_array()
             .expect("dependsOn")
             .iter()
-            .any(|dep| dep
-                .as_str()
-                .unwrap()
-                .contains("is-odd")),
+            .any(|dep| dep.as_str().unwrap().contains("is-odd")),
         "peer should not appear in root dependency graph",
     );
 }
@@ -355,11 +343,7 @@ fn sbom_exclude_peers_drops_subtree() {
 #[test]
 fn sbom_exclude_peers_tolerates_malformed_manifest() {
     let tmp = copy_fixture("with-peer-workspace");
-    fs::write(
-        tmp.path().join("packages/pkg-a/package.json"),
-        "{ not valid json",
-    )
-    .unwrap();
+    fs::write(tmp.path().join("packages/pkg-a/package.json"), "{ not valid json").unwrap();
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--exclude-peers"]);
     let components = parsed["components"].as_array().expect("components");
     assert!(
@@ -449,18 +433,10 @@ fn sbom_dev_flag_excludes_prod() {
 #[test]
 fn sbom_split_outputs_ndjson() {
     let tmp = copy_fixture("workspace-sbom");
-    let output = pacquet(
-        tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--split",
-        ],
-    )
-    .output()
-    .expect("run pacquet");
+    let output =
+        pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run pacquet");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout
@@ -518,22 +494,11 @@ fn sbom_split_out_without_percent_s_fails() {
     let tmp = copy_fixture("workspace-sbom");
     let output = pacquet(
         tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--split",
-            "--out",
-            "sbom.json",
-        ],
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split", "--out", "sbom.json"],
     )
     .output()
     .expect("run pacquet");
-    assert!(
-        !output.status.success(),
-        "--split --out without %s should fail",
-    );
+    assert!(!output.status.success(), "--split --out without %s should fail");
 }
 
 /// Two packages whose names render to the same `--out` path collide. The
@@ -544,10 +509,7 @@ fn sbom_split_out_collision_keeps_the_first_file() {
     let lockfile = fs::read(tmp.path().join("pnpm-lock.yaml")).expect("read fixture lockfile");
     // `@a/b` and `a-b` both sanitize to `a-b`.
     for (dir, name) in [("scoped", "@a/b"), ("plain", "a-b")] {
-        let project_dir = tmp
-            .path()
-            .join("packages")
-            .join(dir);
+        let project_dir = tmp.path().join("packages").join(dir);
         fs::create_dir_all(&project_dir).expect("create project dir");
         fs::write(
             project_dir.join("package.json"),
@@ -569,23 +531,11 @@ fn sbom_split_out_collision_keeps_the_first_file() {
     )
     .expect("write workspace manifest");
 
-    let listed = pacquet(
-        tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--split",
-        ],
-    )
-    .output()
-    .expect("run pacquet sbom --split");
-    assert!(
-        listed.status.success(),
-        "{}",
-        String::from_utf8_lossy(&listed.stderr),
-    );
+    let listed =
+        pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run pacquet sbom --split");
+    assert!(listed.status.success(), "{}", String::from_utf8_lossy(&listed.stderr));
     let first_name = split_root_names(&String::from_utf8_lossy(&listed.stdout))
         .first()
         .expect("at least one project")
@@ -607,10 +557,7 @@ fn sbom_split_out_collision_keeps_the_first_file() {
     .expect("run pacquet sbom --split --out");
     assert!(!output.status.success(), "colliding output paths must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_SBOM_OUT_PATH_COLLISION"),
-        "{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_SBOM_OUT_PATH_COLLISION"), "{stderr}");
     let written: serde_json::Value = serde_json::from_slice(
         &fs::read(tmp.path().join("out/a-b.json")).expect("read the SBOM written first"),
     )
@@ -659,17 +606,11 @@ fn sbom_cyclonedx_scoped_root_has_group() {
 #[test]
 fn sbom_missing_lockfile_fails() {
     let tmp = TempDir::new().expect("create temp dir");
-    fs::write(
-        tmp.path().join("package.json"),
-        r#"{"name":"no-lockfile","version":"1.0.0"}"#,
-    )
-    .unwrap();
-    let output = pacquet(
-        tmp.path(),
-        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only"],
-    )
-    .output()
-    .expect("run pacquet");
+    fs::write(tmp.path().join("package.json"), r#"{"name":"no-lockfile","version":"1.0.0"}"#)
+        .unwrap();
+    let output = pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only"])
+        .output()
+        .expect("run pacquet");
     assert!(!output.status.success(), "should fail without lockfile");
 }
 
@@ -682,10 +623,7 @@ fn sbom_prod_scope_undefined_for_prod_components() {
         .iter()
         .find(|comp| comp["name"] == "is-positive")
         .expect("is-positive");
-    assert!(
-        is_positive.get("scope").is_none(),
-        "prod components should not have scope field",
-    );
+    assert!(is_positive.get("scope").is_none(), "prod components should not have scope field");
 }
 
 #[test]
@@ -759,10 +697,7 @@ fn sbom_fail_if_no_match_exits_non_zero() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.starts_with("No projects matched the filters in"),
-        "stdout:\n{stdout}",
-    );
+    assert!(stdout.starts_with("No projects matched the filters in"), "stdout:\n{stdout}");
 }
 
 /// No lockfile at all is a different failure from a lockfile that is merely
@@ -774,24 +709,14 @@ fn sbom_without_a_lockfile_reports_the_missing_lockfile_not_missing_importers() 
 
     let output = pacquet(
         tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--filter",
-            "app",
-        ],
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "app"],
     )
     .output()
     .expect("run pacquet");
 
     assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_SBOM_NO_LOCKFILE"),
-        "stderr:\n{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_SBOM_NO_LOCKFILE"), "stderr:\n{stderr}");
 }
 
 fn run_sbom_json_from_store(workspace: &Path, format: &str) -> serde_json::Value {

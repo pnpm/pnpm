@@ -111,10 +111,7 @@ impl PinFlags {
     }
 
     fn of_lockfile_dir(lockfile_dir: &LockfileDirArg) -> Self {
-        Self {
-            lockfile_dir: lockfile_dir.lockfile_dir.clone(),
-            ..Self::default()
-        }
+        Self { lockfile_dir: lockfile_dir.lockfile_dir.clone(), ..Self::default() }
     }
 
     /// Layer the flags onto `config` with the precedence
@@ -360,11 +357,7 @@ impl SwitchInput {
             self.npmrc_auth_file = Some(PathBuf::from(value));
             return width;
         }
-        if consumes_next_token(token, global_options) {
-            2
-        } else {
-            1
-        }
+        if consumes_next_token(token, global_options) { 2 } else { 1 }
     }
 }
 

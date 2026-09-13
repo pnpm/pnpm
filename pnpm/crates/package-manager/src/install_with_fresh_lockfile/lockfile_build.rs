@@ -239,17 +239,13 @@ pub(super) struct SpecBumps<'a> {
 }
 impl SpecBumps<'_> {
     fn apply(self, built: &mut Lockfile, importer_manifests: &BTreeMap<String, &PackageManifest>) {
-        let Some(bumps) = self.manifest_spec_bumps else {
-            return;
-        };
+        let Some(bumps) = self.manifest_spec_bumps else { return };
         let overridden = self.versions_overrider
             .filter(|overrider| !overrider.is_empty())
-            .map(
-                |overrider| crate::manifest_spec_bumps::OverriddenDeclarations {
-                    overrider,
-                    importer_manifests,
-                },
-            );
+            .map(|overrider| crate::manifest_spec_bumps::OverriddenDeclarations {
+                overrider,
+                importer_manifests,
+            });
         crate::manifest_spec_bumps::apply_manifest_spec_bumps(built, bumps, overridden.as_ref());
     }
 }
@@ -279,10 +275,7 @@ impl<'a> FreshLockfileInputs<'a> {
                 .unwrap_or(*manifest);
             importers.insert(
                 id.clone(),
-                ImporterLockfileInput {
-                    manifest,
-                    direct_dependencies_by_alias: direct,
-                },
+                ImporterLockfileInput { manifest, direct_dependencies_by_alias: direct },
             );
         }
         importers

@@ -76,9 +76,7 @@ async fn canonical_snapshot_link_id_is_relative_to_lockfile_root() {
     let manifest = PackageManifest::from_path(manifest_path).expect("parse manifest");
     let project_dir = std::path::PathBuf::from("/repo/apps/nested/app");
     let lockfile_dir = std::path::PathBuf::from("/repo");
-    let resolver = NestedWorkspaceLinkResolver {
-        target_dir: lockfile_dir.join("packages/shared"),
-    };
+    let resolver = NestedWorkspaceLinkResolver { target_dir: lockfile_dir.join("packages/shared") };
 
     let tree = resolve_dependency_tree(
         &resolver,

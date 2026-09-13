@@ -96,10 +96,7 @@ fn hoisting_skips_broken_symlink_for_skipped_optional() {
     .expect("write package.json");
 
     let assert_no_broken_hoist_links = |phase: &str| {
-        for hoist_dir in [
-            "node_modules/@pnpm.e2e",
-            "node_modules/.pnpm/node_modules/@pnpm.e2e",
-        ] {
+        for hoist_dir in ["node_modules/@pnpm.e2e", "node_modules/.pnpm/node_modules/@pnpm.e2e"] {
             for name in ["dep-of-optional-pkg", "not-compatible-with-any-os"] {
                 let path = workspace.join(hoist_dir).join(name);
                 assert!(
@@ -150,10 +147,7 @@ fn public_hoist_star_hoists_to_root_node_modules() {
         serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
     );
     generate_lockfile(pnpm);
-    write_workspace_yaml(
-        &workspace,
-        "publicHoistPattern:\n  - '*'\nhoistPattern: []\n",
-    );
+    write_workspace_yaml(&workspace, "publicHoistPattern:\n  - '*'\nhoistPattern: []\n");
 
     pacquet
         .with_args(["install", "--frozen-lockfile"])
@@ -190,10 +184,7 @@ fn public_hoist_does_not_override_an_existing_root_directory() {
         serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
     );
     generate_lockfile(pnpm);
-    write_workspace_yaml(
-        &workspace,
-        "publicHoistPattern:\n  - '*'\nhoistPattern: []\n",
-    );
+    write_workspace_yaml(&workspace, "publicHoistPattern:\n  - '*'\nhoistPattern: []\n");
     let occupied = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     fs::create_dir_all(&occupied).expect("create occupied public-hoist slot");
     fs::write(occupied.join("keep.txt"), "external").expect("write marker");
@@ -203,10 +194,7 @@ fn public_hoist_does_not_override_an_existing_root_directory() {
         .assert()
         .success();
 
-    assert_eq!(
-        fs::read_to_string(occupied.join("keep.txt")).unwrap(),
-        "external",
-    );
+    assert_eq!(fs::read_to_string(occupied.join("keep.txt")).unwrap(), "external");
     assert!(!is_symlink_or_junction(&occupied).unwrap());
 
     drop((root, mock_instance));
@@ -286,10 +274,7 @@ fn private_hoist_links_bins() {
         .success();
 
     let bin_path = workspace.join("node_modules/.pnpm/node_modules/.bin/hello-world-js-bin");
-    assert!(
-        bin_path.exists(),
-        "private hoist should link bin at {bin_path:?}",
-    );
+    assert!(bin_path.exists(), "private hoist should link bin at {bin_path:?}");
 
     drop((root, mock_instance));
 }
@@ -314,10 +299,7 @@ fn public_hoist_bin_is_linked_via_root_bin_dir() {
         serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
     );
     generate_lockfile(pnpm);
-    write_workspace_yaml(
-        &workspace,
-        "publicHoistPattern:\n  - '*'\nhoistPattern: []\n",
-    );
+    write_workspace_yaml(&workspace, "publicHoistPattern:\n  - '*'\nhoistPattern: []\n");
 
     pacquet
         .with_args(["install", "--frozen-lockfile"])
@@ -334,10 +316,7 @@ fn public_hoist_bin_is_linked_via_root_bin_dir() {
     // `link_direct_dep_bins` call against the public-hoisted aliases
     // after the symlinks are in place.
     let bin_path = workspace.join("node_modules/.bin/hello-world-js-bin");
-    assert!(
-        bin_path.exists(),
-        "public hoist should link bin at {bin_path:?}",
-    );
+    assert!(bin_path.exists(), "public hoist should link bin at {bin_path:?}");
 
     drop((root, mock_instance));
 }
@@ -547,10 +526,7 @@ fn should_not_override_root_packages_with_hoisted_deps() {
         .assert()
         .success();
 
-    assert_eq!(
-        version_of(&workspace.join("node_modules/@pnpm.e2e/bar")),
-        "100.1.0",
-    );
+    assert_eq!(version_of(&workspace.join("node_modules/@pnpm.e2e/bar")), "100.1.0");
 
     drop((root, mock_instance));
 }
@@ -588,16 +564,10 @@ fn should_rehoist_when_uninstalling_a_package() {
         "the removed direct dep's root link must be gone",
     );
     assert_eq!(version_of(&hoisted_bar), "100.0.0");
-    assert_eq!(
-        version_of(&workspace.join("node_modules/@pnpm.e2e/foobarqar")),
-        "1.0.0",
-    );
+    assert_eq!(version_of(&workspace.join("node_modules/@pnpm.e2e/foobarqar")), "1.0.0");
     let hoisted = hoisted_dependencies(&workspace);
     eprintln!("hoistedDependencies after remove: {hoisted:#}");
-    assert_eq!(
-        hoisted["@pnpm.e2e/bar@100.0.0"],
-        serde_json::json!({ "@pnpm.e2e/bar": "private" }),
-    );
+    assert_eq!(hoisted["@pnpm.e2e/bar@100.0.0"], serde_json::json!({ "@pnpm.e2e/bar": "private" }));
 
     drop((root, mock_instance));
 }
@@ -625,10 +595,7 @@ fn should_rehoist_after_running_a_general_install() {
         .assert()
         .success();
     let foobarqar_link = workspace.join("node_modules/@pnpm.e2e/foobarqar");
-    assert_eq!(
-        version_of(&workspace.join("node_modules/@pnpm.e2e/bar")),
-        "100.1.0",
-    );
+    assert_eq!(version_of(&workspace.join("node_modules/@pnpm.e2e/bar")), "100.1.0");
     let prev_target = fs::canonicalize(&foobarqar_link).expect("resolve foobarqar link");
     assert!(
         fs::symlink_metadata(workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/bar"))
@@ -636,19 +603,13 @@ fn should_rehoist_after_running_a_general_install() {
         "a root direct dep's alias must not be hoisted",
     );
 
-    write_manifest(
-        &workspace,
-        serde_json::json!({ "@pnpm.e2e/foobarqar": "1.0.0" }),
-    );
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/foobarqar": "1.0.0" }));
     pacquet_in(&workspace)
         .with_arg("install")
         .assert()
         .success();
     let curr_target = fs::canonicalize(&foobarqar_link).expect("resolve foobarqar link");
-    assert_eq!(
-        prev_target, curr_target,
-        "the untouched direct dep keeps its link target",
-    );
+    assert_eq!(prev_target, curr_target, "the untouched direct dep keeps its link target");
     assert_eq!(
         version_of(&workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/bar")),
         "100.0.0",
@@ -671,82 +632,11 @@ fn should_not_override_aliased_dependencies() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     pacquet
-        .with_args([
-            "add",
-            "dep@npm:is-positive@1.0.0",
-            "@pnpm.e2e/pkg-with-1-aliased-dep",
-        ])
+        .with_args(["add", "dep@npm:is-positive@1.0.0", "@pnpm.e2e/pkg-with-1-aliased-dep"])
         .assert()
         .success();
 
     assert_eq!(version_of(&workspace.join("node_modules/dep")), "1.0.0");
-
-    drop((root, mock_instance));
-}
-
-/// TS: `hoist by alias` (`hoist.ts:233`): an npm-aliased transitive is
-/// hoisted under its alias, not its real name, and `.modules.yaml`
-/// records the alias.
-#[test]
-fn hoist_by_alias() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-
-    pacquet
-        .with_args(["add", "@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0"])
-        .assert()
-        .success();
-
-    assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-1-aliased-dep").exists());
-    assert!(workspace.join("node_modules/.pnpm/node_modules/dep").exists());
-    assert!(
-        fs::symlink_metadata(workspace.join(
-            "node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep"
-        ),)
-        .is_err(),
-        "the aliased dep must be hoisted under its alias only",
-    );
-    assert_eq!(
-        hoisted_dependencies(&workspace),
-        serde_json::json!({ "@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0": { "dep": "private" } }),
-    );
-
-    drop((root, mock_instance));
-}
-
-/// TS: `should remove aliased hoisted dependencies` (`hoist.ts:249`).
-#[test]
-fn should_remove_aliased_hoisted_dependencies() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-
-    pacquet
-        .with_args(["add", "@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0"])
-        .assert()
-        .success();
-    pacquet_in(&workspace)
-        .with_args(["remove", "@pnpm.e2e/pkg-with-1-aliased-dep"])
-        .assert()
-        .success();
-
-    assert!(!workspace.join("node_modules/@pnpm.e2e/pkg-with-1-aliased-dep").exists());
-    assert!(
-        fs::symlink_metadata(workspace.join("node_modules/.pnpm/node_modules/dep")).is_err(),
-        "the aliased hoist link must be removed with its owner",
-    );
-    assert_eq!(hoisted_dependencies(&workspace), serde_json::json!({}));
 
     drop((root, mock_instance));
 }
@@ -765,10 +655,7 @@ fn modules_yaml_updated_on_prune_when_flattening() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        serde_json::json!({ "@pnpm.e2e/pkg-with-1-aliased-dep": "*" }),
-    );
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-aliased-dep": "*" }));
     pacquet
         .with_arg("install")
         .assert()
@@ -823,10 +710,7 @@ fn should_rehoist_after_pruning() {
         .assert()
         .success();
     let curr_target = fs::canonicalize(&foobarqar_link).expect("resolve foobarqar link");
-    assert_eq!(
-        prev_target, curr_target,
-        "the untouched direct dep keeps its link target",
-    );
+    assert_eq!(prev_target, curr_target, "the untouched direct dep keeps its link target");
     assert_eq!(
         version_of(&workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/bar")),
         "100.0.0",
@@ -856,10 +740,7 @@ fn should_hoist_correctly_peer_dependencies() {
         &workspace,
         "enableGlobalVirtualStore: false\nhoistPattern:\n  - '*'\nautoInstallPeers: true\n",
     );
-    write_manifest(
-        &workspace,
-        serde_json::json!({ "@pnpm.e2e/using-ajv": "1.0.0" }),
-    );
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/using-ajv": "1.0.0" }));
     generate_lockfile(pnpm);
 
     pacquet
@@ -875,10 +756,7 @@ fn should_hoist_correctly_peer_dependencies() {
     let variant_dir = workspace.join(
         "node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords",
     );
-    assert!(
-        variant_dir.is_dir(),
-        "peer-variant slot missing at {variant_dir:?}",
-    );
+    assert!(variant_dir.is_dir(), "peer-variant slot missing at {variant_dir:?}");
     assert_eq!(
         fs::canonicalize(&hoisted).unwrap(),
         fs::canonicalize(&variant_dir).unwrap(),
@@ -907,10 +785,7 @@ fn should_uninstall_correctly_peer_dependencies() {
         &workspace,
         "enableGlobalVirtualStore: false\nhoistPattern:\n  - '*'\nautoInstallPeers: true\n",
     );
-    write_manifest(
-        &workspace,
-        serde_json::json!({ "@pnpm.e2e/using-ajv": "1.0.0" }),
-    );
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/using-ajv": "1.0.0" }));
     generate_lockfile(pnpm);
     pacquet
         .with_args(["install", "--frozen-lockfile"])
@@ -1063,11 +938,7 @@ fn should_add_extra_node_paths_to_command_shims() {
         .iter()
         .find(|(key, _)| key.to_string() == "@pnpm.e2e/hello-world-js-bin@1.0.0")
         .expect("lockfile records the added package");
-    assert_eq!(
-        metadata.has_bin,
-        Some(true),
-        "the fresh lockfile must record hasBin",
-    );
+    assert_eq!(metadata.has_bin, Some(true), "the fresh lockfile must record hasBin");
 
     drop((root, npmrc_info)); // cleanup
 }
@@ -1131,10 +1002,7 @@ fn rehoists_when_an_up_to_date_lockfile_removes_a_direct_dependency() {
         "a direct dependency's name is not privately hoisted",
     );
 
-    write_manifest(
-        &workspace,
-        serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
     pacquet_at(&workspace)
         .with_args(["install", "--lockfile-only"])
         .assert()

@@ -45,10 +45,7 @@ fn restored_state_survives_eviction_and_is_independent() {
     );
     fs::write(&restored, b"edited").unwrap();
     assert_eq!(fs::read(&original).unwrap(), b"original");
-    assert_eq!(
-        fs::read(entry.join("files/debug/incremental/state")).unwrap(),
-        b"original",
-    );
+    assert_eq!(fs::read(entry.join("files/debug/incremental/state")).unwrap(), b"original");
     fs::remove_dir_all(cache.path()).unwrap();
     assert_eq!(fs::read(&restored).unwrap(), b"edited");
     consumer.prepare("inputs").unwrap();
@@ -93,27 +90,14 @@ fn existing_target_is_never_replaced_and_changed_inputs_invalidate_freshness() {
     );
     cache.prepare("changed").unwrap();
     assert!(!cache.target.join("debug/.fingerprint").exists());
-    assert_eq!(
-        fs::read_to_string(cache.target.join("debug/incremental/state")).unwrap(),
-        "keep",
-    );
+    assert_eq!(fs::read_to_string(cache.target.join("debug/incremental/state")).unwrap(), "keep");
 }
 
 #[test]
 fn target_paths_cannot_escape_or_replace_package_metadata() {
     let root = project();
-    for path in [
-        "",
-        "../target",
-        "/target",
-        ".git/target",
-        "node_modules/target",
-        ".",
-    ] {
-        assert!(
-            CargoCache::open(root.path(), path).is_err(),
-            "accepted {path}",
-        );
+    for path in ["", "../target", "/target", ".git/target", "node_modules/target", "."] {
+        assert!(CargoCache::open(root.path(), path).is_err(), "accepted {path}");
     }
 }
 
@@ -156,10 +140,7 @@ fn source_configuration_and_environment_changes_select_different_snapshots() {
     );
     let cache = tempfile::tempdir().unwrap();
     let environment = std::collections::BTreeMap::new();
-    let key = || {
-        super::snapshot_entry(cache.path(), root.path(), "task", &environment).unwrap()
-            .1
-    };
+    let key = || super::snapshot_entry(cache.path(), root.path(), "task", &environment).unwrap().1;
     let original = key();
     fs::write(root.path().join("src/lib.rs"), "pub fn value() -> u8 { 2 }").unwrap();
     let changed_source = key();
@@ -177,8 +158,7 @@ fn source_configuration_and_environment_changes_select_different_snapshots() {
         "--cfg another_build".to_string(),
     )]);
     let changed_environment =
-        super::snapshot_entry(cache.path(), root.path(), "task", &environment).unwrap()
-            .1;
+        super::snapshot_entry(cache.path(), root.path(), "task", &environment).unwrap().1;
     assert_ne!(changed_config, changed_environment);
 }
 
@@ -241,11 +221,7 @@ fn snapshot_storage_cannot_overlap_the_build_directory() {
     let cache = CargoCache::open(root.path(), "target").unwrap();
     fs::create_dir(&cache.target).unwrap();
     fs::write(cache.target.join("state"), "keep").unwrap();
-    for entry in [
-        root.path().to_path_buf(),
-        cache.target.clone(),
-        cache.target.join("nested"),
-    ] {
+    for entry in [root.path().to_path_buf(), cache.target.clone(), cache.target.join("nested")] {
         assert!(
             cache
                 .publish(&entry, "inputs", &[])
@@ -253,10 +229,7 @@ fn snapshot_storage_cannot_overlap_the_build_directory() {
         );
         assert!(cache.restore(&entry, "inputs").is_err());
     }
-    assert_eq!(
-        fs::read_to_string(cache.target.join("state")).unwrap(),
-        "keep",
-    );
+    assert_eq!(fs::read_to_string(cache.target.join("state")).unwrap(), "keep");
 }
 
 #[cfg(target_os = "linux")]
@@ -292,15 +265,9 @@ fn restoration_falls_back_to_copy_on_tmpfs() {
     let consumer = CargoCache::open(second_worktree.path(), "target").unwrap();
     assert!(consumer.restore(&entry, "inputs").unwrap());
     fs::write(consumer.target.join("state"), "edited").unwrap();
-    assert_eq!(
-        fs::read_to_string(entry.join("files/state")).unwrap(),
-        "original",
-    );
+    assert_eq!(fs::read_to_string(entry.join("files/state")).unwrap(), "original");
     fs::remove_dir_all(storage.path()).unwrap();
-    assert_eq!(
-        fs::read_to_string(consumer.target.join("state")).unwrap(),
-        "edited",
-    );
+    assert_eq!(fs::read_to_string(consumer.target.join("state")).unwrap(), "edited");
 }
 
 #[test]

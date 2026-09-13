@@ -24,12 +24,7 @@ use super::{
 #[tokio::test]
 async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
     web_auth_fake!(FakeHost, RecordingReporter, infos);
-    login_fake!(
-        FakeHost,
-        set_prompt_input,
-        set_prompt_password,
-        login_writes
-    );
+    login_fake!(FakeHost, set_prompt_input, set_prompt_password, login_writes);
     reset();
     reset_login();
     set_prompt_input(credential_prompts("john", "john@example.com"));
@@ -72,12 +67,7 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
 #[tokio::test]
 async fn should_fall_back_to_classic_login_on_a_subpath_registry_without_a_trailing_slash() {
     web_auth_fake!(FakeHost, RecordingReporter, infos);
-    login_fake!(
-        FakeHost,
-        set_prompt_input,
-        set_prompt_password,
-        login_writes
-    );
+    login_fake!(FakeHost, set_prompt_input, set_prompt_password, login_writes);
     reset();
     reset_login();
     set_prompt_input(credential_prompts("john", "john@example.com"));
@@ -118,12 +108,7 @@ async fn should_fall_back_to_classic_login_on_a_subpath_registry_without_a_trail
 #[tokio::test]
 async fn should_fall_back_to_classic_login_when_web_login_returns_405() {
     web_auth_fake!(FakeHost, RecordingReporter, infos);
-    login_fake!(
-        FakeHost,
-        set_prompt_input,
-        set_prompt_password,
-        login_writes
-    );
+    login_fake!(FakeHost, set_prompt_input, set_prompt_password, login_writes);
     reset();
     reset_login();
     set_prompt_input(credential_prompts("jane", "jane@example.com"));
@@ -371,10 +356,7 @@ async fn should_throw_when_username_is_empty_in_classic_login() {
             .as_deref(),
         Some("ERR_PNPM_LOGIN_MISSING_CREDENTIALS"),
     );
-    assert_eq!(
-        err.to_string(),
-        "Username, password, and email are all required",
-    );
+    assert_eq!(err.to_string(), "Username, password, and email are all required");
 }
 
 #[tokio::test]
@@ -456,10 +438,7 @@ async fn should_throw_when_classic_login_returns_no_token() {
             .as_deref(),
         Some("ERR_PNPM_LOGIN_NO_TOKEN"),
     );
-    assert_eq!(
-        err.to_string(),
-        "The registry did not return an authentication token",
-    );
+    assert_eq!(err.to_string(), "The registry did not return an authentication token");
 }
 
 /// A credential prompt that fails with a non-interrupt I/O error surfaces as

@@ -35,12 +35,7 @@ pub fn build_graph(
     let mut nodes_to_build_set: HashSet<PackageKey> = HashSet::new();
     let mut nodes_to_build: Vec<PackageKey> = Vec::new();
     let mut walked: HashSet<PackageKey> = HashSet::new();
-    let ctx = GetSubgraphCtx {
-        children: &children,
-        requires_build,
-        patches,
-        skipped,
-    };
+    let ctx = GetSubgraphCtx { children: &children, requires_build, patches, skipped };
     get_subgraph_to_build(
         &root_dep_paths,
         &ctx,
@@ -83,16 +78,14 @@ fn build_children_map(
     let mut children: HashMap<PackageKey, Vec<PackageKey>> =
         HashMap::with_capacity(snapshots.len());
     for (key, snap) in snapshots {
-        let mut child_keys: Vec<PackageKey> = [
-            snap.dependencies.as_ref(),
-            snap.optional_dependencies.as_ref(),
-        ]
-        .into_iter()
-        .flatten()
-        .flatten()
-        .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
-        .filter(|resolved| snapshots.contains_key(resolved))
-        .collect();
+        let mut child_keys: Vec<PackageKey> =
+            [snap.dependencies.as_ref(), snap.optional_dependencies.as_ref()]
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
+                .filter(|resolved| snapshots.contains_key(resolved))
+                .collect();
         // Sort for the same reason `collect_root_dep_paths` sorts
         // its output: `get_subgraph_to_build` walks children in
         // sequence, and a shared transitive descendant gets trimmed
@@ -190,13 +183,8 @@ fn get_subgraph_to_build(
             .get(dep_path)
             .cloned()
             .unwrap_or_default();
-        let child_should_be_built = get_subgraph_to_build(
-            &child_paths,
-            ctx,
-            nodes_to_build_set,
-            nodes_to_build,
-            walked,
-        );
+        let child_should_be_built =
+            get_subgraph_to_build(&child_paths, ctx, nodes_to_build_set, nodes_to_build, walked);
 
         if child_should_be_built || node_builds(dep_path, ctx) {
             if nodes_to_build_set.insert(dep_path.clone()) {

@@ -64,11 +64,8 @@ pub(crate) fn write_workspace_catalogs(
         Some(dir) => dir.to_path_buf(),
         None => derive_workspace_dir(current_manifest)?,
     };
-    let projects = if config.catalog_prune {
-        load_cleanup_projects(&workspace_dir)?
-    } else {
-        Vec::new()
-    };
+    let projects =
+        if config.catalog_prune { load_cleanup_projects(&workspace_dir)? } else { Vec::new() };
     let all_projects = manifest_refs_with_current(&projects, current_manifest);
     update_workspace_manifest(
         &workspace_dir,
@@ -160,8 +157,7 @@ pub(crate) fn post_install_prune(
     update_workspace_manifest(
         &workspace_dir,
         &UpdateWorkspaceManifestOptions {
-            prune_minimum_release_age_excludes: config
-                .minimum_release_age_exclude_prune,
+            prune_minimum_release_age_excludes: config.minimum_release_age_exclude_prune,
             prune_trust_policy_excludes: config.trust_policy_exclude_prune,
             prune_allow_builds: true,
             resolved_package_versions: Some(&resolved),
@@ -182,20 +178,11 @@ pub(crate) fn post_install_prune(
 /// can (a versioned entry is pruned).
 fn resolved_package_versions(lockfile: &Lockfile) -> ResolvedPackageVersions {
     let mut resolved = ResolvedPackageVersions::new();
-    for key in lockfile.snapshots
-        .iter()
-        .flat_map(|snapshots| snapshots.keys())
-    {
-        let versions = resolved
-            .entry(key.name.to_string())
-            .or_default();
+    for key in lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()) {
+        let versions = resolved.entry(key.name.to_string()).or_default();
         let version = key.suffix
             .version_semver()
-            .or_else(|| {
-                key.suffix
-                    .registry_qualified()
-                    .map(|(_, version)| version)
-            });
+            .or_else(|| key.suffix.registry_qualified().map(|(_, version)| version));
         if let Some(version) = version {
             versions.insert(version.to_string());
         }

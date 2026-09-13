@@ -156,21 +156,21 @@ fn resolved_config_values(
         key: config.tls.key.clone(),
         strict_ssl: config.tls.strict_ssl,
         store_dir: std::path::PathBuf::from(config.store_dir.clone()).display().to_string(),
-        cache_dir: config.cache_dir.display().to_string(),
-        virtual_store_dir_max_length: capped_u32(config.virtual_store_dir_max_length),
+        cache_dir: display_path(&config.cache_dir),
+        virtual_store_dir_max_length: bounded_u32(config.virtual_store_dir_max_length),
         enable_global_virtual_store: config.enable_global_virtual_store,
-        global_virtual_store_dir: config.global_virtual_store_dir.display().to_string(),
-        virtual_store_dir: config.virtual_store_dir.display().to_string(),
+        global_virtual_store_dir: display_path(&config.global_virtual_store_dir),
+        virtual_store_dir: display_path(&config.virtual_store_dir),
         effective_virtual_store_dir: display_path(config.effective_virtual_store_dir()),
-        network_concurrency: capped_u32(config.network_concurrency),
-        max_sockets: config.max_sockets.map(capped_u32),
+        network_concurrency: u32::try_from(config.network_concurrency).unwrap_or(u32::MAX),
+        max_sockets: config.max_sockets.map(|value| u32::try_from(value).unwrap_or(u32::MAX)),
         fetch_retries: config.fetch_retries,
         fetch_retry_factor: config.fetch_retry_factor,
-        fetch_retry_mintimeout: capped_u32(config.fetch_retry_mintimeout),
-        fetch_retry_maxtimeout: capped_u32(config.fetch_retry_maxtimeout),
-        fetch_timeout: capped_u32(config.fetch_timeout),
-        fetch_warn_timeout_ms: capped_u32(config.fetch_warn_timeout_ms),
-        fetch_min_speed_ki_bps: capped_u32(config.fetch_min_speed_ki_bps),
+        fetch_retry_mintimeout: u32::try_from(config.fetch_retry_mintimeout).unwrap_or(u32::MAX),
+        fetch_retry_maxtimeout: u32::try_from(config.fetch_retry_maxtimeout).unwrap_or(u32::MAX),
+        fetch_timeout: u32::try_from(config.fetch_timeout).unwrap_or(u32::MAX),
+        fetch_warn_timeout_ms: u32::try_from(config.fetch_warn_timeout_ms).unwrap_or(u32::MAX),
+        fetch_min_speed_ki_bps: u32::try_from(config.fetch_min_speed_ki_bps).unwrap_or(u32::MAX),
         user_agent: explicit_user_agent(config),
         engine_strict: config.engine_strict,
         node_version: config.node_version.clone(),
@@ -178,7 +178,8 @@ fn resolved_config_values(
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         shamefully_hoist: config.shamefully_hoist,
-        pnpm_home_dir: pnpm_config::default_pnpm_home_dir::<pnpm_config::Host>().map(display_path),
+        pnpm_home_dir: pnpm_config::default_pnpm_home_dir::<pnpm_config::Host>()
+            .map(|dir| dir.display().to_string()),
         explicit_settings: config.explicit_settings
             .keys()
             .cloned()
@@ -186,11 +187,16 @@ fn resolved_config_values(
     }
 }
 
+fn bounded_u32(value: u64) -> u32 {
+    u32::try_from(value).unwrap_or(u32::MAX)
+}
+fn display_path(path: impl AsRef<std::path::Path>) -> String {
+    path.as_ref().display().to_string()
+}
+
 /// Embedders supply their own user agent unless configuration explicitly overrides it.
 fn explicit_user_agent(config: &pnpm_config::Config) -> Option<String> {
-    config.explicit_settings
-        .contains_key("userAgent")
-        .then(|| config.user_agent.clone())
+    config.explicit_settings.contains_key("userAgent").then(|| config.user_agent.clone())
 }
 
 fn import_method_name(method: pnpm_config::PackageImportMethod) -> &'static str {
@@ -224,31 +230,10 @@ fn resolved_registries(
             // A scope registry prefers its scope-keyed credential; both
             // registry kinds fall back to the registry-wide (`@`) one.
             let auth_header = scoped
-                .and_then(|headers| {
-                    if name == "default" {
-                        None
-                    } else {
-                        headers.get(name)
-                    }
-                })
+                .and_then(|headers| if name == "default" { None } else { headers.get(name) })
                 .or_else(|| scoped.and_then(|headers| headers.get(DEFAULT_REGISTRY_SCOPE)))
                 .cloned();
-            ResolvedRegistry {
-                name: name.clone(),
-                url: url.clone(),
-                auth_header,
-            }
+            ResolvedRegistry { name: name.clone(), url: url.clone(), auth_header }
         })
         .collect()
-}
-
-fn display_path(path: impl AsRef<std::path::Path>) -> String {
-    path
-        .as_ref()
-        .display()
-        .to_string()
-}
-
-fn capped_u32(value: impl TryInto<u32>) -> u32 {
-    value.try_into().unwrap_or(u32::MAX)
 }

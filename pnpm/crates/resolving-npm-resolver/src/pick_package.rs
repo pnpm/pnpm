@@ -63,9 +63,7 @@ mod options;
 mod mirror_pick;
 
 mod mirror_persistence;
-use mirror_persistence::{
-    get_file_mtime, metadata_cache_key, metadata_directory, validate_package_name,
-};
+use mirror_persistence::{get_file_mtime, metadata_cache_key, validate_package_name};
 
 mod release_age_upgrade;
 use release_age_upgrade::{
@@ -213,9 +211,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // callers may briefly duplicate a disk read; the mem-cache
     // promotion inside each path keeps that a one-wave cost.
     let mut disk_meta: Option<Arc<Package>> = None;
-    if let Some(result) = state.mirror_fast_paths(ctx, spec, opts, &mut disk_meta)
-        .await
-    {
+    if let Some(result) = state.mirror_fast_paths(ctx, spec, opts, &mut disk_meta).await {
         return Ok(result);
     }
 
@@ -241,11 +237,8 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     }
 
     // 2. Offline / pickLowestVersion / preferOffline disk read.
-    if (ctx.cache_policy.offline
-        || ctx.cache_policy.prefer_offline
-        || opts.pick_lowest_version)
-        && let Some(result) = state.offline_disk_pick(ctx, spec, opts, &mut disk_meta)
-            .await?
+    if (ctx.cache_policy.offline || ctx.cache_policy.prefer_offline || opts.pick_lowest_version)
+        && let Some(result) = state.offline_disk_pick(ctx, spec, opts, &mut disk_meta).await?
     {
         return Ok(result);
     }
@@ -304,7 +297,11 @@ impl<'a> PickState<'a> {
             });
         let full_metadata = opts.request.optional || policy_wants_full_metadata;
         let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
-        let base_meta_dir = metadata_directory(full_metadata, use_filtered_full_metadata);
+        let base_meta_dir = if full_metadata {
+            if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
+        } else {
+            ABBREVIATED_META_DIR
+        };
 
         // A `Private` route relocates the mirror under its descriptor
         // namespace so it can never be read by a caller who doesn't reproduce
@@ -321,8 +318,7 @@ impl<'a> PickState<'a> {
                 published_by_exclude: opts.policy.published_by_exclude,
                 pick_lowest_version: opts.pick_lowest_version,
                 include_latest_tag: opts.include_latest_tag,
-                ignore_missing_time_field: ctx.cache_policy
-                    .ignore_missing_time_field,
+                ignore_missing_time_field: ctx.cache_policy.ignore_missing_time_field,
             },
             cache_key: metadata_cache_key(
                 &scope,
@@ -419,27 +415,23 @@ impl<'a> PickState<'a> {
     ) -> Result<PickPackageResult, PickPackageError> {
         let fetch_opts = self.cached_fetch_options(ctx, opts.registry);
 
-        let meta =
-            match fetch_full_metadata_cached(&spec.name, &fetch_opts).await {
-                Ok(meta) => Arc::new(meta),
-                Err(error) => {
-                    let Some(disk) = self.disk_fallback(&error, disk_meta).await else {
-                        return Err(error.into());
-                    };
-                    tracing::debug!(
-                        target: "pnpm_resolving_npm_resolver::pick_package",
-                        ?error,
-                        pkg_name = %spec.name,
-                        "metadata fetch failed; falling back to on-disk mirror",
-                    );
-                    let (meta, picked) =
-                        pick_from_meta(&self.picker_opts, spec, disk, opts.blocked_versions)?;
-                    return Ok(PickPackageResult {
-                        meta,
-                        picked_package: picked,
-                    });
-                }
-            };
+        let meta = match fetch_full_metadata_cached(&spec.name, &fetch_opts).await {
+            Ok(meta) => Arc::new(meta),
+            Err(error) => {
+                let Some(disk) = self.disk_fallback(&error, disk_meta).await else {
+                    return Err(error.into());
+                };
+                tracing::debug!(
+                    target: "pnpm_resolving_npm_resolver::pick_package",
+                    ?error,
+                    pkg_name = %spec.name,
+                    "metadata fetch failed; falling back to on-disk mirror",
+                );
+                let (meta, picked) =
+                    pick_from_meta(&self.picker_opts, spec, disk, opts.blocked_versions)?;
+                return Ok(PickPackageResult { meta, picked_package: picked });
+            }
+        };
 
         let upgrade = maybe_upgrade_abbreviated_meta_for_release_age(
             ctx,
@@ -462,10 +454,7 @@ impl<'a> PickState<'a> {
             ctx.metadata.meta_cache.set(self.cache_key.clone(), Arc::clone(&meta));
         }
         let (meta, picked) = pick_from_meta(&self.picker_opts, spec, meta, opts.blocked_versions)?;
-        Ok(PickPackageResult {
-            meta,
-            picked_package: picked,
-        })
+        Ok(PickPackageResult { meta, picked_package: picked })
     }
 
     fn persist_release_age_upgrade<Cache: PackageMetaCache>(
@@ -600,10 +589,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     {
         return Ok(None);
     }
-    Ok(Some(PickPackageResult {
-        meta,
-        picked_package: picked,
-    }))
+    Ok(Some(PickPackageResult { meta, picked_package: picked }))
 }
 
 #[cfg(test)]

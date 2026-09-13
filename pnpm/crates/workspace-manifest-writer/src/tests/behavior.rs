@@ -12,12 +12,7 @@ fn preserves_quotes_and_appends_new_entry() {
         Some(original),
         &catalogs(&[(
             "default",
-            &[
-                ("foo", "1.0.0"),
-                ("bar", "2.0.0"),
-                ("qar", "3.0.0"),
-                ("zoo", "4.0.0"),
-            ],
+            &[("foo", "1.0.0"), ("bar", "2.0.0"), ("qar", "3.0.0"), ("zoo", "4.0.0")],
         )]),
     )
     .expect("written");
@@ -30,25 +25,15 @@ fn preserves_quotes_and_appends_new_entry() {
 #[test]
 fn no_blank_lines_when_original_has_none() {
     let original = "packages:\n  - '*'\nallowBuilds:\n  foo: true\n";
-    let out = run(
-        Some(original),
-        &catalogs(&[("default", &[("bar", "2.0.0")])]),
-    )
-    .expect("written");
-    assert_eq!(
-        out,
-        "packages:\n  - '*'\nallowBuilds:\n  foo: true\ncatalog:\n  bar: 2.0.0\n",
-    );
+    let out = run(Some(original), &catalogs(&[("default", &[("bar", "2.0.0")])])).expect("written");
+    assert_eq!(out, "packages:\n  - '*'\nallowBuilds:\n  foo: true\ncatalog:\n  bar: 2.0.0\n");
 }
 
 #[test]
 fn inserts_entry_in_sorted_position() {
     let original = "catalog:\n  apple: '1.0.0'\n  mango: '2.0.0'\n  zebra: '3.0.0'\n";
-    let out = run(
-        Some(original),
-        &catalogs(&[("default", &[("banana", "4.0.0")])]),
-    )
-    .expect("written");
+    let out =
+        run(Some(original), &catalogs(&[("default", &[("banana", "4.0.0")])])).expect("written");
     assert_eq!(
         out,
         "catalog:\n  apple: '1.0.0'\n  banana: 4.0.0\n  mango: '2.0.0'\n  zebra: '3.0.0'\n",
@@ -58,72 +43,44 @@ fn inserts_entry_in_sorted_position() {
 #[test]
 fn appends_entry_when_block_is_unordered() {
     let original = "catalog:\n  zebra: '1.0.0'\n  apple: '2.0.0'\n";
-    let out = run(
-        Some(original),
-        &catalogs(&[("default", &[("mango", "3.0.0")])]),
-    )
-    .expect("written");
-    assert_eq!(
-        out,
-        "catalog:\n  zebra: '1.0.0'\n  apple: '2.0.0'\n  mango: 3.0.0\n",
-    );
+    let out =
+        run(Some(original), &catalogs(&[("default", &[("mango", "3.0.0")])])).expect("written");
+    assert_eq!(out, "catalog:\n  zebra: '1.0.0'\n  apple: '2.0.0'\n  mango: 3.0.0\n");
 }
 
 #[test]
 fn no_op_when_entry_already_present_with_same_specifier() {
     let original = "catalog:\n  # keep this comment\n  foo: ^1.0.0\n";
-    let out = run(
-        Some(original),
-        &catalogs(&[("default", &[("foo", "^1.0.0")])]),
-    )
-    .expect("written");
+    let out =
+        run(Some(original), &catalogs(&[("default", &[("foo", "^1.0.0")])])).expect("written");
     assert_eq!(out, original);
 }
 
 #[test]
 fn inserts_entry_into_a_four_space_indented_block() {
     let original = "catalogs:\n    react:\n        react: 18.0.0\n";
-    let out = run(
-        Some(original),
-        &catalogs(&[("react", &[("react-dom", "18.0.0")])]),
-    )
-    .expect("written");
-    assert_eq!(
-        out,
-        "catalogs:\n    react:\n        react: 18.0.0\n        react-dom: 18.0.0\n",
-    );
+    let out =
+        run(Some(original), &catalogs(&[("react", &[("react-dom", "18.0.0")])])).expect("written");
+    assert_eq!(out, "catalogs:\n    react:\n        react: 18.0.0\n        react-dom: 18.0.0\n");
 }
 
 #[test]
 fn quotes_scoped_package_keys() {
     // A key starting with `@` cannot be a YAML plain scalar, so it must be
     // quoted — both when creating the block and when adding an entry.
-    let out = run(
-        None,
-        &catalogs(&[("default", &[("@pnpm.e2e/foo", "1.0.0")])]),
-    )
-    .expect("written");
+    let out = run(None, &catalogs(&[("default", &[("@pnpm.e2e/foo", "1.0.0")])])).expect("written");
     assert_eq!(out, "catalog:\n  '@pnpm.e2e/foo': 1.0.0\n");
 
-    let out = run(
-        Some(&out),
-        &catalogs(&[("default", &[("@pnpm.e2e/bar", "2.0.0")])]),
-    )
-    .expect("written");
-    assert_eq!(
-        out,
-        "catalog:\n  '@pnpm.e2e/bar': 2.0.0\n  '@pnpm.e2e/foo': 1.0.0\n",
-    );
+    let out =
+        run(Some(&out), &catalogs(&[("default", &[("@pnpm.e2e/bar", "2.0.0")])])).expect("written");
+    assert_eq!(out, "catalog:\n  '@pnpm.e2e/bar': 2.0.0\n  '@pnpm.e2e/foo': 1.0.0\n");
 }
 
 #[test]
 fn preserves_comment_when_inserting_before_commented_entry() {
     let original = "catalog:\n  apple: 1.0.0\n  # note about zebra\n  zebra: 3.0.0\n";
-    let out = run(
-        Some(original),
-        &catalogs(&[("default", &[("mango", "2.0.0")])]),
-    )
-    .expect("written");
+    let out =
+        run(Some(original), &catalogs(&[("default", &[("mango", "2.0.0")])])).expect("written");
     assert_eq!(
         out,
         "catalog:\n  apple: 1.0.0\n  mango: 2.0.0\n  # note about zebra\n  zebra: 3.0.0\n",
@@ -139,10 +96,7 @@ fn allow_builds_creates_block_when_absent() {
 #[test]
 fn allow_builds_writes_boolean_values_unquoted() {
     let out = run_allow_builds(None, &[("esbuild", true), ("@scope/pkg", false)]);
-    assert_eq!(
-        out.as_deref(),
-        Some("allowBuilds:\n  '@scope/pkg': false\n  esbuild: true\n"),
-    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  '@scope/pkg': false\n  esbuild: true\n"));
 }
 
 #[test]
@@ -177,10 +131,7 @@ fn allow_builds_preserves_other_keys_and_comments() {
     let out = run_allow_builds(Some(original), &[("esbuild", true)]).expect("file written");
     assert!(out.contains("# top comment"), "comment preserved");
     assert!(out.contains("storeDir: ../store"), "existing key preserved");
-    assert!(
-        out.contains("allowBuilds:\n  esbuild: true"),
-        "block appended",
-    );
+    assert!(out.contains("allowBuilds:\n  esbuild: true"), "block appended");
 }
 
 #[test]
@@ -193,11 +144,7 @@ fn allow_builds_upserts_a_key_containing_a_colon() {
     let original = format!("allowBuilds:\n  '{key}': false\n");
     let out = run_allow_builds(Some(&original), &[(key, true)]).expect("file written");
     assert_eq!(out, format!("allowBuilds:\n  '{key}': true\n"));
-    assert_eq!(
-        out.matches(key).count(),
-        1,
-        "exactly one entry, no duplicate: {out}",
-    );
+    assert_eq!(out.matches(key).count(), 1, "exactly one entry, no duplicate: {out}");
 }
 
 #[test]
@@ -207,18 +154,10 @@ fn allow_builds_creates_and_round_trips_a_colon_key() {
     assert!(created.contains(key), "key written verbatim: {created}");
     // Re-upserting the same value is a no-op (the entry is found, not duplicated).
     let same = run_allow_builds(Some(&created), &[(key, true)]);
-    assert_eq!(
-        same.as_deref(),
-        Some(created.as_str()),
-        "idempotent: {created}",
-    );
+    assert_eq!(same.as_deref(), Some(created.as_str()), "idempotent: {created}");
     // Toggling flips the existing entry rather than appending a duplicate.
     let toggled = run_allow_builds(Some(&created), &[(key, false)]).expect("written");
-    assert_eq!(
-        toggled.matches(key).count(),
-        1,
-        "no duplicate after toggle: {toggled}",
-    );
+    assert_eq!(toggled.matches(key).count(), 1, "no duplicate after toggle: {toggled}");
 }
 
 #[test]
@@ -247,10 +186,7 @@ fn overrides_are_added_after_packages() {
     let original = "packages:\n  - '*'\n";
     let out =
         run_overrides(Some(original), &overrides(&[("foo@<1.0.1", "^1.0.1")])).expect("written");
-    assert_eq!(
-        out,
-        "packages:\n  - '*'\noverrides:\n  foo@<1.0.1: ^1.0.1\n",
-    );
+    assert_eq!(out, "packages:\n  - '*'\noverrides:\n  foo@<1.0.1: ^1.0.1\n");
 }
 
 #[test]
@@ -264,30 +200,21 @@ fn overrides_noop_when_already_present() {
 #[test]
 fn minimum_release_age_exclude_block_is_created() {
     let out = run_age_excludes(None, &["foo@1.0.0", "bar@2.0.0"]).expect("written");
-    assert_eq!(
-        out,
-        "minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - bar@2.0.0\n",
-    );
+    assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - bar@2.0.0\n");
 }
 
 #[test]
 fn minimum_release_age_exclude_added_after_packages() {
     let original = "packages:\n  - '*'\n";
     let out = run_age_excludes(Some(original), &["foo@1.0.0"]).expect("written");
-    assert_eq!(
-        out,
-        "packages:\n  - '*'\nminimumReleaseAgeExclude:\n  - foo@1.0.0\n",
-    );
+    assert_eq!(out, "packages:\n  - '*'\nminimumReleaseAgeExclude:\n  - foo@1.0.0\n");
 }
 
 #[test]
 fn minimum_release_age_exclude_replaces_existing_block() {
     let original = "minimumReleaseAgeExclude:\n  - foo@1.0.0\n";
     let out = run_age_excludes(Some(original), &["foo@1.0.0", "bar@2.0.0"]).expect("written");
-    assert_eq!(
-        out,
-        "minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - bar@2.0.0\n",
-    );
+    assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - bar@2.0.0\n");
 }
 
 #[test]
@@ -316,10 +243,7 @@ fn minimum_release_age_exclude_add_keeps_the_existing_entries_comments() {
     )
     .expect("written");
 
-    assert_eq!(
-        out,
-        "minimumReleaseAgeExclude:\n  - foo@1.0.0 # audited\n  - new@1.0.0\n",
-    );
+    assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0 # audited\n  - new@1.0.0\n");
 }
 
 /// A rewritten entry loses its own comment, matching the TypeScript writer's
@@ -336,10 +260,7 @@ fn minimum_release_age_exclude_add_keeps_other_comments_when_one_entry_is_rewrit
     )
     .expect("written");
 
-    assert_eq!(
-        out,
-        "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n  - bar@1.0.0 # pinned\n",
-    );
+    assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0 || 2.0.0\n  - bar@1.0.0 # pinned\n");
 }
 
 #[test]
@@ -354,10 +275,7 @@ fn minimum_release_age_exclude_add_ends_a_reused_last_line_that_has_no_newline()
     )
     .expect("written");
 
-    assert_eq!(
-        out,
-        "minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - new@1.0.0\n",
-    );
+    assert_eq!(out, "minimumReleaseAgeExclude:\n  - foo@1.0.0\n  - new@1.0.0\n");
 }
 
 #[test]
@@ -372,10 +290,7 @@ fn minimum_release_age_exclude_add_matches_the_blocks_crlf_line_endings() {
     )
     .expect("written");
 
-    assert_eq!(
-        out,
-        "minimumReleaseAgeExclude:\r\n  - foo@1.0.0\r\n  - new@1.0.0\r\n",
-    );
+    assert_eq!(out, "minimumReleaseAgeExclude:\r\n  - foo@1.0.0\r\n  - new@1.0.0\r\n");
 }
 
 #[test]
@@ -388,10 +303,7 @@ fn set_overrides_refuses_to_clobber_a_non_scalar_value() {
     let err = crate::set_overrides(dir.path(), [("foo@<2.0.0", "^2.0.0")])
         .expect_err("must refuse to overwrite a non-scalar override");
 
-    assert!(matches!(
-        err,
-        crate::UpdateWorkspaceManifestError::OverrideConflict { .. }
-    ));
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::OverrideConflict { .. }));
     // The original object value is left untouched.
     let after = fs::read_to_string(&path).expect("read manifest");
     assert_eq!(after, "overrides:\n  foo@<2.0.0:\n    bar: 1.0.0\n");
@@ -431,10 +343,7 @@ fn set_overrides_refuses_a_multiline_flow_block() {
     let err = crate::set_overrides(dir.path(), [("bar", "^2.0.0")])
         .expect_err("must refuse a multi-line inline overrides block");
 
-    assert!(matches!(
-        err,
-        crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }
-    ));
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::UnsupportedInlineBlock { .. }));
     let after = fs::read_to_string(&path).expect("read manifest");
     assert_eq!(after, original);
 }
@@ -449,10 +358,7 @@ fn set_allow_builds_rejects_control_characters() {
     let err = crate::set_allow_builds(dir.path(), [("esbuild\ninjected: true", true)])
         .expect_err("must reject a control character");
 
-    assert!(matches!(
-        err,
-        crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }
-    ));
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }));
     assert!(!path.exists(), "nothing should be written");
 }
 
@@ -464,10 +370,7 @@ fn minimum_release_age_excludes_rejects_control_characters() {
         crate::set_minimum_release_age_excludes(dir.path(), &["foo\r\nbar@1.0.0".to_string()])
             .expect_err("must reject a control character");
 
-    assert!(matches!(
-        err,
-        crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }
-    ));
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }));
 }
 
 #[test]
@@ -477,10 +380,7 @@ fn set_overrides_rejects_control_characters() {
     let err = crate::set_overrides(dir.path(), [("foo@<2.0.0\nx", "^2.0.0")])
         .expect_err("must reject a control character");
 
-    assert!(matches!(
-        err,
-        crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }
-    ));
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }));
 }
 
 #[test]
@@ -531,10 +431,7 @@ fn remove_overrides_keeps_block_when_only_non_string_entry_remains() {
     // non-string entry (which the decoded map drops) is still present.
     let original = "overrides:\n  foo: link:../foo\n  bar:\n    nested: value\n";
     let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
-    assert!(
-        out.contains("bar:"),
-        "non-string override must survive: {out}",
-    );
+    assert!(out.contains("bar:"), "non-string override must survive: {out}");
 }
 
 #[test]
@@ -600,11 +497,7 @@ fn delete_last_field_keeps_a_kept_chomped_block_scalars_trailing_blank() {
         let original = format!("notes: {header}\n  foo\n\nvirtualStoreDir: .pnpm\n");
         let out = run_update_field(Some(&original), "virtualStoreDir", &serde_json::Value::Null)
             .expect("file kept");
-        assert_eq!(
-            out,
-            format!("notes: {header}\n  foo\n\n"),
-            "header {header}",
-        );
+        assert_eq!(out, format!("notes: {header}\n  foo\n\n"), "header {header}");
     }
 }
 
@@ -685,12 +578,8 @@ fn changing_the_value_of_the_last_field_keeps_its_single_blank_line() {
 
 #[test]
 fn delete_unset_field_is_noop() {
-    let out = run_update_field(
-        Some("cacheDir: ~/cache\n"),
-        "storeDir",
-        &serde_json::Value::Null,
-    )
-    .expect("file kept");
+    let out = run_update_field(Some("cacheDir: ~/cache\n"), "storeDir", &serde_json::Value::Null)
+        .expect("file kept");
     let parsed: indexmap::IndexMap<String, serde_json::Value> =
         serde_saphyr::from_str(&out).expect("parse");
     assert_eq!(parsed.len(), 1);
@@ -714,14 +603,9 @@ fn allow_builds_replaces_a_multi_word_placeholder_value() {
 /// replacement, which is why the value span stops at ` #`.
 #[test]
 fn allow_builds_keeps_a_trailing_comment() {
-    let out = run_allow_builds(
-        Some("allowBuilds:\n  esbuild: false # why\n"),
-        &[("esbuild", true)],
-    );
-    assert_eq!(
-        out.as_deref(),
-        Some("allowBuilds:\n  esbuild: true # why\n"),
-    );
+    let out =
+        run_allow_builds(Some("allowBuilds:\n  esbuild: false # why\n"), &[("esbuild", true)]);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # why\n"));
 }
 
 /// A quote only delimits a scalar when it opens the value, so an
@@ -733,10 +617,7 @@ fn allow_builds_replaces_a_plain_value_containing_a_quote() {
         Some("allowBuilds:\n  esbuild: don't know yet # decide later\n"),
         &[("esbuild", true)],
     );
-    assert_eq!(
-        out.as_deref(),
-        Some("allowBuilds:\n  esbuild: true # decide later\n"),
-    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # decide later\n"));
 }
 
 /// A doubled quote is the single-quoted style's escape, so it does not
@@ -747,10 +628,7 @@ fn allow_builds_replaces_a_value_with_a_doubled_single_quote() {
         Some("allowBuilds:\n  esbuild: 'it''s # fine' # real\n"),
         &[("esbuild", true)],
     );
-    assert_eq!(
-        out.as_deref(),
-        Some("allowBuilds:\n  esbuild: true # real\n"),
-    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: true # real\n"));
 }
 
 #[test]
@@ -758,20 +636,14 @@ fn prune_allow_builds_removes_undecided_entry_whose_package_is_not_resolved() {
     let original =
         "allowBuilds:\n  foo: set this to true or false\n  bar: set this to true or false\n";
     let out = run_prune_allow_builds(Some(original), &["foo"]);
-    assert_eq!(
-        out.as_deref(),
-        Some("allowBuilds:\n  foo: set this to true or false\n"),
-    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  foo: set this to true or false\n"));
 }
 
 #[test]
 fn prune_allow_builds_keeps_decided_entries() {
     let original = "allowBuilds:\n  foo: true\n  bar: false\n  baz: set this to true or false\n";
     let out = run_prune_allow_builds(Some(original), &[]);
-    assert_eq!(
-        out.as_deref(),
-        Some("allowBuilds:\n  foo: true\n  bar: false\n"),
-    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  foo: true\n  bar: false\n"));
 }
 
 #[test]

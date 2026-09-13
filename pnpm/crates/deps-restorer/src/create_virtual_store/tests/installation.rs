@@ -19,10 +19,7 @@ fn removed_child_aliases_excludes_self_and_unchanged_sets() {
 
     let removed = removed_child_aliases(&current, &wanted, &self_name);
 
-    assert!(
-        removed.is_empty(),
-        "self and still-present children must not be removed: {removed:?}",
-    );
+    assert!(removed.is_empty(), "self and still-present children must not be removed: {removed:?}");
 }
 #[tokio::test]
 async fn shared_store_context_materializes_a_warm_package() {
@@ -54,10 +51,7 @@ async fn shared_store_context_materializes_a_warm_package() {
     let package_metadata = metadata_with_integrity(DUMMY_SHA512);
     let mut files = HashMap::new();
     for (path, content) in [
-        (
-            "package.json",
-            br#"{"name":"from-shared-context","version":"1.0.0"}"#.as_slice(),
-        ),
+        ("package.json", br#"{"name":"from-shared-context","version":"1.0.0"}"#.as_slice()),
         ("index.js", b"module.exports = true\n".as_slice()),
     ] {
         let (_, digest) = config.store_dir
@@ -148,10 +142,7 @@ async fn shared_store_context_materializes_a_warm_package() {
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
         },
 
-        entries: LockfileEntries {
-            packages: Some(&packages),
-            snapshots: Some(&snapshots),
-        },
+        entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
         current_entries: LockfileEntries::default(),
 
         dir_clone_cache: None,
@@ -165,23 +156,14 @@ async fn shared_store_context_materializes_a_warm_package() {
     drop(store_index_writer);
     writer_task.await.expect("join store-index writer").expect("flush store-index writer");
 
-    assert_eq!(
-        output.requires_build_by_snapshot.get(&package_key),
-        Some(&false),
-    );
-    assert_eq!(
-        output.materialized_snapshots.as_slice(),
-        std::slice::from_ref(&package_key),
-    );
+    assert_eq!(output.requires_build_by_snapshot.get(&package_key), Some(&false));
+    assert_eq!(output.materialized_snapshots.as_slice(), std::slice::from_ref(&package_key));
     let installed_body = layout
         .slot_dir(&package_key)
         .join("node_modules")
         .join("from-shared-context")
         .join("index.js");
-    assert!(
-        installed_body.is_file(),
-        "warm package must be materialized: {installed_body:?}",
-    );
+    assert!(installed_body.is_file(), "warm package must be materialized: {installed_body:?}");
 }
 /// A snapshot the install materializes still has its store row
 /// checked, so a row whose CAS blob is gone is re-fetched rather than

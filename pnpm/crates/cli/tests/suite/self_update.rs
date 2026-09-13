@@ -34,11 +34,8 @@ fn self_update_loads_config_and_reaches_the_resolver() {
     // invocation; it isn't load-bearing for this test's assertions because
     // the resolve fails before any maturity check runs. The policy resolution
     // itself is covered by the config-crate unit tests.
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "minimumReleaseAge: 1440\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "minimumReleaseAge: 1440\n")
+        .expect("write pnpm-workspace.yaml");
 
     let output = pacquet
         .with_args(["self-update", "999.999.999"])

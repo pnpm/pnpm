@@ -65,17 +65,11 @@ fn restrictive_acls_fail_promptly() {
     let destination = root.path().join("destination");
     fs::write(&protected, "preserved").unwrap();
     icacls(&tree, &["/inheritance:r", "/grant:r", "*S-1-1-0:(RX,WDAC)"]);
-    icacls(
-        &protected,
-        &["/inheritance:r", "/grant:r", "*S-1-1-0:(R,WDAC)"],
-    );
+    icacls(&protected, &["/inheritance:r", "/grant:r", "*S-1-1-0:(R,WDAC)"]);
     icacls(&tree, &[]);
     icacls(&protected, &[]);
     without_thread_privileges(|| {
-        assert_eq!(
-            fs::remove_file(&protected).unwrap_err().raw_os_error(),
-            Some(5)
-        );
+        assert_eq!(fs::remove_file(&protected).unwrap_err().raw_os_error(), Some(5));
         assert_fails_promptly(|| remove_file_with_retry(&protected));
         assert_fails_promptly(|| rename_with_retry(&protected, &destination));
         assert_fails_promptly(|| remove_dir_all_with_retry(&tree));
@@ -84,10 +78,7 @@ fn restrictive_acls_fail_promptly() {
     icacls(&tree, &["/reset"]);
     icacls(&protected, &["/reset"]);
     assert_eq!(fs::read_to_string(protected).unwrap(), "preserved");
-    assert!(
-        !destination.exists(),
-        "failed rename must not create the destination"
-    );
+    assert!(!destination.exists(), "failed rename must not create the destination");
 }
 
 #[test]
@@ -103,10 +94,7 @@ fn directory_destinations_fail_promptly() {
     assert_fails_promptly(|| remove_file_with_retry(&destination));
 
     assert_eq!(fs::read_to_string(source).unwrap(), "source");
-    assert_eq!(
-        fs::read_to_string(destination.join("child")).unwrap(),
-        "preserved"
-    );
+    assert_eq!(fs::read_to_string(destination.join("child")).unwrap(), "preserved");
 }
 
 #[test]
@@ -124,10 +112,7 @@ fn directory_rename_recovers_after_a_child_handle_closes() {
         .share_mode(0x1 | 0x2)
         .open(&child)
         .unwrap();
-    assert_eq!(
-        fs::rename(&source, &destination).unwrap_err().raw_os_error(),
-        Some(5)
-    );
+    assert_eq!(fs::rename(&source, &destination).unwrap_err().raw_os_error(), Some(5));
 
     std::thread::scope(|scope| {
         scope.spawn(move || {
@@ -137,10 +122,7 @@ fn directory_rename_recovers_after_a_child_handle_closes() {
         rename_with_retry(&source, &destination).unwrap();
     });
 
-    assert_eq!(
-        fs::read_to_string(destination.join("child")).unwrap(),
-        "preserved"
-    );
+    assert_eq!(fs::read_to_string(destination.join("child")).unwrap(), "preserved");
 }
 
 // Elevated test runners can bypass ACLs through backup/restore privileges.
@@ -150,12 +132,7 @@ fn without_thread_privileges(operation: impl FnOnce()) {
     impl Drop for RevertImpersonation {
         fn drop(&mut self) {
             // SAFETY: this guard stays on the thread that called ImpersonateSelf.
-            assert_ne!(
-                unsafe { RevertToSelf() },
-                0,
-                "{}",
-                io::Error::last_os_error()
-            );
+            assert_ne!(unsafe { RevertToSelf() }, 0, "{}", io::Error::last_os_error());
         }
     }
 
@@ -170,14 +147,7 @@ fn without_thread_privileges(operation: impl FnOnce()) {
     let mut token = null_mut();
     assert_ne!(
         // SAFETY: GetCurrentThread returns a valid pseudo-handle and token is a writable output.
-        unsafe {
-            OpenThreadToken(
-                GetCurrentThread(),
-                TOKEN_ADJUST_PRIVILEGES,
-                1,
-                &raw mut token,
-            )
-        },
+        unsafe { OpenThreadToken(GetCurrentThread(), TOKEN_ADJUST_PRIVILEGES, 1, &raw mut token) },
         0,
         "{}",
         io::Error::last_os_error()

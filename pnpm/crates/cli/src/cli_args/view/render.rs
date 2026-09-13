@@ -35,10 +35,7 @@ pub(super) fn render_fields(info: &Value, fields: &[String], json: bool) -> Stri
         .iter()
         .map(|(field, value)| match value {
             Some(value @ (Value::Object(_) | Value::Array(_))) => {
-                format!(
-                    "{field} = {}",
-                    serde_json::to_string(value).unwrap_or_default(),
-                )
+                format!("{field} = {}", serde_json::to_string(value).unwrap_or_default())
             }
             Some(Value::String(string)) => format!("{field} = '{string}'"),
             other => format!("{field} = {}", format_field_value(other.as_ref())),
@@ -87,7 +84,15 @@ pub(super) fn render_summary(info: &Value) -> String {
         lines.push(String::new());
         lines.push(format!("{} - {deprecated}", red("DEPRECATED!")));
     }
-    lines.extend(keyword_summary(info));
+    if let Some(keywords) = array_field(info, "keywords") {
+        let joined = keywords
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>()
+            .join(", ");
+        lines.push(String::new());
+        lines.push(format!("keywords: {}", cyan(&joined)));
+    }
 
     lines.extend(bin_summary(info));
     lines.extend(dist_lines(info));
@@ -137,10 +142,7 @@ fn dist_lines(info: &Value) -> Vec<String> {
         lines.push(format!(".integrity: {}", green(integrity)));
     }
     if let Some(unpacked_size) = dist.get("unpackedSize").and_then(Value::as_u64) {
-        lines.push(format!(
-            ".unpackedSize: {}",
-            blue(&format_bytes(unpacked_size)),
-        ));
+        lines.push(format!(".unpackedSize: {}", blue(&format_bytes(unpacked_size))));
     }
     lines
 }
@@ -156,11 +158,7 @@ fn dependencies_lines(info: &Value) -> Vec<String> {
         .iter()
         .map(|(name, version)| format!("{}: {}", blue(name), version.as_str().unwrap_or_default()))
         .collect();
-    vec![
-        String::new(),
-        "dependencies:".to_string(),
-        entries.join(", "),
-    ]
+    vec![String::new(), "dependencies:".to_string(), entries.join(", ")]
 }
 
 fn maintainers_lines(info: &Value) -> Vec<String> {
@@ -183,11 +181,7 @@ fn dist_tags_lines(info: &Value) -> Vec<String> {
     }
     let mut lines = vec![String::new(), bold("dist-tags:")];
     for (tag, version) in dist_tags {
-        lines.push(format!(
-            "{}: {}",
-            blue(tag),
-            version.as_str().unwrap_or_default(),
-        ));
+        lines.push(format!("{}: {}", blue(tag), version.as_str().unwrap_or_default()));
     }
     lines
 }
@@ -209,10 +203,7 @@ pub(super) fn bin_summary(info: &Value) -> Vec<String> {
             Some(name) => vec![name.to_string()],
             None => Vec::new(),
         },
-        Some(Value::Object(bin)) => bin
-            .keys()
-            .cloned()
-            .collect(),
+        Some(Value::Object(bin)) => bin.keys().cloned().collect(),
         _ => Vec::new(),
     };
     if bins.is_empty() {
@@ -304,10 +295,7 @@ pub(super) fn format_time_ago_since(date: DateTime<Utc>, now: DateTime<Utc>) -> 
     let diff_month = diff_day / 30;
     let diff_year = diff_day / 365;
     let unit = |count: i64, singular: &str| {
-        format!(
-            "{count} {singular}{} ago",
-            if count == 1 { "" } else { "s" },
-        )
+        format!("{count} {singular}{} ago", if count == 1 { "" } else { "s" })
     };
     Some(if diff_year > 0 {
         unit(diff_year, "year")
@@ -387,22 +375,6 @@ fn dim(text: &str) -> String {
 
 fn underline_blue(text: &str) -> String {
     text
-        .if_supports_color(Stream::Stdout, |text| {
-            text.style(Style::new().blue().underline())
-        })
+        .if_supports_color(Stream::Stdout, |text| text.style(Style::new().blue().underline()))
         .to_string()
-}
-
-fn keyword_summary(info: &Value) -> Vec<String> {
-    let mut lines = Vec::new();
-    if let Some(keywords) = array_field(info, "keywords") {
-        let joined = keywords
-            .iter()
-            .filter_map(Value::as_str)
-            .collect::<Vec<_>>()
-            .join(", ");
-        lines.push(String::new());
-        lines.push(format!("keywords: {}", cyan(&joined)));
-    }
-    lines
 }

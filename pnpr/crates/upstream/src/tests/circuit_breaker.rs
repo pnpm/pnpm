@@ -41,10 +41,7 @@ fn circuit_breaker_opens_after_max_fails_and_resets_on_success() {
     breaker.record_failure();
     assert!(breaker.try_acquire(), "one failure is under the threshold");
     breaker.record_failure();
-    assert!(
-        !breaker.try_acquire(),
-        "two failures trip the breaker for the cooldown",
-    );
+    assert!(!breaker.try_acquire(), "two failures trip the breaker for the cooldown");
     breaker.record_success();
     assert!(breaker.try_acquire(), "a success clears the failure count");
 }
@@ -55,10 +52,7 @@ fn circuit_breaker_reopens_once_cooldown_elapses() {
     // the half-open probe path.
     let breaker = CircuitBreaker::new(1, Duration::ZERO);
     breaker.record_failure();
-    assert!(
-        breaker.try_acquire(),
-        "a zero fail_timeout lets the next probe through",
-    );
+    assert!(breaker.try_acquire(), "a zero fail_timeout lets the next probe through");
 }
 
 #[test]
@@ -68,29 +62,17 @@ fn circuit_breaker_admits_one_probe_per_cooldown_window() {
     let cooldown = Duration::from_millis(40);
     let breaker = CircuitBreaker::new(1, cooldown);
     breaker.record_failure();
-    assert!(
-        !breaker.try_acquire(),
-        "still cooling down right after the failure",
-    );
+    assert!(!breaker.try_acquire(), "still cooling down right after the failure");
 
     std::thread::sleep(cooldown + Duration::from_millis(20));
-    assert!(
-        breaker.try_acquire(),
-        "the first caller after the cooldown probes",
-    );
-    assert!(
-        !breaker.try_acquire(),
-        "admitting the probe re-armed the window; others wait",
-    );
+    assert!(breaker.try_acquire(), "the first caller after the cooldown probes");
+    assert!(!breaker.try_acquire(), "admitting the probe re-armed the window; others wait");
 
     // A probe that never reports back (cancelled mid-request) must not
     // stick the breaker open forever: once the window lapses the next
     // caller probes again.
     std::thread::sleep(cooldown + Duration::from_millis(20));
-    assert!(
-        breaker.try_acquire(),
-        "an abandoned probe self-heals after the cooldown",
-    );
+    assert!(breaker.try_acquire(), "an abandoned probe self-heals after the cooldown");
 
     // A successful probe closes the breaker entirely.
     breaker.record_success();
@@ -120,18 +102,10 @@ async fn open_circuit_short_circuits_without_hitting_the_upstream() {
     let upstream = breaking_upstream(server.url(), 1);
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
 
-    let first = upstream.fetch_packument(&name, &CacheValidators::default())
-        .await;
-    assert!(matches!(
-        first,
-        Err(RegistryError::UpstreamStatus {
-            status: 500,
-            ..
-        })
-    ));
+    let first = upstream.fetch_packument(&name, &CacheValidators::default()).await;
+    assert!(matches!(first, Err(RegistryError::UpstreamStatus { status: 500, .. })));
 
-    let second = upstream.fetch_packument(&name, &CacheValidators::default())
-        .await;
+    let second = upstream.fetch_packument(&name, &CacheValidators::default()).await;
     assert!(
         matches!(second, Err(RegistryError::UpstreamUnavailable { .. })),
         "the open breaker must short-circuit the second request",
@@ -156,16 +130,9 @@ async fn client_error_status_does_not_open_the_circuit() {
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
 
     for _ in 0..2 {
-        let result = upstream.fetch_packument(&name, &CacheValidators::default())
-            .await;
+        let result = upstream.fetch_packument(&name, &CacheValidators::default()).await;
         assert!(
-            matches!(
-                result,
-                Err(RegistryError::UpstreamStatus {
-                    status: 401,
-                    ..
-                })
-            ),
+            matches!(result, Err(RegistryError::UpstreamStatus { status: 401, .. })),
             "a 4xx must surface verbatim, not as a circuit-open 503",
         );
     }

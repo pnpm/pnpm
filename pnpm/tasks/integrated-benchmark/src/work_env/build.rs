@@ -113,11 +113,7 @@ impl WorkEnv {
     /// earlier run in `target/release`; without this cleanup,
     /// existence-based resolution could pick that stale executable.
     fn remove_sibling_client_binary(source_dir: &Path, built_bin: &str) {
-        let sibling = if built_bin == "pnpm" {
-            "pacquet"
-        } else {
-            "pnpm"
-        };
+        let sibling = if built_bin == "pnpm" { "pacquet" } else { "pnpm" };
         let _ = fs::remove_file(
             source_dir
                 .join("target")

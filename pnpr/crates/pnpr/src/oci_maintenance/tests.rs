@@ -12,12 +12,9 @@ const MANIFEST_LIMIT: usize = 4 * 1024 * 1024;
 
 fn setup() -> (TempDir, Storage) {
     let temp = TempDir::new().unwrap();
-    let storage = Storage::new(
-        &HostedStoreConfig::Fs,
-        temp.path().join("store"),
-        temp.path().join("cache"),
-    )
-    .unwrap();
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, temp.path().join("store"), temp.path().join("cache"))
+            .unwrap();
     (temp, storage)
 }
 
@@ -67,27 +64,15 @@ async fn collection_keeps_untagged_manifests_and_layers_and_finds_nested_orphans
     let nested = name("acme/app/tool");
     let nested_orphan = blob(&storage, &nested, b"nested orphan").await;
     assert_eq!(
-        collect(
-            &storage,
-            Duration::from_hours(24),
-            false,
-            &HashSet::new(),
-            MANIFEST_LIMIT
-        )
-        .await
-        .unwrap(),
+        collect(&storage, Duration::from_hours(24), false, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (0, 0),
     );
     assert_eq!(
-        collect(
-            &storage,
-            Duration::ZERO,
-            true,
-            &HashSet::new(),
-            MANIFEST_LIMIT
-        )
-        .await
-        .unwrap(),
+        collect(&storage, Duration::ZERO, true, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (2, 19),
     );
     assert!(
@@ -98,15 +83,9 @@ async fn collection_keeps_untagged_manifests_and_layers_and_finds_nested_orphans
             .is_some(),
     );
     assert_eq!(
-        collect(
-            &storage,
-            Duration::ZERO,
-            false,
-            &HashSet::new(),
-            MANIFEST_LIMIT
-        )
-        .await
-        .unwrap(),
+        collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (2, 19),
     );
     assert!(
@@ -143,15 +122,9 @@ async fn corrupt_or_missing_manifests_prevent_deletion() {
         .join("store/acme/app")
         .join(manifest.blob_filename());
     tokio::fs::write(&path, b"corrupt").await.unwrap();
-    let error = collect(
-        &storage,
-        Duration::ZERO,
-        false,
-        &HashSet::new(),
-        MANIFEST_LIMIT,
-    )
-    .await
-    .unwrap_err();
+    let error = collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
+        .await
+        .unwrap_err();
     assert!(
         matches!(error, RegistryError::BadRequest { reason } if reason.contains("manifest digest mismatch")),
     );
@@ -163,15 +136,9 @@ async fn corrupt_or_missing_manifests_prevent_deletion() {
             .is_some(),
     );
     tokio::fs::remove_file(path).await.unwrap();
-    let error = collect(
-        &storage,
-        Duration::ZERO,
-        false,
-        &HashSet::new(),
-        MANIFEST_LIMIT,
-    )
-    .await
-    .unwrap_err();
+    let error = collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
+        .await
+        .unwrap_err();
     assert!(
         matches!(error, RegistryError::BadRequest { reason } if reason.contains("retained manifest is missing")),
     );
@@ -201,22 +168,12 @@ async fn index_keeps_children_removed_from_the_document_and_their_layers() {
         .unwrap();
     assert_eq!(
         referenced_blobs(&storage, &repository, MANIFEST_LIMIT).await.unwrap(),
-        HashSet::from([
-            index.blob_filename(),
-            child.blob_filename(),
-            layer.blob_filename()
-        ]),
+        HashSet::from([index.blob_filename(), child.blob_filename(), layer.blob_filename()]),
     );
     assert_eq!(
-        collect(
-            &storage,
-            Duration::ZERO,
-            false,
-            &HashSet::new(),
-            MANIFEST_LIMIT
-        )
-        .await
-        .unwrap(),
+        collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (0, 0),
     );
 }
@@ -227,15 +184,9 @@ async fn flat_registry_collection_excludes_other_namespaces() {
     blob(&storage, &name("other/app"), b"private").await;
     blob(&storage, &name("app"), b"orphan").await;
     assert_eq!(
-        collect(
-            &storage,
-            Duration::ZERO,
-            false,
-            &HashSet::from(["other"]),
-            MANIFEST_LIMIT
-        )
-        .await
-        .unwrap(),
+        collect(&storage, Duration::ZERO, false, &HashSet::from(["other"]), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (1, 6),
     );
 }
@@ -283,15 +234,9 @@ async fn a_document_without_any_blob_files_still_blocks_collection_when_corrupt(
         .await
         .unwrap();
     let orphan = blob(&storage, &name("aaa"), b"orphan").await;
-    let error = collect(
-        &storage,
-        Duration::ZERO,
-        false,
-        &HashSet::new(),
-        MANIFEST_LIMIT,
-    )
-    .await
-    .unwrap_err();
+    let error = collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
+        .await
+        .unwrap_err();
     assert!(
         matches!(error, RegistryError::BadRequest { reason } if reason.contains("retained manifest is missing")),
     );
@@ -311,49 +256,27 @@ async fn collection_streams_an_object_store_inventory() {
         store: std::sync::Arc::new(object_store::memory::InMemory::new()),
         prefix: "images/".into(),
     };
-    let storage = Storage::new(
-        &config,
-        temp.path().join("store"),
-        temp.path().join("cache"),
-    )
-    .unwrap();
+    let storage =
+        Storage::new(&config, temp.path().join("store"), temp.path().join("cache")).unwrap();
     let repository = name("acme/app");
     retained_image(&storage, &repository).await;
     blob(&storage, &name("acme/app/nested"), b"orphan").await;
     assert_eq!(
-        collect(
-            &storage,
-            Duration::ZERO,
-            true,
-            &HashSet::new(),
-            MANIFEST_LIMIT
-        )
-        .await
-        .unwrap(),
+        collect(&storage, Duration::ZERO, true, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (1, 6),
     );
     assert_eq!(
-        collect(
-            &storage,
-            Duration::ZERO,
-            false,
-            &HashSet::new(),
-            MANIFEST_LIMIT
-        )
-        .await
-        .unwrap(),
+        collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (1, 6),
     );
     assert_eq!(
-        collect(
-            &storage,
-            Duration::ZERO,
-            false,
-            &HashSet::new(),
-            MANIFEST_LIMIT
-        )
-        .await
-        .unwrap(),
+        collect(&storage, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (0, 0),
     );
 }
@@ -371,15 +294,9 @@ async fn collection_does_not_remove_a_matching_blob_from_the_shared_cache() {
     tokio::fs::create_dir_all(cache.parent().unwrap()).await.unwrap();
     tokio::fs::write(&cache, b"cached").await.unwrap();
     assert_eq!(
-        collect(
-            &hosted,
-            Duration::ZERO,
-            false,
-            &HashSet::new(),
-            MANIFEST_LIMIT
-        )
-        .await
-        .unwrap(),
+        collect(&hosted, Duration::ZERO, false, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (1, 6),
     );
     assert_eq!(tokio::fs::read(cache).await.unwrap(), b"cached");
@@ -398,15 +315,9 @@ async fn offline_collection_finishes_interrupted_explicit_deletion() {
         .await
         .unwrap();
     assert_eq!(
-        collect(
-            &storage,
-            Duration::from_hours(24),
-            true,
-            &HashSet::new(),
-            MANIFEST_LIMIT
-        )
-        .await
-        .unwrap(),
+        collect(&storage, Duration::from_hours(24), true, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (0, 0),
     );
     assert!(
@@ -417,15 +328,9 @@ async fn offline_collection_finishes_interrupted_explicit_deletion() {
             .is_some(),
     );
     assert_eq!(
-        collect(
-            &storage,
-            Duration::from_hours(24),
-            false,
-            &HashSet::new(),
-            MANIFEST_LIMIT
-        )
-        .await
-        .unwrap(),
+        collect(&storage, Duration::from_hours(24), false, &HashSet::new(), MANIFEST_LIMIT)
+            .await
+            .unwrap(),
         (1, 16),
     );
     assert!(

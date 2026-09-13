@@ -3,7 +3,7 @@ use super::{
     ResolvePass, Resolved, check_patch_usage, interactive_policy, report_peer_issues,
 };
 
-pub(in super::super) async fn enforce_resolution_policies<Reporter: self::Reporter + 'static>(
+pub(super) async fn enforce_resolution_policies<Reporter: self::Reporter + 'static>(
     install: FreshInputs<'_>,
     prep: &ResolutionPrep<Reporter>,
     workspace_result: &pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
@@ -34,33 +34,31 @@ pub(in super::super) async fn enforce_resolution_policies<Reporter: self::Report
     )?;
     Ok(())
 }
-
+/// A finished resolve pass, with what the phase around it decided.
 /// Enforce the policies the pass reports against, gather the peer
 /// issues, and assemble the phase's output.
-pub(in super::super) async fn collect_resolution<'m, Reporter: self::Reporter + 'static>(
+pub(super) async fn collect_resolution<'m, Reporter: self::Reporter + 'static>(
     install: FreshInputs<'m>,
     peer_issues_sink: Option<&crate::PeerIssuesSink>,
     prep: ResolutionPrep<Reporter>,
     pass: ResolvePass<'m>,
 ) -> Result<Resolved<'m, Reporter>, InstallWithFreshLockfileError> {
     let workspace_result = pass.result;
-    enforce_resolution_policies::<Reporter>(install, &prep, &workspace_result)
-        .await?;
-    let peer_issue_importer_ids = collect_peer_issue_importers(
-        &workspace_result,
-        pass.linked_peer_importers,
-        peer_issues_sink,
-    );
-    report_resolve_phase(
-        pass.started,
-        &workspace_result,
-        pass.importer_manifests.len(),
-    );
+    enforce_resolution_policies::<Reporter>(install, &prep, &workspace_result).await?;
+    let peer_issues = &workspace_result.peers.peer_dependency_issues_by_importer;
+    let mut peer_issue_importer_ids: HashSet<String> = peer_issues.keys().cloned().collect();
+    peer_issue_importer_ids.extend(pass.linked_peer_importers);
+    report_peer_issues(peer_issues_sink, peer_issues);
+    report_resolve_phase(pass.started, &workspace_result, pass.importer_manifests.len());
     Ok(Resolved {
         early_materializer: prep.early_materializer,
         importer_manifests: pass.importer_manifests,
         fixed_wanted_lockfile: prep.fixed_wanted_lockfile,
-        overrides: prep.transforms.into(),
+        overrides: crate::install_with_fresh_lockfile::resolution::ResolvedOverrides {
+            parsed_overrides: prep.transforms.parsed_overrides,
+            overrides: prep.transforms.resolved_overrides,
+            versions_overrider: prep.transforms.versions_overrider,
+        },
         patches: prep.patches,
         hooks: crate::install_with_fresh_lockfile::resolution::ResolvedHooks {
             after_all_resolved_hook: prep.hooks.pnpmfile_hook,
@@ -77,14 +75,12 @@ pub(in super::super) async fn collect_resolution<'m, Reporter: self::Reporter + 
         graph: crate::install_with_fresh_lockfile::resolution::ResolvedGraph {
             peer_issue_importer_ids,
             merged_graph: workspace_result.peers.graph,
-            direct_by_importer: workspace_result.peers
-                .direct_dependencies_by_importer,
+            direct_by_importer: workspace_result.peers.direct_dependencies_by_importer,
             time: workspace_result.time,
         },
     })
 }
-
-pub(in super::super) fn report_resolve_phase(
+pub(super) fn report_resolve_phase(
     started: std::time::Instant,
     workspace_result: &pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
     importer_count: usize,
@@ -97,19 +93,4 @@ pub(in super::super) fn report_resolve_phase(
         nodes = workspace_result.peers.graph.len(),
         "phase complete",
     );
-}
-
-fn collect_peer_issue_importers(
-    workspace_result: &pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
-    linked_peer_importers: HashSet<String>,
-    peer_issues_sink: Option<&crate::PeerIssuesSink>,
-) -> HashSet<String> {
-    let peer_issues = &workspace_result.peers.peer_dependency_issues_by_importer;
-    let mut peer_issue_importer_ids: HashSet<String> = peer_issues
-        .keys()
-        .cloned()
-        .collect();
-    peer_issue_importer_ids.extend(linked_peer_importers);
-    report_peer_issues(peer_issues_sink, peer_issues);
-    peer_issue_importer_ids
 }

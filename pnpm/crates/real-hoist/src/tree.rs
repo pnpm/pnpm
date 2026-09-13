@@ -185,9 +185,7 @@ fn lookup_snapshot<'a>(
     {
         Some(snapshot) => Ok(Some(snapshot)),
         None if optional => Ok(None),
-        None => Err(HoistError::LockfileMissingDependency {
-            pkg_key: dep_key.to_string(),
-        }),
+        None => Err(HoistError::LockfileMissingDependency { pkg_key: dep_key.to_string() }),
     }
 }
 
@@ -235,10 +233,9 @@ fn collect_snapshot_deps(
     out: &mut IndexSet<RcByPtr<HoisterTree>>,
 ) -> Result<(), HoistError> {
     let mut merged: HashMap<&PkgName, (&pnpm_lockfile::SnapshotDepRef, bool)> = HashMap::new();
-    for (deps, optional) in [
-        (&snapshot.dependencies, false),
-        (&snapshot.optional_dependencies, true),
-    ] {
+    for (deps, optional) in
+        [(&snapshot.dependencies, false), (&snapshot.optional_dependencies, true)]
+    {
         for (alias, dep_ref) in deps.iter().flatten() {
             merged.insert(alias, (dep_ref, optional));
         }

@@ -57,18 +57,11 @@ fn shared_artifacts_are_an_explicit_top_level_opt_in() {
 
 #[test]
 fn nested_artifacts_toggle_is_rejected() {
-    let error = Config::from_yaml_str(
-        "resolver:\n  artifacts: true\n",
-        Path::new("/x"),
-        listen(),
-        None,
-    )
-    .unwrap_err();
+    let error =
+        Config::from_yaml_str("resolver:\n  artifacts: true\n", Path::new("/x"), listen(), None)
+            .unwrap_err();
 
-    assert!(
-        error.to_string().contains("unknown field `artifacts`"),
-        "{error}",
-    );
+    assert!(error.to_string().contains("unknown field `artifacts`"), "{error}");
 }
 
 #[test]
@@ -89,10 +82,7 @@ fn artifact_override_is_independent_from_the_resolver_override() {
         Path::new("/x"),
         listen(),
         None,
-        FeatureOverrides {
-            disable_artifacts: true,
-            ..FeatureOverrides::default()
-        },
+        FeatureOverrides { disable_artifacts: true, ..FeatureOverrides::default() },
     )
     .unwrap_err();
     assert!(error.to_string().contains("nothing to serve"), "{error}");
@@ -106,19 +96,13 @@ fn nothing_to_serve_is_a_config_error() {
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("a server with no surface enabled must error");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
-    assert!(
-        err.to_string().contains("nothing to serve"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("nothing to serve"), "unexpected error: {err}");
 }
 
 #[test]
 fn resolve_relative_passes_absolute_paths_through() {
     let absolute = PathBuf::from("/tmp/storage");
-    assert_eq!(
-        resolve_relative("/tmp/storage", Path::new("/anywhere")),
-        absolute,
-    );
+    assert_eq!(resolve_relative("/tmp/storage", Path::new("/anywhere")), absolute);
 }
 
 #[test]
@@ -142,25 +126,16 @@ fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
             Ecosystem::Npm,
             "@pnpm.e2e/dep-of-pkg-with-1-dep"
         ),
-        Resolved::Concrete {
-            registry: "local",
-            kind: ConcreteKind::Hosted
-        },
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
         config.routing.registries.resolve_default(Ecosystem::Npm, "create-touch-file-one-bin"),
-        Resolved::Concrete {
-            registry: "local",
-            kind: ConcreteKind::Hosted
-        },
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     // Everything else proxies to the npm upstream.
     assert_eq!(
         config.routing.registries.resolve_default(Ecosystem::Npm, "is-positive"),
-        Resolved::Concrete {
-            registry: "npmjs",
-            kind: ConcreteKind::Upstream
-        },
+        Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
 
@@ -237,10 +212,7 @@ upstreams: {}
         BackendConfig::Postgres(settings) => {
             assert_eq!(settings.url, "postgresql://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, None);
-            assert_eq!(
-                settings.timeout,
-                super::super::SqlBackendSettings::DEFAULT_TIMEOUT,
-            );
+            assert_eq!(settings.timeout, super::super::SqlBackendSettings::DEFAULT_TIMEOUT);
             assert_eq!(
                 settings.startup_timeout,
                 super::super::SqlBackendSettings::DEFAULT_STARTUP_TIMEOUT,
@@ -264,10 +236,7 @@ upstreams: {}
         BackendConfig::Mysql(settings) => {
             assert_eq!(settings.url, "mysql://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, None);
-            assert_eq!(
-                settings.timeout,
-                super::super::SqlBackendSettings::DEFAULT_TIMEOUT,
-            );
+            assert_eq!(settings.timeout, super::super::SqlBackendSettings::DEFAULT_TIMEOUT);
             assert_eq!(
                 settings.startup_timeout,
                 super::super::SqlBackendSettings::DEFAULT_STARTUP_TIMEOUT,
@@ -313,16 +282,10 @@ fn resolve_cli_wins_over_default_path() {
     let tmp = tempfile::tempdir().unwrap();
     let cli_storage = tmp.path().join("from-cli");
     let default_storage = tmp.path().join("from-default");
-    let cli = write_yaml(
-        tmp.path(),
-        "explicit.yml",
-        &format!("storage: {}\n", cli_storage.display()),
-    );
-    let default = write_yaml(
-        tmp.path(),
-        "default.yml",
-        &format!("storage: {}\n", default_storage.display()),
-    );
+    let cli =
+        write_yaml(tmp.path(), "explicit.yml", &format!("storage: {}\n", cli_storage.display()));
+    let default =
+        write_yaml(tmp.path(), "default.yml", &format!("storage: {}\n", default_storage.display()));
     let (config, source) = Config::resolve(Some(&cli), Some(&default), listen(), None).unwrap();
     assert_eq!(source, ConfigSource::Cli(cli));
     // Confirms the *content* came from the CLI file, not the default.
@@ -333,25 +296,16 @@ fn resolve_cli_wins_over_default_path() {
 fn resolve_public_url_override_threads_through() {
     let tmp = tempfile::tempdir().unwrap();
     let path = write_yaml(tmp.path(), "config.yaml", MINIMAL_YAML);
-    let (config, _) = Config::resolve(
-        Some(&path),
-        None,
-        listen(),
-        Some("http://override.test".to_string()),
-    )
-    .unwrap();
+    let (config, _) =
+        Config::resolve(Some(&path), None, listen(), Some("http://override.test".to_string()))
+            .unwrap();
     assert_eq!(config.http.public_url, "http://override.test");
 }
 
 #[test]
 fn resolve_bundled_branch_honors_public_url_override() {
-    let (config, source) = Config::resolve(
-        None,
-        None,
-        listen(),
-        Some("http://from-cli.test".to_string()),
-    )
-    .unwrap();
+    let (config, source) =
+        Config::resolve(None, None, listen(), Some("http://from-cli.test".to_string())).unwrap();
     assert_eq!(source, ConfigSource::Bundled);
     assert_eq!(config.http.public_url, "http://from-cli.test");
 }
@@ -368,14 +322,8 @@ fn most_specific_key_wins_regardless_of_declaration_order() {
     for packages in [scope_then_catch_all, catch_all_then_scope] {
         let config = hosted_rules_config(packages);
         let rules = &config.routing.hosted["local"].rules;
-        assert!(
-            !rules.for_package("@secret/x").access.allows(&Identity::Anonymous),
-            "{packages}",
-        );
-        assert!(
-            rules.for_package("anything").access.allows(&Identity::Anonymous),
-            "{packages}",
-        );
+        assert!(!rules.for_package("@secret/x").access.allows(&Identity::Anonymous), "{packages}");
+        assert!(rules.for_package("anything").access.allows(&Identity::Anonymous), "{packages}");
     }
 }
 
@@ -385,19 +333,10 @@ fn empty_and_null_map_values_mean_default_rules() {
         let config = hosted_rules_config(&format!("      'lodash': {value}\n"));
         let rules = &config.routing.hosted["local"].rules;
         let effective = rules.for_package("lodash");
-        assert!(
-            effective.access.allows(&Identity::Anonymous),
-            "value {value:?}",
-        );
-        assert!(
-            !effective.publish.allows(&Identity::Anonymous),
-            "value {value:?}",
-        );
+        assert!(effective.access.allows(&Identity::Anonymous), "value {value:?}");
+        assert!(!effective.publish.allows(&Identity::Anonymous), "value {value:?}");
         assert!(effective.publish.allows(&user("alice")), "value {value:?}");
-        assert!(
-            !effective.unpublish.allows(&user("alice")),
-            "value {value:?}",
-        );
+        assert!(!effective.unpublish.allows(&user("alice")), "value {value:?}");
     }
 }
 
@@ -515,11 +454,7 @@ fn top_level_groups_block_is_a_startup_error() {
     // The removed global block must not be silently dropped: its group
     // names used to grant access, so a stale config must be migrated to
     // per-registry `teams:`, not booted with silently changed grants.
-    for stub in [
-        "groups:\n  platform: [alice]\n",
-        "groups:\n",
-        "groups: {}\n",
-    ] {
+    for stub in ["groups:\n  platform: [alice]\n", "groups:\n", "groups: {}\n"] {
         let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{stub}");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a present top-level groups: key must be rejected");
@@ -600,10 +535,7 @@ fn bundled_default_config_enforces_its_protections() {
     use pnpr_registry::{ConcreteKind, Resolved};
     assert_eq!(
         config.routing.registries.resolve_default(Ecosystem::Npm, "lodash"),
-        Resolved::Concrete {
-            registry: "npmjs",
-            kind: ConcreteKind::Upstream
-        },
+        Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
 
@@ -682,10 +614,7 @@ fn rejects_package_keys_that_normalize_to_the_same_name() {
             "registries:\n  hosted:\n    type: hosted\n    ecosystem: {ecosystem}\n    packages:\n      {first}: {{ access: '$authenticated' }}\n      {second}: {{ access: '$all' }}\n",
         );
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
-        assert!(
-            err.to_string().contains("duplicates normalized key"),
-            "{err}",
-        );
+        assert!(err.to_string().contains("duplicates normalized key"), "{err}");
     }
 }
 

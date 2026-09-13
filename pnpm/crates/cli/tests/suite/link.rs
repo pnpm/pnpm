@@ -87,10 +87,7 @@ fn link_fails_with_nonexistent_target() {
         )
         .output()
         .expect("spawn pacquet link");
-    assert!(
-        !output.status.success(),
-        "link to nonexistent path must fail",
-    );
+    assert!(!output.status.success(), "link to nonexistent path must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("No package.json found"),
@@ -225,14 +222,8 @@ fn link_succeeds_with_multiple_targets() {
         pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
             .expect("read manifest");
     let deps = manifest.value()["dependencies"].as_object().expect("dependencies exist");
-    assert!(
-        deps.contains_key("multi-a"),
-        "dependency multi-a must exist",
-    );
-    assert!(
-        deps.contains_key("multi-b"),
-        "dependency multi-b must exist",
-    );
+    assert!(deps.contains_key("multi-a"), "dependency multi-a must exist");
+    assert!(deps.contains_key("multi-b"), "dependency multi-b must exist");
 
     drop((root, mock_instance));
 }
@@ -267,10 +258,7 @@ fn link_fails_target_no_name() {
         .with_arg("../target-project-no-name")
         .output()
         .expect("spawn");
-    assert!(
-        !output.status.success(),
-        "link to target without name must fail",
-    );
+    assert!(!output.status.success(), "link to target without name must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("does not have a name"),
@@ -356,10 +344,7 @@ fn link_persists_override_to_workspace_yaml() {
 
     let workspace_yaml =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
-    assert!(
-        workspace_yaml.contains("overrides:"),
-        "overrides block must exist: {workspace_yaml}",
-    );
+    assert!(workspace_yaml.contains("overrides:"), "overrides block must exist: {workspace_yaml}");
     assert!(
         workspace_yaml.contains("override-target: link:../override-target"),
         "override must record the link spec: {workspace_yaml}",
@@ -420,10 +405,7 @@ fn link_existing_dependency_writes_override_only() {
         "no dependencies entry should be added when already declared elsewhere",
     );
     let dev_deps = manifest.value()["devDependencies"].as_object().expect("devDependencies exist");
-    assert_eq!(
-        dev_deps["target-project"], "^1.0.0",
-        "the existing entry stays untouched",
-    );
+    assert_eq!(dev_deps["target-project"], "^1.0.0", "the existing entry stays untouched");
 
     let workspace_yaml =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");

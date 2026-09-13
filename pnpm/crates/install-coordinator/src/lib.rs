@@ -76,10 +76,7 @@ pub struct InstallPlan<'a> {
 
 impl<'a> InstallPlan<'a> {
     pub fn new(transaction_root: PathBuf) -> Self {
-        Self {
-            transaction_root,
-            tasks: Vec::new(),
-        }
+        Self { transaction_root, tasks: Vec::new() }
     }
 
     pub fn with_task(mut self, task: InstallTask<'a>) -> Self {
@@ -93,20 +90,12 @@ impl<'a> InstallPlan<'a> {
             .map(|task| (task.metadata, task.prepare))
             .unzip();
         let mutation =
-            MetadataMutation::capture(self.transaction_root, metadata.into_iter().flatten())
-                .await?;
+            MetadataMutation::capture(self.transaction_root, metadata.into_iter().flatten()).await?;
         let results = join_all(preparations).await;
         let outcome = results
             .into_iter()
             .collect::<Result<Vec<_>>>()
-            .and_then(|prepared| {
-                publish(
-                    prepared
-                        .into_iter()
-                        .flatten()
-                        .collect(),
-                )
-            });
+            .and_then(|prepared| publish(prepared.into_iter().flatten().collect()));
         mutation.finish(outcome)
     }
 }

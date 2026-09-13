@@ -29,11 +29,7 @@ pub(super) fn team_user_url(registry_url: &str, scope: &str, team: &str) -> Stri
 }
 
 pub(super) fn org_team_url(registry_url: &str, scope: &str) -> String {
-    format!(
-        "{}-/org/{}/team",
-        normalize_registry_url(registry_url),
-        encode_uri_component(scope),
-    )
+    format!("{}-/org/{}/team", normalize_registry_url(registry_url), encode_uri_component(scope))
 }
 
 #[derive(Deserialize)]
@@ -65,10 +61,7 @@ pub(super) async fn fetch_teams(
         .map_err(|source| registry_operation_error("fetching teams", source))?;
 
     if response.status() == reqwest::StatusCode::NOT_FOUND {
-        return Err(TeamError::OrgNotFound {
-            scope: scope.to_string(),
-        }
-        .into());
+        return Err(TeamError::OrgNotFound { scope: scope.to_string() }.into());
     }
     if !response.status().is_success() {
         return Err(registry_error_from_response(
@@ -105,11 +98,9 @@ pub(super) async fn fetch_team_members(
         .map_err(|source| registry_operation_error("fetching team members", source))?;
 
     if response.status() == reqwest::StatusCode::NOT_FOUND {
-        return Err(TeamError::TeamNotFound {
-            scope: scope.to_string(),
-            team: team.to_string(),
-        }
-        .into());
+        return Err(
+            TeamError::TeamNotFound { scope: scope.to_string(), team: team.to_string() }.into()
+        );
     }
     if !response.status().is_success() {
         return Err(registry_error_from_response(
@@ -172,11 +163,7 @@ pub(super) fn build_http_client(
 }
 
 pub(super) fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') {
-        registry_url.to_string()
-    } else {
-        format!("{registry_url}/")
-    }
+    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
 }
 
 struct LimitedBody {
@@ -228,13 +215,9 @@ async fn read_limited_body(
             body.push(' ');
         }
         body.push_str("(response body truncated)");
-        Ok(LimitedBody {
-            bytes: body.into_bytes(),
-        })
+        Ok(LimitedBody { bytes: body.into_bytes() })
     } else {
-        Ok(LimitedBody {
-            bytes,
-        })
+        Ok(LimitedBody { bytes })
     }
 }
 
@@ -266,27 +249,51 @@ pub(super) async fn registry_error_from_response(
         Err(_) => String::new(),
     };
 
-    match status {
-        reqwest::StatusCode::UNAUTHORIZED => TeamError::Unauthorized {
-            action,
-            body,
-        },
-        reqwest::StatusCode::FORBIDDEN => TeamError::Forbidden {
-            action,
-            body,
-        },
-        reqwest::StatusCode::NOT_FOUND => TeamError::NotFound {
-            body,
-        },
-        reqwest::StatusCode::CONFLICT => TeamError::Conflict {
-            body,
-        },
-        _ => TeamError::RegistryWriteFailed {
-            action,
-            status: status.as_u16(),
-            status_text,
-            body,
-        },
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        return TeamError::Unauthorized { action, body }.into();
     }
-    .into()
+    if status == reqwest::StatusCode::FORBIDDEN {
+        return TeamError::Forbidden { action, body }.into();
+    }
+    if status == reqwest::StatusCode::NOT_FOUND {
+        return TeamError::NotFound { body }.into();
+    }
+    if status == reqwest::StatusCode::CONFLICT {
+        return TeamError::Conflict { body }.into();
+    }
+    TeamError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }.into()
+}
+
+// When an OTP is in play, restrict redirects to the configured
+// registry origins so a redirect cannot forward the `npm-otp` header
+// to another host (reqwest only strips standard auth headers on
+// cross-host redirects). Mirrors the `access` command's guard.
+//
+// Deliberate divergence from pnpm: the TypeScript fetch layer
+// follows a cross-host redirect after stripping `authorization` and
+// `npm-otp`, so the request proceeds without credentials and fails
+// at the target; here it fails at the redirect hop instead. reqwest
+// redirect policies cannot strip custom headers per hop, so matching
+// pnpm exactly needs a manual redirect loop in pnpm-network — a
+// follow-up that would cover `access` too.
+pub(super) fn redirect_guard(
+    registries: &std::collections::HashMap<String, String>,
+) -> RedirectGuard {
+    let origins: Vec<(String, String, Option<u16>)> = registries
+        .values()
+        .filter_map(|registry| {
+            let url = reqwest::Url::parse(registry).ok()?;
+            Some((url.scheme().to_string(), url.host_str()?.to_string(), url.port()))
+        })
+        .collect();
+    let guard: RedirectGuard = std::sync::Arc::new(move |target: &reqwest::Url| -> bool {
+        origins
+            .iter()
+            .any(|(scheme, host, port)| {
+                target.scheme() == scheme
+                    && target.host_str() == Some(host.as_str())
+                    && target.port() == *port
+            })
+    });
+    guard
 }

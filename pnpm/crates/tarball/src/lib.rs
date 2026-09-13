@@ -238,14 +238,9 @@ impl<'a> IngestTarballToStore<'a> {
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
         let mem_cache_key =
             self.store_projection.mem_cache_key(self.package.url, revision_addressed);
-        let cache_key = store_index_cache_key(
-            self.package.integrity,
-            self.package.id,
-            self.store_projection,
-        );
-        let progress_key = self.progress_reported
-            .as_ref()
-            .zip(cache_key.as_deref());
+        let cache_key =
+            store_index_cache_key(self.package.integrity, self.package.id, self.store_projection);
+        let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
 
         if let Some(prefetched) = self.store.prefetched_cas_paths
             && let Some(cache_key) = cache_key.as_deref()
@@ -264,9 +259,7 @@ impl<'a> IngestTarballToStore<'a> {
 
         let (cache_lock, owner_notify) = claim_cache_entry(mem_cache, mem_cache_key.clone());
         match owner_notify {
-            None => {
-                self.wait_for_owner::<Reporter>(&cache_lock, progress_key).await
-            }
+            None => self.wait_for_owner::<Reporter>(&cache_lock, progress_key).await,
             Some(notify) => {
                 self.fetch_as_owner::<Reporter>(
                     mem_cache,
@@ -377,9 +370,7 @@ impl<'a> IngestTarballToStore<'a> {
     }
 
     fn sibling_fetch_failed(&self) -> TarballError {
-        TarballError::SiblingFetchFailed {
-            url: self.package.url.to_string(),
-        }
+        TarballError::SiblingFetchFailed { url: self.package.url.to_string() }
     }
 
     /// Run the actual fetch, then settle the cache slot either way. On error
@@ -398,8 +389,7 @@ impl<'a> IngestTarballToStore<'a> {
         notify: &Notify,
         revision_addressed: bool,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
-        let result = self.run_without_mem_cache_inner::<Reporter>(revision_addressed)
-            .await;
+        let result = self.run_without_mem_cache_inner::<Reporter>(revision_addressed).await;
         match result {
             Ok(cas_paths) => {
                 let cas_paths = Arc::new(cas_paths);
@@ -524,17 +514,6 @@ pub struct FetchTarballForResolution<'a> {
 }
 
 impl FetchTarballForResolution<'_> {
-    fn cache_resolved_files(
-        package_url: &str,
-        mem_cache: Option<&MemCache>,
-        cas_paths: HashMap<String, PathBuf>,
-    ) {
-        if let Some(mem_cache) = mem_cache {
-            let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::new(cas_paths))));
-            mem_cache.insert(package_url.to_string(), cache_lock);
-        }
-    }
-
     pub async fn run<Reporter: self::Reporter>(
         self,
         mem_cache: Option<&MemCache>,
@@ -596,12 +575,12 @@ impl FetchTarballForResolution<'_> {
             }
         }
 
-        Self::cache_resolved_files(self.package_url, mem_cache, cas_paths);
+        if let Some(mem_cache) = mem_cache {
+            let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::new(cas_paths))));
+            mem_cache.insert(self.package_url.to_string(), cache_lock);
+        }
 
-        Ok(ResolvedTarball {
-            integrity,
-            manifest,
-        })
+        Ok(ResolvedTarball { integrity, manifest })
     }
 }
 

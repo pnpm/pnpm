@@ -12,11 +12,7 @@ async fn search_lists_hosted_crates_by_newest_version_and_description() {
         cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
         auth,
     );
-    for (name, version) in [
-        ("demo", "0.1.0"),
-        ("demo", "1.2.0"),
-        ("inflector", "0.11.4"),
-    ] {
+    for (name, version) in [("demo", "0.1.0"), ("demo", "1.2.0"), ("inflector", "0.11.4")] {
         let response = app
             .clone()
             .oneshot(publish_request(
@@ -58,36 +54,17 @@ async fn search_lists_hosted_crates_by_newest_version_and_description() {
     assert_eq!(body["meta"]["total"], 1);
 
     let body = search(app.clone(), "q=o&per_page=1").await;
-    assert_eq!(
-        body["crates"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1,
-    );
+    assert_eq!(body["crates"].as_array().unwrap().len(), 1);
     assert_eq!(body["crates"][0]["name"], "demo");
     assert_eq!(body["meta"]["total"], 2);
     let body = search(app.clone(), "q=o&per_page=1&page=2").await;
-    assert_eq!(
-        body["crates"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1,
-    );
+    assert_eq!(body["crates"].as_array().unwrap().len(), 1);
     assert_eq!(body["crates"][0]["name"], "inflector");
 
     for (page, name) in [(1, "demo"), (2, "inflector")] {
-        let body = search(app.clone(), &format!("browse=true&per_page=1&page={page}"))
-            .await;
+        let body = search(app.clone(), &format!("browse=true&per_page=1&page={page}")).await;
         assert_eq!(body["meta"]["total"], 2);
-        assert_eq!(
-            body["crates"]
-                .as_array()
-                .unwrap()
-                .len(),
-            1,
-        );
+        assert_eq!(body["crates"].as_array().unwrap().len(), 1);
         assert_eq!(body["crates"][0]["name"], name);
     }
     let body = search(app.clone(), "browse=true&per_page=1&page=3").await;
@@ -108,10 +85,7 @@ async fn search_lists_hosted_crates_by_newest_version_and_description() {
         )
         .await
         .unwrap();
-    assert_eq!(
-        response.headers()[header::CACHE_CONTROL],
-        "private, no-store",
-    );
+    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
     assert_eq!(response.headers()[header::VARY], "Authorization");
 }
 

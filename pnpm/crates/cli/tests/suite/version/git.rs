@@ -15,10 +15,7 @@ fn git_commit_and_tag_are_created_by_default() {
 
     assert!(output.status.success(), "{}", stderr_of(&output));
     assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "v1.0.1");
-    assert_eq!(
-        git_stdout(&workspace, &["log", "-1", "--pretty=%s"]),
-        "1.0.1",
-    );
+    assert_eq!(git_stdout(&workspace, &["log", "-1", "--pretty=%s"]), "1.0.1");
     drop(root);
 }
 
@@ -75,23 +72,14 @@ fn from_git_fails_when_no_matching_tag_exists() {
 
     let output = pacquet_version(&workspace, &["from-git", "--no-git-tag-version"]);
 
-    assert!(
-        !output.status.success(),
-        "from-git without a matching tag must fail",
-    );
+    assert!(!output.status.success(), "from-git without a matching tag must fail");
     let stderr = stderr_of(&output);
-    assert!(
-        stderr.contains("ERR_PNPM_INVALID_VERSION_FROM_GIT"),
-        "{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_INVALID_VERSION_FROM_GIT"), "{stderr}");
     let compact_stderr: String = stderr
         .chars()
         .filter(|character| !character.is_whitespace() && *character != '│')
         .collect();
-    assert!(
-        compact_stderr.contains(r#"usingtagprefix"v":nomatchingGittagfound"#),
-        "{stderr}",
-    );
+    assert!(compact_stderr.contains(r#"usingtagprefix"v":nomatchingGittagfound"#), "{stderr}");
     drop(root);
 }
 
@@ -110,15 +98,9 @@ fn from_git_rejects_a_malformed_version_tag() {
 
     let output = pacquet_version(&workspace, &["from-git", "--no-git-tag-version"]);
 
-    assert!(
-        !output.status.success(),
-        "a malformed version tag must fail",
-    );
+    assert!(!output.status.success(), "a malformed version tag must fail");
     let stderr = stderr_of(&output);
-    assert!(
-        stderr.contains("ERR_PNPM_INVALID_VERSION_FROM_GIT"),
-        "{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_INVALID_VERSION_FROM_GIT"), "{stderr}");
     let compact_stderr: String = stderr
         .chars()
         .filter(|character| !character.is_whitespace() && *character != '│')
@@ -145,12 +127,7 @@ fn from_git_respects_tag_version_prefix() {
 
     let output = pacquet_version(
         &workspace,
-        &[
-            "from-git",
-            "--tag-version-prefix",
-            "release-",
-            "--no-git-tag-version",
-        ],
+        &["from-git", "--tag-version-prefix", "release-", "--no-git-tag-version"],
     );
 
     assert!(output.status.success(), "{}", stderr_of(&output));
@@ -173,12 +150,7 @@ fn from_git_handles_tag_starting_with_dash() {
 
     let output = pacquet_version(
         &workspace,
-        &[
-            "from-git",
-            "--tag-version-prefix",
-            "-",
-            "--no-git-tag-version",
-        ],
+        &["from-git", "--tag-version-prefix", "-", "--no-git-tag-version"],
     );
 
     assert!(output.status.success(), "{}", stderr_of(&output));
@@ -196,10 +168,7 @@ fn message_substitutes_the_new_version() {
     let output = pacquet_version(&workspace, &["patch", "--message", "chore: release %s"]);
 
     assert!(output.status.success(), "{}", stderr_of(&output));
-    assert_eq!(
-        git_stdout(&workspace, &["log", "-1", "--pretty=%s"]),
-        "chore: release 1.0.1",
-    );
+    assert_eq!(git_stdout(&workspace, &["log", "-1", "--pretty=%s"]), "chore: release 1.0.1");
     drop(root);
 }
 
@@ -215,10 +184,7 @@ fn no_git_tag_version_skips_the_commit_and_tag() {
 
     assert!(output.status.success(), "{}", stderr_of(&output));
     assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "");
-    assert_eq!(
-        git_stdout(&workspace, &["rev-list", "--count", "HEAD"]),
-        commits_before,
-    );
+    assert_eq!(git_stdout(&workspace, &["rev-list", "--count", "HEAD"]), commits_before);
     drop(root);
 }
 
@@ -233,10 +199,7 @@ fn allow_same_version_still_tags_via_an_empty_commit() {
 
     assert!(output.status.success(), "{}", stderr_of(&output));
     assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "v1.0.0");
-    assert_eq!(
-        git_stdout(&workspace, &["log", "-1", "--pretty=%s"]),
-        "1.0.0",
-    );
+    assert_eq!(git_stdout(&workspace, &["log", "-1", "--pretty=%s"]), "1.0.0");
     drop(root);
 }
 
@@ -277,10 +240,7 @@ fn unclean_working_tree_fails_unless_git_checks_are_disabled() {
     let stderr = stderr_of(&output);
     assert!(stderr.contains("ERR_PNPM_UNCLEAN_WORKING_TREE"), "{stderr}");
 
-    let output = pacquet_version(
-        &workspace,
-        &["patch", "--no-git-checks", "--no-git-tag-version"],
-    );
+    let output = pacquet_version(&workspace, &["patch", "--no-git-checks", "--no-git-tag-version"]);
     assert!(output.status.success(), "{}", stderr_of(&output));
     assert_eq!(manifest_version(&workspace), "1.0.1");
     drop(root);
@@ -299,10 +259,7 @@ fn recursive_mode_skips_the_commit_and_tag() {
     assert!(output.status.success(), "{}", stderr_of(&output));
     assert_eq!(manifest_version(&pkg_a), "1.0.1");
     assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "");
-    assert_eq!(
-        git_stdout(&workspace, &["rev-list", "--count", "HEAD"]),
-        commits_before,
-    );
+    assert_eq!(git_stdout(&workspace, &["rev-list", "--count", "HEAD"]), commits_before);
     drop(root);
 }
 
@@ -334,15 +291,9 @@ fn dry_run_skips_the_git_checks_the_lifecycle_scripts_and_the_commit() {
     let output = pacquet_version(&workspace, &["patch", "--dry-run"]);
 
     assert!(output.status.success(), "{}", stderr_of(&output));
-    assert!(
-        !workspace.join("lifecycle.log").exists(),
-        "lifecycle scripts must not run",
-    );
+    assert!(!workspace.join("lifecycle.log").exists(), "lifecycle scripts must not run");
     assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "");
-    assert_eq!(
-        git_stdout(&workspace, &["rev-list", "--count", "HEAD"]),
-        commits_before,
-    );
+    assert_eq!(git_stdout(&workspace, &["rev-list", "--count", "HEAD"]), commits_before);
     drop(root);
 }
 
@@ -368,18 +319,11 @@ fn a_failing_git_commit_surfaces_the_git_error() {
     // command reports the git failure instead of swallowing it.
     let output = pacquet_version(&workspace, &["patch"]);
 
-    assert!(
-        !output.status.success(),
-        "a failing git commit must fail the command",
-    );
+    assert!(!output.status.success(), "a failing git commit must fail the command");
     let stderr = stderr_of(&output);
     assert!(stderr.contains("git commit"), "{stderr}");
     assert!(stderr.contains("refused by hook"), "{stderr}");
-    assert_eq!(
-        git_stdout(&workspace, &["tag", "--list"]),
-        "",
-        "no tag after a failed commit",
-    );
+    assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "", "no tag after a failed commit");
     drop(root);
 }
 

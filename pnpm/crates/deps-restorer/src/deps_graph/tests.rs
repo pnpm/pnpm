@@ -117,21 +117,13 @@ fn variation_input_keys_use_the_selected_platform_integrity() {
         cpu: "x64".to_string(),
         libc: Some("musl".to_string()),
     };
-    let darwin = PlatformSelector {
-        os: "darwin".to_string(),
-        cpu: "x64".to_string(),
-        libc: None,
-    };
+    let darwin = PlatformSelector { os: "darwin".to_string(), cpu: "x64".to_string(), libc: None };
 
     let input_key = |selector: &PlatformSelector| {
         let graph = build_deps_graph_for_platform(&snapshots, &packages, selector);
         calc_dep_state_input_key(&graph, &pkg, None)
     };
-    let keys = [
-        input_key(&linux_glibc),
-        input_key(&linux_musl),
-        input_key(&darwin),
-    ];
+    let keys = [input_key(&linux_glibc), input_key(&linux_musl), input_key(&darwin)];
     assert_eq!(
         keys
             .iter()
@@ -149,10 +141,7 @@ fn dependencies_become_children() {
     let snapshots = HashMap::from([
         (
             parent_key.clone(),
-            SnapshotEntry {
-                dependencies: Some(dependencies),
-                ..Default::default()
-            },
+            SnapshotEntry { dependencies: Some(dependencies), ..Default::default() },
         ),
         (child_key.clone(), SnapshotEntry::default()),
     ]);
@@ -184,10 +173,8 @@ fn optional_dependencies_fold_into_children() {
         ),
         (opt_key.clone(), SnapshotEntry::default()),
     ]);
-    let packages = HashMap::from([
-        (parent_key.clone(), registry_metadata()),
-        (opt_key, registry_metadata()),
-    ]);
+    let packages =
+        HashMap::from([(parent_key.clone(), registry_metadata()), (opt_key, registry_metadata())]);
 
     let graph = build_deps_graph(&snapshots, &packages);
     let parent_node = graph.get(&parent_key).expect("parent node");
@@ -201,10 +188,7 @@ fn snapshot_without_metadata_is_skipped() {
     let packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
 
     let graph = build_deps_graph(&snapshots, &packages);
-    assert!(
-        graph.is_empty(),
-        "orphan snapshot must not produce a graph node",
-    );
+    assert!(graph.is_empty(), "orphan snapshot must not produce a graph node");
 }
 
 #[test]
@@ -213,13 +197,7 @@ fn subgraph_with_empty_roots_is_empty() {
     let child_key = key("b", "1.0.0");
     let deps = HashMap::from([(name("b"), SnapshotDepRef::Plain(ver("1.0.0")))]);
     let snapshots = HashMap::from([
-        (
-            parent_key,
-            SnapshotEntry {
-                dependencies: Some(deps),
-                ..Default::default()
-            },
-        ),
+        (parent_key, SnapshotEntry { dependencies: Some(deps), ..Default::default() }),
         (child_key, SnapshotEntry::default()),
     ]);
     let packages = HashMap::from([
@@ -240,20 +218,8 @@ fn subgraph_walks_forward_closure() {
     let a_deps = HashMap::from([(name("b"), SnapshotDepRef::Plain(ver("1.0.0")))]);
     let b_deps = HashMap::from([(name("c"), SnapshotDepRef::Plain(ver("1.0.0")))]);
     let snapshots = HashMap::from([
-        (
-            key_a.clone(),
-            SnapshotEntry {
-                dependencies: Some(a_deps),
-                ..Default::default()
-            },
-        ),
-        (
-            key_b.clone(),
-            SnapshotEntry {
-                dependencies: Some(b_deps),
-                ..Default::default()
-            },
-        ),
+        (key_a.clone(), SnapshotEntry { dependencies: Some(a_deps), ..Default::default() }),
+        (key_b.clone(), SnapshotEntry { dependencies: Some(b_deps), ..Default::default() }),
         (key_c.clone(), SnapshotEntry::default()),
         (key_d.clone(), SnapshotEntry::default()),
     ]);
@@ -268,10 +234,7 @@ fn subgraph_walks_forward_closure() {
     assert!(graph.contains_key(&key_a));
     assert!(graph.contains_key(&key_b), "b is in a's closure");
     assert!(graph.contains_key(&key_c), "c is in a's closure via b");
-    assert!(
-        !graph.contains_key(&key_d),
-        "d is unrelated; must not be included",
-    );
+    assert!(!graph.contains_key(&key_d), "d is unrelated; must not be included");
 }
 
 #[test]
@@ -281,25 +244,11 @@ fn subgraph_terminates_on_cycle() {
     let a_deps = HashMap::from([(name("b"), SnapshotDepRef::Plain(ver("1.0.0")))]);
     let b_deps = HashMap::from([(name("a"), SnapshotDepRef::Plain(ver("1.0.0")))]);
     let snapshots = HashMap::from([
-        (
-            key_a.clone(),
-            SnapshotEntry {
-                dependencies: Some(a_deps),
-                ..Default::default()
-            },
-        ),
-        (
-            key_b.clone(),
-            SnapshotEntry {
-                dependencies: Some(b_deps),
-                ..Default::default()
-            },
-        ),
+        (key_a.clone(), SnapshotEntry { dependencies: Some(a_deps), ..Default::default() }),
+        (key_b.clone(), SnapshotEntry { dependencies: Some(b_deps), ..Default::default() }),
     ]);
-    let packages = HashMap::from([
-        (key_a.clone(), registry_metadata()),
-        (key_b.clone(), registry_metadata()),
-    ]);
+    let packages =
+        HashMap::from([(key_a.clone(), registry_metadata()), (key_b.clone(), registry_metadata())]);
 
     let graph = build_deps_subgraph(&snapshots, &packages, std::iter::once(key_a.clone()));
     assert_eq!(graph.len(), 2);

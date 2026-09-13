@@ -181,22 +181,16 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     ignored_workspace_state_settings: &[&str],
 ) -> Decision {
     if let Some(reason) = config_blocks_fast_path(check.config) {
-        return Decision::Skipped {
-            reason,
-        };
+        return Decision::Skipped { reason };
     }
     // No workspace state means no previous install has completed
     // (or the file was deleted) — there's no `lastValidatedTimestamp`
     // to compare against.
     let Ok(Some(state)) = load_workspace_state(check.workspace_root) else {
-        return Decision::Skipped {
-            reason: "no workspace state on disk",
-        };
+        return Decision::Skipped { reason: "no workspace state on disk" };
     };
     if let Some(reason) = state_blocks_fast_path(check, &state, ignored_workspace_state_settings) {
-        return Decision::Skipped {
-            reason,
-        };
+        return Decision::Skipped { reason };
     }
     // The fast-path conclusion: walk every manifest and report up to
     // date when none have an mtime newer than
@@ -204,9 +198,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // succeed (read errors mean we can't *prove* freshness, so fall
     // through).
     let Some(drift) = ManifestDrift::stat(check, &state) else {
-        return Decision::Skipped {
-            reason: "failed to stat a project manifest",
-        };
+        return Decision::Skipped { reason: "failed to stat a project manifest" };
     };
     let modified = drift.modified(&state);
     if let Some(decision) = early_repeat_verdict(check, &modified, drift.lockfile_modified) {
@@ -219,10 +211,22 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     // When only the lockfile changed, every project is validated rather
     // than just the modified ones.
     let projects_to_check = drift.projects_to_check(modified);
-    let filesystem_now = check.is_workspace_install
-        .then(|| filesystem_now_ms(check.workspace_root))
-        .flatten();
-    validate_repeat_install_content(check, &state, &projects_to_check, filesystem_now)
+    let filesystem_now =
+        check.is_workspace_install.then(|| filesystem_now_ms(check.workspace_root)).flatten();
+    match modified_manifests_match_lockfile(
+        check,
+        &state,
+        &projects_to_check,
+        check.config.dedupe_peers,
+    ) {
+        Ok(loaded_current) => {
+            match settle_repeat_install(check, &state, loaded_current, filesystem_now) {
+                Ok(()) => Decision::UpToDate,
+                Err(reason) => Decision::Skipped { reason },
+            }
+        }
+        Err(reason) => Decision::Skipped { reason },
+    }
 }
 
 /// Every project manifest's mtime against the last validation, and
@@ -267,11 +271,7 @@ impl<'a> ManifestDrift<'a> {
         &'s self,
         modified: Vec<&'s ManifestStat<'a>>,
     ) -> Vec<&'s ManifestStat<'a>> {
-        if self.lockfile_modified {
-            self.stats.iter().collect()
-        } else {
-            modified
-        }
+        if self.lockfile_modified { self.stats.iter().collect() } else { modified }
     }
 }
 
@@ -431,16 +431,12 @@ fn lockfile_inputs_block_fast_path(
     // materialized, and pnpm refuses the substitution for the same
     // reason.
     if config.use_git_branch_lockfile
-        && !workspace_root
-            .join(config.wanted_lockfile_name())
-            .exists()
+        && !workspace_root.join(config.wanted_lockfile_name()).exists()
     {
         return Some("the branch lockfile is missing");
     }
     if !is_workspace_install
-        && !workspace_root
-            .join(config.wanted_lockfile_name())
-            .exists()
+        && !workspace_root.join(config.wanted_lockfile_name()).exists()
         && !current_lockfile_file_has_content(&config.virtual_store_dir)
     {
         return Some("wanted lockfile missing");
@@ -470,18 +466,14 @@ fn lockfile_inputs_block_fast_path(
 
 fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
     let value = manifest.value();
-    [
-        value.get("dependencies"),
-        value.get("devDependencies"),
-        value.get("optionalDependencies"),
-    ]
-    .into_iter()
-    .flatten()
-    .any(|deps| {
-        deps
-            .as_object()
-            .is_some_and(|map| !map.is_empty())
-    })
+    [value.get("dependencies"), value.get("devDependencies"), value.get("optionalDependencies")]
+        .into_iter()
+        .flatten()
+        .any(|deps| {
+            deps
+                .as_object()
+                .is_some_and(|map| !map.is_empty())
+        })
 }
 
 fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
@@ -570,29 +562,3 @@ fn pnpmfiles_drift(
 
 #[cfg(test)]
 mod tests;
-
-fn validate_repeat_install_content(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    projects_to_check: &[&ManifestStat<'_>],
-    filesystem_now: Option<i64>,
-) -> Decision {
-    match modified_manifests_match_lockfile(
-        check,
-        state,
-        projects_to_check,
-        check.config.dedupe_peers,
-    ) {
-        Ok(loaded_current) => {
-            match settle_repeat_install(check, state, loaded_current, filesystem_now) {
-                Ok(()) => Decision::UpToDate,
-                Err(reason) => Decision::Skipped {
-                    reason,
-                },
-            }
-        }
-        Err(reason) => Decision::Skipped {
-            reason,
-        },
-    }
-}

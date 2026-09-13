@@ -9,16 +9,9 @@ fn prints_progress_on_first_download() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
-        vec![
-            stage_at(CWD, Stage::ResolutionStarted),
-            progress("resolved"),
-            progress("fetched"),
-        ],
+        vec![stage_at(CWD, Stage::ResolutionStarted), progress("resolved"), progress("fetched")],
     );
-    assert_eq!(
-        frame,
-        "Progress: resolved 1, reused 0, downloaded 1, added 0",
-    );
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 1, added 0");
 }
 
 #[test]
@@ -116,10 +109,8 @@ fn loglevel_error_suppresses_warnings_and_the_visual_streams() {
 
 #[test]
 fn append_only_streams_each_lifecycle_output_line() {
-    let mut reporter = state_with_options(ReporterOptions {
-        append_only: true,
-        ..ReporterOptions::default()
-    });
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
 
     let mut lines = Vec::new();
     for event in lifecycle_stdio_events() {

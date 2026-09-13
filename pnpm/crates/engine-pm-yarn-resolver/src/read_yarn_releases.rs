@@ -31,11 +31,7 @@ pub enum ReadYarnReleasesError {
 
     #[display("Fetching the Yarn releases from {url} responded with status {status}")]
     #[diagnostic(code(ERR_PNPM_YARN_RELEASES_STATUS), help("{}", status_help(*status, *authenticated)))]
-    StatusNotOk {
-        url: String,
-        status: u16,
-        authenticated: bool,
-    },
+    StatusNotOk { url: String, status: u16, authenticated: bool },
 
     #[display("Could not parse the Yarn releases from {url}: {error}")]
     #[diagnostic(code(ERR_PNPM_YARN_RELEASES_PARSE))]
@@ -158,11 +154,7 @@ fn status_help(status: u16, authenticated: bool) -> &'static str {
 /// A GitHub token from the environment. `GH_TOKEN` outranks `GITHUB_TOKEN`,
 /// the order GitHub's own CLI reads them in.
 fn github_token(authenticate: bool) -> Option<String> {
-    pick_token(
-        authenticate,
-        std::env::var("GH_TOKEN").ok(),
-        std::env::var("GITHUB_TOKEN").ok(),
-    )
+    pick_token(authenticate, std::env::var("GH_TOKEN").ok(), std::env::var("GITHUB_TOKEN").ok())
 }
 
 /// An exported variable holding only whitespace is a common CI artifact, and
@@ -201,10 +193,7 @@ pub fn parse_releases(body: &str) -> Result<Vec<YarnRelease>, ReadYarnReleasesEr
                     digest: asset.digest,
                 })
                 .collect();
-            Some(YarnRelease {
-                version,
-                assets,
-            })
+            Some(YarnRelease { version, assets })
         })
         .collect())
 }
@@ -218,13 +207,17 @@ pub fn asset_variants(
 
     let mut variants = Vec::new();
     for asset in &release.assets {
-        let Some(parsed) = parse_asset_name(&asset.file_name) else {
-            continue;
-        };
+        let Some(parsed) = parse_asset_name(&asset.file_name) else { continue };
         let Some(integrity) = asset.digest.as_deref().and_then(sha256_digest_to_sri) else {
             continue;
         };
-        let integrity = parse_asset_integrity(integrity, &asset.file_name)?;
+        let integrity: Integrity = integrity
+            .parse()
+            .map_err(|error| ReadYarnReleasesError::Integrity {
+                integrity,
+                file_name: asset.file_name.clone(),
+                error: Arc::new(error),
+            })?;
         let binary = BinaryResolution {
             url: asset.url.clone(),
             integrity,
@@ -245,9 +238,7 @@ pub fn asset_variants(
         });
     }
     if variants.is_empty() {
-        return Err(ReadYarnReleasesError::NoUsableAssets {
-            version: release.version.clone(),
-        });
+        return Err(ReadYarnReleasesError::NoUsableAssets { version: release.version.clone() });
     }
     variants.sort_by(|left, right| variant_url(left).cmp(variant_url(right)));
     Ok(variants)
@@ -312,11 +303,7 @@ fn parse_asset_name(file_name: &str) -> Option<YarnAssetTarget> {
     } else {
         return None;
     };
-    Some(YarnAssetTarget {
-        os: os.to_string(),
-        cpu: cpu.to_string(),
-        musl,
-    })
+    Some(YarnAssetTarget { os: os.to_string(), cpu: cpu.to_string(), musl })
 }
 
 /// Yarn 6's archives carry two executables: `yarn`, a launcher that
@@ -325,25 +312,8 @@ fn parse_asset_name(file_name: &str) -> Option<YarnAssetTarget> {
 /// pnpm has already decided which version to run by the time it unpacks
 /// the archive, so it links the engine, not the launcher.
 fn yarn_bin_path(os: &str) -> &'static str {
-    if os == "win32" {
-        "yarn-bin.exe"
-    } else {
-        "yarn-bin"
-    }
+    if os == "win32" { "yarn-bin.exe" } else { "yarn-bin" }
 }
 
 #[cfg(test)]
 mod tests;
-
-fn parse_asset_integrity(
-    integrity: String,
-    file_name: &str,
-) -> Result<Integrity, ReadYarnReleasesError> {
-    integrity
-        .parse()
-        .map_err(|error| ReadYarnReleasesError::Integrity {
-            integrity,
-            file_name: file_name.to_string(),
-            error: Arc::new(error),
-        })
-}

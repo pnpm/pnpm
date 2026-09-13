@@ -33,9 +33,7 @@ pub fn parse_integrity(
     pkg_spec: &str,
 ) -> Result<(String, Integrity), ConfigDepError> {
     let Some((version, integrity)) = pkg_spec.split_once('+') else {
-        return Err(ConfigDepError::NoIntegrity {
-            name: pkg_name.to_string(),
-        });
+        return Err(ConfigDepError::NoIntegrity { name: pkg_name.to_string() });
     };
     let integrity = integrity
         .parse::<Integrity>()

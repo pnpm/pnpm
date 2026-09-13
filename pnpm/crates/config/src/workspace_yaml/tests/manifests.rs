@@ -60,11 +60,7 @@ fn resolves_script_shell_from_the_manifest_found_above_a_nested_package() {
     let root = tempfile::tempdir().unwrap();
     let nested = root.path().join("packages/nested");
     fs::create_dir_all(&nested).unwrap();
-    fs::write(
-        root.path().join(WORKSPACE_MANIFEST_FILENAME),
-        "scriptShell: ./a.sh\n",
-    )
-    .unwrap();
+    fs::write(root.path().join(WORKSPACE_MANIFEST_FILENAME), "scriptShell: ./a.sh\n").unwrap();
 
     let (manifest, mut settings) =
         WorkspaceSettings::find_and_load(&nested).unwrap().expect("ancestor workspace manifest");

@@ -12,16 +12,9 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
     let mut table = HashMap::default();
     table.insert(
         ("foo".to_string(), "^1.0.0".to_string()),
-        fake_result(
-            "foo",
-            "1.2.0",
-            serde_json::json!({ "name": "foo", "version": "1.2.0" }),
-        ),
+        fake_result("foo", "1.2.0", serde_json::json!({ "name": "foo", "version": "1.2.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "catalog:" }));
 
     let mut catalogs = pnpm_catalogs_types::Catalogs::new();
@@ -31,10 +24,7 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
     );
 
     let opts = ResolveImporterOptions {
-        resolution: crate::ImporterResolutionInputs {
-            catalogs,
-            ..default_opts().resolution
-        },
+        resolution: crate::ImporterResolutionInputs { catalogs, ..default_opts().resolution },
         ..default_opts()
     };
     let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
@@ -51,20 +41,12 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
 /// error rather than falling through to `SpecNotSupported`.
 #[tokio::test]
 async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
-    let resolver = StubResolver {
-        table: HashMap::default(),
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table: HashMap::default(), calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "catalog:" }));
 
-    let err = resolve_importer(
-        &resolver,
-        &manifest,
-        [DependencyGroup::Prod],
-        default_opts(),
-    )
-    .await
-    .expect_err("missing catalog entry must error");
+    let err = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .expect_err("missing catalog entry must error");
     match err {
         ResolveImporterError::Resolve(ResolveDependencyTreeError::CatalogMisconfiguration(
             inner,

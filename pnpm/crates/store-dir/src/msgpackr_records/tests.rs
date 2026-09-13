@@ -137,12 +137,7 @@ fn round_trips_plain_msgpack_through_transcoder() {
     let mut files = HashMap::new();
     files.insert(
         "README.md".to_string(),
-        CafsFileInfo {
-            digest: "x".repeat(128),
-            mode: 0o644,
-            size: 42,
-            checked_at: Some(1),
-        },
+        CafsFileInfo { digest: "x".repeat(128), mode: 0o644, size: 42, checked_at: Some(1) },
     );
     let original = PackageFilesIndex {
         manifest: None,
@@ -227,16 +222,7 @@ fn rejects_reference_to_unknown_slot() {
         0x41, // ref to slot 0x41 — undefined
     ];
     let err = transcode_to_plain_msgpack(bytes).unwrap_err();
-    assert!(
-        matches!(
-            err,
-            DecodeError::UnknownSlot {
-                slot: 0x41,
-                ..
-            }
-        ),
-        "got {err:?}",
-    );
+    assert!(matches!(err, DecodeError::UnknownSlot { slot: 0x41, .. }), "got {err:?}");
 }
 
 /// In plain `MessagePack`, a bare 0x40..=0x7f byte is a positive
@@ -258,10 +244,7 @@ fn plain_positive_fixint_in_slot_range_passes_through() {
 fn rejects_truncated_buffer() {
     // Record def claims 2 field names but only one is present.
     let err = transcode_to_plain_msgpack(&[0xd4, 0x72, 0x40, 0x92, 0xa1, b'k']).unwrap_err();
-    assert!(
-        matches!(err, DecodeError::UnexpectedEof { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, DecodeError::UnexpectedEof { .. }), "got {err:?}");
 }
 
 // ===== Encoder tests =====
@@ -303,10 +286,7 @@ fn encode_emits_record_header_for_top_level_struct() {
         remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
-    assert_eq!(
-        &bytes[0..3],
-        &[0xd4, RECORD_DEF_EXT_TYPE, PKG_FILES_INDEX_SLOT],
-    );
+    assert_eq!(&bytes[0..3], &[0xd4, RECORD_DEF_EXT_TYPE, PKG_FILES_INDEX_SLOT]);
 }
 
 #[test]
@@ -396,10 +376,7 @@ fn encode_omits_checked_at_when_none() {
             .all(|window| window != needle),
         "checkedAt leaked into output when the field was None: {bytes:02x?}",
     );
-    assert_eq!(
-        roundtrip(&original).files.get("f").unwrap().checked_at,
-        None,
-    );
+    assert_eq!(roundtrip(&original).files.get("f").unwrap().checked_at, None);
 }
 
 #[test]
@@ -484,19 +461,13 @@ fn encode_outer_field_order_matches_msgpackr() {
     // Find the outer schema bytes: after `d4 72 40` (fixext1 +
     // ext-type + slot) comes `93` (fixarray of 3 fields), then
     // the field-name fixstrs.
-    assert_eq!(
-        &bytes[0..4],
-        &[0xd4, RECORD_DEF_EXT_TYPE, PKG_FILES_INDEX_SLOT, 0x93],
-    );
+    assert_eq!(&bytes[0..4], &[0xd4, RECORD_DEF_EXT_TYPE, PKG_FILES_INDEX_SLOT, 0x93]);
     // Re-decode the field names from offset 4 onwards.
     let mut pos = 4;
     let mut names = Vec::new();
     for _ in 0..3 {
         let hdr = bytes[pos];
-        assert!(
-            matches!(hdr, 0xa0..=0xbf),
-            "expected fixstr at {pos}, got {hdr:02x}",
-        );
+        assert!(matches!(hdr, 0xa0..=0xbf), "expected fixstr at {pos}, got {hdr:02x}");
         let len = (hdr & 0x1f) as usize;
         pos += 1;
         names.push(std::str::from_utf8(&bytes[pos..pos + len]).unwrap().to_string());
@@ -599,11 +570,7 @@ fn encode_side_effects_with_only_added_omits_deleted_field() {
     let mut side_effects = HashMap::new();
     side_effects.insert(
         "linux".to_string(),
-        SideEffectsDiff {
-            added: Some(added),
-            deleted: None,
-            remote_origin: None,
-        },
+        SideEffectsDiff { added: Some(added), deleted: None, remote_origin: None },
     );
     let original = PackageFilesIndex {
         manifest: None,
@@ -631,11 +598,7 @@ fn encode_allocates_separate_slots_for_distinct_side_effects_shapes() {
     let mut side_effects = HashMap::new();
     side_effects.insert(
         "linux".to_string(),
-        SideEffectsDiff {
-            added: Some(linux_added),
-            deleted: None,
-            remote_origin: None,
-        },
+        SideEffectsDiff { added: Some(linux_added), deleted: None, remote_origin: None },
     );
     side_effects.insert(
         "darwin".to_string(),
@@ -680,15 +643,7 @@ fn allocate_slot_returns_error_past_0x7f() {
         state.allocate_slot().expect("should succeed within the slot range");
     }
     let err = state.allocate_slot().expect_err("64th allocation must fail");
-    assert!(
-        matches!(
-            err,
-            EncodeError::OutOfRecordSlots {
-                max: 63
-            }
-        ),
-        "got {err:?}",
-    );
+    assert!(matches!(err, EncodeError::OutOfRecordSlots { max: 63 }), "got {err:?}");
 }
 
 /// A `manifest: Some(_)` must round-trip through encode →

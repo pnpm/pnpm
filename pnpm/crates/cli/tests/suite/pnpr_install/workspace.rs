@@ -35,10 +35,7 @@ fn workspace_install_via_pnpr_resolves_catalog_references() {
         .success();
 
     let wanted = read_workspace_lockfile(&workspace);
-    assert_eq!(
-        workspace_importer_version(&wanted, "packages/app", WORKSPACE_HELLO),
-        "1.0.0",
-    );
+    assert_eq!(workspace_importer_version(&wanted, "packages/app", WORKSPACE_HELLO), "1.0.0");
     assert!(workspace_has_link(&workspace, "app", WORKSPACE_HELLO));
 
     drop((root, mock_instance));
@@ -98,11 +95,7 @@ fn workspace_pnpr_install_uses_current_resolver_settings_and_frozen_replays_them
     write_workspace_project(&workspace, "lib", "lib", (WORKSPACE_PARENT, "100.0.0"));
     let resolver_settings = |lockfile: &Lockfile| {
         let settings = lockfile.settings.as_ref().expect("lockfile settings");
-        (
-            settings.auto_install_peers,
-            settings.dedupe_peers,
-            settings.exclude_links_from_lockfile,
-        )
+        (settings.auto_install_peers, settings.dedupe_peers, settings.exclude_links_from_lockfile)
     };
     pacquet_at(&workspace)
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
@@ -136,15 +129,9 @@ fn workspace_pnpr_install_uses_current_resolver_settings_and_frozen_replays_them
     assert_eq!(resolver_settings(&updated), (false, Some(true), false));
     for peer in ["@pnpm.e2e/peer-a", "@pnpm.e2e/peer-b", "@pnpm.e2e/peer-c"] {
         let snapshots = workspace_snapshot_entries(&updated, peer);
-        assert!(
-            snapshots.is_empty(),
-            "autoInstallPeers=false must omit {peer}, got {snapshots:?}",
-        );
+        assert!(snapshots.is_empty(), "autoInstallPeers=false must omit {peer}, got {snapshots:?}");
     }
-    assert_eq!(
-        workspace_importer_version(&updated, "packages/app", MISSING_PEERS_PARENT),
-        "1.0.0",
-    );
+    assert_eq!(workspace_importer_version(&updated, "packages/app", MISSING_PEERS_PARENT), "1.0.0");
     let before_frozen = fs::read(workspace.join("pnpm-lock.yaml")).expect("read updated lockfile");
 
     pacquet_at(&workspace.join("packages/app"))
@@ -152,13 +139,7 @@ fn workspace_pnpr_install_uses_current_resolver_settings_and_frozen_replays_them
         .with_env("PNPM_CONFIG_AUTO_INSTALL_PEERS", "false")
         .with_env("PNPM_CONFIG_DEDUPE_PEERS", "true")
         .with_env("PNPM_CONFIG_EXCLUDE_LINKS_FROM_LOCKFILE", "false")
-        .with_args([
-            "install",
-            "--frozen-lockfile",
-            "--lockfile-only",
-            "--pnpr-server",
-            &pnpr_url,
-        ])
+        .with_args(["install", "--frozen-lockfile", "--lockfile-only", "--pnpr-server", &pnpr_url])
         .assert()
         .success();
 
@@ -214,11 +195,8 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
         serde_saphyr::from_str(&serde_saphyr::to_string(&previous).expect("serialize lockfile"))
             .expect("parse lockfile value");
     broken["time"] = serde_json::json!("invalid");
-    fs::write(
-        &lockfile_path,
-        serde_saphyr::to_string(&broken).expect("serialize lockfile"),
-    )
-    .expect("write broken lockfile");
+    fs::write(&lockfile_path, serde_saphyr::to_string(&broken).expect("serialize lockfile"))
+        .expect("write broken lockfile");
     let mut server = mockito::Server::new();
     let (handshake_mock, resolve_mock) = mock_filtered_repair_response(&mut server, &fresh);
 
@@ -237,10 +215,7 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
         .success();
 
     let repaired = read_workspace_lockfile(&workspace);
-    assert_eq!(
-        workspace_importer(&repaired, "packages/unselected"),
-        &previous_unselected,
-    );
+    assert_eq!(workspace_importer(&repaired, "packages/unselected"), &previous_unselected);
     let preserved_packages = repaired.packages
         .as_ref()
         .expect("repaired packages")
@@ -319,10 +294,7 @@ fn filtered_pnpr_repair_verifies_the_merged_lockfile_before_writing() {
         stderr.contains("ERR_PNPM_INVALID_DEPENDENCY_NAME"),
         "merged repair must reject the traversal alias; got:\n{stderr}",
     );
-    assert_eq!(
-        fs::read_to_string(&lockfile_path).expect("read lockfile after failure"),
-        before,
-    );
+    assert_eq!(fs::read_to_string(&lockfile_path).expect("read lockfile after failure"), before);
     handshake_mock.assert();
     resolve_mock.assert();
 
@@ -335,18 +307,8 @@ fn filtered_workspace_pnpr_reports_a_missing_selected_importer_without_panicking
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     configure_workspace(&workspace);
-    write_workspace_project(
-        &workspace,
-        "selected",
-        "selected",
-        (WORKSPACE_HELLO, "1.0.0"),
-    );
-    write_workspace_project(
-        &workspace,
-        "unselected",
-        "unselected",
-        (WORKSPACE_PARENT, "1.0.0"),
-    );
+    write_workspace_project(&workspace, "selected", "selected", (WORKSPACE_HELLO, "1.0.0"));
+    write_workspace_project(&workspace, "unselected", "unselected", (WORKSPACE_PARENT, "1.0.0"));
 
     let mut server = mockito::Server::new();
     let response = serde_json::json!({
@@ -364,20 +326,11 @@ fn filtered_workspace_pnpr_reports_a_missing_selected_importer_without_panicking
 
     let output = pacquet_at(&workspace)
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .with_args([
-            "--filter",
-            "selected",
-            "install",
-            "--pnpr-server",
-            &server.url(),
-        ])
+        .with_args(["--filter", "selected", "install", "--pnpr-server", &server.url()])
         .output()
         .expect("run filtered install against a malformed pnpr response");
 
-    assert!(
-        !output.status.success(),
-        "a malformed pnpr lockfile must fail the install",
-    );
+    assert!(!output.status.success(), "a malformed pnpr lockfile must fail the install");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("fresh lockfile is missing importer packages/selected"),
@@ -409,10 +362,7 @@ fn filtered_workspace_pnpr_resolves_workspace_protocol_from_project_identity() {
         .success();
 
     let wanted = read_workspace_lockfile(&workspace);
-    assert_eq!(
-        workspace_importer_version(&wanted, "packages/app", "lib"),
-        "link:../lib",
-    );
+    assert_eq!(workspace_importer_version(&wanted, "packages/app", "lib"), "link:../lib");
     assert!(workspace_has_link(&workspace, "app", "lib"));
     assert!(!workspace_has_link(&workspace, "lib", WORKSPACE_HELLO));
     assert!(!workspace_slot(&workspace, WORKSPACE_HELLO, "1.0.0").exists());

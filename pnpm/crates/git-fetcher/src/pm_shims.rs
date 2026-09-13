@@ -41,9 +41,7 @@ pub(crate) fn shim_commands(
 pub(crate) fn shim_names(
     pm: crate::preferred_pm::PreferredPm,
 ) -> impl Iterator<Item = &'static str> {
-    shim_commands(pm)
-        .iter()
-        .map(|(name, _)| *name)
+    shim_commands(pm).iter().map(|(name, _)| *name)
 }
 
 /// Write shims for `wanted` into `dir`, which the caller prepends to the
@@ -63,11 +61,7 @@ pub(crate) fn write_pm_shims(
     for (name, run_as) in shim_commands(wanted.pm) {
         // `bunx` runs `bun x`; every other command runs the one it is
         // named after.
-        let run_as: Vec<&str> = if run_as.is_empty() {
-            vec![name]
-        } else {
-            run_as.to_vec()
-        };
+        let run_as: Vec<&str> = if run_as.is_empty() { vec![name] } else { run_as.to_vec() };
         for (file_name, contents) in shim_files(name, &run_as, &spec, pnpm_execpath) {
             let path = dir.join(file_name);
             write_executable(&path, &contents)?;

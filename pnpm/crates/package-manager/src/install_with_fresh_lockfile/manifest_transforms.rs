@@ -72,9 +72,7 @@ pub(super) fn build_manifest_transforms(
 fn configured_package_extender(
     config: &Config,
 ) -> Result<Option<Arc<crate::PackageExtender>>, InstallWithFreshLockfileError> {
-    let Some(extensions) = config.package_extensions.as_ref() else {
-        return Ok(None);
-    };
+    let Some(extensions) = config.package_extensions.as_ref() else { return Ok(None) };
     let extender = crate::PackageExtender::new(extensions)
         .map_err(InstallWithFreshLockfileError::InvalidPackageExtensionSelector)?;
     Ok((!extender.is_empty()).then(|| Arc::new(extender)))

@@ -49,10 +49,7 @@ fn frozen_store_gvs_optional_not_seeded_skips() {
     let ignored = frozen_backstop_run(layout, true, true)
         .expect("an optional un-seeded build must be skipped, not refused")
         .ignored_builds;
-    assert!(
-        ignored.is_empty(),
-        "no scripts to ignore for a patched-only snapshot: {ignored:?}",
-    );
+    assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 /// Negative control: the same patched, un-seeded snapshot does NOT trip
 /// the backstop when `frozen_store` is off — proving the flag is
@@ -67,10 +64,7 @@ fn gvs_without_frozen_store_does_not_trip_backstop() {
     let ignored = frozen_backstop_run(layout, false, false)
         .expect("without frozen_store the backstop must not fire")
         .ignored_builds;
-    assert!(
-        ignored.is_empty(),
-        "no scripts to ignore for a patched-only snapshot: {ignored:?}",
-    );
+    assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 /// Negative control: under the legacy (non-GVS) layout, package
 /// directories live under the writable project-local virtual store, so
@@ -87,10 +81,7 @@ fn frozen_store_without_gvs_does_not_trip_backstop() {
     let ignored = frozen_backstop_run(&layout, true, false)
         .expect("the non-GVS layout writes to the project store, so the backstop must not fire")
         .ignored_builds;
-    assert!(
-        ignored.is_empty(),
-        "no scripts to ignore for a patched-only snapshot: {ignored:?}",
-    );
+    assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
@@ -199,10 +190,7 @@ async fn frozen_store_skips_side_effects_upload() {
     if !generated_file_exists {
         eprintln!("Expected generated file: {}", generated_file.display());
     }
-    assert!(
-        generated_file_exists,
-        "postinstall must run outside the store",
-    );
+    assert!(generated_file_exists, "postinstall must run outside the store");
 
     let store_after = snapshot_regular_files(store_dir.root());
     report_store_file_differences(&store_before, &store_after);

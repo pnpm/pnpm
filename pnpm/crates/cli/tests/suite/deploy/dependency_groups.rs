@@ -84,13 +84,7 @@ fn shared_lockfile_deploy_honors_no_optional_in_graph_and_virtual_store() {
         .assert()
         .success();
     pacquet_cmd(&workspace)
-        .with_args([
-            "--filter",
-            "app",
-            "deploy",
-            "--prod",
-            "deploy-with-optional",
-        ])
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy-with-optional"])
         .assert()
         .success();
     let with_optional = workspace.join("deploy-with-optional");
@@ -236,16 +230,8 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
 
     let deploy_lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
     let importer = deploy_lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY).unwrap();
-    assert!(
-        importer.dev_dependencies.is_none(),
-        "{:#?}",
-        importer.dev_dependencies,
-    );
-    assert!(
-        importer.optional_dependencies.is_none(),
-        "{:#?}",
-        importer.optional_dependencies,
-    );
+    assert!(importer.dev_dependencies.is_none(), "{:#?}", importer.dev_dependencies);
+    assert!(importer.optional_dependencies.is_none(), "{:#?}", importer.optional_dependencies);
     let graph_keys = deploy_graph_keys(&deploy_dir);
     for excluded in ["@pnpm.e2e/bar@", "@pnpm.e2e/qar@"] {
         assert!(

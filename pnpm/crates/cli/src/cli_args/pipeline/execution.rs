@@ -1,7 +1,3 @@
-pub(super) use environment::task_environment;
-
-use environment::{cargo_build_env, pipeline_script_context};
-
 use super::{
     CacheDisposition, Config, ExecutionStatus, GraphPkg, HashMap, Instant, IntoDiagnostic,
     LogEvent, LogLevel, Path, PathBuf, PipelineInvocation, PnpmLog, ProjectGraph, RunContext,
@@ -59,16 +55,17 @@ pub(super) fn run_pipeline_task(
         && let Some(cache_key) = cache_key
         && let Some(captured) = execution.captured
     {
-        let outputs = settings
-            .and_then(|settings| settings.outputs.as_deref())
-            .unwrap_or_default();
-        store_task_outputs(options, cache_key, outputs, captured);
+        let outputs = settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default();
+        if let Err(error) = options.cache.store(cache_key, root, summary_key, outputs, captured) {
+            (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message: format!("{summary_key}: failed to store the task in the cache: {error}"),
+                prefix: root.to_string_lossy().into_owned(),
+            }));
+        }
     }
-    let disposition = if cache_key.is_some() {
-        CacheDisposition::Miss
-    } else {
-        CacheDisposition::Bypass
-    };
+    let disposition =
+        if cache_key.is_some() { CacheDisposition::Miss } else { CacheDisposition::Bypass };
     options.reporting.report.task_finished(summary_key, execution.status, disposition, duration);
     Ok(ExecutionStatus {
         status: execution.status,
@@ -138,20 +135,24 @@ fn execute_task_with_cargo_cache(
     let cargo = cargo_cache::CargoCache::open(root, directory).into_diagnostic()?;
     let environment = cargo_cache::cache_environment(
         options.environment.extra_env,
-        settings
-            .and_then(|settings| settings.env.as_deref())
-            .unwrap_or_default(),
+        settings.and_then(|settings| settings.env.as_deref()).unwrap_or_default(),
     );
-    let snapshot = cargo_snapshot(options, settings, &environment);
+    let cargo_cacheable = !options.invocation.no_cache
+        && settings.is_some_and(|settings| settings.cache != Some(false));
+    let snapshot = cargo_cacheable
+        .then_some(options.task_key)
+        .flatten()
+        .and_then(|task_key| {
+            cargo_cache::snapshot_entry(&options.config.cache_dir, root, task_key, &environment)
+                .inspect_err(|error| cargo_cache_warning(options, &error.to_string()))
+                .ok()
+        });
     if let Some(snapshot) = &snapshot {
         restore_cargo_snapshot(options, &cargo, snapshot)?;
     }
     let extra_env = cargo_build_env(options.environment.extra_env, &cargo);
     let execution = execute_task_scripts(&RunTaskOptions {
-        environment: TaskEnvironment {
-            extra_env: &extra_env,
-            ..options.environment
-        },
+        environment: TaskEnvironment { extra_env: &extra_env, ..options.environment },
         ..*options
     })?;
     if execution.status == Status::Passed
@@ -173,10 +174,7 @@ fn restore_cargo_snapshot(
     match cargo.restore(entry, key) {
         Ok(true) => (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Info,
-            message: format!(
-                "{}: restored Cargo build state",
-                options.reporting.summary_key,
-            ),
+            message: format!("{}: restored Cargo build state", options.reporting.summary_key),
             prefix: options.node.project.to_string_lossy().into_owned(),
         })),
         // A snapshot that is not there yet is the ordinary first run.
@@ -185,6 +183,18 @@ fn restore_cargo_snapshot(
         Err(error) => cargo_cache_warning(options, &error.to_string()),
     }
     cargo.prepare(key).into_diagnostic()
+}
+
+/// The task's environment with Cargo pointed at the cached build directory.
+fn cargo_build_env(
+    base_extra_env: &HashMap<String, String>,
+    cargo: &cargo_cache::CargoCache,
+) -> HashMap<String, String> {
+    let mut extra_env = base_extra_env.clone();
+    for name in ["CARGO_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"] {
+        extra_env.insert(name.to_string(), cargo.target.to_string_lossy().into_owned());
+    }
+    extra_env
 }
 
 /// Save the build directory as this task key's snapshot — but only when
@@ -205,10 +215,7 @@ fn publish_cargo_snapshot(
             }
         }
         Ok(_) => {
-            cargo_cache_warning(
-                options,
-                "inputs changed during execution; snapshot was not saved",
-            );
+            cargo_cache_warning(options, "inputs changed during execution; snapshot was not saved");
         }
         Err(error) => cargo_cache_warning(options, &error.to_string()),
     }
@@ -217,10 +224,7 @@ fn publish_cargo_snapshot(
 fn cargo_cache_warning(options: &RunTaskOptions<'_, '_>, reason: &str) {
     (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,
-        message: format!(
-            "{}: Cargo build cache: {reason}",
-            options.reporting.summary_key,
-        ),
+        message: format!("{}: Cargo build cache: {reason}", options.reporting.summary_key),
         prefix: options.node.project.to_string_lossy().into_owned(),
     }));
 }
@@ -239,10 +243,7 @@ fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<Task
 
     let extra_env = task_environment(options.config, root, options.environment.extra_env);
     let capture_output = options.task_key.is_some()
-        && task_cacheable(
-            options.invocation,
-            options.config.tasks.get(&options.node.task_name),
-        );
+        && task_cacheable(options.invocation, options.config.tasks.get(&options.node.task_name));
     let root_str = root.to_string_lossy().into_owned();
     let mut execution = TaskExecution {
         status: Status::Passed,
@@ -267,7 +268,9 @@ fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<Task
         }
         let exit = exit?;
         if !exit.success() {
-            execution.record_failure(exit);
+            execution.status = Status::Failure;
+            execution.message =
+                Some(format!("command failed with exit code {}", exit.code().unwrap_or(1)));
             break;
         }
     }
@@ -359,49 +362,50 @@ fn task_cacheable(
         })
 }
 
-mod environment;
-
-fn store_task_outputs(
-    options: &RunTaskOptions<'_, '_>,
-    cache_key: &str,
-    outputs: &[String],
-    captured: Vec<capture::CapturedScript>,
-) {
-    let root = options.node.project.as_path();
-    let summary_key = options.reporting.summary_key;
-    if let Err(error) = options.cache.store(cache_key, root, summary_key, outputs, captured) {
-        (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
-            level: LogLevel::Warn,
-            message: format!("{summary_key}: failed to store the task in the cache: {error}"),
-            prefix: root.to_string_lossy().into_owned(),
-        }));
+pub(super) fn task_environment(
+    config: &Config,
+    root: &Path,
+    base_extra_env: &HashMap<String, String>,
+) -> HashMap<String, String> {
+    let mut extra_env = base_extra_env.clone();
+    if let Some(pnp_path) = pnp_path_for_execution(config, root) {
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            make_node_require_option(&pnp_path, node_options),
+        );
     }
+    if let Some(package_map_path) = package_map_path_for_execution(config, root) {
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            make_node_package_map_option(&package_map_path, node_options),
+        );
+    }
+
+    extra_env
 }
 
-fn cargo_snapshot(
-    options: &RunTaskOptions<'_, '_>,
-    settings: Option<&pnpm_config::TaskSettings>,
-    environment: &std::collections::BTreeMap<String, String>,
-) -> Option<(PathBuf, String, Vec<String>)> {
+fn pipeline_script_context<'a>(
+    options: &'a RunTaskOptions<'_, '_>,
+    extra_env: &'a HashMap<String, String>,
+    root_str: &'a str,
+    capture_output: bool,
+) -> RunContext<'a> {
     let root = options.node.project.as_path();
-    let cargo_cacheable = !options.invocation.no_cache
-        && settings.is_some_and(|settings| settings.cache != Some(false));
-    cargo_cacheable
-        .then_some(options.task_key)
-        .flatten()
-        .and_then(|task_key| {
-            cargo_cache::snapshot_entry(&options.config.cache_dir, root, task_key, environment)
-                .inspect_err(|error| cargo_cache_warning(options, &error.to_string()))
-                .ok()
-        })
-}
-
-impl TaskExecution {
-    fn record_failure(&mut self, exit: pnpm_executor::ScriptExit) {
-        self.status = Status::Failure;
-        self.message = Some(format!(
-            "command failed with exit code {}",
-            exit.code().unwrap_or(1),
-        ));
+    RunContext {
+        manifest: &options.graph[root].package.project.manifest,
+        dir: root,
+        init_cwd: options.environment.init_cwd,
+        config: options.config,
+        extra_env,
+        silent: options.reporting.silent,
+        output: ScriptOutput::Streamed {
+            dep_path: root_str,
+            emit: if capture_output { capture::capturing_emit } else { options.reporting.emit },
+        },
+        // The pipeline never bails, so there is no cancellation to
+        // propagate into running children.
+        process_tracker: None,
     }
 }

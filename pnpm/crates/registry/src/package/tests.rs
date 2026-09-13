@@ -140,10 +140,7 @@ fn package_equality_compares_by_name_only() {
 fn latest_returns_version_pointed_to_by_dist_tag() {
     let pkg = package_with_versions("acme", &["1.0.0", "2.0.0", "3.0.0"], "2.0.0");
     let latest = pkg.latest();
-    assert_eq!(
-        latest.expect("latest manifest decodes").version.to_string(),
-        "2.0.0",
-    );
+    assert_eq!(latest.expect("latest manifest decodes").version.to_string(), "2.0.0");
 }
 
 #[test]
@@ -213,22 +210,12 @@ fn package_deserializes_full_provenance_packument() {
     let user = version.npm_user.as_ref().expect("_npmUser present");
     let publisher = user.trusted_publisher.as_ref().expect("trustedPublisher present");
     assert_eq!(publisher.id.as_deref(), Some("github"));
-    assert_eq!(
-        publisher.oidc_config_id.as_deref(),
-        Some("release-pipeline"),
-    );
-    assert_eq!(
-        pkg.latest_decode_error(),
-        None,
-        "a healthy latest reports no decode error",
-    );
+    assert_eq!(publisher.oidc_config_id.as_deref(), Some("release-pipeline"));
+    assert_eq!(pkg.latest_decode_error(), None, "a healthy latest reports no decode error");
 
     let attestations = version.dist.attestations.as_ref().expect("attestations present");
     let provenance = attestations.provenance.as_ref().expect("provenance present");
-    assert_eq!(
-        provenance.predicate_type.as_deref(),
-        Some("https://slsa.dev/provenance/v1"),
-    );
+    assert_eq!(provenance.predicate_type.as_deref(), Some("https://slsa.dev/provenance/v1"));
 }
 
 #[test]
@@ -286,10 +273,7 @@ fn package_deserializes_without_npm_user_or_attestations() {
     let pkg: Package = serde_json::from_str(body).expect("deserialize minimal packument");
     let version = pkg.versions.get("1.0.0").expect("1.0.0 deserialized");
     assert!(version.npm_user.is_none(), "missing _npmUser stays None");
-    assert!(
-        version.dist.attestations.is_none(),
-        "missing attestations stays None",
-    );
+    assert!(version.dist.attestations.is_none(), "missing attestations stays None");
     assert!(pkg.modified.is_none(), "missing modified stays None");
     assert!(pkg.etag.is_none(), "missing etag stays None");
 }
@@ -325,10 +309,7 @@ fn package_deserializes_deprecated_boolean_false() {
     let pkg: Package =
         serde_json::from_str(body).expect("deserialize packument with deprecated:false");
     let version = pkg.versions.get("1.0.0").expect("1.0.0 deserialized");
-    assert!(
-        version.deprecated.is_none(),
-        "deprecated:false maps to None",
-    );
+    assert!(version.deprecated.is_none(), "deprecated:false maps to None");
 }
 
 #[test]
@@ -397,10 +378,7 @@ fn package_deserializes_without_time_field() {
     }"#;
     let pkg: Package = serde_json::from_str(body).expect("deserialize without time");
     assert!(pkg.time.is_none(), "missing time stays None");
-    assert!(
-        pkg.published_at("1.0.0").is_none(),
-        "no per-version lookup possible",
-    );
+    assert!(pkg.published_at("1.0.0").is_none(), "no per-version lookup possible");
 }
 
 /// Some historical npm packages (e.g. `deep-diff@0.1.0`) ship
@@ -456,10 +434,7 @@ fn package_tolerates_object_valued_dependency_entries() {
     let old = pkg.versions.get("0.1.0").expect("0.1.0 deserialized");
     let old_dev = old.dev_dependencies.as_ref().expect("devDependencies present");
     assert_eq!(old_dev.get("should").map(String::as_str), Some("1.2.1"));
-    assert!(
-        !old_dev.contains_key("vows"),
-        "object-valued entries are dropped",
-    );
+    assert!(!old_dev.contains_key("vows"), "object-valued entries are dropped");
 
     let current = pkg.versions.get("0.3.8").expect("0.3.8 deserialized");
     let current_dev = current.dev_dependencies.as_ref().expect("devDependencies present");
@@ -482,11 +457,7 @@ fn published_at_skips_reserved_unpublished_object() {
     }"#;
     let pkg: Package = serde_json::from_str(body).expect("deserialize");
     assert_eq!(pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
-    assert_eq!(
-        pkg.published_at("unpublished"),
-        None,
-        "object value isn't a string",
-    );
+    assert_eq!(pkg.published_at("unpublished"), None, "object value isn't a string");
 }
 
 /// npmmirror answers abbreviated requests with a `time` map covering only
@@ -510,36 +481,22 @@ fn drop_incomplete_publish_times_discards_a_partial_map() {
 fn drop_incomplete_publish_times_keeps_a_complete_map() {
     let mut pkg = package_with_versions("acme", &["1.0.0", "1.1.0"], "1.1.0");
     pkg.time = Some(HashMap::from([
-        (
-            "1.0.0".to_string(),
-            serde_json::Value::String("2025-01-01T08:30:00.000Z".to_string()),
-        ),
-        (
-            "1.1.0".to_string(),
-            serde_json::Value::String("2025-01-10T08:30:00.000Z".to_string()),
-        ),
-        (
-            "created".to_string(),
-            serde_json::Value::String("2024-12-01T00:00:00.000Z".to_string()),
-        ),
+        ("1.0.0".to_string(), serde_json::Value::String("2025-01-01T08:30:00.000Z".to_string())),
+        ("1.1.0".to_string(), serde_json::Value::String("2025-01-10T08:30:00.000Z".to_string())),
+        ("created".to_string(), serde_json::Value::String("2024-12-01T00:00:00.000Z".to_string())),
     ]));
 
     pkg.drop_incomplete_publish_times();
 
-    assert!(
-        pkg.time.is_some(),
-        "reserved keys alongside every version are still complete",
-    );
+    assert!(pkg.time.is_some(), "reserved keys alongside every version are still complete");
 }
 
 /// An empty timestamp is as unusable as an absent one.
 #[test]
 fn drop_incomplete_publish_times_discards_an_empty_timestamp() {
     let mut pkg = package_with_versions("acme", &["1.0.0"], "1.0.0");
-    pkg.time = Some(HashMap::from([(
-        "1.0.0".to_string(),
-        serde_json::Value::String(String::new()),
-    )]));
+    pkg.time =
+        Some(HashMap::from([("1.0.0".to_string(), serde_json::Value::String(String::new()))]));
 
     pkg.drop_incomplete_publish_times();
 
@@ -572,29 +529,15 @@ fn latest_decode_error_names_the_version_and_the_parse_failure() {
     }"#;
     let pkg: Package = serde_json::from_str(body).expect("deserialize packument");
 
-    assert!(
-        pkg.versions.contains_key("2.0.0"),
-        "the packument lists the version",
-    );
+    assert!(pkg.versions.contains_key("2.0.0"), "the packument lists the version");
     assert!(pkg.latest().is_none(), "but it cannot be hydrated");
 
     let (version, error) = pkg.latest_decode_error().expect("latest reports a decode error");
     assert_eq!(version, "2.0.0");
-    assert!(
-        error.contains("integrity"),
-        "error names the offending field: {error}",
-    );
+    assert!(error.contains("integrity"), "error names the offending field: {error}");
 
-    assert_eq!(
-        pkg.versions.decode_error("1.0.0"),
-        None,
-        "a decodable version reports nothing",
-    );
-    assert_eq!(
-        pkg.versions.decode_error("9.9.9"),
-        None,
-        "an absent version reports nothing",
-    );
+    assert_eq!(pkg.versions.decode_error("1.0.0"), None, "a decodable version reports nothing");
+    assert_eq!(pkg.versions.decode_error("9.9.9"), None, "an absent version reports nothing");
 }
 
 /// A dangling tag is not a decode failure, so the caller keeps reporting

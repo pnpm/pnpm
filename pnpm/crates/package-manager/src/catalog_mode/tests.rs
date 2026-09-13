@@ -22,11 +22,7 @@ fn catalogs(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
 
 /// A freshly-added direct dependency (no previous specifier).
 fn dep<'a>(alias: &'a str, bare_specifier: &'a str) -> CatalogModeDep<'a> {
-    CatalogModeDep {
-        alias,
-        bare_specifier,
-        prev_specifier: None,
-    }
+    CatalogModeDep { alias, bare_specifier, prev_specifier: None }
 }
 
 fn decide(
@@ -41,11 +37,7 @@ fn decide(
 fn manual_mode_keeps_the_direct_version() {
     let catalogs = catalogs(&[("default", &[("is-positive", "1.0.0")])]);
     let decision = decide(CatalogMode::Manual, &catalogs, &dep("is-positive", "2.0.0")).unwrap();
-    assert_eq!(
-        decision,
-        CatalogDecision::KeepDirect,
-        "manual mode never catalogs",
-    );
+    assert_eq!(decision, CatalogDecision::KeepDirect, "manual mode never catalogs");
 }
 
 #[test]
@@ -113,12 +105,8 @@ fn prefer_uses_the_catalog_when_its_range_covers_the_wanted_version() {
 #[test]
 fn strict_errors_when_the_wanted_specifier_is_a_range() {
     let catalogs = catalogs(&[("default", &[("is-positive", "1.0.0")])]);
-    let err = decide(
-        CatalogMode::Strict,
-        &catalogs,
-        &dep("is-positive", "^2.0.0"),
-    )
-    .expect_err("a wanted range that disagrees with the catalog must error");
+    let err = decide(CatalogMode::Strict, &catalogs, &dep("is-positive", "^2.0.0"))
+        .expect_err("a wanted range that disagrees with the catalog must error");
     assert_eq!(err.wanted_dep, "is-positive@^2.0.0");
     assert_eq!(err.catalog_dep, "is-positive@1.0.0");
 }
@@ -157,17 +145,8 @@ fn strict_catalogs_a_dependency_absent_from_the_catalog() {
 #[test]
 fn strict_skips_runtime_specifiers() {
     let catalogs = catalogs(&[("default", &[("node", "1.0.0")])]);
-    let decision = decide(
-        CatalogMode::Strict,
-        &catalogs,
-        &dep("node", "runtime:22.0.0"),
-    )
-    .unwrap();
-    assert_eq!(
-        decision,
-        CatalogDecision::KeepDirect,
-        "a runtime: specifier is never cataloged",
-    );
+    let decision = decide(CatalogMode::Strict, &catalogs, &dep("node", "runtime:22.0.0")).unwrap();
+    assert_eq!(decision, CatalogDecision::KeepDirect, "a runtime: specifier is never cataloged");
 }
 
 #[test]
@@ -311,10 +290,7 @@ fn prefer_warns_and_keeps_the_direct_version_on_mismatch() {
     }
     // The reporter sink is a process-global `static`; clear it so a prior
     // run in the same process can't leak events into this assertion.
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     let catalogs = catalogs(&[("default", &[("is-positive", "1.0.0")])]);
     let decision = decide_catalog::<RecordingReporter>(

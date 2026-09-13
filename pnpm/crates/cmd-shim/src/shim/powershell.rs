@@ -27,15 +27,19 @@ pub fn generate_pwsh_shim(
             writeln!(pwsh).unwrap();
             writeln!(pwsh, "$ret=0").unwrap();
             writeln!(pwsh, "if (Test-Path {long_prog}) {{").unwrap();
-            write_pwsh_runtime_invocation(
+            write_pwsh_invocation(
                 &mut pwsh,
                 &format!("{long_prog} {args} {quoted_target} $args"),
+                "  ",
             );
+            writeln!(pwsh, "  $ret=$LASTEXITCODE").unwrap();
             writeln!(pwsh, "}} else {{").unwrap();
-            write_pwsh_runtime_invocation(
+            write_pwsh_invocation(
                 &mut pwsh,
                 &format!("{prog_quoted} {args} {quoted_target} $args"),
+                "  ",
             );
+            writeln!(pwsh, "  $ret=$LASTEXITCODE").unwrap();
             writeln!(pwsh, "}}").unwrap();
             write_pwsh_exit(&mut pwsh, restore_node_path, "$ret");
         }
@@ -101,9 +105,3 @@ if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
   # are installed in the same directory
   $exe=".exe"
 }"#;
-
-fn write_pwsh_runtime_invocation(pwsh: &mut String, command: &str) {
-    use std::fmt::Write;
-    write_pwsh_invocation(pwsh, command, "  ");
-    writeln!(pwsh, "  $ret=$LASTEXITCODE").unwrap();
-}

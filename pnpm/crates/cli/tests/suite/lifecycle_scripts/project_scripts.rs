@@ -39,11 +39,8 @@ fn runs_project_lifecycle_scripts_in_order() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    fs::write(
-        workspace.join("package.json"),
-        project_with_lifecycle_scripts().to_string(),
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), project_with_lifecycle_scripts().to_string())
+        .expect("write package.json");
 
     pacquet
         .with_arg("install")
@@ -54,14 +51,7 @@ fn runs_project_lifecycle_scripts_in_order() {
     let stages: Vec<&str> = order.lines().collect();
     assert_eq!(
         stages,
-        [
-            "preinstall",
-            "install",
-            "postinstall",
-            "preprepare",
-            "prepare",
-            "postprepare"
-        ],
+        ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"],
     );
 
     drop((root, mock_instance));
@@ -147,20 +137,14 @@ fn runs_project_lifecycle_scripts_on_frozen_install() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    fs::write(
-        workspace.join("package.json"),
-        project_with_lifecycle_scripts().to_string(),
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), project_with_lifecycle_scripts().to_string())
+        .expect("write package.json");
 
     pacquet
         .with_arg("install")
         .assert()
         .success();
-    assert!(
-        workspace.join("pnpm-lock.yaml").exists(),
-        "first install should write a lockfile",
-    );
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "first install should write a lockfile");
     fs::remove_file(workspace.join("order.txt")).expect("clear order.txt between installs");
 
     Command::cargo_bin("pnpm")
@@ -175,14 +159,7 @@ fn runs_project_lifecycle_scripts_on_frozen_install() {
     let stages: Vec<&str> = order.lines().collect();
     assert_eq!(
         stages,
-        [
-            "preinstall",
-            "install",
-            "postinstall",
-            "preprepare",
-            "prepare",
-            "postprepare"
-        ],
+        ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"],
     );
 
     drop((root, mock_instance));
@@ -373,11 +350,7 @@ fn update_config_extra_env_cannot_override_reserved_stamps() {
         .success();
 
     let init_cwd = fs::read_to_string(workspace.join("init-cwd.txt")).expect("read init-cwd.txt");
-    assert_ne!(
-        init_cwd.trim(),
-        "/bogus-from-hook",
-        "hook extraEnv must not override INIT_CWD",
-    );
+    assert_ne!(init_cwd.trim(), "/bogus-from-hook", "hook extraEnv must not override INIT_CWD");
     let canonical_workspace = fs::canonicalize(&workspace).expect("canonicalize workspace dir");
     let canonical_init_cwd =
         fs::canonicalize(init_cwd.trim()).expect("canonicalize INIT_CWD value");
@@ -442,11 +415,8 @@ fn ignore_scripts_skips_project_lifecycle_scripts() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    fs::write(
-        workspace.join("package.json"),
-        project_with_lifecycle_scripts().to_string(),
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), project_with_lifecycle_scripts().to_string())
+        .expect("write package.json");
 
     pacquet
         .with_args(["install", "--ignore-scripts"])
@@ -550,11 +520,8 @@ mod dev_preinstall {
         } = CommandTempCwd::init().add_mocked_registry();
         let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-        fs::write(
-            workspace.join("package.json"),
-            project_with_dev_preinstall().to_string(),
-        )
-        .expect("write package.json");
+        fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+            .expect("write package.json");
 
         pacquet
             .with_arg("install")
@@ -579,11 +546,8 @@ mod dev_preinstall {
         } = CommandTempCwd::init().add_mocked_registry();
         let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-        fs::write(
-            workspace.join("package.json"),
-            project_with_dev_preinstall().to_string(),
-        )
-        .expect("write package.json");
+        fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+            .expect("write package.json");
 
         pacquet
             .with_arg("install")
@@ -616,11 +580,8 @@ mod dev_preinstall {
         } = CommandTempCwd::init().add_mocked_registry();
         let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-        fs::write(
-            workspace.join("package.json"),
-            project_with_dev_preinstall().to_string(),
-        )
-        .expect("write package.json");
+        fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+            .expect("write package.json");
 
         pacquet
             .with_args(["install", "--ignore-scripts"])
@@ -650,11 +611,8 @@ mod dev_preinstall {
         } = CommandTempCwd::init().add_mocked_registry();
         let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-        fs::write(
-            workspace.join("package.json"),
-            project_with_dev_preinstall().to_string(),
-        )
-        .expect("write package.json");
+        fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+            .expect("write package.json");
 
         pacquet
             .with_env("PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN", "true")
@@ -664,11 +622,7 @@ mod dev_preinstall {
 
         let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
         let stages: Vec<&str> = order.lines().collect();
-        assert_eq!(
-            stages,
-            &EXPECTED_ORDER[1..],
-            "only pnpm:devPreinstall should be skipped",
-        );
+        assert_eq!(stages, &EXPECTED_ORDER[1..], "only pnpm:devPreinstall should be skipped");
 
         drop((root, mock_instance));
     }
@@ -687,11 +641,8 @@ mod dev_preinstall {
         } = CommandTempCwd::init().add_mocked_registry();
         let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-        fs::write(
-            workspace.join("package.json"),
-            project_with_dev_preinstall().to_string(),
-        )
-        .expect("write package.json");
+        fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+            .expect("write package.json");
 
         pacquet
             .with_env("PNPM_INTERNAL_DEV_PREINSTALL_ALREADY_RAN", "")
@@ -720,11 +671,8 @@ mod dev_preinstall {
         } = CommandTempCwd::init().add_mocked_registry();
         let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-        fs::write(
-            workspace.join("package.json"),
-            project_with_dev_preinstall().to_string(),
-        )
-        .expect("write package.json");
+        fs::write(workspace.join("package.json"), project_with_dev_preinstall().to_string())
+            .expect("write package.json");
 
         pacquet
             .with_args(["install", "--lockfile-only"])
@@ -757,11 +705,8 @@ mod dev_preinstall {
 
         let yaml_path = workspace.join("pnpm-workspace.yaml");
         let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-        fs::write(
-            &yaml_path,
-            format!("{}\npackages:\n  - 'packages/*'\n", yaml.trim_end()),
-        )
-        .expect("write pnpm-workspace.yaml");
+        fs::write(&yaml_path, format!("{}\npackages:\n  - 'packages/*'\n", yaml.trim_end()))
+            .expect("write pnpm-workspace.yaml");
 
         let root_manifest = serde_json::json!({
             "name": "workspace-root",
@@ -774,14 +719,8 @@ mod dev_preinstall {
             .expect("write the root package.json");
 
         for (name, manifest) in [
-            (
-                "tool",
-                serde_json::json!({ "bin": { "tool": "dist/tool.js" } }),
-            ),
-            (
-                "app",
-                serde_json::json!({ "dependencies": { "tool": "workspace:*" } }),
-            ),
+            ("tool", serde_json::json!({ "bin": { "tool": "dist/tool.js" } })),
+            ("app", serde_json::json!({ "dependencies": { "tool": "workspace:*" } })),
         ] {
             let dir = workspace.join("packages").join(name);
             fs::create_dir_all(&dir).expect("create the member dir");
@@ -828,11 +767,8 @@ mod dev_preinstall {
 
         let yaml_path = workspace.join("pnpm-workspace.yaml");
         let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-        fs::write(
-            &yaml_path,
-            format!("{}\npackages:\n  - 'packages/*'\n", yaml.trim_end()),
-        )
-        .expect("write pnpm-workspace.yaml");
+        fs::write(&yaml_path, format!("{}\npackages:\n  - 'packages/*'\n", yaml.trim_end()))
+            .expect("write pnpm-workspace.yaml");
 
         let manifest_with_hook = |name: &str| {
             serde_json::json!({
@@ -846,11 +782,8 @@ mod dev_preinstall {
             .expect("write the root package.json");
         let member_dir = workspace.join("packages").join("member");
         fs::create_dir_all(&member_dir).expect("create the member dir");
-        fs::write(
-            member_dir.join("package.json"),
-            manifest_with_hook("member"),
-        )
-        .expect("write the member package.json");
+        fs::write(member_dir.join("package.json"), manifest_with_hook("member"))
+            .expect("write the member package.json");
 
         pacquet
             .with_arg("install")

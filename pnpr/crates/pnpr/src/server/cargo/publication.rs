@@ -77,32 +77,17 @@ pub(in super::super) fn authorize_crate_publish(
 ) -> Result<CrateTarget, RegistryError> {
     metadata
         .validate()
-        .map_err(|err| RegistryError::BadRequest {
-            reason: err.to_string(),
-        })?;
+        .map_err(|err| RegistryError::BadRequest { reason: err.to_string() })?;
     let key = CanonicalPackageName::parse(&metadata.name, ECOSYSTEM)?;
     let (source, org) =
         match resolve_publish_target_for(state, identity, registry, ECOSYSTEM, key.as_str()) {
             PublishTarget::Hosted { source, org } => (source, org),
-            PublishTarget::Reject(reason) => {
-                return Err(RegistryError::BadRequest {
-                    reason,
-                });
-            }
+            PublishTarget::Reject(reason) => return Err(RegistryError::BadRequest { reason }),
             PublishTarget::Denied(err) => return Err(err),
             PublishTarget::NotFound => return Err(RegistryError::NotFound),
         };
-    authorize(
-        state,
-        identity,
-        &RegistrySource::Hosted(source),
-        key.as_str(),
-        Action::Publish,
-    )?;
-    Ok(CrateTarget {
-        key,
-        org,
-    })
+    authorize(state, identity, &RegistrySource::Hosted(source), key.as_str(), Action::Publish)?;
+    Ok(CrateTarget { key, org })
 }
 
 /// Check the archive against the metadata it was published with, and build
@@ -117,9 +102,7 @@ pub(in super::super) async fn verify_crate_archive(
     let checked = tokio::task::spawn_blocking(move || {
         validate_crate_archive(&archive, &name, &version)
             .map(|()| (sha256_hex(&archive), archive))
-            .map_err(|err| RegistryError::BadRequest {
-                reason: err.to_string(),
-            })
+            .map_err(|err| RegistryError::BadRequest { reason: err.to_string() })
     })
     .await
     .map_err(RegistryError::JoinError)??;
@@ -251,13 +234,9 @@ pub(super) async fn set_yanked(
     let outcome = state.inner.storage
         .for_hosted(&target.org)
         .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, |existing| {
-            let Some(bytes) = existing else {
-                return Ok(None);
-            };
+            let Some(bytes) = existing else { return Ok(None) };
             let mut document = CrateDocument::parse(bytes)?;
-            let Some(entry) = document.version_mut(version) else {
-                return Ok(None);
-            };
+            let Some(entry) = document.version_mut(version) else { return Ok(None) };
             entry.yanked = yanked;
             Ok(Some(document.to_bytes()))
         })

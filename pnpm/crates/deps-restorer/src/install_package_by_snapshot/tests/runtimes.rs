@@ -238,22 +238,14 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     };
     let manifest_bytes = synthesize_runtime_manifest_bytes(&package_key, binary)
         .expect("synthesize the runtime manifest");
-    let index_key = ArchiveStoreProjection::Package {
-        append_manifest: Some(&manifest_bytes),
-    }
-    .store_index_key(
-        &integrity.to_string(),
-        &package_key.without_peer().to_string(),
-    );
+    let index_key = ArchiveStoreProjection::Package { append_manifest: Some(&manifest_bytes) }
+        .store_index_key(&integrity.to_string(), &package_key.without_peer().to_string());
     let row = StoreIndex::open_in(&config.store_dir)
         .expect("open the store index")
         .get(&index_key)
         .expect("read the runtime row")
         .expect("the runtime row was persisted");
-    assert!(
-        row.files.contains_key("package.json"),
-        "the row records the synthesized package.json",
-    );
+    assert!(row.files.contains_key("package.json"), "the row records the synthesized package.json");
     let manifest = row.manifest.expect("the row records a bundled manifest");
     assert_eq!(
         manifest

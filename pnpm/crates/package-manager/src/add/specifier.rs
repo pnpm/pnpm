@@ -91,10 +91,7 @@ impl AddSelector {
             }
             _ => None,
         };
-        Ok(Self {
-            protocol,
-            aliasless,
-        })
+        Ok(Self { protocol, aliasless })
     }
 
     fn package_name<'s>(&'s self, package_selector: &'s str) -> &'s str {
@@ -169,15 +166,12 @@ pub(super) async fn bare_save_specifier(
         return Ok(workspace_specifier);
     }
     if let Some(version_spec) = node_runtime_version_spec(package_name, explicit_spec) {
-        return resolve_node_runtime_specifier(version_spec, prev_specifier, inputs)
-            .await;
+        return resolve_node_runtime_specifier(version_spec, prev_specifier, inputs).await;
     }
     if let Some(ProtocolSelector::Jsr(jsr)) = selector.protocol.as_ref() {
-        return Ok(
-            resolve_jsr_save_specifier(jsr, inputs.add, manifest, inputs.resolution)
-                .await?
-                .unwrap_or_else(|| package_selector.to_string()),
-        );
+        return Ok(resolve_jsr_save_specifier(jsr, inputs.add, manifest, inputs.resolution)
+            .await?
+            .unwrap_or_else(|| package_selector.to_string()));
     }
     match (explicit_spec, prev_specifier) {
         (Some(spec), prev) => Ok(resolve_explicit_registry_spec(
@@ -249,10 +243,7 @@ pub(super) fn workspace_save_specifier(
         None => implicit_workspace_target(package_name, explicit_spec, config, workspace_packages)?,
     };
     let workspace_specifier = calc_specifier_for_workspace_dep(
-        DeclaredSpecifiers {
-            prev: prev_specifier,
-            bare: explicit_spec,
-        },
+        DeclaredSpecifiers { prev: prev_specifier, bare: explicit_spec },
         Some(package_name),
         &target_name,
         resolved_version.as_deref(),
@@ -280,10 +271,7 @@ pub(super) fn explicit_workspace_target(
     let resolved_version = workspace_packages
         .and_then(|packages| packages.get(&target_name))
         .and_then(|versions| {
-            let available: Vec<String> = versions
-                .keys()
-                .cloned()
-                .collect();
+            let available: Vec<String> = versions.keys().cloned().collect();
             // Not `spec.version`: the pinned form records the local
             // package's own version, which wins over the range the
             // user typed.
@@ -351,25 +339,18 @@ impl ProtocolSelector {
         if let Some(rest) = selector.strip_prefix("npm:") {
             let (name, spec) = split_name_spec(rest);
             let name = protocol_package_name(name, selector)?;
-            return Ok(Some(Self::Npm {
-                name,
-                spec: spec.map(str::to_string),
-            }));
+            return Ok(Some(Self::Npm { name, spec: spec.map(str::to_string) }));
         }
         if let Some(spec) =
             parse_jsr_specifier(selector, None).map_err(AddError::ParseJsrSpecifier)?
         {
             return Ok(Some(Self::Jsr(spec)));
         }
-        let Some(alias) =
-            WorkspaceSpec::parse(selector).and_then(|spec| spec.alias)
-        else {
+        let Some(alias) = WorkspaceSpec::parse(selector).and_then(|spec| spec.alias) else {
             return Ok(None);
         };
         let name = protocol_package_name(&alias, selector)?;
-        Ok(Some(Self::Workspace {
-            name,
-        }))
+        Ok(Some(Self::Workspace { name }))
     }
 
     pub(super) fn package_name(&self) -> &str {

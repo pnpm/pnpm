@@ -85,9 +85,8 @@ impl ApproveBuildsArgs {
             return Ok(None);
         };
 
-        let settings_dir = initial_config.workspace_dir
-            .clone()
-            .unwrap_or_else(|| dir.to_path_buf());
+        let settings_dir =
+            initial_config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         write_approval_settings(&settings_dir, &decision)?;
         clear_decided_ignored_builds(scan.modules_manifest, &scan.modules_dir, &decision)?;
 
@@ -113,7 +112,20 @@ impl ApproveBuildsArgs {
         let ApproveBuildsArgs { packages, all, global: _ } = self;
 
         let Partition { approved, denied, unknown } = partition_params(&packages, pending);
-        validate_named_packages::<Reporter>(&approved, &denied, &unknown)?;
+        if !unknown.is_empty() {
+            emit_global_warning::<Reporter>(&format!(
+                "The following packages are not awaiting approval: {}",
+                unknown.join(", "),
+            ));
+        }
+        let contradictions: Vec<String> = approved
+            .iter()
+            .filter(|pkg| denied.contains(pkg))
+            .cloned()
+            .collect();
+        if !contradictions.is_empty() {
+            return Err(ApproveBuildsError::ContradictingArgs(contradictions).into());
+        }
         let build_packages: Vec<String> = if !packages.is_empty() {
             sort_unique(approved.clone())
         } else if all {
@@ -140,11 +152,7 @@ impl ApproveBuildsArgs {
             return Ok(None);
         }
 
-        Ok(Some(ApprovalDecision {
-            build_packages,
-            decisions,
-            clear_all: packages.is_empty(),
-        }))
+        Ok(Some(ApprovalDecision { build_packages, decisions, clear_all: packages.is_empty() }))
     }
 
     pub(crate) fn validate(&self) -> miette::Result<()> {
@@ -317,26 +325,3 @@ fn sort_unique(names: Vec<String>) -> Vec<String> {
 
 #[cfg(test)]
 mod tests;
-
-fn validate_named_packages<Reporter: self::Reporter>(
-    approved: &[String],
-    denied: &[String],
-    unknown: &[String],
-) -> miette::Result<()> {
-    if !unknown.is_empty() {
-        emit_global_warning::<Reporter>(&format!(
-            "The following packages are not awaiting approval: {}",
-            unknown.join(", "),
-        ));
-    }
-    let contradictions: Vec<String> = approved
-        .iter()
-        .filter(|pkg| denied.contains(pkg))
-        .cloned()
-        .collect();
-    if !contradictions.is_empty() {
-        return Err(ApproveBuildsError::ContradictingArgs(contradictions).into());
-    }
-
-    Ok(())
-}

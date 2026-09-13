@@ -27,19 +27,13 @@ const HOOK_TIMEOUT: Duration = Duration::from_secs(30);
 impl NodeJsHooks {
     #[must_use]
     pub fn new(file: PathBuf) -> Self {
-        NodeJsHooks {
-            file,
-            worker: OnceCell::new(),
-        }
+        NodeJsHooks { file, worker: OnceCell::new() }
     }
 
     /// The worker process, spawned on first use and reused thereafter. A spawn
     /// failure is cached and surfaced to every hook call.
     async fn worker(&self) -> Result<Arc<NodeWorker>, HookError> {
-        self.worker
-            .get_or_init(|| NodeWorker::spawn(&self.file))
-            .await
-            .clone()
+        self.worker.get_or_init(|| NodeWorker::spawn(&self.file)).await.clone()
     }
 
     /// Runs a side-effecting hook (`preResolution`) in a one-shot `node`
@@ -52,9 +46,7 @@ impl NodeJsHooks {
         args: Value,
         logger: &crate::PreResolutionHookLogger,
     ) {
-        let Ok(ctx_payload) = serde_json::to_string(&args) else {
-            return;
-        };
+        let Ok(ctx_payload) = serde_json::to_string(&args) else { return };
         let Some((input_type, wrapper)) = hook_wrapper(&self.file.to_string_lossy(), func) else {
             return;
         };
@@ -195,11 +187,7 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         // The worker returns `null` when the pnpmfile exports no
         // `updateConfig` hook (the generic `typeof fn === 'function'`
         // branch); in that case the config is left unchanged.
-        let result = self
-            .worker()
-            .await?
-            .call("updateConfig", config.clone(), ctx.log)
-            .await?;
+        let result = self.worker().await?.call("updateConfig", config.clone(), ctx.log).await?;
         Ok(if result.is_null() { config } else { result })
     }
 
@@ -235,9 +223,7 @@ impl crate::PnpmfileHooks for NodeJsHooks {
     }
 
     async fn filter_log(&self, log: Value, ctx: crate::HookContext) -> bool {
-        let Ok(worker) = self.worker().await else {
-            return true;
-        };
+        let Ok(worker) = self.worker().await else { return true };
         match worker.call("filterLog", log, ctx.log).await {
             Ok(value) => value.as_bool().unwrap_or(true),
             Err(_) => true,
@@ -274,11 +260,8 @@ impl crate::PnpmfileHooks for NodeJsHooks {
             .into_iter()
             .enumerate()
             .map(|(index, capabilities)| {
-                Arc::new(NodeJsCustomResolver {
-                    worker: Arc::clone(&worker),
-                    index,
-                    capabilities,
-                }) as Arc<dyn crate::CustomResolver>
+                Arc::new(NodeJsCustomResolver { worker: Arc::clone(&worker), index, capabilities })
+                    as Arc<dyn crate::CustomResolver>
             })
             .collect())
     }
@@ -290,11 +273,8 @@ impl crate::PnpmfileHooks for NodeJsHooks {
             .into_iter()
             .enumerate()
             .map(|(index, capabilities)| {
-                Arc::new(NodeJsCustomFetcher {
-                    worker: Arc::clone(&worker),
-                    index,
-                    capabilities,
-                }) as Arc<dyn crate::CustomFetcher>
+                Arc::new(NodeJsCustomFetcher { worker: Arc::clone(&worker), index, capabilities })
+                    as Arc<dyn crate::CustomFetcher>
             })
             .collect())
     }
@@ -382,8 +362,7 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
     }
 
     async fn can_fetch(&self, pkg_id: &str, resolution: Value) -> Result<bool, HookError> {
-        let (can_fetch, _) = self.can_fetch_with_resolution(pkg_id, resolution)
-            .await?;
+        let (can_fetch, _) = self.can_fetch_with_resolution(pkg_id, resolution).await?;
         Ok(can_fetch)
     }
 

@@ -112,11 +112,7 @@ pub(super) async fn plan_candidate_groups(
             &mut collisions,
             input_key,
             planned.candidate,
-            (
-                snapshot_key,
-                planned.local_cache_key,
-                planned.store_index_key,
-            ),
+            (snapshot_key, planned.local_cache_key, planned.store_index_key),
         );
     }
     groups
@@ -135,9 +131,7 @@ impl DepStateHasher {
         pnpm_graph_hasher::warm_deps_state_cache(
             &graph,
             &mut cache,
-            in_lockfile_order(&graph)
-                .into_iter()
-                .map(|(key, _)| key),
+            in_lockfile_order(&graph).into_iter().map(|(key, _)| key),
         );
         Self {
             graph,
@@ -182,12 +176,8 @@ pub(super) async fn plan_root(
     persisted_remote: &mut HashMap<(PackageKey, String), HashMap<String, PathBuf>>,
     side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
 ) -> Option<PlannedRoot> {
-    let candidate = artifact_candidate(
-        plan,
-        root.snapshot_key,
-        root.input_key,
-        plan.setup.owner.clone(),
-    )?;
+    let candidate =
+        artifact_candidate(plan, root.snapshot_key, root.input_key, plan.setup.owner.clone())?;
     let local_cache_key = hasher.local_cache_key(root.snapshot_key, root.patch_hash);
     if reuse_persisted_overlay(
         plan,
@@ -209,11 +199,7 @@ pub(super) async fn plan_root(
         return None;
     }
     let store_index_key = plan.store_index_keys_by_snapshot.get(root.snapshot_key).cloned()?;
-    Some(PlannedRoot {
-        candidate,
-        local_cache_key,
-        store_index_key,
-    })
+    Some(PlannedRoot { candidate, local_cache_key, store_index_key })
 }
 /// The artifact one snapshot would look up. `None` when the package has
 /// no metadata row, or no integrity to bind the artifact's subject to.
@@ -313,13 +299,7 @@ pub(super) fn group_candidate(
     entry: (PackageKey, String, String),
 ) {
     let Some(group) = groups.get_mut(&input_key) else {
-        groups.insert(
-            input_key,
-            CandidateGroup {
-                candidate,
-                snapshots: vec![entry],
-            },
-        );
+        groups.insert(input_key, CandidateGroup { candidate, snapshots: vec![entry] });
         return;
     };
     if group.candidate.subject != candidate.subject {

@@ -15,10 +15,7 @@ pub(crate) fn crate_archive(name: &str, version: &str) -> Vec<u8> {
     let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
     let mut builder = tar::Builder::new(encoder);
     for (path, contents) in [
-        (
-            "Cargo.toml",
-            format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n"),
-        ),
+        ("Cargo.toml", format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n")),
         ("src/lib.rs", "pub fn answer() -> u8 { 42 }\n".to_string()),
     ] {
         let mut header = tar::Header::new_gnu();
@@ -108,10 +105,7 @@ fn install_resolves_and_downloads_through_the_configured_registry() {
 
     let lockfile =
         std::fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo.lock");
-    assert!(
-        lockfile.contains(&format!(r#"source = "sparse+{}/""#, registry.url())),
-        "{lockfile}",
-    );
+    assert!(lockfile.contains(&format!(r#"source = "sparse+{}/""#, registry.url())), "{lockfile}");
     assert!(
         root
             .path()
@@ -134,12 +128,7 @@ fn offline_install_without_registry_crates_never_reads_the_registry_config() {
 
     install_in(&root, &["install", "--offline"]);
 
-    assert!(
-        root
-            .path()
-            .join("Cargo.lock")
-            .is_file(),
-    );
+    assert!(root.path().join("Cargo.lock").is_file());
     let config = std::fs::read_to_string(root.path().join(".cargo/config.toml"))
         .expect("read managed Cargo configuration");
     assert!(config.contains(r#"registry = "sparse+https://registry.example.test/index/""#));
@@ -164,10 +153,7 @@ fn patched_repository(root: &Path) -> GitRepoFixture {
         "patched/Cargo.toml",
         "[package]\nname = \"patched\"\nversion.workspace = true\nedition.workspace = true\n\n[dependencies]\nsibling = { path = \"../sibling\", version = \"1.0.0\" }\n",
     );
-    repository.write_file(
-        "patched/src/lib.rs",
-        "pub fn patched() -> u8 { sibling::seven() }\n",
-    );
+    repository.write_file("patched/src/lib.rs", "pub fn patched() -> u8 { sibling::seven() }\n");
     repository.write_file(
         "sibling/Cargo.toml",
         "[package]\nname = \"sibling\"\nversion.workspace = true\nedition.workspace = true\n",
@@ -234,10 +220,7 @@ fn install_vendors_a_git_patched_crate_beside_the_registry_crates() {
 
     install_in(&root, &["install", "--frozen-lockfile"]);
 
-    assert_eq!(
-        fs::read_to_string(root.path().join("Cargo.lock")).unwrap(),
-        lockfile,
-    );
+    assert_eq!(fs::read_to_string(root.path().join("Cargo.lock")).unwrap(), lockfile);
     assert!(
         root
             .path()
@@ -301,22 +284,13 @@ fn reuses_workspace_metadata_with_aliased_paths_and_nested_workspaces() {
     let repository = TempDir::new().unwrap();
     let root = repository.path().join("workspace");
     fs::create_dir(&root).unwrap();
-    fs::write(
-        root.join("pnpm-workspace.yaml"),
-        "packages: []\ncargo:\n  enabled: true\n",
-    )
-    .unwrap();
+    fs::write(root.join("pnpm-workspace.yaml"), "packages: []\ncargo:\n  enabled: true\n").unwrap();
     fs::write(
         root.join("Cargo.toml"),
         "[workspace]\nmembers = [\"a\", \"b\", \"c\"]\nresolver = \"2\"\n",
     )
     .unwrap();
-    for (name, workspace) in [
-        ("a", ""),
-        ("b", ""),
-        ("c", ""),
-        ("a/nested", "[workspace]\n"),
-    ] {
+    for (name, workspace) in [("a", ""), ("b", ""), ("c", ""), ("a/nested", "[workspace]\n")] {
         let project = root.join(name);
         fs::create_dir_all(project.join("src")).unwrap();
         fs::write(project.join("src/lib.rs"), "").unwrap();
@@ -348,11 +322,7 @@ fn reuses_workspace_metadata_with_aliased_paths_and_nested_workspaces() {
         std::env::join_paths(std::iter::once(bin).chain(std::env::split_paths(&original_path)))
             .unwrap();
     let log = repository.path().join("cargo-calls");
-    for alias in [
-        root.clone(),
-        root.join("../workspace"),
-        std::path::PathBuf::from("."),
-    ] {
+    for alias in [root.clone(), root.join("../workspace"), std::path::PathBuf::from(".")] {
         fs::write(&log, "").unwrap();
         Command::cargo_bin("pnpm")
             .unwrap()
@@ -366,11 +336,7 @@ fn reuses_workspace_metadata_with_aliased_paths_and_nested_workspaces() {
             .env("PNPM_CONFIG_STORE_DIR", repository.path().join("store"))
             .assert()
             .success();
-        assert_eq!(
-            fs::read_to_string(&log).unwrap(),
-            "metadata\nmetadata\n",
-            "{alias:?}",
-        );
+        assert_eq!(fs::read_to_string(&log).unwrap(), "metadata\nmetadata\n", "{alias:?}");
     }
 }
 
@@ -404,12 +370,7 @@ fn install_does_not_parse_or_modify_excluded_cargo_workspaces() {
         .assert()
         .success();
 
-    let args = [
-        "install",
-        "--frozen-lockfile",
-        "--ignore-scripts",
-        "--offline",
-    ];
+    let args = ["install", "--frozen-lockfile", "--ignore-scripts", "--offline"];
     install_in(&root, &args);
     eprintln!("The selected Cargo workspace must receive source configuration");
     assert!(
@@ -434,10 +395,7 @@ fn install_does_not_parse_or_modify_excluded_cargo_workspaces() {
     let excluded_lock = fs::read(excluded.join("Cargo.lock")).unwrap();
 
     install_in(&root, &args);
-    assert_eq!(
-        fs::read(excluded.join("Cargo.lock")).unwrap(),
-        excluded_lock,
-    );
+    assert_eq!(fs::read(excluded.join("Cargo.lock")).unwrap(), excluded_lock);
     eprintln!("The excluded workspace must not receive pnpm files");
     assert!(!excluded.join(".cargo").exists());
     assert!(!excluded.join(".pnpm").exists());

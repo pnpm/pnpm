@@ -43,14 +43,8 @@ impl OidcState {
         }
         sessions.insert(
             super::super::sha256_hex(token.as_bytes()),
-            Session {
-                username: username.to_string(),
-                expires,
-            },
+            Session { username: username.to_string(), expires },
         );
-        Ok(LoginSession {
-            token,
-            expires,
-        })
+        Ok(LoginSession { token, expires })
     }
 }

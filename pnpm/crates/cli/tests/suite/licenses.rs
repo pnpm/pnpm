@@ -122,10 +122,7 @@ snapshots:
         ["MIT", "Zlib"],
     );
     assert_eq!(report["Zlib"][0]["author"], "Alpha Team");
-    assert_eq!(
-        report["Zlib"][0]["homepage"],
-        "https://github.com/example/alpha#readme",
-    );
+    assert_eq!(report["Zlib"][0]["homepage"], "https://github.com/example/alpha#readme");
 
     let output = pacquet_in(workspace.path())
         .args(["licenses", "list"])

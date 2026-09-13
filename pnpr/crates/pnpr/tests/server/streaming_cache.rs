@@ -124,11 +124,7 @@ async fn a_4xx_upstream_does_not_serve_stale_cache() {
         )
         .await
         .unwrap();
-    assert_ne!(
-        r2.status(),
-        StatusCode::OK,
-        "a 4xx must not be answered from stale cache",
-    );
+    assert_ne!(r2.status(), StatusCode::OK, "a 4xx must not be answered from stale cache");
     denied.assert_async().await;
 }
 
@@ -136,8 +132,7 @@ async fn a_4xx_upstream_does_not_serve_stale_cache() {
 async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = vec![0xCD; 128 * 1024];
-    let _packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", &bytes)
-        .await;
+    let _packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", &bytes).await;
     let mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
@@ -195,8 +190,7 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
 async fn cache_tmp_open_failure_fails_closed() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"served-without-cache";
-    let _packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes)
-        .await;
+    let _packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
     let _mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
@@ -279,18 +273,14 @@ async fn upstream_stream_error_clears_cache() {
     );
 
     // The incomplete body is never promoted to the cache.
-    assert!(
-        await_no_tgz(&public_cache_pkg(&cache_dir, "foo"), Duration::from_secs(1))
-            .await,
-    );
+    assert!(await_no_tgz(&public_cache_pkg(&cache_dir, "foo"), Duration::from_secs(1)).await);
 }
 
 #[tokio::test]
 async fn proxied_tarball_streams_to_client_and_is_cached() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = vec![0xEE_u8; 512 * 1024];
-    let _packument_mock = mock_packument_for_tarball(&mut upstream, "big", "1.0.0", &bytes)
-        .await;
+    let _packument_mock = mock_packument_for_tarball(&mut upstream, "big", "1.0.0", &bytes).await;
     let _mock = upstream
         .mock("GET", "/big/-/big-1.0.0.tgz")
         .with_status(200)
@@ -323,8 +313,7 @@ async fn proxied_tarball_streams_to_client_and_is_cached() {
 async fn tarball_is_not_gzipped_even_when_accepted() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"fake-tarball-bytes-long-enough-to-clear-the-compression-size-floor";
-    let _packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes)
-        .await;
+    let _packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
     let mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
@@ -420,8 +409,7 @@ async fn cache_false_upstream_streams_tarball_without_mirroring() {
     let bytes = b"uncached-tarball-bytes";
     // A `cache: false` registry streams everything through, so each of the two
     // requests refetches the packument as well as the tarball.
-    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes)
-        .await;
+    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
     let mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
@@ -528,9 +516,5 @@ async fn upstream_404_purges_cached_packument() {
         )
         .await
         .unwrap();
-    assert_ne!(
-        outage.status(),
-        StatusCode::OK,
-        "purged package must not be served stale",
-    );
+    assert_ne!(outage.status(), StatusCode::OK, "purged package must not be served stale");
 }

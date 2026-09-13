@@ -118,9 +118,7 @@ pub fn run_recursive(
         &projects,
         config,
         dir,
-        AutoExcludeRoot::Enabled {
-            workspace_patterns: patterns.as_deref(),
-        },
+        AutoExcludeRoot::Enabled { workspace_patterns: patterns.as_deref() },
     )?;
     let graph = &selection.selected;
     let Some(script_name) = args.script_name() else {
@@ -240,15 +238,19 @@ impl RecursiveRun<'_, '_> {
             &full_task_graph,
             self.script.script_name,
         )?;
-        let sequenced_tasks = self.sequence_run_tasks(&mut task_graph)?;
+        // Also the cycle check: a cyclic graph cannot be scheduled, and
+        // sequenced into an arbitrary order it would succeed or fail by luck.
+        let sequenced_tasks = sequence_tasks(
+            &mut task_graph,
+            &SequenceTasksOptions {
+                workspace_dir: self.workspace_root,
+                ignore_cycles: self.config.ignore_workspace_cycles,
+                emit: self.script.emit,
+            },
+        )?;
 
         if self.args.dry_run {
-            print_run_dry_run(
-                self.args,
-                &task_graph,
-                &sequenced_tasks,
-                self.workspace_root,
-            )?;
+            print_run_dry_run(self.args, &task_graph, &sequenced_tasks, self.workspace_root)?;
             return Ok(None);
         }
 
@@ -258,26 +260,7 @@ impl RecursiveRun<'_, '_> {
             &full_task_graph,
             &task_graph,
         ))?;
-        Ok(Some(PreparedRun {
-            task_graph,
-            sequenced_tasks,
-            extra_env,
-            task_run_state,
-        }))
-    }
-
-    fn sequence_run_tasks(&self, task_graph: &mut TaskGraph) -> miette::Result<Vec<TaskKey>> {
-        // Also the cycle check: a cyclic graph cannot be scheduled, and
-        // sequenced into an arbitrary order it would succeed or fail by luck.
-        sequence_tasks(
-            task_graph,
-            &SequenceTasksOptions {
-                workspace_dir: self.workspace_root,
-                ignore_cycles: self.config.ignore_workspace_cycles,
-                emit: self.script.emit,
-            },
-        )
-        .map_err(Into::into)
+        Ok(Some(PreparedRun { task_graph, sequenced_tasks, extra_env, task_run_state }))
     }
 
     fn validate_requested_scripts(&self, task_graph: &mut TaskGraph) -> miette::Result<()> {

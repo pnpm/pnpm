@@ -22,10 +22,7 @@ async fn transitive_dep_with_traversal_alias_is_rejected() {
             }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "normal": "1.0.0" }));
 
     let err = resolve_dependency_tree(
@@ -78,16 +75,9 @@ async fn overrides_hook_applies_after_the_pnpmfile_hook() {
     );
     table.insert(
         ("bar".to_string(), "^3.0.0".to_string()),
-        fake_result(
-            "bar",
-            "3.1.0",
-            serde_json::json!({ "name": "bar", "version": "3.1.0" }),
-        ),
+        fake_result("bar", "3.1.0", serde_json::json!({ "name": "bar", "version": "3.1.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
     let replacing_hook = ReplacingHook {
@@ -102,10 +92,7 @@ async fn overrides_hook_applies_after_the_pnpmfile_hook() {
         if let Some(deps) = owned.get_mut("dependencies").and_then(serde_json::Value::as_object_mut)
             && deps.contains_key("bar")
         {
-            deps.insert(
-                "bar".to_string(),
-                serde_json::Value::String("^3.0.0".to_string()),
-            );
+            deps.insert("bar".to_string(), serde_json::Value::String("^3.0.0".to_string()));
         }
         std::sync::Arc::new(owned)
     });
@@ -127,14 +114,8 @@ async fn overrides_hook_applies_after_the_pnpmfile_hook() {
     .await
     .unwrap();
 
-    assert!(
-        tree.packages.contains_key("bar@3.1.0"),
-        "override must win over the hook",
-    );
-    let calls = resolver.calls
-        .lock()
-        .unwrap()
-        .clone();
+    assert!(tree.packages.contains_key("bar@3.1.0"), "override must win over the hook");
+    let calls = resolver.calls.lock().unwrap().clone();
     assert!(
         calls.contains(&("bar".to_string(), "^3.0.0".to_string())),
         "bar must be resolved with the overridden range, got: {calls:?}",

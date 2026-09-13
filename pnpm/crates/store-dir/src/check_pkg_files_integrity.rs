@@ -38,10 +38,8 @@ use std::{
 /// including the per-project loop dedicated lockfiles take. An embedder
 /// driving several installs at once in one process is the one case
 /// where a diff can pick up a sibling's hashing.
-static VERIFIED_FILE_INTEGRITY: VerifiedFileIntegrityTally = VerifiedFileIntegrityTally {
-    files: AtomicU64::new(0),
-    nanos: AtomicU64::new(0),
-};
+static VERIFIED_FILE_INTEGRITY: VerifiedFileIntegrityTally =
+    VerifiedFileIntegrityTally { files: AtomicU64::new(0), nanos: AtomicU64::new(0) };
 
 struct VerifiedFileIntegrityTally {
     files: AtomicU64,
@@ -189,8 +187,7 @@ pub fn check_pkg_files_integrity(
     verified_files_cache: &VerifiedFilesCache,
 ) -> VerifyResult {
     let (mut result, pending) = defer_pkg_files_integrity(store_dir, entry);
-    result.passed =
-        pending.verify(store_dir, verified_files_cache) && result.passed;
+    result.passed = pending.verify(store_dir, verified_files_cache) && result.passed;
     result
 }
 
@@ -237,13 +234,7 @@ pub fn defer_pkg_files_integrity(
         side_effects,
         remote_side_effects_quarantine,
     };
-    (
-        result,
-        PendingFilesCheck {
-            files,
-            algo,
-        },
-    )
+    (result, PendingFilesCheck { files, algo })
 }
 
 /// The on-disk check of one store-index row's files, split off its
@@ -325,10 +316,7 @@ fn overlay_for(
     let SideEffectsDiff { added, deleted, .. } = diff;
     let mut overlay: FilesMap = HashMap::with_capacity(base_files.len());
     for (filename, info) in added.iter().flatten() {
-        overlay.insert(
-            filename.clone(),
-            overlay_path(store_dir, cache_key, filename, info)?,
-        );
+        overlay.insert(filename.clone(), overlay_path(store_dir, cache_key, filename, info)?);
     }
     // Promote `deleted` to a `HashSet` once per cache key so
     // the `base_files` walk stays linear in `|base|` instead of

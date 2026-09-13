@@ -87,12 +87,8 @@ fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
     let first_registry = start_pnpr_registry(&first_upstream.url(), Ecosystem::Npm);
 
     let mut second_upstream = mockito::Server::new();
-    let (second_integrity, second_packument) = revision_packument(
-        &second_upstream,
-        &second_tarball,
-        2,
-        &[(&first_integrity, 1)],
-    );
+    let (second_integrity, second_packument) =
+        revision_packument(&second_upstream, &second_tarball, 2, &[(&first_integrity, 1)]);
     let second_path = integrity_addressed_tarball_path(&second_integrity).unwrap();
     second_upstream
         .mock("GET", "/revision-pkg")

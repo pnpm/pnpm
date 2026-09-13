@@ -62,10 +62,7 @@ fn variations_resolution_renders_block_not_flow() {
     let yaml = to_string(json!({
         "resolution": { "type": "variations", "variants": ["a"] },
     }));
-    assert_eq!(
-        yaml,
-        "resolution:\n  type: variations\n  variants:\n    - a\n",
-    );
+    assert_eq!(yaml, "resolution:\n  type: variations\n  variants:\n    - a\n");
 }
 
 #[test]
@@ -133,11 +130,9 @@ fn a_large_section_renders_identically_through_the_parallel_path() {
     use std::fmt::Write;
     let mut expected = String::from("lockfileVersion: '9.0'\n\npackages:\n");
     for index in 0..count {
-        write!(
-            expected,
-            "\n  pkg-{index:03}@1.0.0:\n    version: 1.0.0\n    dev: false\n",
-        )
-        .expect("write to a String is infallible");
+        write!(expected, "\n  pkg-{index:03}@1.0.0:\n    version: 1.0.0\n    dev: false\n").expect(
+            "write to a String is infallible",
+        );
     }
     assert_eq!(yaml, expected);
 }

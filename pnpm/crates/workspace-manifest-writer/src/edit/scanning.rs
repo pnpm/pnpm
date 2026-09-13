@@ -27,9 +27,7 @@ pub(super) fn locate_sequence(text: &str, path: &[&str]) -> Inline {
 /// other than `expected` is reported as unsupported: no writer here can put
 /// a mapping entry into a sequence, or the reverse.
 fn locate_inline(text: &str, path: &[&str], expected: flow::Kind) -> Inline {
-    let Some(offset) = inline_value_start(text, path) else {
-        return Inline::Block;
-    };
+    let Some(offset) = inline_value_start(text, path) else { return Inline::Block };
     match flow::parse(text, offset) {
         Some(collection) if collection.kind() == expected => Inline::Flow(collection),
         Some(_) | None => Inline::Unsupported,
@@ -165,11 +163,7 @@ pub(super) fn lines(text: &str) -> Vec<Line<'_>> {
     let mut offset = 0;
     for raw in text.split_inclusive('\n') {
         let content = raw.strip_suffix('\n').unwrap_or(raw);
-        out.push(Line {
-            start: offset,
-            content,
-            end: offset + raw.len(),
-        });
+        out.push(Line { start: offset, content, end: offset + raw.len() });
         offset += raw.len();
     }
     out
@@ -333,11 +327,7 @@ fn mapping_at(
         .get(key_idx + 1)
         .map_or(all[key_idx].end, |line| line.start);
     let entries = collect_entries(all, key_idx + 1, block_end_idx, child_indent);
-    Mapping {
-        body_start,
-        entry_indent: child_indent,
-        entries,
-    }
+    Mapping { body_start, entry_indent: child_indent, entries }
 }
 
 /// Collect the direct child entries (key lines at `entry_indent`) within
@@ -387,18 +377,8 @@ pub(super) fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     let block_end_idx = leading_comment_start(&all, body_start, next_key_idx);
     let block_end = all
         .get(block_end_idx)
-        .map_or_else(
-            || {
-                all
-                    .last()
-                    .map_or(0, |line| line.end)
-            },
-            |line| line.start,
-        );
-    Some(TopLevelSpan {
-        key_line_start: all[key_idx].start,
-        block_end,
-    })
+        .map_or_else(|| all.last().map_or(0, |line| line.end), |line| line.start);
+    Some(TopLevelSpan { key_line_start: all[key_idx].start, block_end })
 }
 
 /// Index of the line declaring the top-level key `key`.

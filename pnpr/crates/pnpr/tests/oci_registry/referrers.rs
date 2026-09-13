@@ -107,8 +107,7 @@ async fn referrer_pages_bound_migration_and_keep_filter_and_registry() {
         let path = format!(
             "/oci/~images/v2/acme/paged/referrers/{subject}?artifactType=application%2Fexample%2Bjson",
         );
-        let (received, pages) = collect_filtered_referrer_pages(&app, path)
-            .await;
+        let (received, pages) = collect_filtered_referrer_pages(&app, path).await;
         expected.sort();
         assert_eq!(received, expected);
         assert_eq!(pages, 2);
@@ -151,10 +150,7 @@ async fn large_referrer_annotations_stay_out_of_repository_documents() {
         .await
         .unwrap()
         .unwrap();
-    assert!(
-        document.len() < 2048,
-        "annotations must not inflate ordinary repository reads",
-    );
+    assert!(document.len() < 2048, "annotations must not inflate ordinary repository reads");
     let mut path = format!("/v2/acme/large/referrers/{subject}");
     let mut count = 0;
     loop {

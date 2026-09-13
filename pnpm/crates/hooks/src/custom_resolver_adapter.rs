@@ -23,10 +23,7 @@ pub struct CustomResolverAdapter {
 
 impl CustomResolverAdapter {
     pub fn new(resolver: Arc<dyn CustomResolver>) -> Self {
-        Self {
-            resolver,
-            can_resolve_cache: Mutex::new(HashMap::new()),
-        }
+        Self { resolver, can_resolve_cache: Mutex::new(HashMap::new()) }
     }
 
     fn cache_key(wanted: &WantedDependency) -> String {
@@ -134,10 +131,7 @@ impl CustomResolverAdapter {
 }
 
 fn invalid_data(message: impl Into<Box<dyn std::error::Error + Send + Sync>>) -> ResolveError {
-    Box::new(std::io::Error::new(
-        std::io::ErrorKind::InvalidData,
-        message,
-    ))
+    Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, message))
 }
 
 #[cfg(test)]
@@ -159,9 +153,7 @@ fn resolved_hook_result(
 
     let resolution = serde_json::from_value(resolution_val.clone())
         .map_err(|err| {
-            invalid_data(format!(
-                "Custom resolver returned invalid resolution: {err}",
-            ))
+            invalid_data(format!("Custom resolver returned invalid resolution: {err}"))
         })?;
 
     let manifest = match result.get("manifest") {

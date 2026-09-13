@@ -120,11 +120,8 @@ fn fabricate_crashed_publish_in(
         package["org"] = json!(org);
     }
     let manifest = json!({ "packages": [package] });
-    std::fs::write(
-        txn_dir.join("manifest.json"),
-        serde_json::to_vec_pretty(&manifest).unwrap(),
-    )
-    .unwrap();
+    std::fs::write(txn_dir.join("manifest.json"), serde_json::to_vec_pretty(&manifest).unwrap())
+        .unwrap();
     if sealed {
         std::fs::write(txn_dir.join("commit"), b"").unwrap();
     }
@@ -158,14 +155,8 @@ async fn recovery_rolls_a_sealed_transaction_forward() {
     .unwrap();
     assert_eq!(on_disk["versions"]["1.0.0"]["version"], "1.0.0");
     assert_eq!(on_disk["dist-tags"]["latest"], "1.0.0");
-    assert_eq!(
-        std::fs::read(storage.join("crash-fwd/crash-fwd-1.0.0.tgz")).unwrap(),
-        tarball,
-    );
-    assert!(
-        !tmp_path.exists(),
-        "staged tmp file should be promoted away",
-    );
+    assert_eq!(std::fs::read(storage.join("crash-fwd/crash-fwd-1.0.0.tgz")).unwrap(), tarball);
+    assert!(!tmp_path.exists(), "staged tmp file should be promoted away");
     assert!(
         std::fs::read_dir(storage.join(".pnpr-journal"))
             .unwrap()
@@ -206,14 +197,8 @@ async fn recovery_rolls_a_sealed_org_transaction_forward_into_its_namespace() {
     )
     .unwrap();
     assert_eq!(on_disk["versions"]["1.0.0"]["version"], "1.0.0");
-    assert_eq!(
-        std::fs::read(storage.join("acme/crash-org/crash-org-1.0.0.tgz")).unwrap(),
-        tarball,
-    );
-    assert!(
-        !tmp_path.exists(),
-        "staged tmp file should be promoted away",
-    );
+    assert_eq!(std::fs::read(storage.join("acme/crash-org/crash-org-1.0.0.tgz")).unwrap(), tarball);
+    assert!(!tmp_path.exists(), "staged tmp file should be promoted away");
     assert!(
         !storage.join("crash-org").exists(),
         "nothing must land in the flat root for an org-journaled publish",
@@ -268,10 +253,7 @@ async fn roll_forward_merges_with_versions_published_after_the_crash() {
     let on_disk: Value =
         serde_json::from_slice(&std::fs::read(pkg_dir.join("package.json")).unwrap()).unwrap();
     assert_eq!(on_disk["versions"]["1.0.0"]["version"], "1.0.0");
-    assert_eq!(
-        on_disk["versions"]["2.0.0"]["version"], "2.0.0",
-        "newer version must survive",
-    );
+    assert_eq!(on_disk["versions"]["2.0.0"]["version"], "2.0.0", "newer version must survive");
 }
 
 #[tokio::test]
@@ -301,9 +283,7 @@ async fn successful_batch_publish_leaves_no_journal_residue() {
     let request = Request::put("/-/pnpm/v1/publish")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(
-            serde_json::to_vec(&json!({ "packages": [doc] })).unwrap(),
-        ))
+        .body(Body::from(serde_json::to_vec(&json!({ "packages": [doc] })).unwrap()))
         .unwrap();
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -316,8 +296,5 @@ async fn successful_batch_publish_leaves_no_journal_residue() {
             .collect(),
         Err(_) => Vec::new(),
     };
-    assert!(
-        leftover.is_empty(),
-        "journal entries must be removed after apply: {leftover:?}",
-    );
+    assert!(leftover.is_empty(), "journal entries must be removed after apply: {leftover:?}");
 }

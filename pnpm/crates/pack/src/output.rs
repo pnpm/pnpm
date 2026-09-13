@@ -21,9 +21,7 @@ pub fn to_pack_result_json(result: &PackResult) -> PackResultJson {
         filename: result.tarball_path.clone(),
         files: result.contents
             .iter()
-            .map(|path| PackFile {
-                path: path.clone(),
-            })
+            .map(|path| PackFile { path: path.clone() })
             .collect(),
     }
 }
@@ -135,19 +133,14 @@ fn resolve_output_values(
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
     else {
-        return Err(PackError::InvalidOut {
-            out: out.to_owned(),
-        });
+        return Err(PackError::InvalidOut { out: out.to_owned() });
     };
     let parent = prepared_path
         .parent()
         .map(|dir| dir.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let pack_destination = if parent.is_empty() {
-        pack_destination.map(str::to_owned)
-    } else {
-        Some(parent)
-    };
+    let pack_destination =
+        if parent.is_empty() { pack_destination.map(str::to_owned) } else { Some(parent) };
     Ok((tarball_name, pack_destination))
 }
 
@@ -165,9 +158,7 @@ pub fn pack_output_path(
     let version = strip_build_metadata(published_version);
     let (tarball_name, destination) =
         resolve_output_values(out, pack_destination, &normalized_name, version)?;
-    Ok(lexical_normalize(
-        &resolve_dest_dir(project_dir, destination.as_deref()).join(tarball_name),
-    ))
+    Ok(lexical_normalize(&resolve_dest_dir(project_dir, destination.as_deref()).join(tarball_name)))
 }
 
 /// Resolve the directory the tarball is written into.
@@ -201,9 +192,7 @@ pub(super) fn packed_tarball_path(
 
 /// `version` without its `+<build>` metadata segment.
 pub(super) fn strip_build_metadata(version: &str) -> &str {
-    version
-        .split_once('+')
-        .map_or(version, |(base, _)| base)
+    version.split_once('+').map_or(version, |(base, _)| base)
 }
 
 /// Resolve a path's realpath, falling back to the input when it doesn't

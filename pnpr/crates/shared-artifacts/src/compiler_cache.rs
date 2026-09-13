@@ -52,9 +52,7 @@ impl SharedArtifactStore {
         bytes: Bytes,
     ) -> Result<bool> {
         if bytes.len() > MAX_COMPILER_CACHE_ENTRY_SIZE {
-            return Err(bad_request(
-                "compiler cache entry exceeds the size limit".to_string(),
-            ));
+            return Err(bad_request("compiler cache entry exceeds the size limit".to_string()));
         }
         let owner = owner_key(cache, &OwnerScope::organization(cache))?;
         let path = compiler_cache_path(&owner, key);
@@ -77,8 +75,7 @@ impl SharedArtifactStore {
             let digest = Bytes::copy_from_slice(&compiler_cache_digest(&owner, key, &bytes));
             let stored: PutPayload = [digest, bytes].into_iter().collect();
             let created = self.create_object(&path, stored).await?;
-            self.release_uncommitted(&owner, size, if created { size } else { 0 })
-                .await?;
+            self.release_uncommitted(&owner, size, if created { size } else { 0 }).await?;
             reclamation_needed = started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY;
             if reclamation_needed {
                 self.begin_publication(&publication).await?;
@@ -86,8 +83,7 @@ impl SharedArtifactStore {
             Ok(created)
         })
         .await;
-        self.complete_publication(&publication, reclamation_needed, result)
-            .await
+        self.complete_publication(&publication, reclamation_needed, result).await
     }
 
     /// Returns the payload length using object metadata, without verifying content.
@@ -142,10 +138,7 @@ impl SharedArtifactStore {
 }
 
 fn compiler_cache_path(owner: &str, key: &CompilerCacheKey) -> String {
-    format!(
-        "{owner}/compiler-cache/v1/{}",
-        digest_segment(key.0.as_bytes()),
-    )
+    format!("{owner}/compiler-cache/v1/{}", digest_segment(key.0.as_bytes()))
 }
 
 fn compiler_cache_digest(owner: &str, key: &CompilerCacheKey, bytes: &[u8]) -> [u8; DIGEST_SIZE] {

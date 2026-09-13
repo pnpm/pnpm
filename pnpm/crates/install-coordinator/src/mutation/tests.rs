@@ -14,8 +14,7 @@ async fn restores_changed_and_new_files_after_an_error() {
     let existing = directory.path().join("existing");
     let created = directory.path().join("created");
     fs::write(&existing, "before").unwrap();
-    let mutation = capture(&directory, [existing.clone(), created.clone()])
-        .await;
+    let mutation = capture(&directory, [existing.clone(), created.clone()]).await;
 
     fs::write(&existing, "after").unwrap();
     fs::write(&created, "new").unwrap();
@@ -37,9 +36,7 @@ async fn keeps_mutations_after_success() {
     let mutation = capture(&directory, [path.clone()]).await;
 
     fs::write(&path, "after").unwrap();
-    mutation
-        .finish(Ok(()))
-        .unwrap();
+    mutation.finish(Ok(())).unwrap();
 
     assert_eq!(fs::read_to_string(path).unwrap(), "after");
 }
@@ -50,8 +47,7 @@ async fn attempts_every_restoration_after_one_fails() {
     let existing = directory.path().join("a-existing");
     let unrestorable = directory.path().join("z-unrestorable");
     fs::write(&existing, "before").unwrap();
-    let mutation = capture(&directory, [existing.clone(), unrestorable.clone()])
-        .await;
+    let mutation = capture(&directory, [existing.clone(), unrestorable.clone()]).await;
 
     fs::write(&existing, "after").unwrap();
     fs::create_dir(&unrestorable).unwrap();
@@ -106,10 +102,7 @@ async fn restores_a_metadata_symlink_without_replacing_it_with_a_file() {
         .finish(Err(miette::miette!("operation failed")))
         .unwrap_err();
 
-    assert_eq!(
-        fs::read_link(&path).unwrap(),
-        std::path::Path::new("target"),
-    );
+    assert_eq!(fs::read_link(&path).unwrap(), std::path::Path::new("target"));
     assert_eq!(fs::read_to_string(target).unwrap(), "before");
 }
 
@@ -136,14 +129,8 @@ async fn restoration_stays_in_the_parent_pinned_during_capture() {
         .finish(Err(miette::miette!("operation failed")))
         .unwrap_err();
 
-    assert_eq!(
-        fs::read_to_string(original.join("manifest")).unwrap(),
-        "before",
-    );
-    assert_eq!(
-        fs::read_to_string(attacker.join("manifest")).unwrap(),
-        "attacker",
-    );
+    assert_eq!(fs::read_to_string(original.join("manifest")).unwrap(), "before");
+    assert_eq!(fs::read_to_string(attacker.join("manifest")).unwrap(), "attacker");
 }
 
 #[cfg(windows)]
@@ -160,10 +147,7 @@ async fn pinned_parent_cannot_be_replaced_during_restoration() {
     fs::write(&path, "after").unwrap();
     let rename_error = fs::rename(&project, &moved).unwrap_err();
     eprintln!("rename result while metadata parent is pinned: {rename_error:?}");
-    assert!(
-        project.is_dir(),
-        "the pinned metadata parent must remain at its validated path",
-    );
+    assert!(project.is_dir(), "the pinned metadata parent must remain at its validated path");
     mutation
         .finish(Err(miette::miette!("operation failed")))
         .unwrap_err();
@@ -195,8 +179,5 @@ async fn restoration_rejects_a_new_symlink_in_a_missing_parent_path() {
         error.to_string().contains("operation failed"),
         "rollback should retain the operation error: {error:?}",
     );
-    assert_eq!(
-        fs::read_to_string(attacker.join("config.toml")).unwrap(),
-        "attacker",
-    );
+    assert_eq!(fs::read_to_string(attacker.join("config.toml")).unwrap(), "attacker");
 }

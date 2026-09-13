@@ -16,11 +16,8 @@ async fn filtered_full_metadata_reads_pnpm_jsonl_mirror_for_lowest_pick() {
         get_pkg_mirror_path(cache_dir.path(), FULL_FILTERED_META_DIR, registry, "acme")
             .expect("path");
     std::fs::create_dir_all(mirror_path.parent().expect("mirror parent")).expect("mkdir");
-    std::fs::write(
-        &mirror_path,
-        format!("{{\"etag\":\"W/filtered\"}}\n{PACKAGE_BODY}"),
-    )
-    .expect("write pnpm jsonl mirror");
+    std::fs::write(&mirror_path, format!("{{\"etag\":\"W/filtered\"}}\n{PACKAGE_BODY}"))
+        .expect("write pnpm jsonl mirror");
 
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -51,10 +48,7 @@ async fn filtered_full_metadata_reads_pnpm_jsonl_mirror_for_lowest_pick() {
     opts.pick_lowest_version = true;
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
-    assert_eq!(
-        result.picked_package.expect("picked").version.to_string(),
-        "1.0.0",
-    );
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
 }
 
 #[tokio::test]
@@ -76,10 +70,7 @@ async fn warm_in_memory_cache_skips_network() {
 
     let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
-    meta_cache.set(
-        format!("{registry}\x00acme"),
-        std::sync::Arc::new(preloaded),
-    );
+    meta_cache.set(format!("{registry}\x00acme"), std::sync::Arc::new(preloaded));
 
     let ctx = PickPackageContext {
         full_metadata: false,
@@ -102,17 +93,10 @@ async fn warm_in_memory_cache_skips_network() {
         },
     };
 
-    let result = pick_package(
-        &ctx,
-        &range_spec("acme", "^1.0.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("ok");
-    assert_eq!(
-        result.picked_package.expect("picked").version.to_string(),
-        "1.1.0",
-    );
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
     mock.assert_async().await;
 }
 
@@ -169,10 +153,7 @@ async fn normal_range_fetches_when_cached_meta_is_missing_lockfile_version() {
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
 
-    assert_eq!(
-        result.picked_package.expect("picked").version.to_string(),
-        "1.1.0",
-    );
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
     mock.assert_async().await;
 }
 
@@ -190,13 +171,8 @@ async fn offline_with_mirror_picks_from_disk() {
     let registry = format!("{}/", server.url());
     let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
-    persist_meta_to_mirror(
-        cache_dir.path(),
-        ABBREVIATED_META_DIR,
-        &registry,
-        &preloaded,
-    )
-    .expect("warm mirror");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
 
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -223,17 +199,10 @@ async fn offline_with_mirror_picks_from_disk() {
         },
     };
 
-    let result = pick_package(
-        &ctx,
-        &range_spec("acme", "^1.0.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("ok");
-    assert_eq!(
-        result.picked_package.expect("picked").version.to_string(),
-        "1.1.0",
-    );
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
     mock.assert_async().await;
 }
 
@@ -266,17 +235,10 @@ async fn offline_without_mirror_errors() {
         },
     };
 
-    let err = pick_package(
-        &ctx,
-        &range_spec("acme", "^1.0.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect_err("offline + no mirror = error");
-    assert!(
-        matches!(err, PickPackageError::NoOfflineMeta { .. }),
-        "got {err:?}",
-    );
+    let err = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect_err("offline + no mirror = error");
+    assert!(matches!(err, PickPackageError::NoOfflineMeta { .. }), "got {err:?}");
 }
 
 /// The verification state lives inside the cache entry, so an
@@ -301,13 +263,8 @@ async fn offline_promotes_disk_loaded_packument_into_memory_cache() {
     let registry = "https://registry.example.com/".to_string();
     let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
-    persist_meta_to_mirror(
-        cache_dir.path(),
-        ABBREVIATED_META_DIR,
-        &registry,
-        &preloaded,
-    )
-    .expect("warm mirror");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
 
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -336,10 +293,7 @@ async fn offline_promotes_disk_loaded_packument_into_memory_cache() {
     let spec = range_spec("acme", "^1.0.0");
 
     let first = pick_package(&ctx, &spec, &default_opts(&registry)).await.expect("ok");
-    assert_eq!(
-        first.picked_package.expect("picked").version.to_string(),
-        "1.1.0",
-    );
+    assert_eq!(first.picked_package.expect("picked").version.to_string(), "1.1.0");
     let cache_key =
         metadata_cache_key(&MetadataCacheScope::Public, &registry, "acme", false, false);
     assert!(meta_cache.get(&cache_key).is_some());
@@ -348,10 +302,7 @@ async fn offline_promotes_disk_loaded_packument_into_memory_cache() {
         .expect("mirror path");
     std::fs::remove_file(mirror).expect("remove mirror");
     let second = pick_package(&ctx, &spec, &default_opts(&registry)).await.expect("ok");
-    assert_eq!(
-        second.picked_package.expect("picked").version.to_string(),
-        "1.1.0",
-    );
+    assert_eq!(second.picked_package.expect("picked").version.to_string(), "1.1.0");
 }
 
 /// Prefer-offline sibling of
@@ -372,13 +323,8 @@ async fn prefer_offline_promotes_disk_loaded_packument_into_memory_cache() {
     let registry = format!("{}/", server.url());
     let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
-    persist_meta_to_mirror(
-        cache_dir.path(),
-        ABBREVIATED_META_DIR,
-        &registry,
-        &preloaded,
-    )
-    .expect("warm mirror");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
 
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -407,10 +353,7 @@ async fn prefer_offline_promotes_disk_loaded_packument_into_memory_cache() {
     let spec = range_spec("acme", "^1.0.0");
 
     let first = pick_package(&ctx, &spec, &default_opts(&registry)).await.expect("ok");
-    assert_eq!(
-        first.picked_package.expect("picked").version.to_string(),
-        "1.1.0",
-    );
+    assert_eq!(first.picked_package.expect("picked").version.to_string(), "1.1.0");
     let cache_key =
         metadata_cache_key(&MetadataCacheScope::Public, &registry, "acme", false, false);
     assert!(meta_cache.get(&cache_key).is_some());
@@ -419,10 +362,7 @@ async fn prefer_offline_promotes_disk_loaded_packument_into_memory_cache() {
         .expect("mirror path");
     std::fs::remove_file(mirror).expect("remove mirror");
     let second = pick_package(&ctx, &spec, &default_opts(&registry)).await.expect("ok");
-    assert_eq!(
-        second.picked_package.expect("picked").version.to_string(),
-        "1.1.0",
-    );
+    assert_eq!(second.picked_package.expect("picked").version.to_string(), "1.1.0");
     mock.assert_async().await;
 }
 
@@ -476,41 +416,20 @@ async fn stale_disk_promoted_entry_falls_back_to_registry_under_prefer_offline()
         },
     };
 
-    let first = pick_package(
-        &ctx,
-        &range_spec("acme", "^1.0.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("ok");
-    assert_eq!(
-        first.picked_package.expect("picked").version.to_string(),
-        "1.0.0",
-    );
+    let first = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(first.picked_package.expect("picked").version.to_string(), "1.0.0");
 
-    let second = pick_package(
-        &ctx,
-        &range_spec("acme", "^1.1.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("ok");
-    assert_eq!(
-        second.picked_package.expect("picked").version.to_string(),
-        "1.1.0",
-    );
+    let second = pick_package(&ctx, &range_spec("acme", "^1.1.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(second.picked_package.expect("picked").version.to_string(), "1.1.0");
 
-    let third = pick_package(
-        &ctx,
-        &range_spec("acme", "^1.1.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("ok");
-    assert_eq!(
-        third.picked_package.expect("picked").version.to_string(),
-        "1.1.0",
-    );
+    let third = pick_package(&ctx, &range_spec("acme", "^1.1.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(third.picked_package.expect("picked").version.to_string(), "1.1.0");
     mock.assert_async().await;
 }
 
@@ -528,13 +447,8 @@ async fn version_spec_with_mirror_takes_fast_path() {
     let registry = format!("{}/", server.url());
     let preloaded: pnpm_registry::Package =
         serde_json::from_str(PACKAGE_BODY).expect("parse packument");
-    persist_meta_to_mirror(
-        cache_dir.path(),
-        ABBREVIATED_META_DIR,
-        &registry,
-        &preloaded,
-    )
-    .expect("warm mirror");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
 
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -561,17 +475,10 @@ async fn version_spec_with_mirror_takes_fast_path() {
         },
     };
 
-    let result = pick_package(
-        &ctx,
-        &version_spec("acme", "1.0.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("ok");
-    assert_eq!(
-        result.picked_package.expect("picked").version.to_string(),
-        "1.0.0",
-    );
+    let result = pick_package(&ctx, &version_spec("acme", "1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
     mock.assert_async().await;
 }
 
@@ -608,13 +515,8 @@ async fn version_spec_missing_in_mirror_fetches() {
     }"#;
     let preloaded: pnpm_registry::Package =
         serde_json::from_str(older_body).expect("parse old packument");
-    persist_meta_to_mirror(
-        cache_dir.path(),
-        ABBREVIATED_META_DIR,
-        &registry,
-        &preloaded,
-    )
-    .expect("warm mirror");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
 
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -641,17 +543,10 @@ async fn version_spec_missing_in_mirror_fetches() {
         },
     };
 
-    let result = pick_package(
-        &ctx,
-        &version_spec("acme", "1.0.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("ok");
-    assert_eq!(
-        result.picked_package.expect("picked").version.to_string(),
-        "1.0.0",
-    );
+    let result = pick_package(&ctx, &version_spec("acme", "1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
     mock.assert_async().await;
 }
 
@@ -696,15 +591,9 @@ async fn dry_run_skips_in_memory_cache() {
     let mut opts = default_opts(&registry);
     opts.request.dry_run = true;
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
-    assert_eq!(
-        result.picked_package.expect("picked").version.to_string(),
-        "1.1.0",
-    );
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
     let key = format!("{registry}\x00acme");
-    assert!(
-        meta_cache.get(&key).is_none(),
-        "dry_run must not poison the in-memory cache",
-    );
+    assert!(meta_cache.get(&key).is_none(), "dry_run must not poison the in-memory cache");
 }
 
 /// The in-memory cache must be keyed by `(registry, name)`, not by
@@ -803,11 +692,7 @@ async fn in_memory_cache_does_not_leak_across_registries() {
         .picked_package
         .expect("b picked");
 
-    assert_eq!(
-        pick_a.version.to_string(),
-        "1.0.0",
-        "registry A's packument wins for A",
-    );
+    assert_eq!(pick_a.version.to_string(), "1.0.0", "registry A's packument wins for A");
     assert_eq!(
         pick_b.version.to_string(),
         "9.9.9",
@@ -859,17 +744,10 @@ async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
         },
     };
 
-    let result = pick_package(
-        &ctx,
-        &range_spec("acme", "^1.0.0"),
-        &default_opts(&registry),
-    )
-    .await
-    .expect("ok");
-    assert_eq!(
-        result.picked_package.expect("picked").version.to_string(),
-        "1.0.0",
-    );
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
     mock.assert_async().await;
 
     let abbrev_path =
@@ -878,10 +756,7 @@ async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
     assert!(abbrev_path.exists(), "abbreviated mirror written");
     let full_path =
         get_pkg_mirror_path(cache_dir.path(), FULL_META_DIR, &registry, "acme").expect("path");
-    assert!(
-        !full_path.exists(),
-        "full mirror left untouched on default pick",
-    );
+    assert!(!full_path.exists(), "full mirror left untouched on default pick");
 }
 
 #[tokio::test]

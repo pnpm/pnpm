@@ -21,17 +21,12 @@ pub(super) async fn read_stage_approval_order(
     let mut projects = Vec::with_capacity(items.len());
     let mut stage_id_by_package_version: HashMap<(String, String), String> = HashMap::new();
     for item in items {
-        projects.push(
-            staged_project(context, item, &mut stage_id_by_package_version)
-                .await?,
-        );
+        projects.push(staged_project(context, item, &mut stage_id_by_package_version).await?);
     }
     let graph = create_projects_graph(
         projects
             .iter()
-            .map(|project| GraphPkg {
-                project,
-            })
+            .map(|project| GraphPkg { project })
             .collect(),
         &CreateProjectsGraphOptions {
             link_workspace_packages: Some(true),
@@ -147,12 +142,7 @@ fn order_index_of(item: &StageApprovalItem, order: &StageApprovalOrder) -> usize
 }
 
 pub(super) fn manifest_for_graph(mut manifest: Value) -> Value {
-    for field in [
-        "peerDependencies",
-        "devDependencies",
-        "optionalDependencies",
-        "dependencies",
-    ] {
+    for field in ["peerDependencies", "devDependencies", "optionalDependencies", "dependencies"] {
         let Some(dependencies) = manifest.get(field).and_then(Value::as_object) else {
             continue;
         };
@@ -183,9 +173,5 @@ fn registry_spec_for_graph(spec: &str) -> Option<&str> {
     if !is_valid_semver_range(spec) {
         return None;
     }
-    Some(if is_any_version_range(spec) {
-        ANY_VERSION_RANGE
-    } else {
-        spec
-    })
+    Some(if is_any_version_range(spec) { ANY_VERSION_RANGE } else { spec })
 }

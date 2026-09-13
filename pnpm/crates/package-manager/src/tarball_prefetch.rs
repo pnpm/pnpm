@@ -137,13 +137,10 @@ async fn run_tarball_download(
         // against — the frozen materialization install emits its own
         // progress as it consumes each tarball from the mem cache.
         progress_reported: None,
-        store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
     };
     if download.package.revision_addressed {
-        ingest.run_revision_addressed_with_mem_cache::<SilentReporter>(&download.mem_cache)
-            .await
+        ingest.run_revision_addressed_with_mem_cache::<SilentReporter>(&download.mem_cache).await
     } else {
         ingest.run_with_mem_cache::<SilentReporter>(&download.mem_cache).await
     }
@@ -290,7 +287,29 @@ impl TarballPrefetcher {
         let Some(packages) = lockfile.packages.as_ref() else {
             return;
         };
-        let pending = pending_lockfile_prefetches(packages, config);
+        let mut pending = Vec::with_capacity(packages.len());
+        for (package_key, metadata) in packages {
+            if !matches!(&metadata.resolution, LockfileResolution::Registry(_)) {
+                continue;
+            }
+            let (tarball_url, integrity) =
+                tarball_url_and_integrity(&metadata.resolution, package_key, config)
+                    .expect("registry resolutions are always fetchable");
+            let package_id = package_key.pkg_id();
+            let integrity =
+                integrity.expect("registry resolutions always carry an integrity").to_string();
+            let revision_addressed = matches!(
+                &metadata.resolution,
+                LockfileResolution::Registry(registry) if registry.revision.is_some(),
+            );
+            pending.push(PendingPrefetch {
+                store_key: store_index_key(&integrity, &package_id),
+                package_id,
+                package_url: tarball_url.into_owned(),
+                integrity,
+                revision_addressed,
+            });
+        }
         for entry in without_store_hits(self.store.index.clone(), pending).await {
             let PendingPrefetch {
                 package_id,
@@ -301,14 +320,7 @@ impl TarballPrefetcher {
             } = entry;
             // The lockfile records no dist size hints, so the downloads
             // queue without a work estimate.
-            self.prefetch(
-                package_id,
-                package_url,
-                &integrity,
-                None,
-                None,
-                revision_addressed,
-            );
+            self.prefetch(package_id, package_url, &integrity, None, None, revision_addressed);
         }
     }
 
@@ -321,8 +333,7 @@ impl TarballPrefetcher {
     /// missing index row only costs the next install a re-download.
     pub async fn shutdown(self) {
         drop(self.store.index_writer);
-        StoreIndexWriter::drain(self.writer_task, "; some rows may not be persisted")
-            .await;
+        StoreIndexWriter::drain(self.writer_task, "; some rows may not be persisted").await;
     }
 }
 
@@ -354,34 +365,4 @@ impl PrefetchHttpClient {
             offline: self.offline,
         }
     }
-}
-
-fn pending_lockfile_prefetches(
-    packages: &std::collections::HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata>,
-    config: &Config,
-) -> Vec<PendingPrefetch> {
-    let mut pending = Vec::with_capacity(packages.len());
-    for (package_key, metadata) in packages {
-        if !matches!(&metadata.resolution, LockfileResolution::Registry(_)) {
-            continue;
-        }
-        let (tarball_url, integrity) =
-            tarball_url_and_integrity(&metadata.resolution, package_key, config)
-                .expect("registry resolutions are always fetchable");
-        let package_id = package_key.pkg_id();
-        let integrity =
-            integrity.expect("registry resolutions always carry an integrity").to_string();
-        let revision_addressed = matches!(
-            &metadata.resolution,
-            LockfileResolution::Registry(registry) if registry.revision.is_some(),
-        );
-        pending.push(PendingPrefetch {
-            store_key: store_index_key(&integrity, &package_id),
-            package_id,
-            package_url: tarball_url.into_owned(),
-            integrity,
-            revision_addressed,
-        });
-    }
-    pending
 }

@@ -92,7 +92,12 @@ pub fn get_pkg_info(
         Some(dep_path) => locked_pkg(env, edge, dep_path),
         None => LockedPkg::unlocked(edge),
     };
-    let full_package_path = locked.package_path(env, edge, ctx);
+    let full_package_path = if let Some(dep_path) = &edge.dep_path {
+        resolve_package_path(&env.layout, dep_path, &locked.name, &edge.alias, ctx)
+    } else {
+        let link_target = edge.link_target.as_deref().unwrap_or("");
+        lexical_normalize(&ctx.linked_path_base_dir.join(link_target))
+    };
 
     locked.rewrite_link_version(edge, ctx, &full_package_path);
 
@@ -149,20 +154,6 @@ impl LockedPkg {
             dev: None,
         }
     }
-    fn package_path(
-        &self,
-        env: &PkgInfoEnv<'_>,
-        edge: &GraphEdge,
-        ctx: &EdgeContext<'_>,
-    ) -> PathBuf {
-        if let Some(dep_path) = &edge.dep_path {
-            resolve_package_path(&env.layout, dep_path, &self.name, &edge.alias, ctx)
-        } else {
-            let link_target = edge.link_target.as_deref().unwrap_or("");
-            lexical_normalize(&ctx.linked_path_base_dir.join(link_target))
-        }
-    }
-
     fn rewrite_link_version(
         &mut self,
         edge: &GraphEdge,
@@ -213,7 +204,9 @@ fn locked_pkg(env: &PkgInfoEnv<'_>, edge: &GraphEdge, dep_path: &PkgNameVerPeer)
     }
 
     let name = dep_path.name.to_string();
-    let version = locked_package_version(metadata, dep_path);
+    let version = metadata
+        .and_then(|metadata| metadata.version.clone())
+        .unwrap_or_else(|| dep_path.suffix.version().to_string());
     LockedPkg {
         resolved: metadata.and_then(|metadata| {
             resolved_tarball_url(env, &metadata.resolution, &name, &version)
@@ -241,11 +234,7 @@ fn lookup_dep<'l>(
     lockfile: &'l Lockfile,
     dep_path: &PkgNameVerPeer,
     metadata_key: &PkgNameVerPeer,
-) -> (
-    bool,
-    Option<&'l pnpm_lockfile::SnapshotEntry>,
-    Option<&'l pnpm_lockfile::PackageMetadata>,
-) {
+) -> (bool, Option<&'l pnpm_lockfile::SnapshotEntry>, Option<&'l pnpm_lockfile::PackageMetadata>) {
     let snapshot = lockfile.snapshots
         .as_ref()
         .and_then(|snapshots| snapshots.get(dep_path));
@@ -350,12 +339,3 @@ pub fn resolve_package_path(
 
 #[cfg(test)]
 mod tests;
-
-fn locked_package_version(
-    metadata: Option<&pnpm_lockfile::PackageMetadata>,
-    dep_path: &PkgNameVerPeer,
-) -> String {
-    metadata
-        .and_then(|metadata| metadata.version.clone())
-        .unwrap_or_else(|| dep_path.suffix.version().to_string())
-}

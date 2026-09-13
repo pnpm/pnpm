@@ -117,24 +117,28 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
     // executable itself, the platform packages aren't installed alongside
     // it, and the host may have no `node` to run the scripts. Skipping them
     // also avoids a build-approval prompt for pnpm's own install.
-    let status = install_standalone_cli(exec_path, exec_dir, pnpm_home_dir);
+    let separator = if cfg!(windows) { ";" } else { ":" };
+    // Build `PATH` as an `OsString` so a non-UTF-8 ambient `PATH` is
+    // preserved verbatim rather than lost to a lossy string conversion.
+    let mut path_value = pnpm_home_dir.join("bin").into_os_string();
+    path_value.push(separator);
+    if let Some(existing) = std::env::var_os("PATH") {
+        path_value.push(existing);
+    }
+    let status = Command::new(exec_path)
+        .args(["add", "-g", "--ignore-scripts", &format!("file:{}", exec_dir.display())])
+        .env("PNPM_HOME", pnpm_home_dir)
+        .env("PATH", path_value)
+        .status();
 
     // Always attempt the cleanup, but let the install error take precedence
     // over a cleanup error.
-    let cleanup = if created_pkg_json {
-        fs::remove_file(&pkg_json_path)
-    } else {
-        Ok(())
-    };
+    let cleanup = if created_pkg_json { fs::remove_file(&pkg_json_path) } else { Ok(()) };
 
     let status = status.into_diagnostic().wrap_err("run the global pnpm install")?;
     if !status.success() {
-        let code = status
-            .code()
-            .map_or_else(|| "unknown".to_string(), |code| code.to_string());
-        return Err(miette::miette!(
-            "Failed to install pnpm globally (exit code {code})"
-        ));
+        let code = status.code().map_or_else(|| "unknown".to_string(), |code| code.to_string());
+        return Err(miette::miette!("Failed to install pnpm globally (exit code {code})"));
     }
     cleanup
         .into_diagnostic()
@@ -185,14 +189,8 @@ fn create_shell_script(target_dir: &Path, name: &str, command: &str) -> std::io:
     }
 
     if cfg!(windows) {
-        fs::write(
-            target_dir.join(format!("{name}.cmd")),
-            format!("@echo off\n{command} %*\n"),
-        )?;
-        fs::write(
-            target_dir.join(format!("{name}.ps1")),
-            format!("{command} @args\n"),
-        )?;
+        fs::write(target_dir.join(format!("{name}.cmd")), format!("@echo off\n{command} %*\n"))?;
+        fs::write(target_dir.join(format!("{name}.ps1")), format!("{command} @args\n"))?;
     }
     Ok(())
 }
@@ -220,17 +218,11 @@ fn render_setup_output(report: &PathExtenderReport) -> String {
     if let Some(config_file) = &report.config_file {
         output.push(report_config_change(config_file));
     }
-    output.push(format!(
-        "Next configuration changes were made:\n{}",
-        report.new_settings,
-    ));
+    output.push(format!("Next configuration changes were made:\n{}", report.new_settings));
     match &report.config_file {
         None => output.push("Setup complete. Open a new terminal to start using pnpm.".to_string()),
         Some(config_file) if config_file.change_type != ConfigFileChangeType::Skipped => output
-            .push(format!(
-                "To start using pnpm, run:\nsource {}\n",
-                config_file.path.display(),
-            )),
+            .push(format!("To start using pnpm, run:\nsource {}\n", config_file.path.display())),
         Some(_) => {}
     }
     output.join("\n\n")
@@ -256,28 +248,3 @@ fn info<Reporter: self::Reporter>(prefix: &str, message: &str) {
 
 #[cfg(test)]
 mod tests;
-
-fn install_standalone_cli(
-    exec_path: &Path,
-    exec_dir: &Path,
-    pnpm_home_dir: &Path,
-) -> std::io::Result<std::process::ExitStatus> {
-    let separator = if cfg!(windows) { ";" } else { ":" };
-    // Build `PATH` as an `OsString` so a non-UTF-8 ambient `PATH` is
-    // preserved verbatim rather than lost to a lossy string conversion.
-    let mut path_value = pnpm_home_dir.join("bin").into_os_string();
-    path_value.push(separator);
-    if let Some(existing) = std::env::var_os("PATH") {
-        path_value.push(existing);
-    }
-    Command::new(exec_path)
-        .args([
-            "add",
-            "-g",
-            "--ignore-scripts",
-            &format!("file:{}", exec_dir.display()),
-        ])
-        .env("PNPM_HOME", pnpm_home_dir)
-        .env("PATH", path_value)
-        .status()
-}

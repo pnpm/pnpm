@@ -9,9 +9,7 @@ use super::{
 /// `--filter-prod` selector, or `--workspace-root`. Without one, every
 /// importer in the lockfile is in scope.
 pub(super) fn selectors_narrow_the_run(config: &Config) -> bool {
-    !config.filter.is_empty()
-        || !config.filter_prod.is_empty()
-        || config.workspace_root
+    !config.filter.is_empty() || !config.filter_prod.is_empty() || config.workspace_root
 }
 
 /// The lockfile importer ids of the workspace projects the run's selectors
@@ -20,12 +18,8 @@ fn selected_workspace_importer_ids(state: &State) -> miette::Result<HashSet<Stri
     let project_dir = state.project_dir();
     let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(project_dir);
     let (projects, _) = discover_workspace_projects(workspace_root, state.config)?;
-    let selection = select_recursive_projects(
-        &projects,
-        state.config,
-        project_dir,
-        AutoExcludeRoot::Disabled,
-    )?;
+    let selection =
+        select_recursive_projects(&projects, state.config, project_dir, AutoExcludeRoot::Disabled)?;
     Ok(selected_importer_ids(&selection, state.lockfile_dir()).into_iter().collect())
 }
 
@@ -151,10 +145,7 @@ fn selected_and_reachable_project_dirs(
         .keys()
         .cloned()
         .collect();
-    let mut seen: HashSet<PathBuf> = project_dirs
-        .iter()
-        .cloned()
-        .collect();
+    let mut seen: HashSet<PathBuf> = project_dirs.iter().cloned().collect();
     let mut index = 0;
     while let Some(project_dir) = project_dirs.get(index) {
         index += 1;
@@ -176,12 +167,8 @@ pub(super) fn merged_dedicated_lockfile_state(
     let project_dir = state.project_dir();
     let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(project_dir);
     let (projects, _) = discover_workspace_projects(workspace_root, state.config)?;
-    let selection = select_recursive_projects(
-        &projects,
-        state.config,
-        project_dir,
-        AutoExcludeRoot::Disabled,
-    )?;
+    let selection =
+        select_recursive_projects(&projects, state.config, project_dir, AutoExcludeRoot::Disabled)?;
 
     let mut merged: Option<Lockfile> = None;
     let project_dirs = selected_and_reachable_project_dirs(&selection);
@@ -269,12 +256,7 @@ fn assert_required_importers(
 /// the lockfile, whose importers are serialized sorted by id.
 pub(super) fn sorted_importer_ids(lockfile: Option<&Lockfile>) -> Vec<String> {
     let mut all_importer_ids: Vec<String> = lockfile
-        .map(|lf| {
-            lf.importers
-                .keys()
-                .cloned()
-                .collect()
-        })
+        .map(|lf| lf.importers.keys().cloned().collect())
         .unwrap_or_default();
     all_importer_ids.sort_unstable();
     all_importer_ids
@@ -304,11 +286,8 @@ pub(super) fn select_importer_ids(
     // under-reports the selection's dependencies, so the run fails
     // instead. No lockfile at all is a different failure, left to
     // `collect_components` so it keeps its own error.
-    let missing = if has_lockfile {
-        missing_importers(&selected, &all_importer_ids)
-    } else {
-        Vec::new()
-    };
+    let missing =
+        if has_lockfile { missing_importers(&selected, &all_importer_ids) } else { Vec::new() };
     if !missing.is_empty() {
         return Err(missing_importers_error(&missing, "selected"));
     }

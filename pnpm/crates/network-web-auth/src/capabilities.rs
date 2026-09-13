@@ -135,9 +135,7 @@ impl Clock for Host {
     fn now_ms() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_or(0, |elapsed| {
-                u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
-            })
+            .map_or(0, |elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
     }
 }
 
@@ -166,10 +164,7 @@ impl WebAuthFetch for Host {
         if let Some(timeout) = options.timeout {
             request = request.timeout(Duration::from_millis(timeout));
         }
-        let response = request
-            .send()
-            .await
-            .map_err(|_| WebAuthFetchError)?;
+        let response = request.send().await.map_err(|_| WebAuthFetchError)?;
         let ok = response.status().is_success();
         let status = response.status().as_u16();
         let retry_after = response
@@ -193,18 +188,18 @@ impl WebAuthFetch for Host {
         // failure yields an empty, untruncated body, which `token` treats the
         // same as an unparsable one (the poll retries); an over-cap body reports
         // `truncated` so `token` reports no token.
-        let (body, truncated) =
-            match read_limited_body(response, TOKEN_BODY_LIMIT).await {
-                Ok(LimitedBody { bytes, truncated }) => (bytes, truncated),
-                Err(_) => (Vec::new(), false),
-            };
-        Ok(WebAuthFetchResponse {
-            ok,
-            status,
-            retry_after,
-            body,
-            truncated,
-        })
+        match read_limited_body(response, TOKEN_BODY_LIMIT).await {
+            Ok(LimitedBody { bytes: body, truncated }) => {
+                Ok(WebAuthFetchResponse { ok, status, retry_after, body, truncated })
+            }
+            Err(_) => Ok(WebAuthFetchResponse {
+                ok,
+                status,
+                retry_after,
+                body: Vec::new(),
+                truncated: false,
+            }),
+        }
     }
 }
 
@@ -324,11 +319,7 @@ impl EnterKeyListener for Host {
                     }
                 }
             })?;
-        Ok(HostEnterHandle {
-            enter,
-            state: EnterListenerState::Waiting,
-            cancel,
-        })
+        Ok(HostEnterHandle { enter, state: EnterListenerState::Waiting, cancel })
     }
 }
 
@@ -386,9 +377,7 @@ impl PromptOtp for Host {
                 .interact_text()
         })
         .await
-        .map_err(|join_error| PromptError::Other {
-            reason: join_error.to_string(),
-        })?
+        .map_err(|join_error| PromptError::Other { reason: join_error.to_string() })?
         .map(Some)
         .map_err(map_dialoguer_error)
     }
@@ -399,9 +388,7 @@ fn map_dialoguer_error(error: dialoguer::Error) -> PromptError {
         dialoguer::Error::IO(io) if io.kind() == io::ErrorKind::Interrupted => {
             PromptError::Cancelled
         }
-        dialoguer::Error::IO(io) => PromptError::Other {
-            reason: io.to_string(),
-        },
+        dialoguer::Error::IO(io) => PromptError::Other { reason: io.to_string() },
     }
 }
 

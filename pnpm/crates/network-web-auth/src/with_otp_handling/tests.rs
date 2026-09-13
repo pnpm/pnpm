@@ -39,27 +39,17 @@ fn one_of_the_two_urls_is_not_a_web_challenge() {
 #[test]
 fn the_classic_wording_is_a_challenge_without_a_body() {
     let body = br#"{"error":"You must provide a One-Time Pass. Upgrade your client to npm@latest in order to use 2FA."}"#;
-    assert_eq!(
-        otp_challenge_from_unauthorized_body(body),
-        Some(OtpChallenge {
-            body: None
-        }),
-    );
+    assert_eq!(otp_challenge_from_unauthorized_body(body), Some(OtpChallenge { body: None }));
     assert_eq!(
         otp_challenge_from_unauthorized_body(b"one-time pass"),
-        Some(OtpChallenge {
-            body: None
-        }),
+        Some(OtpChallenge { body: None }),
         "the wording is recognized outside JSON too",
     );
 }
 
 #[test]
 fn a_plain_unauthorized_body_is_no_challenge() {
-    assert_eq!(
-        otp_challenge_from_unauthorized_body(br#"{"error":"unauthorized"}"#),
-        None,
-    );
+    assert_eq!(otp_challenge_from_unauthorized_body(br#"{"error":"unauthorized"}"#), None);
     assert_eq!(otp_challenge_from_unauthorized_body(b"Bad token"), None);
     assert_eq!(otp_challenge_from_unauthorized_body(b""), None);
 }

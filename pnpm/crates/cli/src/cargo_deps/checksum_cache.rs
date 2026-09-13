@@ -71,10 +71,7 @@ fn checksum_cache_key(cas_paths: &HashMap<String, PathBuf>, package_checksum: &s
             input.extend_from_slice(bytes);
         }
     }
-    format!(
-        "cargo-checksum-v1:{}",
-        pnpm_crypto_hash::create_hex_hash_bytes(&input),
-    )
+    format!("cargo-checksum-v1:{}", pnpm_crypto_hash::create_hex_hash_bytes(&input))
 }
 
 #[cfg(test)]

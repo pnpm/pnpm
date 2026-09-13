@@ -74,10 +74,7 @@ pub(super) fn expected_tarball_dist(
         ));
     }
     let integrity = declared_tarball_integrity(dist, name, filename, version)?;
-    Ok(Some(TarballDist {
-        version: version.clone(),
-        integrity,
-    }))
+    Ok(Some(TarballDist { version: version.clone(), integrity }))
 }
 
 pub(super) fn tarball_stream_error(
@@ -94,10 +91,9 @@ pub(super) fn tarball_stream_error_for_package(
     filename: &str,
 ) -> RegistryError {
     match err {
-        streaming::BlobStreamError::Upstream { url, source } => RegistryError::UpstreamBody {
-            url,
-            source,
-        },
+        streaming::BlobStreamError::Upstream { url, source } => {
+            RegistryError::UpstreamBody { url, source }
+        }
         streaming::BlobStreamError::Io(err) => RegistryError::Io(err),
         streaming::BlobStreamError::Integrity(err) => tarball_integrity_error(
             package,
@@ -198,10 +194,7 @@ pub(super) fn filter_osv_vulnerable_versions(
         packument,
         osv_index,
         package_name,
-        &BlockedVersions {
-            blocked: &blocked_keys,
-            retained: &retained_version_keys,
-        },
+        &BlockedVersions { blocked: &blocked_keys, retained: &retained_version_keys },
     );
 }
 

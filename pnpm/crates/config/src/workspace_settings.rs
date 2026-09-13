@@ -203,10 +203,7 @@ impl Config {
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some((env_dir, None)),
                 Err(source) => {
-                    return Err(LoadWorkspaceYamlError::ReadFile {
-                        path: yaml_path,
-                        source,
-                    });
+                    return Err(LoadWorkspaceYamlError::ReadFile { path: yaml_path, source });
                 }
             }
         } else {

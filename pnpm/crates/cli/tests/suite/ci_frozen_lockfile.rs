@@ -214,10 +214,7 @@ fn explicit_frozen_lockfile_values_take_priority_over_prefer_flags() {
             .assert()
             .failure();
         let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-        assert!(
-            stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
-            "got:\n{stderr}",
-        );
+        assert!(stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"), "got:\n{stderr}");
         assert_eq!(
             fs::read_to_string(frozen_workspace.join("pnpm-lock.yaml"))
                 .expect("read lockfile after failed install"),
@@ -245,10 +242,7 @@ fn configured_frozen_lockfile_values_take_priority_over_prefer_flags() {
             .assert()
             .failure();
         let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-        assert!(
-            stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
-            "got:\n{stderr}",
-        );
+        assert!(stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"), "got:\n{stderr}");
         assert_eq!(
             fs::read_to_string(frozen_workspace.join("pnpm-lock.yaml"))
                 .expect("read lockfile after failed install"),
@@ -283,10 +277,7 @@ fn ci_install_without_a_nonempty_lockfile_generates_one() {
 
         let lockfile =
             fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read generated lockfile");
-        assert!(
-            !lockfile.is_empty(),
-            "CI install must create a non-empty lockfile",
-        );
+        assert!(!lockfile.is_empty(), "CI install must create a non-empty lockfile");
     }
 }
 

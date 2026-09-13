@@ -23,8 +23,5 @@ fn reports_a_narrowed_workspace_scope() {
 #[test]
 fn reports_a_scope_without_a_workspace_prefix_as_plain_projects() {
     let mut reporter = scope_reporting_state();
-    assert_eq!(
-        render(&mut reporter, vec![scope(2, None, None)]),
-        "Scope: 2 projects",
-    );
+    assert_eq!(render(&mut reporter, vec![scope(2, None, None)]), "Scope: 2 projects");
 }

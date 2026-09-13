@@ -182,22 +182,30 @@ pub(crate) fn try_resolve_from_workspace_packages(
 ) -> Result<ResolveResult, ResolveFromWorkspaceError> {
     let matching_name = workspace_packages
         .get(spec.name.as_str())
-        .ok_or_else(|| ResolveFromWorkspaceError::WorkspacePkgNotFound {
-            name: spec.name.clone(),
-            bare_specifier: wanted_dependency.bare_specifier.clone().unwrap_or_default(),
-            project_dir: opts.project_dir.display().to_string(),
-            hint: workspace_packages_hint(workspace_packages),
+        .ok_or_else(|| {
+            let names = workspace_packages
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ");
+            ResolveFromWorkspaceError::WorkspacePkgNotFound {
+                name: spec.name.clone(),
+                bare_specifier: wanted_dependency.bare_specifier.clone().unwrap_or_default(),
+                project_dir: opts.project_dir.display().to_string(),
+                hint: format!("Packages found in the workspace: {names}"),
+            }
         })?;
 
     let picked = pick_matching_local_version_or_null(matching_name, spec)
-        .ok_or_else(
-            || ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace {
+        .ok_or_else(|| {
+            let available = available_workspace_versions(matching_name);
+            ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace {
                 alias: wanted_dependency.alias.clone().unwrap_or_default(),
                 bare_specifier: wanted_dependency.bare_specifier.clone().unwrap_or_default(),
                 project_dir: opts.project_dir.display().to_string(),
-                available: available_workspace_versions(matching_name),
-            },
-        )?;
+                available,
+            }
+        })?;
     let local_package =
         matching_name.get(&picked).expect("picked version came from the matching set");
 
@@ -219,20 +227,14 @@ pub fn pick_matching_local_version_or_null(
 ) -> Option<String> {
     match spec.spec_type {
         RegistryPackageSpecType::Tag => {
-            let raw: Vec<String> = versions
-                .keys()
-                .cloned()
-                .collect();
+            let raw: Vec<String> = versions.keys().cloned().collect();
             resolve_workspace_range("*", &raw)
         }
-        RegistryPackageSpecType::Version => versions
-            .contains_key(&spec.fetch_spec)
-            .then(|| spec.fetch_spec.clone()),
+        RegistryPackageSpecType::Version => {
+            versions.contains_key(&spec.fetch_spec).then(|| spec.fetch_spec.clone())
+        }
         RegistryPackageSpecType::Range => {
-            let raw: Vec<String> = versions
-                .keys()
-                .cloned()
-                .collect();
+            let raw: Vec<String> = versions.keys().cloned().collect();
             resolve_workspace_range(&spec.fetch_spec, &raw)
         }
     }
@@ -261,9 +263,7 @@ pub(crate) fn resolve_from_local_package(
 
     ResolveResult {
         id: PkgResolutionId::from(id_text),
-        resolution: LockfileResolution::Directory(DirectoryResolution {
-            directory,
-        }),
+        resolution: LockfileResolution::Directory(DirectoryResolution { directory }),
         resolved_via: "workspace".to_string(),
         normalized_bare_specifier: saved_specifier.calc_specifier
             .then(|| workspace_specifier(local_package, wanted_dependency, saved_specifier))
@@ -321,11 +321,7 @@ fn relative_path(base: &Path, target: &Path) -> String {
 }
 
 fn forward_slashes(input: String) -> String {
-    if input.contains('\\') {
-        input.replace('\\', "/")
-    } else {
-        input
-    }
+    if input.contains('\\') { input.replace('\\', "/") } else { input }
 }
 
 /// Tiny pathdiff fallback. The npm-resolver crate doesn't pull in
@@ -373,14 +369,8 @@ fn rcompare_versions(left: &str, right: &str) -> std::cmp::Ordering {
     }
 }
 
-#[cfg(test)]
-mod tests;
-
 fn available_workspace_versions(matching_name: &WorkspacePackagesByVersion) -> String {
-    let mut versions: Vec<String> = matching_name
-        .keys()
-        .cloned()
-        .collect();
+    let mut versions: Vec<String> = matching_name.keys().cloned().collect();
     versions.sort_by(|a, b| rcompare_versions(a, b));
     if versions.is_empty() {
         String::new()
@@ -389,11 +379,5 @@ fn available_workspace_versions(matching_name: &WorkspacePackagesByVersion) -> S
     }
 }
 
-fn workspace_packages_hint(workspace_packages: &WorkspacePackages) -> String {
-    let names = workspace_packages
-        .keys()
-        .cloned()
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("Packages found in the workspace: {names}")
-}
+#[cfg(test)]
+mod tests;

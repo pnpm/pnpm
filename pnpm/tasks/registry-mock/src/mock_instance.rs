@@ -98,9 +98,7 @@ impl MockInstanceOptions<'_> {
 
         self.wait_for_registry().await;
 
-        MockInstance {
-            process,
-        }
+        MockInstance { process }
     }
 
     pub async fn spawn_if_necessary(self) -> Option<MockInstance> {

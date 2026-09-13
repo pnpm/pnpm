@@ -39,25 +39,19 @@ pub(crate) fn detect_key_layout(keys: &[String]) -> Layout {
             return Layout::Unordered;
         }
     }
-    if packages_first {
-        Layout::PackagesFirst
-    } else {
-        Layout::Alphabetical
-    }
+    if packages_first { Layout::PackagesFirst } else { Layout::Alphabetical }
 }
 
 /// Sort `keys` for a sorted layout, keeping `packages` first when present.
 fn sort_keys(keys: &mut [String], layout: Layout) {
     match layout {
         Layout::PackagesFirst => {
-            keys.sort_by(
-                |left, right| match (left == "packages", right == "packages") {
-                    (true, true) => Ordering::Equal,
-                    (true, false) => Ordering::Less,
-                    (false, true) => Ordering::Greater,
-                    (false, false) => lex_cmp(left, right),
-                },
-            );
+            keys.sort_by(|left, right| match (left == "packages", right == "packages") {
+                (true, true) => Ordering::Equal,
+                (true, false) => Ordering::Less,
+                (false, true) => Ordering::Greater,
+                (false, false) => lex_cmp(left, right),
+            });
         }
         Layout::Alphabetical => keys.sort_by(|left, right| lex_cmp(left, right)),
         Layout::Unordered => {}

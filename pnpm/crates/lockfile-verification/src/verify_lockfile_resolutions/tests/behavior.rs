@@ -28,10 +28,7 @@ async fn a_fetch_failure_aborts_with_the_registry_error() {
 #[tokio::test]
 async fn no_verifiers_is_a_noop() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
@@ -50,13 +47,7 @@ async fn no_verifiers_is_a_noop() {
     )
     .await;
     assert!(result.is_ok());
-    assert!(
-        EVENTS
-            .lock()
-            .unwrap()
-            .is_empty(),
-        "no-op must not emit",
-    );
+    assert!(EVENTS.lock().unwrap().is_empty(), "no-op must not emit");
 }
 
 #[tokio::test]
@@ -98,10 +89,7 @@ async fn mixed_code_batch_escalates() {
     let trust = FailFor::new("TRUST_DOWNGRADE", "downgrade", vec!["bravo"]);
     let err = verify_lockfile_resolutions::<SilentReporter>(
         &lockfile,
-        &[
-            min_age as Arc<dyn ResolutionVerifier>,
-            trust as Arc<dyn ResolutionVerifier>,
-        ],
+        &[min_age as Arc<dyn ResolutionVerifier>, trust as Arc<dyn ResolutionVerifier>],
         &VerifyLockfileResolutionsOptions::default(),
     )
     .await
@@ -125,10 +113,7 @@ async fn per_candidate_fan_out_stops_at_first_failure() {
     let second = AlwaysFail::new("TRUST_DOWNGRADE", "second");
     let violations = collect_resolution_policy_violations(
         &lockfile,
-        &[
-            first as Arc<dyn ResolutionVerifier>,
-            second as Arc<dyn ResolutionVerifier>,
-        ],
+        &[first as Arc<dyn ResolutionVerifier>, second as Arc<dyn ResolutionVerifier>],
         None,
     )
     .await
@@ -187,9 +172,8 @@ async fn one_packages_entry_yields_one_verification() {
     }
 
     let lockfile = parse(SINGLE_PKG_LOCKFILE);
-    let verifier: Arc<dyn ResolutionVerifier> = Arc::new(Counting {
-        policy: serde_json::Map::new(),
-    });
+    let verifier: Arc<dyn ResolutionVerifier> =
+        Arc::new(Counting { policy: serde_json::Map::new() });
     verify_lockfile_resolutions::<SilentReporter>(
         &lockfile,
         &[verifier],
@@ -259,9 +243,8 @@ async fn uninterested_verifier_skips_candidate_fan_out() {
     }
 
     let lockfile = parse(SINGLE_PKG_LOCKFILE);
-    let verifier: Arc<dyn ResolutionVerifier> = Arc::new(Uninterested {
-        policy: serde_json::Map::new(),
-    });
+    let verifier: Arc<dyn ResolutionVerifier> =
+        Arc::new(Uninterested { policy: serde_json::Map::new() });
     verify_lockfile_resolutions::<SilentReporter>(
         &lockfile,
         &[verifier],
@@ -305,9 +288,8 @@ async fn second_run_with_cache_skips_fan_out() {
     std::fs::write(&lockfile_path, SINGLE_PKG_LOCKFILE).expect("write lockfile");
     let lockfile = parse(SINGLE_PKG_LOCKFILE);
     let cache_dir = dir.path().join("cache");
-    let verifier: Arc<dyn ResolutionVerifier> = Arc::new(Counting {
-        policy: serde_json::Map::new(),
-    });
+    let verifier: Arc<dyn ResolutionVerifier> =
+        Arc::new(Counting { policy: serde_json::Map::new() });
     let opts = VerifyLockfileResolutionsOptions {
         lockfile_path: Some(&lockfile_path),
         cache_dir: Some(&cache_dir),
@@ -321,11 +303,7 @@ async fn second_run_with_cache_skips_fan_out() {
     )
     .await
     .expect("first run");
-    assert_eq!(
-        CALLS.load(Ordering::SeqCst),
-        1,
-        "first run ran the verifier",
-    );
+    assert_eq!(CALLS.load(Ordering::SeqCst), 1, "first run ran the verifier");
 
     verify_lockfile_resolutions::<SilentReporter>(
         &lockfile,
@@ -334,11 +312,7 @@ async fn second_run_with_cache_skips_fan_out() {
     )
     .await
     .expect("second run");
-    assert_eq!(
-        CALLS.load(Ordering::SeqCst),
-        1,
-        "second run skipped via cache",
-    );
+    assert_eq!(CALLS.load(Ordering::SeqCst), 1, "second run skipped via cache");
 }
 
 /// The shape-only run that every install performs must not announce
@@ -346,10 +320,7 @@ async fn second_run_with_cache_skips_fan_out() {
 #[tokio::test]
 async fn cache_hit_with_no_policy_verifiers_stays_silent() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
@@ -384,10 +355,7 @@ async fn cache_hit_with_no_policy_verifiers_stays_silent() {
         .expect("second run");
 
     let captured = EVENTS.lock().unwrap();
-    assert!(
-        captured.is_empty(),
-        "shape-only cache hit must not emit, got: {captured:?}",
-    );
+    assert!(captured.is_empty(), "shape-only cache hit must not emit, got: {captured:?}");
 }
 
 /// Catches a regression where `PkgName` would be passed into the
@@ -437,10 +405,7 @@ snapshots:
     )
     .await
     .expect_err("invalid alias nested in a snapshot must be rejected");
-    assert!(
-        matches!(err, VerifyError::InvalidDependencyAlias { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, VerifyError::InvalidDependencyAlias { .. }), "got {err:?}");
 }
 
 #[tokio::test]

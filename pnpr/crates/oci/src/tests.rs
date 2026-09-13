@@ -15,11 +15,7 @@ fn entry(body: &str) -> ManifestEntry {
 }
 
 fn tag(name: &str, body: &str, updated: u64) -> TagEntry {
-    TagEntry {
-        tag: name.to_string(),
-        digest: digest_of(body),
-        updated,
-    }
+    TagEntry { tag: name.to_string(), digest: digest_of(body), updated }
 }
 
 #[test]
@@ -161,10 +157,7 @@ fn document_round_trips() {
     document.insert_manifest(entry("one"));
     document.set_tag(tag("latest", "one", 1));
 
-    assert_eq!(
-        ImageDocument::parse(&document.to_bytes()).unwrap(),
-        document,
-    );
+    assert_eq!(ImageDocument::parse(&document.to_bytes()).unwrap(), document);
 }
 
 #[test]
@@ -205,10 +198,7 @@ fn an_index_needs_no_config_and_references_its_children() {
 
 #[test]
 fn rejects_unusable_manifests() {
-    let config = format!(
-        r#""config":{{"digest":"{}","size":2}}"#,
-        digest_of("config"),
-    );
+    let config = format!(r#""config":{{"digest":"{}","size":2}}"#, digest_of("config"));
     // Docker's schema 1 is a different document entirely.
     let schema_one = format!(r#"{{"schemaVersion":1,{config}}}"#);
     assert!(Manifest::parse(schema_one.as_bytes(), None).is_err());
@@ -217,11 +207,7 @@ fn rejects_unusable_manifests() {
     assert!(Manifest::parse(b"not json", None).is_err());
     let unsupported_type = format!(r#"{{"schemaVersion":2,{config}}}"#);
     assert!(
-        Manifest::parse(
-            unsupported_type.as_bytes(),
-            Some("application/octet-stream")
-        )
-        .is_err(),
+        Manifest::parse(unsupported_type.as_bytes(), Some("application/octet-stream")).is_err(),
     );
 }
 
@@ -234,15 +220,8 @@ fn accepts_the_spec_tag_grammar() {
 
 #[test]
 fn refuses_references_that_are_neither_tag_nor_digest() {
-    for tag in [
-        "",
-        ".start",
-        "-start",
-        "has/slash",
-        "sha256:short",
-        "has space",
-        &"a".repeat(129),
-    ] {
+    for tag in ["", ".start", "-start", "has/slash", "sha256:short", "has space", &"a".repeat(129)]
+    {
         assert!(!crate::is_valid_tag(tag), "{tag} should not be a valid tag");
     }
 }
@@ -293,10 +272,7 @@ fn a_stale_journaled_tag_cannot_move_a_re_pushed_tag_backward() {
 /// a fact about their hashes, so a fixture that relies on it silently stops
 /// exercising the sort the day the labels change.
 fn stored_out_of_order() -> serde_json::Value {
-    assert!(
-        digest_of("one").hex() > digest_of("two").hex(),
-        "manifests must be unsorted",
-    );
+    assert!(digest_of("one").hex() > digest_of("two").hex(), "manifests must be unsorted");
     serde_json::json!({
         "name": "acme/app",
         "manifests": [entry("one"), entry("two")],
@@ -353,16 +329,10 @@ fn an_image_referrer_requires_an_artifact_type_or_config_media_type() {
                 manifest["config"]["mediaType"] = config_media_type.into();
             }
             let result = Manifest::parse(&serde_json::to_vec(&manifest).unwrap(), None);
-            assert!(matches!(
-                result,
-                Err(crate::ManifestError::MissingArtifactType)
-            ));
+            assert!(matches!(result, Err(crate::ManifestError::MissingArtifactType)));
             manifest["artifactType"] = "application/example.signature".into();
             let parsed = Manifest::parse(&serde_json::to_vec(&manifest).unwrap(), None).unwrap();
-            assert_eq!(
-                parsed.artifact_type(),
-                Some("application/example.signature"),
-            );
+            assert_eq!(parsed.artifact_type(), Some("application/example.signature"));
             assert!(
                 manifest
                     .as_object_mut()

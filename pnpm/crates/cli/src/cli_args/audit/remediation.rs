@@ -94,11 +94,7 @@ impl ResolutionObserver for AuditFixObserver {
     }
 
     fn minimum_release_age_exclude_override(&self) -> Option<Vec<String>> {
-        if self.age_excludes.is_empty() {
-            None
-        } else {
-            Some(self.age_excludes.clone())
-        }
+        if self.age_excludes.is_empty() { None } else { Some(self.age_excludes.clone()) }
     }
 }
 
@@ -186,10 +182,7 @@ impl AuditArgs {
         match self.fix.as_deref() {
             Some("override") => Ok(Some(FixMethod::Override)),
             Some("update") => Ok(Some(FixMethod::Update)),
-            Some(value) => Err(AuditError::InvalidFixOption {
-                value: value.to_string(),
-            }
-            .into()),
+            Some(value) => Err(AuditError::InvalidFixOption { value: value.to_string() }.into()),
             None if self.interactive => Ok(Some(FixMethod::Override)),
             None => Ok(None),
         }

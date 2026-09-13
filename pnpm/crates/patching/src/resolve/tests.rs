@@ -61,10 +61,7 @@ fn nonexistent_patch_file_errors() {
     let workspace = tempdir().unwrap();
     let input = raw(&[("foo@1.0.0", "patches/missing.patch")]);
     let err = resolve_and_group(workspace.path(), &input).unwrap_err();
-    assert!(
-        matches!(err, ResolvePatchedDependenciesError::Hash(_)),
-        "got: {err:?}",
-    );
+    assert!(matches!(err, ResolvePatchedDependenciesError::Hash(_)), "got: {err:?}");
 }
 
 #[test]
@@ -76,10 +73,7 @@ fn invalid_version_range_propagates() {
 
     let input = raw(&[("foo@link:packages/foo", "patches/foo.patch")]);
     let err = resolve_and_group(workspace.path(), &input).unwrap_err();
-    assert!(
-        matches!(err, ResolvePatchedDependenciesError::Range(_)),
-        "got: {err:?}",
-    );
+    assert!(matches!(err, ResolvePatchedDependenciesError::Range(_)), "got: {err:?}");
 }
 
 #[test]
@@ -99,10 +93,7 @@ fn mixed_entries_resolve_in_one_call() {
 
     let groups = resolve_and_group(workspace.path(), &input).unwrap().unwrap();
     let foo = groups.get("foo").expect("foo group");
-    assert!(
-        foo.exact.contains_key("1.0.0"),
-        "missing exact 1.0.0 in foo group: {foo:?}",
-    );
+    assert!(foo.exact.contains_key("1.0.0"), "missing exact 1.0.0 in foo group: {foo:?}");
     assert_eq!(foo.range.len(), 1);
     assert_eq!(foo.range[0].version, "^2.0.0");
     let bar = groups.get("bar").expect("bar group");

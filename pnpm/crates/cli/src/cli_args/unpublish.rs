@@ -1,5 +1,3 @@
-pub use errors::UnpublishError;
-
 use super::deprecate::{
     DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext, DeprecateError, PackageSpec,
     auth_header_for_registry, fetch_package_meta, package_url, parse_package_spec,
@@ -8,9 +6,8 @@ use super::deprecate::{
 };
 use clap::Args;
 use derive_more::{Display, Error};
-
 use miette::Diagnostic;
-use mutation::{MutationContext, MutationRequest, send_mutation};
+use mutation::{MutationContext, MutationRequest, send_mutation, web_auth_fetch_options};
 use node_semver::{Range, Version};
 use pnpm_config::Config;
 use pnpm_network::{read_limited_body, send_with_retry};
@@ -49,6 +46,34 @@ pub struct UnpublishArgs {
 
     /// The package to remove, optionally with a version range (pkg@1.x).
     pub params: Vec<String>,
+}
+
+/// Errors specific to `pnpm unpublish`. Codes and messages match the
+/// TypeScript CLI; the registry-communication errors are shared with
+/// [`DeprecateError`].
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum UnpublishError {
+    #[display("Package name is required")]
+    #[diagnostic(code(ERR_PNPM_UNPUBLISH_REQUIRED))]
+    PackageRequired,
+
+    #[display(
+        "Run pnpm unpublish --force to remove all published versions of {package_name} ({versions_list}) from the registry.\nThis is a protection mechanism to prevent accidental unpublish of packages with many versions.\nIf you want to unpublish a specific version, run pnpm unpublish {package_name}@<version>"
+    )]
+    #[diagnostic(code(ERR_PNPM_UNPUBLISH_CONFIRM))]
+    ConfirmRequired {
+        #[error(not(source))]
+        package_name: String,
+        #[error(not(source))]
+        versions_list: String,
+    },
+
+    #[display(
+        "This package cannot be completely unpublished. Deprecate it instead or contact npm support."
+    )]
+    #[diagnostic(code(ERR_PNPM_UNPUBLISH_FORBIDDEN))]
+    CompletelyForbidden,
 }
 
 /// The full packument as the registry returns it: the fields unpublish
@@ -133,33 +158,32 @@ impl UnpublishArgs {
         let auth_header = auth_header_for_registry(&context, &registry_url, &package_name);
         let package_url = package_url(&package_name, &registry_url)?;
 
-        let pkg: Packument = fetch_package_meta(
-            &context,
-            &package_url,
-            auth_header.as_deref(),
-            &package_name,
-        )
-        .await?;
+        let pkg: Packument =
+            fetch_package_meta(&context, &package_url, auth_header.as_deref(), &package_name)
+                .await?;
         if pkg.versions.is_empty() {
-            return Err(DeprecateError::NoVersions {
-                package_name,
-            }
-            .into());
+            return Err(DeprecateError::NoVersions { package_name }.into());
         }
 
-        let mut mutation = MutationContext::new(&context, auth_header.as_deref(), config);
-
-        let Some(range) = version_range else {
-            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg)
-                .await;
+        let mut mutation = MutationContext {
+            registry: &context,
+            auth_header: auth_header.as_deref(),
+            auth_type: if context.otp.is_some() { AuthType::Legacy } else { AuthType::Web },
+            session: OtpSession::new(web_auth_fetch_options(config)),
         };
 
-        let versions_to_unpublish = require_matching_versions(&pkg.versions, &range)?;
+        let Some(range) = version_range else {
+            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg).await;
+        };
+
+        let versions_to_unpublish = versions_matching_range(&pkg.versions, &range);
+        if versions_to_unpublish.is_empty() {
+            return Err(DeprecateError::NoMatchingVersions { version_range: range }.into());
+        }
 
         // Removing every version is a full unpublish, protections included.
         if versions_to_unpublish.len() == pkg.versions.len() {
-            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg)
-                .await;
+            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg).await;
         }
 
         unpublish_versions::<Sys, Reporter>(
@@ -196,11 +220,7 @@ impl UnpublishArgs {
         let url = format!("{package_url}/-rev/{}", rev_str(pkg.rev.as_deref()));
         let response = send_mutation::<Sys, Reporter>(
             mutation,
-            MutationRequest {
-                method: &Method::DELETE,
-                url: &url,
-                json_body: None,
-            },
+            MutationRequest { method: &Method::DELETE, url: &url, json_body: None },
         )
         .await?;
         if !response.status().is_success() {
@@ -242,31 +262,35 @@ async fn unpublish_versions<Sys: UnpublishHost, Reporter: self::Reporter>(
     let put_body = serde_json::to_string(&pkg).expect("a struct serializes");
     let response = send_mutation::<Sys, Reporter>(
         mutation,
-        MutationRequest {
-            method: &Method::PUT,
-            url: &put_url,
-            json_body: Some(&put_body),
-        },
+        MutationRequest { method: &Method::PUT, url: &put_url, json_body: Some(&put_body) },
     )
     .await?;
     if !response.status().is_success() {
         return Err(registry_write_error(response, "unpublish".to_string()).await.into());
     }
 
-    delete_unpublished_tarballs::<Sys, Reporter>(
-        mutation,
-        package_url,
-        registry_url,
-        &pkg.name,
-        &tarballs,
-    )
-    .await?;
+    let registry_origin = registry_origin(registry_url)?;
+    for tarball in &tarballs {
+        // Every delete bumps the packument revision; refetch for the current
+        // one like the TypeScript CLI does.
+        let updated: Packument =
+            fetch_package_meta(mutation.registry, package_url, mutation.auth_header, &pkg.name)
+                .await?;
+        let pathname = tarball_pathname(tarball, registry_url)?;
+        let url = format!("{registry_origin}/{pathname}/-rev/{}", rev_str(updated.rev.as_deref()));
+        let response = send_mutation::<Sys, Reporter>(
+            mutation,
+            MutationRequest { method: &Method::DELETE, url: &url, json_body: None },
+        )
+        .await?;
+        if !response.status().is_success() && response.status() != StatusCode::NOT_FOUND {
+            return Err(registry_write_error(response, "unpublish".to_string())
+                .await
+                .into());
+        }
+    }
 
-    Ok(format!(
-        "Successfully unpublished {} version(s) of {}",
-        versions.len(),
-        pkg.name,
-    ))
+    Ok(format!("Successfully unpublished {} version(s) of {}", versions.len(), pkg.name))
 }
 
 /// Drop `versions` from the packument, returning their tarball URLs.
@@ -371,59 +395,3 @@ fn tarball_pathname(tarball_url: &str, registry_url: &str) -> miette::Result<Str
 mod tests;
 
 mod mutation;
-
-mod errors;
-
-async fn delete_unpublished_tarballs<Sys: UnpublishHost, Reporter: self::Reporter>(
-    mutation: &mut MutationContext<'_>,
-    package_url: &str,
-    registry_url: &str,
-    package_name: &str,
-    tarballs: &[String],
-) -> miette::Result<()> {
-    let registry_origin = registry_origin(registry_url)?;
-    for tarball in tarballs {
-        // Every delete bumps the packument revision; refetch for the current
-        // one like the TypeScript CLI does.
-        let updated: Packument = fetch_package_meta(
-            mutation.registry,
-            package_url,
-            mutation.auth_header,
-            package_name,
-        )
-        .await?;
-        let pathname = tarball_pathname(tarball, registry_url)?;
-        let url = format!(
-            "{registry_origin}/{pathname}/-rev/{}",
-            rev_str(updated.rev.as_deref()),
-        );
-        let response = send_mutation::<Sys, Reporter>(
-            mutation,
-            MutationRequest {
-                method: &Method::DELETE,
-                url: &url,
-                json_body: None,
-            },
-        )
-        .await?;
-        if !response.status().is_success() && response.status() != StatusCode::NOT_FOUND {
-            return Err(registry_write_error(response, "unpublish".to_string())
-                .await
-                .into());
-        }
-    }
-    Ok(())
-}
-
-fn require_matching_versions(
-    versions: &Map<String, Value>,
-    range: &str,
-) -> Result<Vec<String>, DeprecateError> {
-    let matched = versions_matching_range(versions, range);
-    if matched.is_empty() {
-        return Err(DeprecateError::NoMatchingVersions {
-            version_range: range.to_string(),
-        });
-    }
-    Ok(matched)
-}

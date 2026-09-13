@@ -81,27 +81,15 @@ async fn empty_chain_returns_spec_not_supported_error() {
         .downcast_ref::<SpecNotSupportedByAnyResolverError>()
         .expect("error should be SpecNotSupportedByAnyResolverError");
     assert_eq!(downcast.specifier, "foo@1.2.3");
-    assert_eq!(
-        downcast.to_string(),
-        r#""foo@1.2.3" isn't supported by any available resolver."#,
-    );
+    assert_eq!(downcast.to_string(), r#""foo@1.2.3" isn't supported by any available resolver."#);
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn first_claiming_resolver_wins() {
     let resolver = DefaultResolver::new(vec![
-        Box::new(PrefixResolver {
-            prefix: "git+",
-            tag: "git",
-        }),
-        Box::new(PrefixResolver {
-            prefix: "https://",
-            tag: "tarball",
-        }),
-        Box::new(PrefixResolver {
-            prefix: "",
-            tag: "fallback",
-        }),
+        Box::new(PrefixResolver { prefix: "git+", tag: "git" }),
+        Box::new(PrefixResolver { prefix: "https://", tag: "tarball" }),
+        Box::new(PrefixResolver { prefix: "", tag: "fallback" }),
     ]);
     let opts = ResolveOptions::default();
 
@@ -110,10 +98,7 @@ async fn first_claiming_resolver_wins() {
         ..WantedDependency::default()
     };
     let outcome = resolver.resolve(&wd_git, &opts).await.expect("git resolves");
-    assert_eq!(
-        outcome.resolved_via, "git",
-        "first matching resolver wins, not the fallback",
-    );
+    assert_eq!(outcome.resolved_via, "git", "first matching resolver wins, not the fallback");
 
     let wd_tarball = WantedDependency {
         bare_specifier: Some("https://example.com/foo.tgz".to_string()),
@@ -138,10 +123,7 @@ fn spec_not_supported_renders_alias_and_bare_specifier() {
         ..WantedDependency::default()
     });
     assert_eq!(with_both.specifier, "foo@1.2.3");
-    assert_eq!(
-        with_both.to_string(),
-        r#""foo@1.2.3" isn't supported by any available resolver."#,
-    );
+    assert_eq!(with_both.to_string(), r#""foo@1.2.3" isn't supported by any available resolver."#);
 
     let bare_only = SpecNotSupportedByAnyResolverError::new(&WantedDependency {
         alias: None,
@@ -160,31 +142,19 @@ fn spec_not_supported_renders_alias_and_bare_specifier() {
         ..WantedDependency::default()
     });
     assert_eq!(alias_only.specifier, "foo");
-    assert_eq!(
-        alias_only.to_string(),
-        r#""foo" isn't supported by any available resolver."#,
-    );
+    assert_eq!(alias_only.to_string(), r#""foo" isn't supported by any available resolver."#);
 
     let neither = SpecNotSupportedByAnyResolverError::new(&WantedDependency::default());
     assert_eq!(neither.specifier, "");
-    assert_eq!(
-        neither.to_string(),
-        " isn't supported by any available resolver.",
-    );
+    assert_eq!(neither.to_string(), " isn't supported by any available resolver.");
 }
 
 #[tokio::test(flavor = "current_thread")]
 async fn resolve_latest_returns_none_when_chain_empty() {
     let resolver = DefaultResolver::new(vec![]);
     let opts = ResolveOptions::default();
-    let query = LatestQuery {
-        wanted_dependency: WantedDependency::default(),
-        compatible: false,
-    };
+    let query = LatestQuery { wanted_dependency: WantedDependency::default(), compatible: false };
 
     let info = resolver.resolve_latest(&query, &opts).await.expect("latest doesn't error");
-    assert!(
-        info.is_none(),
-        "resolve_latest should fall through to None on an empty chain",
-    );
+    assert!(info.is_none(), "resolve_latest should fall through to None on an empty chain");
 }

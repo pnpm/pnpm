@@ -42,9 +42,7 @@ async fn lockfile_repair_rejects_a_server_without_the_capability() {
         .create_async()
         .await;
 
-    let Err(error) = PnprClient::new(server.url()).resolve_projects(options)
-        .await
-    else {
+    let Err(error) = PnprClient::new(server.url()).resolve_projects(options).await else {
         panic!("an older server must not silently ignore repair mode");
     };
 
@@ -68,14 +66,9 @@ async fn lockfile_repair_uses_an_advertised_capability() {
         .await;
     let resolve_mock = server
         .mock("POST", "/-/pnpr/v0/resolve")
-        .match_body(mockito::Matcher::PartialJson(
-            json!({ "fixLockfile": true }),
-        ))
+        .match_body(mockito::Matcher::PartialJson(json!({ "fixLockfile": true })))
         .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
-        .with_body(format!(
-            "{}\n",
-            json!({ "type": "done", "lockfile": response_lockfile }),
-        ))
+        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
         .create_async()
         .await;
 
@@ -121,10 +114,7 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "updatePatches": true,
         })))
         .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
-        .with_body(format!(
-            "{}\n",
-            json!({ "type": "done", "lockfile": response_lockfile }),
-        ))
+        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
         .create_async()
         .await;
 
@@ -195,18 +185,13 @@ async fn rejects_an_old_server_before_consuming_package_frames() {
         panic!("expected a protocol error");
     };
     assert!(message.contains("does not advertise project-transform support"));
-    assert!(
-        prefetched.is_empty(),
-        "an old server must not trigger prefetches",
-    );
+    assert!(prefetched.is_empty(), "an old server must not trigger prefetches");
 }
 
 #[tokio::test]
 async fn a_project_transform_header_preserves_streaming_prefetch() {
-    let frames = vec![
-        mock_package_frame(),
-        json!({ "type": "error", "message": "resolution stopped" }),
-    ];
+    let frames =
+        vec![mock_package_frame(), json!({ "type": "error", "message": "resolution stopped" })];
     let mut prefetched = Vec::new();
     let result = resolve_mock_frames(resolve_projects_options(), frames, true, |package| {
         prefetched.push(package.id);
@@ -334,8 +319,8 @@ async fn resolve_mock_frames(
     }
     let resolve_mock = resolve_mock.create_async().await;
 
-    let result = PnprClient::new(server.url()).resolve_projects_streaming(options, on_package)
-        .await;
+    let result =
+        PnprClient::new(server.url()).resolve_projects_streaming(options, on_package).await;
     resolve_mock.assert_async().await;
     result
 }
@@ -362,10 +347,7 @@ fn a_violations_frame_rebuilds_a_verify_error() {
         matches!(verify_err, VerifyError::MinimumReleaseAgeViolation { .. }),
         "got {verify_err:?}",
     );
-    assert!(
-        verify_err.to_string().contains("@foo/no-deps@1.0.0"),
-        "got {verify_err}",
-    );
+    assert!(verify_err.to_string().contains("@foo/no-deps@1.0.0"), "got {verify_err}");
 }
 
 #[test]
@@ -376,10 +358,7 @@ fn tarball_mismatch_maps_to_the_generic_envelope() {
     };
     let verify_err = build_verify_error(violations);
     assert!(
-        matches!(
-            verify_err,
-            VerifyError::LockfileResolutionVerification { .. }
-        ),
+        matches!(verify_err, VerifyError::LockfileResolutionVerification { .. }),
         "got {verify_err:?}",
     );
 }
@@ -416,10 +395,7 @@ fn package_frames_reject_invalid_revisions() {
         let line = format!(
             r#"{{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","revision":{revision}}}"#,
         );
-        assert!(matches!(
-            parse_frame(line.as_bytes()),
-            Err(PnprClientError::Protocol(_)),
-        ));
+        assert!(matches!(parse_frame(line.as_bytes()), Err(PnprClientError::Protocol(_)),));
     }
 }
 

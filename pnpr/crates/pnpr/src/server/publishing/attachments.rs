@@ -73,21 +73,9 @@ pub(in super::super) async fn validate_publish_doc(
             .and_then(|manifest| manifest.get("dist"))
             .cloned()
             .unwrap_or(Value::Null);
-        prepared.push(PreparedAttachment {
-            attachment,
-            canonical,
-            version,
-            dist,
-        });
+        prepared.push(PreparedAttachment { attachment, canonical, version, dist });
     }
-    Ok((
-        ValidatedPublish {
-            name,
-            incoming,
-            prepared,
-        },
-        target,
-    ))
+    Ok((ValidatedPublish { name, incoming, prepared }, target))
 }
 
 pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
@@ -232,9 +220,7 @@ pub(super) async fn write_attachment_slot(
         Ok(Err(err)) => Err(err),
         Err(join_err) => {
             let _ = tokio::fs::remove_file(&slot.tmp_path).await;
-            Err(RegistryError::Io(std::io::Error::other(
-                join_err.to_string(),
-            )))
+            Err(RegistryError::Io(std::io::Error::other(join_err.to_string())))
         }
     }
 }
@@ -321,10 +307,5 @@ pub(super) fn staged_hosted_original_ref(
     };
     let bytes = serde_json::to_vec(&record).expect("hosted original reference serializes");
     let ref_id = create_hex_hash(&format!("{}\0{}", record.package, record.version));
-    Some(JournaledRevisionRef {
-        filename: attachment.canonical.clone(),
-        digest,
-        ref_id,
-        bytes,
-    })
+    Some(JournaledRevisionRef { filename: attachment.canonical.clone(), digest, ref_id, bytes })
 }

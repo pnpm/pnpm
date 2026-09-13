@@ -9,9 +9,7 @@ use super::super::{Config, HashSet, Lockfile, Path};
 pub(in super::super) fn gvs_build_markers_may_require_recovery(config: &Config) -> bool {
     config.enable_global_virtual_store
         && (config.dangerously_allow_all_builds
-            || config.allow_builds
-                .values()
-                .any(|allowed| *allowed)
+            || config.allow_builds.values().any(|allowed| *allowed)
             || config.patched_dependencies
                 .as_ref()
                 .is_some_and(|patches| !patches.is_empty()))

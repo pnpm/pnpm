@@ -32,9 +32,7 @@ fn byte_mode_code(data: &[u8], ec_level: EcLevel) -> Result<QrCode, GenerateQrCo
             return Ok(code);
         }
     }
-    Err(GenerateQrCodeError {
-        reason: "text exceeds the maximum QR code data capacity".to_owned(),
-    })
+    Err(GenerateQrCodeError { reason: "text exceeds the maximum QR code data capacity".to_owned() })
 }
 
 /// Render `code` in `qrcode-terminal`'s small (half-block) style: a one-row

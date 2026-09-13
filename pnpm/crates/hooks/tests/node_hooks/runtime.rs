@@ -31,10 +31,7 @@ function readPackage(pkg) {
 
     let result = hooks.read_package(
         manifest.clone(),
-        pnpm_hooks::HookContext {
-            log: Arc::new(|_| {}),
-            dir: None,
-        },
+        pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
     )
     .await;
 
@@ -69,10 +66,7 @@ function readPackage(pkg) {
 
     let result = hooks.read_package(
         manifest.clone(),
-        pnpm_hooks::HookContext {
-            log: Arc::new(|_| {}),
-            dir: None,
-        },
+        pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
     )
     .await;
 
@@ -108,14 +102,8 @@ function filterLog(log) {
     });
 
     assert!(
-        hooks.filter_log(
-            debug_log,
-            pnpm_hooks::HookContext {
-                log: Arc::new(|_| {}),
-                dir: None
-            }
-        )
-        .await,
+        hooks.filter_log(debug_log, pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None })
+            .await,
     );
 
     let warn_log = serde_json::json!({
@@ -124,14 +112,8 @@ function filterLog(log) {
     });
 
     assert!(
-        !hooks.filter_log(
-            warn_log,
-            pnpm_hooks::HookContext {
-                log: Arc::new(|_| {}),
-                dir: None
-            }
-        )
-        .await,
+        !hooks.filter_log(warn_log, pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None })
+            .await,
     );
 }
 
@@ -165,10 +147,7 @@ function readPackage(pkg) {
 
     let result = hooks.read_package(
         manifest.clone(),
-        pnpm_hooks::HookContext {
-            log: Arc::new(|_| {}),
-            dir: None,
-        },
+        pnpm_hooks::HookContext { log: Arc::new(|_| {}), dir: None },
     )
     .await;
 

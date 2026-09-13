@@ -89,10 +89,7 @@ impl Config {
                     .collect()
             })
             .unwrap_or_default();
-        for dir in [
-            self.virtual_store_dir.join("node_modules"),
-            self.modules_dir.clone(),
-        ] {
+        for dir in [self.virtual_store_dir.join("node_modules"), self.modules_dir.clone()] {
             // `virtual_store_dir` is built by joining a multi-segment
             // literal, which keeps `/` separators on Windows; normalize
             // so NODE_PATH carries native separators like the shims do.

@@ -96,14 +96,8 @@ impl RegistryAnchor {
             });
             let port = init_options.port;
             let pid = mock_instance.process.id();
-            let info = RegistryInfo {
-                port,
-                pid,
-            };
-            let anchor = RegistryAnchor {
-                ref_count: 1,
-                info,
-            };
+            let info = RegistryInfo { port, pid };
+            let anchor = RegistryAnchor { ref_count: 1, info };
             anchor.save();
             guard.unlock();
             #[expect(

@@ -78,10 +78,7 @@ where
         let mut graph: TaskGraph = IndexMap::new();
         let mut queue = self.seed_queue();
         while let Some((project, task_name, requested)) = queue.pop_front() {
-            let key = TaskKey {
-                project: project.clone(),
-                task_name: task_name.clone(),
-            };
+            let key = TaskKey { project: project.clone(), task_name: task_name.clone() };
             if let Some(existing) = graph.get_mut(&key) {
                 existing.requested |= requested;
                 continue;
@@ -92,11 +89,7 @@ where
                 dependencies
                     .iter()
                     .map(|dependency| {
-                        (
-                            dependency.project.clone(),
-                            dependency.task_name.clone(),
-                            false,
-                        )
+                        (dependency.project.clone(), dependency.task_name.clone(), false)
                     }),
             );
             let scripts = (self.select_scripts)(&project, &task_name);
@@ -165,10 +158,7 @@ where
     /// same project.
     fn entry_keys(&self, entry: &str, project: &Path) -> Vec<TaskKey> {
         let Some(dependency_task_name) = entry.strip_prefix('^') else {
-            return vec![TaskKey {
-                project: project.to_path_buf(),
-                task_name: entry.to_string(),
-            }];
+            return vec![TaskKey { project: project.to_path_buf(), task_name: entry.to_string() }];
         };
         self.project_dependencies
             .get(project)

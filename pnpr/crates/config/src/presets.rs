@@ -2,7 +2,7 @@ use super::{
     ArtifactsFeature, AuthConfig, BackendConfig, Config, CorsConfig, HeaderMap, HostedConfig,
     HostedStoreConfig, IndexMap, LogConfig, OciConfig, OsvConfig, PathBuf, PipelineFeature,
     Registries, Registry, RegistryFeature, ResolverFeature, RoutePolicy, SocketAddr, Teams,
-    UpstreamConfig, default_cache_dir, random_secret, registry_mock_rules,
+    UpstreamConfig, default_cache_dir, random_secret, registry_mock_graph, registry_mock_rules,
 };
 
 impl Config {
@@ -63,18 +63,8 @@ impl Config {
             },
         );
         let graph = [
-            (
-                "local".to_string(),
-                Registry::Hosted {
-                    patterns: Vec::new(),
-                },
-            ),
-            (
-                "main".to_string(),
-                Registry::Router {
-                    sources: vec!["local".to_string()],
-                },
-            ),
+            ("local".to_string(), Registry::Hosted { patterns: Vec::new() }),
+            ("main".to_string(), Registry::Router { sources: vec!["local".to_string()] }),
         ];
         let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
         Self::with_routing(
@@ -119,40 +109,4 @@ impl Config {
             routing,
         }
     }
-}
-
-fn registry_mock_graph() -> (IndexMap<String, HostedConfig>, Registries) {
-    let rules = registry_mock_rules();
-    let local_patterns = rules.patterns();
-    let mut hosted = IndexMap::new();
-    hosted.insert(
-        "local".to_string(),
-        HostedConfig {
-            org: String::new(),
-            rules,
-            teams: Teams::default(),
-        },
-    );
-    let graph = [
-        (
-            "local".to_string(),
-            Registry::Hosted {
-                patterns: local_patterns,
-            },
-        ),
-        (
-            "npmjs".to_string(),
-            Registry::Upstream {
-                patterns: Vec::new(),
-            },
-        ),
-        (
-            "main".to_string(),
-            Registry::Router {
-                sources: vec!["local".to_string(), "npmjs".to_string()],
-            },
-        ),
-    ];
-    let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
-    (hosted, registries)
 }

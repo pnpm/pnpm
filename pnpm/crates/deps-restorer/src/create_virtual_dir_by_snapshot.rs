@@ -143,7 +143,26 @@ impl CreateVirtualDirBySnapshot<'_> {
             self.dependencies.removed_aliases,
         )?;
 
-        report_imported::<Reporter>(self.import.method, self.import.requester, &slot.save_path);
+        // `pnpm:progress imported` fires one event per (resolved +
+        // fetched) package once its CAFS import has finished. `to` is
+        // the per-package directory
+        // inside the virtual store. `method` is best-effort — pacquet
+        // doesn't surface the per-package resolved method past
+        // `link_file`'s install-scoped atomic, so we report the
+        // optimistic value the configured method would resolve to in
+        // a non-degraded environment (`Auto` → its platform ladder's
+        // head, `CloneOrCopy` → `clone`, explicit settings as-is).
+        // Refining to per-package resolution
+        // would require threading the resolved method back from
+        // `link_file`; tracked under <https://github.com/pnpm/pacquet/issues/347>.
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
+            level: LogLevel::Debug,
+            message: ProgressMessage::Imported {
+                method: optimistic_wire_method(self.import.method),
+                requester: self.import.requester.to_owned(),
+                to: slot.save_path.to_string_lossy().into_owned(),
+            },
+        }));
 
         Ok(())
     }
@@ -244,10 +263,7 @@ impl SlotPaths {
         create_slot_dirs(&slot_dir, &node_modules)?;
         let save_path = safe_join_modules_dir(&node_modules, &package_key.name.to_string())
             .map_err(CreateVirtualDirError::InvalidAlias)?;
-        Ok(Self {
-            node_modules,
-            save_path,
-        })
+        Ok(Self { node_modules, save_path })
     }
 }
 
@@ -314,16 +330,9 @@ fn slot_import_opts(
     // import may be stale.
     let safe_to_skip = layout.enable_global_virtual_store() && !source_is_mutable;
     if interrupted_build || source_is_mutable || force_import {
-        return ImportIndexedDirOpts {
-            force: true,
-            keep_modules_dir: true,
-            safe_to_skip,
-        };
+        return ImportIndexedDirOpts { force: true, keep_modules_dir: true, safe_to_skip };
     }
-    ImportIndexedDirOpts {
-        safe_to_skip,
-        ..ImportIndexedDirOpts::default()
-    }
+    ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() }
 }
 
 /// Unlink every child but the package's own `node_modules/<self>` directory.
@@ -376,41 +385,11 @@ fn remove_obsolete_child(
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => {
-            return Err(CreateVirtualDirError::RemoveObsoleteChild {
-                path: child_path,
-                error,
-            });
+            return Err(CreateVirtualDirError::RemoveObsoleteChild { path: child_path, error });
         }
     }
     if let Some(scope) = &alias.scope {
         let _ = fs::remove_dir(virtual_node_modules_dir.join(format!("@{scope}")));
     }
     Ok(())
-}
-
-pub(crate) fn report_imported<Reporter: self::Reporter>(
-    method: PackageImportMethod,
-    requester: &str,
-    save_path: &Path,
-) {
-    // `pnpm:progress imported` fires one event per (resolved +
-    // fetched) package once its CAFS import has finished. `to` is
-    // the per-package directory
-    // inside the virtual store. `method` is best-effort — pacquet
-    // doesn't surface the per-package resolved method past
-    // `link_file`'s install-scoped atomic, so we report the
-    // optimistic value the configured method would resolve to in
-    // a non-degraded environment (`Auto` → its platform ladder's
-    // head, `CloneOrCopy` → `clone`, explicit settings as-is).
-    // Refining to per-package resolution
-    // would require threading the resolved method back from
-    // `link_file`; tracked under <https://github.com/pnpm/pacquet/issues/347>.
-    Reporter::emit(&LogEvent::Progress(ProgressLog {
-        level: LogLevel::Debug,
-        message: ProgressMessage::Imported {
-            method: optimistic_wire_method(method),
-            requester: requester.to_owned(),
-            to: save_path.to_string_lossy().into_owned(),
-        },
-    }));
 }

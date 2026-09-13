@@ -257,10 +257,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
     }
     .run::<SilentReporter>()
     .expect_err("with cache disabled, the failing postinstall must run and the install must fail");
-    assert!(matches!(
-        err,
-        crate::build_modules::BuildModulesError::LifecycleScript(_)
-    ));
+    assert!(matches!(err, crate::build_modules::BuildModulesError::LifecycleScript(_)));
 }
 /// A postinstall script does not modify the original sources added
 /// to the store.

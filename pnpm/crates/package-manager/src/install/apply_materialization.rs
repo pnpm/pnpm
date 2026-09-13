@@ -247,8 +247,7 @@ fn finish_apply<Reporter: self::Reporter>(
 
         prefix: inputs.completion.prefix,
         ignored_builds: inputs.materialized.ignored_builds,
-        verified_file_integrity_baseline: inputs.completion
-            .verified_file_integrity_baseline,
+        verified_file_integrity_baseline: inputs.completion.verified_file_integrity_baseline,
         resolved_lockfile: inputs.materialized.fresh_lockfile.as_ref(),
         peer_issue_importer_ids: &inputs.materialized.peer_issue_importer_ids,
         installed_importer_ids,

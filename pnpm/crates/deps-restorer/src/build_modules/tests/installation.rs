@@ -41,10 +41,7 @@ fn parse_key_without_leading_slash() {
 #[test]
 fn explicit_allow() {
     let policy = policy_from_specs([("@pnpm.e2e/install-script-example", true)], false);
-    assert_eq!(
-        policy.check("@pnpm.e2e/install-script-example@1.0.0"),
-        Some(true),
-    );
+    assert_eq!(policy.check("@pnpm.e2e/install-script-example@1.0.0"), Some(true));
 }
 #[test]
 fn explicit_allow_requires_registry_style_dep_path() {
@@ -53,10 +50,7 @@ fn explicit_allow_requires_registry_style_dep_path() {
         policy.check("@pnpm.e2e/install-script-example@git+https://example.com/x.git#abc123"),
         None,
     );
-    assert_eq!(
-        policy.check("@pnpm.e2e/install-script-example@1.0.0"),
-        Some(true),
-    );
+    assert_eq!(policy.check("@pnpm.e2e/install-script-example@1.0.0"), Some(true));
 }
 #[test]
 fn explicit_allow_by_git_hosted_tarball_repo_url() {
@@ -75,19 +69,13 @@ fn explicit_allow_by_git_hosted_tarball_repo_url() {
 
     // A GitHub `github:` dependency is downloaded from codeload.github.com, yet
     // the same key a clone of the repo would use approves it — no commit hash.
-    assert_eq!(
-        policy.check("foo@https://codeload.github.com/org/foo/tar.gz/abc123"),
-        Some(true),
-    );
+    assert_eq!(policy.check("foo@https://codeload.github.com/org/foo/tar.gz/abc123"), Some(true));
     assert_eq!(
         policy.check("foo@https://codeload.github.com/org/foo/tar.gz/def456(react@19.0.0)"),
         Some(true),
     );
     // Bitbucket and GitLab (with nested groups) tarball downloads too.
-    assert_eq!(
-        policy.check("bar@https://bitbucket.org/org/bar/get/abc123.tar.gz"),
-        Some(true),
-    );
+    assert_eq!(policy.check("bar@https://bitbucket.org/org/bar/get/abc123.tar.gz"), Some(true));
     assert_eq!(
         policy.check(
             "baz@https://gitlab.com/group/subgroup/baz/-/archive/abc123/baz-abc123.tar.gz"
@@ -95,10 +83,7 @@ fn explicit_allow_by_git_hosted_tarball_repo_url() {
         Some(true),
     );
     // A different repository under the same package name is not approved.
-    assert_eq!(
-        policy.check("foo@https://codeload.github.com/attacker/foo/tar.gz/abc123"),
-        None,
-    );
+    assert_eq!(policy.check("foo@https://codeload.github.com/attacker/foo/tar.gz/abc123"), None);
     // A look-alike download host must not be rewritten into the trusted key.
     assert_eq!(
         policy.check("foo@https://codeload.github.com.attacker.net/org/foo/tar.gz/abc123"),
@@ -114,14 +99,8 @@ fn explicit_allow_by_git_hosted_tarball_repo_url() {
     // (a repo is exactly `owner/repo`) and must not be normalized, matching the
     // `[^/]+` repo anchor in the TypeScript matcher. Even with the slash-bearing
     // key allowlisted, the multi-segment URL stays unapproved.
-    assert_eq!(
-        policy.check("qux@https://codeload.github.com/org/extra/qux/tar.gz/abc123"),
-        None,
-    );
-    assert_eq!(
-        policy.check("quux@https://bitbucket.org/org/extra/quux/get/abc123.tar.gz"),
-        None,
-    );
+    assert_eq!(policy.check("qux@https://codeload.github.com/org/extra/qux/tar.gz/abc123"), None);
+    assert_eq!(policy.check("quux@https://bitbucket.org/org/extra/quux/get/abc123.tar.gz"), None);
     // A URL on a claimed download host that does not match that host's tarball
     // pattern is rejected outright — it must not fall through to the generic
     // GitLab matcher and produce the host's trusted repo key.
@@ -135,10 +114,7 @@ fn explicit_allow_by_git_hosted_tarball_repo_url() {
     );
     // A GitLab archive URL without a `<ref>/` segment after the marker is not
     // normalized.
-    assert_eq!(
-        policy.check("baz@https://gitlab.com/group/subgroup/baz/-/archive/abc123"),
-        None,
-    );
+    assert_eq!(policy.check("baz@https://gitlab.com/group/subgroup/baz/-/archive/abc123"), None);
 }
 #[test]
 fn explicit_deny() {
@@ -154,10 +130,8 @@ fn unlisted_returns_none() {
 /// bare-name disallow wins over an exact-version allow.
 #[test]
 fn disallow_bare_name_wins_over_allow_exact_version() {
-    let policy = policy_from_specs(
-        [("@pnpm.e2e/pkg@1.0.0", true), ("@pnpm.e2e/pkg", false)],
-        false,
-    );
+    let policy =
+        policy_from_specs([("@pnpm.e2e/pkg@1.0.0", true), ("@pnpm.e2e/pkg", false)], false);
     assert_eq!(policy.check("@pnpm.e2e/pkg@1.0.0"), Some(false));
     assert_eq!(policy.check("@pnpm.e2e/pkg@2.0.0"), Some(false));
 }
@@ -166,10 +140,8 @@ fn disallow_bare_name_wins_over_allow_exact_version() {
 /// version; other versions hit the bare-name allow.
 #[test]
 fn disallow_exact_version_with_allow_bare_name() {
-    let policy = policy_from_specs(
-        [("@pnpm.e2e/pkg", true), ("@pnpm.e2e/pkg@1.0.0", false)],
-        false,
-    );
+    let policy =
+        policy_from_specs([("@pnpm.e2e/pkg", true), ("@pnpm.e2e/pkg@1.0.0", false)], false);
     assert_eq!(policy.check("@pnpm.e2e/pkg@1.0.0"), Some(false));
     assert_eq!(policy.check("@pnpm.e2e/pkg@2.0.0"), Some(true));
 }
@@ -181,10 +153,7 @@ fn empty_rules_denies_all() {
 #[test]
 fn dangerously_allow_all_allows_artifact_dep_paths() {
     let policy = policy_from_specs([], true);
-    assert_eq!(
-        policy.check("anything@git+https://example.com/x.git#abc123"),
-        Some(true),
-    );
+    assert_eq!(policy.check("anything@git+https://example.com/x.git#abc123"), Some(true));
 }
 /// Version unions expand into separate exact-version allows.
 /// `qar@1.0.0 || 2.0.0` allows exactly those two versions, leaves
@@ -207,10 +176,7 @@ fn from_config_propagates_invalid_version_union() {
     let mut config = Config::new();
     config.allow_builds.insert("foo@not-a-version".to_string(), true);
     let err = AllowBuildPolicy::from_config(&config).expect_err("must reject");
-    assert!(
-        matches!(err, crate::VersionPolicyError::InvalidVersionUnion { .. }),
-        "got: {err:?}",
-    );
+    assert!(matches!(err, crate::VersionPolicyError::InvalidVersionUnion { .. }), "got: {err:?}");
 }
 #[test]
 fn from_config_propagates_name_pattern_in_version_union() {
@@ -218,10 +184,7 @@ fn from_config_propagates_name_pattern_in_version_union() {
     config.allow_builds.insert("foo*@1.0.0".to_string(), true);
     let err = AllowBuildPolicy::from_config(&config).expect_err("must reject");
     assert!(
-        matches!(
-            err,
-            crate::VersionPolicyError::NamePatternInVersionUnion { .. }
-        ),
+        matches!(err, crate::VersionPolicyError::NamePatternInVersionUnion { .. }),
         "got: {err:?}",
     );
 }
@@ -245,10 +208,7 @@ fn empty_config_denies_all() {
 #[test]
 fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .expect("lock")
-        .clear();
+    EVENTS.lock().expect("lock").clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -261,10 +221,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     }
 
     let pkg_key = key("@pnpm.e2e/failing-postinstall", "1.0.0");
-    let optional_snapshot = SnapshotEntry {
-        optional: true,
-        ..Default::default()
-    };
+    let optional_snapshot = SnapshotEntry { optional: true, ..Default::default() };
     let snapshots = HashMap::from([(pkg_key.clone(), optional_snapshot)]);
     let importers = root_importers(&[("@pnpm.e2e/failing-postinstall", "1.0.0")]);
     // `dangerouslyAllowAllBuilds` so the policy lets the failing
@@ -329,10 +286,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     .expect("optional build failure must NOT abort the install");
     dbg!(&ignored);
 
-    let captured = EVENTS
-        .lock()
-        .expect("lock")
-        .clone();
+    let captured = EVENTS.lock().expect("lock").clone();
     dbg!(&captured);
     let skipped_event = captured
         .iter()
@@ -342,20 +296,12 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         })
         .expect("must emit pnpm:skipped-optional-dependency");
     assert_eq!(skipped_event.reason, SkippedOptionalReason::BuildFailure);
-    let SkippedOptionalPackage::Installed { name, version, .. } =
-        &skipped_event.package
-    else {
-        panic!(
-            "expected Installed payload for build_failure, got {:?}",
-            skipped_event.package,
-        );
+    let SkippedOptionalPackage::Installed { name, version, .. } = &skipped_event.package else {
+        panic!("expected Installed payload for build_failure, got {:?}", skipped_event.package);
     };
     assert_eq!(name, "@pnpm.e2e/failing-postinstall");
     assert_eq!(version, "1.0.0");
-    assert!(
-        skipped_event.details.is_some(),
-        "details must carry the error toString",
-    );
+    assert!(skipped_event.details.is_some(), "details must carry the error toString");
 }
 /// A package that is both an optional and a non-optional dependency
 /// fails the install when its postinstall fails.
@@ -434,10 +380,7 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
     .run::<SilentReporter>()
     .expect_err("required build failure must propagate");
     eprintln!("ERR: {err}");
-    assert!(matches!(
-        err,
-        crate::build_modules::BuildModulesError::LifecycleScript(_)
-    ));
+    assert!(matches!(err, crate::build_modules::BuildModulesError::LifecycleScript(_)));
 }
 /// Counterpart of the WRITE-path test: with `side_effects_cache_write
 /// = false`, the same fixture's row must come out of `BuildModules`
@@ -564,10 +507,7 @@ async fn write_path_disabled_skips_upload() {
         .get(&files_index_file)
         .expect("get row")
         .expect("row present");
-    assert!(
-        row.side_effects.is_none(),
-        "write disabled must NOT populate side_effects",
-    );
+    assert!(row.side_effects.is_none(), "write disabled must NOT populate side_effects");
 }
 /// Uploading errors do not interrupt the install: the install
 /// completes (the postinstall ran, the generated file is on disk)
@@ -725,10 +665,7 @@ async fn upload_error_does_not_interrupt_install() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(
-            pkg_dir.join("unreadable"),
-            fs::Permissions::from_mode(0o644),
-        );
+        let _ = fs::set_permissions(pkg_dir.join("unreadable"), fs::Permissions::from_mode(0o644));
     }
 }
 // --- pkg_root_for_key ---------------------------------------------------
@@ -742,22 +679,16 @@ async fn upload_error_does_not_interrupt_install() {
 fn pkg_root_for_key_isolated_uses_layout() {
     let dir = tempdir().unwrap();
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("store")
-        .into();
+    config.store_dir = dir.path().join("store").into();
     config.modules_dir = dir.path().join("node_modules");
     config.virtual_store_dir = dir.path().join("node_modules/.pacquet");
     let config = config.leak();
     let layout = VirtualStoreLayout::new(config, None, None, None, None, None);
 
     let key: PackageKey = "is-positive@1.0.0".parse().expect("parse key");
-    let result = super::super::PkgRoots {
-        layout: &layout,
-        by_key: None,
-    }
-    .canonical(&key)
-    .expect("isolated lookup hits");
+    let result = super::super::PkgRoots { layout: &layout, by_key: None }
+        .canonical(&key)
+        .expect("isolated lookup hits");
 
     assert!(
         result.starts_with(&config.virtual_store_dir),
@@ -776,33 +707,18 @@ fn is_contained_descendant_rejects_traversal_and_escapes() {
     let root = Path::new("/store/v11/links");
 
     // A normal GVS slot suffix is accepted.
-    assert!(is_contained_descendant(
-        root,
-        &root.join("@pnpm.e2e/foo/1.0.0/deadbeef")
-    ));
-    assert!(is_contained_descendant(
-        root,
-        &root.join("foo/1.0.0/deadbeef")
-    ));
+    assert!(is_contained_descendant(root, &root.join("@pnpm.e2e/foo/1.0.0/deadbeef")));
+    assert!(is_contained_descendant(root, &root.join("foo/1.0.0/deadbeef")));
 
     // A `..` segment that climbs out of the root is rejected even though
     // the path still textually starts with the root.
-    assert!(!is_contained_descendant(
-        root,
-        &root.join("../../../etc/passwd")
-    ));
-    assert!(!is_contained_descendant(
-        root,
-        &root.join("foo/../../../escape")
-    ));
+    assert!(!is_contained_descendant(root, &root.join("../../../etc/passwd")));
+    assert!(!is_contained_descendant(root, &root.join("foo/../../../escape")));
 
     // The root itself is not a descendant — deleting it wholesale is not
     // a per-slot cleanup.
     assert!(!is_contained_descendant(root, root));
 
     // A sibling that merely shares a name prefix is not contained.
-    assert!(!is_contained_descendant(
-        root,
-        Path::new("/store/v11/links-evil/foo")
-    ));
+    assert!(!is_contained_descendant(root, Path::new("/store/v11/links-evil/foo")));
 }

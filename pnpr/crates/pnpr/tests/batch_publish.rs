@@ -97,10 +97,9 @@ async fn batch_publish_writes_every_package_in_one_request() {
     let payload = body_json(response.into_body()).await;
     assert_eq!(payload["ok"], true);
 
-    for (name, version, bytes) in [
-        ("batch-a", "1.0.0", bytes_a.as_slice()),
-        ("batch-b", "2.0.0", bytes_b.as_slice()),
-    ] {
+    for (name, version, bytes) in
+        [("batch-a", "1.0.0", bytes_a.as_slice()), ("batch-b", "2.0.0", bytes_b.as_slice())]
+    {
         let packument: Value = serde_json::from_slice(
             &std::fs::read(storage.join(name).join("package.json")).expect("packument written"),
         )
@@ -108,10 +107,7 @@ async fn batch_publish_writes_every_package_in_one_request() {
         assert_eq!(packument["name"], name);
         assert_eq!(packument["versions"][version]["version"], version);
         assert_eq!(packument["dist-tags"]["latest"], version);
-        assert!(
-            packument.get("_attachments").is_none(),
-            "_attachments should not be persisted",
-        );
+        assert!(packument.get("_attachments").is_none(), "_attachments should not be persisted");
 
         let on_disk_tarball = std::fs::read(
             storage
@@ -249,10 +245,7 @@ async fn batch_publish_rolls_back_every_package_when_one_fails_integrity() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    assert!(
-        body_text.contains("EINTEGRITY"),
-        "error should carry EINTEGRITY: {body_text}",
-    );
+    assert!(body_text.contains("EINTEGRITY"), "error should carry EINTEGRITY: {body_text}");
 
     for name in ["rollback-good", "rollback-bad"] {
         let pkg_dir = storage.join(name);
@@ -305,12 +298,7 @@ async fn batch_publish_rejects_bodies_without_a_packages_array() {
     let app = router(static_config(tmp.path().to_path_buf()));
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
-    for body in [
-        json!({}),
-        json!({ "packages": [] }),
-        json!({ "packages": "nope" }),
-        json!([]),
-    ] {
+    for body in [json!({}), json!({ "packages": [] }), json!({ "packages": "nope" }), json!([])] {
         let response = app
             .clone()
             .oneshot(put_json_with_token("/-/pnpm/v1/publish", &body, &token))

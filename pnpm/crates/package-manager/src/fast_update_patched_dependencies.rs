@@ -42,10 +42,7 @@ pub(crate) fn detect_patched_drift(
         return Drift::Clean;
     }
     match groups_from_hashes(current) {
-        Some(groups) => Drift::Absorb(PatchedPlan {
-            current: current.clone(),
-            groups,
-        }),
+        Some(groups) => Drift::Absorb(PatchedPlan { current: current.clone(), groups }),
         None => Drift::Resolve,
     }
 }
@@ -208,13 +205,7 @@ fn apply_rekeys(lockfile: &mut Lockfile, rekeys: &Rekeys) {
                 .map(|(key, mut snapshot)| {
                     rewrite_snapshot_dependencies(&mut snapshot.dependencies, rekeys);
                     rewrite_snapshot_dependencies(&mut snapshot.optional_dependencies, rekeys);
-                    (
-                        rekeys
-                            .get(&key)
-                            .cloned()
-                            .unwrap_or(key),
-                        snapshot,
-                    )
+                    (rekeys.get(&key).cloned().unwrap_or(key), snapshot)
                 })
                 .collect(),
         );
@@ -349,13 +340,7 @@ fn groups_from_hashes(hashes: &BTreeMap<String, String>) -> Option<PatchGroupRec
         hashes
             .iter()
             .map(|(key, hash)| {
-                (
-                    key.clone(),
-                    PatchInput {
-                        hash: hash.clone(),
-                        patch_file_path: None,
-                    },
-                )
+                (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
             }),
     )
     .ok()

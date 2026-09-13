@@ -56,12 +56,8 @@ pub(crate) fn extract_zip_entries(
                 url: package_url.to_string(),
                 source,
             })?;
-        let Some(cleaned) = zip_entry_path(
-            &entry,
-            package_url,
-            basename_prefix.as_deref(),
-            ignore_file_pattern,
-        )?
+        let Some(cleaned) =
+            zip_entry_path(&entry, package_url, basename_prefix.as_deref(), ignore_file_pattern)?
         else {
             continue;
         };
@@ -96,16 +92,10 @@ impl ExtractedEntries {
 
     fn insert(&mut self, entry_path: String, (file_path, file_attrs): (PathBuf, CafsFileInfo)) {
         if let Some(previous) = self.cas_paths.insert(entry_path.clone(), file_path) {
-            tracing::warn!(
-                ?previous,
-                "Duplication detected. Old entry has been ejected",
-            );
+            tracing::warn!(?previous, "Duplication detected. Old entry has been ejected");
         }
         if let Some(previous) = self.files_index.files.insert(entry_path, file_attrs) {
-            tracing::warn!(
-                ?previous,
-                "Duplication detected. Old entry has been ejected",
-            );
+            tracing::warn!(?previous, "Duplication detected. Old entry has been ejected");
         }
     }
 }
@@ -194,7 +184,14 @@ fn zip_entry_path(
     // segments are re-checked by
     // [`crate::extract::archive_entry_segments`], which treats it as
     // a separator the way pnpm does.
-    let joined = normalized_zip_path(&enclosed);
+    let joined: String = enclosed
+        .components()
+        .map(|component| match component {
+            Component::Normal(name) => name.to_string_lossy().into_owned(),
+            _ => unreachable!("enclosed_name returns only Normal components: {:?}", enclosed),
+        })
+        .collect::<Vec<_>>()
+        .join("/");
     let Some(segments) = crate::extract::archive_entry_segments(&joined) else {
         return Err(traversal(raw_name));
     };
@@ -331,8 +328,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
         false,
     )
     .await?;
-    let buffer = download_zip_body::<Reporter>(response_head, package_url, package_id)
-        .await?;
+    let buffer = download_zip_body::<Reporter>(response_head, package_url, package_id).await?;
     drop(client);
 
     let post_download_permit = post_download_semaphore()
@@ -428,10 +424,7 @@ impl ZipExtraction {
 // reason `fetch_and_extract_with_retry` is: each is distinct, and
 // bundling into a struct would just push the same fields into a
 // wrapper.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "arg count is fixed by the fetcher signature"
-)]
+#[expect(clippy::too_many_arguments, reason = "arg count is fixed by the fetcher signature")]
 pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
@@ -529,18 +522,4 @@ impl IngestZipArchiveToStore<'_> {
         .run::<Reporter>()
         .await
     }
-}
-
-fn normalized_zip_path(enclosed: &std::path::Path) -> String {
-    enclosed
-        .components()
-        .map(|component| match component {
-            Component::Normal(name) => name.to_string_lossy().into_owned(),
-            _ => unreachable!(
-                "enclosed_name returns only Normal components: {:?}",
-                enclosed,
-            ),
-        })
-        .collect::<Vec<_>>()
-        .join("/")
 }

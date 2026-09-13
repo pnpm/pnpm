@@ -102,10 +102,9 @@ impl From<GitHubRequestTokenError> for GetIdTokenError {
             }
             GitHubRequestTokenError::Fetch(error) => GetIdTokenError::Fetch(error),
             GitHubRequestTokenError::NotOk => IdTokenError::GitHubInvalidResponse.into(),
-            GitHubRequestTokenError::JsonParse(source) => IdTokenError::GitHubJsonInterrupted {
-                source,
+            GitHubRequestTokenError::JsonParse(source) => {
+                IdTokenError::GitHubJsonInterrupted { source }.into()
             }
-            .into(),
             GitHubRequestTokenError::MissingValue => IdTokenError::GitHubJsonInvalidValue.into(),
         }
     }

@@ -37,10 +37,7 @@ function preResolution(ctx, logger) {
 
     hooks.pre_resolution(
         ctx,
-        pnpm_hooks::PreResolutionHookLogger {
-            info: Arc::new(|_| {}),
-            warn: Arc::new(|_| {}),
-        },
+        pnpm_hooks::PreResolutionHookLogger { info: Arc::new(|_| {}), warn: Arc::new(|_| {}) },
     )
     .await;
 }

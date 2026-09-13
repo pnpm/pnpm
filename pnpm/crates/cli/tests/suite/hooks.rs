@@ -21,14 +21,8 @@ fn filter_log_is_ignored_with_a_warning() {
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
-    assert!(
-        stdout.contains("filterLog hook is deprecated"),
-        "STDOUT:\n{stdout}",
-    );
-    assert!(
-        stdout.contains("Ignoring broken lockfile"),
-        "STDOUT:\n{stdout}",
-    );
+    assert!(stdout.contains("filterLog hook is deprecated"), "STDOUT:\n{stdout}");
+    assert!(stdout.contains("Ignoring broken lockfile"), "STDOUT:\n{stdout}");
 
     drop(root);
 }
@@ -73,11 +67,8 @@ fn update_config_catalog_applies_to_link() {
     write_catalog_hook_project(&workspace);
     let target = root.path().join("other-pkg");
     fs::create_dir_all(&target).expect("create link target");
-    fs::write(
-        target.join("package.json"),
-        r#"{ "name": "other-pkg", "version": "1.0.0" }"#,
-    )
-    .expect("write link target manifest");
+    fs::write(target.join("package.json"), r#"{ "name": "other-pkg", "version": "1.0.0" }"#)
+        .expect("write link target manifest");
 
     pacquet_in(&workspace)
         .with_args(["link", "../other-pkg"])
@@ -106,10 +97,7 @@ fn update_config_catalog_applies_to_outdated() {
     assert_eq!(output.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("STDOUT:\n{stdout}\n");
-    assert!(
-        stdout.contains(CATALOG_DEP),
-        "outdated should report the catalog dependency",
-    );
+    assert!(stdout.contains(CATALOG_DEP), "outdated should report the catalog dependency");
 
     drop((root, mock_instance));
 }
@@ -146,14 +134,8 @@ fn update_config_catalog_applies_to_import() {
         .success();
 
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
-    assert!(
-        lockfile.starts_with("---\n"),
-        "env document must lead pnpm-lock.yaml",
-    );
-    assert!(
-        lockfile.contains("configDependencies:"),
-        "env document must retain config deps",
-    );
+    assert!(lockfile.starts_with("---\n"), "env document must lead pnpm-lock.yaml");
+    assert!(lockfile.contains("configDependencies:"), "env document must retain config deps");
     let env_lockfile = EnvLockfile::read(&workspace)
         .expect("read env lockfile")
         .expect("env lockfile should be present");
@@ -205,10 +187,7 @@ fn update_config_applies_to_run() {
         .assert()
         .success();
 
-    assert_eq!(
-        fs::read_to_string(workspace.join("marker.txt")).expect("read marker"),
-        "from-hook",
-    );
+    assert_eq!(fs::read_to_string(workspace.join("marker.txt")).expect("read marker"), "from-hook");
 
     drop(root);
 }
@@ -218,11 +197,8 @@ fn update_config_applies_to_run() {
 #[test]
 fn update_config_applies_to_exec() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("package.json"),
-        r#"{"name":"exec-reads-extra-env"}"#,
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), r#"{"name":"exec-reads-extra-env"}"#)
+        .expect("write package.json");
     fs::write(workspace.join(".pnpmfile.cjs"), EXTRA_ENV_PNPMFILE).expect("write pnpmfile");
 
     pacquet_in(&workspace)
@@ -233,10 +209,7 @@ fn update_config_applies_to_exec() {
         .assert()
         .success();
 
-    assert_eq!(
-        fs::read_to_string(workspace.join("marker.txt")).expect("read marker"),
-        "from-hook",
-    );
+    assert_eq!(fs::read_to_string(workspace.join("marker.txt")).expect("read marker"), "from-hook");
 
     drop(root);
 }
@@ -246,16 +219,10 @@ fn update_config_applies_to_exec() {
 #[test]
 fn update_config_applies_to_recursive_run() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("package.json"),
-        r#"{"name":"root","private":true}"#,
-    )
-    .expect("write root package.json");
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), r#"{"name":"root","private":true}"#)
+        .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
     fs::write(workspace.join(".pnpmfile.cjs"), EXTRA_ENV_PNPMFILE).expect("write pnpmfile");
     let project = workspace.join("packages").join("a");
     fs::create_dir_all(&project).expect("create project dir");
@@ -274,10 +241,7 @@ fn update_config_applies_to_recursive_run() {
         .assert()
         .success();
 
-    assert_eq!(
-        fs::read_to_string(project.join("marker.txt")).expect("read marker"),
-        "from-hook",
-    );
+    assert_eq!(fs::read_to_string(project.join("marker.txt")).expect("read marker"), "from-hook");
 
     drop(root);
 }
@@ -288,11 +252,8 @@ fn update_config_applies_to_recursive_run() {
 #[test]
 fn update_config_applies_to_recursive_run_defaults() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("package.json"),
-        r#"{"name":"root","private":true}"#,
-    )
-    .expect("write root package.json");
+    fs::write(workspace.join("package.json"), r#"{"name":"root","private":true}"#)
+        .expect("write root package.json");
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "packages:\n  - packages/*\nworkspaceConcurrency: 1\n",
@@ -361,20 +322,14 @@ fn update_config_applies_to_rebuild() {
         .with_args(["install", "--ignore-scripts"])
         .assert()
         .success();
-    assert!(
-        !marker.exists(),
-        "--ignore-scripts must leave the install script for rebuild",
-    );
+    assert!(!marker.exists(), "--ignore-scripts must leave the install script for rebuild");
 
     pacquet_in(&workspace)
         .with_args(["rebuild", "--pending"])
         .assert()
         .success();
 
-    assert_eq!(
-        fs::read_to_string(&marker).expect("read marker"),
-        "from-hook",
-    );
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "from-hook");
 
     drop(root);
 }
@@ -394,11 +349,8 @@ fn update_config_applies_before_the_verify_deps_check() {
     })
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages: []\nverifyDepsBeforeRun: error\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\nverifyDepsBeforeRun: error\n")
+        .expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.join(".pnpmfile.cjs"),
         "module.exports = { hooks: { updateConfig (config) { config.dedupePeers = true; return config } } }",
@@ -416,10 +368,7 @@ fn update_config_applies_before_the_verify_deps_check() {
         .success();
 
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
-    assert!(
-        stdout.contains("ran"),
-        "the script should have run\nSTDOUT:\n{stdout}",
-    );
+    assert!(stdout.contains("ran"), "the script should have run\nSTDOUT:\n{stdout}");
 
     drop(root);
 }
@@ -441,11 +390,8 @@ fn config_seen_by_hook(workspace: &Path) -> serde_json::Value {
 fn update_config_sees_npmrc_scoped_registries() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").expect("write package.json");
-    fs::write(
-        workspace.join(".npmrc"),
-        "@acme:registry=https://acme.example.com/npm/\n",
-    )
-    .expect("write .npmrc");
+    fs::write(workspace.join(".npmrc"), "@acme:registry=https://acme.example.com/npm/\n")
+        .expect("write .npmrc");
     fs::write(workspace.join(".pnpmfile.cjs"), DUMP_CONFIG_PNPMFILE).expect("write pnpmfile");
 
     pacquet_in(&workspace)
@@ -485,19 +431,9 @@ fn update_config_sees_cli_flags_and_resolved_defaults() {
         .success();
 
     let seen = config_seen_by_hook(&workspace);
-    dbg!(
-        &seen["registry"],
-        &seen["nodeLinker"],
-        &seen["autoInstallPeers"],
-    );
-    assert_eq!(
-        seen["registry"],
-        serde_json::json!("https://cli.example.com/"),
-    );
-    assert_eq!(
-        seen["registriesByScope"]["default"],
-        serde_json::json!("https://cli.example.com/"),
-    );
+    dbg!(&seen["registry"], &seen["nodeLinker"], &seen["autoInstallPeers"]);
+    assert_eq!(seen["registry"], serde_json::json!("https://cli.example.com/"));
+    assert_eq!(seen["registriesByScope"]["default"], serde_json::json!("https://cli.example.com/"));
     // Unset everywhere, so only the resolved default can answer.
     assert_eq!(seen["nodeLinker"], serde_json::json!("isolated"));
     assert_eq!(seen["autoInstallPeers"], serde_json::json!(true));

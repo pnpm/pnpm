@@ -115,14 +115,10 @@ impl CanonicalPackageName {
             Ecosystem::Oci => {
                 let canonical = canonicalize_oci_name(raw)
                     .map_err(|error| invalid_ecosystem_name(raw, ecosystem, error.to_string()))?;
-                let basename = canonical
-                    .rsplit_once('/')
-                    .map_or(canonical.as_str(), |(_, last)| last);
+                let basename =
+                    canonical.rsplit_once('/').map_or(canonical.as_str(), |(_, last)| last);
                 let basename = basename.to_string();
-                return Ok(Self {
-                    raw: canonical,
-                    basename,
-                });
+                return Ok(Self { raw: canonical, basename });
             }
         };
         Self::parse_canonical(&canonical)
@@ -137,9 +133,7 @@ impl CanonicalPackageName {
     }
 
     fn parse_canonical(raw: &str) -> Result<Self, RegistryError> {
-        let invalid = || RegistryError::InvalidPackageName {
-            name: raw.to_string(),
-        };
+        let invalid = || RegistryError::InvalidPackageName { name: raw.to_string() };
         if raw.is_empty() || raw.len() > 214 {
             return Err(invalid());
         }
@@ -155,10 +149,7 @@ impl CanonicalPackageName {
             }
             raw.to_string()
         };
-        Ok(Self {
-            raw: raw.to_string(),
-            basename,
-        })
+        Ok(Self { raw: raw.to_string(), basename })
     }
 
     #[must_use]
@@ -176,9 +167,7 @@ impl CanonicalPackageName {
     /// libnpmpublish's `@scope/name-1.0.0.tgz` attachment lands on
     /// disk under the same path the GET endpoint serves.
     pub fn canonicalize_tarball_name(&self, filename: &str) -> Result<String, RegistryError> {
-        self
-            .parse_tarball_name(filename)
-            .map(|(canonical, _)| canonical)
+        self.parse_tarball_name(filename).map(|(canonical, _)| canonical)
     }
 
     /// Like [`Self::canonicalize_tarball_name`] but also returns the
@@ -220,27 +209,19 @@ pub fn canonicalize_crate_name(name: &str) -> Result<String, CrateNameError> {
         return Err(CrateNameError::Empty);
     };
     if name.len() > MAX_CRATE_NAME_LEN {
-        return Err(CrateNameError::TooLong {
-            name: name.to_string(),
-        });
+        return Err(CrateNameError::TooLong { name: name.to_string() });
     }
     if !(first.is_ascii_alphabetic() || first == '_') {
-        return Err(CrateNameError::InvalidStart {
-            name: name.to_string(),
-        });
+        return Err(CrateNameError::InvalidStart { name: name.to_string() });
     }
     if !chars.all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_')) {
-        return Err(CrateNameError::InvalidCharacter {
-            name: name.to_string(),
-        });
+        return Err(CrateNameError::InvalidCharacter { name: name.to_string() });
     }
     Ok(name.to_ascii_lowercase())
 }
 
 pub fn canonicalize_python_name(raw: &str) -> Result<String, PythonNameError> {
-    let invalid = || PythonNameError {
-        name: raw.to_string(),
-    };
+    let invalid = || PythonNameError { name: raw.to_string() };
     let normalized = PythonPackageName::from_str(raw)
         .map_err(|_| invalid())?
         .as_ref()
@@ -271,9 +252,7 @@ pub fn canonicalize_oci_name(raw: &str) -> Result<String, OciNameError> {
         return Err(OciNameError::Empty);
     }
     if raw.len() > MAX_OCI_NAME_LEN {
-        return Err(OciNameError::TooLong {
-            name: raw.to_string(),
-        });
+        return Err(OciNameError::TooLong { name: raw.to_string() });
     }
     let canonical = raw.to_ascii_lowercase();
     for component in canonical.split('/') {
@@ -284,15 +263,11 @@ pub fn canonicalize_oci_name(raw: &str) -> Result<String, OciNameError> {
 
 fn validate_oci_component(component: &str, name: &str) -> Result<(), OciNameError> {
     if component.is_empty() {
-        return Err(OciNameError::EmptyComponent {
-            name: name.to_string(),
-        });
+        return Err(OciNameError::EmptyComponent { name: name.to_string() });
     }
     let alphanumeric = |character: char| character.is_ascii_alphanumeric();
     if !component.starts_with(alphanumeric) || !component.ends_with(alphanumeric) {
-        return Err(OciNameError::ComponentBoundary {
-            component: component.to_string(),
-        });
+        return Err(OciNameError::ComponentBoundary { component: component.to_string() });
     }
     if component
         .chars()
@@ -300,20 +275,14 @@ fn validate_oci_component(component: &str, name: &str) -> Result<(), OciNameErro
             !(character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-'))
         })
     {
-        return Err(OciNameError::InvalidCharacter {
-            component: component.to_string(),
-        });
+        return Err(OciNameError::InvalidCharacter { component: component.to_string() });
     }
     let mut rest = component;
     while let Some(start) = rest.find(|character: char| !character.is_ascii_alphanumeric()) {
         let tail = &rest[start..];
-        let end = tail
-            .find(alphanumeric)
-            .unwrap_or(tail.len());
+        let end = tail.find(alphanumeric).unwrap_or(tail.len());
         if !is_oci_separator(&tail[..end]) {
-            return Err(OciNameError::ComponentSeparator {
-                component: component.to_string(),
-            });
+            return Err(OciNameError::ComponentSeparator { component: component.to_string() });
         }
         rest = &tail[end..];
     }
@@ -321,10 +290,7 @@ fn validate_oci_component(component: &str, name: &str) -> Result<(), OciNameErro
 }
 
 fn is_oci_separator(run: &str) -> bool {
-    matches!(run, "." | "_" | "__")
-        || run
-            .bytes()
-            .all(|byte| byte == b'-')
+    matches!(run, "." | "_" | "__") || run.bytes().all(|byte| byte == b'-')
 }
 
 // `:` is rejected because on Windows `C:foo` is a drive-relative *prefix*

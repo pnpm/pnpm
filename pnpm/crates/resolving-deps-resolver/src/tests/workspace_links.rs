@@ -42,10 +42,7 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
             },
         },
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "shared": "workspace:*" }));
 
     let tree = resolve_dependency_tree(

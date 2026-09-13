@@ -44,21 +44,19 @@ pub(super) fn binary_variant_for_host<'a>(
         });
     };
     let LockfileResolution::Binary(binary) = &variant.resolution else {
-        return Err(
-            InstallPackageBySnapshotError::VariantHasNonBinaryResolution {
-                package_key: package_key.to_string(),
-                inner_kind: match &variant.resolution {
-                    LockfileResolution::Tarball(_) => "tarball",
-                    LockfileResolution::Registry(_) => "registry",
-                    LockfileResolution::Directory(_) => "directory",
-                    LockfileResolution::Git(_) => "git",
-                    LockfileResolution::Variations(_) => "variations",
-                    LockfileResolution::Custom(_) => "custom",
-                    // Already matched above; reach is unreachable.
-                    LockfileResolution::Binary(_) => "binary",
-                },
+        return Err(InstallPackageBySnapshotError::VariantHasNonBinaryResolution {
+            package_key: package_key.to_string(),
+            inner_kind: match &variant.resolution {
+                LockfileResolution::Tarball(_) => "tarball",
+                LockfileResolution::Registry(_) => "registry",
+                LockfileResolution::Directory(_) => "directory",
+                LockfileResolution::Git(_) => "git",
+                LockfileResolution::Variations(_) => "variations",
+                LockfileResolution::Custom(_) => "custom",
+                // Already matched above; reach is unreachable.
+                LockfileResolution::Binary(_) => "binary",
             },
-        );
+        });
     };
     Ok(binary)
 }
@@ -77,11 +75,7 @@ pub fn host_platform_selector() -> PlatformSelector {
         "unknown" => None,
         other => Some(other.to_string()),
     };
-    PlatformSelector {
-        os: host_platform().to_string(),
-        cpu: host_arch().to_string(),
-        libc,
-    }
+    PlatformSelector { os: host_platform().to_string(), cpu: host_arch().to_string(), libc }
 }
 /// Resolve the runtime archive selector from `supportedArchitectures`.
 ///
@@ -96,11 +90,9 @@ pub fn runtime_platform_selector(
 ) -> PlatformSelector {
     let host = host_platform_selector();
     let (requested_os, requested_cpu, requested_libc) = match supported {
-        Some(supported) => (
-            supported.os.as_deref(),
-            supported.cpu.as_deref(),
-            supported.libc.as_deref(),
-        ),
+        Some(supported) => {
+            (supported.os.as_deref(), supported.cpu.as_deref(), supported.libc.as_deref())
+        }
         None => (None, None, None),
     };
     PlatformSelector {
@@ -286,8 +278,7 @@ impl BinaryArchiveFetch<'_> {
                 index: self.store.store_index.cloned(),
                 index_writer: self.store.store_index_writer.cloned(),
                 verify_integrity: self.config.verify_store_integrity,
-                strict_pkg_content_check: self.config
-                    .strict_store_pkg_content_check,
+                strict_pkg_content_check: self.config.strict_store_pkg_content_check,
                 verified_files_cache: Arc::clone(self.store.verified_files_cache),
                 prefetched_cas_paths: self.store.prefetched_cas_paths,
             },
@@ -327,8 +318,7 @@ impl BinaryArchiveFetch<'_> {
                 index: self.store.store_index.cloned(),
                 index_writer: self.store.store_index_writer.cloned(),
                 verify_integrity: self.config.verify_store_integrity,
-                strict_pkg_content_check: self.config
-                    .strict_store_pkg_content_check,
+                strict_pkg_content_check: self.config.strict_store_pkg_content_check,
                 verified_files_cache: Arc::clone(self.store.verified_files_cache),
                 prefetched_cas_paths: self.store.prefetched_cas_paths,
             },
@@ -374,12 +364,10 @@ pub(super) fn synthesize_runtime_manifest_bytes(
         "bin": bin_value,
     });
     serde_json::to_vec(&manifest)
-        .map_err(
-            |error| InstallPackageBySnapshotError::SynthesizeRuntimeManifest {
-                package_key: package_key.to_string(),
-                error,
-            },
-        )
+        .map_err(|error| InstallPackageBySnapshotError::SynthesizeRuntimeManifest {
+            package_key: package_key.to_string(),
+            error,
+        })
 }
 /// Render a variant's target list as a human-readable string for
 /// inclusion in the [`InstallPackageBySnapshotError::NoMatchingPlatformVariant`]

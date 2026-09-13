@@ -35,11 +35,7 @@ impl ProjectRefIndex {
     pub fn ref_to_dirs(&self, reference: &str) -> Vec<String> {
         if is_dir_ref(reference) {
             let dir = normalize_project_dir(reference);
-            return if self.dirs.contains(&dir) {
-                vec![dir]
-            } else {
-                Vec::new()
-            };
+            return if self.dirs.contains(&dir) { vec![dir] } else { Vec::new() };
         }
         self.dirs_by_name
             .get(reference)
@@ -70,10 +66,7 @@ pub fn index_project_refs(projects: &[WorkspaceProject], workspace_dir: &Path) -
                 .push(dir);
         }
     }
-    ProjectRefIndex {
-        dirs,
-        dirs_by_name,
-    }
+    ProjectRefIndex { dirs, dirs_by_name }
 }
 
 pub(super) fn collect_participants<'a>(
@@ -83,28 +76,20 @@ pub(super) fn collect_participants<'a>(
     versioning: Option<&VersioningSettings>,
 ) -> Result<BTreeMap<String, Participant<'a>>, VersioningError> {
     let mut ignored_dirs: HashSet<String> = HashSet::new();
-    for reference in versioning
-        .map(|settings| settings.ignore.as_slice())
-        .unwrap_or_default()
-    {
+    for reference in versioning.map(|settings| settings.ignore.as_slice()).unwrap_or_default() {
         ignored_dirs.extend(resolve_config_ref(refs, reference, "versioning.ignore")?);
     }
 
     let mut participants = releasable_participants(projects, workspace_dir, &ignored_dirs);
-    let participant_dirs: HashSet<String> = participants
-        .keys()
-        .cloned()
-        .collect();
+    let participant_dirs: HashSet<String> = participants.keys().cloned().collect();
     for project in projects {
         let dir = to_project_dir(workspace_dir, &project.root_dir);
         if !participant_dirs.contains(&dir) {
             continue;
         }
         let internal_deps = internal_deps_of(project, &participants, &participant_dirs, refs)?;
-        participants
-            .get_mut(dir.as_str())
-            .expect("participant exists")
-            .internal_deps = internal_deps;
+        participants.get_mut(dir.as_str()).expect("participant exists").internal_deps =
+            internal_deps;
     }
     Ok(participants)
 }
@@ -168,14 +153,7 @@ fn internal_deps_of<'a>(
             // A workspace: range naming an ambiguous package cannot be
             // linked at install time, so the release engine never
             // legitimately sees one.
-            _ => {
-                return Err(ambiguous_package(
-                    project,
-                    participants,
-                    target_name,
-                    target_dirs,
-                ));
-            }
+            _ => return Err(ambiguous_package(project, participants, target_name, target_dirs)),
         };
         internal_deps.push(InternalDep {
             target_dir,

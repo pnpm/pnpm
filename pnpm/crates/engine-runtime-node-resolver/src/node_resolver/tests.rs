@@ -98,17 +98,11 @@ fn bin_spec_is_a_named_map() {
 
     assert_eq!(
         bin_spec_for_platform("linux"),
-        BinarySpec::Map(BTreeMap::from([(
-            "node".to_string(),
-            "bin/node".to_string()
-        )])),
+        BinarySpec::Map(BTreeMap::from([("node".to_string(), "bin/node".to_string())])),
     );
     assert_eq!(
         bin_spec_for_platform("win32"),
-        BinarySpec::Map(BTreeMap::from([(
-            "node".to_string(),
-            "node.exe".to_string()
-        )])),
+        BinarySpec::Map(BTreeMap::from([("node".to_string(), "node.exe".to_string())])),
     );
 }
 
@@ -130,10 +124,7 @@ fn normalized_runtime_spec_preserves_version_prefix() {
         );
     }
 
-    assert_eq!(
-        normalize_node_runtime_version_specifier("^22", "22.0.0-rc.0", None),
-        "22.0.0-rc.0",
-    );
+    assert_eq!(normalize_node_runtime_version_specifier("^22", "22.0.0-rc.0", None), "22.0.0-rc.0");
 }
 
 /// `add node@runtime:<spec>` saves the picked version, not the requested
@@ -229,10 +220,7 @@ async fn release_asset_reader_requires_signature_when_requested() {
     .await
     .expect_err("stable release assets must require a SHASUMS signature");
 
-    assert!(matches!(
-        err,
-        NodeResolverError::FetchVerifiedNodeShasums(_)
-    ));
+    assert!(matches!(err, NodeResolverError::FetchVerifiedNodeShasums(_)));
 }
 
 #[tokio::test]
@@ -286,10 +274,7 @@ async fn resolve_save_specifier_saves_an_exact_version_without_network() {
         "http://127.0.0.1:9/download/release/".to_string(),
     );
 
-    assert_eq!(
-        resolver.resolve_save_specifier("22.11.0", None).await.unwrap(),
-        "runtime:22.11.0",
-    );
+    assert_eq!(resolver.resolve_save_specifier("22.11.0", None).await.unwrap(), "runtime:22.11.0");
 }
 
 /// An exact-version resolve skips the release index, so a nonexistent
@@ -370,10 +355,7 @@ async fn exact_resolve_keeps_the_asset_error_when_the_version_exists() {
         .await
         .unwrap_err();
     let err = err.downcast_ref::<NodeResolverError>().expect("error is a NodeResolverError");
-    assert!(matches!(
-        err,
-        NodeResolverError::FetchVerifiedNodeShasums(_)
-    ));
+    assert!(matches!(err, NodeResolverError::FetchVerifiedNodeShasums(_)));
 }
 
 /// A SHASUMS body cached by an earlier resolve serves the next one

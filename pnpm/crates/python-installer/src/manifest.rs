@@ -12,10 +12,7 @@ pub struct DependencySelection {
 }
 
 impl DependencySelection {
-    pub const ALL: Self = Self {
-        production: true,
-        development: true,
-    };
+    pub const ALL: Self = Self { production: true, development: true };
 }
 
 #[derive(Deserialize)]
@@ -64,19 +61,11 @@ impl Manifest {
         config: &Config,
         selection: DependencySelection,
     ) -> Result<Vec<Requirement>> {
-        let Some(project) = &self.project else {
-            return Ok(Vec::new());
-        };
+        let Some(project) = &self.project else { return Ok(Vec::new()) };
         project.ensure_static_dependencies()?;
-        let mut requirements = if selection.production {
-            project.dependencies.clone()
-        } else {
-            Vec::new()
-        };
-        for extra in config.python.extras
-            .iter()
-            .filter(|_| selection.production)
-        {
+        let mut requirements =
+            if selection.production { project.dependencies.clone() } else { Vec::new() };
+        for extra in config.python.extras.iter().filter(|_| selection.production) {
             let dependencies = project.optional_dependencies
                 .get(extra)
                 .ok_or_else(|| miette::miette!("unknown Python project extra: {extra}"))?;
@@ -149,11 +138,8 @@ pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Re
     };
     project.ensure_static_dependencies()?;
     let document: BTreeMap<String, TomlTable> = toml::from_str(&original).into_diagnostic()?;
-    let (table_name, key) = if development {
-        ("dependency-groups", "dev")
-    } else {
-        ("project", "dependencies")
-    };
+    let (table_name, key) =
+        if development { ("dependency-groups", "dev") } else { ("project", "dependencies") };
     let table = document.get(table_name);
     let existing_array = table.and_then(|table| table.get_ref().get(key));
     let mut entries = existing_array

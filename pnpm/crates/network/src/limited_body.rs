@@ -30,8 +30,5 @@ pub async fn read_limited_body(
         }
         bytes.extend_from_slice(&chunk);
     }
-    Ok(LimitedBody {
-        bytes,
-        truncated,
-    })
+    Ok(LimitedBody { bytes, truncated })
 }

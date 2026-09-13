@@ -52,10 +52,7 @@ fn workspace_internal_link_peer_is_unaffected_by_exclude_links_from_lockfile() {
     let settings = with_setting.settings.as_mut().expect("the lockfile records its settings");
     settings.exclude_links_from_lockfile = false;
     dbg!(&with_setting, &without_setting);
-    assert_eq!(
-        with_setting, without_setting,
-        "only the recorded setting itself may differ",
-    );
+    assert_eq!(with_setting, without_setting, "only the recorded setting itself may differ");
 }
 
 /// Workspace whose `packages/app` depends on a registry package with
@@ -78,11 +75,7 @@ fn install_workspace_with_linked_peer(exclude_links_from_lockfile: bool) -> Lock
     .expect("write root package.json");
 
     append_workspace_yaml_key(&workspace, "packages", "['packages/*']");
-    append_workspace_yaml_key(
-        &workspace,
-        "excludeLinksFromLockfile",
-        exclude_links_from_lockfile,
-    );
+    append_workspace_yaml_key(&workspace, "excludeLinksFromLockfile", exclude_links_from_lockfile);
 
     write_project(
         &workspace,

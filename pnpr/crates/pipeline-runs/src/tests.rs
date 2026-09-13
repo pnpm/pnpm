@@ -19,12 +19,8 @@ fn local_store(root: &TempDir) -> PipelineRunStore {
 }
 
 fn storage_in(hosted: &HostedStoreConfig, root: &TempDir) -> Storage {
-    Storage::new(
-        hosted,
-        root.path().join("storage"),
-        root.path().join("cache"),
-    )
-    .expect("open storage")
+    Storage::new(hosted, root.path().join("storage"), root.path().join("cache"))
+        .expect("open storage")
 }
 
 #[tokio::test]
@@ -112,10 +108,7 @@ async fn a_run_id_is_append_only() {
         .await
         .expect_err("re-publish refused");
     let rendered = error.to_string();
-    assert!(
-        rendered.contains("append-only"),
-        "unexpected error: {rendered}",
-    );
+    assert!(rendered.contains("append-only"), "unexpected error: {rendered}");
 }
 
 #[tokio::test]
@@ -156,16 +149,8 @@ async fn concurrent_publications_cannot_replace_the_winner() {
     let first_publication = first_store.publish(&first);
     let second_publication = second_store.publish(&second);
     let (first_result, second_result) = tokio::join!(first_publication, second_publication);
-    assert_ne!(
-        first_result.is_ok(),
-        second_result.is_ok(),
-        "exactly one writer must succeed",
-    );
-    let expected = if first_result.is_ok() {
-        first.summary
-    } else {
-        second.summary
-    };
+    assert_ne!(first_result.is_ok(), second_result.is_ok(), "exactly one writer must succeed");
+    let expected = if first_result.is_ok() { first.summary } else { second.summary };
     let winner = first_store
         .get("demo", "100-default")
         .await
@@ -197,14 +182,7 @@ async fn listing_does_not_parse_records_outside_the_requested_page() {
         .await
         .unwrap();
     storage.create_pipeline_run("demo", "100-default.json", b"invalid JSON").await.unwrap();
-    assert_eq!(
-        store
-            .list(&["demo"], 1)
-            .await
-            .unwrap()[0]
-            .run_id,
-        "200-default",
-    );
+    assert_eq!(store.list(&["demo"], 1).await.unwrap()[0].run_id, "200-default");
 }
 
 /// A listing costs what the workspaces asked about hold, not what the
@@ -263,10 +241,7 @@ async fn a_corrupt_record_on_the_page_is_named() {
         .await
         .expect_err("the listing fails");
     let rendered = error.to_string();
-    assert!(
-        rendered.contains("demo/100-default"),
-        "unexpected error: {rendered}",
-    );
+    assert!(rendered.contains("demo/100-default"), "unexpected error: {rendered}");
 }
 
 #[tokio::test]
@@ -284,11 +259,7 @@ async fn a_key_the_store_did_not_write_is_passed_over() {
         b"invalid JSON",
     )
     .unwrap();
-    std::fs::write(
-        root.path().join("storage/.pipeline-runs/v0/demo/notes.txt"),
-        b"notes",
-    )
-    .unwrap();
+    std::fs::write(root.path().join("storage/.pipeline-runs/v0/demo/notes.txt"), b"notes").unwrap();
 
     let listed = store
         .list(&["demo"], 10)
@@ -303,10 +274,8 @@ async fn a_key_the_store_did_not_write_is_passed_over() {
 async fn a_run_recorded_on_one_replica_is_served_by_another() {
     let bucket: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::memory::InMemory::new());
-    let hosted = HostedStoreConfig::ObjectStore {
-        store: Arc::clone(&bucket),
-        prefix: String::new(),
-    };
+    let hosted =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&bucket), prefix: String::new() };
     let recording_root = TempDir::new().unwrap();
     let serving_root = TempDir::new().unwrap();
     let recording = PipelineRunStore::new(storage_in(&hosted, &recording_root));

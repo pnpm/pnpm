@@ -54,9 +54,7 @@ fn check_sudo_as(
         return Ok(());
     }
     match sudo_blocked_operation(command) {
-        Some(operation) => Err(SudoNotSupportedError {
-            operation,
-        }),
+        Some(operation) => Err(SudoNotSupportedError { operation }),
         None => Ok(()),
     }
 }

@@ -1,4 +1,5 @@
 pub(crate) mod add;
+
 pub(crate) use lockfile::workspace_root;
 pub(crate) use sparse_registry::{cargo_auth_headers, latest_version};
 
@@ -79,8 +80,8 @@ pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
     context: InstallContext,
     inventory: &EcosystemWorkspaceInventory,
 ) -> Result<InstallTask<'static>> {
-    let roots = discover_workspace_roots(inventory.manifests(EcosystemManifest::Cargo).await?)
-        .await?;
+    let roots =
+        discover_workspace_roots(inventory.manifests(EcosystemManifest::Cargo).await?).await?;
     let metadata = roots
         .iter()
         .flat_map(|root| metadata_paths(root))
@@ -286,12 +287,7 @@ fn update_managed_config(
         }
         (Some(start), Some(end)) if start <= end => {
             let after = end + MANAGED_END.len();
-            Ok(format!(
-                "{}{}{}",
-                &existing[..start],
-                managed_config,
-                &existing[after..],
-            ))
+            Ok(format!("{}{}{}", &existing[..start], managed_config, &existing[after..]))
         }
         _ => Err(miette::miette!(
             ".cargo/config.toml contains an incomplete pnpm-managed Cargo source block"
@@ -367,11 +363,7 @@ async fn prepare_workspace_slots<Reporter: self::Reporter + 'static>(
     })
     .await?;
 
-    Ok(WorkspaceSlots {
-        crates,
-        git,
-        git_sources,
-    })
+    Ok(WorkspaceSlots { crates, git, git_sources })
 }
 
 mod workspace_directory;

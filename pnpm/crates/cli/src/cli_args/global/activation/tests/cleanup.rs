@@ -46,10 +46,7 @@ fn unsupported_bin_slot_fails_before_activation_and_cleans_preparation_artifacts
     );
     assert_eq!(ACTIVATION_CALLS.load(Ordering::SeqCst), 0);
     assert!(unsupported_path.is_dir());
-    assert_eq!(
-        resolved_hash_target(&fixture.hash_link),
-        canonical(&fixture.old_install_dir),
-    );
+    assert_eq!(resolved_hash_target(&fixture.hash_link), canonical(&fixture.old_install_dir));
     assert!(!fixture.fresh_install_dir.exists());
     assert!(backup_dirs(&fixture.global_bin_dir).is_empty());
 }
@@ -254,10 +251,7 @@ fn replacing_a_package_that_drops_a_bin_restores_its_recorded_shim() {
         virtual_shim_owner(&global_bin_dir.join("node")).expect("inspect restored shim").as_deref(),
         Some("node"),
     );
-    assert_eq!(
-        resolved_hash_target(&old_hash_link),
-        canonical(&fresh_install_dir),
-    );
+    assert_eq!(resolved_hash_target(&old_hash_link), canonical(&fresh_install_dir));
     assert!(!install_dir.exists());
 }
 
@@ -286,10 +280,7 @@ fn dropped_bin_failure_restores_its_command_and_hash_target() {
     .expect_err("restoration must fail");
 
     assert!(format!("{error:?}").contains("injected restoration failure"));
-    assert_eq!(
-        resolved_hash_target(&hash_link),
-        canonical(&old_install_dir),
-    );
+    assert_eq!(resolved_hash_target(&hash_link), canonical(&old_install_dir));
     assert_eq!(
         fs::read(global_bin_dir.join("dropped")).expect("read restored command"),
         b"old command\n",
@@ -504,10 +495,7 @@ fn artifact_probe_failure_is_related_and_not_reported_as_a_confirmed_path() {
     assert_eq!(backup_dirs.len(), 1);
     assert!(backup_dirs[0].exists());
     assert!(!fixture.fresh_install_dir.exists());
-    assert_eq!(
-        error.to_string(),
-        "Failed to clean up after global bin activation failed.",
-    );
+    assert_eq!(error.to_string(), "Failed to clean up after global bin activation failed.");
     let related = miette::Diagnostic::related(diagnostic)
         .expect("cleanup failures must be related diagnostics")
         .collect::<Vec<_>>();

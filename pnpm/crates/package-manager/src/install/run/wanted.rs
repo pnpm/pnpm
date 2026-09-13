@@ -116,8 +116,7 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
                     catalogs: &workspace.catalogs,
                     pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
                     scope: FreshnessScope {
-                        ignore_manifest_check: install.lockfile_policy
-                            .ignore_manifest_check,
+                        ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
                         prune_stale_importers: scope.prune_stale_importers,
                         allow_missing_dependency_free_importers: true,
                     },
@@ -166,8 +165,7 @@ pub(super) async fn synthesize_wanted(
                 catalogs: &workspace.catalogs,
                 pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
                 scope: FreshnessScope {
-                    ignore_manifest_check: install.lockfile_policy
-                        .ignore_manifest_check,
+                    ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
                     prune_stale_importers: scope.prune_stale_importers,
                     allow_missing_dependency_free_importers: true,
                 },
@@ -193,15 +191,10 @@ pub(super) async fn synthesize_lockfile_from_current(
     scope: SynthesizeScope<'_>,
 ) -> Option<Lockfile> {
     let current = current_lockfile?;
-    if !scope.lockfile_is_absent
-        || scope.frozen_lockfile
-        || !scope.prefer_frozen_lockfile
-    {
+    if !scope.lockfile_is_absent || scope.frozen_lockfile || !scope.prefer_frozen_lockfile {
         return None;
     }
-    check_lockfile_freshness(current, &scope.freshness).await
-        .ok()
-        .map(|()| current.clone())
+    check_lockfile_freshness(current, &scope.freshness).await.ok().map(|()| current.clone())
 }
 pub(super) fn may_fast_update_lockfile(
     install: InstallView<'_>,

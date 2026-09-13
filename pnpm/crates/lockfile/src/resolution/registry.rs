@@ -147,11 +147,8 @@ pub fn integrity_addressed_registry_tarball_url(
     registry: &str,
 ) -> Option<String> {
     let path = integrity_addressed_tarball_path(integrity)?;
-    let registry = if registry.ends_with('/') {
-        registry.to_string()
-    } else {
-        format!("{registry}/")
-    };
+    let registry =
+        if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
     url::Url::parse(&registry)
         .ok()?
         .join(&path)
@@ -189,25 +186,18 @@ pub fn is_integrity_addressed_registry_tarball_url(
 #[must_use]
 pub fn npm_tarball_url(name: &str, version: &str, opts: TarballUrlOptions<'_>) -> String {
     let TarballUrlOptions { registry, server_type } = opts;
-    let registry = if registry.ends_with('/') {
-        registry.to_string()
-    } else {
-        format!("{registry}/")
-    };
+    let registry =
+        if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
     // Artifactory keeps the scope in the filename of a scoped package's tarball
     // (`@acme/widget/-/@acme/widget-1.0.0.tgz`); the npm layout strips it.
     let filename_name = match server_type {
         Some(RegistryServerType::Artifactory) => name,
         Some(RegistryServerType::Npm) | None => match name.strip_prefix('@') {
-            Some(scoped) => scoped
-                .split_once('/')
-                .map_or(name, |(_, bare)| bare),
+            Some(scoped) => scoped.split_once('/').map_or(name, |(_, bare)| bare),
             None => name,
         },
     };
-    let version = version
-        .split_once('+')
-        .map_or(version, |(base, _)| base);
+    let version = version.split_once('+').map_or(version, |(base, _)| base);
     format!("{registry}{name}/-/{filename_name}-{version}.tgz")
 }
 
@@ -268,9 +258,7 @@ fn scope_of(name: &str) -> Option<&str> {
     if !name.starts_with('@') {
         return None;
     }
-    name
-        .find('/')
-        .map(|sep| &name[..sep])
+    name.find('/').map(|sep| &name[..sep])
 }
 
 /// Strip only a leading `http://` or `https://` scheme (case-insensitive) so

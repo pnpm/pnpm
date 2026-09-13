@@ -14,11 +14,7 @@ pub(super) struct StagedListQuery {
 /// Parse the list endpoint's `page` / `perPage` / `package` query
 /// parameters, ignoring anything unrecognized or unparsable.
 pub(super) fn parse_staged_list_query(query: &str) -> StagedListQuery {
-    let mut parsed = StagedListQuery {
-        page: 0,
-        per_page: DEFAULT_PER_PAGE,
-        package: None,
-    };
+    let mut parsed = StagedListQuery { page: 0, per_page: DEFAULT_PER_PAGE, package: None };
     for pair in query.split('&') {
         let Some((key, value)) = pair.split_once('=') else {
             continue;

@@ -16,13 +16,7 @@ async fn a_full_chunk_list_still_accepts_an_empty_completion_request() {
     };
     let version = backend.write(&id, &record, PutMode::Create).await.unwrap();
     let upload = backend
-        .handle(
-            &id,
-            VersionedRecord {
-                record,
-                version,
-            },
-        )
+        .handle(&id, VersionedRecord { record, version })
         .await
         .unwrap();
     assert_eq!(
@@ -57,10 +51,7 @@ async fn expiry_removes_unrecorded_chunks_even_when_they_are_listed_first() {
     };
     backend.write(&id, &record, PutMode::Create).await.unwrap();
     backend.store
-        .put(
-            &backend.key(&id, &"b".repeat(32)),
-            b"orphan".to_vec().into(),
-        )
+        .put(&backend.key(&id, &"b".repeat(32)), b"orphan".to_vec().into())
         .await
         .unwrap();
     assert_eq!(backend.sweep(std::time::Duration::ZERO).await.unwrap(), 1);
@@ -82,17 +73,11 @@ async fn unreadable_sessions_do_not_prevent_other_uploads_from_expiring() {
     let unreadable = "a".repeat(32);
     let expired = "c".repeat(32);
     backend.store
-        .put(
-            &backend.key(&unreadable, "session.json"),
-            b"corrupt".to_vec().into(),
-        )
+        .put(&backend.key(&unreadable, "session.json"), b"corrupt".to_vec().into())
         .await
         .unwrap();
     backend.store
-        .put(
-            &backend.key(&unreadable, &"b".repeat(32)),
-            b"keep".to_vec().into(),
-        )
+        .put(&backend.key(&unreadable, &"b".repeat(32)), b"keep".to_vec().into())
         .await
         .unwrap();
     let record = UploadRecord {

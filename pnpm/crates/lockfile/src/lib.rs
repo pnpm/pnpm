@@ -341,12 +341,22 @@ impl Lockfile {
     /// the `file:` depPath so [`crate::PackageMetadata::resolution`]
     /// stays non-optional for downstream callers.
     pub fn reconstruct_missing_directory_resolutions(&mut self) {
-        let Some(snapshots) = self.snapshots.as_ref() else {
-            return;
-        };
+        let Some(snapshots) = self.snapshots.as_ref() else { return };
         let to_insert: Vec<(PackageKey, DirectoryResolution)> = snapshots
             .keys()
-            .filter_map(|snapshot_key| self.missing_directory_resolution(snapshot_key))
+            .filter_map(|snapshot_key| {
+                let metadata_key = snapshot_key.without_peer();
+                let packages = self.packages.as_ref();
+                if packages.is_some_and(|p| p.contains_key(&metadata_key)) {
+                    return None;
+                }
+                let VersionPart::File(path) = metadata_key.suffix.version() else { return None };
+                if is_local_tarball_path(path) {
+                    return None;
+                }
+                let directory = path.clone();
+                Some((metadata_key, DirectoryResolution { directory }))
+            })
             .collect();
         if to_insert.is_empty() {
             return;
@@ -370,29 +380,6 @@ impl Lockfile {
                     peer_dependencies_meta: None,
                 });
         }
-    }
-    fn missing_directory_resolution(
-        &self,
-        snapshot_key: &PackageKey,
-    ) -> Option<(PackageKey, DirectoryResolution)> {
-        let metadata_key = snapshot_key.without_peer();
-        let packages = self.packages.as_ref();
-        if packages.is_some_and(|p| p.contains_key(&metadata_key)) {
-            return None;
-        }
-        let VersionPart::File(path) = metadata_key.suffix.version() else {
-            return None;
-        };
-        if is_local_tarball_path(path) {
-            return None;
-        }
-        let directory = path.clone();
-        Some((
-            metadata_key,
-            DirectoryResolution {
-                directory,
-            },
-        ))
     }
 }
 

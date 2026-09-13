@@ -35,10 +35,7 @@ fn bundled_true_expands_to_dependency_names() {
 #[test]
 fn bundled_array_filters_to_strings() {
     let manifest = json!({ "bundledDependencies": ["a", 5, "b"] });
-    assert_eq!(
-        extract_bundled_dependencies(&manifest),
-        vec!["a".to_owned(), "b".to_owned()],
-    );
+    assert_eq!(extract_bundled_dependencies(&manifest), vec!["a".to_owned(), "b".to_owned()]);
 }
 
 #[test]
@@ -47,8 +44,5 @@ fn null_bundled_dependencies_falls_back_to_bundle_dependencies() {
         "bundledDependencies": null,
         "bundleDependencies": ["a", "b"],
     });
-    assert_eq!(
-        extract_bundled_dependencies(&manifest),
-        vec!["a".to_owned(), "b".to_owned()],
-    );
+    assert_eq!(extract_bundled_dependencies(&manifest), vec!["a".to_owned(), "b".to_owned()]);
 }

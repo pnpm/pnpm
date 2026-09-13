@@ -39,10 +39,7 @@ fn distribution_filenames_parse_to_project_and_version() {
     assert_eq!(sdist.name, "demo-pkg");
     assert_eq!(sdist.kind, DistributionKind::Sdist);
     let zip = parse_distribution_filename("demo-pkg-2.0.zip").unwrap();
-    assert_eq!(
-        (zip.name.as_str(), zip.version.as_str()),
-        ("demo-pkg", "2.0"),
-    );
+    assert_eq!((zip.name.as_str(), zip.version.as_str()), ("demo-pkg", "2.0"));
 
     for invalid in [
         "demo.whl",
@@ -181,10 +178,7 @@ fn project_lists_render_in_both_formats() {
     let json = render_project_list_json(["a", "b"]);
     assert_eq!(json["projects"], json!([{ "name": "a" }, { "name": "b" }]));
     let html = render_project_list_html("http://pnpr.test/~pypi/simple", ["a", "b<"]);
-    assert!(
-        html.contains(r#"<a href="http://pnpr.test/~pypi/simple/a/">a</a><br />"#),
-        "{html}",
-    );
+    assert!(html.contains(r#"<a href="http://pnpr.test/~pypi/simple/a/">a</a><br />"#), "{html}");
     assert!(
         html.contains(r#"<a href="http://pnpr.test/~pypi/simple/b&lt;/">b&lt;</a><br />"#),
         "{html}",
@@ -198,18 +192,13 @@ fn accept_negotiation_reads_the_pep_691_types() {
     )));
     assert!(!wants_json(Some("text/html")));
     assert!(!wants_json(None));
-    assert!(wants_versioned_html(Some(
-        "application/vnd.pypi.simple.v1+html"
-    )));
+    assert!(wants_versioned_html(Some("application/vnd.pypi.simple.v1+html")));
     assert!(!wants_versioned_html(Some("*/*")));
 }
 
 #[test]
 fn html_escaping_covers_markup_characters() {
-    assert_eq!(
-        escape_html(r#"a&b<c>d"e'f"#),
-        "a&amp;b&lt;c&gt;d&quot;e&#39;f",
-    );
+    assert_eq!(escape_html(r#"a&b<c>d"e'f"#), "a&amp;b&lt;c&gt;d&quot;e&#39;f");
 }
 
 fn upload_parts(action: &str) -> Vec<FormPart> {
@@ -226,11 +215,7 @@ fn upload_parts(action: &str) -> Vec<FormPart> {
                 ("sha256_digest", None, b"ABCD"),
                 ("requires_python", None, b""),
                 ("metadata_version", None, b"2.1"),
-                (
-                    "content",
-                    Some("demo_pkg-1.0.0-py3-none-any.whl"),
-                    b"wheel bytes",
-                ),
+                ("content", Some("demo_pkg-1.0.0-py3-none-any.whl"), b"wheel bytes"),
             ],
         ),
     )
@@ -251,36 +236,24 @@ fn upload_form_is_read_into_an_upload() {
 
 #[test]
 fn upload_form_rejects_other_actions_and_missing_fields() {
-    assert_eq!(
-        parse_upload(upload_parts("submit")).unwrap_err(),
-        UploadError::NotAFileUpload,
-    );
+    assert_eq!(parse_upload(upload_parts("submit")).unwrap_err(), UploadError::NotAFileUpload);
     let mut parts = upload_parts("file_upload");
     parts.retain(|part| part.name != "content");
-    assert_eq!(
-        parse_upload(parts).unwrap_err(),
-        UploadError::MissingField("content"),
-    );
+    assert_eq!(parse_upload(parts).unwrap_err(), UploadError::MissingField("content"));
     let mut parts = upload_parts("file_upload");
     for part in &mut parts {
         if part.name == "content" {
             part.filename = None;
         }
     }
-    assert_eq!(
-        parse_upload(parts).unwrap_err(),
-        UploadError::MissingFilename,
-    );
+    assert_eq!(parse_upload(parts).unwrap_err(), UploadError::MissingFilename);
     let mut parts = upload_parts("file_upload");
     for part in &mut parts {
         if part.name == "protocol_version" {
             part.data = b"2".to_vec();
         }
     }
-    assert_eq!(
-        parse_upload(parts).unwrap_err(),
-        UploadError::UnsupportedProtocolVersion,
-    );
+    assert_eq!(parse_upload(parts).unwrap_err(), UploadError::UnsupportedProtocolVersion);
 }
 
 #[test]
@@ -296,12 +269,8 @@ fn accept_negotiation_respects_quality_and_exact_media_types() {
     ] {
         assert!(!wants_json(Some(accept)), "{accept}");
     }
-    assert!(wants_json(Some(
-        "text/html;q=0.1, APPLICATION/VND.PYPI.SIMPLE.V1+JSON; Q=0.9"
-    )));
-    assert!(!wants_versioned_html(Some(
-        "application/vnd.pypi.simple.v1+html;q=0"
-    )));
+    assert!(wants_json(Some("text/html;q=0.1, APPLICATION/VND.PYPI.SIMPLE.V1+JSON; Q=0.9")));
+    assert!(!wants_versioned_html(Some("application/vnd.pypi.simple.v1+html;q=0")));
     assert!(!wants_versioned_html(Some(
         "application/vnd.pypi.simple.v1+html;q=0.1, text/html;q=0.9"
     )));

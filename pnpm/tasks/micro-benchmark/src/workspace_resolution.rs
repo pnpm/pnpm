@@ -176,9 +176,7 @@ fn graph_resolver(shape: Shape, size: Size) -> GraphResolver {
             packages.insert(name, result);
         }
     }
-    GraphResolver {
-        packages,
-    }
+    GraphResolver { packages }
 }
 
 fn benchmark_resolution(name: &str, manifest: serde_json::Value) -> ResolveResult {
@@ -218,12 +216,7 @@ fn importer_manifest(index: usize, shape: Shape) -> PackageManifest {
     };
     let mut dependencies: serde_json::Map<String, serde_json::Value> = roots
         .into_iter()
-        .map(|root| {
-            (
-                package_name(0, root),
-                serde_json::Value::String("1.0.0".to_string()),
-            )
-        })
+        .map(|root| (package_name(0, root), serde_json::Value::String("1.0.0".to_string())))
         .collect();
     if shape == Shape::PeersProvided {
         for framework in 0..FRAMEWORK_COUNT {
@@ -366,10 +359,7 @@ impl Workspace {
         self.ids
             .iter()
             .zip(&self.manifests)
-            .map(|(id, manifest)| WorkspaceImporter {
-                id: id.clone(),
-                manifest,
-            })
+            .map(|(id, manifest)| WorkspaceImporter { id: id.clone(), manifest })
             .collect()
     }
 }

@@ -37,11 +37,7 @@ fn a_reference_resolves_to_the_specifier_of_a_direct_dependency() {
 
     assert_eq!(
         overrides,
-        overrides_map(&[
-            ("is-odd", "3.0.1"),
-            ("rolldown", "~1.2.0"),
-            ("fsevents", "^2.3.0")
-        ]),
+        overrides_map(&[("is-odd", "3.0.1"), ("rolldown", "~1.2.0"), ("fsevents", "^2.3.0")]),
     );
 }
 
@@ -107,10 +103,7 @@ fn a_reference_without_a_root_manifest_is_rejected() {
         .expect_err("nothing can be referenced without a root manifest");
 
     assert!(
-        matches!(
-            &error,
-            LoadWorkspaceYamlError::CannotResolveOverrideVersion { .. }
-        ),
+        matches!(&error, LoadWorkspaceYamlError::CannotResolveOverrideVersion { .. }),
         "unexpected error: {error:?}",
     );
 }

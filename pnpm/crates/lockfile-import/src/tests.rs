@@ -30,11 +30,7 @@ fn names(versions: &VersionsByPackageName) -> Vec<&str> {
 #[test]
 fn yarn_lock_wins_over_npm_lockfiles() {
     let tmp = tempfile::tempdir().expect("tempdir");
-    write(
-        tmp.path(),
-        "yarn.lock",
-        "from-yarn@^1.0.0:\n  version \"1.0.0\"\n",
-    );
+    write(tmp.path(), "yarn.lock", "from-yarn@^1.0.0:\n  version \"1.0.0\"\n");
     write(
         tmp.path(),
         "package-lock.json",
@@ -103,11 +99,7 @@ fn a_conflicted_yarn_lock_is_an_error() {
 #[test]
 fn an_unparsable_yarn_lock_is_an_error() {
     let tmp = tempfile::tempdir().expect("tempdir");
-    write(
-        tmp.path(),
-        "yarn.lock",
-        "is-positive@^1.0.0\n  version \"1.0.0\"\n",
-    );
+    write(tmp.path(), "yarn.lock", "is-positive@^1.0.0\n  version \"1.0.0\"\n");
 
     let error = read_foreign_lockfile_versions(tmp.path()).expect_err("malformed yarn.lock");
     assert_eq!(code_of(&error), "ERR_PNPM_YARN_LOCKFILE_PARSE_FAILED");
@@ -120,10 +112,7 @@ fn an_unparsable_npm_lockfile_names_the_file() {
     write(tmp.path(), "package-lock.json", "{ not json");
 
     let error = read_foreign_lockfile_versions(tmp.path()).expect_err("invalid json");
-    assert!(
-        error.to_string().contains("package-lock.json"),
-        "got {error}",
-    );
+    assert!(error.to_string().contains("package-lock.json"), "got {error}");
 }
 
 #[test]

@@ -26,32 +26,17 @@ impl WalkState {
     {
         let include_root = !flags.exclude_self;
         if flags.include_dependencies {
-            pick_subgraph(
-                forward,
-                entry_projects,
-                &mut self.walked_dependencies,
-                include_root,
-            );
+            pick_subgraph(forward, entry_projects, &mut self.walked_dependencies, include_root);
         }
         if flags.include_dependents {
-            pick_subgraph(
-                reverse,
-                entry_projects,
-                &mut self.walked_dependents,
-                include_root,
-            );
+            pick_subgraph(reverse, entry_projects, &mut self.walked_dependents, include_root);
         }
         if flags.include_dependencies && flags.include_dependents {
             let dependents: Vec<PathBuf> = self.walked_dependents
                 .iter()
                 .cloned()
                 .collect();
-            pick_subgraph(
-                forward,
-                &dependents,
-                &mut self.walked_dependents_dependencies,
-                false,
-            );
+            pick_subgraph(forward, &dependents, &mut self.walked_dependents_dependencies, false);
         }
         if !flags.include_dependencies && !flags.include_dependents {
             self.cherry_picked.extend(entry_projects.iter().cloned());

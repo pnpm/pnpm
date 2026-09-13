@@ -88,10 +88,7 @@ impl SkippedSnapshots {
     /// known skip set without running the full installability pass.
     #[must_use]
     pub fn from_set(set: HashSet<PackageKey>) -> Self {
-        Self {
-            installability: set,
-            ..Self::default()
-        }
+        Self { installability: set, ..Self::default() }
     }
 
     /// Seed the installability set with snapshot keys recorded as
@@ -107,17 +104,9 @@ impl SkippedSnapshots {
     {
         let installability = iter
             .into_iter()
-            .filter_map(|text| {
-                text
-                    .as_ref()
-                    .parse::<PackageKey>()
-                    .ok()
-            })
+            .filter_map(|text| text.as_ref().parse::<PackageKey>().ok())
             .collect();
-        Self {
-            installability,
-            ..Self::default()
-        }
+        Self { installability, ..Self::default() }
     }
 
     /// Record an `optional: true` snapshot whose fetch / extract
@@ -222,9 +211,7 @@ impl SkippedSnapshots {
         snapshots: &HashMap<PackageKey, SnapshotEntry>,
     ) {
         self.installability.retain(|key| {
-            snapshots
-                .get(key)
-                .is_some_and(|snapshot| snapshot.optional)
+            snapshots.get(key).is_some_and(|snapshot| snapshot.optional)
         });
     }
 
@@ -364,13 +351,8 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     };
 
     let mut check_cache = CheckCache::new();
-    let reach = walk_lockfile_edges(
-        importers,
-        snapshots,
-        packages,
-        &base_options,
-        &mut check_cache,
-    )?;
+    let reach =
+        walk_lockfile_edges(importers, snapshots, packages, &base_options, &mut check_cache)?;
     let mut scan = SkipScan {
         packages,
         host,
@@ -421,9 +403,7 @@ impl SkipScan<'_, '_> {
         }
 
         let metadata_key = snapshot_key.without_peer();
-        let Some(metadata) = self.packages.get(&metadata_key) else {
-            return Ok(());
-        };
+        let Some(metadata) = self.packages.get(&metadata_key) else { return Ok(()) };
 
         // Reachable snapshots dispatch on their inbound edges; the rest
         // keep the lockfile-propagated flag. The skip check runs with
@@ -484,13 +464,7 @@ impl SkipScan<'_, '_> {
         // platform-from-name inference, so its verdict needs the
         // non-optional check.
         let warn = if skip_check_optional {
-            cached_check(
-                &mut self.check_cache,
-                metadata_key,
-                metadata,
-                false,
-                &self.base_options,
-            )?
+            cached_check(&mut self.check_cache, metadata_key, metadata, false, &self.base_options)?
         } else {
             Some(warn)
         };
@@ -554,9 +528,7 @@ fn add_runtime_skips_from(
         // Build the candidate snapshot key. For non-aliased deps this
         // is `(alias, version)`; for aliased deps it's the alias's own
         // (name, suffix). `link:` deps are skipped.
-        let Some(key) = spec.version.resolved_key(alias) else {
-            continue;
-        };
+        let Some(key) = spec.version.resolved_key(alias) else { continue };
         if !key.to_string().contains("@runtime:") {
             continue;
         }
@@ -598,10 +570,7 @@ fn cached_check(
     }
     let manifest = manifest_from_metadata(metadata_key, metadata);
     let pkg_id = metadata_key.to_string();
-    let options = InstallabilityOptions {
-        optional,
-        ..*base_options
-    };
+    let options = InstallabilityOptions { optional, ..*base_options };
     let verdict = check_installability(&pkg_id, &manifest, &options)?;
     check_cache.insert(cache_key, verdict.clone());
     Ok(verdict)
@@ -642,20 +611,14 @@ fn emit_skipped<Reporter: self::Reporter>(
         SkipReason::UnsupportedEngine => SkippedOptionalReason::UnsupportedEngine,
         SkipReason::UnsupportedPlatform => SkippedOptionalReason::UnsupportedPlatform,
     };
-    Reporter::emit(&LogEvent::SkippedOptionalDependency(
-        SkippedOptionalDependencyLog {
-            level: LogLevel::Debug,
-            details: Some(details),
-            package: SkippedOptionalPackage::Installed {
-                id: pkg_id.to_string(),
-                name,
-                version,
-            },
-            parents: None,
-            prefix: prefix.to_string(),
-            reason: wire_reason,
-        },
-    ));
+    Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
+        level: LogLevel::Debug,
+        details: Some(details),
+        package: SkippedOptionalPackage::Installed { id: pkg_id.to_string(), name, version },
+        parents: None,
+        prefix: prefix.to_string(),
+        reason: wire_reason,
+    }));
 }
 
 /// Split a `name@version` (with possible leading `@` for scoped

@@ -17,10 +17,7 @@ pub(super) fn has_directory_snapshot(lockfile: &Lockfile) -> bool {
         .iter()
         .flat_map(|packages| packages.values())
         .any(|metadata| {
-            matches!(
-                metadata.resolution,
-                pnpm_lockfile::LockfileResolution::Directory(_),
-            )
+            matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
         })
 }
 /// Everything the "nothing to do" verdict rests on.
@@ -158,11 +155,7 @@ pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
         context.wanted_lockfile,
         context.tree.config,
         context.tree.workspace_root,
-        (
-            context.write.synthesized_from_current,
-            context.write.fast_updated,
-            context.write.save,
-        ),
+        (context.write.synthesized_from_current, context.write.fast_updated, context.write.save),
     )?;
     refresh_up_to_date_workspace(&context)?;
     Reporter::emit(&LogEvent::Summary(SummaryLog {
@@ -179,9 +172,7 @@ pub(super) fn enforce_recorded_build_policy(
         && let Ok(Some(package_names)) =
             unapproved_recorded_ignored_builds(context.modules, context.tree.config)
     {
-        return Err(InstallError::IgnoredBuilds {
-            package_names,
-        });
+        return Err(InstallError::IgnoredBuilds { package_names });
     }
     Ok(())
 }

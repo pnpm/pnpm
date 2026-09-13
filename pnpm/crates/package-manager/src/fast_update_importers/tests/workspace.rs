@@ -24,10 +24,7 @@ fn moves_a_widened_range_to_the_higher_version_another_importer_locks() {
     let alias: PkgName = "foo".parse().expect("alias");
     let recorded = &updated.importers["."].dependencies.as_ref().expect("dependencies")[&alias];
     assert_eq!(
-        (
-            recorded.specifier.as_str(),
-            recorded.version.to_string().as_str()
-        ),
+        (recorded.specifier.as_str(), recorded.version.to_string().as_str()),
         ("^1.1.0", "1.2.0"),
     );
     let mut packages: Vec<_> = updated.packages
@@ -58,10 +55,7 @@ fn writes_a_new_project_importer_from_the_highest_locked_versions() {
     let recorded =
         &updated.importers["pkg-b"].dev_dependencies.as_ref().expect("devDependencies")[&alias];
     assert_eq!(
-        (
-            recorded.specifier.as_str(),
-            recorded.version.to_string().as_str()
-        ),
+        (recorded.specifier.as_str(), recorded.version.to_string().as_str()),
         ("^3.0.0", "3.1.0"),
         "resolution dedupes onto the highest locked version the range admits",
     );
@@ -69,10 +63,7 @@ fn writes_a_new_project_importer_from_the_highest_locked_versions() {
         snapshot_optional(&updated, "child@3.0.0"),
         "the version the new project did not take keeps the flag its only path gives it",
     );
-    assert!(
-        snapshot_optional(&updated, "opt@5.0.0"),
-        "nothing else changed about the old path",
-    );
+    assert!(snapshot_optional(&updated, "opt@5.0.0"), "nothing else changed about the old path");
 }
 #[test]
 fn clears_an_optional_flag_a_new_projects_plain_dependency_reaches() {
@@ -158,10 +149,7 @@ fn rejects_a_new_project_that_depends_on_a_workspace_sibling() {
 fn rejects_a_new_project_when_resolution_would_pick_the_lowest_of_several_locked_versions() {
     let added = manifest_from(json!({ "dependencies": { "child": "^3.0.0" } }));
     let [existing, locks_the_higher_child] = a_new_project_lockfile_projects(&added);
-    let config = pnpm_config::Config {
-        resolution_mode: LOWEST_DIRECT,
-        ..Default::default()
-    };
+    let config = pnpm_config::Config { resolution_mode: LOWEST_DIRECT, ..Default::default() };
 
     assert!(
         crate::fast_update_compose::try_compose_fast_updates(
@@ -186,10 +174,7 @@ fn drops_the_importer_of_a_workspace_project_that_is_gone() {
     )
     .expect("dropping a project's importer needs no resolution");
 
-    assert_eq!(
-        updated.importers.keys().collect::<Vec<_>>(),
-        vec!["packages/a"],
-    );
+    assert_eq!(updated.importers.keys().collect::<Vec<_>>(), vec!["packages/a"]);
     let mut packages: Vec<_> = updated.packages
         .as_ref()
         .expect("packages")
@@ -197,11 +182,7 @@ fn drops_the_importer_of_a_workspace_project_that_is_gone() {
         .map(ToString::to_string)
         .collect();
     packages.sort();
-    assert_eq!(
-        packages,
-        vec!["foo@1.1.0".to_string()],
-        "what only it needed goes with it",
-    );
+    assert_eq!(packages, vec!["foo@1.1.0".to_string()], "what only it needed goes with it");
 }
 #[test]
 fn keeps_the_importer_when_the_run_does_not_see_every_project() {
@@ -270,10 +251,7 @@ fn a_resolve_needing_importer_vetoes_absorbable_siblings_in_either_order() {
     assert!(
         try_fast_update_importers(
             &lockfile,
-            &[
-                ("a".to_string(), &absorbable),
-                ("b".to_string(), &needs_resolve)
-            ],
+            &[("a".to_string(), &absorbable), ("b".to_string(), &needs_resolve)],
         )
         .is_none(),
         "needs-resolve after absorbable must veto",
@@ -281,10 +259,7 @@ fn a_resolve_needing_importer_vetoes_absorbable_siblings_in_either_order() {
     assert!(
         try_fast_update_importers(
             &lockfile,
-            &[
-                ("a".to_string(), &needs_resolve),
-                ("b".to_string(), &absorbable)
-            ],
+            &[("a".to_string(), &needs_resolve), ("b".to_string(), &absorbable)],
         )
         .is_none(),
         "needs-resolve before absorbable must veto",
@@ -312,10 +287,7 @@ fn rejects_a_new_project_whose_dependency_is_locked_only_as_a_peer_variant() {
     assert!(
         try_fast_update_importers(
             &parsed_lockfile(WITH_ONLY_A_PEER_VARIANT),
-            &[
-                (".".to_string(), &existing),
-                ("packages/a".to_string(), &added)
-            ],
+            &[(".".to_string(), &existing), ("packages/a".to_string(), &added)],
         )
         .is_none(),
         "a whole new importer is written from the same locked versions as a single edge",

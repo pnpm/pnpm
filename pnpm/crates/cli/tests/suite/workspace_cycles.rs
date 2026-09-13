@@ -52,10 +52,7 @@ fn a_recursive_install_warns_about_cyclic_workspace_dependencies() {
 
     let output = recursive_install(&workspace).assert().success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
-    assert!(
-        stdout.contains(&format!("[WARN] {CYCLE_MESSAGE}")),
-        "{stdout}",
-    );
+    assert!(stdout.contains(&format!("[WARN] {CYCLE_MESSAGE}")), "{stdout}");
     assert!(stdout.contains("project-1"), "{stdout}");
     assert!(stdout.contains("project-2"), "{stdout}");
 }
@@ -79,10 +76,7 @@ fn disallow_workspace_cycles_makes_the_cycle_an_error() {
 
     let output = recursive_install(&workspace).assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_DISALLOW_WORKSPACE_CYCLES"),
-        "{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_DISALLOW_WORKSPACE_CYCLES"), "{stderr}");
     assert!(stderr.contains(CYCLE_MESSAGE), "{stderr}");
 }
 
@@ -106,15 +100,11 @@ fn ignore_workspace_cycles_wins_over_disallow_workspace_cycles() {
 fn an_acyclic_workspace_is_not_reported() {
     let CommandTempCwd { root: _root, workspace, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write workspace manifest");
-    for (name, dependencies) in [
-        ("project-1", json!({ "project-2": "workspace:*" })),
-        ("project-2", json!({})),
-    ] {
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    for (name, dependencies) in
+        [("project-1", json!({ "project-2": "workspace:*" })), ("project-2", json!({}))]
+    {
         let dir = workspace.join("packages").join(name);
         fs::create_dir_all(&dir).expect("create project dir");
         fs::write(
@@ -139,10 +129,7 @@ fn a_plain_workspace_install_warns_about_cyclic_workspace_dependencies() {
 
     let output = install_command(&workspace, false).assert().success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
-    assert!(
-        stdout.contains(&format!("[WARN] {CYCLE_MESSAGE}")),
-        "{stdout}",
-    );
+    assert!(stdout.contains(&format!("[WARN] {CYCLE_MESSAGE}")), "{stdout}");
 }
 
 #[test]
@@ -153,10 +140,7 @@ fn a_plain_workspace_install_fails_under_disallow_workspace_cycles() {
 
     let output = install_command(&workspace, false).assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_DISALLOW_WORKSPACE_CYCLES"),
-        "{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_DISALLOW_WORKSPACE_CYCLES"), "{stderr}");
 }
 
 /// Adding a dependency to one project is not the moment to talk about a

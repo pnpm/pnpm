@@ -22,8 +22,6 @@
 //! what it actually downloaded, so a wrong answer here cannot become an
 //! installed environment.
 
-mod cache;
-
 mod metadata;
 use metadata::{
     CachedDocument, metadata_from_wheel, metadata_url, parse_metadata, parse_page,
@@ -143,10 +141,7 @@ pub(super) async fn handle_resolve(
     }
 }
 
-type Solved = (
-    BTreeMap<pep508_rs::PackageName, pep440_rs::Version>,
-    Packages,
-);
+type Solved = (BTreeMap<pep508_rs::PackageName, pep440_rs::Version>, Packages);
 
 /// Feed the resolver what it asks for until the project is solved: an
 /// index page for a distribution it has not seen, or one wheel's
@@ -182,8 +177,7 @@ async fn resolve(
                     .get(&name)
                     .and_then(|versions| versions.get(&version))
                     .ok_or_else(|| format!("{name} {version} is not a candidate"))?;
-                let metadata = reader.metadata(&name, &version, candidate)
-                    .await?;
+                let metadata = reader.metadata(&name, &version, candidate).await?;
                 packages.metadata.insert((name, version), metadata);
             }
         }
@@ -257,14 +251,7 @@ impl IndexReader {
         // Parsed before it is cached, so a page that is not one is not
         // served to every resolve that follows for the whole TTL.
         let candidates = parse_page(&page, &source, name, target)?;
-        Self::store(
-            cache_path,
-            CachedDocument {
-                url: source.to_string(),
-                body: page,
-            },
-        )
-        .await;
+        Self::store(cache_path, CachedDocument { url: source.to_string(), body: page }).await;
         Ok(candidates)
     }
 
@@ -302,49 +289,22 @@ impl IndexReader {
             let document = self.hold("metadata", cached.body)?;
             return Self::cached_metadata(&document, name, version, candidate);
         }
-        let document = self.fetch_metadata(&auth, &wheel_url, candidate).await?;
-        let document = text(document, "metadata", &candidate.wheel.name)?;
-        let metadata = parse_metadata(&document, name, version, &candidate.wheel.name)?;
-        Self::store(
-            cache_path,
-            CachedDocument {
-                url: wheel_url.to_string(),
-                body: document,
-            },
-        )
-        .await;
-        Ok(metadata)
-    }
-
-    async fn fetch_metadata(
-        &self,
-        auth: &AuthHeaders,
-        wheel_url: &url::Url,
-        candidate: &Candidate,
-    ) -> Result<Vec<u8>, String> {
         let document = if let Some(digests) = &candidate.core_metadata {
-            let (document, _) = self.fetch(
-                auth,
-                &metadata_url(wheel_url),
-                "metadata",
-                MAX_METADATA_BYTES,
-                None,
-            )
-            .await?;
+            let (document, _) =
+                self.fetch(&auth, &metadata_url(&wheel_url), "metadata", MAX_METADATA_BYTES, None)
+                    .await?;
             verify_digest(&document, digests, "metadata file", &candidate.wheel.name)?;
             document
         } else {
-            let (wheel, _) = self.fetch(auth, wheel_url, "wheel", MAX_WHEEL_BYTES, None)
-                .await?;
-            verify_digest(
-                &wheel,
-                &candidate.wheel.hashes,
-                "wheel",
-                &candidate.wheel.name,
-            )?;
+            let (wheel, _) = self.fetch(&auth, &wheel_url, "wheel", MAX_WHEEL_BYTES, None).await?;
+            verify_digest(&wheel, &candidate.wheel.hashes, "wheel", &candidate.wheel.name)?;
             metadata_from_wheel(&wheel, &candidate.wheel.name)?
         };
-        Ok(document)
+        let document = text(document, "metadata", &candidate.wheel.name)?;
+        let metadata = parse_metadata(&document, name, version, &candidate.wheel.name)?;
+        Self::store(cache_path, CachedDocument { url: wheel_url.to_string(), body: document })
+            .await;
+        Ok(metadata)
     }
 
     /// A cached metadata document, checked against what the index says
@@ -358,12 +318,7 @@ impl IndexReader {
         candidate: &Candidate,
     ) -> Result<WheelMetadata, String> {
         if let Some(digests) = &candidate.core_metadata {
-            verify_digest(
-                document.as_bytes(),
-                digests,
-                "metadata file",
-                &candidate.wheel.name,
-            )?;
+            verify_digest(document.as_bytes(), digests, "metadata file", &candidate.wheel.name)?;
         }
         parse_metadata(document, name, version, &candidate.wheel.name)
     }
@@ -405,10 +360,7 @@ impl IndexReader {
             return Err(format!("the {kind} at {url} exceeds {limit} bytes"));
         }
         if !response.status.is_success() {
-            return Err(format!(
-                "fetch the {kind} at {url} returned HTTP {}",
-                response.status,
-            ));
+            return Err(format!("fetch the {kind} at {url} returned HTTP {}", response.status));
         }
         let source = url::Url::parse(&response.url)
             .map_err(|err| format!("parse the URL the {kind} was read from: {err}"))?;
@@ -435,6 +387,56 @@ impl IndexReader {
                 Arc::clone(&self.hook),
                 canonical_name.to_string(),
             )))
+    }
+
+    /// Where `url`'s document is cached. The route scope keys the
+    /// namespace, so a private index cached under one caller's credential
+    /// is never read back for a caller who does not reproduce that scope.
+    /// Where the document read from `url` is cached. `derived_from` is the
+    /// digest of the artifact a document was extracted from rather than
+    /// read whole, and joins the key so a republished artifact is read
+    /// again rather than answered from what came out of the old one.
+    fn cache_path(
+        &self,
+        auth: &AuthHeaders,
+        url: &url::Url,
+        derived_from: Option<&str>,
+    ) -> PathBuf {
+        let scope = match auth.metadata_scope(url.as_str(), None) {
+            MetadataCacheScope::Public => "public".to_string(),
+            MetadataCacheScope::Private { descriptor_id } => descriptor_id,
+        };
+        let key = match derived_from {
+            Some(digest) => format!("{url}#{digest}"),
+            None => url.to_string(),
+        };
+        self.cache_dir
+            .join(scope)
+            .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(&key)))
+    }
+
+    async fn cached(&self, path: &Path) -> Option<CachedDocument> {
+        let metadata = tokio::fs::metadata(path).await.ok()?;
+        let age = SystemTime::now()
+            .duration_since(metadata.modified().ok()?)
+            .ok()?;
+        if age >= self.ttl {
+            return None;
+        }
+        let bytes = tokio::fs::read(path).await.ok()?;
+        serde_json::from_slice(&bytes).ok()
+    }
+
+    /// Cache a document, best effort: a cache that cannot be written costs
+    /// a refetch on the next resolve, which is not worth failing over.
+    async fn store(path: PathBuf, document: CachedDocument) {
+        let _ = tokio::task::spawn_blocking(move || {
+            let parent = path.parent()?;
+            std::fs::create_dir_all(parent).ok()?;
+            let bytes = serde_json::to_vec(&document).ok()?;
+            pnpm_fs::write_atomic(&path, &bytes).ok()
+        })
+        .await;
     }
 }
 

@@ -79,10 +79,7 @@ pub(super) async fn authenticate(
         Err(err) => return err.into_response(),
     };
     let method = request.method().clone();
-    let path = request
-        .uri()
-        .path()
-        .to_owned();
+    let path = request.uri().path().to_owned();
     let peer = request
         .extensions()
         .get::<ConnectInfo<PeerAddr>>()
@@ -101,9 +98,7 @@ pub(super) async fn authenticate(
         }
     }
 
-    let identity = match resolve_caller(&state, header.as_deref(), &method, &path, peer)
-        .await
-    {
+    let identity = match resolve_caller(&state, header.as_deref(), &method, &path, peer).await {
         Ok(identity) => identity,
         Err(err) => return err.into_response(),
     };
@@ -193,9 +188,7 @@ async fn resolve_caller(
             super::oidc::check_workload_request(&state.inner.config, &workload, method, path)?;
             return Ok(Identity::user(workload.identity.username));
         }
-        if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token)
-            .await?
-        {
+        if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token).await? {
             check_token_restrictions(&record, method, path, peer)?;
             return Ok(Identity::user(record.username));
         }
@@ -229,9 +222,7 @@ pub(super) fn token_credentials(header_value: &str) -> Option<String> {
     if !scheme.eq_ignore_ascii_case("Basic") {
         return None;
     }
-    let decoded = BASE64_STANDARD
-        .decode(credentials.trim())
-        .ok()?;
+    let decoded = BASE64_STANDARD.decode(credentials.trim()).ok()?;
     let decoded = String::from_utf8(decoded).ok()?;
     let (_, password) = decoded.split_once(':')?;
     (!password.is_empty()).then(|| password.to_string())
@@ -278,12 +269,12 @@ fn check_token_restrictions(
 fn source_rules<'a>(state: &'a AppState, source: &RegistrySource) -> &'a PackageRules {
     static SAFE_DEFAULTS: LazyLock<PackageRules> = LazyLock::new(PackageRules::default);
     match source {
-        RegistrySource::Hosted(name) => state.inner.config.routing.hosted
-            .get(name)
-            .map(|hosted| &hosted.rules),
-        RegistrySource::Upstream(name) => state.inner.config.routing.upstreams
-            .get(name)
-            .map(|upstream| &upstream.rules),
+        RegistrySource::Hosted(name) => {
+            state.inner.config.routing.hosted.get(name).map(|hosted| &hosted.rules)
+        }
+        RegistrySource::Upstream(name) => {
+            state.inner.config.routing.upstreams.get(name).map(|upstream| &upstream.rules)
+        }
         RegistrySource::Unclaimed | RegistrySource::NotFound => None,
     }
     .unwrap_or(&SAFE_DEFAULTS)
@@ -315,9 +306,9 @@ pub(super) fn authorize(
     // Denied: an anonymous caller gets a chance to authenticate (401);
     // an authenticated caller simply isn't in the allowed set (403).
     match identity {
-        Identity::Anonymous => Err(RegistryError::Unauthenticated {
-            resource: format!("package {package:?}"),
-        }),
+        Identity::Anonymous => {
+            Err(RegistryError::Unauthenticated { resource: format!("package {package:?}") })
+        }
         Identity::User { username, .. } => Err(RegistryError::Forbidden {
             user: username.clone(),
             action: action.label(),
@@ -331,9 +322,7 @@ pub(super) fn authorize(
 /// matching [`pnpr_auth::identify`].
 pub(super) fn bearer_credentials(header_value: &str) -> Option<&str> {
     let (scheme, credentials) = header_value.trim().split_once(' ')?;
-    scheme
-        .eq_ignore_ascii_case("Bearer")
-        .then(|| credentials.trim())
+    scheme.eq_ignore_ascii_case("Bearer").then(|| credentials.trim())
 }
 
 /// Whether a request mutates registry state. Every npm and Cargo write
@@ -378,9 +367,7 @@ fn is_python_upload_path(path: &str) -> bool {
 /// dual-stack listener still matches plain IPv4 ranges.
 pub(super) fn cidr_whitelist_allows(whitelist: &[String], peer: SocketAddr) -> bool {
     let peer = canonical_ip(peer.ip());
-    whitelist
-        .iter()
-        .any(|entry| cidr_contains(entry.trim(), peer))
+    whitelist.iter().any(|entry| cidr_contains(entry.trim(), peer))
 }
 
 pub(super) fn canonical_ip(addr: IpAddr) -> IpAddr {
@@ -438,17 +425,9 @@ fn parse_prefix(prefix: Option<&str>, max_bits: u8) -> Option<u8> {
 }
 
 fn ipv4_mask(prefix: u8) -> u32 {
-    if prefix == 0 {
-        0
-    } else {
-        u32::MAX << (32 - prefix)
-    }
+    if prefix == 0 { 0 } else { u32::MAX << (32 - prefix) }
 }
 
 fn ipv6_mask(prefix: u8) -> u128 {
-    if prefix == 0 {
-        0
-    } else {
-        u128::MAX << (128 - prefix)
-    }
+    if prefix == 0 { 0 } else { u128::MAX << (128 - prefix) }
 }

@@ -235,10 +235,7 @@ pub fn get_registered_projects(
         Ok(entries) => entries,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => {
-            return Err(GetRegisteredProjectsError::ReadRegistryDir {
-                dir: registry_dir,
-                error,
-            });
+            return Err(GetRegisteredProjectsError::ReadRegistryDir { dir: registry_dir, error });
         }
     };
 
@@ -307,10 +304,7 @@ fn registered_project_target(
         // `raw_os_error` when present and fall through to the
         // generic "inaccessible" error otherwise.
         Err(error) if is_enoent_or_einval(&error) => Ok(None),
-        Err(error) => Err(GetRegisteredProjectsError::EntryInaccessible {
-            link_path,
-            error,
-        }),
+        Err(error) => Err(GetRegisteredProjectsError::EntryInaccessible { link_path, error }),
     }
 }
 

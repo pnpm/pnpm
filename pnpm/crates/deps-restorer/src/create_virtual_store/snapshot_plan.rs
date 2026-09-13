@@ -77,12 +77,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
         survivors::<Reporter>(snapshots, &probe, &mut markers, cache_keys)?;
     let marker_rebuilds = marker_rebuilds(markers, &survivors, &probe);
     let skipped_entries = skipped_entries(snapshots, &survivors, probe.policy.skipped, cache_keys);
-    Ok(SnapshotPlan {
-        survivors,
-        skipped_entries,
-        marker_rebuilds,
-        has_git_hosted_survivor,
-    })
+    Ok(SnapshotPlan { survivors, skipped_entries, marker_rebuilds, has_git_hosted_survivor })
 }
 
 /// The snapshots this install materializes, and whether any of them is

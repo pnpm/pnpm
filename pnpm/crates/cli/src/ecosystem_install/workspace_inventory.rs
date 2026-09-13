@@ -2,15 +2,8 @@ use miette::{IntoDiagnostic, Result, WrapErr};
 use std::path::PathBuf;
 use tokio::sync::OnceCell;
 
-const IGNORED_DIRECTORY_BASENAMES: &[&str] = &[
-    ".git",
-    ".pnpm",
-    "node_modules",
-    "target",
-    ".venv",
-    "venv",
-    "__pycache__",
-];
+const IGNORED_DIRECTORY_BASENAMES: &[&str] =
+    &[".git", ".pnpm", "node_modules", "target", ".venv", "venv", "__pycache__"];
 
 #[derive(Clone, Copy)]
 pub(crate) enum EcosystemManifest {

@@ -19,11 +19,7 @@ fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let registry = npmrc_info.mock_instance.url();
-    append_workspace_yaml_key(
-        &workspace,
-        "namedRegistries",
-        format!("{{ work: '{registry}' }}"),
-    );
+    append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ work: '{registry}' }}"));
     (root, workspace, npmrc_info)
 }
 
@@ -107,18 +103,12 @@ fn frozen_install_replays_a_registry_qualified_lockfile() {
 fn install_records_an_aliased_named_registry_dependency() {
     let (root, workspace, anchor) = setup();
 
-    write_manifest(
-        &workspace,
-        r#"{ "foo-from-work": "work:@pnpm.e2e/foo@1.0.0" }"#,
-    );
+    write_manifest(&workspace, r#"{ "foo-from-work": "work:@pnpm.e2e/foo@1.0.0" }"#);
     pacquet(&workspace, ["install"]).assert().success();
 
     assert_eq!(
         lockfile_entry(&workspace, "foo-from-work"),
-        Some((
-            "work:@pnpm.e2e/foo@1.0.0".to_string(),
-            "@pnpm.e2e/foo@work:1.0.0".to_string()
-        )),
+        Some(("work:@pnpm.e2e/foo@1.0.0".to_string(), "@pnpm.e2e/foo@work:1.0.0".to_string())),
     );
     assert!(workspace.join("node_modules/foo-from-work/package.json").exists());
 

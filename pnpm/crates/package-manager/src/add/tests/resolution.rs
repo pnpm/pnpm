@@ -2,17 +2,11 @@ use super::{super::normalized_save_specifier, add_jsr_selector, add_npm_selector
 
 #[tokio::test]
 async fn add_keeps_the_range_operator_a_jsr_selector_asks_for() {
-    assert_eq!(
-        add_jsr_selector("jsr:@pnpm-e2e/foo@1.0").await,
-        Some("jsr:~1.0.0".to_string()),
-    );
+    assert_eq!(add_jsr_selector("jsr:@pnpm-e2e/foo@1.0").await, Some("jsr:~1.0.0".to_string()));
 }
 #[tokio::test]
 async fn add_saves_an_npm_selector_as_the_plain_registry_range() {
-    assert_eq!(
-        add_npm_selector("npm:foo@^1").await,
-        Some("^1.0.0".to_string()),
-    );
+    assert_eq!(add_npm_selector("npm:foo@^1").await, Some("^1.0.0".to_string()));
 }
 #[test]
 fn normalizes_hosted_git_specifiers_to_shortcut_form() {
@@ -32,18 +26,9 @@ fn normalizes_hosted_git_specifiers_to_shortcut_form() {
         "github:pnpm/test-git-fetch#abc",
     );
     // GitLab and Bitbucket shorthands and URLs collapse to their own prefixes.
-    assert_eq!(
-        normalized_save_specifier("gitlab:owner/repo#abc"),
-        "gitlab:owner/repo#abc",
-    );
-    assert_eq!(
-        normalized_save_specifier("https://gitlab.com/owner/repo"),
-        "gitlab:owner/repo",
-    );
-    assert_eq!(
-        normalized_save_specifier("bitbucket:owner/repo#abc"),
-        "bitbucket:owner/repo#abc",
-    );
+    assert_eq!(normalized_save_specifier("gitlab:owner/repo#abc"), "gitlab:owner/repo#abc");
+    assert_eq!(normalized_save_specifier("https://gitlab.com/owner/repo"), "gitlab:owner/repo");
+    assert_eq!(normalized_save_specifier("bitbucket:owner/repo#abc"), "bitbucket:owner/repo#abc");
     assert_eq!(
         normalized_save_specifier("https://bitbucket.org/owner/repo"),
         "bitbucket:owner/repo",

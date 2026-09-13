@@ -2,10 +2,7 @@ use super::{CanonicalPackageName, Ecosystem, is_safe_path_segment};
 
 #[test]
 fn canonicalizes_each_ecosystem() {
-    assert_eq!(
-        CanonicalPackageName::parse("React", Ecosystem::Npm).unwrap().as_str(),
-        "React",
-    );
+    assert_eq!(CanonicalPackageName::parse("React", Ecosystem::Npm).unwrap().as_str(), "React");
     assert_eq!(
         CanonicalPackageName::parse("Serde_JSON", Ecosystem::Cargo).unwrap().as_str(),
         "serde_json",
@@ -35,10 +32,7 @@ fn reports_ecosystem_specific_name_errors() {
 fn accepts_unscoped() {
     let name = CanonicalPackageName::parse("lodash", Ecosystem::Npm).unwrap();
     assert_eq!(name.as_str(), "lodash");
-    assert_eq!(
-        name.tarball_name_for_version("4.17.21"),
-        "lodash-4.17.21.tgz",
-    );
+    assert_eq!(name.tarball_name_for_version("4.17.21"), "lodash-4.17.21.tgz");
     name.parse_tarball_name("lodash-4.17.21.tgz").unwrap();
 }
 
@@ -89,18 +83,8 @@ fn rejects_windows_drive_prefixes() {
 /// cached under.
 #[test]
 fn rejects_url_delimiters_and_blanks() {
-    for raw in [
-        "foo?bar",
-        "foo#bar",
-        "foo%2fbar",
-        "foo bar",
-        "foo\tbar",
-        "foo\u{7f}bar",
-    ] {
-        assert!(
-            CanonicalPackageName::parse(raw, Ecosystem::Npm).is_err(),
-            "{raw:?}",
-        );
+    for raw in ["foo?bar", "foo#bar", "foo%2fbar", "foo bar", "foo\tbar", "foo\u{7f}bar"] {
+        assert!(CanonicalPackageName::parse(raw, Ecosystem::Npm).is_err(), "{raw:?}");
         assert!(!is_safe_path_segment(raw), "{raw:?}");
     }
     assert!(CanonicalPackageName::parse("@scope/foo?bar", Ecosystem::Npm).is_err());
@@ -138,18 +122,7 @@ fn accepts_image_name_separators() {
 
 #[test]
 fn rejects_malformed_image_names() {
-    for name in [
-        "",
-        "acme//app",
-        "/app",
-        "app/",
-        ".app",
-        "app.",
-        "-app",
-        "a..b",
-        "a_-b",
-        "a+b",
-    ] {
+    for name in ["", "acme//app", "/app", "app/", ".app", "app.", "-app", "a..b", "a_-b", "a+b"] {
         assert!(
             CanonicalPackageName::parse(name, Ecosystem::Oci).is_err(),
             "{name} should not be a valid image name",

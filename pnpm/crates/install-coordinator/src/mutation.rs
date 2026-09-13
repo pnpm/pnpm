@@ -26,10 +26,7 @@ impl MetadataMutation {
         let transaction_key = fs::canonicalize(transaction_key)
             .into_diagnostic()
             .wrap_err_with(|| {
-                format!(
-                    "resolve metadata transaction key {}",
-                    transaction_key.display(),
-                )
+                format!("resolve metadata transaction key {}", transaction_key.display())
             })?;
         let lock_path = lock_directory.join(format!(
             "{}.lock",
@@ -48,10 +45,7 @@ impl MetadataMutation {
             .into_iter()
             .map(MetadataFile::capture)
             .collect::<Result<Vec<_>>>()?;
-        Ok(Self {
-            snapshots,
-            _lock: lock,
-        })
+        Ok(Self { snapshots, _lock: lock })
     }
 
     pub(crate) fn finish(self, outcome: Result<()>) -> Result<()> {

@@ -133,15 +133,11 @@ pub(in super::super) fn bumped_persist_indices<Reporter: self::Reporter>(
     applied: Option<&crate::AppliedSpecBumps>,
     mut persist_indices: Vec<usize>,
 ) -> Vec<usize> {
-    let Some(applied) = applied else {
-        return persist_indices;
-    };
+    let Some(applied) = applied else { return persist_indices };
     for (index, project) in projects.iter_mut().enumerate() {
         let importer_id =
             pnpm_workspace::importer_id_from_root_dir(workspace_root, &project.root_dir);
-        let Some(bumped) = applied.manifests.get(&importer_id) else {
-            continue;
-        };
+        let Some(bumped) = applied.manifests.get(&importer_id) else { continue };
         let already_persisting = persist_indices.contains(&index);
         if apply_bumped_manifest_specs::<Reporter>(
             &mut project.manifest,
@@ -206,10 +202,7 @@ pub(in super::super) fn persist_manifest<Reporter: self::Reporter>(
     let prefix = package_manifest_prefix(manifest);
     Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
         level: LogLevel::Debug,
-        message: PackageManifestMessage::Updated {
-            prefix,
-            updated,
-        },
+        message: PackageManifestMessage::Updated { prefix, updated },
     }));
     Ok(())
 }

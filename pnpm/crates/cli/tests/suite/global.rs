@@ -23,11 +23,8 @@ use std::{
 #[cfg(unix)]
 fn prepare_global_home(pnpm_home: &Path, npmrc_info: &AddMockedRegistry) {
     fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
-    fs::write(
-        pnpm_home.join(".npmrc"),
-        format!("registry={}\n", npmrc_info.mock_instance.url()),
-    )
-    .expect("seed the pnpm-home npmrc");
+    fs::write(pnpm_home.join(".npmrc"), format!("registry={}\n", npmrc_info.mock_instance.url()))
+        .expect("seed the pnpm-home npmrc");
     fs::write(
         pnpm_home.join("pnpm-workspace.yaml"),
         format!(
@@ -83,16 +80,10 @@ fn global_shim_command(workspace: &Path, pnpm_home: &Path, root: &Path, registry
 
 #[cfg(unix)]
 fn symlink_entries(dir: &Path) -> Vec<PathBuf> {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return Vec::new();
-    };
+    let Ok(entries) = fs::read_dir(dir) else { return Vec::new() };
     entries
         .flatten()
-        .filter(|entry| {
-            entry
-                .file_type()
-                .is_ok_and(|ft| ft.is_symlink())
-        })
+        .filter(|entry| entry.file_type().is_ok_and(|ft| ft.is_symlink()))
         .map(|entry| entry.path())
         .collect()
 }
@@ -118,11 +109,7 @@ fn snapshot_tree(root: &Path) -> Vec<FixtureEntry> {
                 .strip_prefix(root)
                 .expect("fixture entry is under its root");
             if entry.file_type().is_dir() {
-                FixtureEntry {
-                    path: path.to_path_buf(),
-                    kind: "directory",
-                    payload: Vec::new(),
-                }
+                FixtureEntry { path: path.to_path_buf(), kind: "directory", payload: Vec::new() }
             } else if entry.file_type().is_symlink() {
                 FixtureEntry {
                     path: path.to_path_buf(),
@@ -229,11 +216,7 @@ fn global_add_list_remove_round_trip() {
         "the package's bin should be linked into the global bin directory",
     );
     let links = symlink_entries(&global_pkg_dir);
-    assert_eq!(
-        links.len(),
-        1,
-        "exactly one cache-keyed hash symlink should exist: {links:?}",
-    );
+    assert_eq!(links.len(), 1, "exactly one cache-keyed hash symlink should exist: {links:?}");
 
     // list -g --parseable
     let output = global_command(&workspace, &pnpm_home)
@@ -244,10 +227,7 @@ fn global_add_list_remove_round_trip() {
         .expect("run list -g");
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("list -g --parseable:\n{stdout}");
-    assert!(
-        stdout.contains("touch-file-one-bin"),
-        "list -g should report the installed package",
-    );
+    assert!(stdout.contains("touch-file-one-bin"), "list -g should report the installed package");
 
     // remove -g
     global_command(&workspace, &pnpm_home)
@@ -289,11 +269,8 @@ fn global_add_creates_a_missing_global_bin_dir() {
     // Seed the pnpm home like `prepare_global_home`, but leave `bin`
     // uncreated: `global_command` still puts the (absent) dir on PATH.
     fs::create_dir_all(&pnpm_home).expect("create the pnpm home");
-    fs::write(
-        pnpm_home.join(".npmrc"),
-        format!("registry={}\n", npmrc_info.mock_instance.url()),
-    )
-    .expect("seed the pnpm-home npmrc");
+    fs::write(pnpm_home.join(".npmrc"), format!("registry={}\n", npmrc_info.mock_instance.url()))
+        .expect("seed the pnpm-home npmrc");
     fs::write(
         pnpm_home.join("pnpm-workspace.yaml"),
         format!(
@@ -343,11 +320,7 @@ fn global_add_materializes_transitive_optional_dependencies() {
         .success();
 
     let links = symlink_entries(&global_pkg_dir);
-    assert_eq!(
-        links.len(),
-        1,
-        "exactly one cache-keyed hash symlink should exist: {links:?}",
-    );
+    assert_eq!(links.len(), 1, "exactly one cache-keyed hash symlink should exist: {links:?}");
     // The hash symlink's target is relative to the global packages dir.
     let install_dir = global_pkg_dir.join(fs::read_link(&links[0]).expect("read the hash symlink"));
     let virtual_store = install_dir.join("node_modules").join(".pnpm");
@@ -406,11 +379,8 @@ fn global_add_installs_standalone_package_files_without_scripts() {
     .expect("seed the pnpm-home workspace yaml");
     let global_pkg_dir = pnpm_home.join("global").join("v11");
     fs::create_dir_all(&global_pkg_dir).expect("create global package dir");
-    fs::write(
-        global_pkg_dir.join("pnpm-workspace.yaml"),
-        "dangerouslyAllowAllBuilds: true\n",
-    )
-    .expect("allow package build scripts");
+    fs::write(global_pkg_dir.join("pnpm-workspace.yaml"), "dangerouslyAllowAllBuilds: true\n")
+        .expect("allow package build scripts");
 
     global_command(&workspace, &pnpm_home)
         .with_env("PNPM_CONFIG_IGNORE_SCRIPTS", "false")
@@ -422,11 +392,7 @@ fn global_add_installs_standalone_package_files_without_scripts() {
         .success();
 
     let links = symlink_entries(&global_pkg_dir);
-    assert_eq!(
-        links.len(),
-        1,
-        "exactly one global package group should be installed",
-    );
+    assert_eq!(links.len(), 1, "exactly one global package group should be installed");
     let install_dir = global_pkg_dir.join(fs::read_link(&links[0]).expect("read group symlink"));
     assert!(
         install_dir
@@ -473,9 +439,7 @@ fn global_add_persists_build_approvals_to_the_global_packages_dir() {
 
     // No per-group install dir should carry the decision.
     for entry in fs::read_dir(&global_pkg_dir).expect("read global packages dir").flatten() {
-        if entry
-            .file_type()
-            .is_ok_and(|file_type| file_type.is_dir())
+        if entry.file_type().is_ok_and(|file_type| file_type.is_dir())
             && let Ok(text) = fs::read_to_string(entry.path().join("pnpm-workspace.yaml"))
         {
             assert!(
@@ -533,14 +497,8 @@ fn approve_builds_global_approves_every_install_group() {
         .assert()
         .success();
 
-    assert!(
-        install_script.exists(),
-        "first install group should be rebuilt",
-    );
-    assert!(
-        postinstall.exists(),
-        "second install group should be rebuilt",
-    );
+    assert!(install_script.exists(), "first install group should be rebuilt");
+    assert!(postinstall.exists(), "second install group should be rebuilt");
 
     drop(npmrc_info);
     drop(root);
@@ -673,11 +631,8 @@ fn recursive_global_outdated_reads_each_global_install_lockfile() {
 
     let pnpm_home = root.path().join("pnpm-home");
     prepare_global_home(&pnpm_home, &npmrc_info);
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write caller workspace manifest");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write caller workspace manifest");
 
     global_command(&workspace, &pnpm_home)
         .with_arg("add")
@@ -687,11 +642,7 @@ fn recursive_global_outdated_reads_each_global_install_lockfile() {
         .success();
     let global_pkg_dir = pnpm_home.join("global/v11");
     let links = symlink_entries(&global_pkg_dir);
-    assert_eq!(
-        links.len(),
-        1,
-        "global add should create one install-group link",
-    );
+    assert_eq!(links.len(), 1, "global add should create one install-group link");
     let install_dir = fs::canonicalize(&links[0]).expect("resolve global install-group link");
     assert!(install_dir.join("package.json").is_file());
     assert!(install_dir.join("pnpm-lock.yaml").is_file());
@@ -745,10 +696,7 @@ fn global_list_empty() {
         .output()
         .expect("run list -g");
 
-    assert!(
-        output.status.success(),
-        "list -g on an empty home should succeed",
-    );
+    assert!(output.status.success(), "list -g on an empty home should succeed");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains("No global packages found"),

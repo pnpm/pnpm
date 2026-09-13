@@ -105,20 +105,14 @@ fn a_virtual_shim_only_yields_to_its_own_package() {
     let error = check_virtual_shim_conflicts(std::slice::from_ref(&unrelated), &bin_dir)
         .unwrap_err()
         .to_string();
-    assert!(
-        error.contains(r#"project-aware shim for "owner""#),
-        "{error}",
-    );
+    assert!(error.contains(r#"project-aware shim for "owner""#), "{error}");
 
     remove_native_shim(&bin_dir, "tool").expect("remove virtual shim");
     fs::write(bin_dir.join("tool"), "globally installed shim").expect("replace virtual shim");
     record_virtual_shim_state(&bin_dir, "owner", &["tool".to_string()])
         .expect("record restoration state");
     let error = check_virtual_shim_conflicts(&[unrelated], &bin_dir).unwrap_err().to_string();
-    assert!(
-        error.contains(r#"project-aware shim for "owner""#),
-        "{error}",
-    );
+    assert!(error.contains(r#"project-aware shim for "owner""#), "{error}");
 
     let owner = PackageBinSource::new(
         package_dir,
@@ -172,11 +166,8 @@ fn hash_cleanup_failure_restores_package_commands() {
 #[test]
 fn later_hash_cleanup_failure_restores_earlier_groups() {
     let fixture = GlobalRemovalFixture::new();
-    let first_group = fixture.seed_group(GlobalGroupSpec {
-        alias: "first",
-        hash: "first-hash",
-        bin: "first",
-    });
+    let first_group =
+        fixture.seed_group(GlobalGroupSpec { alias: "first", hash: "first-hash", bin: "first" });
     let groups = vec![first_group.clone(), fixture.group.clone()];
     let affected_bin_names = fixture.affected_bin_names
         .iter()
@@ -214,23 +205,11 @@ fn detects_windows_drive_paths() {
 #[test]
 fn latest_update_drops_the_spec_only_of_plain_version_dependencies() {
     let dependencies = vec![
-        (
-            "private-linked-pkg".to_string(),
-            "link:/home/user/private-linked-pkg".to_string(),
-        ),
-        (
-            "local-tarball-pkg".to_string(),
-            "file:/home/user/local-tarball-pkg.tgz".to_string(),
-        ),
+        ("private-linked-pkg".to_string(), "link:/home/user/private-linked-pkg".to_string()),
+        ("local-tarball-pkg".to_string(), "file:/home/user/local-tarball-pkg.tgz".to_string()),
         ("git-pkg".to_string(), "github:user/git-pkg".to_string()),
-        (
-            "remote-tarball-pkg".to_string(),
-            "https://example.com/pkg.tgz".to_string(),
-        ),
-        (
-            "aliased-pkg".to_string(),
-            "npm:other-pkg@^2.0.0".to_string(),
-        ),
+        ("remote-tarball-pkg".to_string(), "https://example.com/pkg.tgz".to_string()),
+        ("aliased-pkg".to_string(), "npm:other-pkg@^2.0.0".to_string()),
         ("named-registry-pkg".to_string(), "gh:^3.0.0".to_string()),
         ("foo".to_string(), "^1.0.0".to_string()),
         ("bar".to_string(), "next".to_string()),
@@ -267,10 +246,7 @@ fn a_pinned_dependency_is_held_at_its_installed_version() {
     ];
     let pins = HashMap::from([("prerelease".to_string(), "2.0.0".to_string())]);
 
-    assert_eq!(
-        update_selectors(&dependencies, true, &pins),
-        vec!["prerelease@2.0.0", "stable"],
-    );
+    assert_eq!(update_selectors(&dependencies, true, &pins), vec!["prerelease@2.0.0", "stable"]);
 }
 
 #[test]
@@ -326,11 +302,8 @@ fn parent_file_selector_uses_parent_directory_name_as_alias() {
 #[test]
 fn invalid_inferred_package_name_is_rejected() {
     let root = tempfile::tempdir().expect("create temp directory");
-    let package_dir = create_local_package(
-        root.path(),
-        "local-package",
-        r#"{ "name": "Invalid Name" }"#,
-    );
+    let package_dir =
+        create_local_package(root.path(), "local-package", r#"{ "name": "Invalid Name" }"#);
     let selector = format!("file:{}", package_dir.display());
 
     let error = infer_local_package_alias(&selector).expect_err("reject invalid package name");
@@ -340,14 +313,8 @@ fn invalid_inferred_package_name_is_rejected() {
 
 #[test]
 fn pnpm_package_aliases_replace_each_other() {
-    assert_eq!(
-        replacement_aliases(&["@pnpm/exe".to_string()]),
-        vec!["@pnpm/exe", "pnpm"],
-    );
-    assert_eq!(
-        replacement_aliases(&["pnpm".to_string()]),
-        vec!["pnpm", "@pnpm/exe"],
-    );
+    assert_eq!(replacement_aliases(&["@pnpm/exe".to_string()]), vec!["@pnpm/exe", "pnpm"]);
+    assert_eq!(replacement_aliases(&["pnpm".to_string()]), vec!["pnpm", "@pnpm/exe"]);
 }
 
 #[test]
@@ -436,12 +403,7 @@ fn ownership_snapshot_preserves_manifest_diagnostic_codes() {
     assert!(
         cleanup_reports[0]
             .to_string()
-            .contains(
-                &root
-                    .path()
-                    .display()
-                    .to_string()
-            ),
+            .contains(&root.path().display().to_string()),
     );
 
     std::fs::create_dir_all(manifest_path.parent().expect("manifest parent"))
@@ -553,11 +515,8 @@ impl GlobalRemovalFixture {
         )
         .expect("write installed package manifest");
         fs::write(package_dir.join(format!("{}.js", spec.bin)), "").expect("write bin source");
-        fs::write(
-            self.global_bin_dir.join(spec.bin),
-            format!("old {}\n", spec.bin),
-        )
-        .expect("write global bin");
+        fs::write(self.global_bin_dir.join(spec.bin), format!("old {}\n", spec.bin))
+            .expect("write global bin");
         let group = GlobalPackageInfo {
             hash: spec.hash.to_string(),
             install_dir,

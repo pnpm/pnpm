@@ -44,10 +44,9 @@ async fn exact_version_with_build_metadata_resolves_to_the_published_version() {
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    for (bare_specifier, expected_id) in [
-        ("1.0.0+build1", "acme@1.0.0"),
-        ("1.0.0-canary.1+build1", "acme@1.0.0-canary.1"),
-    ] {
+    for (bare_specifier, expected_id) in
+        [("1.0.0+build1", "acme@1.0.0"), ("1.0.0-canary.1+build1", "acme@1.0.0-canary.1")]
+    {
         let wanted = WantedDependency {
             alias: Some("acme".to_string()),
             bare_specifier: Some(bare_specifier.to_string()),
@@ -59,9 +58,6 @@ async fn exact_version_with_build_metadata_resolves_to_the_published_version() {
             .unwrap()
             .unwrap();
         assert_eq!(result.id.as_str(), expected_id, "for {bare_specifier:?}");
-        assert_eq!(
-            result.resolved_via, "npm-registry",
-            "for {bare_specifier:?}",
-        );
+        assert_eq!(result.resolved_via, "npm-registry", "for {bare_specifier:?}");
     }
 }

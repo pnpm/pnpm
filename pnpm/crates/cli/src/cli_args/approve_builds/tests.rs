@@ -16,11 +16,7 @@ fn params(args: &[&str]) -> Vec<String> {
 }
 
 fn args(packages: &[&str]) -> ApproveBuildsArgs {
-    ApproveBuildsArgs {
-        packages: params(packages),
-        all: false,
-        global: false,
-    }
+    ApproveBuildsArgs { packages: params(packages), all: false, global: false }
 }
 
 fn approve_builds_error(report: miette::Report) -> ApproveBuildsError {
@@ -69,10 +65,7 @@ fn rejects_an_argument_that_names_no_package() {
     for packages in [&["!"][..], &[""][..], &["foo", "!"][..]] {
         let err = args(packages).validate().unwrap_err();
         assert!(
-            matches!(
-                approve_builds_error(err),
-                ApproveBuildsError::MissingPackage
-            ),
+            matches!(approve_builds_error(err), ApproveBuildsError::MissingPackage),
             "expected MissingPackage for {packages:?}",
         );
     }
@@ -80,23 +73,13 @@ fn rejects_an_argument_that_names_no_package() {
 
 #[test]
 fn rejects_positional_arguments_with_all() {
-    let err = ApproveBuildsArgs {
-        packages: params(&["foo"]),
-        all: true,
-        global: false,
-    }
-    .validate()
-    .unwrap_err();
-    assert!(matches!(
-        approve_builds_error(err),
-        ApproveBuildsError::AllWithArgs
-    ));
+    let err = ApproveBuildsArgs { packages: params(&["foo"]), all: true, global: false }
+        .validate()
+        .unwrap_err();
+    assert!(matches!(approve_builds_error(err), ApproveBuildsError::AllWithArgs));
 }
 
 #[test]
 fn sort_unique_dedupes_and_sorts() {
-    assert_eq!(
-        sort_unique(params(&["b", "a", "b"])),
-        vec!["a".to_string(), "b".to_string()],
-    );
+    assert_eq!(sort_unique(params(&["b", "a", "b"])), vec!["a".to_string(), "b".to_string()]);
 }

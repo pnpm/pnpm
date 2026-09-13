@@ -258,8 +258,7 @@ fn load_active_osv_index(config: &Config) -> pnpr_error::Result<Option<Arc<pnpr_
 /// call this before binding; an embedder that builds a router directly should
 /// call it itself on startup, before serving requests.
 pub async fn recover_publish_journal(config: &Config) -> pnpr_error::Result<()> {
-    pnpr_storage::journal::recover_publish_journal(config, &RegistryDocuments)
-        .await?;
+    pnpr_storage::journal::recover_publish_journal(config, &RegistryDocuments).await?;
     let storage = Storage::new(
         &config.storage.hosted_backend,
         config.storage.hosted_dir.clone(),
@@ -357,12 +356,9 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     let app = router_with_auth_and_osv(config, auth, osv_index)?;
     let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
     tracing::info!(%listen, "pnpr listening");
-    axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<PeerAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await?;
+    axum::serve(listener, app.into_make_service_with_connect_info::<PeerAddr>())
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
     Ok(())
 }
 
@@ -526,10 +522,7 @@ fn json_response(status: StatusCode, body: &Value) -> Response {
 fn private_no_cache(mut response: Response) -> Response {
     use axum::http::HeaderValue;
     let headers = response.headers_mut();
-    headers.insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("private, no-store"),
-    );
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
     headers.insert(header::VARY, HeaderValue::from_static("Authorization"));
     response
 }
@@ -571,13 +564,8 @@ fn resolve_write_target_for(
     name: &CanonicalPackageName,
 ) -> Result<WriteTarget, RegistryError> {
     match resolve_publish_target_for(state, identity, registry, ecosystem, name.as_str()) {
-        PublishTarget::Hosted { source, org } => Ok(WriteTarget {
-            source,
-            org,
-        }),
-        PublishTarget::Reject(reason) => Err(RegistryError::BadRequest {
-            reason,
-        }),
+        PublishTarget::Hosted { source, org } => Ok(WriteTarget { source, org }),
+        PublishTarget::Reject(reason) => Err(RegistryError::BadRequest { reason }),
         PublishTarget::Denied(response) => Err(response),
         PublishTarget::NotFound => Err(RegistryError::NotFound),
     }

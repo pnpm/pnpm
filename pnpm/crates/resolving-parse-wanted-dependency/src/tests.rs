@@ -14,18 +14,12 @@ fn plain_name_without_specifier_returns_alias_only() {
 
 #[test]
 fn scoped_name_without_specifier_returns_alias_only() {
-    assert_eq!(
-        parse_wanted_dependency("@scope/foo"),
-        parsed(Some("@scope/foo"), None),
-    );
+    assert_eq!(parse_wanted_dependency("@scope/foo"), parsed(Some("@scope/foo"), None));
 }
 
 #[test]
 fn plain_name_with_version_splits_on_at() {
-    assert_eq!(
-        parse_wanted_dependency("foo@1.2.3"),
-        parsed(Some("foo"), Some("1.2.3")),
-    );
+    assert_eq!(parse_wanted_dependency("foo@1.2.3"), parsed(Some("foo"), Some("1.2.3")));
 }
 
 #[test]
@@ -38,10 +32,7 @@ fn scoped_name_with_version_splits_after_scope() {
 
 #[test]
 fn plain_name_with_tag_splits_on_at() {
-    assert_eq!(
-        parse_wanted_dependency("foo@latest"),
-        parsed(Some("foo"), Some("latest")),
-    );
+    assert_eq!(parse_wanted_dependency("foo@latest"), parsed(Some("foo"), Some("latest")));
 }
 
 #[test]
@@ -83,10 +74,7 @@ fn tarball_url_with_no_at_keeps_whole_input_as_bare_specifier() {
 fn bare_version_range_keeps_whole_input_as_bare_specifier() {
     // `^1.2.3` is not a valid package name (caret isn't URL-safe), so
     // the no-`@` branch routes it to `bare_specifier`.
-    assert_eq!(
-        parse_wanted_dependency("^1.2.3"),
-        parsed(None, Some("^1.2.3")),
-    );
+    assert_eq!(parse_wanted_dependency("^1.2.3"), parsed(None, Some("^1.2.3")));
 }
 
 #[test]
@@ -95,10 +83,7 @@ fn numeric_only_input_is_treated_as_an_alias() {
     // characters, no leading dot/dash/underscore), so it parses as an
     // alias with no specifier. Mirrors upstream's behavior — a quirk
     // worth pinning so future refactors don't drift.
-    assert_eq!(
-        parse_wanted_dependency("1.2.3"),
-        parsed(Some("1.2.3"), None),
-    );
+    assert_eq!(parse_wanted_dependency("1.2.3"), parsed(Some("1.2.3"), None));
 }
 
 #[test]
@@ -116,8 +101,5 @@ fn empty_specifier_after_at_yields_empty_bare_specifier() {
     // bare specifier is the empty string. Upstream returns the same
     // shape; pacquet pins it so the dispatcher downstream can treat
     // an empty bare specifier as "default tag" the same way pnpm does.
-    assert_eq!(
-        parse_wanted_dependency("foo@"),
-        parsed(Some("foo"), Some("")),
-    );
+    assert_eq!(parse_wanted_dependency("foo@"), parsed(Some("foo"), Some("")));
 }

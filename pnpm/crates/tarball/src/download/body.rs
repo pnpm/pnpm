@@ -16,10 +16,7 @@ use super::{
 /// extracted while it downloads without the whole of it being held to
 /// hash at the end.
 pub(super) enum BodyHasher {
-    Pinned {
-        expected: Integrity,
-        checker: IntegrityChecker,
-    },
+    Pinned { expected: Integrity, checker: IntegrityChecker },
     Computed(IntegrityOpts),
 }
 
@@ -102,17 +99,13 @@ where
         stream_extract_gzipped_channel(chunk_rx, store_dir, extractor_ignore.as_deref())
     });
 
-    let mut feed = ExtractorFeed {
-        chunk_tx,
-        open: true,
-    };
+    let mut feed = ExtractorFeed { chunk_tx, open: true };
     for chunk in seed {
         hasher.input(&chunk);
         feed.send(chunk).await;
     }
     let body_error =
-        pump_body::<Reporter, _>(&mut stream, &mut hasher, progress, &mut feed, package_url)
-            .await;
+        pump_body::<Reporter, _>(&mut stream, &mut hasher, progress, &mut feed, package_url).await;
     if body_error.is_none() {
         progress.warn_if_slow(http_client, package_url);
     }
@@ -191,10 +184,7 @@ where
             }
             Some(Err(error)) => {
                 feed.fail().await;
-                return Some(TarballError::FetchTarball(NetworkError::new(
-                    package_url,
-                    error,
-                )));
+                return Some(TarballError::FetchTarball(NetworkError::new(package_url, error)));
             }
             None => return None,
         }
@@ -273,8 +263,7 @@ where
     Reporter: self::Reporter,
     Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
 {
-    let stream = inputs.stream;
-    let progress = inputs.progress;
+    let BufferBody { stream, progress, .. } = inputs;
 
     // Pre-size from the advertised length, but only as far as this
     // path will ever fill: past the threshold below the body is

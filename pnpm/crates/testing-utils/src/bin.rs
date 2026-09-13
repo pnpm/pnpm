@@ -40,13 +40,7 @@ impl CommandTempCwd<()> {
             .with_current_dir(&workspace)
             .without_ambient_pnpm_config();
         let pnpm = Command::new("pnpm").with_current_dir(&workspace).without_ambient_pnpm_config();
-        CommandTempCwd {
-            pacquet,
-            pnpm,
-            root,
-            workspace,
-            npmrc_info: (),
-        }
+        CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info: () }
     }
 }
 
@@ -166,12 +160,7 @@ impl CommandTempCwd<()> {
         };
         fs::write(&workspace_yaml, workspace_yaml_text).expect("write to pnpm-workspace.yaml");
 
-        let npmrc_info = AddMockedRegistry {
-            npmrc_path,
-            store_dir,
-            cache_dir,
-            mock_instance,
-        };
+        let npmrc_info = AddMockedRegistry { npmrc_path, store_dir, cache_dir, mock_instance };
         let CommandTempCwd {
             pacquet,
             pnpm,
@@ -179,12 +168,6 @@ impl CommandTempCwd<()> {
             workspace,
             npmrc_info: (),
         } = self;
-        CommandTempCwd {
-            pacquet,
-            pnpm,
-            root,
-            workspace,
-            npmrc_info,
-        }
+        CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info }
     }
 }

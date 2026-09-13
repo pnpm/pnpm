@@ -215,9 +215,9 @@ impl Resolver {
         // request boundary uses, so an allowlisted registry that redirects to
         // an off-allowlist host cannot slip a server-side fetch past it (SSRF).
         let redirect_context = Arc::clone(&route_context);
-        let client = Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(
-            move |url| redirect_context.allows_registry(url.as_str()),
-        ));
+        let client = Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+            redirect_context.allows_registry(url.as_str())
+        }));
         Resolver {
             store_dir: StoreDir::new(store_dir),
             client,
@@ -332,9 +332,7 @@ pub(crate) async fn handle_resolve(
     }
     match probe.ecosystem {
         Ecosystem::Npm => handle_npm_resolve(runtime, identity, &body).await,
-        Ecosystem::Cargo => {
-            cargo::handle_resolve(runtime, identity, &body).await
-        }
+        Ecosystem::Cargo => cargo::handle_resolve(runtime, identity, &body).await,
         // Listed rather than caught, so an ecosystem added to the shared
         // enum stops here for a decision instead of being refused silently.
         Ecosystem::Pypi => pypi::handle_resolve(runtime, identity, &body).await,
@@ -384,17 +382,25 @@ async fn resolve_npm_request(
     // opt-out (mirrors the local path's `--trust-lockfile`). Freshly-
     // resolved entries are held to the same policy by the resolver's
     // pick-time gate (the policy is wired into `config`).
-    match verify_lockfile::verified_frozen_response(
-        runtime,
-        config,
-        &request,
-        &request_auth,
-        &tarball_router,
-    )
-    .await
+    let verified_dist_stats =
+        match verify_request_lockfile(runtime, config, &request, &request_auth, &tarball_router)
+            .await
+        {
+            Ok(stats) => stats,
+            Err(response) => return response,
+        };
+
+    // Short-circuit paths that produce the whole lockfile without an
+    // incremental tree walk. A verified frozen lockfile still announces
+    // its tarballs as `package` frames when the verification fan-out
+    // just fetched their metadata — the sizes let the client start the
+    // largest downloads first. On a verdict-cache hit no metadata was
+    // fetched, so there's nothing to add and the response is the bare
+    // `done` frame.
+    if let Some(response) =
+        frozen_lockfile_response(runtime, config, &request, &tarball_router, verified_dist_stats)
     {
-        Ok(Some(response)) | Err(response) => return response,
-        Ok(None) => {}
+        return response;
     }
     // The base key is auth-excluded and shared by every candidate for the
     // same resolution inputs. Candidate footprints decide which callers
@@ -442,9 +448,7 @@ async fn verify_request_lockfile(
         return Ok(None);
     };
     let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
-    match verify_input_lockfile(runtime, config, request_auth, &input_lockfile)
-        .await
-    {
+    match verify_input_lockfile(runtime, config, request_auth, &input_lockfile).await {
         Ok(stats) => Ok(stats),
         Err(VerifyFailure::Internal(response)) => Err(response),
         Err(VerifyFailure::Violations(violations)) => {

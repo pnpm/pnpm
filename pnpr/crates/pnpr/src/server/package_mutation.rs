@@ -66,12 +66,11 @@ async fn rewrite_packument(
     packument: &mut serde_json::Value,
 ) -> Response {
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    let hosted_packument =
-        match storage.read_hosted_document_for_update(name).await {
-            Ok(Some(packument)) => packument,
-            Ok(None) => return no_published_packument(name).into_response(),
-            Err(err) => return err.into_response(),
-        };
+    let hosted_packument = match storage.read_hosted_document_for_update(name).await {
+        Ok(Some(packument)) => packument,
+        Ok(None) => return no_published_packument(name).into_response(),
+        Err(err) => return err.into_response(),
+    };
     let hosted: Value = match serde_json::from_slice(&hosted_packument.bytes) {
         Ok(value) => value,
         Err(err) => return RegistryError::Json(err).into_response(),
@@ -88,10 +87,10 @@ async fn rewrite_packument(
             .await;
     match written {
         Ok(DocumentWrite::Written) => ok_created(),
-        Ok(DocumentWrite::Conflict) => RegistryError::DocumentWriteConflict {
-            package: name.as_str().to_string(),
+        Ok(DocumentWrite::Conflict) => {
+            RegistryError::DocumentWriteConflict { package: name.as_str().to_string() }
+                .into_response()
         }
-        .into_response(),
         Err(err) => err.into_response(),
     }
 }
@@ -159,9 +158,7 @@ pub(super) async fn delete_package(
     // Serialize against same-package publishers so a delete can't race a
     // stage-and-commit and remove the package mid-write.
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    if let Err(err) = hosted_storage(state, Some(&org)).remove_package(&name)
-        .await
-    {
+    if let Err(err) = hosted_storage(state, Some(&org)).remove_package(&name).await {
         return err.into_response();
     }
     let body = json!({ "ok": true });
@@ -210,9 +207,7 @@ pub(super) async fn delete_tarball(
     // Serialize against same-package publishers so a delete can't race a
     // stage-and-commit and remove a tarball mid-write.
     let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
-    if let Err(err) = hosted_storage(state, Some(&org)).remove_blob(&name, &canonical)
-        .await
-    {
+    if let Err(err) = hosted_storage(state, Some(&org)).remove_blob(&name, &canonical).await {
         return err.into_response();
     }
     let body = json!({ "ok": true });
@@ -237,12 +232,11 @@ pub(super) async fn get_dist_tags(
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
-    let bytes =
-        match load_packument_for_read(state, identity, registry, &name).await {
-            Ok(Some(bytes)) => bytes,
-            Ok(None) => return not_found(),
-            Err(err) => return err.into_response(),
-        };
+    let bytes = match load_packument_for_read(state, identity, registry, &name).await {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return not_found(),
+        Err(err) => return err.into_response(),
+    };
     let packument: Value = match serde_json::from_slice(&bytes) {
         Ok(v) => v,
         Err(err) => return RegistryError::Json(err).into_response(),

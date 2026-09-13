@@ -81,12 +81,9 @@ fn deploy_from_shared_lockfile_installs_selected_project() {
             .any(|key| key.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@")),
         "transitive production dependency should remain in the deploy lock graph: {graph_keys:#?}",
     );
-    for excluded in [
-        "dev-only@file:",
-        "@pnpm.e2e/bar@100.0.0",
-        "unused@file:",
-        "@pnpm.e2e/qar@100.0.0",
-    ] {
+    for excluded in
+        ["dev-only@file:", "@pnpm.e2e/bar@100.0.0", "unused@file:", "@pnpm.e2e/qar@100.0.0"]
+    {
         assert!(
             !graph_keys
                 .iter()
@@ -102,12 +99,9 @@ fn deploy_from_shared_lockfile_installs_selected_project() {
             .any(|entry| entry.contains("@pnpm.e2e+dep-of-pkg-with-1-dep@")),
         "transitive production dependency should be materialized: {virtual_store_entries:#?}",
     );
-    for excluded in [
-        "dev-only@file+",
-        "@pnpm.e2e+bar@100.0.0",
-        "unused@file+",
-        "@pnpm.e2e+qar@100.0.0",
-    ] {
+    for excluded in
+        ["dev-only@file+", "@pnpm.e2e+bar@100.0.0", "unused@file+", "@pnpm.e2e+qar@100.0.0"]
+    {
         assert!(
             !virtual_store_entries
                 .iter()
@@ -203,10 +197,7 @@ fn deploy_falls_back_when_the_pinned_lockfile_dir_does_not_contain_the_workspace
         .expect("spawn pacquet deploy");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        output.status.success(),
-        "deploy must fall back, not fail:\n{stdout}\n{stderr}",
-    );
+    assert!(output.status.success(), "deploy must fall back, not fail:\n{stdout}\n{stderr}");
     assert!(
         stdout.contains("does not contain the workspace, so its importer paths cannot be deployed"),
         "the fallback must say why the shared lockfile was unusable:\n{stdout}",
@@ -252,10 +243,7 @@ fn deploy_from_shared_lockfile_supports_catalog_dependencies() {
     let deploy_dir = workspace.join("deploy");
     assert!(deploy_dir.join("node_modules/@pnpm.e2e/foo").exists());
     let lockfile = fs::read_to_string(deploy_dir.join("pnpm-lock.yaml")).unwrap();
-    assert!(
-        !lockfile.contains("catalogs:"),
-        "unexpected catalog snapshot:\n{lockfile}",
-    );
+    assert!(!lockfile.contains("catalogs:"), "unexpected catalog snapshot:\n{lockfile}");
 
     drop((root, mock_instance));
 }
@@ -543,10 +531,7 @@ fn assert_ignored_broken_source_lockfile(output: &Output, lockfile_dir: &Path) {
 
 fn assert_workspace_lockfile_untouched(workspace: &Path, before: &str) {
     let after = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
-    assert_eq!(
-        after, before,
-        "deploy must not rewrite the workspace lockfile",
-    );
+    assert_eq!(after, before, "deploy must not rewrite the workspace lockfile");
 }
 
 fn pacquet_cmd(workspace: &Path) -> Command {
@@ -739,11 +724,7 @@ fn write_workspace(workspace: &Path, inject_workspace_packages: bool) {
     writeln!(
         workspace_yaml,
         "injectWorkspacePackages: {}",
-        if inject_workspace_packages {
-            "true"
-        } else {
-            "false"
-        },
+        if inject_workspace_packages { "true" } else { "false" },
     )
     .unwrap();
     fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();

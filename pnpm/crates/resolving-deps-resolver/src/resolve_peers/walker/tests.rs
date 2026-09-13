@@ -46,10 +46,7 @@ fn descendants_of_every_root_are_indexed() {
     assert_eq!(index.len(), 3);
     assert_eq!(names_of(&index, "a@1.0.0"), HashSet::from_iter(["a-peer"]));
     assert_eq!(names_of(&index, "b@1.0.0"), HashSet::from_iter(["b-peer"]));
-    assert_eq!(
-        names_of(&index, "deep@1.0.0"),
-        HashSet::from_iter(["deep-peer"]),
-    );
+    assert_eq!(names_of(&index, "deep@1.0.0"), HashSet::from_iter(["deep-peer"]));
 }
 
 #[test]
@@ -62,8 +59,5 @@ fn occurrences_of_one_package_report_the_union_of_their_missing_peers() {
 
     let index = index_missing_names(&roots);
 
-    assert_eq!(
-        names_of(&index, "pkg@1.0.0"),
-        HashSet::from_iter(["first", "second", "third"]),
-    );
+    assert_eq!(names_of(&index, "pkg@1.0.0"), HashSet::from_iter(["first", "second", "third"]));
 }

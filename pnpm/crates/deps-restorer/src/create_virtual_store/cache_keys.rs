@@ -66,7 +66,13 @@ pub(super) fn snapshot_cache_key(
     ignore_scripts: bool,
     runtime_platform_selector: &PlatformSelector,
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
-    let (metadata_key, metadata) = snapshot_metadata(snapshot_key, packages)?;
+    let metadata_key = snapshot_key.without_peer();
+    let metadata = packages
+        .get(&metadata_key)
+        .ok_or_else(|| CreateVirtualStoreError::MissingPackageMetadata {
+            snapshot_key: snapshot_key.to_string(),
+            metadata_key: metadata_key.to_string(),
+        })?;
     let pkg_id = metadata_key.pkg_id();
     match &metadata.resolution {
         LockfileResolution::Tarball(t) => {
@@ -86,10 +92,7 @@ pub(super) fn snapshot_cache_key(
             // changed since the last install). Returning `Ok(None)`
             // routes the snapshot
             // through the cold path which runs the fetcher.
-            Ok(SnapshotCacheKey {
-                value: None,
-                is_git_hosted: false,
-            })
+            Ok(SnapshotCacheKey { value: None, is_git_hosted: false })
         }
         LockfileResolution::Git(_) => {
             // `Git` resolutions land in CAS via
@@ -138,10 +141,7 @@ pub(super) fn snapshot_cache_key(
         // cold path consults the pnpmfile custom fetchers, and the
         // delegated resolution (unknowable here) determines the row
         // that gets written.
-        LockfileResolution::Custom(_) => Ok(SnapshotCacheKey {
-            value: None,
-            is_git_hosted: false,
-        }),
+        LockfileResolution::Custom(_) => Ok(SnapshotCacheKey { value: None, is_git_hosted: false }),
     }
 }
 pub(super) struct SnapshotCacheKey {
@@ -167,10 +167,7 @@ pub(super) fn snapshot_deps_equal(current: &SnapshotEntry, wanted: &SnapshotEntr
         }
     }
     maps_equal(current.dependencies.as_ref(), wanted.dependencies.as_ref())
-        && maps_equal(
-            current.optional_dependencies.as_ref(),
-            wanted.optional_dependencies.as_ref(),
-        )
+        && maps_equal(current.optional_dependencies.as_ref(), wanted.optional_dependencies.as_ref())
 }
 /// Compare the `integrity` field on two `packages:` entries.
 pub(super) fn integrity_equal(
@@ -227,10 +224,7 @@ pub(super) fn variant_cache_key(
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
     let Some(variant) = select_platform_variant(&variations.variants, runtime_platform_selector)
     else {
-        return Ok(SnapshotCacheKey {
-            value: None,
-            is_git_hosted: false,
-        });
+        return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
     };
     match &variant.resolution {
         LockfileResolution::Binary(binary) => Ok(SnapshotCacheKey {
@@ -242,10 +236,7 @@ pub(super) fn variant_cache_key(
         // cold path raises the typed
         // `VariantHasNonBinaryResolution` error; we just
         // skip the warm key.
-        _ => Ok(SnapshotCacheKey {
-            value: None,
-            is_git_hosted: false,
-        }),
+        _ => Ok(SnapshotCacheKey { value: None, is_git_hosted: false }),
     }
 }
 /// Rejects warm reuse when the downloader would refuse missing integrity.
@@ -257,27 +248,10 @@ pub(super) fn tarball_cache_key(
     ignore_scripts: bool,
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
     if tarball.integrity.is_none() && !unverified_fetch_is_allowed(&tarball.tarball) {
-        return Ok(SnapshotCacheKey {
-            value: None,
-            is_git_hosted: false,
-        });
+        return Ok(SnapshotCacheKey { value: None, is_git_hosted: false });
     }
     Ok(SnapshotCacheKey {
         value: store_index_key_for_resolution(resolution, pkg_id, !ignore_scripts),
         is_git_hosted: tarball.is_git_hosted(),
     })
-}
-
-pub(super) fn snapshot_metadata<'a>(
-    snapshot_key: &PackageKey,
-    packages: &'a HashMap<PackageKey, PackageMetadata>,
-) -> Result<(PackageKey, &'a PackageMetadata), CreateVirtualStoreError> {
-    let metadata_key = snapshot_key.without_peer();
-    let metadata = packages
-        .get(&metadata_key)
-        .ok_or_else(|| CreateVirtualStoreError::MissingPackageMetadata {
-            snapshot_key: snapshot_key.to_string(),
-            metadata_key: metadata_key.to_string(),
-        })?;
-    Ok((metadata_key, metadata))
 }

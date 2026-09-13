@@ -36,11 +36,7 @@ pub(super) fn is_linked_from_a_survivor(
 /// Whether `target`, a `link:` path relative to `from`'s directory,
 /// names the importer `importer_id`.
 pub(super) fn link_resolves_to(from: &str, target: &str, importer_id: &str) -> bool {
-    let mut segments: Vec<&str> = if from == "." {
-        Vec::new()
-    } else {
-        from.split('/').collect()
-    };
+    let mut segments: Vec<&str> = if from == "." { Vec::new() } else { from.split('/').collect() };
     for part in target.split('/') {
         match part {
             "." | "" => {}

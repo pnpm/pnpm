@@ -67,8 +67,10 @@ pub fn stream_verified_to_cache(
 ) -> Result<Body, BlobStreamError> {
     // Reject an upstream that already declares an oversize body up front, so it
     // surfaces as an error response instead of a failure mid-stream.
-    if let Some(received) = response.content_length() {
-        check_blob_size(received, max_bytes)?;
+    if let Some(received) = response.content_length()
+        && received > max_bytes
+    {
+        return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
     }
     let checker = integrity_checker(integrity).map_err(BlobStreamError::Integrity)?;
     let state = TeeState {
@@ -79,10 +81,7 @@ pub fn stream_verified_to_cache(
         written: 0,
         max_bytes,
     };
-    let body = stream::unfold(
-        Some(state),
-        |state| async move { next_tee_chunk(state?).await },
-    );
+    let body = stream::unfold(Some(state), |state| async move { next_tee_chunk(state?).await });
     Ok(Body::from_stream(body))
 }
 
@@ -115,10 +114,7 @@ async fn forward_chunk(
             "proxied blob exceeded the size limit mid-stream",
         );
         abandon(state.write.take()).await;
-        return Some((
-            Err(io::Error::other(format!("blob exceeds {limit} bytes"))),
-            None,
-        ));
+        return Some((Err(io::Error::other(format!("blob exceeds {limit} bytes"))), None));
     }
     state.write = cache_chunk(state.write.take(), &chunk).await;
     state.checker.input(&chunk);
@@ -202,9 +198,7 @@ pub async fn download_verified_to_temp(
     integrity: &Integrity,
     max_bytes: u64,
 ) -> Result<(File, u64, PathBuf), BlobStreamError> {
-    if let Err(err) = download_verified(response, &mut write, integrity, max_bytes)
-        .await
-    {
+    if let Err(err) = download_verified(response, &mut write, integrity, max_bytes).await {
         write.abandon().await;
         return Err(err);
     }
@@ -218,8 +212,10 @@ async fn download_verified(
     max_bytes: u64,
 ) -> Result<u64, BlobStreamError> {
     let url = response.url().to_string();
-    if let Some(received) = response.content_length() {
-        check_blob_size(received, max_bytes)?;
+    if let Some(received) = response.content_length()
+        && received > max_bytes
+    {
+        return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
     }
     let mut upstream = Box::pin(response.bytes_stream());
     let mut checker = integrity_checker(integrity).map_err(BlobStreamError::Integrity)?;
@@ -227,15 +223,12 @@ async fn download_verified(
     while let Some(chunk_result) = upstream.next().await {
         let chunk = match chunk_result {
             Ok(chunk) => chunk,
-            Err(source) => {
-                return Err(BlobStreamError::Upstream {
-                    url,
-                    source,
-                });
-            }
+            Err(source) => return Err(BlobStreamError::Upstream { url, source }),
         };
         let received = written.saturating_add(chunk.len() as u64);
-        check_blob_size(received, max_bytes)?;
+        if received > max_bytes {
+            return Err(BlobStreamError::TooLarge { limit: max_bytes, received });
+        }
         if let Err(err) = write.write_all(&chunk).await {
             return Err(BlobStreamError::Io(err));
         }
@@ -247,16 +240,6 @@ async fn download_verified(
         return Err(BlobStreamError::Integrity(err));
     }
     Ok(written)
-}
-
-fn check_blob_size(received: u64, max_bytes: u64) -> Result<(), BlobStreamError> {
-    if received > max_bytes {
-        return Err(BlobStreamError::TooLarge {
-            limit: max_bytes,
-            received,
-        });
-    }
-    Ok(())
 }
 
 /// Stream a cached file as a response body. Caller is responsible for
@@ -282,22 +265,19 @@ pub fn stream_file(file: impl tokio::io::AsyncRead + Unpin + Send + 'static) -> 
 }
 
 pub fn stream_file_and_remove(file: File, path: PathBuf) -> Body {
-    let stream = stream::unfold(
-        Some(RemoveOnDropFile::new(file, path)),
-        |state| async move {
-            let mut state = state?;
-            let mut buf = vec![0u8; READ_CHUNK];
-            let file = state.file.as_mut().expect("file is present until stream finishes");
-            match file.read(&mut buf).await {
-                Ok(0) => None,
-                Ok(n) => {
-                    buf.truncate(n);
-                    Some((Ok::<_, io::Error>(Bytes::from(buf)), Some(state)))
-                }
-                Err(err) => Some((Err(err), None)),
+    let stream = stream::unfold(Some(RemoveOnDropFile::new(file, path)), |state| async move {
+        let mut state = state?;
+        let mut buf = vec![0u8; READ_CHUNK];
+        let file = state.file.as_mut().expect("file is present until stream finishes");
+        match file.read(&mut buf).await {
+            Ok(0) => None,
+            Ok(n) => {
+                buf.truncate(n);
+                Some((Ok::<_, io::Error>(Bytes::from(buf)), Some(state)))
             }
-        },
-    );
+            Err(err) => Some((Err(err), None)),
+        }
+    });
     Body::from_stream(stream)
 }
 
@@ -308,19 +288,14 @@ struct RemoveOnDropFile {
 
 impl RemoveOnDropFile {
     fn new(file: File, path: PathBuf) -> Self {
-        Self {
-            file: Some(file),
-            path: Some(path),
-        }
+        Self { file: Some(file), path: Some(path) }
     }
 }
 
 impl Drop for RemoveOnDropFile {
     fn drop(&mut self) {
         drop(self.file.take());
-        let Some(path) = self.path.take() else {
-            return;
-        };
+        let Some(path) = self.path.take() else { return };
         match std::fs::remove_file(&path) {
             Ok(()) => {}
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}

@@ -26,13 +26,17 @@ pub(super) async fn get_status(
         .wrap_err("requesting the registry access status endpoint")?;
 
     if response.status() == StatusCode::NOT_FOUND {
-        return Err(AccessError::PackageNotFound {
-            package_name: package_name.clone(),
-        }
-        .into());
+        return Err(AccessError::PackageNotFound { package_name: package_name.clone() }.into());
     }
     if !response.status().is_success() {
         return Err(fetch_error_from_response(response, "get status of").await);
+    }
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct AccessStatus {
+        access: Option<String>,
+        #[serde(rename = "publish_requires_tfa")]
+        publish_requires_tfa: Option<serde_json::Value>,
     }
 
     let status: AccessStatus = response
@@ -56,7 +60,17 @@ pub(super) async fn set_status(
     context: &AccessContext<'_>,
     params: &[String],
 ) -> miette::Result<String> {
-    let access_value = status_parameter(params)?;
+    let status_val = params
+        .first()
+        .ok_or(AccessError::SetStatusRequired)?
+        .strip_prefix("status=")
+        .ok_or(AccessError::SetStatusRequired)?;
+
+    let access_value = match status_val {
+        "public" => "public",
+        "private" | "restricted" => "restricted",
+        other => return Err(AccessError::SetStatusInvalid { value: other.to_string() }.into()),
+    };
 
     let package_name = params.get(1).ok_or(AccessError::SetStatusPackageRequired)?;
 
@@ -90,11 +104,7 @@ pub(super) async fn set_status(
         .await);
     }
 
-    let display_access = if access_value == "restricted" {
-        "restricted"
-    } else {
-        "public"
-    };
+    let display_access = if access_value == "restricted" { "restricted" } else { "public" };
     Ok(format!("{package_name}: {display_access}"))
 }
 
@@ -111,12 +121,7 @@ pub(super) async fn set_mfa(
     let publish_requires_tfa = match mfa_val {
         "none" => false,
         "publish" | "automation" => true,
-        other => {
-            return Err(AccessError::SetMfaInvalid {
-                value: other.to_string(),
-            }
-            .into());
-        }
+        other => return Err(AccessError::SetMfaInvalid { value: other.to_string() }.into()),
     };
 
     let package_name = params.get(1).ok_or(AccessError::SetMfaPackageRequired)?;
@@ -140,8 +145,7 @@ pub(super) async fn set_mfa(
 
     if !response.status().is_success() {
         return Err(
-            write_error_from_response(response, "set MFA for".to_string(), package_name)
-                .await,
+            write_error_from_response(response, "set MFA for".to_string(), package_name).await
         );
     }
 
@@ -197,7 +201,22 @@ pub(super) async fn revoke_access(
     context: &AccessContext<'_>,
     params: &[String],
 ) -> miette::Result<String> {
-    let (scope_team, package_name, scope, team) = revoke_parameters(params)?;
+    if params.is_empty() {
+        return Err(AccessError::RevokeArgsRequired.into());
+    }
+
+    let scope_team = &params[0];
+    if !scope_team.contains(':') {
+        return Err(AccessError::RevokeInvalidTeam { team: scope_team.clone() }.into());
+    }
+
+    let package_name = params.get(1).ok_or(AccessError::RevokePackageRequired)?;
+
+    let parts: Vec<&str> = scope_team.splitn(2, ':').collect();
+    let scope = parts[0]
+        .strip_prefix('@')
+        .unwrap_or(parts[0]);
+    let team = parts[1];
 
     let auth_header =
         context.config.auth_headers.for_url_with_package(&context.registry, Some(package_name));
@@ -237,71 +256,15 @@ fn grant_parameters(params: &[String]) -> miette::Result<(&str, &str, &str)> {
 
     let permissions = &params[0];
     if permissions != "read-only" && permissions != "read-write" {
-        return Err(AccessError::GrantInvalidPermissions {
-            value: permissions.clone(),
-        }
-        .into());
+        return Err(AccessError::GrantInvalidPermissions { value: permissions.clone() }.into());
     }
 
     let scope_team = &params[1];
     if !scope_team.contains(':') {
-        return Err(AccessError::GrantInvalidTeam {
-            team: scope_team.clone(),
-        }
-        .into());
+        return Err(AccessError::GrantInvalidTeam { team: scope_team.clone() }.into());
     }
 
     let package_name = params.get(2).ok_or(AccessError::GrantPackageRequired)?;
 
     Ok((permissions, scope_team, package_name))
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct AccessStatus {
-    access: Option<String>,
-    #[serde(rename = "publish_requires_tfa")]
-    publish_requires_tfa: Option<serde_json::Value>,
-}
-
-fn status_parameter(params: &[String]) -> miette::Result<&str> {
-    let status_val = params
-        .first()
-        .ok_or(AccessError::SetStatusRequired)?
-        .strip_prefix("status=")
-        .ok_or(AccessError::SetStatusRequired)?;
-
-    let access_value = match status_val {
-        "public" => "public",
-        "private" | "restricted" => "restricted",
-        other => {
-            return Err(AccessError::SetStatusInvalid {
-                value: other.to_string(),
-            }
-            .into());
-        }
-    };
-    Ok(access_value)
-}
-
-fn revoke_parameters(params: &[String]) -> miette::Result<(&str, &str, &str, &str)> {
-    if params.is_empty() {
-        return Err(AccessError::RevokeArgsRequired.into());
-    }
-
-    let scope_team = &params[0];
-    if !scope_team.contains(':') {
-        return Err(AccessError::RevokeInvalidTeam {
-            team: scope_team.clone(),
-        }
-        .into());
-    }
-
-    let package_name = params.get(1).ok_or(AccessError::RevokePackageRequired)?;
-
-    let parts: Vec<&str> = scope_team.splitn(2, ':').collect();
-    let scope = parts[0]
-        .strip_prefix('@')
-        .unwrap_or(parts[0]);
-    let team = parts[1];
-    Ok((scope_team, package_name, scope, team))
 }

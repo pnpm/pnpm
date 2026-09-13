@@ -169,10 +169,7 @@ pub struct PeerIssuesOptions {
 }
 
 #[napi(object)]
-#[expect(
-    clippy::struct_field_names,
-    reason = "fields mirror the JavaScript proxyConfig contract"
-)]
+#[expect(clippy::struct_field_names, reason = "fields mirror the JavaScript proxyConfig contract")]
 pub struct ProxyConfigInput {
     pub http_proxy: Option<String>,
     pub https_proxy: Option<String>,

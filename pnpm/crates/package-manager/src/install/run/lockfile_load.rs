@@ -102,10 +102,7 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
         install.context.config,
         workspace.dirs.workspace_dir.as_deref(),
         selection,
-        (
-            install.execution.mutation,
-            workspace_projects(loaded_workspace_projects, selection),
-        ),
+        (install.execution.mutation, workspace_projects(loaded_workspace_projects, selection)),
     )?;
     let current_lockfile_task = spawn_current_lockfile_load(install.context.config);
     // Past the repeat-install fast path every install flavor needs
@@ -137,11 +134,7 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
                     owned.projects.supported_architectures.clone(),
                 )
             });
-    Ok(StartedLockfiles {
-        wanted,
-        current_lockfile_task,
-        early_host_detection,
-    })
+    Ok(StartedLockfiles { wanted, current_lockfile_task, early_host_detection })
 }
 // Both lockfiles can be megabyte-scale YAML documents; read the current one off the reactor
 // while the wanted one parses, since neither depends on the other.

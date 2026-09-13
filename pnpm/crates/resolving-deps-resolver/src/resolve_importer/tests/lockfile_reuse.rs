@@ -8,11 +8,7 @@ async fn reuses_preferred_version_instead_of_resolving_fresh() {
     let mut table = HashMap::default();
     table.insert(
         ("react".to_string(), "18.2.0".to_string()),
-        fake_result(
-            "react",
-            "18.2.0",
-            serde_json::json!({ "name": "react", "version": "18.2.0" }),
-        ),
+        fake_result("react", "18.2.0", serde_json::json!({ "name": "react", "version": "18.2.0" })),
     );
     table.insert(
         ("react-dom".to_string(), "18.0.0".to_string()),
@@ -32,37 +28,22 @@ async fn reuses_preferred_version_instead_of_resolving_fresh() {
     // below also checks the call list.
     table.insert(
         ("react".to_string(), "18.2.0".to_string()),
-        fake_result(
-            "react",
-            "18.2.0",
-            serde_json::json!({ "name": "react", "version": "18.2.0" }),
-        ),
+        fake_result("react", "18.2.0", serde_json::json!({ "name": "react", "version": "18.2.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) =
         fake_manifest(serde_json::json!({ "react": "18.2.0", "react-dom": "18.0.0" }));
 
-    let result = resolve_importer(
-        &resolver,
-        &manifest,
-        [DependencyGroup::Prod],
-        default_opts(),
-    )
-    .await
-    .unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
 
     let calls = resolver.calls.lock().unwrap();
     let react_call_count = calls
         .iter()
         .filter(|(name, _)| name == "react")
         .count();
-    assert_eq!(
-        react_call_count, 1,
-        "should not re-resolve react via a hoisted spec",
-    );
+    assert_eq!(react_call_count, 1, "should not re-resolve react via a hoisted spec");
 
     let direct: Vec<&str> = result.peers_result.direct_dependencies_by_alias
         .keys()

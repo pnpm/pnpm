@@ -112,8 +112,7 @@ impl RunOutcome<'_> {
         let failed = execution.status.status == Status::Failure;
         let cancelled = execution.cancelled;
         let recursion_guarded = execution.recursion_guarded;
-        self.result.lock().expect("summary lock is not poisoned")[summary_key] = execution
-            .status;
+        self.result.lock().expect("summary lock is not poisoned")[summary_key] = execution.status;
         if cancelled {
             return TaskCompletion::Cancelled;
         }
@@ -130,10 +129,7 @@ impl RunOutcome<'_> {
         if recursion_guarded {
             return TaskCompletion::Passed;
         }
-        let key = TaskKey {
-            project: node.project.clone(),
-            task_name: node.task_name.clone(),
-        };
+        let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
         match self.task_run_state.record_passed(&key, node, self.workspace_root) {
             Ok(()) => TaskCompletion::Passed,
             Err(error) => self.abort(error),
@@ -332,10 +328,7 @@ fn script_output(inherit_output: bool, root_str: &str, emit: fn(&LogEvent)) -> S
     if inherit_output {
         ScriptOutput::Inherit
     } else {
-        ScriptOutput::Streamed {
-            dep_path: root_str,
-            emit,
-        }
+        ScriptOutput::Streamed { dep_path: root_str, emit }
     }
 }
 
@@ -352,10 +345,8 @@ fn record_script_failure(
 ) {
     status_entry.status = Status::Failure;
     status_entry.duration = Some(duration);
-    status_entry.message = Some(format!(
-        "command failed with exit code {}",
-        status.code().unwrap_or(1),
-    ));
+    status_entry.message =
+        Some(format!("command failed with exit code {}", status.code().unwrap_or(1)));
     status_entry.prefix = Some(root.to_string_lossy().into_owned());
 }
 

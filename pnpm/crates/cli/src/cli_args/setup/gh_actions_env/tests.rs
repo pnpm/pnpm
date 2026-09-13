@@ -84,10 +84,7 @@ fn nothing_is_written_outside_gh_actions() {
 
     write_gh_actions_env_files::<SilentReporter, NoEnv>(dir.path(), &pnpm_home_dir, &bin_dir);
 
-    assert_eq!(
-        std::fs::read_dir(dir.path()).expect("read temp dir").count(),
-        0,
-    );
+    assert_eq!(std::fs::read_dir(dir.path()).expect("read temp dir").count(), 0);
 }
 
 #[test]
@@ -201,9 +198,7 @@ fn a_failing_target_does_not_skip_the_others() {
     let bin_dir = pnpm_home_dir.join("bin");
     // A path longer than NAME_MAX fails regardless of the user id, so the
     // failure branch is reached on a root-run runner too.
-    let github_env = dir
-        .path()
-        .join("a".repeat(300));
+    let github_env = dir.path().join("a".repeat(300));
     let github_path = dir.path().join("github-path");
     std::fs::write(&github_path, "").expect("create github path");
 
@@ -244,10 +239,7 @@ fn non_regular_targets_are_skipped() {
         Some(&github_path),
     );
 
-    assert_eq!(
-        std::fs::read_dir(&github_env).expect("read github env dir").count(),
-        0,
-    );
+    assert_eq!(std::fs::read_dir(&github_env).expect("read github env dir").count(), 0);
     assert_eq!(
         std::fs::read_to_string(github_path).expect("read github path"),
         format!("{}\n", bin_dir.display()),
@@ -269,11 +261,7 @@ fn missing_targets_are_not_created() {
         None,
     );
 
-    assert!(
-        !github_env.exists(),
-        "{} should not have been created",
-        github_env.display(),
-    );
+    assert!(!github_env.exists(), "{} should not have been created", github_env.display());
 }
 
 #[test]
@@ -284,10 +272,7 @@ fn values_with_line_breaks_are_rejected_inside_github_actions() {
     let err = validate_gh_actions_env_file_values::<InGitHubActions>(&pnpm_home_dir, &bin_dir)
         .expect_err("reject newline");
 
-    assert_eq!(
-        err.to_string(),
-        "PNPM_HOME cannot contain newline or NUL characters",
-    );
+    assert_eq!(err.to_string(), "PNPM_HOME cannot contain newline or NUL characters");
     assert_eq!(
         err
             .downcast_ref::<BadGhActionsEnvFileValue>()

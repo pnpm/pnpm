@@ -25,10 +25,7 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
     mut meta: Arc<Package>,
 ) -> Result<UpgradeOutcome, PickPackageError> {
     if !release_age_upgrade_needed(ctx, spec, opts, full_metadata, cache_key, &meta) {
-        return Ok(UpgradeOutcome {
-            meta,
-            upgraded: false,
-        });
+        return Ok(UpgradeOutcome { meta, upgraded: false });
     }
     let limit = release_age_upgrade_limit(ctx.metadata.fetch_locker, cache_key);
     let _permit =
@@ -45,12 +42,40 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
     if ctx.metadata.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta)
         || meta.time.is_some()
     {
-        return Ok(UpgradeOutcome {
-            meta,
-            upgraded: false,
-        });
+        return Ok(UpgradeOutcome { meta, upgraded: false });
     }
-    fetch_release_age_upgrade(ctx, spec, opts, cache_key, meta).await
+    let fetch_opts = FetchFullMetadataOptions {
+        registry: opts.registry,
+        full_metadata: true,
+        etag: meta.etag.as_deref(),
+        modified: meta.modified.as_deref(),
+        http: ctx.metadata.http,
+    };
+    match fetch_full_metadata(&spec.name, &fetch_opts).await? {
+        FetchFullMetadataOutcome::Modified(upgraded) => {
+            Ok(UpgradeOutcome { meta: Arc::new(*upgraded), upgraded: true })
+        }
+        // 304: the full-form representation matched the conditional
+        // headers, so the abbreviated meta is still the freshest
+        // signal we have. Keep it (the downstream picker falls through
+        // to its warn-and-skip path on the missing `time` map) and
+        // mark it so no later pick in this install repeats the round trip.
+        // The 304 also registry-validated the document, so it may enter the
+        // shared metadata cache as verified.
+        FetchFullMetadataOutcome::NotModified => {
+            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
+            // A `Modified` outcome is marked by the caller instead: it persists
+            // the response to the mirror and may hand back a reloaded document,
+            // so only the caller knows the `Arc` that ends up in the cache.
+            // Both outcomes must be marked — a registry whose full form is no
+            // more complete than its abbreviated one would otherwise be
+            // re-asked once per dependency edge.
+            if !opts.request.dry_run {
+                ctx.metadata.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
+            }
+            Ok(UpgradeOutcome { meta, upgraded: false })
+        }
+    }
 }
 
 /// Upgrade abbreviated metadata to full when the maturity check needs
@@ -107,9 +132,7 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
     if ctx.cache_policy.offline || full_metadata {
         return false;
     }
-    let Some(cutoff) = opts.policy.published_by else {
-        return false;
-    };
+    let Some(cutoff) = opts.policy.published_by else { return false };
     if meta.time.is_some()
         || ctx.metadata.fetch_locker.release_age_upgrade_was_checked(cache_key, meta)
     {
@@ -192,49 +215,4 @@ pub(super) fn release_age_upgrade_limit(
             .or_insert_with(|| Arc::new(Semaphore::new(1)))
             .value(),
     )
-}
-
-async fn fetch_release_age_upgrade<Cache: PackageMetaCache>(
-    ctx: &PickPackageContext<'_, Cache>,
-    spec: &RegistryPackageSpec,
-    opts: &PickPackageOptions<'_>,
-    cache_key: &str,
-    meta: Arc<Package>,
-) -> Result<UpgradeOutcome, PickPackageError> {
-    let fetch_opts = FetchFullMetadataOptions {
-        registry: opts.registry,
-        full_metadata: true,
-        etag: meta.etag.as_deref(),
-        modified: meta.modified.as_deref(),
-        http: ctx.metadata.http,
-    };
-    match fetch_full_metadata(&spec.name, &fetch_opts).await? {
-        FetchFullMetadataOutcome::Modified(upgraded) => Ok(UpgradeOutcome {
-            meta: Arc::new(*upgraded),
-            upgraded: true,
-        }),
-        // 304: the full-form representation matched the conditional
-        // headers, so the abbreviated meta is still the freshest
-        // signal we have. Keep it (the downstream picker falls through
-        // to its warn-and-skip path on the missing `time` map) and
-        // mark it so no later pick in this install repeats the round trip.
-        // The 304 also registry-validated the document, so it may enter the
-        // shared metadata cache as verified.
-        FetchFullMetadataOutcome::NotModified => {
-            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
-            // A `Modified` outcome is marked by the caller instead: it persists
-            // the response to the mirror and may hand back a reloaded document,
-            // so only the caller knows the `Arc` that ends up in the cache.
-            // Both outcomes must be marked — a registry whose full form is no
-            // more complete than its abbreviated one would otherwise be
-            // re-asked once per dependency edge.
-            if !opts.request.dry_run {
-                ctx.metadata.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
-            }
-            Ok(UpgradeOutcome {
-                meta,
-                upgraded: false,
-            })
-        }
-    }
 }

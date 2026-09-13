@@ -52,10 +52,7 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
         packages: HashMap::from_iter([
             ("peer@1.0.0".into(), package("peer", "1.0.0", &[], true)),
             ("peer@2.0.0".into(), package("peer", "2.0.0", &[], true)),
-            (
-                "consumer@1.0.0".into(),
-                package("consumer", "1.0.0", &[("peer", "*")], false),
-            ),
+            ("consumer@1.0.0".into(), package("consumer", "1.0.0", &[("peer", "*")], false)),
         ]),
         dependencies_tree: HashMap::from_iter([
             (peer_v1, tree_node("peer@1.0.0", BTreeMap::new(), 0)),
@@ -144,27 +141,13 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
     let mut tree = ResolvedTree {
         direct: Vec::new(),
         packages: HashMap::from_iter([
-            (
-                "plugin@1.0.0".into(),
-                package("plugin", "1.0.0", &[("parser", "*")], false),
-            ),
-            (
-                "plugin@2.0.0".into(),
-                package("plugin", "2.0.0", &[("parser", "*")], false),
-            ),
+            ("plugin@1.0.0".into(), package("plugin", "1.0.0", &[("parser", "*")], false)),
+            ("plugin@2.0.0".into(), package("plugin", "2.0.0", &[("parser", "*")], false)),
             (
                 Arc::from("utils@1.0.0".to_string()),
-                package(
-                    "utils",
-                    "1.0.0",
-                    &[("resolver", "*"), ("parser", "*")],
-                    false,
-                ),
+                package("utils", "1.0.0", &[("resolver", "*"), ("parser", "*")], false),
             ),
-            (
-                "resolver@1.0.0".into(),
-                package("resolver", "1.0.0", &[("plugin", "*")], false),
-            ),
+            ("resolver@1.0.0".into(), package("resolver", "1.0.0", &[("plugin", "*")], false)),
             ("parser@1.0.0".into(), package("parser", "1.0.0", &[], true)),
         ]),
         dependencies_tree: HashMap::from_iter([
@@ -186,14 +169,8 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
             ),
             (utils_root, tree_node("utils@1.0.0", BTreeMap::new(), 1)),
             (utils_app, tree_node("utils@1.0.0", BTreeMap::new(), 1)),
-            (
-                resolver_root,
-                tree_node("resolver@1.0.0", BTreeMap::new(), 0),
-            ),
-            (
-                resolver_app,
-                tree_node("resolver@1.0.0", BTreeMap::new(), 0),
-            ),
+            (resolver_root, tree_node("resolver@1.0.0", BTreeMap::new(), 0)),
+            (resolver_app, tree_node("resolver@1.0.0", BTreeMap::new(), 0)),
             (parser, tree_node("parser@1.0.0", BTreeMap::new(), 0)),
         ]),
         all_peer_dep_names: HashSet::from_iter([
@@ -222,12 +199,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
     let utils = result.graph
         .keys()
         .filter(|dep_path| dep_path.as_str().starts_with("utils@"));
-    assert_eq!(
-        utils.count(),
-        1,
-        "one utils entry: {:?}",
-        result.graph.keys().collect::<Vec<_>>(),
-    );
+    assert_eq!(utils.count(), 1, "one utils entry: {:?}", result.graph.keys().collect::<Vec<_>>());
     let utils_dep_path = result.graph
         .keys()
         .find(|dep_path| dep_path.as_str().starts_with("utils@"))
@@ -255,10 +227,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
         .keys()
         .filter(|dep_path| !reachable.contains(*dep_path))
         .collect();
-    assert!(
-        orphans.is_empty(),
-        "every graph entry is reachable from an importer: {orphans:?}",
-    );
+    assert!(orphans.is_empty(), "every graph entry is reachable from an importer: {orphans:?}");
 }
 
 #[test]
@@ -289,16 +258,10 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
                 "link:packages/peer".into(),
                 linked_package("peer", "link:packages/peer", "packages/peer"),
             ),
-            (
-                "consumer@1.0.0".into(),
-                package("consumer", "1.0.0", &[("peer", "*")], false),
-            ),
+            ("consumer@1.0.0".into(), package("consumer", "1.0.0", &[("peer", "*")], false)),
         ]),
         dependencies_tree: HashMap::from_iter([
-            (
-                peer.clone(),
-                tree_node("link:packages/peer", BTreeMap::new(), -1),
-            ),
+            (peer.clone(), tree_node("link:packages/peer", BTreeMap::new(), -1)),
             (consumer, tree_node("consumer@1.0.0", BTreeMap::new(), 0)),
         ]),
         all_peer_dep_names: HashSet::from_iter(["peer".to_string()]),
@@ -335,10 +298,7 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
         .values()
         .find(|node| node.resolved_package_id == "consumer@1.0.0")
         .expect("consumer graph node");
-    assert_eq!(
-        consumer.edges.children.get("peer"),
-        Some(&DepPath::from("link:packages/peer")),
-    );
+    assert_eq!(consumer.edges.children.get("peer"), Some(&DepPath::from("link:packages/peer")));
 }
 
 /// `excludeLinksFromLockfile` only remaps links that point outside the
@@ -373,10 +333,7 @@ fn workspace_internal_link_peer_keeps_its_node_id_when_exclude_links_on() {
                 "link:packages/peer".into(),
                 linked_package("peer", "link:packages/peer", "../../packages/peer"),
             ),
-            (
-                "consumer@1.0.0".into(),
-                package("consumer", "1.0.0", &[("peer", "*")], false),
-            ),
+            ("consumer@1.0.0".into(), package("consumer", "1.0.0", &[("peer", "*")], false)),
         ]),
         dependencies_tree: HashMap::from_iter([
             (peer, tree_node("link:packages/peer", BTreeMap::new(), -1)),
@@ -406,10 +363,7 @@ fn workspace_internal_link_peer_keeps_its_node_id_when_exclude_links_on() {
     );
 
     let consumer_dep_path = &result.direct_dependencies_by_importer["apps/app"]["consumer"];
-    assert_eq!(
-        consumer_dep_path.as_str(),
-        "consumer@1.0.0(peer@packages+peer)",
-    );
+    assert_eq!(consumer_dep_path.as_str(), "consumer@1.0.0(peer@packages+peer)");
     assert_eq!(
         result.graph[consumer_dep_path].edges.children.get("peer"),
         Some(&DepPath::from("link:packages/peer")),
@@ -446,22 +400,11 @@ fn pruned_hoisted_providers_with_mutual_peers_resolve() {
             },
         ],
         packages: HashMap::from_iter([
-            (
-                "lib-a@1.0.0".into(),
-                package("lib-a", "1.0.0", &[("lib-b", "^1.0.0")], true),
-            ),
-            (
-                "lib-b@1.0.0".into(),
-                package("lib-b", "1.0.0", &[("lib-a", "^1.0.0")], true),
-            ),
+            ("lib-a@1.0.0".into(), package("lib-a", "1.0.0", &[("lib-b", "^1.0.0")], true)),
+            ("lib-b@1.0.0".into(), package("lib-b", "1.0.0", &[("lib-a", "^1.0.0")], true)),
             (
                 Arc::from("consumer@1.0.0".to_string()),
-                package(
-                    "consumer",
-                    "1.0.0",
-                    &[("lib-a", "^1.0.0"), ("lib-b", "^1.0.0")],
-                    false,
-                ),
+                package("consumer", "1.0.0", &[("lib-a", "^1.0.0"), ("lib-b", "^1.0.0")], false),
             ),
         ]),
         dependencies_tree: HashMap::from_iter([
@@ -530,21 +473,12 @@ fn own_direct_dep_and_pruned_provider_with_mutual_peers_resolve() {
             },
         ],
         packages: HashMap::from_iter([
-            (
-                "main@1.0.0".into(),
-                package("main", "1.0.0", &[("plugin", "^1.0.0")], false),
-            ),
-            (
-                "plugin@1.0.0".into(),
-                package("plugin", "1.0.0", &[("main", "^1.0.0")], true),
-            ),
+            ("main@1.0.0".into(), package("main", "1.0.0", &[("plugin", "^1.0.0")], false)),
+            ("plugin@1.0.0".into(), package("plugin", "1.0.0", &[("main", "^1.0.0")], true)),
         ]),
         dependencies_tree: HashMap::from_iter([
             (main, tree_node("main@1.0.0", BTreeMap::new(), 0)),
-            (
-                plugin.clone(),
-                tree_node("plugin@1.0.0", BTreeMap::new(), 1),
-            ),
+            (plugin.clone(), tree_node("plugin@1.0.0", BTreeMap::new(), 1)),
         ]),
         all_peer_dep_names: HashSet::from_iter(["main".to_string(), "plugin".to_string()]),
         policy_violations: Vec::new(),
@@ -607,14 +541,8 @@ fn peer_cycle_between_own_dep_and_provider_at_tree_position_resolves() {
         ],
         packages: HashMap::from_iter([
             ("host@1.0.0".into(), package("host", "1.0.0", &[], false)),
-            (
-                "main@1.0.0".into(),
-                package("main", "1.0.0", &[("plugin", "^1.0.0")], false),
-            ),
-            (
-                "plugin@1.0.0".into(),
-                package("plugin", "1.0.0", &[("main", "^1.0.0")], false),
-            ),
+            ("main@1.0.0".into(), package("main", "1.0.0", &[("plugin", "^1.0.0")], false)),
+            ("plugin@1.0.0".into(), package("plugin", "1.0.0", &[("main", "^1.0.0")], false)),
         ]),
         dependencies_tree: HashMap::from_iter([
             (
@@ -626,10 +554,7 @@ fn peer_cycle_between_own_dep_and_provider_at_tree_position_resolves() {
                 ),
             ),
             (main, tree_node("main@1.0.0", BTreeMap::new(), 0)),
-            (
-                plugin.clone(),
-                tree_node("plugin@1.0.0", BTreeMap::new(), 1),
-            ),
+            (plugin.clone(), tree_node("plugin@1.0.0", BTreeMap::new(), 1)),
         ]),
         all_peer_dep_names: HashSet::from_iter(["main".to_string(), "plugin".to_string()]),
         policy_violations: Vec::new(),
@@ -717,15 +642,8 @@ fn repeated_pending_peer_edges_are_buffered_once() {
         );
     }
 
-    assert!(
-        graph_children.is_empty(),
-        "the child has no depPath yet, so nothing is a graph edge",
-    );
-    assert_eq!(
-        walker.output.pending_peer_edges.len(),
-        1,
-        "the same triple is buffered once",
-    );
+    assert!(graph_children.is_empty(), "the child has no depPath yet, so nothing is a graph edge");
+    assert_eq!(walker.output.pending_peer_edges.len(), 1, "the same triple is buffered once");
 
     // Same slot, different child: a distinct triple, so it is kept.
     walker.add_graph_child_or_pending(
@@ -771,15 +689,8 @@ fn pending_peer_edges_replay_after_a_drain() {
 
     walker.add_graph_child_or_pending(&mut graph_children, &parent, "child".into(), child.clone());
     walker.patch_pending_peer_edges();
-    assert!(
-        walker.output.pending_peer_edges.is_empty(),
-        "the drain empties the buffer",
-    );
+    assert!(walker.output.pending_peer_edges.is_empty(), "the drain empties the buffer");
 
     walker.add_graph_child_or_pending(&mut graph_children, &parent, "child".to_string(), child);
-    assert_eq!(
-        walker.output.pending_peer_edges.len(),
-        1,
-        "the guard cleared with the buffer",
-    );
+    assert_eq!(walker.output.pending_peer_edges.len(), 1, "the guard cleared with the buffer");
 }

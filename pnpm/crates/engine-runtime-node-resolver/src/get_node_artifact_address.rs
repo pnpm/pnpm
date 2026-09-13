@@ -36,26 +36,14 @@ pub fn get_node_artifact_address(opts: GetNodeArtifactAddressOptions<'_>) -> Nod
     let is_windows = opts.platform == "win32";
     let normalized_platform = if is_windows { "win" } else { opts.platform };
     let normalized_arch = get_normalized_arch(opts.platform, opts.arch, Some(opts.version));
-    let arch_suffix = if opts.libc == Some("musl") {
-        "-musl"
-    } else {
-        ""
-    };
+    let arch_suffix = if opts.libc == Some("musl") { "-musl" } else { "" };
     NodeArtifactAddress {
-        dirname: format!(
-            "{base_url}v{version}",
-            base_url = opts.base_url,
-            version = opts.version,
-        ),
+        dirname: format!("{base_url}v{version}", base_url = opts.base_url, version = opts.version),
         basename: format!(
             "node-v{version}-{normalized_platform}-{normalized_arch}{arch_suffix}",
             version = opts.version,
         ),
-        extname: if is_windows {
-            ".zip".to_string()
-        } else {
-            ".tar.gz".to_string()
-        },
+        extname: if is_windows { ".zip".to_string() } else { ".tar.gz".to_string() },
     }
 }
 

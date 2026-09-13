@@ -68,10 +68,7 @@ fn build_resolver(
     user_registries_by_prefix: HashMap<String, String>,
 ) -> (NamedRegistryResolver<InMemoryPackageMetaCache>, TempDir) {
     let merged = merge_named_registries(&user_registries_by_prefix).expect("URLs are valid");
-    let registry_names: HashSet<String> = merged
-        .keys()
-        .cloned()
-        .collect();
+    let registry_names: HashSet<String> = merged.keys().cloned().collect();
     let cache_dir = TempDir::new().expect("tempdir");
     let resolver = NamedRegistryResolver {
         registries_by_prefix: merged,
@@ -257,11 +254,7 @@ async fn declines_github_git_shortcut() {
     // `github:` always falls through here.
     let (resolver, _tempdir) = build_resolver(HashMap::new());
 
-    for bare in [
-        "github:owner/repo",
-        "github:owner/repo#main",
-        "github:@acme/foo",
-    ] {
+    for bare in ["github:owner/repo", "github:owner/repo#main", "github:@acme/foo"] {
         let wanted = WantedDependency {
             alias: None,
             bare_specifier: Some(bare.to_string()),
@@ -476,10 +469,7 @@ async fn calculates_prefixed_specifier_for_named_registry_update_latest() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(
-        result.normalized_bare_specifier.as_deref(),
-        Some("gh:^2.1.0"),
-    );
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:^2.1.0"));
 }
 
 #[tokio::test]
@@ -517,10 +507,7 @@ async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(
-        result.normalized_bare_specifier.as_deref(),
-        Some("gh:~2.1.0"),
-    );
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:~2.1.0"));
 }
 
 #[tokio::test]
@@ -557,10 +544,7 @@ async fn calculates_prefixed_specifier_for_aliased_named_registry() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(
-        result.normalized_bare_specifier.as_deref(),
-        Some("gh:@acme/private@^1.0.0"),
-    );
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:@acme/private@^1.0.0"));
 }
 
 #[tokio::test]
@@ -599,10 +583,7 @@ async fn latest_is_suppressed_when_published_by_holds_back_raw_latest() {
         .unwrap()
         .unwrap();
     assert_eq!(result.id.as_str(), "@acme/private@gh:2.0.0");
-    assert!(
-        result.package.latest.is_none(),
-        "immature dist-tags.latest suppresses the hint",
-    );
+    assert!(result.package.latest.is_none(), "immature dist-tags.latest suppresses the hint");
 }
 
 /// The resolution id is registry-qualified so the same name@version

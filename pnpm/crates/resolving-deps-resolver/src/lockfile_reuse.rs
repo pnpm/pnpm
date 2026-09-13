@@ -234,11 +234,7 @@ pub(crate) fn synthesize_reused_result(
     };
     let manifest_version = metadata.version
         .clone()
-        .or_else(|| {
-            name_ver
-                .as_ref()
-                .map(|nv| nv.suffix.to_string())
-        });
+        .or_else(|| name_ver.as_ref().map(|nv| nv.suffix.to_string()));
     let manifest = synthesize_manifest(&metadata_key.name, manifest_version.as_deref(), metadata);
     Some(ResolveResult {
         id: PkgResolutionId::from(id),
@@ -433,10 +429,9 @@ fn current_registry_version(
     let name = metadata_key.name.to_string();
     let registry_qualified = metadata_key.suffix.registry_qualified();
     let (registry, tarball_version) = match registry_qualified {
-        Some((registry_name, version)) => (
-            registry_context.registries_by_prefix.get(registry_name)?.clone(),
-            version.to_string(),
-        ),
+        Some((registry_name, version)) => {
+            (registry_context.registries_by_prefix.get(registry_name)?.clone(), version.to_string())
+        }
         None => (
             pick_registry_for_package(&registry_context.registries, &name, None),
             metadata_key.suffix.version().to_string(),

@@ -9,10 +9,7 @@ use pretty_assertions::assert_eq;
 const DEFAULT_MAX_LENGTH: usize = 120;
 
 fn name_peer_ver(name: &str, peer_ver: &str) -> PkgNameVerPeer {
-    let peer_ver = peer_ver
-        .to_string()
-        .parse()
-        .unwrap();
+    let peer_ver = peer_ver.to_string().parse().unwrap();
     PkgNameVerPeer::new(name.parse().unwrap(), peer_ver)
 }
 
@@ -31,10 +28,7 @@ fn parse() {
             "1.21.3(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)",
         ),
     );
-    case(
-        "react-json-view@1.21.3",
-        name_peer_ver("react-json-view", "1.21.3"),
-    );
+    case("react-json-view@1.21.3", name_peer_ver("react-json-view", "1.21.3"));
     case(
         "@algolia/autocomplete-core@1.9.3(@algolia/client-search@4.18.0)(algoliasearch@4.18.0)(search-insights@2.6.0)",
         name_peer_ver(
@@ -42,10 +36,7 @@ fn parse() {
             "1.9.3(@algolia/client-search@4.18.0)(algoliasearch@4.18.0)(search-insights@2.6.0)",
         ),
     );
-    case(
-        "@algolia/autocomplete-core@1.9.3",
-        name_peer_ver("@algolia/autocomplete-core", "1.9.3"),
-    );
+    case("@algolia/autocomplete-core@1.9.3", name_peer_ver("@algolia/autocomplete-core", "1.9.3"));
 }
 
 /// A `file:` tarball key parses and round-trips.
@@ -180,10 +171,7 @@ fn without_peer_handles_workspace_link_with_peer_suffix() {
         rendered.starts_with("link:../../../dev/sharedUiComponents("),
         "name half of the key must survive verbatim; got {rendered:?}",
     );
-    assert!(
-        !rendered.contains(")("),
-        "peer suffix must be stripped; got {rendered:?}",
-    );
+    assert!(!rendered.contains(")("), "peer suffix must be stripped; got {rendered:?}");
 }
 
 /// Nested peer groups must produce `__` at the group boundary.
@@ -200,10 +188,7 @@ fn to_virtual_store_name_nested_peer_uses_double_underscore() {
         "eslint-plugin-testing-library@7.7.0(eslint@9.35.0(jiti@2.6.1))(typescript@6.0.3)",
         "eslint-plugin-testing-library@7.7.0_eslint@9.35.0_jiti@2.6.1__typescript@6.0.3",
     );
-    case(
-        "foo@1.0.0(bar@2.0.0(baz@3.0.0))",
-        "foo@1.0.0_bar@2.0.0_baz@3.0.0_",
-    );
+    case("foo@1.0.0(bar@2.0.0(baz@3.0.0))", "foo@1.0.0_bar@2.0.0_baz@3.0.0_");
     case(
         "foo@1.0.0(a@1.0.0(b@2.0.0(c@3.0.0)))(d@4.0.0)",
         "foo@1.0.0_a@1.0.0_b@2.0.0_c@3.0.0___d@4.0.0",
@@ -236,11 +221,7 @@ fn to_virtual_store_name_shortens_user_reported_vitest_case() {
     assert_eq!(received.len(), DEFAULT_MAX_LENGTH);
     let (_, hash) = received.rsplit_once('_').expect("hash suffix");
     assert_eq!(hash.len(), 32);
-    assert!(
-        hash
-            .chars()
-            .all(|c| c.is_ascii_hexdigit()),
-    );
+    assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
 }
 
 /// The store index is a contract shared with the TypeScript CLI, which
@@ -266,14 +247,8 @@ fn pkg_id_strips_the_name_prefix_from_non_registry_keys() {
         "ci-info@https://codeload.github.com/watson/ci-info/tar.gz/f43f6a1c",
         "https://codeload.github.com/watson/ci-info/tar.gz/f43f6a1c",
     );
-    case(
-        "hi@git+file:///tmp/repo#a0c17e86",
-        "git+file:///tmp/repo#a0c17e86",
-    );
-    case(
-        "hi@git+ssh://git@github.com/foo/hi#a0c17e86",
-        "git+ssh://git@github.com/foo/hi#a0c17e86",
-    );
+    case("hi@git+file:///tmp/repo#a0c17e86", "git+file:///tmp/repo#a0c17e86");
+    case("hi@git+ssh://git@github.com/foo/hi#a0c17e86", "git+ssh://git@github.com/foo/hi#a0c17e86");
     // A runtime entry carries its name in the id by design, so pnpm
     // keeps the prefix there.
     case("node@runtime:22.0.0", "node@runtime:22.0.0");

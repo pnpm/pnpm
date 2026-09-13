@@ -353,15 +353,11 @@ pub fn resolve_peers_workspace(
         );
     }
     if dedupe_peer_dependents_enabled {
-        dedupe_peer_dependents(
-            &mut finished.graph,
-            &mut finished.direct_dependencies_by_importer,
-        );
+        dedupe_peer_dependents(&mut finished.graph, &mut finished.direct_dependencies_by_importer);
     }
     WorkspaceResolvePeersResult {
         graph: finished.graph,
-        direct_dependencies_by_importer: finished
-            .direct_dependencies_by_importer,
+        direct_dependencies_by_importer: finished.direct_dependencies_by_importer,
         peer_dependency_issues_by_importer,
         paths_by_node_id: finished.paths_by_node_id,
     }
@@ -394,10 +390,8 @@ fn walk_importers(
         })
         .flatten();
     let root_parents = root_importer.map(|importer| {
-        let previous_dirs = (
-            walker.opts.project_dir.clone(),
-            walker.opts.links.modules_dir.clone(),
-        );
+        let previous_dirs =
+            (walker.opts.project_dir.clone(), walker.opts.links.modules_dir.clone());
         walker.opts.project_dir = Some(importer.root_dir.clone());
         walker.opts.links.modules_dir.clone_from(&importer.modules_dir);
         let parents = walker.build_importer_parents_from(&importer.direct);
@@ -470,12 +464,8 @@ fn walk_importer(
     walker.opts.project_dir = Some(importer.root_dir.clone());
     walker.opts.links.modules_dir.clone_from(&importer.modules_dir);
     walker.providers.current_provider_sources = importer_provider_sources(importer, root_importer);
-    let importer_parents = Arc::new(importer_parent_refs(
-        walker,
-        importer,
-        root_importer,
-        root_parents,
-    ));
+    let importer_parents =
+        Arc::new(importer_parent_refs(walker, importer, root_importer, root_parents));
     let parent_chain_names = SharedChain::default();
     let parent_node_ids = SharedChain::default();
     let parent_pkg_ids_chain = SharedChain::default();

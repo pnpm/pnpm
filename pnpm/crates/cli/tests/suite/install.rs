@@ -482,10 +482,7 @@ fn install_resolves_catalog_protocol() {
     assert!(is_symlink_or_junction(&symlink_path).unwrap());
     let virtual_path =
         workspace.join("node_modules/.pnpm/@pnpm.e2e+hello-world-js-bin-parent@1.0.0");
-    assert!(
-        virtual_path.exists(),
-        "expected virtual store entry at {virtual_path:?}",
-    );
+    assert!(virtual_path.exists(), "expected virtual store entry at {virtual_path:?}");
 
     drop((root, mock_instance));
 }
@@ -782,11 +779,8 @@ fn trust_policy_change_defeats_the_up_to_date_fast_path() {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    fs::write(
-        &workspace_yaml_path,
-        format!("{workspace_yaml}trustPolicy: no-downgrade\n"),
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}trustPolicy: no-downgrade\n"))
+        .expect("write pnpm-workspace.yaml");
 
     assert!(
         !run_install().contains("Already up to date"),

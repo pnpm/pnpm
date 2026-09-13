@@ -91,10 +91,7 @@ impl StoreIndexWriter {
     /// channel closes on the first producer send.
     pub fn spawn(
         store_dir: &StoreDir,
-    ) -> (
-        Arc<StoreIndexWriter>,
-        tokio::task::JoinHandle<Result<(), StoreIndexError>>,
-    ) {
+    ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
         let store_root = store_dir.root().to_path_buf();
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<WriteMsg>();
         let handle = tokio::task::spawn_blocking(move || -> Result<(), StoreIndexError> {
@@ -107,13 +104,7 @@ impl StoreIndexWriter {
             }
             Ok(())
         });
-        (
-            Arc::new(StoreIndexWriter {
-                tx,
-                warn_on_send_failure: AtomicBool::new(true),
-            }),
-            handle,
-        )
+        (Arc::new(StoreIndexWriter { tx, warn_on_send_failure: AtomicBool::new(true) }), handle)
     }
 
     /// [`StoreIndexWriter::spawn`], or [`StoreIndexWriter::spawn_disabled`]
@@ -123,10 +114,7 @@ impl StoreIndexWriter {
     pub fn spawn_for(
         store_dir: &StoreDir,
         frozen_store: bool,
-    ) -> (
-        Arc<StoreIndexWriter>,
-        tokio::task::JoinHandle<Result<(), StoreIndexError>>,
-    ) {
+    ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
         if frozen_store {
             StoreIndexWriter::spawn_disabled()
         } else {
@@ -172,22 +160,14 @@ impl StoreIndexWriter {
     /// Returns the same `(handle, JoinHandle)` shape as [`Self::spawn`] so
     /// call sites can branch on `frozen_store` without diverging.
     #[must_use]
-    pub fn spawn_disabled() -> (
-        Arc<StoreIndexWriter>,
-        tokio::task::JoinHandle<Result<(), StoreIndexError>>,
-    ) {
+    pub fn spawn_disabled()
+    -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<WriteMsg>();
         let handle = tokio::spawn(async move {
             while rx.recv().await.is_some() {}
             Ok::<(), StoreIndexError>(())
         });
-        (
-            Arc::new(StoreIndexWriter {
-                tx,
-                warn_on_send_failure: AtomicBool::new(true),
-            }),
-            handle,
-        )
+        (Arc::new(StoreIndexWriter { tx, warn_on_send_failure: AtomicBool::new(true) }), handle)
     }
 }
 
@@ -302,9 +282,7 @@ fn record_local_side_effects(
         return None;
     }
     let diff = crate::upload::calculate_diff(&row.files, current_files);
-    row.side_effects
-        .get_or_insert_with(HashMap::new)
-        .insert(cache_key, diff.clone());
+    row.side_effects.get_or_insert_with(HashMap::new).insert(cache_key, diff.clone());
     Some(diff)
 }
 
@@ -372,10 +350,7 @@ impl StoreIndexWriter {
     /// snapshot install that's a thousand identical warnings drowning
     /// out real diagnostics.
     pub fn queue(&self, key: String, value: PackageFilesIndex) {
-        self.send_msg(WriteMsg::Replace {
-            key,
-            value,
-        });
+        self.send_msg(WriteMsg::Replace { key, value });
     }
 
     /// Queue a side-effects R/M/W: the writer task loads the row,
@@ -415,18 +390,11 @@ impl StoreIndexWriter {
             current_files,
             response: Some(response),
         });
-        result
-            .recv()
-            .ok()
-            .flatten()
+        result.recv().ok().flatten()
     }
 
     pub fn queue_remote_side_effects(&self, key: String, cache_key: String, diff: SideEffectsDiff) {
-        self.send_msg(WriteMsg::RemoteSideEffects {
-            key,
-            cache_key,
-            diff,
-        });
+        self.send_msg(WriteMsg::RemoteSideEffects { key, cache_key, diff });
     }
 
     pub fn queue_remote_side_effects_quarantine(
@@ -435,11 +403,7 @@ impl StoreIndexWriter {
         channel: String,
         envelope_digest: String,
     ) {
-        self.send_msg(WriteMsg::QuarantineRemoteSideEffects {
-            key,
-            channel,
-            envelope_digest,
-        });
+        self.send_msg(WriteMsg::QuarantineRemoteSideEffects { key, channel, envelope_digest });
     }
 
     fn send_msg(&self, msg: WriteMsg) {

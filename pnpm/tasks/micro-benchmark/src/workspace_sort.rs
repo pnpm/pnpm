@@ -101,10 +101,7 @@ fn sort_workspace(projects: &[SyntheticProject]) -> (usize, usize) {
         },
     )
     .graph;
-    let dirs: Vec<PathBuf> = graph
-        .keys()
-        .cloned()
-        .collect();
+    let dirs: Vec<PathBuf> = graph.keys().cloned().collect();
     let included: HashSet<&Path> = dirs
         .iter()
         .map(PathBuf::as_path)

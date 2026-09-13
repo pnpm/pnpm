@@ -21,17 +21,12 @@ impl GitCommandRunner for Stub {
         Box::pin(async move {
             self.result
                 .clone()
-                .map_err(|message| GitRunError {
-                    message,
-                })
+                .map_err(|message| GitRunError { message })
         })
     }
 }
 fn stub(stdout: &str) -> Stub {
-    Stub {
-        result: Ok(stdout.to_string()),
-        last_args: Mutex::new(Vec::new()),
-    }
+    Stub { result: Ok(stdout.to_string()), last_args: Mutex::new(Vec::new()) }
 }
 
 #[tokio::test]
@@ -153,10 +148,7 @@ fn assert_repo_redacted(err: &GitResolveRefError) {
     let message = err.to_string();
     assert!(!message.contains("hunter2"), "{message}");
     assert!(!message.contains("x-oauth-basic"), "{message}");
-    assert!(
-        message.contains("https://github.com/foo/bar.git"),
-        "{message}",
-    );
+    assert!(message.contains("https://github.com/foo/bar.git"), "{message}");
 }
 
 #[tokio::test]

@@ -40,10 +40,7 @@ async fn rejects_optional_subdep_with_path_traversal_name() {
     );
 
     assert!(!contains_entry_named(root.path(), "PWNED_SUBDEP"));
-    assert!(!contains_entry_named(
-        &harness.store_dir.links(),
-        "PWNED_SUBDEP"
-    ));
+    assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED_SUBDEP"));
 }
 
 #[tokio::test]

@@ -28,12 +28,7 @@ fn skipped_optional_resolution_failure_event_matches_pnpm_wire_shape() {
         prefix: "/projects/x".to_string(),
         reason: SkippedOptionalReason::ResolutionFailure,
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -42,10 +37,7 @@ fn skipped_optional_resolution_failure_event_matches_pnpm_wire_shape() {
     dbg!(&json);
     assert_eq!(json["name"], "pnpm:skipped-optional-dependency");
     assert_eq!(json["reason"], "resolution_failure");
-    assert!(
-        json["package"].get("id").is_none(),
-        "id must NOT be present on resolution_failure",
-    );
+    assert!(json["package"].get("id").is_none(), "id must NOT be present on resolution_failure");
     assert_eq!(json["package"]["name"], "foo");
     assert_eq!(json["package"]["version"], "1.2.3");
     assert_eq!(json["package"]["bareSpecifier"], "^1.2.0");
@@ -72,32 +64,17 @@ fn skipped_optional_resolution_failure_omits_absent_name_and_version() {
         prefix: "/projects/y".to_string(),
         reason: SkippedOptionalReason::ResolutionFailure,
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
         .pipe_as_ref(serde_json::from_str)
         .expect("parse JSON");
     dbg!(&json);
-    assert!(
-        json["package"].get("name").is_none(),
-        "name omitted when absent, got {json:?}",
-    );
-    assert!(
-        json["package"].get("version").is_none(),
-        "version omitted when absent, got {json:?}",
-    );
+    assert!(json["package"].get("name").is_none(), "name omitted when absent, got {json:?}");
+    assert!(json["package"].get("version").is_none(), "version omitted when absent, got {json:?}");
     assert_eq!(json["package"]["bareSpecifier"], "git+ssh://broken-url");
-    assert_eq!(
-        json["parents"],
-        serde_json::json!([]),
-        "an empty chain serializes as []",
-    );
+    assert_eq!(json["parents"], serde_json::json!([]), "an empty chain serializes as []");
 }
 
 /// `pnpm:lockfile-verification` `started` event carries `entries` and
@@ -112,12 +89,7 @@ fn lockfile_verification_started_event_matches_pnpm_wire_shape() {
             lockfile_path: Some("/proj/pnpm-lock.yaml".to_string()),
         },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -128,10 +100,7 @@ fn lockfile_verification_started_event_matches_pnpm_wire_shape() {
     assert_eq!(json["status"], "started");
     assert_eq!(json["entries"], 12);
     assert_eq!(json["lockfilePath"], "/proj/pnpm-lock.yaml");
-    assert!(
-        json.get("elapsedMs").is_none(),
-        "elapsedMs must be absent on started",
-    );
+    assert!(json.get("elapsedMs").is_none(), "elapsedMs must be absent on started");
 }
 
 /// `pnpm:lockfile-verification` `done` event adds `elapsedMs` in
@@ -146,12 +115,7 @@ fn lockfile_verification_done_event_matches_pnpm_wire_shape() {
             lockfile_path: Some("/proj/pnpm-lock.yaml".to_string()),
         },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -179,12 +143,7 @@ fn lockfile_verification_failed_event_matches_pnpm_wire_shape() {
             lockfile_path: Some("/proj/pnpm-lock.yaml".to_string()),
         },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -209,12 +168,7 @@ fn lockfile_verification_cached_event_matches_pnpm_wire_shape() {
             lockfile_path: Some("/proj/pnpm-lock.yaml".to_string()),
         },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -224,14 +178,8 @@ fn lockfile_verification_cached_event_matches_pnpm_wire_shape() {
     assert_eq!(json["status"], "cached");
     assert_eq!(json["verifiedAt"], "2026-06-11T10:00:00.000Z");
     assert_eq!(json["lockfilePath"], "/proj/pnpm-lock.yaml");
-    assert!(
-        json.get("entries").is_none(),
-        "entries must be absent on cached",
-    );
-    assert!(
-        json.get("elapsedMs").is_none(),
-        "elapsedMs must be absent on cached",
-    );
+    assert!(json.get("entries").is_none(), "entries must be absent on cached");
+    assert!(json.get("elapsedMs").is_none(), "elapsedMs must be absent on cached");
 }
 
 /// A cached record written before `verifiedAt` existed surfaces as
@@ -242,17 +190,9 @@ fn lockfile_verification_cached_event_matches_pnpm_wire_shape() {
 fn lockfile_verification_cached_omits_absent_verified_at() {
     let event = LogEvent::LockfileVerification(LockfileVerificationLog {
         level: LogLevel::Debug,
-        message: LockfileVerificationMessage::Cached {
-            verified_at: None,
-            lockfile_path: None,
-        },
+        message: LockfileVerificationMessage::Cached { verified_at: None, lockfile_path: None },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")
@@ -272,17 +212,9 @@ fn lockfile_verification_cached_omits_absent_verified_at() {
 fn lockfile_verification_omits_absent_lockfile_path() {
     let event = LogEvent::LockfileVerification(LockfileVerificationLog {
         level: LogLevel::Debug,
-        message: LockfileVerificationMessage::Started {
-            entries: 1,
-            lockfile_path: None,
-        },
+        message: LockfileVerificationMessage::Started { entries: 1, lockfile_path: None },
     });
-    let envelope = Envelope {
-        time: 1_700_000_000_000,
-        hostname: "host",
-        pid: 4242,
-        event: &event,
-    };
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
         .pipe_ref(serde_json::to_string)
         .expect("serialize envelope")

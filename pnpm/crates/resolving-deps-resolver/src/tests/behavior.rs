@@ -14,10 +14,7 @@ async fn children_follow_the_shallowest_occurrence_however_late_it_resolves() {
     let resolver = OverlayPickResolver {
         versions: settlement_versions([
             dependency_result("slow", &serde_json::json!({ "wrap": "1.0.0" })),
-            dependency_result(
-                "wrap",
-                &serde_json::json!({ "pin": "1.0.0", "shared": "^1.0.0" }),
-            ),
+            dependency_result("wrap", &serde_json::json!({ "pin": "1.0.0", "shared": "^1.0.0" })),
             dependency_result("deep", &serde_json::json!({ "mid": "1.0.0" })),
             dependency_result("mid", &serde_json::json!({ "nested": "1.0.0" })),
             dependency_result("nested", &serde_json::json!({ "shared": "^1.0.0" })),
@@ -25,11 +22,9 @@ async fn children_follow_the_shallowest_occurrence_however_late_it_resolves() {
         delayed: ("wrap".to_string(), "1.0.0".to_string()),
     };
 
-    let tree = resolve_settlement_tree(
-        &resolver,
-        serde_json::json!({ "deep": "1.0.0", "slow": "1.0.0" }),
-    )
-    .await;
+    let tree =
+        resolve_settlement_tree(&resolver, serde_json::json!({ "deep": "1.0.0", "slow": "1.0.0" }))
+            .await;
 
     let shared_children = tree.children_by_id.get("shared@1.0.0").expect("shared children");
     assert_eq!(shared_children.len(), 1);
@@ -92,10 +87,7 @@ async fn walks_dependencies_and_builds_flat_tree() {
             }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "^1.0.0" }));
 
     let tree = resolve_dependency_tree(
@@ -183,10 +175,7 @@ async fn shallower_revisit_takes_over_shared_children_context() {
             }),
         ),
     );
-    let resolver = DelayedAliasResolver {
-        table,
-        delayed_alias: "c".to_string(),
-    };
+    let resolver = DelayedAliasResolver { table, delayed_alias: "c".to_string() };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "a": "1.0.0",
         "c": "1.0.0"
@@ -224,10 +213,7 @@ async fn shallower_revisit_takes_over_shared_children_context() {
 /// dispatcher does.
 #[tokio::test]
 async fn declined_specifier_surfaces_spec_not_supported_error() {
-    let resolver = StubResolver {
-        table: HashMap::default(),
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table: HashMap::default(), calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "foo": "git+ssh://example.com" }));
 
     let err = resolve_dependency_tree(
@@ -269,10 +255,7 @@ async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
         directory: "packages/injected".to_string(),
     });
     let mut table = HashMap::default();
-    table.insert(
-        ("injected".to_string(), "file:packages/injected".to_string()),
-        injected,
-    );
+    table.insert(("injected".to_string(), "file:packages/injected".to_string()), injected);
     table.insert(
         ("regular".to_string(), "^2.0.0".to_string()),
         fake_result(
@@ -281,18 +264,13 @@ async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
             serde_json::json!({ "name": "regular", "version": "2.1.0" }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "injected": "file:packages/injected",
         "regular": "^2.0.0",
     }));
     let calls = std::sync::Arc::new(Mutex::new(Vec::new()));
-    let hooks = RecordingHooks {
-        calls: std::sync::Arc::clone(&calls),
-    };
+    let hooks = RecordingHooks { calls: std::sync::Arc::clone(&calls) };
 
     resolve_dependency_tree(
         &resolver,
@@ -311,18 +289,12 @@ async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
     .await
     .unwrap();
 
-    let mut calls = calls
-        .lock()
-        .unwrap()
-        .clone();
+    let mut calls = calls.lock().unwrap().clone();
     calls.sort();
     assert_eq!(
         calls,
         vec![
-            (
-                "injected".to_string(),
-                Some("packages/injected".to_string())
-            ),
+            ("injected".to_string(), Some("packages/injected".to_string())),
             ("regular".to_string(), None),
         ],
     );

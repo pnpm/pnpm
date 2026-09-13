@@ -89,15 +89,11 @@ impl ImporterSelection {
     ) -> Self {
         let real_importer_ids = importer_ids(
             workspace_root,
-            project_manifests
-                .iter()
-                .map(|(project_dir, _)| project_dir.as_path()),
+            project_manifests.iter().map(|(project_dir, _)| project_dir.as_path()),
         );
         let filtered_install = selection.is_some_and(|selection| {
-            importer_ids(
-                workspace_root,
-                selection.selected_dirs.iter().map(PathBuf::as_path),
-            ) != real_importer_ids
+            importer_ids(workspace_root, selection.selected_dirs.iter().map(PathBuf::as_path))
+                != real_importer_ids
         });
         Self {
             requested_importer_ids: filtered_install
@@ -195,10 +191,7 @@ pub(super) fn report_discovered_scope<Reporter: self::Reporter>(
 ) {
     let workspace_projects = options.selection
         .as_ref()
-        .map_or_else(
-            || loaded_workspace_projects,
-            |selection| Some(selection.all_projects),
-        );
+        .map_or_else(|| loaded_workspace_projects, |selection| Some(selection.all_projects));
     if options.selection.is_none() {
         emit_scope_log::<Reporter>(
             install.context.config,
@@ -213,13 +206,11 @@ pub(super) fn resolve_install_catalogs(
     catalogs_override: Option<super::super::Catalogs>,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
 ) -> Result<super::super::Catalogs, InstallError> {
-    Ok(
-        match catalogs_override.or_else(|| config.catalogs.clone()) {
-            Some(catalogs) => catalogs,
-            None => get_catalogs_from_workspace_manifest(workspace_manifest)
-                .map_err(InstallError::InvalidCatalogsConfiguration)?,
-        },
-    )
+    Ok(match catalogs_override.or_else(|| config.catalogs.clone()) {
+        Some(catalogs) => catalogs,
+        None => get_catalogs_from_workspace_manifest(workspace_manifest)
+            .map_err(InstallError::InvalidCatalogsConfiguration)?,
+    })
 }
 /// The projects the run sees: the selection's when one narrows the run,
 /// else what the workspace walk loaded.
@@ -242,8 +233,7 @@ impl<'w> InstallScope<'w> {
             selection: options.selection.as_ref(),
             workspace_root,
             workspace_projects,
-            root_manifest_as_workspace_root: options
-                .root_manifest_as_workspace_root,
+            root_manifest_as_workspace_root: options.root_manifest_as_workspace_root,
             workspace_projects_are_overridden,
             config: install.context.config,
         });
@@ -269,11 +259,7 @@ impl<'w> InstallScope<'w> {
             workspace_projects_are_overridden,
             config: install.context.config,
         });
-        Self {
-            project_manifests,
-            importers,
-            prune_stale_importers,
-        }
+        Self { project_manifests, importers, prune_stale_importers }
     }
 
     // Optimistic repeat-install short-circuit. When nothing has
@@ -330,8 +316,7 @@ impl<'w> InstallScope<'w> {
             mutation: install.execution.mutation,
             update_seed_policy: &owned.resolution.update_seed_policy,
             frozen_lockfile: install.lockfile_policy.frozen,
-            disable_optimistic_repeat_install: install.lockfile_policy
-                .disable_optimistic_repeat,
+            disable_optimistic_repeat_install: install.lockfile_policy.disable_optimistic_repeat,
             effective_node_version: mode.effective_node_version.as_deref(),
             prefix: &workspace.prefix,
         })
@@ -469,9 +454,7 @@ pub(super) fn report_install_scope_cycles<Reporter: self::Reporter>(
     if config.ignore_workspace_cycles {
         return Ok(());
     }
-    let Some(workspace_dir) = workspace_dir else {
-        return Ok(());
-    };
+    let Some(workspace_dir) = workspace_dir else { return Ok(()) };
     let (mutation, workspace_projects) = scope;
     let scope = match selection {
         // A plan that already sequenced this very graph hands its cycle report
@@ -494,9 +477,7 @@ pub(super) fn report_install_scope_cycles<Reporter: self::Reporter>(
             .flatten()
             .map(|projects| (projects, None)),
     };
-    let Some((projects, selected_dirs)) = scope else {
-        return Ok(());
-    };
+    let Some((projects, selected_dirs)) = scope else { return Ok(()) };
     let cycles = crate::install_scope_cycles(config, projects, selected_dirs);
     crate::report_workspace_cycles::<Reporter>(config, workspace_dir, cycles.as_deref())
         .map_err(InstallError::CyclicWorkspaceDependencies)

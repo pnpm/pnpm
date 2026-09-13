@@ -67,10 +67,7 @@ fn rejects_path_traversal_outside_package_root() {
         "bin": {"x": "../../../etc/passwd"},
     });
     let commands = get_bins_from_package_manifest::<Host>(&manifest, Path::new("/pkg/x"));
-    assert!(
-        commands.is_empty(),
-        "must reject `..`-escapes from pkg root",
-    );
+    assert!(commands.is_empty(), "must reject `..`-escapes from pkg root");
 }
 
 #[test]
@@ -395,10 +392,7 @@ fn lexical_normalize_drops_curdir_segments_directly() {
 /// which fails `starts_with("/a")`.
 #[test]
 fn lexical_normalize_drops_excess_parent_dirs_on_absolute_paths() {
-    assert_eq!(
-        lexical_normalize(Path::new("/a/../../a/bin.js")),
-        PathBuf::from("/a/bin.js"),
-    );
+    assert_eq!(lexical_normalize(Path::new("/a/../../a/bin.js")), PathBuf::from("/a/bin.js"));
     assert_eq!(lexical_normalize(Path::new("/..")), PathBuf::from("/"));
     assert_eq!(lexical_normalize(Path::new("/../..")), PathBuf::from("/"));
 }
@@ -484,11 +478,7 @@ fn directories_bin_skips_path_without_usable_file_name() {
         "directories": {"bin": "bin"},
     });
     let commands = get_bins_from_package_manifest::<EvilWalker>(&manifest, Path::new("/pkg"));
-    assert_eq!(
-        commands.len(),
-        1,
-        "the `..` entry must be skipped, not crashed on",
-    );
+    assert_eq!(commands.len(), 1, "the `..` entry must be skipped, not crashed on");
     assert_eq!(commands[0].name, "cli");
 }
 
@@ -508,10 +498,6 @@ fn bin_field_takes_precedence_over_directories_bin() {
         "directories": {"bin": "legacy-bin"},
     });
     let commands = get_bins_from_package_manifest::<Host>(&manifest, &pkg);
-    assert_eq!(
-        commands.len(),
-        1,
-        "bin field wins, directories.bin is ignored",
-    );
+    assert_eq!(commands.len(), 1, "bin field wins, directories.bin is ignored");
     assert_eq!(commands[0].name, "tool");
 }

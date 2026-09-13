@@ -162,10 +162,7 @@ fn every_opposite_names_a_real_flag() {
     for (name, opposite) in &boolean_flags().opposites {
         assert!(known(name), "--{name} is no flag");
         if let Some(opposite) = opposite {
-            assert!(
-                known(opposite),
-                "--{opposite}, the opposite of --{name}, is no flag",
-            );
+            assert!(known(opposite), "--{opposite}, the opposite of --{name}, is no flag");
         }
     }
 }

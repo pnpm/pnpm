@@ -45,10 +45,7 @@ fn fake_integrity() -> Integrity {
 }
 
 fn registry_resolution() -> LockfileResolution {
-    LockfileResolution::Registry(RegistryResolution {
-        integrity: fake_integrity(),
-        revision: None,
-    })
+    LockfileResolution::Registry(RegistryResolution { integrity: fake_integrity(), revision: None })
 }
 
 fn tarball_resolution(tarball: &str, integrity: Option<Integrity>) -> LockfileResolution {
@@ -96,15 +93,9 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
             // No retries: tests that point an endpoint at an unmocked /
             // erroring upstream would otherwise wait out the full pnpm
             // backoff (10 s + 60 s) on every run.
-            retry_opts: RetryOpts {
-                retries: 0,
-                ..RetryOpts::default()
-            },
+            retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
         },
-        artifacts: crate::VerificationArtifacts {
-            observed_stats: None,
-            canonical_fetches: None,
-        },
+        artifacts: crate::VerificationArtifacts { observed_stats: None, canonical_fetches: None },
     }
 }
 
@@ -223,11 +214,7 @@ fn stable_trust_packument(name: &str) -> serde_json::Value {
 /// No-op `ctx` builder that ties the borrowed `name` to the call
 /// site's lifetime.
 fn ctx<'a>(name: &'a PkgName, version: &'a str) -> VerifyCtx<'a> {
-    VerifyCtx {
-        name,
-        version,
-        registry_name: None,
-    }
+    VerifyCtx { name, version, registry_name: None }
 }
 
 const REVISION_ONE_DIGEST: &str =

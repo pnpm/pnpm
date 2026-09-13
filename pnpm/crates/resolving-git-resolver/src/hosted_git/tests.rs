@@ -14,10 +14,7 @@ fn github_shortcut_with_commit() {
     let hosted =
         HostedGit::from_url("zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99")
             .expect("recognised");
-    assert_eq!(
-        hosted.committish.as_deref(),
-        Some("163360a8d3ae6bee9524541043197ff356f8ed99"),
-    );
+    assert_eq!(hosted.committish.as_deref(), Some("163360a8d3ae6bee9524541043197ff356f8ed99"));
 }
 
 #[test]
@@ -98,10 +95,7 @@ fn shortcut_render() {
         hosted.shortcut(HostedOpts::default()),
         "github:zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99",
     );
-    assert_eq!(
-        hosted.shortcut(HostedGit::no_committish()),
-        "github:zkochan/is-negative",
-    );
+    assert_eq!(hosted.shortcut(HostedGit::no_committish()), "github:zkochan/is-negative");
 }
 
 #[test]
@@ -198,10 +192,7 @@ fn tarball_gitlab_uses_archive_path() {
     let tarball = hosted
         .tarball(HostedOpts::default())
         .unwrap();
-    assert!(
-        !tarball.contains("%2F"),
-        "tarball must not contain `%2F`: {tarball}",
-    );
+    assert!(!tarball.contains("%2F"), "tarball must not contain `%2F`: {tarball}");
     assert_eq!(
         tarball,
         "https://gitlab.com/pnpmjs/git-resolver/-/archive/988c61e11dc8d9ca0b5580cb15291951812549dc/git-resolver-988c61e11dc8d9ca0b5580cb15291951812549dc.tar.gz",

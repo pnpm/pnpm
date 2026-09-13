@@ -66,8 +66,7 @@ impl WebAuthFetchResponse {
             #[serde(default)]
             token: Option<String>,
         }
-        serde_json::from_str::<TokenBody>(&decode_token_body(&self.body))
-            .map(|body| body.token)
+        serde_json::from_str::<TokenBody>(&decode_token_body(&self.body)).map(|body| body.token)
     }
 }
 
@@ -136,8 +135,7 @@ where
         };
         if response.status == 202 && response.ok {
             // Registry is still waiting for authentication.
-            wait_for_retry_after::<Sys>(&response, start_time, timeout_ms)
-                .await?;
+            wait_for_retry_after::<Sys>(&response, start_time, timeout_ms).await?;
             continue;
         }
         if let Some(token) = issued_token(&response) {
@@ -182,11 +180,7 @@ where
     let remaining_ms = timeout_ms as i64
         - i64::try_from(now_after_poll.saturating_sub(start_time)).unwrap_or(i64::MAX);
     if remaining_ms <= 0 {
-        return Err(WebAuthTimeoutError::new(
-            now_after_poll,
-            start_time,
-            timeout_ms,
-        ));
+        return Err(WebAuthTimeoutError::new(now_after_poll, start_time, timeout_ms));
     }
     let sleep_ms = additional_ms.min(remaining_ms as f64);
     Sys::sleep_ms(sleep_ms as u64).await;
@@ -202,11 +196,7 @@ fn parse_js_number(value: Option<&str>) -> f64 {
         None => 0.0,
         Some(raw) => {
             let trimmed = raw.trim();
-            if trimmed.is_empty() {
-                0.0
-            } else {
-                trimmed.parse::<f64>().unwrap_or(f64::NAN)
-            }
+            if trimmed.is_empty() { 0.0 } else { trimmed.parse::<f64>().unwrap_or(f64::NAN) }
         }
     }
 }

@@ -102,10 +102,7 @@ fn installable_candidate(
     name: &PackageName,
     target: &Target,
 ) -> Result<Option<(Version, usize, Candidate)>> {
-    if !matches!(
-        file.yanked,
-        serde_json::Value::Null | serde_json::Value::Bool(false),
-    ) {
+    if !matches!(file.yanked, serde_json::Value::Null | serde_json::Value::Bool(false)) {
         return Ok(None);
     }
     let Some((wheel_name, version, rank)) = wheel_identity(&file.filename, &target.tags)? else {
@@ -123,20 +120,9 @@ fn installable_candidate(
     let url = page_url.join(&file.url).into_diagnostic()?;
     validate_url(&url)?;
     let core_metadata = file.metadata_digests();
-    let wheel = LockedWheel {
-        name: file.filename,
-        url: url.to_string(),
-        hashes: file.hashes,
-    };
+    let wheel = LockedWheel { name: file.filename, url: url.to_string(), hashes: file.hashes };
     wheel.integrity()?;
-    Ok(Some((
-        version,
-        rank,
-        Candidate {
-            wheel,
-            core_metadata,
-        },
-    )))
+    Ok(Some((version, rank, Candidate { wheel, core_metadata })))
 }
 
 /// The distribution, version, and tag rank a wheel filename names, or
@@ -146,9 +132,7 @@ pub fn wheel_identity(
     filename: &str,
     tags: &[String],
 ) -> Result<Option<(PackageName, Version, usize)>> {
-    let Some(stem) = filename.strip_suffix(".whl") else {
-        return Ok(None);
-    };
+    let Some(stem) = filename.strip_suffix(".whl") else { return Ok(None) };
     let parts = stem.split('-').collect::<Vec<_>>();
     if !(parts.len() == 5 || parts.len() == 6) || filename.contains(['/', '\\']) {
         bail!("invalid Python wheel filename: {filename}");
@@ -170,11 +154,7 @@ pub fn wheel_identity(
         });
     rank
         .map(|rank| {
-            Ok((
-                parts[0].parse().into_diagnostic()?,
-                parts[1].parse().into_diagnostic()?,
-                rank,
-            ))
+            Ok((parts[0].parse().into_diagnostic()?, parts[1].parse().into_diagnostic()?, rank))
         })
         .transpose()
 }

@@ -50,10 +50,7 @@ pub(crate) fn passthrough_from(argv: &[OsString]) -> Option<usize> {
         .iter()
         .position(|arg| arg == "--")
         .map(|index| index + 1);
-    match (
-        separator,
-        command_boundary(argv).map(|boundary| boundary.index),
-    ) {
+    match (separator, command_boundary(argv).map(|boundary| boundary.index)) {
         (Some(separator), Some(command)) => Some(separator.min(command)),
         (separator, command) => separator.or(command),
     }
@@ -77,10 +74,7 @@ pub(crate) fn command_boundary(argv: &[OsString]) -> Option<CommandBoundary> {
     while index < argv.len() {
         // Non-UTF-8 cannot be classified, so treat it as the child's.
         let Some(arg) = argv[index].to_str() else {
-            return Some(CommandBoundary {
-                index,
-                is_script_shortcut: false,
-            });
+            return Some(CommandBoundary { index, is_script_shortcut: false });
         };
         if arg == "--" {
             // The separator governs from here; see `passthrough_from`.
@@ -301,11 +295,7 @@ pub(crate) fn option_width(arg: &str, next: Option<&str>, arity: &ArgTable) -> O
         .expect("checked non-empty");
     let is_bare_short = rest.chars().count() == 1;
     let consumes_value = arity.short_consumes_value(short).unwrap_or(false);
-    Some(if consumes_value && is_bare_short {
-        2
-    } else {
-        1
-    })
+    Some(if consumes_value && is_bare_short { 2 } else { 1 })
 }
 
 /// [`option_width`] for a `--long` option, given the token after it and

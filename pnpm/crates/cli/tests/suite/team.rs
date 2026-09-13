@@ -45,17 +45,9 @@ fn fails_when_auth_is_missing() {
 
     let auth_file = empty_auth_file(root.path());
 
-    let output = run_team(
-        &workspace,
-        &auth_file,
-        &registry,
-        &["ls", "@myscope:myteam"],
-    );
+    let output = run_team(&workspace, &auth_file, &registry, &["ls", "@myscope:myteam"]);
 
-    assert!(
-        !output.status.success(),
-        "team must fail when auth is missing",
-    );
+    assert!(!output.status.success(), "team must fail when auth is missing");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("Authentication required for registry access"),
@@ -78,18 +70,10 @@ fn team_create_succeeds_with_mock_registry() {
 
     let auth_file = root.path().join("auth-npmrc");
     let registry_no_scheme = server.url().replace("http://", "");
-    fs::write(
-        &auth_file,
-        format!("//{registry_no_scheme}/:_authToken=fake-token\n"),
-    )
-    .expect("write auth .npmrc");
+    fs::write(&auth_file, format!("//{registry_no_scheme}/:_authToken=fake-token\n"))
+        .expect("write auth .npmrc");
 
-    let output = run_team(
-        &workspace,
-        &auth_file,
-        &registry,
-        &["create", "@myscope:myteam"],
-    );
+    let output = run_team(&workspace, &auth_file, &registry, &["create", "@myscope:myteam"]);
 
     mock.assert();
     assert!(

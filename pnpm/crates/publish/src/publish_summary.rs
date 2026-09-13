@@ -79,9 +79,7 @@ pub fn create_publish_summary(info: &PackedPkgInfo<'_>, tarball_data: &[u8]) -> 
         filename,
         files: info.contents
             .iter()
-            .map(|path| PublishSummaryFile {
-                path: path.clone(),
-            })
+            .map(|path| PublishSummaryFile { path: path.clone() })
             .collect(),
         entry_count: info.contents.len(),
         bundled: extract_bundled_dependencies(info.published_manifest),
@@ -107,12 +105,7 @@ pub fn extract_bundled_dependencies(manifest: &Value) -> Vec<String> {
         Some(Value::Bool(true)) => manifest
             .get("dependencies")
             .and_then(Value::as_object)
-            .map(|deps| {
-                deps
-                    .keys()
-                    .cloned()
-                    .collect()
-            })
+            .map(|deps| deps.keys().cloned().collect())
             .unwrap_or_default(),
         _ => Vec::new(),
     }

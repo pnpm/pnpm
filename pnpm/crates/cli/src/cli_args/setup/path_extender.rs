@@ -182,11 +182,7 @@ impl From<pnpm_fs::EnsureFileError> for PathExtenderError {
 /// leave partial state behind. The platform implementations re-check as
 /// defense in depth.
 pub(super) fn validate_pnpm_home_dir(dir: &Path) -> Result<(), PathExtenderError> {
-    if cfg!(windows) {
-        validate_windows_pnpm_home(dir)
-    } else {
-        validate_posix_pnpm_home(dir)
-    }
+    if cfg!(windows) { validate_windows_pnpm_home(dir) } else { validate_posix_pnpm_home(dir) }
 }
 
 /// Reject `:` (the POSIX `PATH` separator), newlines, and NUL.
@@ -206,10 +202,7 @@ fn reject_unsafe_chars(dir: &Path, unsafe_chars: &[char]) -> Result<(), PathExte
         .chars()
         .find(|character| unsafe_chars.contains(character))
     {
-        return Err(PathExtenderError::UnsafePnpmHome {
-            dir: dir.into_owned(),
-            character,
-        });
+        return Err(PathExtenderError::UnsafePnpmHome { dir: dir.into_owned(), character });
     }
     Ok(())
 }
@@ -225,13 +218,9 @@ pub(super) fn add_dir_to_env_path(
         && (sub_dir.starts_with('/')
             || sub_dir.starts_with('\\')
             || sub_dir.contains("..")
-            || sub_dir.contains([
-                ';', '%', '"', '\'', '`', '$', '<', '>', '&', '|', '\n', '\r',
-            ]))
+            || sub_dir.contains([';', '%', '"', '\'', '`', '$', '<', '>', '&', '|', '\n', '\r']))
     {
-        return Err(PathExtenderError::InvalidSubDir {
-            sub_dir: sub_dir.to_string(),
-        });
+        return Err(PathExtenderError::InvalidSubDir { sub_dir: sub_dir.to_string() });
     }
     // Per-target compilation: the Windows registry path and the POSIX
     // rc-file path are both compiled everywhere, and `cfg!(windows)` selects

@@ -30,11 +30,7 @@ fn should_remove_from_package_json() {
         .with_args(["add", "@pnpm.e2e/hello-world-js-bin"])
         .assert()
         .success();
-    assert!(manifest_has(
-        &workspace,
-        DependencyGroup::Prod,
-        "@pnpm.e2e/hello-world-js-bin"
-    ));
+    assert!(manifest_has(&workspace, DependencyGroup::Prod, "@pnpm.e2e/hello-world-js-bin"));
 
     pacquet_at(&workspace)
         .with_args(["remove", "@pnpm.e2e/hello-world-js-bin"])
@@ -42,11 +38,7 @@ fn should_remove_from_package_json() {
         .success();
 
     eprintln!("the dependency is gone from package.json#dependencies");
-    assert!(!manifest_has(
-        &workspace,
-        DependencyGroup::Prod,
-        "@pnpm.e2e/hello-world-js-bin"
-    ));
+    assert!(!manifest_has(&workspace, DependencyGroup::Prod, "@pnpm.e2e/hello-world-js-bin"));
 
     drop((root, mock_instance));
 }
@@ -67,21 +59,13 @@ fn remove_runs_with_ndjson_and_silent_reporters() {
             .with_args(["add", "@pnpm.e2e/hello-world-js-bin"])
             .assert()
             .success();
-        assert!(manifest_has(
-            &workspace,
-            DependencyGroup::Prod,
-            "@pnpm.e2e/hello-world-js-bin"
-        ));
+        assert!(manifest_has(&workspace, DependencyGroup::Prod, "@pnpm.e2e/hello-world-js-bin"));
 
         pacquet_at(&workspace)
             .with_args([reporter, "remove", "@pnpm.e2e/hello-world-js-bin"])
             .assert()
             .success();
-        assert!(!manifest_has(
-            &workspace,
-            DependencyGroup::Prod,
-            "@pnpm.e2e/hello-world-js-bin"
-        ));
+        assert!(!manifest_has(&workspace, DependencyGroup::Prod, "@pnpm.e2e/hello-world-js-bin"));
 
         drop((root, mock_instance));
     }
@@ -102,11 +86,7 @@ fn should_remove_only_from_targeted_field() {
         .with_args(["add", "@pnpm.e2e/hello-world-js-bin", "--save-dev"])
         .assert()
         .success();
-    assert!(manifest_has(
-        &workspace,
-        DependencyGroup::Dev,
-        "@pnpm.e2e/hello-world-js-bin"
-    ));
+    assert!(manifest_has(&workspace, DependencyGroup::Dev, "@pnpm.e2e/hello-world-js-bin"));
 
     eprintln!("`remove --save-prod` must not touch a devDependency");
     let output = pacquet_at(&workspace)
@@ -123,22 +103,14 @@ fn should_remove_only_from_targeted_field() {
         stderr.contains("ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS"),
         "stderr must name the missing-deps diagnostic; got:\n{stderr}",
     );
-    assert!(manifest_has(
-        &workspace,
-        DependencyGroup::Dev,
-        "@pnpm.e2e/hello-world-js-bin"
-    ));
+    assert!(manifest_has(&workspace, DependencyGroup::Dev, "@pnpm.e2e/hello-world-js-bin"));
 
     eprintln!("`remove --save-dev` removes it");
     pacquet_at(&workspace)
         .with_args(["remove", "@pnpm.e2e/hello-world-js-bin", "--save-dev"])
         .assert()
         .success();
-    assert!(!manifest_has(
-        &workspace,
-        DependencyGroup::Dev,
-        "@pnpm.e2e/hello-world-js-bin"
-    ));
+    assert!(!manifest_has(&workspace, DependencyGroup::Dev, "@pnpm.e2e/hello-world-js-bin"));
 
     drop((root, mock_instance));
 }
@@ -269,11 +241,7 @@ fn should_accept_aliases() {
         .with_args(["rm", "@pnpm.e2e/hello-world-js-bin"])
         .assert()
         .success();
-    assert!(!manifest_has(
-        &workspace,
-        DependencyGroup::Prod,
-        "@pnpm.e2e/hello-world-js-bin"
-    ));
+    assert!(!manifest_has(&workspace, DependencyGroup::Prod, "@pnpm.e2e/hello-world-js-bin"));
 
     drop((root, mock_instance));
 }

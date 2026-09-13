@@ -25,13 +25,31 @@ use std::collections::HashSet;
 /// (recursively, across all subcommands) that lacks one. See the module
 /// docs for why this mirrors pnpm/nopt.
 pub fn with_boolean_negations(mut cmd: Command) -> Command {
-    let negations = boolean_negations(&cmd);
+    let existing_longs: HashSet<String> = cmd
+        .get_arguments()
+        .filter_map(|arg| arg.get_long().map(String::from))
+        .collect();
+
+    let negations: Vec<(clap::Id, String, bool)> = cmd
+        .get_arguments()
+        .filter(|arg| matches!(arg.get_action(), ArgAction::SetTrue))
+        .filter_map(|arg| {
+            let long = arg.get_long()?;
+            // Skip explicit negations (`--no-optional`, `--no-runtime`, ...)
+            // and any positive flag that already ships its own `--no-`
+            // counterpart. The latter also covers a global flag already
+            // seen from an ancestor command on this recursion, so its
+            // negation isn't added twice.
+            if long.starts_with("no-") || existing_longs.contains(&negation_of(long)) {
+                return None;
+            }
+            Some((arg.get_id().clone(), negation_of(long), arg.is_global_set()))
+        })
+        .collect();
 
     for (positive_id, negated_long, is_global) in negations {
         let negated_id = format!("__negated__{negated_long}");
-        cmd = cmd.mut_arg(positive_id.clone(), |arg| {
-            arg.overrides_with(negated_id.clone())
-        });
+        cmd = cmd.mut_arg(positive_id.clone(), |arg| arg.overrides_with(negated_id.clone()));
         // A global source flag propagates into every subcommand, so its
         // negation must too — otherwise the override reference dangles at
         // the subcommand level.
@@ -66,28 +84,3 @@ pub(crate) fn negation_of(long: &str) -> String {
 
 #[cfg(test)]
 mod tests;
-
-fn boolean_negations(cmd: &Command) -> Vec<(clap::Id, String, bool)> {
-    let existing_longs: HashSet<String> = cmd
-        .get_arguments()
-        .filter_map(|arg| arg.get_long().map(String::from))
-        .collect();
-
-    let negations: Vec<(clap::Id, String, bool)> = cmd
-        .get_arguments()
-        .filter(|arg| matches!(arg.get_action(), ArgAction::SetTrue))
-        .filter_map(|arg| {
-            let long = arg.get_long()?;
-            // Skip explicit negations (`--no-optional`, `--no-runtime`, ...)
-            // and any positive flag that already ships its own `--no-`
-            // counterpart. The latter also covers a global flag already
-            // seen from an ancestor command on this recursion, so its
-            // negation isn't added twice.
-            if long.starts_with("no-") || existing_longs.contains(&negation_of(long)) {
-                return None;
-            }
-            Some((arg.get_id().clone(), negation_of(long), arg.is_global_set()))
-        })
-        .collect();
-    negations
-}

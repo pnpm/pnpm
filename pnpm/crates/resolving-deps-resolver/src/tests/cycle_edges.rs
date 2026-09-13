@@ -35,10 +35,7 @@ async fn cycle_closing_edge_reaches_the_graph() {
             }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "1.0.0" }));
 
     let mut tree = resolve_dependency_tree(
@@ -62,10 +59,7 @@ async fn cycle_closing_edge_reaches_the_graph() {
     let a_node = result.graph
         .get(&crate::DepPath::from("a@1.0.0".to_string()))
         .expect("a in graph");
-    assert!(
-        a_node.edges.children.contains_key("b"),
-        "a keeps its b edge",
-    );
+    assert!(a_node.edges.children.contains_key("b"), "a keeps its b edge");
     let b_node = result.graph
         .get(&crate::DepPath::from("b@1.0.0".to_string()))
         .expect("b in graph");

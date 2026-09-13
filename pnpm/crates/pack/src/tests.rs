@@ -101,12 +101,7 @@ fn tarball_entry_header(tarball: &Path, entry_name: &str) -> [u8; 512] {
     let mut archive = tar::Archive::new(GzDecoder::new(file));
     for entry in archive.entries().unwrap() {
         let entry = entry.unwrap();
-        if entry
-            .path()
-            .unwrap()
-            .to_str()
-            == Some(entry_name)
-        {
+        if entry.path().unwrap().to_str() == Some(entry_name) {
             return *entry.header().as_bytes();
         }
     }
@@ -119,12 +114,7 @@ fn tarball_entry_content(tarball: &Path, entry_name: &str) -> Option<String> {
     let mut archive = tar::Archive::new(GzDecoder::new(file));
     for entry in archive.entries().unwrap() {
         let mut entry = entry.unwrap();
-        if entry
-            .path()
-            .unwrap()
-            .to_str()
-            == Some(entry_name)
-        {
+        if entry.path().unwrap().to_str() == Some(entry_name) {
             let mut contents = String::new();
             io::Read::read_to_string(&mut entry, &mut contents).unwrap();
             return Some(contents);
@@ -137,16 +127,10 @@ fn tarball_entry_content(tarball: &Path, entry_name: &str) -> Option<String> {
 fn injected_files_are_packed_and_supersede_an_on_disk_entry() {
     let (dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.1.0" }));
     // A stale committed CHANGELOG.md that the composed entry must replace.
-    touch(
-        dir.path(),
-        "CHANGELOG.md",
-        "# foo\n\nstale committed changelog\n",
-    );
+    touch(dir.path(), "CHANGELOG.md", "# foo\n\nstale committed changelog\n");
     let composed = "# foo\n\n## 1.1.0\n\n### Minor Changes\n\n- A feature.\n";
-    opts.output.injected_files = vec![(
-        "package/CHANGELOG.md".to_string(),
-        composed.as_bytes().to_vec(),
-    )];
+    opts.output.injected_files =
+        vec![("package/CHANGELOG.md".to_string(), composed.as_bytes().to_vec())];
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
     assert!(result.contents.contains(&"CHANGELOG.md".to_string()));
@@ -161,10 +145,7 @@ fn injected_files_are_packed_and_supersede_an_on_disk_entry() {
             .count(),
         1,
     );
-    assert_eq!(
-        tarball_entry_content(&tarball, "package/CHANGELOG.md").as_deref(),
-        Some(composed),
-    );
+    assert_eq!(tarball_entry_content(&tarball, "package/CHANGELOG.md").as_deref(), Some(composed));
 }
 
 /// A `publishConfig.name` rename has to reach the tarball filename and the
@@ -182,11 +163,7 @@ fn publish_config_name_renames_the_tarball_and_the_packed_manifest() {
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
 
-    assert!(
-        result.tarball_path.ends_with("pnpm-1.2.3.tgz"),
-        "{:?}",
-        result.tarball_path,
-    );
+    assert!(result.tarball_path.ends_with("pnpm-1.2.3.tgz"), "{:?}", result.tarball_path);
     let tarball = dir.path().join("pnpm-1.2.3.tgz");
     let manifest = tarball_entry_content(&tarball, "package/package.json")
         .expect("the tarball carries a manifest");
@@ -203,25 +180,13 @@ fn packs_a_basic_package_to_a_tarball() {
     let result = api::<SilentReporter, Host>(&opts).unwrap();
 
     assert_eq!(result.tarball_path, "foo-1.2.3.tgz");
-    assert_eq!(
-        result.contents,
-        vec!["index.js".to_string(), "package.json".into()],
-    );
+    assert_eq!(result.contents, vec!["index.js".to_string(), "package.json".into()]);
 
     let tarball = dir.path().join("foo-1.2.3.tgz");
-    assert!(
-        tarball.is_file(),
-        "tarball should be written to the project dir",
-    );
+    assert!(tarball.is_file(), "tarball should be written to the project dir");
     let mut names = tarball_entry_names(&tarball);
     names.sort();
-    assert_eq!(
-        names,
-        vec![
-            "package/index.js".to_string(),
-            "package/package.json".into()
-        ],
-    );
+    assert_eq!(names, vec!["package/index.js".to_string(), "package/package.json".into()]);
 }
 
 #[test]
@@ -234,20 +199,13 @@ fn packs_regular_files_with_posix_ustar_headers() {
     let tarball = dir.path().join("foo-1.2.3.tgz");
     for entry_name in ["package/index.js", "package/package.json"] {
         let header = tarball_entry_header(&tarball, entry_name);
-        assert_eq!(
-            header[156], b'0',
-            "{entry_name} should use the POSIX regular-file typeflag",
-        );
+        assert_eq!(header[156], b'0', "{entry_name} should use the POSIX regular-file typeflag");
         assert_eq!(
             &header[257..263],
             b"ustar\0",
             "{entry_name} should carry the POSIX ustar magic",
         );
-        assert_eq!(
-            &header[263..265],
-            b"00",
-            "{entry_name} should carry the POSIX ustar version",
-        );
+        assert_eq!(&header[263..265], b"00", "{entry_name} should carry the POSIX ustar version");
     }
 }
 
@@ -268,10 +226,7 @@ fn symlinked_output_path_is_not_followed() {
 
     api::<SilentReporter, Host>(&opts).unwrap();
 
-    assert_eq!(
-        std::fs::read_to_string(&target).unwrap(),
-        "do not overwrite",
-    );
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), "do not overwrite");
     assert!(
         !std::fs::symlink_metadata(&tarball_path)
             .unwrap()
@@ -327,12 +282,7 @@ fn manifest_entry_is_the_published_manifest_not_the_on_disk_one() {
     let mut packed_manifest = None;
     for entry in archive.entries().unwrap() {
         let mut entry = entry.unwrap();
-        if entry
-            .path()
-            .unwrap()
-            .to_string_lossy()
-            == "package/package.json"
-        {
+        if entry.path().unwrap().to_string_lossy() == "package/package.json" {
             let mut buf = String::new();
             io::Read::read_to_string(&mut entry, &mut buf).unwrap();
             packed_manifest = Some(serde_json::from_str::<Value>(&buf).unwrap());
@@ -367,22 +317,14 @@ fn readme_is_reported_for_the_registry_but_kept_out_of_the_tarball_manifest() {
     let mut packed_manifest = None;
     for entry in archive.entries().unwrap() {
         let mut entry = entry.unwrap();
-        if entry
-            .path()
-            .unwrap()
-            .to_string_lossy()
-            == "package/package.json"
-        {
+        if entry.path().unwrap().to_string_lossy() == "package/package.json" {
             let mut buf = String::new();
             io::Read::read_to_string(&mut entry, &mut buf).unwrap();
             packed_manifest = Some(serde_json::from_str::<Value>(&buf).unwrap());
         }
     }
     let packed = packed_manifest.expect("tarball carries package/package.json");
-    assert!(
-        packed.get("readme").is_none(),
-        "readme must not be embedded in the tarball manifest",
-    );
+    assert!(packed.get("readme").is_none(), "readme must not be embedded in the tarball manifest");
 }
 
 #[test]
@@ -400,10 +342,7 @@ fn dry_run_reports_without_writing_a_tarball() {
             .exists(),
         "dry run must not write a tarball",
     );
-    assert_eq!(
-        result.contents,
-        vec!["index.js".to_string(), "package.json".into()],
-    );
+    assert_eq!(result.contents, vec!["index.js".to_string(), "package.json".into()]);
     assert!(result.unpacked_size > 0);
 }
 
@@ -429,10 +368,7 @@ fn files_field_restricts_the_tarball_contents() {
     touch(dir.path(), "src/index.ts", "x\n");
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
-    assert_eq!(
-        result.contents,
-        vec!["dist/index.js".to_string(), "package.json".into()],
-    );
+    assert_eq!(result.contents, vec!["dist/index.js".to_string(), "package.json".into()]);
 }
 
 #[test]
@@ -446,28 +382,19 @@ fn files_field_entries_do_not_match_at_depth() {
     touch(dir.path(), "example/src/App.js", "x\n");
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
-    assert_eq!(
-        result.contents,
-        vec!["package.json".to_string(), "src/index.js".into()],
-    );
+    assert_eq!(result.contents, vec!["package.json".to_string(), "src/index.js".into()]);
 }
 
 #[test]
 fn missing_name_is_rejected() {
     let (_dir, opts) = fixture(&json!({ "version": "1.0.0" }));
-    assert!(matches!(
-        api::<SilentReporter, Host>(&opts),
-        Err(PackError::PackageNameNotFound)
-    ));
+    assert!(matches!(api::<SilentReporter, Host>(&opts), Err(PackError::PackageNameNotFound)));
 }
 
 #[test]
 fn missing_version_is_rejected() {
     let (_dir, opts) = fixture(&json!({ "name": "foo" }));
-    assert!(matches!(
-        api::<SilentReporter, Host>(&opts),
-        Err(PackError::PackageVersionNotFound)
-    ));
+    assert!(matches!(api::<SilentReporter, Host>(&opts), Err(PackError::PackageVersionNotFound)));
 }
 
 #[test]
@@ -491,10 +418,7 @@ fn invalid_publish_config_name_is_rejected() {
             "publishConfig": { "name": published },
         }));
         assert!(
-            matches!(
-                api::<SilentReporter, Host>(&opts),
-                Err(PackError::InvalidPackageName { .. })
-            ),
+            matches!(api::<SilentReporter, Host>(&opts), Err(PackError::InvalidPackageName { .. })),
             "publishConfig.name {published:?} should be rejected",
         );
     }
@@ -522,10 +446,7 @@ fn out_and_pack_destination_together_is_rejected() {
     let (_dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
     opts.output.out = Some("%s.tgz".to_string());
     opts.output.destination = Some("dest".to_string());
-    assert!(matches!(
-        api::<SilentReporter, Host>(&opts),
-        Err(PackError::OutAndPackDestination)
-    ));
+    assert!(matches!(api::<SilentReporter, Host>(&opts), Err(PackError::OutAndPackDestination)));
 }
 
 #[test]
@@ -537,10 +458,7 @@ fn bundled_dependencies_without_hoisted_is_rejected() {
     }));
     assert!(matches!(
         api::<SilentReporter, Host>(&opts),
-        Err(PackError::BundledDependenciesWithoutHoisted {
-            field: "bundledDependencies",
-            ..
-        })
+        Err(PackError::BundledDependenciesWithoutHoisted { field: "bundledDependencies", .. })
     ));
 }
 
@@ -569,10 +487,7 @@ fn out_template_substitutes_name_and_version_and_directory() {
         .path()
         .join("artifacts")
         .join("scope-foo-2.0.0.tgz");
-    assert!(
-        expected.is_file(),
-        "tarball should land in the templated directory",
-    );
+    assert!(expected.is_file(), "tarball should land in the templated directory");
     assert_eq!(result.tarball_path, expected.display().to_string());
 }
 
@@ -644,11 +559,8 @@ fn symlinked_workspace_license_is_not_injected() {
     let workspace = tempdir().unwrap();
     let secret = tempdir().unwrap();
     std::fs::write(secret.path().join("secret.txt"), "host secret").unwrap();
-    std::os::unix::fs::symlink(
-        secret.path().join("secret.txt"),
-        workspace.path().join("LICENSE"),
-    )
-    .unwrap();
+    std::os::unix::fs::symlink(secret.path().join("secret.txt"), workspace.path().join("LICENSE"))
+        .unwrap();
     let pkg_dir = workspace
         .path()
         .join("packages")
@@ -826,10 +738,7 @@ fn out_resolving_to_no_filename_is_rejected() {
         let (_dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
         opts.output.out = Some(out.to_string());
         assert!(
-            matches!(
-                api::<SilentReporter, Host>(&opts),
-                Err(PackError::InvalidOut { .. })
-            ),
+            matches!(api::<SilentReporter, Host>(&opts), Err(PackError::InvalidOut { .. })),
             "--out {out:?} should be rejected",
         );
     }
@@ -846,10 +755,7 @@ fn text_output_strips_control_characters_from_paths() {
         unpacked_size: 0,
     };
     let text = format_pack_output(&[to_pack_result_json(&result)], false, false);
-    assert!(
-        !text.contains('\u{1b}'),
-        "escape sequence must be stripped: {text:?}",
-    );
+    assert!(!text.contains('\u{1b}'), "escape sequence must be stripped: {text:?}");
     assert!(text.contains("evil[2K.js"));
 }
 
@@ -896,27 +802,9 @@ fn runs_prepack_prepare_and_postpack() {
             .join("foo-1.0.0.tgz")
             .is_file(),
     );
-    assert!(
-        dir
-            .path()
-            .join("prepack.ran")
-            .exists(),
-        "prepack should have run",
-    );
-    assert!(
-        dir
-            .path()
-            .join("prepare.ran")
-            .exists(),
-        "prepare should have run",
-    );
-    assert!(
-        dir
-            .path()
-            .join("postpack.ran")
-            .exists(),
-        "postpack should have run",
-    );
+    assert!(dir.path().join("prepack.ran").exists(), "prepack should have run");
+    assert!(dir.path().join("prepare.ran").exists(), "prepare should have run");
+    assert!(dir.path().join("postpack.ran").exists(), "postpack should have run");
 }
 
 /// Regression test for <https://github.com/pnpm/pnpm/issues/12775>: the
@@ -940,10 +828,7 @@ fn includes_prepack_generated_files_removed_by_postpack() {
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
 
-    assert_eq!(
-        result.contents,
-        vec!["generated.txt".to_string(), "package.json".into()],
-    );
+    assert_eq!(result.contents, vec!["generated.txt".to_string(), "package.json".into()]);
     assert!(
         dir
             .path()
@@ -974,10 +859,7 @@ fn includes_prepack_generated_files_removed_by_postpack() {
 #[test]
 fn pack_succeeds_when_scripts_enabled_but_absent() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
@@ -1010,10 +892,7 @@ fn pack_succeeds_when_scripts_enabled_but_absent() {
         .iter()
         .filter(|event| matches!(event, LogEvent::Lifecycle(_)))
         .count();
-    assert_eq!(
-        lifecycle_events, 0,
-        "an empty `prepack` must be skipped, not executed",
-    );
+    assert_eq!(lifecycle_events, 0, "an empty `prepack` must be skipped, not executed");
 }
 
 /// Write a package under `<dir>/node_modules/<name>/` for the bundle
@@ -1031,129 +910,4 @@ fn install_module(dir: &Path, name: &str, version: &str, extra: &[(&str, &str)])
     }
 }
 
-/// `pack` bundles dependencies listed in `bundleDependencies`.
-/// Covers the `fs-packlist` `bundleDependencies` recursion and the
-/// `node_linker: hoisted` allow-path.
-#[test]
-fn bundles_dependencies_listed_in_bundle_dependencies() {
-    let (dir, mut opts) = fixture(&json!({
-        "name": "pkg-with-bundle-deps",
-        "version": "0.0.0",
-        "bundleDependencies": ["bundled-dep"],
-    }));
-    opts.manifest.node_linker = NodeLinker::Hoisted;
-    install_module(
-        dir.path(),
-        "bundled-dep",
-        "1.0.0",
-        &[("index.js", "module.exports = 42")],
-    );
-    install_module(dir.path(), "not-bundled", "1.0.0", &[]);
-
-    let result = api::<SilentReporter, Host>(&opts).unwrap();
-
-    assert!(result.contents.contains(&"node_modules/bundled-dep/package.json".to_string()));
-    assert!(result.contents.contains(&"node_modules/bundled-dep/index.js".to_string()));
-    assert!(
-        !result.contents
-            .iter()
-            .any(|path| path.contains("not-bundled")),
-    );
-}
-
-/// `pack` bundles every dependency when `bundleDependencies` is true.
-/// Covers `bundle_dep_names`' `bundleDependencies: true` branch, which
-/// materializes the names from `dependencies`.
-#[test]
-fn bundles_every_dependency_when_bundle_dependencies_is_true() {
-    let (dir, mut opts) = fixture(&json!({
-        "name": "pkg-with-bundle-deps-true",
-        "version": "0.0.0",
-        "dependencies": { "bundled-dep": "1.0.0" },
-        "bundleDependencies": true,
-    }));
-    opts.manifest.node_linker = NodeLinker::Hoisted;
-    install_module(
-        dir.path(),
-        "bundled-dep",
-        "1.0.0",
-        &[("index.js", "module.exports = 42")],
-    );
-    install_module(dir.path(), "not-a-dep", "1.0.0", &[]);
-
-    let result = api::<SilentReporter, Host>(&opts).unwrap();
-
-    assert!(result.contents.contains(&"node_modules/bundled-dep/index.js".to_string()));
-    assert!(result.contents.contains(&"node_modules/bundled-dep/package.json".to_string()));
-    assert!(
-        !result.contents
-            .iter()
-            .any(|path| path.contains("not-a-dep")),
-    );
-}
-
-/// `pack` bundles transitive dependencies of bundled dependencies
-/// (hoisted).
-/// A bundled dep's own (hoisted) `dependencies` ship too: `top` is
-/// bundled and depends on `nested`, which is hoisted to the root
-/// `node_modules`, so `nested` must be bundled under its real path. The
-/// transitive walk this exercises lives in `fs-packlist`.
-#[test]
-fn bundles_transitive_dependencies_of_bundled_dependencies() {
-    let (dir, mut opts) = fixture(&json!({
-        "name": "pkg-with-transitive-bundle-deps",
-        "version": "0.0.0",
-        "bundledDependencies": ["top"],
-    }));
-    opts.manifest.node_linker = NodeLinker::Hoisted;
-    // `top` (directly bundled) depends on `nested`, hoisted to the root.
-    let top = dir
-        .path()
-        .join("node_modules")
-        .join("top");
-    std::fs::create_dir_all(&top).unwrap();
-    std::fs::write(
-        top.join("package.json"),
-        r#"{"name":"top","version":"1.0.0","dependencies":{"nested":"1.0.0"}}"#,
-    )
-    .unwrap();
-    std::fs::write(top.join("index.js"), "top").unwrap();
-    install_module(dir.path(), "nested", "1.0.0", &[("index.js", "nested")]);
-
-    let result = api::<SilentReporter, Host>(&opts).unwrap();
-
-    assert!(result.contents.contains(&"node_modules/top/index.js".to_string()));
-    assert!(
-        result.contents.contains(&"node_modules/nested/index.js".to_string()),
-        "hoisted transitive dep `nested` must be bundled: {:?}",
-        result.contents,
-    );
-}
-
-/// `pack` reads from the correct `node_modules` when publishing from a
-/// custom directory.
-/// Covers the `publishConfig.directory` redirect: the manifest is read
-/// from `dist/`, but `workspace:` deps still resolve against the project
-/// root's `node_modules`.
-#[test]
-fn reads_node_modules_from_original_dir_when_publishing_from_custom_directory() {
-    let (dir, opts) = fixture(&json!({
-        "name": "custom-publish-dir",
-        "version": "0.0.0",
-        "publishConfig": { "directory": "dist" },
-        "dependencies": { "local": "workspace:*" },
-    }));
-    let dist = dir.path().join("dist");
-    std::fs::create_dir_all(&dist).unwrap();
-    std::fs::copy(dir.path().join("package.json"), dist.join("package.json")).unwrap();
-    install_module(dir.path(), "local", "1.0.0", &[]);
-
-    let result = api::<SilentReporter, Host>(&opts).unwrap();
-
-    // The `workspace:*` spec resolves to the installed version, read from
-    // the project root's node_modules (not `dist/node_modules`).
-    assert_eq!(
-        result.published_manifest["dependencies"]["local"],
-        json!("1.0.0"),
-    );
-}
+mod bundled_dependencies;

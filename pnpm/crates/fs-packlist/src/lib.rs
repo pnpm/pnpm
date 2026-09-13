@@ -90,14 +90,8 @@ const ALWAYS_EXCLUDED_DIR_SEGMENTS: &[&str] = &[".git", ".svn", ".hg", "CVS"];
 /// Basenames always excluded regardless of where the file sits.
 /// Matches npm-packlist's per-file cruft set: lockfiles for sibling
 /// package managers, debug logs, OS junk, npm runtime config.
-const ALWAYS_EXCLUDED_BASENAMES: &[&str] = &[
-    ".npmrc",
-    "npm-debug.log",
-    ".DS_Store",
-    "package-lock.json",
-    "yarn.lock",
-    "pnpm-lock.yaml",
-];
+const ALWAYS_EXCLUDED_BASENAMES: &[&str] =
+    &[".npmrc", "npm-debug.log", ".DS_Store", "package-lock.json", "yarn.lock", "pnpm-lock.yaml"];
 
 /// Suffix-based always-excluded set, matching `npm-packlist`'s
 /// `*.orig` exclusion family.
@@ -168,11 +162,8 @@ fn collect_own_files(
     // honor `.gitignore` even though a git-hosted snapshot's `.git/`
     // has already been deleted by [`crate::GitFetcher`] before this
     // point.
-    let selection = FileSelection {
-        files_matcher: files_matcher.as_ref(),
-        main_path,
-        bin_paths: &bin_paths,
-    };
+    let selection =
+        FileSelection { files_matcher: files_matcher.as_ref(), main_path, bin_paths: &bin_paths };
     let builder = ignore_walk_builder(pkg_dir, workspace_dir, files_matcher.is_some())?;
     collect_walked_files(&builder, pkg_dir, &selection, &mut out)?;
     collect_always_included_at_root(pkg_dir, &mut out)?;
@@ -250,10 +241,7 @@ fn collect_walked_files(
 ) -> Result<(), PacklistError> {
     for entry in builder.build() {
         let entry = entry.map_err(|err| io_error(pkg_dir, into_io(err)))?;
-        if !entry
-            .file_type()
-            .is_some_and(|file_type| file_type.is_file())
-        {
+        if !entry.file_type().is_some_and(|file_type| file_type.is_file()) {
             continue;
         }
         let rel = relative_forward_slash(pkg_dir, entry.path());
@@ -290,19 +278,13 @@ fn collect_always_included_at_root(
     out: &mut BTreeSet<String>,
 ) -> Result<(), PacklistError> {
     let root_entries = fs::read_dir(pkg_dir)
-        .map_err(|source| PacklistError::Io {
-            pkg_dir: pkg_dir.display().to_string(),
-            source,
-        })?;
+        .map_err(|source| PacklistError::Io { pkg_dir: pkg_dir.display().to_string(), source })?;
     for entry in root_entries {
         let entry = entry.map_err(|source| PacklistError::Io {
             pkg_dir: pkg_dir.display().to_string(),
             source,
         })?;
-        if !entry
-            .file_type()
-            .is_ok_and(|file_type| file_type.is_file())
-        {
+        if !entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
             continue;
         }
         let name = entry
@@ -346,24 +328,16 @@ fn add_workspace_ignore_files(
     pkg_dir: &Path,
     workspace_dir: Option<&Path>,
 ) -> Result<(), PacklistError> {
-    let Some(workspace_dir) = workspace_dir else {
-        return Ok(());
-    };
+    let Some(workspace_dir) = workspace_dir else { return Ok(()) };
     if pkg_dir.join(".npmignore").is_file() {
         return Ok(());
     }
-    let Ok(rel) = pkg_dir.strip_prefix(workspace_dir) else {
-        return Ok(());
-    };
+    let Ok(rel) = pkg_dir.strip_prefix(workspace_dir) else { return Ok(()) };
     if rel.as_os_str().is_empty() {
         return Ok(());
     }
-    let Some(pkg_parent) = pkg_dir.parent() else {
-        return Ok(());
-    };
-    let Ok(parent_rel) = pkg_parent.strip_prefix(workspace_dir) else {
-        return Ok(());
-    };
+    let Some(pkg_parent) = pkg_dir.parent() else { return Ok(()) };
+    let Ok(parent_rel) = pkg_parent.strip_prefix(workspace_dir) else { return Ok(()) };
 
     let mut current = workspace_dir.to_path_buf();
     add_workspace_ignore_file(builder, pkg_dir, &current)?;
@@ -373,9 +347,7 @@ fn add_workspace_ignore_files(
         // else (a stray `..` or root/prefix from a non-canonical path) means
         // we can't trust the remaining chain, so stop rather than walk out of
         // the workspace; the already-added root ignore stays in effect.
-        let Component::Normal(segment) = component else {
-            return Ok(());
-        };
+        let Component::Normal(segment) = component else { return Ok(()) };
         current.push(segment);
         add_workspace_ignore_file(builder, pkg_dir, &current)?;
     }
@@ -501,10 +473,7 @@ fn is_main_or_bin(rel: &str, main: Option<&str>, bins: &[&str]) -> bool {
 }
 
 fn should_always_exclude(rel: &str) -> bool {
-    let basename = rel
-        .rsplit('/')
-        .next()
-        .unwrap_or(rel);
+    let basename = rel.rsplit('/').next().unwrap_or(rel);
     // Basename-cruft check: per-file entries (`.npmrc`, lockfiles,
     // debug logs, OS junk) are excluded at any depth.
     if ALWAYS_EXCLUDED_BASENAMES.contains(&basename) {
@@ -572,17 +541,12 @@ fn is_regular_file_within(root: &Path, candidate: &Path) -> bool {
     let Ok(resolved) = candidate.canonicalize() else {
         return false;
     };
-    let canonical_root = root
-        .canonicalize()
-        .unwrap_or_else(|_| root.to_path_buf());
+    let canonical_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     resolved.starts_with(&canonical_root) && resolved.is_file()
 }
 
 fn io_error(pkg_dir: &Path, source: std::io::Error) -> PacklistError {
-    PacklistError::Io {
-        pkg_dir: pkg_dir.display().to_string(),
-        source,
-    }
+    PacklistError::Io { pkg_dir: pkg_dir.display().to_string(), source }
 }
 
 fn into_io(err: ignore::Error) -> std::io::Error {

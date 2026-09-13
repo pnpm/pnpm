@@ -67,9 +67,7 @@ pub async fn pack(options: PackOptions, on_log: Option<LogSink>) -> napi::Result
         // `api` is async; drive it to completion on this blocking-pool thread so
         // the blocking tarball write does not tie up an async worker thread.
         tokio::runtime::Handle::current()
-            .block_on(pnpm_pack::api::<NodeBridgeReporter, pnpm_pack::Host>(
-                &pack_opts,
-            ))
+            .block_on(pnpm_pack::api::<NodeBridgeReporter, pnpm_pack::Host>(&pack_opts))
     })
     .await;
 

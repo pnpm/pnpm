@@ -29,15 +29,9 @@ impl TreeNode {
         let groups = if nodes.is_empty() {
             Vec::new()
         } else {
-            vec![TreeNodeGroup {
-                group: String::new(),
-                nodes,
-            }]
+            vec![TreeNodeGroup { group: String::new(), nodes }]
         };
-        TreeNode {
-            label,
-            groups,
-        }
+        TreeNode { label, groups }
     }
 }
 
@@ -116,11 +110,7 @@ fn push_group_header(group: &str, prefix: &str, out: &mut String) {
 fn child_frames(prefix: &str, last: bool, parent: bool) -> (String, String) {
     let branch = if last { "\u{2514}" } else { "\u{251c}" };
     let stem = if parent { "\u{252c}" } else { "\u{2500}" };
-    let child_prefix = if last {
-        format!("{prefix}  ")
-    } else {
-        format!("{prefix}\u{2502} ")
-    };
+    let child_prefix = if last { format!("{prefix}  ") } else { format!("{prefix}\u{2502} ") };
     (format!("{prefix}{branch}\u{2500}{stem} "), child_prefix)
 }
 
@@ -183,9 +173,7 @@ pub fn peer_hash_suffix(
     version: &str,
     hash: Option<&str>,
 ) -> String {
-    let Some(hash) = hash else {
-        return String::new();
-    };
+    let Some(hash) = hash else { return String::new() };
     let Some(count) = multi_peer_pkgs.get(&format!("{name}@{version}")) else {
         return String::new();
     };
@@ -245,9 +233,7 @@ pub fn plain(text: &str) -> String {
 
 #[must_use]
 pub fn dim(text: &str) -> String {
-    sanitize(text)
-        .if_supports_color(Stream::Stdout, |t| t.dimmed())
-        .to_string()
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
 }
 
 const BOLD: &str = "\u{1b}[1m";
@@ -266,54 +252,39 @@ const RESET: &str = "\u{1b}[0m";
 pub fn bold_styled(styled: &str) -> String {
     styled
         .if_supports_color(Stream::Stdout, |text| {
-            format!(
-                "{BOLD}{}{RESET}",
-                text.replace(RESET, &format!("{RESET}{BOLD}")),
-            )
+            format!("{BOLD}{}{RESET}", text.replace(RESET, &format!("{RESET}{BOLD}")))
         })
         .to_string()
 }
 
 #[must_use]
 pub fn cyan_bright(text: &str) -> String {
-    sanitize(text)
-        .if_supports_color(Stream::Stdout, |t| t.bright_cyan())
-        .to_string()
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.bright_cyan()).to_string()
 }
 
 #[must_use]
 pub fn gray(text: &str) -> String {
-    sanitize(text)
-        .if_supports_color(Stream::Stdout, |t| t.bright_black())
-        .to_string()
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.bright_black()).to_string()
 }
 
 #[must_use]
 pub fn yellow(text: &str) -> String {
-    sanitize(text)
-        .if_supports_color(Stream::Stdout, |t| t.yellow())
-        .to_string()
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.yellow()).to_string()
 }
 
 #[must_use]
 pub fn blue(text: &str) -> String {
-    sanitize(text)
-        .if_supports_color(Stream::Stdout, |t| t.blue())
-        .to_string()
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.blue()).to_string()
 }
 
 #[must_use]
 pub fn red(text: &str) -> String {
-    sanitize(text)
-        .if_supports_color(Stream::Stdout, |t| t.red())
-        .to_string()
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.red()).to_string()
 }
 
 #[must_use]
 pub fn green(text: &str) -> String {
-    sanitize(text)
-        .if_supports_color(Stream::Stdout, |t| t.green())
-        .to_string()
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.green()).to_string()
 }
 
 #[must_use]

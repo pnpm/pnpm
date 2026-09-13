@@ -12,10 +12,7 @@ fn prunes_a_catalog_entry_its_last_referent_dropped() {
     )
     .expect("dropping the catalog referent needs no resolution");
 
-    assert!(
-        updated.catalogs.is_none(),
-        "the orphaned catalog entry goes with its referent",
-    );
+    assert!(updated.catalogs.is_none(), "the orphaned catalog entry goes with its referent");
 }
 #[test]
 fn keeps_a_catalog_entry_another_importer_references() {

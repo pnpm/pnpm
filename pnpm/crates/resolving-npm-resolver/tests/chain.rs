@@ -17,10 +17,7 @@ use pnpm_resolving_npm_resolver::{MergeNamedRegistriesError, merge_named_registr
 fn reserved_scheme_aliases_are_rejected() {
     for alias in ["link", "workspace", "file", "runtime"] {
         let mut user = HashMap::new();
-        user.insert(
-            alias.to_string(),
-            "https://npm.work.example.com/".to_string(),
-        );
+        user.insert(alias.to_string(), "https://npm.work.example.com/".to_string());
         let err = merge_named_registries(&user).expect_err("reserved alias must error");
         assert!(
             matches!(err, MergeNamedRegistriesError::ReservedAlias { .. }),

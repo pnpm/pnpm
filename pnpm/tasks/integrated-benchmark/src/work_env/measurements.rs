@@ -102,9 +102,7 @@ pub(super) fn read_benchmark_diagnostics(path: &Path) -> BenchmarkDiagnostics {
         .unwrap_or_else(|err| panic!("parse benchmark diagnostics at {}: {err}", path.display()))
 }
 pub(super) fn read_phase_events(path: &Path) -> Vec<PhaseEvent> {
-    let Ok(text) = fs::read_to_string(path) else {
-        return Vec::new();
-    };
+    let Ok(text) = fs::read_to_string(path) else { return Vec::new() };
     text
         .lines()
         .filter_map(|line| serde_json::from_str::<Value>(line).ok())
@@ -149,7 +147,44 @@ pub(super) fn event_u64(value: &Value, key: &str) -> Option<u64> {
         })
 }
 pub(super) fn summarize_phase_events(events: &[PhaseEvent]) -> PhaseSummary {
-    let partition = events
+    let partition = latest_partition_metric(events);
+    let create_virtual_store_mean_ms = mean(
+        events
+            .iter()
+            .filter(|event| event.phase == "create_virtual_store")
+            .filter_map(|event| event.elapsed_ms)
+            .map(|elapsed| elapsed as f64),
+    );
+    let link_slots = ["warm", "cold"]
+        .into_iter()
+        .filter_map(|batch| {
+            let matching: Vec<&PhaseEvent> = events
+                .iter()
+                .filter(|event| {
+                    event.phase == "link_slots" && event.batch.as_deref() == Some(batch)
+                })
+                .collect();
+            if matching.is_empty() {
+                return None;
+            }
+            let slots = matching
+                .iter()
+                .filter_map(|event| event.slots)
+                .max()
+                .unwrap_or(0);
+            let mean_ms = mean(
+                matching
+                    .iter()
+                    .filter_map(|event| event.elapsed_ms)
+                    .map(|ms| ms as f64),
+            )?;
+            Some(LinkSlotsMetric { batch: batch.to_string(), slots, mean_ms })
+        })
+        .collect();
+    PhaseSummary { partition, create_virtual_store_mean_ms, link_slots }
+}
+fn latest_partition_metric(events: &[PhaseEvent]) -> Option<PartitionMetric> {
+    events
         .iter()
         .rev()
         .find(|event| event.phase == "create_virtual_store_partition")
@@ -160,23 +195,7 @@ pub(super) fn summarize_phase_events(events: &[PhaseEvent]) -> PhaseSummary {
                 skipped: event.skipped.unwrap_or(0),
                 total: event.total?,
             })
-        });
-    let create_virtual_store_mean_ms = mean(
-        events
-            .iter()
-            .filter(|event| event.phase == "create_virtual_store")
-            .filter_map(|event| event.elapsed_ms)
-            .map(|elapsed| elapsed as f64),
-    );
-    let link_slots = ["warm", "cold"]
-        .into_iter()
-        .filter_map(|batch| summarize_link_slots(events, batch))
-        .collect();
-    PhaseSummary {
-        partition,
-        create_virtual_store_mean_ms,
-        link_slots,
-    }
+        })
 }
 pub(super) fn mean(values: impl Iterator<Item = f64>) -> Option<f64> {
     let mut total = 0.0;
@@ -241,7 +260,22 @@ pub(super) fn render_diagnostics_markdown(
         "| Target | hyperfine mean | hyperfine min | warm | cold | skipped | CreateVirtualStore mean | link warm mean | link cold mean |\n",
     );
     out.push_str("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n");
-    write_target_metrics(&mut out, diagnostics);
+    for target in &diagnostics.targets {
+        let partition = target.phase_summary.partition.as_ref();
+        let _ = writeln!(
+            out,
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+            target.id,
+            format_seconds(target.hyperfine_mean_seconds),
+            format_seconds(target.hyperfine_min_seconds),
+            format_u64(partition.map(|metric| metric.warm)),
+            format_u64(partition.map(|metric| metric.cold)),
+            format_u64(partition.map(|metric| metric.skipped)),
+            format_ms(target.phase_summary.create_virtual_store_mean_ms),
+            format_ms(link_slots_mean(&target.phase_summary, "warm")),
+            format_ms(link_slots_mean(&target.phase_summary, "cold")),
+        );
+    }
     if !diagnostics.pnpr_direct_ratios.is_empty() {
         out.push_str("\n| Ratio | value |\n| --- | ---: |\n");
         for ratio in &diagnostics.pnpr_direct_ratios {
@@ -273,49 +307,4 @@ pub(super) fn format_ms(value: Option<f64>) -> String {
 }
 pub(super) fn format_u64(value: Option<u64>) -> String {
     value.map_or_else(|| "-".to_string(), |value| value.to_string())
-}
-
-fn summarize_link_slots(events: &[PhaseEvent], batch: &str) -> Option<LinkSlotsMetric> {
-    let matching: Vec<&PhaseEvent> = events
-        .iter()
-        .filter(|event| event.phase == "link_slots" && event.batch.as_deref() == Some(batch))
-        .collect();
-    if matching.is_empty() {
-        return None;
-    }
-    let slots = matching
-        .iter()
-        .filter_map(|event| event.slots)
-        .max()
-        .unwrap_or(0);
-    let mean_ms = mean(
-        matching
-            .iter()
-            .filter_map(|event| event.elapsed_ms)
-            .map(|ms| ms as f64),
-    )?;
-    Some(LinkSlotsMetric {
-        batch: batch.to_string(),
-        slots,
-        mean_ms,
-    })
-}
-
-fn write_target_metrics(out: &mut String, diagnostics: &BenchmarkDiagnostics) {
-    for target in &diagnostics.targets {
-        let partition = target.phase_summary.partition.as_ref();
-        let _ = writeln!(
-            out,
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {} |",
-            target.id,
-            format_seconds(target.hyperfine_mean_seconds),
-            format_seconds(target.hyperfine_min_seconds),
-            format_u64(partition.map(|metric| metric.warm)),
-            format_u64(partition.map(|metric| metric.cold)),
-            format_u64(partition.map(|metric| metric.skipped)),
-            format_ms(target.phase_summary.create_virtual_store_mean_ms),
-            format_ms(link_slots_mean(&target.phase_summary, "warm")),
-            format_ms(link_slots_mean(&target.phase_summary, "cold")),
-        );
-    }
 }

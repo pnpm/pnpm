@@ -62,10 +62,7 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
     // On disk: canonical `<basename>-<version>.tgz` path, NOT the
     // scoped form. That's where serve_tarball looks.
     let on_disk = storage.join("@pnpmtest/lib-pub-form/lib-pub-form-1.0.0.tgz");
-    assert!(
-        on_disk.exists(),
-        "tarball should be persisted at canonical path",
-    );
+    assert!(on_disk.exists(), "tarball should be persisted at canonical path");
     assert_eq!(std::fs::read(&on_disk).unwrap(), bytes);
 
     // And it serves back via the spec URL form.
@@ -229,10 +226,7 @@ async fn unpublish_tarball_also_clears_the_proxied_copy() {
     );
 
     assert!(!storage.join("blend-pkg/blend-pkg-1.0.0.tgz").exists());
-    assert!(
-        !cached.join("blend-pkg-1.0.0.tgz").exists(),
-        "proxied copy must be removed too",
-    );
+    assert!(!cached.join("blend-pkg-1.0.0.tgz").exists(), "proxied copy must be removed too");
 
     // With both stores cleared and no upstream, the version is gone.
     let response = app
@@ -477,12 +471,6 @@ async fn concurrent_publishes_of_distinct_versions_all_survive() {
 
     let on_disk = std::fs::read(storage.join("racer/package.json")).expect("packument written");
     let packument: Value = serde_json::from_slice(&on_disk).unwrap();
-    assert_eq!(
-        packument["versions"]["1.0.0"]["version"], "1.0.0",
-        "1.0.0 must survive",
-    );
-    assert_eq!(
-        packument["versions"]["2.0.0"]["version"], "2.0.0",
-        "2.0.0 must survive",
-    );
+    assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0", "1.0.0 must survive");
+    assert_eq!(packument["versions"]["2.0.0"]["version"], "2.0.0", "2.0.0 must survive");
 }

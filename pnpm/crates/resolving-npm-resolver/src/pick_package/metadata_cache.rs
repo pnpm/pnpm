@@ -164,23 +164,11 @@ impl PackageMetaCache for InMemoryPackageMetaCache {
     }
 
     fn set(&self, key: String, meta: Arc<Package>) {
-        self.inner.insert(
-            key,
-            CachedPackument {
-                meta,
-                registry_verified: true,
-            },
-        );
+        self.inner.insert(key, CachedPackument { meta, registry_verified: true });
     }
 
     fn set_unverified(&self, key: String, meta: Arc<Package>) {
-        self.inner.insert(
-            key,
-            CachedPackument {
-                meta,
-                registry_verified: false,
-            },
-        );
+        self.inner.insert(key, CachedPackument { meta, registry_verified: false });
     }
 }
 

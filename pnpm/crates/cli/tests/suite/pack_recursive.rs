@@ -51,10 +51,7 @@ fn recursive_pack_filter_packs_only_selected_project() {
         .assert()
         .success();
 
-    assert!(
-        out.join("project-1-1.0.0.tgz").exists(),
-        "the selected project-1 should be packed",
-    );
+    assert!(out.join("project-1-1.0.0.tgz").exists(), "the selected project-1 should be packed");
     for name in ["project-2", "project-3"] {
         assert!(
             !out
@@ -87,10 +84,7 @@ fn filter_without_recursive_flag_enters_recursive_pack() {
         .assert()
         .success();
 
-    assert!(
-        out.join("project-1-1.0.0.tgz").exists(),
-        "the selected project-1 should be packed",
-    );
+    assert!(out.join("project-1-1.0.0.tgz").exists(), "the selected project-1 should be packed");
     for name in ["project-2", "project-3"] {
         assert!(
             !out
@@ -111,11 +105,8 @@ fn filter_without_recursive_flag_enters_recursive_pack() {
 #[test]
 fn recursive_pack_includes_workspace_root() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.join("package.json"),
         json!({ "name": "root-pkg", "version": "1.0.0" }).to_string(),

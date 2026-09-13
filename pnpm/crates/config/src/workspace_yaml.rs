@@ -303,11 +303,7 @@ fn join_fragment(base: &Path, fragment: &str) -> PathBuf {
 
 fn resolve(base: &Path, value: &str) -> PathBuf {
     let candidate = Path::new(value);
-    if candidate.is_absolute() {
-        candidate.to_path_buf()
-    } else {
-        base.join(candidate)
-    }
+    if candidate.is_absolute() { candidate.to_path_buf() } else { base.join(candidate) }
 }
 
 pub(crate) fn find_workspace_manifest(start: &Path) -> Option<PathBuf> {

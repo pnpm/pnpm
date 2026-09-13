@@ -20,11 +20,7 @@ impl ReporterState {
             Some(total) => format!("{} of {total}", log.selected),
             None => log.selected.to_string(),
         };
-        let unit = if log.workspace_prefix.is_some() {
-            "workspace projects"
-        } else {
-            "projects"
-        };
+        let unit = if log.workspace_prefix.is_some() { "workspace projects" } else { "projects" };
         let mut slot = std::mem::take(&mut self.display.scope_slot);
         self.display.frame.emit(&mut slot, format!("Scope: {count} {unit}"), false);
         self.display.scope_slot = slot;
@@ -40,10 +36,13 @@ impl ReporterState {
     // --- progress ---------------------------------------------------------
 
     pub(super) fn on_progress(&mut self, message: &ProgressMessage) {
-        let requester = progress_requester(message).to_string();
-        let entry = self.downloads.progress
-            .entry(requester.clone())
-            .or_default();
+        let requester = match message {
+            ProgressMessage::Resolved { requester, .. }
+            | ProgressMessage::Fetched { requester, .. }
+            | ProgressMessage::FoundInStore { requester, .. }
+            | ProgressMessage::Imported { requester, .. } => requester.clone(),
+        };
+        let entry = self.downloads.progress.entry(requester.clone()).or_default();
         match message {
             ProgressMessage::Resolved { .. } => entry.stats.resolved += 1,
             ProgressMessage::Fetched { .. } => entry.stats.fetched += 1,
@@ -96,18 +95,13 @@ impl ReporterState {
                 if *size < BIG_TARBALL_SIZE || *attempt != 1 {
                     return;
                 }
-                let mut entry = BigTarball {
-                    size: *size,
-                    slot: BlockSlot::default(),
-                };
+                let mut entry = BigTarball { size: *size, slot: BlockSlot::default() };
                 let msg = self.downloading_message(package_id, 0, *size);
                 self.display.frame.emit(&mut entry.slot, msg, true);
                 self.downloads.tarballs.insert(package_id.clone(), entry);
             }
             FetchingProgressMessage::InProgress { downloaded, package_id } => {
-                let Some(entry) = self.downloads.tarballs.get(package_id) else {
-                    return;
-                };
+                let Some(entry) = self.downloads.tarballs.get(package_id) else { return };
                 let size = entry.size;
                 let done = *downloaded == size;
                 let msg = self.downloading_message(package_id, *downloaded, size);
@@ -272,14 +266,5 @@ impl InstallProgress {
         let mut slot = std::mem::take(&mut self.context_slot);
         frame.emit(&mut slot, msg, false);
         self.context_slot = slot;
-    }
-}
-
-fn progress_requester(message: &ProgressMessage) -> &str {
-    match message {
-        ProgressMessage::Resolved { requester, .. }
-        | ProgressMessage::Fetched { requester, .. }
-        | ProgressMessage::FoundInStore { requester, .. }
-        | ProgressMessage::Imported { requester, .. } => requester,
     }
 }

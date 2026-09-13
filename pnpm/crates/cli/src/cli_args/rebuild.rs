@@ -5,11 +5,8 @@ use crate::{
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_modules_yaml::{Host, read_modules_layout, read_modules_manifest};
-use pnpm_package_manager::{
-    Install, ProjectMutation, RebuildOptions, allow_build_key_from_ignored_build,
-};
+use pnpm_package_manager::{ProjectMutation, RebuildOptions, allow_build_key_from_ignored_build};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
 use pnpm_workspace_task_scheduler::{
@@ -68,8 +65,7 @@ impl RebuildArgs {
         if !cfg.shares_one_lockfile()
             && let Some(workspace_selection) = workspace_selection
         {
-            return self.run_per_project::<Reporter>(cfg, workspace_selection, no_bail)
-                .await;
+            return self.run_per_project::<Reporter>(cfg, workspace_selection, no_bail).await;
         }
 
         let state = State::init(manifest_path, cfg, true).wrap_err("initialize the rebuild state")?;
@@ -109,8 +105,7 @@ impl RebuildArgs {
             );
             let first_error = &first_error;
             async move {
-                let result = args.rebuild_project::<Reporter>(project_config, &project_dir)
-                    .await;
+                let result = args.rebuild_project::<Reporter>(project_config, &project_dir).await;
                 match result {
                     Ok(()) => TaskCompletion::Passed,
                     Err(error) => {
@@ -164,20 +159,14 @@ fn resolve_selection(
     config: &Config,
 ) -> miette::Result<RebuildSelection> {
     if !packages.is_empty() {
-        return Ok(RebuildSelection {
-            names: Some(packages.to_vec()),
-            projects: Vec::new(),
-        });
+        return Ok(RebuildSelection { names: Some(packages.to_vec()), projects: Vec::new() });
     }
     if !pending {
         return Ok(RebuildSelection::default());
     }
     let Some(modules) = read_modules_manifest::<Host>(&config.modules_dir).into_diagnostic()?
     else {
-        return Ok(RebuildSelection {
-            names: Some(Vec::new()),
-            projects: Vec::new(),
-        });
+        return Ok(RebuildSelection { names: Some(Vec::new()), projects: Vec::new() });
     };
     // `.modules.yaml` sits in the root `node_modules`, so its importer
     // ids are relative to that directory's parent.
@@ -204,10 +193,7 @@ fn resolve_selection(
                 .map(|dep_path| allow_build_key_from_ignored_build(dep_path))
                 .collect(),
         ),
-        projects: projects
-            .into_iter()
-            .cloned()
-            .collect(),
+        projects: projects.into_iter().cloned().collect(),
     })
 }
 
@@ -221,26 +207,13 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
     workspace_selection: Option<InstallFamilySelection>,
 ) -> miette::Result<()> {
     let lockfile_path = state.lockfile_path();
-
     let rebuild = RebuildOptions {
         selected_names: selection.names.map(|names| names.into_iter().collect::<HashSet<_>>()),
         pending_projects: selection.projects,
     };
 
     let dependency_groups = rebuild_dependency_groups(state.config)?;
-
-    let mut install = Install::new(
-        std::sync::Arc::clone(&state.tarball_mem_cache),
-        &state.resolved_packages,
-        (
-            &state.http_client,
-            std::sync::Arc::clone(&state.http_client),
-        ),
-        state.config,
-        &state.manifest,
-        MaybeLazyLockfile::Lazy(&state.lockfile),
-        dependency_groups,
-    );
+    let mut install = state.install(dependency_groups);
     install.lockfile_policy.frozen = true;
     install.execution.mutation = ProjectMutation::NoInstall;
     install.context.lockfile_path = Some(&lockfile_path);
@@ -273,11 +246,8 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
 /// manifest written before `included` existed, or a corrupt one) — neither
 /// is a recorded "include nothing" intent to preserve.
 fn rebuild_dependency_groups(config: &Config) -> miette::Result<Vec<DependencyGroup>> {
-    const ALL: [DependencyGroup; 3] = [
-        DependencyGroup::Prod,
-        DependencyGroup::Dev,
-        DependencyGroup::Optional,
-    ];
+    const ALL: [DependencyGroup; 3] =
+        [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
     let Some(modules) = read_modules_layout::<Host>(&config.modules_dir).into_diagnostic()? else {
         return Ok(ALL.to_vec());
     };
@@ -295,11 +265,7 @@ fn rebuild_dependency_groups(config: &Config) -> miette::Result<Vec<DependencyGr
     // An all-false `included` would otherwise narrow the rebuild to no
     // groups and persist that empty state into `.modules.yaml` and the
     // current lockfile, breaking later installs.
-    Ok(if groups.is_empty() {
-        ALL.to_vec()
-    } else {
-        groups
-    })
+    Ok(if groups.is_empty() { ALL.to_vec() } else { groups })
 }
 
 #[cfg(test)]

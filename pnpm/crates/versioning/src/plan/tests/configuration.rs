@@ -23,10 +23,7 @@ fn a_package_matched_by_two_epics_is_a_configuration_error() {
         &AssembleReleasePlanOptions::default(),
     )
     .expect_err("plan must fail");
-    assert!(
-        err.to_string().contains("at most one epic"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("at most one epic"), "unexpected error: {err}");
 }
 
 #[test]
@@ -50,10 +47,7 @@ fn a_fixed_group_straddling_an_epic_boundary_is_a_configuration_error() {
         &AssembleReleasePlanOptions::default(),
     )
     .expect_err("plan must fail");
-    assert!(
-        err.to_string().contains("straddles the epic"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("straddles the epic"), "unexpected error: {err}");
 }
 
 #[test]

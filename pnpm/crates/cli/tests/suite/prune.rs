@@ -52,16 +52,10 @@ fn prune_from_workspace_member_writes_the_workspace_lockfile() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    fs::write(
-        workspace.join("package.json"),
-        r#"{ "name": "workspace-root" }"#,
-    )
-    .expect("write root package.json");
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write workspace manifest");
+    fs::write(workspace.join("package.json"), r#"{ "name": "workspace-root" }"#)
+        .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
     let member = workspace.join("packages/app");
     fs::create_dir_all(&member).expect("create workspace member");
     fs::write(
@@ -114,10 +108,7 @@ fn prune_with_prod_only_omits_dev_deps() {
         .assert()
         .success();
 
-    assert!(
-        lockfile_path.exists(),
-        "prune --prod must create pnpm-lock.yaml",
-    );
+    assert!(lockfile_path.exists(), "prune --prod must create pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(
         lockfile.contains("@pnpm.e2e/pkg-with-1-dep"),
@@ -163,10 +154,7 @@ fn prune_with_dev_only_includes_dev_deps() {
         .assert()
         .success();
 
-    assert!(
-        lockfile_path.exists(),
-        "prune --dev must create pnpm-lock.yaml",
-    );
+    assert!(lockfile_path.exists(), "prune --dev must create pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(
         !lockfile.contains("@pnpm.e2e/pkg-with-1-dep"),
@@ -212,10 +200,7 @@ fn prune_with_no_optional_excludes_optional_deps() {
         .assert()
         .success();
 
-    assert!(
-        lockfile_path.exists(),
-        "prune --no-optional must create pnpm-lock.yaml",
-    );
+    assert!(lockfile_path.exists(), "prune --no-optional must create pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(
         lockfile.contains("@pnpm.e2e/pkg-with-1-dep"),

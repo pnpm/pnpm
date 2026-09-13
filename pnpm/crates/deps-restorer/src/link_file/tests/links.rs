@@ -57,10 +57,7 @@ fn not_found_with_a_dangling_symlink_at_either_path_propagates() {
     let src = write_source(tmp.path(), "1b59d9", b"data\n");
     let dst = write_source(tmp.path(), "dst", b"data\n");
 
-    for (src, dst) in [
-        (src, dangling("dangling-dst")),
-        (dangling("dangling-src"), dst),
-    ] {
+    for (src, dst) in [(src, dangling("dangling-dst")), (dangling("dangling-src"), dst)] {
         let error =
             recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
                 .expect_err("a dangling symlink is corruption, not a concurrent writer");
@@ -86,16 +83,8 @@ fn hardlink_shares_contents_with_source() {
         use std::os::unix::fs::MetadataExt;
         let src_meta = fs::metadata(&src).unwrap();
         let dst_meta = fs::metadata(&dst).unwrap();
-        assert_eq!(
-            src_meta.ino(),
-            dst_meta.ino(),
-            "hardlinked files share an inode",
-        );
-        eprintln!(
-            "src nlink={}, dst nlink={}",
-            src_meta.nlink(),
-            dst_meta.nlink(),
-        );
+        assert_eq!(src_meta.ino(), dst_meta.ino(), "hardlinked files share an inode");
+        eprintln!("src nlink={}, dst nlink={}", src_meta.nlink(), dst_meta.nlink());
         assert!(src_meta.nlink() >= 2, "hardlink should bump nlink");
     }
 }
@@ -140,15 +129,8 @@ fn dangling_symlink_is_preserved() {
 
     let meta = fs::symlink_metadata(&dst).unwrap();
     eprintln!("dst file_type={:?}", meta.file_type());
-    assert!(
-        meta.file_type().is_symlink(),
-        "dangling symlink stays in place",
-    );
-    assert_eq!(
-        std::fs::read_link(&dst).unwrap(),
-        dangling_target,
-        "target unchanged",
-    );
+    assert!(meta.file_type().is_symlink(), "dangling symlink stays in place");
+    assert_eq!(std::fs::read_link(&dst).unwrap(), dangling_target, "target unchanged");
 }
 /// Live symlinks (pointing at real files) should still short-circuit
 /// — they're legitimate user state, not corruption from an
@@ -169,11 +151,7 @@ fn live_symlink_short_circuits() {
     let dst_meta = fs::symlink_metadata(&dst).unwrap();
     eprintln!("dst file_type={:?}", dst_meta.file_type());
     assert!(dst_meta.file_type().is_symlink());
-    assert_eq!(
-        fs::read(&real_target).unwrap(),
-        b"old",
-        "target must not be overwritten",
-    );
+    assert_eq!(fs::read(&real_target).unwrap(), b"old", "target must not be overwritten");
 }
 /// Same propagation rule at the hardlink tier. `fs::hard_link`
 /// doesn't get the same error-rewriting treatment that reflink
@@ -216,11 +194,7 @@ fn auto_fresh_state_hardlinks_on_linux() {
         fs::metadata(&dst).unwrap().ino(),
         "a fresh Auto on Linux must land on the hardlink tier",
     );
-    assert_eq!(
-        state.load(Ordering::Relaxed),
-        AUTO_FIRST_TIER,
-        "success must not downgrade",
-    );
+    assert_eq!(state.load(Ordering::Relaxed), AUTO_FIRST_TIER, "success must not downgrade");
 }
 /// `EPERM` from the hardlink tier retires the tier and the file still
 /// lands, materialized by a lower tier rather than shared with the
@@ -261,11 +235,7 @@ fn eperm_from_reflink_downgrades_the_clone_tier() {
         .expect("EPERM on the clone tier falls through to a tier that works");
 
     assert_eq!(fs::read(&dst).unwrap(), b"no clones here");
-    assert_ne!(
-        state.load(Ordering::Relaxed),
-        LINK_STATE_CLONE,
-        "the clone tier is retired",
-    );
+    assert_ne!(state.load(Ordering::Relaxed), LINK_STATE_CLONE, "the clone tier is retired");
 }
 /// `CloneOrCopy` has only the copy tier to fall to, and it must get
 /// there on `EPERM` too: this is the `pnpm deploy` project-file import
@@ -298,11 +268,7 @@ fn eacces_from_hard_link_downgrades_the_auto_ladder() {
 
     assert_eq!(fs::read(&dst).unwrap(), b"no hardlinks here");
     assert_ne!(inode(&src), inode(&dst), "the file was not hardlinked");
-    assert_ne!(
-        state.load(Ordering::Relaxed),
-        LINK_STATE_HARDLINK,
-        "hardlinks are retired",
-    );
+    assert_ne!(state.load(Ordering::Relaxed), LINK_STATE_HARDLINK, "hardlinks are retired");
 }
 #[test]
 #[cfg(unix)]
@@ -388,15 +354,9 @@ fn explicit_hardlink_propagates_eperm() {
 #[test]
 #[cfg(unix)]
 fn is_link_permission_error_accepts_only_eperm_and_eacces() {
-    assert!(is_link_permission_error(&io::Error::from_raw_os_error(
-        libc::EPERM
-    )));
-    assert!(is_link_permission_error(&io::Error::from_raw_os_error(
-        libc::EACCES
-    )));
-    assert!(!is_link_permission_error(&io::Error::from(
-        io::ErrorKind::PermissionDenied
-    )));
+    assert!(is_link_permission_error(&io::Error::from_raw_os_error(libc::EPERM)));
+    assert!(is_link_permission_error(&io::Error::from_raw_os_error(libc::EACCES)));
+    assert!(!is_link_permission_error(&io::Error::from(io::ErrorKind::PermissionDenied)));
 }
 /// The link limit belongs to one file, so the `Auto` ladder copies that
 /// file and keeps hardlinking everything after it. Retiring the tier
@@ -418,11 +378,7 @@ fn too_many_links_copies_one_file_and_keeps_the_hardlink_tier() {
         "the tier stays: the next file has names left",
     );
     fs::write(&src, b"rewritten").unwrap();
-    assert_eq!(
-        fs::read(&dst).unwrap(),
-        b"out of names",
-        "the copy is independent of the source",
-    );
+    assert_eq!(fs::read(&dst).unwrap(), b"out of names", "the copy is independent of the source");
 }
 /// The explicit `hardlink` method copies here for the same reason it
 /// copies on `EXDEV`: it costs one file rather than the install, so it
@@ -443,11 +399,7 @@ fn explicit_hardlink_copies_on_too_many_links() {
 
     assert_eq!(fs::read(&dst).unwrap(), b"explicit");
     fs::write(&src, b"rewritten").unwrap();
-    assert_eq!(
-        fs::read(&dst).unwrap(),
-        b"explicit",
-        "the copy is independent of the source",
-    );
+    assert_eq!(fs::read(&dst).unwrap(), b"explicit", "the copy is independent of the source");
 }
 /// The fresh-target import skips the stat short-circuit, so a symlink
 /// squatting at the target reaches the import call itself. `fs::copy`
@@ -471,11 +423,7 @@ fn copy_does_not_write_through_a_symlink_at_the_target() {
         &dst,
     );
 
-    assert_eq!(
-        fs::read(&victim).unwrap(),
-        b"do not touch",
-        "the referent keeps its contents",
-    );
+    assert_eq!(fs::read(&victim).unwrap(), b"do not touch", "the referent keeps its contents");
     assert!(
         fs::symlink_metadata(&dst)
             .unwrap()
@@ -500,10 +448,7 @@ fn copy_does_not_create_the_referent_of_a_dangling_symlink() {
 
     let _ = link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst);
 
-    assert!(
-        !referent.exists(),
-        "the import must not create a file the symlink names",
-    );
+    assert!(!referent.exists(), "the import must not create a file the symlink names");
 }
 /// Content is not the only thing a squatting link can lose. The exec
 /// bit is restored through the target after the import adopts it, so an
@@ -536,9 +481,5 @@ fn an_exec_source_does_not_make_a_symlinked_referent_executable() {
         .mode()
         & 0o777;
     assert_eq!(mode, 0o644, "the referent must not gain exec bits");
-    assert_eq!(
-        fs::read(&victim).unwrap(),
-        b"plain data",
-        "nor lose its contents",
-    );
+    assert_eq!(fs::read(&victim).unwrap(), b"plain data", "nor lose its contents");
 }

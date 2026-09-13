@@ -61,9 +61,7 @@ async fn private_scope_verifier_ignores_public_mirror_and_writes_private_mirror(
     opts.metadata.auth_headers = Arc::new(
         AuthHeaders::default()
             .with_route_hook(Arc::new(ScopeHook {
-                scope: MetadataCacheScope::Private {
-                    descriptor_id: "private-scope".to_string(),
-                },
+                scope: MetadataCacheScope::Private { descriptor_id: "private-scope".to_string() },
             }) as Arc<dyn UpstreamRouteHook>),
     );
     let verifier = create_npm_resolution_verifier(opts);
@@ -114,8 +112,7 @@ async fn registry_resolution_with_no_active_policy_skips_metadata_lookup() {
     let verifier = create_npm_resolution_verifier(opts);
     let name: PkgName = "acme".parse().expect("parse");
     assert!(!verifier.might_verify(&registry_resolution(), ctx(&name, "1.0.0")));
-    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.0.0"))
-        .await;
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.0.0")).await;
 
     assert_eq!(result, ResolutionVerification::Ok);
 }
@@ -143,11 +140,7 @@ async fn planned_fetch_head_shortcut_skips_the_metadata_body() {
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let planned = pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
     planned
-        .set(std::collections::HashSet::from([(
-            "acme".to_string(),
-            "1.0.0".to_string(),
-            None,
-        )]))
+        .set(std::collections::HashSet::from([("acme".to_string(), "1.0.0".to_string(), None)]))
         .expect("first fill");
     opts.artifacts.canonical_fetches = Some(std::sync::Arc::clone(&planned));
     let verifier = create_npm_resolution_verifier(opts);

@@ -32,12 +32,7 @@ pub struct Outcome {
 
 impl Cell<'_> {
     pub fn id(&self) -> String {
-        format!(
-            "{}--{}--{}",
-            self.stack.name,
-            self.binary.label(),
-            self.layout.label(),
-        )
+        format!("{}--{}--{}", self.stack.name, self.binary.label(), self.layout.label())
     }
 }
 
@@ -99,30 +94,25 @@ pub fn run_cell(
 
     let outcome = |stage, result| failed_outcome(stage, result, started, &log_path);
 
-    if let Some(failed) = outcome(
-        "prepare",
-        prepare_cell(template_project, &cell_dir, &project_dir, cell),
-    ) {
+    if let Some(failed) =
+        outcome("prepare", prepare_cell(template_project, &cell_dir, &project_dir, cell))
+    {
         return failed;
     }
 
-    if let Some(failed) = outcome(
-        "install",
-        run_install(cell, &project_dir, &log_path, pnpm, pacquet),
-    ) {
+    if let Some(failed) =
+        outcome("install", run_install(cell, &project_dir, &log_path, pnpm, pacquet))
+    {
         return failed;
     }
 
-    if let Some(failed) = outcome(
-        "build",
-        run_build_script(&project_dir, cell.stack.build_script, &log_path),
-    ) {
+    if let Some(failed) =
+        outcome("build", run_build_script(&project_dir, cell.stack.build_script, &log_path))
+    {
         return failed;
     }
 
-    let serve_spec = serve
-        .then_some(cell.stack.serve.as_ref())
-        .flatten();
+    let serve_spec = serve.then_some(cell.stack.serve.as_ref()).flatten();
     if let Some(spec) = serve_spec
         && let Some(failed) = outcome("serve", run_serve(&project_dir, spec, &log_path))
     {
@@ -236,11 +226,7 @@ fn run_build_script(project_dir: &Path, script_name: &str, log_path: &Path) -> R
         .arg("-c")
         .arg(script)
         .env("PATH", bin_path(project_dir)?);
-    run(
-        &format!("run {script_name}: {script}"),
-        &mut process,
-        log_path,
-    )
+    run(&format!("run {script_name}: {script}"), &mut process, log_path)
 }
 
 /// Environment variables an install/build/serve subprocess legitimately
@@ -431,10 +417,7 @@ fn run(label: &str, command: &mut Command, log_path: &Path) -> Result<(), String
     if status.success() {
         Ok(())
     } else {
-        Err(format!(
-            "`{label}` exited with {status} (see {})",
-            log_path.display(),
-        ))
+        Err(format!("`{label}` exited with {status} (see {})", log_path.display()))
     }
 }
 

@@ -71,13 +71,7 @@ impl UnsupportedPlatformError {
     fn new(package_id: String, wanted: WantedPlatform, current: Platform) -> Self {
         let wanted_json = wanted_json(&wanted);
         let current_json = current_json(&current);
-        Self {
-            package_id,
-            wanted,
-            current,
-            wanted_json,
-            current_json,
-        }
+        Self { package_id, wanted, current, wanted_json, current_json }
     }
 }
 
@@ -163,11 +157,7 @@ pub fn check_platform(
         cpu: vec![current_cpu.to_string()],
         libc: vec![current_libc.to_string()],
     };
-    Some(UnsupportedPlatformError::new(
-        package_id.to_string(),
-        owned_wanted,
-        real_current,
-    ))
+    Some(UnsupportedPlatformError::new(package_id.to_string(), owned_wanted, real_current))
 }
 
 #[must_use]

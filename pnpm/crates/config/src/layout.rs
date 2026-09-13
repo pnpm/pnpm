@@ -285,9 +285,7 @@ impl Config {
             return;
         }
         let Ok(cwd) = Sys::current_dir() else { return };
-        let Some(branch) = get_current_branch::<GitHost>(&cwd) else {
-            return;
-        };
+        let Some(branch) = get_current_branch::<GitHost>(&cwd) else { return };
         if pattern_decides {
             self.merge_git_branch_lockfiles =
                 create_matcher(&self.merge_git_branch_lockfiles_branch_pattern).matches(&branch);

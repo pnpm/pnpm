@@ -22,10 +22,7 @@ fn registers_non_semver_packages_by_name_only() {
 
     let resolved = resolved_package_versions(&lockfile);
 
-    assert_eq!(
-        resolved.get("foo").map(std::collections::BTreeSet::len),
-        Some(0),
-    );
+    assert_eq!(resolved.get("foo").map(std::collections::BTreeSet::len), Some(0));
     assert_eq!(
         resolved
             .get("bar")
@@ -69,11 +66,8 @@ fn skips_the_pass_when_the_workspace_lockfile_is_not_shared() {
     let project_dir = workspace_dir.join("project");
     std::fs::create_dir_all(&project_dir).expect("create project dir");
     let workspace_yaml = workspace_dir.join("pnpm-workspace.yaml");
-    std::fs::write(
-        &workspace_yaml,
-        "minimumReleaseAgeExclude:\n  - foo@1.0.0\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    std::fs::write(&workspace_yaml, "minimumReleaseAgeExclude:\n  - foo@1.0.0\n")
+        .expect("write pnpm-workspace.yaml");
     std::fs::write(
         project_dir.join("pnpm-lock.yaml"),
         "lockfileVersion: '9.0'\nsnapshots:\n  bar@2.0.0: {}\n",

@@ -150,10 +150,7 @@ pub enum ConfigError {
     SetUnsupportedIniConfigKey { key: String, camel: String },
 
     #[display("The key {key:?} isn't supported by the workspace manifest")]
-    #[diagnostic(
-        code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY),
-        help("Try {camel:?}")
-    )]
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY), help("Try {camel:?}"))]
     SetUnsupportedWorkspaceKey { key: String, camel: String },
 
     #[display("The key {key:?} isn't supported by the global config.yaml file")]
@@ -193,9 +190,7 @@ impl ConfigArgs {
             ConfigSubcommand::Delete(args) => {
                 let key = args.key
                     .filter(|key| !key.is_empty())
-                    .ok_or_else(|| ConfigError::NoParams {
-                        subcommand: "delete".to_string(),
-                    })?;
+                    .ok_or_else(|| ConfigError::NoParams { subcommand: "delete".to_string() })?;
                 config_set(config, dir, flags, &key, None)?;
             }
             ConfigSubcommand::Get(args) => {
@@ -238,9 +233,7 @@ fn split_set_params(
 ) -> Result<(String, String), ConfigError> {
     let key = key
         .filter(|key| !key.is_empty())
-        .ok_or_else(|| ConfigError::NoParams {
-            subcommand: subcommand.to_string(),
-        })?;
+        .ok_or_else(|| ConfigError::NoParams { subcommand: subcommand.to_string() })?;
     match value {
         Some(value) => Ok((key, value)),
         None => {
@@ -317,17 +310,10 @@ fn set_auth_setting(
     key: String,
     value: &Value,
 ) -> miette::Result<()> {
-    let config_path = if global {
-        global_config_dir(config)?.join("auth.ini")
-    } else {
-        dir.join(".npmrc")
-    };
+    let config_path =
+        if global { global_config_dir(config)?.join("auth.ini") } else { dir.join(".npmrc") };
     if !value.is_null() && !value.is_string() && is_string_only_ini_key(&key) {
-        return Err(ConfigError::SetAuthNonString {
-            key,
-            value: value.to_string(),
-        }
-        .into());
+        return Err(ConfigError::SetAuthNonString { key, value: value.to_string() }.into());
     }
     write_ini_setting(&config_path, &key, value)
 }
@@ -386,11 +372,7 @@ fn get_config_file_info<'a>(
     dir: &'a Path,
 ) -> Result<(PathBuf, &'static str), ConfigError> {
     let kebab = naming_cases::to_kebab_case(key);
-    let config_dir = if global {
-        global_config_dir(config)?
-    } else {
-        dir.to_path_buf()
-    };
+    let config_dir = if global { global_config_dir(config)? } else { dir.to_path_buf() };
     let file_name = if config_types::is_ini_config_key(&kebab) {
         if global { "auth.ini" } else { ".npmrc" }
     } else if global {

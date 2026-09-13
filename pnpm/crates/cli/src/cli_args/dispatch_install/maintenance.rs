@@ -23,11 +23,7 @@ pub(in super::super) fn deploy<'a>(
             apply_install_cli_config(cfg, &args.install_args);
             let config_root = derive_config_root(cfg, dir, reporter)
                 .wrap_err("derive workspace root and package manager policy")?;
-            let pipeline = DeployPipeline {
-                args,
-                cfg,
-                config_root,
-            };
+            let pipeline = DeployPipeline { args, cfg, config_root };
             match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
                     Box::pin(pipeline.run::<DefaultReporter>(dir)).await?;
@@ -93,12 +89,8 @@ pub(in super::super) fn prune<'a>(
         let cfg = config()?;
         let config_root = derive_config_root(cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
-        let pipeline = PrunePipeline {
-            args,
-            cfg,
-            config_root,
-            manifest_path: manifest_path.to_path_buf(),
-        };
+        let pipeline =
+            PrunePipeline { args, cfg, config_root, manifest_path: manifest_path.to_path_buf() };
         match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(pipeline.run::<DefaultReporter>()).await?;
@@ -143,12 +135,8 @@ pub(in super::super) fn import<'a>(
             ReporterType::Default | ReporterType::AppendOnly => {
                 args.run::<DefaultReporter>(command_state).await
             }
-            ReporterType::Ndjson => {
-                args.run::<NdjsonReporter>(command_state).await
-            }
-            ReporterType::Silent => {
-                args.run::<SilentReporter>(command_state).await
-            }
+            ReporterType::Ndjson => args.run::<NdjsonReporter>(command_state).await,
+            ReporterType::Silent => args.run::<SilentReporter>(command_state).await,
         }
     }))
 }
@@ -167,12 +155,8 @@ pub(in super::super) fn link<'a>(
             ReporterType::Default | ReporterType::AppendOnly => {
                 args.run::<DefaultReporter>(config, manifest_path).await
             }
-            ReporterType::Ndjson => {
-                args.run::<NdjsonReporter>(config, manifest_path).await
-            }
-            ReporterType::Silent => {
-                args.run::<SilentReporter>(config, manifest_path).await
-            }
+            ReporterType::Ndjson => args.run::<NdjsonReporter>(config, manifest_path).await,
+            ReporterType::Silent => args.run::<SilentReporter>(config, manifest_path).await,
         }
     }))
 }
@@ -342,22 +326,16 @@ pub(in super::super) fn approve_builds<'a>(
     let Some((rebuild_state, build_packages)) = prepared? else {
         return Ok(Box::pin(std::future::ready(Ok(()))));
     };
-    let selected = rebuild::RebuildSelection {
-        names: Some(build_packages),
-        projects: Vec::new(),
-    };
+    let selected = rebuild::RebuildSelection { names: Some(build_packages), projects: Vec::new() };
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
-            rebuild::run_rebuild::<DefaultReporter>(&rebuild_state, selected, None)
-                .await
+            rebuild::run_rebuild::<DefaultReporter>(&rebuild_state, selected, None).await
         }),
         ReporterType::Ndjson => Box::pin(async move {
-            rebuild::run_rebuild::<NdjsonReporter>(&rebuild_state, selected, None)
-                .await
+            rebuild::run_rebuild::<NdjsonReporter>(&rebuild_state, selected, None).await
         }),
         ReporterType::Silent => Box::pin(async move {
-            rebuild::run_rebuild::<SilentReporter>(&rebuild_state, selected, None)
-                .await
+            rebuild::run_rebuild::<SilentReporter>(&rebuild_state, selected, None).await
         }),
     })
 }
@@ -412,14 +390,14 @@ fn approve_global_builds<'a>(
     reporter: ReporterType,
 ) -> CommandFuture<'a> {
     match reporter {
-        ReporterType::Default | ReporterType::AppendOnly => Box::pin(
-            global::approve_global_builds::<DefaultReporter>(config, args),
-        ),
-        ReporterType::Ndjson => Box::pin(global::approve_global_builds::<NdjsonReporter>(
-            config, args,
-        )),
-        ReporterType::Silent => Box::pin(global::approve_global_builds::<SilentReporter>(
-            config, args,
-        )),
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(global::approve_global_builds::<DefaultReporter>(config, args))
+        }
+        ReporterType::Ndjson => {
+            Box::pin(global::approve_global_builds::<NdjsonReporter>(config, args))
+        }
+        ReporterType::Silent => {
+            Box::pin(global::approve_global_builds::<SilentReporter>(config, args))
+        }
     }
 }

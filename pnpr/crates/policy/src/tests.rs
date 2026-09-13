@@ -35,31 +35,16 @@ fn user(name: &str) -> Identity {
 #[test]
 fn token_parsing_maps_builtins_and_usernames() {
     assert_eq!(AccessToken::from("$all"), AccessToken::All);
-    assert_eq!(
-        AccessToken::from("$authenticated"),
-        AccessToken::Authenticated,
-    );
+    assert_eq!(AccessToken::from("$authenticated"), AccessToken::Authenticated);
     assert_eq!(AccessToken::from("$anonymous"), AccessToken::Anonymous);
-    assert_eq!(
-        AccessToken::from("admin"),
-        AccessToken::User("admin".to_string()),
-    );
+    assert_eq!(AccessToken::from("admin"), AccessToken::User("admin".to_string()));
     // Only the `$`-sigiled spellings are built-ins. The alias spellings
     // verdaccio accepted are plain usernames here — YAML loading rejects
     // them before they reach this constructor, and a programmatic caller
     // just gets a username that matches nobody (deny-safe).
-    assert_eq!(
-        AccessToken::from("@all"),
-        AccessToken::User("@all".to_string()),
-    );
-    assert_eq!(
-        AccessToken::from("all"),
-        AccessToken::User("all".to_string()),
-    );
-    assert_eq!(
-        AccessToken::from("authenticated"),
-        AccessToken::User("authenticated".to_string()),
-    );
+    assert_eq!(AccessToken::from("@all"), AccessToken::User("@all".to_string()));
+    assert_eq!(AccessToken::from("all"), AccessToken::User("all".to_string()));
+    assert_eq!(AccessToken::from("authenticated"), AccessToken::User("authenticated".to_string()));
 }
 
 #[test]
@@ -159,17 +144,11 @@ fn most_specific_rule_wins_regardless_of_key_order() {
     // order-free, so a YAML round-trip that reorders mapping keys cannot
     // change which access rule applies.
     let scope_first = PackageRules::new(
-        vec![
-            rule("@acme/*", Some("$all")),
-            rule("@acme/secret", Some("$authenticated")),
-        ],
+        vec![rule("@acme/*", Some("$all")), rule("@acme/secret", Some("$authenticated"))],
         None,
     );
     let exact_first = PackageRules::new(
-        vec![
-            rule("@acme/secret", Some("$authenticated")),
-            rule("@acme/*", Some("$all")),
-        ],
+        vec![rule("@acme/secret", Some("$authenticated")), rule("@acme/*", Some("$all"))],
         None,
     );
     for rules in [&scope_first, &exact_first] {

@@ -24,10 +24,8 @@ pub async fn fetch_auth_token<Sys: OidcFetch>(
     registry: &str,
     options: &OidcHttpOptions,
 ) -> Result<String, AuthTokenError> {
-    let path = format!(
-        "/-/npm/v1/oidc/token/exchange/package/{}",
-        escaped_package_name(package_name),
-    );
+    let path =
+        format!("/-/npm/v1/oidc/token/exchange/package/{}", escaped_package_name(package_name));
     let url = Url::parse(registry)
         .and_then(|base| base.join(&path))
         .map_err(|error| AuthTokenError::Fetch {
@@ -71,17 +69,12 @@ fn auth_token_from_response(
                     .map(str::to_owned)
             })
             .unwrap_or_else(|| "Unknown error".to_owned());
-        return Err(AuthTokenError::Exchange {
-            message,
-            http_status: response.status,
-        });
+        return Err(AuthTokenError::Exchange { message, http_status: response.status });
     }
 
     let json = response.body
         .pipe_as_ref(serde_json::from_str::<Value>)
-        .map_err(|source| AuthTokenError::JsonInterrupted {
-            source: source.to_string(),
-        })?;
+        .map_err(|source| AuthTokenError::JsonInterrupted { source: source.to_string() })?;
 
     match json.get("token").and_then(Value::as_str) {
         Some(token) => Ok(token.to_owned()),
@@ -100,11 +93,7 @@ pub enum AuthTokenError {
         "Failed to fetch authToken for package {package_name} from registry {registry}: {error_source}"
     )]
     #[diagnostic(code(ERR_PNPM_AUTH_TOKEN_FETCH))]
-    Fetch {
-        error_source: String,
-        package_name: String,
-        registry: String,
-    },
+    Fetch { error_source: String, package_name: String, registry: String },
 
     #[display(
         "Failed token exchange request with body message: {message} (status code {http_status})"
@@ -123,8 +112,5 @@ pub enum AuthTokenError {
         "Failed to fetch authToken for package {package_name} from registry {registry} due to malformed JSON response"
     )]
     #[diagnostic(code(ERR_PNPM_AUTH_TOKEN_MALFORMED_JSON))]
-    MalformedJson {
-        package_name: String,
-        registry: String,
-    },
+    MalformedJson { package_name: String, registry: String },
 }

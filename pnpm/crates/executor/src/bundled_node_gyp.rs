@@ -14,11 +14,7 @@ const NODE_GYP_BIN_DIR: &str = "node-gyp-bin";
 /// per platform because that is what `PATH` resolution will look for:
 /// finding the POSIX script says nothing about whether the `.cmd` twin
 /// a Windows script needs was shipped alongside it.
-const NODE_GYP_WRAPPER: &str = if cfg!(windows) {
-    "node-gyp.cmd"
-} else {
-    "node-gyp"
-};
+const NODE_GYP_WRAPPER: &str = if cfg!(windows) { "node-gyp.cmd" } else { "node-gyp" };
 
 /// Locate the `node-gyp` wrapper directory shipped beside the running
 /// executable, for prepending to a lifecycle script's `PATH`.

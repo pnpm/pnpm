@@ -49,24 +49,18 @@ impl S3Store {
         if outcome != HostedRevisionRefWrite::Claimed {
             return Ok(outcome);
         }
-        Err(RegistryError::RevisionReferenceWriteConflict {
-            digest: digest.to_string(),
-        })
+        Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
     }
 
     pub async fn remove_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
         for attempt in 0..REVISION_REF_WRITE_RETRIES {
-            let Some((mut index, version)) = self.read_revision_ref_index(digest)
-                .await?
-            else {
+            let Some((mut index, version)) = self.read_revision_ref_index(digest).await? else {
                 return Ok(());
             };
             if !index.remove_if_owned(ref_id, owner) {
                 return Ok(());
             }
-            if self.put_revision_ref_index(digest, &index, PutMode::Update(version))
-                .await?
-            {
+            if self.put_revision_ref_index(digest, &index, PutMode::Update(version)).await? {
                 return Ok(());
             }
             if attempt + 1 < REVISION_REF_WRITE_RETRIES {
@@ -80,16 +74,12 @@ impl S3Store {
         {
             return Ok(());
         }
-        Err(RegistryError::RevisionReferenceWriteConflict {
-            digest: digest.to_string(),
-        })
+        Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
     }
 
     pub async fn commit_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
         for attempt in 0..REVISION_REF_WRITE_RETRIES {
-            let Some((mut index, version)) = self.read_revision_ref_index(digest)
-                .await?
-            else {
+            let Some((mut index, version)) = self.read_revision_ref_index(digest).await? else {
                 return Err(RegistryError::Internal {
                     reason: "hosted revision reference is missing during commit".to_string(),
                 });
@@ -97,9 +87,7 @@ impl S3Store {
             if !index.commit_if_owned(ref_id, owner)? {
                 return Ok(());
             }
-            if self.put_revision_ref_index(digest, &index, PutMode::Update(version))
-                .await?
-            {
+            if self.put_revision_ref_index(digest, &index, PutMode::Update(version)).await? {
                 return Ok(());
             }
             if attempt + 1 < REVISION_REF_WRITE_RETRIES {
@@ -114,9 +102,7 @@ impl S3Store {
         if !index.commit_if_owned(ref_id, owner)? {
             return Ok(());
         }
-        Err(RegistryError::RevisionReferenceWriteConflict {
-            digest: digest.to_string(),
-        })
+        Err(RegistryError::RevisionReferenceWriteConflict { digest: digest.to_string() })
     }
 
     /// Write the revision-reference index back under `mode`, reporting whether
@@ -131,10 +117,7 @@ impl S3Store {
         match self.store.put_opts(
             &self.revision_ref_index_key(digest),
             PutPayload::from(index.to_bytes()),
-            PutOptions {
-                mode,
-                ..PutOptions::default()
-            },
+            PutOptions { mode, ..PutOptions::default() },
         )
         .await
         {

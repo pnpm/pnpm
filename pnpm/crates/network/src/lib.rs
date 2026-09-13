@@ -190,11 +190,7 @@ struct ClientPair {
 
 impl ClientPair {
     fn select(&self, follow_redirects: bool) -> &Client {
-        if follow_redirects {
-            &self.follow_redirects
-        } else {
-            &self.no_redirects
-        }
+        if follow_redirects { &self.follow_redirects } else { &self.no_redirects }
     }
 }
 
@@ -415,10 +411,7 @@ impl ThrottledClient {
     pub fn with_max_sockets_per_host(mut self, max_sockets: Option<usize>) -> Self {
         self.host_socket_limit = max_sockets
             .and_then(NonZeroUsize::new)
-            .map(|max| HostSocketLimit {
-                max,
-                per_origin: Mutex::new(HashMap::new()),
-            });
+            .map(|max| HostSocketLimit { max, per_origin: Mutex::new(HashMap::new()) });
         self
     }
 
@@ -457,8 +450,7 @@ impl ThrottledClient {
         url: &str,
         priority: u64,
     ) -> ThrottledClientGuard<'_> {
-        self.acquire_for_url_with_priority_and_redirects(url, priority, true)
-            .await
+        self.acquire_for_url_with_priority_and_redirects(url, priority, true).await
     }
 
     /// [`Self::acquire_for_url_with_priority`] using a client that returns the
@@ -468,8 +460,7 @@ impl ThrottledClient {
         url: &str,
         priority: u64,
     ) -> ThrottledClientGuard<'_> {
-        self.acquire_for_url_with_priority_and_redirects(url, priority, false)
-            .await
+        self.acquire_for_url_with_priority_and_redirects(url, priority, false).await
     }
 }
 
@@ -484,10 +475,7 @@ fn ignore_warning(_: &str) {}
 
 impl<Inner> CappedDnsResolver<Inner> {
     fn new(inner: Inner, concurrency: NonZeroUsize) -> Self {
-        Self {
-            inner: Arc::new(inner),
-            permits: Arc::new(Semaphore::new(concurrency.get())),
-        }
+        Self { inner: Arc::new(inner), permits: Arc::new(Semaphore::new(concurrency.get())) }
     }
 }
 

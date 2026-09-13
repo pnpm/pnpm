@@ -142,10 +142,7 @@ pub(super) fn link_cold_chunk<Reporter: self::Reporter>(
             }
         })
         .collect();
-    link_slots_parallel::<Reporter>(LinkSlotsParallel {
-        slots: &cold_slots,
-        ..*template
-    })
+    link_slots_parallel::<Reporter>(LinkSlotsParallel { slots: &cold_slots, ..*template })
 }
 #[derive(Clone, Copy)]
 pub(super) struct LinkSlotsParallel<'a> {
@@ -165,11 +162,8 @@ pub(super) fn link_slots_parallel<Reporter: self::Reporter>(
 
     let phase_start = std::time::Instant::now();
     let groups = group_slots_by_dir(opts.slots, opts.link.layout);
-    let link_work = || {
-        groups
-            .par_iter()
-            .try_for_each(|group| link_slot_group::<Reporter>(group, &opts))
-    };
+    let link_work =
+        || groups.par_iter().try_for_each(|group| link_slot_group::<Reporter>(group, &opts));
     // Driving the link pass from inside an `async fn` means the
     // `par_iter` blocks the calling tokio worker for the duration. On
     // the production multi-thread runtime, `block_in_place` migrates
@@ -219,11 +213,7 @@ pub(super) fn link_slot_group<Reporter: self::Reporter>(
 
         package_id: &package_id,
 
-        dir_clone_cache: if slot.dir_clone_cacheable {
-            opts.link.dir_clone_cache
-        } else {
-            None
-        },
+        dir_clone_cache: if slot.dir_clone_cacheable { opts.link.dir_clone_cache } else { None },
         #[cfg(test)]
         link_concurrency_probe: opts.link_concurrency_probe,
     }

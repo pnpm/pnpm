@@ -50,7 +50,11 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     supported_architectures: &SupportedArchitecturesArgs,
     config: &'static mut Config,
 ) -> miette::Result<()> {
-    let manifest_path = create_cache_project(prepare_dir)?;
+    fs::create_dir_all(prepare_dir)
+        .map_err(|source| DlxError::Cache { dir: prepare_dir.display().to_string(), source })?;
+    let manifest_path = prepare_dir.join("package.json");
+    fs::write(&manifest_path, json!({ "name": "dlx", "version": "0.0.0" }).to_string())
+        .map_err(|source| DlxError::Cache { dir: manifest_path.display().to_string(), source })?;
 
     // Per-axis CLI overrides (`--cpu` / `--os` / `--libc`) replace the
     // matching axis of the config-derived value for the dlx install.
@@ -159,10 +163,7 @@ pub(super) fn resolve_catalog_specs(
             let (Some(alias), Some(bare_specifier)) = (parsed.alias, parsed.bare_specifier) else {
                 return Ok(pkg.clone());
             };
-            let wanted = CatalogWantedDependency {
-                alias: alias.clone(),
-                bare_specifier,
-            };
+            let wanted = CatalogWantedDependency { alias: alias.clone(), bare_specifier };
             match resolve_from_catalog(&catalogs, &wanted) {
                 CatalogResolutionResult::Found(found) => {
                     Ok(format!("{alias}@{}", found.resolution.specifier))
@@ -267,19 +268,13 @@ pub(super) fn get_valid_cache_dir(
 /// The timestamped, pid-scoped subdirectory a fresh dlx install is
 /// prepared in.
 pub(super) fn get_prepare_dir(cache_path: &Path, now: SystemTime, pid: u32) -> PathBuf {
-    let millis = now
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_millis());
+    let millis = now.duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis());
     // base36 (vs hex) keeps this segment short: it sits between the cache key
     // and pnpm's deep virtual-store layout, and long dlx paths overflow
     // Windows' MAX_PATH (260), which makes lifecycle scripts fail with a
     // `spawn cmd.exe ENOENT` (the cwd no longer resolves). time+pid stays
     // unique across concurrent dlx processes and a process's own retries.
-    cache_path.join(format!(
-        "{}-{}",
-        to_base36(millis),
-        to_base36(u128::from(pid)),
-    ))
+    cache_path.join(format!("{}-{}", to_base36(millis), to_base36(u128::from(pid))))
 }
 
 /// Lowercase base36 (`0-9a-z`), matching JavaScript's
@@ -300,10 +295,7 @@ fn to_base36(mut n: u128) -> String {
 
 pub(super) fn read_json(path: &Path) -> Result<Value, DlxError> {
     let text = fs::read_to_string(path)
-        .map_err(|source| DlxError::ReadManifest {
-            path: path.display().to_string(),
-            source,
-        })?;
+        .map_err(|source| DlxError::ReadManifest { path: path.display().to_string(), source })?;
     parse_manifest(&text)
         .map_err(|error| DlxError::ReadManifest {
             path: path.display().to_string(),
@@ -342,9 +334,7 @@ pub(super) fn command_cache_dir(
             pkgs,
             &build_registries_map(config),
             allow_build,
-            supported_architectures
-                .apply_to(config.supported_architectures.clone())
-                .as_ref(),
+            supported_architectures.apply_to(config.supported_architectures.clone()).as_ref(),
         ),
     )
 }
@@ -361,23 +351,4 @@ fn apply_dlx_build_policy(config: &mut Config, pkgs: &[String], allow_build: &[S
     for name in allow_build {
         config.allow_builds.insert(name.clone(), true);
     }
-}
-
-fn create_cache_project(prepare_dir: &Path) -> miette::Result<PathBuf> {
-    fs::create_dir_all(prepare_dir)
-        .map_err(|source| DlxError::Cache {
-            dir: prepare_dir.display().to_string(),
-            source,
-        })?;
-    let manifest_path = prepare_dir.join("package.json");
-    fs::write(
-        &manifest_path,
-        json!({ "name": "dlx", "version": "0.0.0" }).to_string(),
-    )
-    .map_err(|source| DlxError::Cache {
-        dir: manifest_path.display().to_string(),
-        source,
-    })?;
-
-    Ok(manifest_path)
 }

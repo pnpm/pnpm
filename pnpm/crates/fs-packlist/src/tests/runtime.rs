@@ -59,9 +59,7 @@ fn bin_field_pointing_at_vcs_segment_is_refused() {
 
     assert!(out.contains(&"package.json".to_string()));
     assert!(
-        !out
-            .iter()
-            .any(|p| p.contains(".git/")),
+        !out.iter().any(|p| p.contains(".git/")),
         "VCS-segment exclusion must win over `bin` field: {out:?}",
     );
 }

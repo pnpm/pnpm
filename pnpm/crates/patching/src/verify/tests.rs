@@ -8,10 +8,7 @@ use std::collections::HashSet;
 const ZERO_HASH: &str = "00000000000000000000000000000000";
 
 fn input(hash: &str) -> PatchInput {
-    PatchInput {
-        hash: hash.to_string(),
-        patch_file_path: None,
-    }
+    PatchInput { hash: hash.to_string(), patch_file_path: None }
 }
 
 fn entries(keys: &[&str]) -> Vec<(String, PatchInput)> {
@@ -33,10 +30,7 @@ fn all_keys_yields_every_configured_key() {
     .unwrap();
 
     let keys: Vec<&str> = all_patch_keys(&groups).collect();
-    assert_eq!(
-        keys,
-        vec!["bar@3.0.0", "baz", "foo@1.0.0", "foo@^2.0.0", "foo"],
-    );
+    assert_eq!(keys, vec!["bar@3.0.0", "baz", "foo@1.0.0", "foo@^2.0.0", "foo"]);
 }
 
 #[test]
@@ -55,12 +49,7 @@ fn unused_patches_with_allow_returns_warning_payload() {
     let applied: HashSet<String> =
         std::iter::once(&"foo@1.0.0").map(std::string::ToString::to_string).collect();
     let result = verify_patches(&groups, &applied, true).unwrap();
-    assert_eq!(
-        result,
-        Some(UnusedPatches {
-            unused_patches: vec!["bar".to_string()]
-        }),
-    );
+    assert_eq!(result, Some(UnusedPatches { unused_patches: vec!["bar".to_string()] }));
 }
 
 #[test]

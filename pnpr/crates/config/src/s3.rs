@@ -53,23 +53,10 @@ impl fmt::Debug for S3Settings {
             .debug_struct("S3Settings")
             .field("bucket", &self.bucket)
             .field("region", &self.region)
-            .field(
-                "endpoint",
-                &self.endpoint.as_deref().map(redact_url_credentials),
-            )
+            .field("endpoint", &self.endpoint.as_deref().map(redact_url_credentials))
             .field("prefix", &self.prefix)
-            .field(
-                "access_key_id",
-                &self.access_key_id
-                    .as_ref()
-                    .map(|_| "<redacted>"),
-            )
-            .field(
-                "secret_access_key",
-                &self.secret_access_key
-                    .as_ref()
-                    .map(|_| "<redacted>"),
-            )
+            .field("access_key_id", &self.access_key_id.as_ref().map(|_| "<redacted>"))
+            .field("secret_access_key", &self.secret_access_key.as_ref().map(|_| "<redacted>"))
             .field("force_path_style", &self.force_path_style)
             .field("allow_http", &self.allow_http)
             .finish()
@@ -141,11 +128,7 @@ pub fn normalize_key_prefix(prefix: Option<&str>) -> String {
         None => String::new(),
         Some(prefix) => {
             let trimmed = prefix.trim_matches('/');
-            if trimmed.is_empty() {
-                String::new()
-            } else {
-                format!("{trimmed}/")
-            }
+            if trimmed.is_empty() { String::new() } else { format!("{trimmed}/") }
         }
     }
 }
@@ -164,8 +147,5 @@ pub enum HostedStoreConfig {
     /// it is how an embedder brings its own [`ObjectStore`]: a provider pnpr
     /// has no settings shape for, or an in-memory one under test. `prefix` is
     /// normalized on the way in, so a raw `packages` works.
-    ObjectStore {
-        store: Arc<dyn ObjectStore>,
-        prefix: String,
-    },
+    ObjectStore { store: Arc<dyn ObjectStore>, prefix: String },
 }

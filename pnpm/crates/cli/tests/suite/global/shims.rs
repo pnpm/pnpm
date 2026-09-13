@@ -22,11 +22,8 @@ fn global_shims_all_prefers_local_bins() {
     prepare_global_home(&pnpm_home, &npmrc_info);
     let yaml_path = pnpm_home.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&yaml_path).unwrap();
-    fs::write(
-        &yaml_path,
-        format!("{yaml}globalShims: {{'@foo/touch-file-one-bin': true}}\n"),
-    )
-    .unwrap();
+    fs::write(&yaml_path, format!("{yaml}globalShims: {{'@foo/touch-file-one-bin': true}}\n"))
+        .unwrap();
 
     global_command(&workspace, &pnpm_home)
         .with_arg("add")
@@ -39,11 +36,7 @@ fn global_shims_all_prefers_local_bins() {
     assert!(shim_path.is_file());
     let target = fs::read(global_bin.join(".pnpm-shim-v1-touch-file-one-bin-target"))
         .expect("read the shim target");
-    assert!(
-        target.ends_with(b"/cli.js"),
-        "target was: {}",
-        String::from_utf8_lossy(&target),
-    );
+    assert!(target.ends_with(b"/cli.js"), "target was: {}", String::from_utf8_lossy(&target));
 
     fs::write(global_bin.join("pnpm"), "#!/bin/sh\nexit 64\n").unwrap();
     fs::set_permissions(global_bin.join("pnpm"), fs::Permissions::from_mode(0o755)).unwrap();
@@ -82,12 +75,7 @@ fn global_shims_all_prefers_local_bins() {
         .output()
         .expect("run the generated shim inside the project");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(
-        stdout.trim(),
-        "local",
-        "stderr:\n{}",
-        String::from_utf8_lossy(&output.stderr),
-    );
+    assert_eq!(stdout.trim(), "local", "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
 
     let outside = root.path().join("outside");
     fs::create_dir_all(&outside).unwrap();
@@ -144,10 +132,7 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
         .failure();
     let stderr = String::from_utf8_lossy(&collision.get_output().stderr);
     assert!(stderr.contains("ERR_PNPM_GLOBAL_BIN_CONFLICT"), "{stderr}");
-    assert!(
-        stderr.contains("pnpm shim rm @foo/touch-file-one-bin"),
-        "{stderr}",
-    );
+    assert!(stderr.contains("pnpm shim rm @foo/touch-file-one-bin"), "{stderr}");
     assert_eq!(fs::read(&target_file).unwrap(), virtual_target);
 
     global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
@@ -166,10 +151,7 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&collision.get_output().stderr);
-    assert!(
-        stderr.contains("pnpm shim rm @foo/touch-file-one-bin"),
-        "{stderr}",
-    );
+    assert!(stderr.contains("pnpm shim rm @foo/touch-file-one-bin"), "{stderr}");
     assert_eq!(fs::read(&target_file).unwrap(), backed_target);
 
     global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
@@ -195,14 +177,8 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
         .with_args(["remove", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();
-    assert!(
-        !shim_path.exists(),
-        "shim rm must cancel restoration after global removal",
-    );
-    assert!(
-        !target_file.exists(),
-        "shim rm must drop the recorded target",
-    );
+    assert!(!shim_path.exists(), "shim rm must cancel restoration after global removal");
+    assert!(!target_file.exists(), "shim rm must drop the recorded target");
 
     drop(npmrc_info);
     drop(root);
@@ -337,10 +313,7 @@ fn global_shims_auto_writes_direct_shims_for_ordinary_packages() {
 
     let shim = fs::read_to_string(pnpm_home.join("bin").join("touch-file-one-bin"))
         .expect("read the generated global shim");
-    assert!(
-        !shim.contains("--shim"),
-        "shim should exec directly, was:\n{shim}",
-    );
+    assert!(!shim.contains("--shim"), "shim should exec directly, was:\n{shim}");
     assert!(
         !pnpm_home
             .join("bin")
@@ -367,11 +340,8 @@ fn global_shims_auto_writes_native_dispatcher_for_node_runtime() {
     prepare_global_home(&pnpm_home, &npmrc_info);
     let yaml_path = pnpm_home.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&yaml_path).unwrap();
-    fs::write(
-        &yaml_path,
-        format!("{yaml}nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()),
-    )
-    .unwrap();
+    fs::write(&yaml_path, format!("{yaml}nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()))
+        .unwrap();
 
     global_command(&workspace, &pnpm_home)
         .with_args(["runtime", "set", "node", version, "--global"])
@@ -386,11 +356,7 @@ fn global_shims_auto_writes_native_dispatcher_for_node_runtime() {
         "node should be a copy of the pnpm executable",
     );
     let target = fs::read(global_bin.join(".pnpm-shim-v1-node-target")).unwrap();
-    assert!(
-        target.ends_with(b"/bin/node"),
-        "target was: {}",
-        String::from_utf8_lossy(&target),
-    );
+    assert!(target.ends_with(b"/bin/node"), "target was: {}", String::from_utf8_lossy(&target));
     assert!(!global_bin.join(".pnpm-shim-v1").exists());
 
     drop(npmrc_info);

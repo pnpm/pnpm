@@ -36,10 +36,7 @@ fn ignores_manifests_without_a_migrated_key() {
 #[test]
 fn reports_migrated_keys_through_a_utf8_bom() {
     let dir = tempfile::tempdir().expect("create temp dir");
-    write_manifest(
-        dir.path(),
-        "\u{feff}{\"pnpm\":{\"overrides\":{\"x\":\"1\"}}}",
-    );
+    write_manifest(dir.path(), "\u{feff}{\"pnpm\":{\"overrides\":{\"x\":\"1\"}}}");
     assert_eq!(keys_in(dir.path()), vec!["overrides".to_string()]);
 }
 

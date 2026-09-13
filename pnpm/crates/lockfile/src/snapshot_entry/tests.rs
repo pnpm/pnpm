@@ -13,10 +13,7 @@ fn optional_true_round_trips() {
     assert!(entry.optional, "deserialize must capture optional: true");
 
     let out = serialize_yaml::to_string(&entry).expect("serialize");
-    assert!(
-        out.contains("optional: true"),
-        "serialize must round-trip optional: true:\n{out}",
-    );
+    assert!(out.contains("optional: true"), "serialize must round-trip optional: true:\n{out}");
 }
 
 #[test]

@@ -24,10 +24,8 @@ pub(super) fn tarball_revision(
         })
         .transpose()
         .map_err(|reason| {
-            Box::new(InvalidTarballRevisionMetadataError::new(
-                &picked.dist.tarball,
-                reason,
-            )) as ResolveError
+            Box::new(InvalidTarballRevisionMetadataError::new(&picked.dist.tarball, reason))
+                as ResolveError
         })?;
     if revision.is_some()
         && !integrity.is_some_and(|integrity| {
@@ -54,9 +52,7 @@ pub(super) fn select_package_revision<'a>(
     let requested = match selector {
         RegistryRevisionSelector::Valid(revision) => *revision,
         RegistryRevisionSelector::Invalid(specifier) => {
-            return Err(Box::new(InvalidRevisionSpecifierError {
-                specifier: specifier.clone(),
-            }));
+            return Err(Box::new(InvalidRevisionSpecifierError { specifier: specifier.clone() }));
         }
     };
     let no_matching_revision = || {
@@ -106,18 +102,12 @@ pub(super) fn apply_revision_record<'a>(
         "integrity".to_string(),
         serde_json::Value::String(record.integrity_text.to_string()),
     );
-    dist.insert(
-        "tarball".to_string(),
-        serde_json::Value::String(record.tarball.to_string()),
-    );
+    dist.insert("tarball".to_string(), serde_json::Value::String(record.tarball.to_string()));
     dist.remove("shasum");
     if requested == 0 {
         dist.remove("revision");
     } else {
-        dist.insert(
-            "revision".to_string(),
-            serde_json::Value::Number(requested.into()),
-        );
+        dist.insert("revision".to_string(), serde_json::Value::Number(requested.into()));
     }
     serde_json::from_value(selected)
         .map(Cow::Owned)
@@ -128,9 +118,7 @@ pub(crate) fn validate_revision_selector(spec: &RegistryPackageSpec) -> Result<(
     let Some(RegistryRevisionSelector::Invalid(specifier)) = spec.revision.as_ref() else {
         return Ok(());
     };
-    Err(Box::new(InvalidRevisionSpecifierError {
-        specifier: specifier.clone(),
-    }))
+    Err(Box::new(InvalidRevisionSpecifierError { specifier: specifier.clone() }))
 }
 
 pub(super) struct ValidatedPackageRevision<'a> {
@@ -145,14 +133,9 @@ pub(super) fn package_revision_record<'a>(
     requested: u64,
     registry: &str,
 ) -> Result<Option<ValidatedPackageRevision<'a>>, ResolveError> {
-    let Some(revisions) = picked.dist.revisions.as_ref() else {
-        return Ok(None);
-    };
+    let Some(revisions) = picked.dist.revisions.as_ref() else { return Ok(None) };
     let Some(revisions) = revisions.as_array() else {
-        return Err(malformed_revision_history(
-            picked,
-            "the revisions field is not an array",
-        ));
+        return Err(malformed_revision_history(picked, "the revisions field is not an array"));
     };
     let matches: Vec<&serde_json::Value> = revisions
         .iter()
@@ -182,9 +165,7 @@ pub(super) fn validate_current_package_revision(
     picked: &PackageVersion,
     registry: &str,
 ) -> Result<(), ResolveError> {
-    let Some(raw_revision) = picked.dist.revision.as_ref() else {
-        return Ok(());
-    };
+    let Some(raw_revision) = picked.dist.revision.as_ref() else { return Ok(()) };
     let revision = raw_revision
         .as_u64()
         .and_then(|revision| TarballRevision::try_from(revision).ok())
@@ -278,20 +259,7 @@ pub(super) fn validate_package_revision_record<'a>(
             format!("revision {requested} is not addressed by its complete sha512 integrity"),
         ));
     }
-    Ok(ValidatedPackageRevision {
-        integrity,
-        integrity_text,
-        tarball,
-        manifest: revision_manifest(picked, requested, record)?,
-    })
-}
-
-fn revision_manifest<'a>(
-    picked: &PackageVersion,
-    requested: u64,
-    record: &'a serde_json::Value,
-) -> Result<&'a serde_json::Map<String, serde_json::Value>, ResolveError> {
-    record
+    let manifest = record
         .get("manifest")
         .and_then(serde_json::Value::as_object)
         .ok_or_else(|| {
@@ -299,5 +267,6 @@ fn revision_manifest<'a>(
                 picked,
                 format!("revision {requested} has an invalid manifest"),
             )
-        })
+        })?;
+    Ok(ValidatedPackageRevision { integrity, integrity_text, tarball, manifest })
 }

@@ -86,8 +86,7 @@ fn compatible_package_range_update_skips_resolution() {
         .expect("wanted lockfile");
     let name = "@pnpm.e2e/has-optional-peer-with-peer".parse().expect("package name");
     assert_eq!(
-        wanted.importers["."].dependencies.as_ref().expect("dependencies")[&name]
-            .specifier,
+        wanted.importers["."].dependencies.as_ref().expect("dependencies")[&name].specifier,
         ">=1.0.0 <2",
     );
 
@@ -433,11 +432,8 @@ fn peer_setting_change_on_a_peerless_lockfile_skips_resolution() {
         .success();
 
     let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read workspace yaml");
-    fs::write(
-        &workspace_yaml_path,
-        format!("{workspace_yaml}dedupePeers: true\n"),
-    )
-    .expect("turn dedupePeers on");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}dedupePeers: true\n"))
+        .expect("turn dedupePeers on");
     let dead_registry = dead_registry_url();
     let npmrc = fs::read_to_string(&npmrc_path).expect("read .npmrc");
     let npmrc = npmrc
@@ -498,11 +494,8 @@ fn peer_setting_change_falls_back_when_the_lockfile_records_peers() {
         .success();
 
     let workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("read workspace yaml");
-    fs::write(
-        &workspace_yaml_path,
-        format!("{workspace_yaml}dedupePeers: true\n"),
-    )
-    .expect("turn dedupePeers on");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}dedupePeers: true\n"))
+        .expect("turn dedupePeers on");
 
     // Unlike the peerless sibling above, this install has to resolve, so it
     // keeps the mocked registry reachable: pointing it at a dead one would
@@ -537,11 +530,8 @@ fn an_unused_patch_is_recorded_without_resolution_and_a_used_one_is_not() {
     )
     .expect("write package.json");
     fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
-    fs::write(
-        workspace.join("patches").join("is-positive@1.0.0.patch"),
-        IS_POSITIVE_PATCH,
-    )
-    .expect("write the patch fixture");
+    fs::write(workspace.join("patches").join("is-positive@1.0.0.patch"), IS_POSITIVE_PATCH)
+        .expect("write the patch fixture");
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
     fs::write(
@@ -562,11 +552,8 @@ fn an_unused_patch_is_recorded_without_resolution_and_a_used_one_is_not() {
         .filter(|line| !line.trim_start().starts_with("registry="))
         .collect::<Vec<_>>()
         .join("\n");
-    fs::write(
-        &npmrc_path,
-        format!("registry={dead_registry}\n{dead_npmrc}\n"),
-    )
-    .expect("rewrite .npmrc with a dead registry");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{dead_npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
 
     // A key naming a package no importer depends on cannot rekey anything.
     let workspace_yaml =
@@ -683,12 +670,7 @@ fn patched_dependency_keys(workspace: &Path) -> Vec<String> {
         .expect("load updated wanted lockfile")
         .expect("updated wanted lockfile")
         .patched_dependencies
-        .map(|map| {
-            map
-                .keys()
-                .cloned()
-                .collect()
-        })
+        .map(|map| map.keys().cloned().collect())
         .unwrap_or_default()
 }
 
@@ -722,10 +704,7 @@ fn patching_a_package_with_an_install_script_rebuilds_it() {
         .with_arg("install")
         .assert()
         .success();
-    assert_eq!(
-        generated_by_install(&workspace),
-        "module.exports = function () {}\n",
-    );
+    assert_eq!(generated_by_install(&workspace), "module.exports = function () {}\n");
 
     fs::write(
         workspace.join("patches").join("install-script-example.patch"),
@@ -749,11 +728,8 @@ fn patching_a_package_with_an_install_script_rebuilds_it() {
         .filter(|line| !line.trim_start().starts_with("registry="))
         .collect::<Vec<_>>()
         .join("\n");
-    fs::write(
-        &npmrc_path,
-        format!("registry={dead_registry}\n{dead_npmrc}\n"),
-    )
-    .expect("rewrite .npmrc with a dead registry");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{dead_npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
     fs::write(
@@ -845,11 +821,8 @@ fn combined_manifest_and_ignore_list_drift_skips_resolution() {
         .filter(|line| !line.trim_start().starts_with("registry="))
         .collect::<Vec<_>>()
         .join("\n");
-    fs::write(
-        &npmrc_path,
-        format!("registry={dead_registry}\n{dead_npmrc}\n"),
-    )
-    .expect("rewrite .npmrc with a dead registry");
+    fs::write(&npmrc_path, format!("registry={dead_registry}\n{dead_npmrc}\n"))
+        .expect("rewrite .npmrc with a dead registry");
 
     let assert = pacquet_at(&workspace)
         .with_arg("install")
@@ -891,144 +864,13 @@ fn combined_manifest_and_ignore_list_drift_skips_resolution() {
     drop((root, mock_instance));
 }
 
-/// A config drift the fast rewrites cannot absorb (a changed
-/// `packageExtensions`) forces every subtree to re-resolve, but each
-/// edge whose recorded version still satisfies its range keeps it: the
-/// prior lockfile pins per edge even when it cannot seed subtree
-/// reuse. Without the pin, `@pnpm.e2e/foobar`'s open `^100.0.0` edge
-/// would re-pick the highest locked `@pnpm.e2e/foo` (100.1.0, locked
-/// by the other workspace member) and churn the lockfile.
-#[test]
-fn config_drift_full_resolve_keeps_still_satisfied_pins() {
-    let CommandTempCwd { workspace, root, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let workspace_yaml =
-        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    fs::write(
-        &workspace_yaml_path,
-        format!("{workspace_yaml}packages:\n  - packages/*\n"),
-    )
-    .expect("declare the workspace members");
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({ "name": "root", "version": "1.0.0" }).to_string(),
-    )
-    .expect("write the root package.json");
-    let write_member = |name: &str, dependencies: serde_json::Value| {
-        let dir = workspace.join("packages").join(name);
-        fs::create_dir_all(&dir).expect("create the member directory");
-        fs::write(
-            dir.join("package.json"),
-            serde_json::json!({
-                "name": name,
-                "version": "1.0.0",
-                "dependencies": dependencies,
-            })
-            .to_string(),
-        )
-        .expect("write the member package.json");
-    };
-    // The direct exact dep dedupes foobar's `^100.0.0` edge onto
-    // 100.0.0 while it is the only locked version.
-    write_member(
-        "a",
-        serde_json::json!({ "@pnpm.e2e/foobar": "100.0.0", "@pnpm.e2e/foo": "100.0.0" }),
-    );
-    write_member("b", serde_json::json!({}));
-    pacquet_at(&workspace)
-        .with_arg("install")
-        .assert()
-        .success();
-    let foobar_key = "@pnpm.e2e/foobar@100.0.0".parse().expect("foobar key");
-    let foo_name = "@pnpm.e2e/foo".parse().expect("foo name");
-    let foobar_foo_child = |lockfile: &pnpm_lockfile::Lockfile| {
-        lockfile.snapshots
-            .as_ref()
-            .and_then(|snapshots| snapshots.get(&foobar_key))
-            .and_then(|snapshot| snapshot.dependencies.as_ref())
-            .and_then(|dependencies| dependencies.get(&foo_name))
-            .and_then(|dep_ref| dep_ref.resolve(&foo_name))
-            .map(|key| key.to_string())
-    };
-    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
-        .expect("load wanted lockfile")
-        .expect("wanted lockfile");
-    assert_eq!(
-        foobar_foo_child(&wanted).as_deref(),
-        Some("@pnpm.e2e/foo@100.0.0"),
-    );
-
-    // Lock a second, higher foo through the other member; foobar's
-    // subtree is untouched and keeps its recorded 100.0.0 child.
-    write_member("a", serde_json::json!({ "@pnpm.e2e/foobar": "100.0.0" }));
-    write_member("b", serde_json::json!({ "@pnpm.e2e/foo": "100.1.0" }));
-    pacquet_at(&workspace)
-        .with_arg("install")
-        .assert()
-        .success();
-    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
-        .expect("load wanted lockfile")
-        .expect("wanted lockfile");
-    assert_eq!(
-        foobar_foo_child(&wanted).as_deref(),
-        Some("@pnpm.e2e/foo@100.0.0"),
-    );
-
-    // Non-absorbable config drift: a package extension that visibly
-    // changes foobar's dependency set, so the assertion below also
-    // proves the recorded subtree was re-resolved (the extension
-    // applied) rather than reused wholesale under the drift.
-    let workspace_yaml =
-        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    fs::write(
-        &workspace_yaml_path,
-        format!(
-            "{workspace_yaml}packageExtensions:\n  '@pnpm.e2e/foobar':\n    dependencies:\n      is-positive: 1.0.0\n",
-        ),
-    )
-    .expect("add a package extension");
-    pacquet_at(&workspace)
-        .with_arg("install")
-        .assert()
-        .success();
-
-    let wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
-        .expect("load wanted lockfile")
-        .expect("wanted lockfile");
-    assert_eq!(
-        foobar_foo_child(&wanted).as_deref(),
-        Some("@pnpm.e2e/foo@100.0.0"),
-    );
-    let extended_child = wanted.snapshots
-        .as_ref()
-        .and_then(|snapshots| snapshots.get(&foobar_key))
-        .and_then(|snapshot| snapshot.dependencies.as_ref())
-        .and_then(|dependencies| dependencies.get(&"is-positive".parse().expect("name")))
-        .and_then(|dep_ref| dep_ref.resolve(&"is-positive".parse().expect("name")))
-        .map(|key| key.to_string());
-    assert_eq!(extended_child.as_deref(), Some("is-positive@1.0.0"));
-    let foo_100_1_0 = "@pnpm.e2e/foo@100.1.0".parse().expect("foo 100.1.0 key");
-    assert!(
-        wanted.snapshots
-            .as_ref()
-            .is_some_and(|snapshots| snapshots.contains_key(&foo_100_1_0)),
-    );
-
-    drop((root, mock_instance));
-}
-
 /// A workspace whose two members each depend on a package of their own.
 fn write_two_member_workspace(workspace: &Path) {
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    fs::write(
-        &workspace_yaml_path,
-        format!("{workspace_yaml}packages:\n  - packages/*\n"),
-    )
-    .expect("declare the workspace members");
+    fs::write(&workspace_yaml_path, format!("{workspace_yaml}packages:\n  - packages/*\n"))
+        .expect("declare the workspace members");
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({ "name": "root", "version": "1.0.0" }).to_string(),
@@ -1053,3 +895,5 @@ fn write_two_member_workspace(workspace: &Path) {
 mod overrides;
 
 mod mutations;
+
+mod peer_variants;

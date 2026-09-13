@@ -123,9 +123,7 @@ impl ValidatedEntry {
 
     async fn stage(self, state: &AppState, now: &str) -> Result<StagedPublish, RegistryError> {
         match self {
-            ValidatedEntry::Npm(doc, org) => {
-                stage_publish(state, *doc, now, Some(&org)).await
-            }
+            ValidatedEntry::Npm(doc, org) => stage_publish(state, *doc, now, Some(&org)).await,
             ValidatedEntry::Cargo(publication) => publication.stage(state).await,
             ValidatedEntry::Pypi(publication) => publication.stage(state).await,
             ValidatedEntry::Oci(publication) => publication.stage(state).await.map_err(Into::into),
@@ -199,13 +197,7 @@ async fn validate_batch_entries(
     let mut seen = HashSet::new();
     for package in packages {
         let entry = validate_entry(state, identity, package).await?;
-        if !seen.insert((
-            entry.ecosystem(),
-            entry
-                .key()
-                .as_str()
-                .to_string(),
-        )) {
+        if !seen.insert((entry.ecosystem(), entry.key().as_str().to_string())) {
             return Err(RegistryError::BadRequest {
                 reason: format!(
                     "duplicate {} package {:?} in `packages`",
@@ -238,8 +230,7 @@ async fn validate_entry(
             let target = authorize_crate_publish(state, identity, None, &entry.metadata)?;
             let archive = decode_base64(&entry.archive, "archive")?;
             Ok(ValidatedEntry::Cargo(
-                verify_crate_archive(target, entry.metadata, archive.into())
-                    .await?,
+                verify_crate_archive(target, entry.metadata, archive.into()).await?,
             ))
         }
         Ecosystem::Pypi => validate_pypi_entry(state, identity, package),
@@ -278,9 +269,7 @@ fn entry_ecosystem(package: &Value) -> Result<Ecosystem, RegistryError> {
 /// gateway's: `RegistryError::Json` answers 502, which is for the JSON an
 /// upstream sent us.
 fn malformed_body(err: &serde_json::Error) -> RegistryError {
-    RegistryError::BadRequest {
-        reason: format!("malformed publish batch: {err}"),
-    }
+    RegistryError::BadRequest { reason: format!("malformed publish batch: {err}") }
 }
 
 fn decode_base64(data: &str, field: &'static str) -> Result<Vec<u8>, RegistryError> {
@@ -312,8 +301,7 @@ async fn validate_npm_entry(
     // The batch endpoint is path-less, so each package routes via the
     // default target; validation resolves that route and checks the
     // resolved hosted registry's publish rule per document.
-    let (doc, target) = validate_publish_doc(state, identity, None, name, package)
-        .await?;
+    let (doc, target) = validate_publish_doc(state, identity, None, name, package).await?;
     Ok(ValidatedEntry::Npm(Box::new(doc), target.org))
 }
 

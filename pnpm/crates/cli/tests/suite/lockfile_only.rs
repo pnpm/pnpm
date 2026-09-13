@@ -263,10 +263,7 @@ fn frozen_lockfile_only_succeeds_without_materializing_when_fresh() {
         .assert()
         .success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    assert!(
-        lockfile_path.exists(),
-        "the seeding run must write pnpm-lock.yaml",
-    );
+    assert!(lockfile_path.exists(), "the seeding run must write pnpm-lock.yaml");
 
     // Headless lockfile-only: lockfile matches the manifest, so the
     // freshness gate passes and the run returns after re-persisting the

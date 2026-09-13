@@ -33,10 +33,7 @@ async fn preserves_concurrent_workflow_edits_when_action_ranges_are_stale() {
         fs::create_dir_all(&directory).expect("workflow directory");
         let workflow = directory.join("ci.yml");
         fs::write(&workflow, original).expect("workflow");
-        let runner = EditingGitRunner {
-            workflow: workflow.clone(),
-            source: changed.clone(),
-        };
+        let runner = EditingGitRunner { workflow: workflow.clone(), source: changed.clone() };
         let result = update_with_runner::<SilentReporter, _>(
             root.path(),
             false,

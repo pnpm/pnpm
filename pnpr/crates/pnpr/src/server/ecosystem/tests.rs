@@ -6,10 +6,8 @@ use url::Url;
 
 #[test]
 fn official_upstreams_allow_only_their_own_download_host() {
-    let mut config = Config::proxy(
-        SocketAddr::from(([127, 0, 0, 1], 4873)),
-        PathBuf::from("unused"),
-    );
+    let mut config =
+        Config::proxy(SocketAddr::from(([127, 0, 0, 1], 4873)), PathBuf::from("unused"));
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some("https://approved.test/files/".to_string()),
         package: None,
@@ -29,9 +27,7 @@ fn official_upstreams_allow_only_their_own_download_host() {
         let upstream = UpstreamConfig::with_defaults(base.to_string(), HeaderMap::new());
         let guard = upstream_fetch_guard(&config, &upstream);
         assert!(guard(&Url::parse(allowed).unwrap()));
-        assert!(guard(
-            &Url::parse("https://approved.test/files/archive").unwrap()
-        ));
+        assert!(guard(&Url::parse("https://approved.test/files/archive").unwrap()));
         for rejected in [
             denied,
             "http://169.254.169.254/metadata",

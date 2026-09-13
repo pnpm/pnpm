@@ -11,10 +11,7 @@ fn params_match_exact_names_and_wildcards() {
         ("@scope/*", "@other/pkg", false),
         ("foo*bar", "fooXYZbar", true),
     ] {
-        assert_eq!(
-            matches_params(&[WildcardMatcher::new(pattern)], input),
-            expected,
-        );
+        assert_eq!(matches_params(&[WildcardMatcher::new(pattern)], input), expected);
     }
 }
 
@@ -23,8 +20,5 @@ fn empty_params_match_everything_and_negations_are_literal() {
     assert!(matches_params(&[], "foo"));
     assert!(!matches_params(&[WildcardMatcher::new("!foo")], "bar"));
     assert!(matches_params(&[WildcardMatcher::new("!foo")], "!foo"));
-    assert!(matches_params(
-        &[WildcardMatcher::new("foo"), WildcardMatcher::new("!foo")],
-        "foo",
-    ));
+    assert!(matches_params(&[WildcardMatcher::new("foo"), WildcardMatcher::new("!foo")], "foo",));
 }

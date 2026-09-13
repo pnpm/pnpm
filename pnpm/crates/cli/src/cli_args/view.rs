@@ -89,13 +89,10 @@ impl ViewArgs {
             Some(spec) => spec.clone(),
             None => nearest_manifest_name(dir)?,
         };
-        let fields = self.params
-            .get(1..)
-            .unwrap_or(&[]);
+        let fields = self.params.get(1..).unwrap_or(&[]);
 
         let (meta, picked) =
-            fetch_package_metadata(config, self.registry.as_deref(), &package_spec, "view")
-                .await?;
+            fetch_package_metadata(config, self.registry.as_deref(), &package_spec, "view").await?;
         let info = assemble_info(&meta, &picked);
 
         if !fields.is_empty() {
@@ -179,9 +176,7 @@ pub(super) async fn fetch_package_metadata(
     let registry = pick_registry_for_package(&registries, name_hint, Some(bare));
 
     let spec = parse_bare_specifier(bare, alias, "latest", &registry)
-        .ok_or_else(|| ViewError::InvalidPackageName {
-            spec: package_spec.to_string(),
-        })?;
+        .ok_or_else(|| ViewError::InvalidPackageName { spec: package_spec.to_string() })?;
 
     let http_client = metadata_client(config, command_name)?;
     let outcome = fetch_full_metadata(
@@ -201,7 +196,12 @@ pub(super) async fn fetch_package_metadata(
     .await
     .map_err(|error| map_fetch_error(error, &registry, &spec.name))?;
 
-    let meta = require_modified_metadata(outcome, &spec.name)?;
+    let meta = match outcome {
+        FetchFullMetadataOutcome::Modified(meta) => *meta,
+        FetchFullMetadataOutcome::NotModified => {
+            miette::bail!("registry returned 304 Not Modified unexpectedly for {}", spec.name)
+        }
+    };
 
     let picked = pick_view_version(&meta, &spec)?;
 
@@ -218,21 +218,26 @@ fn assemble_info(meta: &pnpm_registry::Package, picked: &pnpm_registry::PackageV
         _ => Map::new(),
     };
 
-    normalize_author(&mut info);
+    // An object author collapses to its `name` (dropped entirely when it has
+    // none); a string author is left untouched.
+    if let Some(Value::Object(author)) = info.get("author") {
+        match author.get("name").cloned() {
+            Some(name) => {
+                info.insert("author".to_string(), name);
+            }
+            None => {
+                info.shift_remove("author");
+            }
+        }
+    }
 
     let versions: Vec<&String> = meta.versions.keys().collect();
     let versions_count = versions.len();
     let deps_count = picked.dependencies.as_ref().map_or(0, std::collections::HashMap::len);
 
-    info.insert(
-        "versions".to_string(),
-        serde_json::to_value(&versions).unwrap_or(Value::Null),
-    );
+    info.insert("versions".to_string(), serde_json::to_value(&versions).unwrap_or(Value::Null));
     if versions_count > 0 {
-        info.insert(
-            "versionsCount".to_string(),
-            serde_json::json!(versions_count),
-        );
+        info.insert("versionsCount".to_string(), serde_json::json!(versions_count));
     }
     if deps_count > 0 {
         info.insert("depsCount".to_string(), serde_json::json!(deps_count));
@@ -241,10 +246,7 @@ fn assemble_info(meta: &pnpm_registry::Package, picked: &pnpm_registry::PackageV
     info.insert("distTags".to_string(), dist_tags.clone());
     info.insert("dist-tags".to_string(), dist_tags);
     if let Some(time) = &meta.time {
-        info.insert(
-            "time".to_string(),
-            serde_json::to_value(time).unwrap_or(Value::Null),
-        );
+        info.insert("time".to_string(), serde_json::to_value(time).unwrap_or(Value::Null));
     }
 
     Value::Object(info)
@@ -305,43 +307,8 @@ fn pick_view_version(
         spec,
     )?
     .ok_or_else(|| {
-        ViewError::PackageNotFound {
-            name: spec.name.clone(),
-            spec: spec.fetch_spec.clone(),
-        }
-        .into()
+        ViewError::PackageNotFound { name: spec.name.clone(), spec: spec.fetch_spec.clone() }.into()
     })
 }
 
 mod render;
-
-fn normalize_author(info: &mut Map<String, Value>) {
-    // An object author collapses to its `name` (dropped entirely when it has
-    // none); a string author is left untouched.
-    if let Some(Value::Object(author)) = info.get("author") {
-        match author.get("name").cloned() {
-            Some(name) => {
-                info.insert("author".to_string(), name);
-            }
-            None => {
-                info.shift_remove("author");
-            }
-        }
-    }
-}
-
-fn require_modified_metadata(
-    outcome: FetchFullMetadataOutcome,
-    package_name: &str,
-) -> miette::Result<pnpm_registry::Package> {
-    let meta = match outcome {
-        FetchFullMetadataOutcome::Modified(meta) => *meta,
-        FetchFullMetadataOutcome::NotModified => {
-            miette::bail!(
-                "registry returned 304 Not Modified unexpectedly for {}",
-                package_name,
-            )
-        }
-    };
-    Ok(meta)
-}

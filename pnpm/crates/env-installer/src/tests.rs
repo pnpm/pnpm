@@ -287,9 +287,7 @@ fn contains_entry_named(dir: &Path, name: &str) -> bool {
         if entry.file_name() == name {
             return true;
         }
-        if entry
-            .file_type()
-            .is_ok_and(|file_type| file_type.is_dir())
+        if entry.file_type().is_ok_and(|file_type| file_type.is_dir())
             && contains_entry_named(&entry.path(), name)
         {
             return true;

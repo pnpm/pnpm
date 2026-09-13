@@ -1,7 +1,6 @@
 use super::{
     PatchCandidate, PatchTarget, WritePackageForPatch, WritePackageForPatchError,
-    candidates::compare_candidates, default_patch_target, patch_candidates_from_lockfile,
-    resolution_kind,
+    compare_candidates, default_patch_target, patch_candidates_from_lockfile, resolution_kind,
 };
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, ComVer, GitResolution, Lockfile,
@@ -24,11 +23,7 @@ const GIT_HOSTED_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
 fn empty_lockfile() -> Lockfile {
     Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer {
-            major: 9,
-            minor: 0,
-        })
-        .unwrap(),
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor: 0 }).unwrap(),
         settings: None,
         catalogs: None,
         overrides: None,
@@ -49,10 +44,7 @@ fn lockfile_with_packages(keys: &[&str]) -> Lockfile {
         .iter()
         .map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata()))
         .collect();
-    Lockfile {
-        packages: Some(packages),
-        ..empty_lockfile()
-    }
+    Lockfile { packages: Some(packages), ..empty_lockfile() }
 }
 
 fn registry_metadata() -> PackageMetadata {
@@ -66,10 +58,7 @@ fn registry_metadata() -> PackageMetadata {
 
 fn lockfile_with_package_metadata(key: &str, metadata: PackageMetadata) -> Lockfile {
     Lockfile {
-        packages: Some(HashMap::from([(
-            key.parse::<PackageKey>().unwrap(),
-            metadata,
-        )])),
+        packages: Some(HashMap::from([(key.parse::<PackageKey>().unwrap(), metadata)])),
         ..empty_lockfile()
     }
 }
@@ -129,10 +118,7 @@ fn patch_candidate_missing_package_reports_installed_versions_when_name_exists()
 
     let err = patch_candidates_from_lockfile("is-positive@2.0.0", &lockfile).unwrap_err();
 
-    assert!(
-        err.to_string().contains("1.0.0"),
-        "error should mention installed versions: {err}",
-    );
+    assert!(err.to_string().contains("1.0.0"), "error should mention installed versions: {err}");
 }
 
 #[test]
@@ -156,16 +142,10 @@ fn default_patch_target_returns_none_when_multiple_versions_match() {
 #[test]
 fn patch_candidate_reports_missing_for_non_package_specs() {
     let err = patch_candidates_from_lockfile("^1.0.0", &empty_lockfile()).unwrap_err();
-    assert!(
-        err.to_string().contains("^1.0.0"),
-        "error should mention raw spec: {err}",
-    );
+    assert!(err.to_string().contains("^1.0.0"), "error should mention raw spec: {err}");
 
     let err = patch_candidates_from_lockfile("", &empty_lockfile()).unwrap_err();
-    assert!(
-        err.to_string().contains("install"),
-        "error should include install hint: {err}",
-    );
+    assert!(err.to_string().contains("install"), "error should include install hint: {err}");
 }
 
 #[test]
@@ -229,14 +209,8 @@ async fn patch_extract_imports_package_files_into_empty_destination() {
         std::fs::read_to_string(dest.join("package.json")).expect("package.json"),
         r#"{"name":"foo","version":"1.0.0"}"#,
     );
-    assert_eq!(
-        std::fs::read_to_string(dest.join("index.js")).expect("index.js"),
-        "ok\n",
-    );
-    assert!(
-        !dest.join("node_modules").exists(),
-        "edit dir should not contain wrapper deps",
-    );
+    assert_eq!(std::fs::read_to_string(dest.join("index.js")).expect("index.js"), "ok\n");
+    assert!(!dest.join("node_modules").exists(), "edit dir should not contain wrapper deps");
 }
 
 #[cfg(unix)]
@@ -260,10 +234,7 @@ async fn patch_extract_rejects_symlinked_destination() {
     .await
     .expect_err("symlink destination must be rejected");
 
-    assert!(
-        err.to_string().contains("symlink"),
-        "error should mention symlink: {err}",
-    );
+    assert!(err.to_string().contains("symlink"), "error should mention symlink: {err}");
     assert!(
         !outside.join("package.json").exists(),
         "patch extraction must not write through the destination symlink",
@@ -334,10 +305,7 @@ async fn patch_extract_records_download_in_store_index() {
         .expect("store index lock")
         .get(&store_index_key)
         .expect("read row");
-    assert!(
-        indexed_package.is_some(),
-        "store index row should exist for {store_index_key}",
-    );
+    assert!(indexed_package.is_some(), "store index row should exist for {store_index_key}");
 }
 
 #[tokio::test]
@@ -382,14 +350,8 @@ async fn patch_extract_git_hosted_tarball_runs_packlist() {
         std::fs::read_to_string(dest.join("package.json")).expect("package.json"),
         r#"{"name":"foo","version":"1.0.0","files":["index.js"]}"#,
     );
-    assert_eq!(
-        std::fs::read_to_string(dest.join("index.js")).expect("index.js"),
-        "ok\n",
-    );
-    assert!(
-        !dest.join("ignore.txt").exists(),
-        "packlist should filter ignored files",
-    );
+    assert_eq!(std::fs::read_to_string(dest.join("index.js")).expect("index.js"), "ok\n");
+    assert!(!dest.join("ignore.txt").exists(), "packlist should filter ignored files");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -413,24 +375,15 @@ async fn patch_extract_url_inferred_git_hosted_tarball_runs_packlist() {
         std::fs::read_to_string(dest.join("package.json")).expect("package.json"),
         r#"{"name":"foo","version":"1.0.0","files":["index.js"]}"#,
     );
-    assert_eq!(
-        std::fs::read_to_string(dest.join("index.js")).expect("index.js"),
-        "ok\n",
-    );
-    assert!(
-        !dest.join("ignore.txt").exists(),
-        "packlist should filter ignored files",
-    );
+    assert_eq!(std::fs::read_to_string(dest.join("index.js")).expect("index.js"), "ok\n");
+    assert!(!dest.join("ignore.txt").exists(), "packlist should filter ignored files");
 }
 
 #[tokio::test]
 async fn patch_extract_rejects_unsupported_resolution_shape() {
     let tmp = tempfile::tempdir().expect("temp dir");
     let mut config = pnpm_config::Config::new();
-    config.store_dir = tmp
-        .path()
-        .join("store")
-        .into();
+    config.store_dir = tmp.path().join("store").into();
     let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
     let metadata: PackageMetadata = serde_json::from_value(json!({
         "resolution": {
@@ -458,20 +411,14 @@ async fn patch_extract_rejects_unsupported_resolution_shape() {
     .await
     .unwrap_err();
 
-    assert!(
-        err.to_string().contains("directory"),
-        "error should name unsupported shape: {err}",
-    );
+    assert!(err.to_string().contains("directory"), "error should name unsupported shape: {err}");
 }
 
 #[tokio::test]
 async fn patch_extract_rejects_missing_package_metadata() {
     let tmp = tempfile::tempdir().expect("temp dir");
     let mut config = pnpm_config::Config::new();
-    config.store_dir = tmp
-        .path()
-        .join("store")
-        .into();
+    config.store_dir = tmp.path().join("store").into();
     let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
     let mem_cache = pnpm_tarball::MemCache::default();
     let http_client = pnpm_network::ThrottledClient::default();
@@ -497,10 +444,7 @@ async fn patch_extract_rejects_missing_package_metadata() {
     .unwrap_err();
 
     assert!(
-        matches!(
-            err,
-            WritePackageForPatchError::MissingPackageMetadata { .. }
-        ),
+        matches!(err, WritePackageForPatchError::MissingPackageMetadata { .. }),
         "missing metadata should be reported, got {err:?}",
     );
 }
@@ -562,9 +506,7 @@ fn resolution_kind_names_non_patchable_resolution_shapes() {
     });
     assert_eq!(resolution_kind(&binary), "binary");
 
-    let variations = LockfileResolution::Variations(VariationsResolution {
-        variants: Vec::new(),
-    });
+    let variations = LockfileResolution::Variations(VariationsResolution { variants: Vec::new() });
     assert_eq!(resolution_kind(&variations), "variations");
 }
 
@@ -643,9 +585,7 @@ impl PatchExtractFixture {
         let mem_cache = pnpm_tarball::MemCache::default();
         mem_cache.insert(
             tarball_url,
-            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(
-                seeded,
-            )))),
+            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded)))),
         );
 
         Self {

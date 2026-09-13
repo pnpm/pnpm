@@ -84,10 +84,7 @@ impl EnvLockfile {
     #[must_use]
     pub fn create() -> Self {
         let mut importers = HashMap::new();
-        importers.insert(
-            Self::ROOT_IMPORTER_KEY.to_string(),
-            EnvImporterSnapshot::default(),
-        );
+        importers.insert(Self::ROOT_IMPORTER_KEY.to_string(), EnvImporterSnapshot::default());
         EnvLockfile {
             // Seeds the `lockfileVersion` "9.0" string.
             lockfile_version: "9.0".to_string(),
@@ -100,9 +97,7 @@ impl EnvLockfile {
     /// Convenience accessor for the root importer's snapshot, creating
     /// it if absent. The env-installer always operates on `.`.
     pub fn root_importer_mut(&mut self) -> &mut EnvImporterSnapshot {
-        self.importers
-            .entry(Self::ROOT_IMPORTER_KEY.to_string())
-            .or_default()
+        self.importers.entry(Self::ROOT_IMPORTER_KEY.to_string()).or_default()
     }
 
     /// Read the env document (first YAML document) from

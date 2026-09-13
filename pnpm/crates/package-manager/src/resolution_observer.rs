@@ -97,11 +97,7 @@ pub struct ObservingResolver {
 
 impl ObservingResolver {
     pub fn new(inner: Box<dyn Resolver>, observer: Arc<dyn ResolutionObserver>) -> Self {
-        ObservingResolver {
-            inner,
-            observer,
-            seen: DashSet::new(),
-        }
+        ObservingResolver { inner, observer, seen: DashSet::new() }
     }
 
     fn maybe_report(&self, result: &ResolveResult) {
@@ -133,11 +129,7 @@ impl ObservingResolver {
             file_count: manifest_file_count(result.package.manifest.as_deref()),
             revision,
             from_registry: is_registry_resolution(&result.resolved_via),
-            identity: crate::ResolvedPackageIdentity {
-                id: &id,
-                name: &name,
-                version: &version,
-            },
+            identity: crate::ResolvedPackageIdentity { id: &id, name: &name, version: &version },
         });
     }
 }
@@ -145,10 +137,7 @@ impl ObservingResolver {
 /// Whether `resolved_via` denotes a registry protocol whose `dist.tarball`
 /// comes from a packument (and so can point at a split-domain host).
 fn is_registry_resolution(resolved_via: &str) -> bool {
-    matches!(
-        resolved_via,
-        "npm-registry" | "named-registry" | "jsr-registry",
-    )
+    matches!(resolved_via, "npm-registry" | "named-registry" | "jsr-registry")
 }
 
 impl Resolver for ObservingResolver {

@@ -26,19 +26,12 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
     let virtual_store_dir = modules_dir.join(".pacquet");
     let mut manifest = PackageManifest::create_if_needed(dir.path().join("package.json")).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/hello-world-js-bin",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("store")
-        .into();
+    config.store_dir = dir.path().join("store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = virtual_store_dir;
     config.registry = mock_instance.url();
@@ -136,10 +129,7 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
 async fn install_emits_pnpm_event_sequence() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
     // Reset in case nextest reuses the process for a retry of this test.
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -248,38 +238,16 @@ async fn install_emits_pnpm_event_sequence() {
         matches!(
             captured.as_slice(),
             [
-                LogEvent::Scope(ScopeLog {
-                    selected: 1,
-                    total: None,
-                    ..
-                }),
+                LogEvent::Scope(ScopeLog { selected: 1, total: None, .. }),
                 LogEvent::PackageManifest(PackageManifestLog {
                     message: PackageManifestMessage::Initial { .. },
                     ..
                 }),
                 LogEvent::Context(_),
-                LogEvent::Stage(StageLog {
-                    stage: Stage::ImportingStarted,
-                    ..
-                }),
-                LogEvent::Stats(StatsLog {
-                    message: StatsMessage::Added {
-                        added: 0,
-                        ..
-                    },
-                    ..
-                }),
-                LogEvent::Stats(StatsLog {
-                    message: StatsMessage::Removed {
-                        removed: 0,
-                        ..
-                    },
-                    ..
-                }),
-                LogEvent::Stage(StageLog {
-                    stage: Stage::ImportingDone,
-                    ..
-                }),
+                LogEvent::Stage(StageLog { stage: Stage::ImportingStarted, .. }),
+                LogEvent::Stats(StatsLog { message: StatsMessage::Added { added: 0, .. }, .. }),
+                LogEvent::Stats(StatsLog { message: StatsMessage::Removed { removed: 0, .. }, .. }),
+                LogEvent::Stage(StageLog { stage: Stage::ImportingDone, .. }),
                 LogEvent::IgnoredScripts(_),
                 LogEvent::Summary(_),
             ],
@@ -291,10 +259,7 @@ async fn install_emits_pnpm_event_sequence() {
     let LogEvent::IgnoredScripts(IgnoredScriptsLog { package_names, .. }) = &captured[7] else {
         unreachable!("ignored-scripts at index 7, asserted above");
     };
-    assert!(
-        package_names.is_empty(),
-        "no builds in empty lockfile: {package_names:?}",
-    );
+    assert!(package_names.is_empty(), "no builds in empty lockfile: {package_names:?}");
 
     let expected_prefix = manifest
         .path()
@@ -337,10 +302,7 @@ async fn install_emits_pnpm_event_sequence() {
             .display()
             .to_string(),
     );
-    assert_eq!(
-        emitted_virtual_store_dir,
-        &dirs.virtual_store_dir.to_string_lossy().into_owned(),
-    );
+    assert_eq!(emitted_virtual_store_dir, &dirs.virtual_store_dir.to_string_lossy().into_owned());
 
     // Summary's `prefix` must equal the manifest-parent value
     // `Install::run` derives, since pnpm's reporter keys its
@@ -359,10 +321,7 @@ async fn install_emits_pnpm_event_sequence() {
 #[tokio::test]
 async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -500,10 +459,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
 #[tokio::test]
 async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -545,10 +501,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         .expect("seed current lockfile");
     seed_placeholder_virtual_store_slot(&dirs.virtual_store_dir);
 
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     Install {
         lockfile_policy: crate::InstallLockfilePolicy {
             frozen: true,
@@ -615,11 +568,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
             _ => None,
         })
         .collect();
-    assert_eq!(
-        added,
-        vec![0],
-        "warm reinstall must report added: 0; got {added:?}",
-    );
+    assert_eq!(added, vec![0], "warm reinstall must report added: 0; got {added:?}");
 
     // No per-snapshot `imported` progress event — the skip path
     // removes the snapshot from both warm and cold batches.
@@ -630,10 +579,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         .filter(|e| {
             matches!(
                 e,
-                LogEvent::Progress(ProgressLog {
-                    message: ProgressMessage::Imported { .. },
-                    ..
-                }),
+                LogEvent::Progress(ProgressLog { message: ProgressMessage::Imported { .. }, .. }),
             )
         })
         .count();
@@ -654,10 +600,7 @@ fn slow_store_verification_is_reported_with_its_time() {
         files: 1234,
         duration: Duration::from_millis(2450),
     });
-    assert_eq!(
-        messages,
-        vec!["The integrity of 1234 files was checked in 2.5s.".to_string()],
-    );
+    assert_eq!(messages, vec!["The integrity of 1234 files was checked in 2.5s.".to_string()]);
 }
 /// Under the time threshold there is no time worth naming, so the
 /// message points at what keeps invalidating the store instead.
@@ -680,23 +623,11 @@ fn quick_verification_of_many_files_is_reported_as_churn() {
 #[test]
 fn verification_below_both_thresholds_is_not_reported() {
     for verified in [
-        VerifiedFileIntegrity {
-            files: 1000,
-            duration: Duration::from_secs(1),
-        },
-        VerifiedFileIntegrity {
-            files: 12,
-            duration: Duration::from_millis(3),
-        },
-        VerifiedFileIntegrity {
-            files: 0,
-            duration: Duration::ZERO,
-        },
+        VerifiedFileIntegrity { files: 1000, duration: Duration::from_secs(1) },
+        VerifiedFileIntegrity { files: 12, duration: Duration::from_millis(3) },
+        VerifiedFileIntegrity { files: 0, duration: Duration::ZERO },
     ] {
-        assert_eq!(
-            recorded_verified_file_integrity_report(verified),
-            Vec::<String>::new(),
-        );
+        assert_eq!(recorded_verified_file_integrity_report(verified), Vec::<String>::new());
     }
 }
 /// Each install reports its own verification, so a second install in
@@ -704,14 +635,8 @@ fn verification_below_both_thresholds_is_not_reported() {
 /// several) doesn't re-report the first one's work.
 #[test]
 fn verified_file_integrity_is_scoped_to_one_install() {
-    let baseline = VerifiedFileIntegrity {
-        files: 400,
-        duration: Duration::from_secs(9),
-    };
-    let after = VerifiedFileIntegrity {
-        files: 401,
-        duration: Duration::from_millis(9_100),
-    };
+    let baseline = VerifiedFileIntegrity { files: 400, duration: Duration::from_secs(9) };
+    let after = VerifiedFileIntegrity { files: 401, duration: Duration::from_millis(9_100) };
 
     let this_install = after.since(baseline);
     dbg!(this_install);

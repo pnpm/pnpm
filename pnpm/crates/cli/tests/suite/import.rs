@@ -25,10 +25,7 @@ fn assert_no_import_backups(lockfile_dir: &Path) {
         .map(|entry| entry.expect("read a lockfile directory entry").file_name())
         .filter(|name| name.to_string_lossy().ends_with(".import.bak"))
         .collect();
-    assert!(
-        leftovers.is_empty(),
-        "import backups left behind: {leftovers:?}",
-    );
+    assert!(leftovers.is_empty(), "import backups left behind: {leftovers:?}");
 }
 
 const DEP_OF_PKG_WITH_1_DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
@@ -313,16 +310,10 @@ fn write_file(dir: &Path, relative_path: &str, contents: &str) {
 fn assert_pins(workspace: &Path, expected: &[&str], rejected: &[&str]) {
     let packages = lockfile_package_keys(workspace);
     for key in expected {
-        assert!(
-            packages.contains(&(*key).to_string()),
-            "{key} must be pinned, got {packages:?}",
-        );
+        assert!(packages.contains(&(*key).to_string()), "{key} must be pinned, got {packages:?}");
     }
     for key in rejected {
-        assert!(
-            !packages.contains(&(*key).to_string()),
-            "{key} must not be pinned",
-        );
+        assert!(!packages.contains(&(*key).to_string()), "{key} must not be pinned");
     }
 }
 
@@ -331,16 +322,8 @@ fn assert_pins(workspace: &Path, expected: &[&str], rejected: &[&str]) {
 fn prepare_workspace(workspace: &Path) {
     append_workspace_yaml_key(workspace, "packages", r#"["packages/**"]"#);
     write_file(workspace, "package.json", WORKSPACE_ROOT_MANIFEST);
-    write_file(
-        workspace,
-        "packages/foo/package.json",
-        WORKSPACE_FOO_MANIFEST,
-    );
-    write_file(
-        workspace,
-        "packages/bar/package.json",
-        WORKSPACE_BAR_MANIFEST,
-    );
+    write_file(workspace, "packages/foo/package.json", WORKSPACE_FOO_MANIFEST);
+    write_file(workspace, "packages/bar/package.json", WORKSPACE_BAR_MANIFEST);
 }
 
 /// Both members declare `^1.0.0`, and both packages publish a higher
@@ -352,10 +335,7 @@ fn assert_workspace_pins(workspace: &Path) {
         &["@pnpm.e2e/foo@1.0.0", "@pnpm.e2e/bravo-dep@1.0.1"],
         &["@pnpm.e2e/foo@1.3.0", "@pnpm.e2e/bravo-dep@1.1.0"],
     );
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "import must not create node_modules",
-    );
+    assert!(!workspace.join("node_modules").exists(), "import must not create node_modules");
 }
 
 #[test]
@@ -379,16 +359,10 @@ fn import_from_package_lock_json() {
 
     assert_pins(
         &workspace,
-        &[
-            "@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0",
-            "@pnpm.e2e/pkg-with-1-dep@100.0.0",
-        ],
+        &["@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0", "@pnpm.e2e/pkg-with-1-dep@100.0.0"],
         &["@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"],
     );
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "import must not create node_modules",
-    );
+    assert!(!workspace.join("node_modules").exists(), "import must not create node_modules");
 
     drop((root, npmrc_info));
 }
@@ -417,10 +391,7 @@ fn import_from_npm_shrinkwrap_json() {
         &["@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0"],
         &["@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"],
     );
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "import must not create node_modules",
-    );
+    assert!(!workspace.join("node_modules").exists(), "import must not create node_modules");
 
     drop((root, npmrc_info));
 }
@@ -449,10 +420,7 @@ fn import_from_package_lock_json_v3() {
         &["@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0"],
         &["@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"],
     );
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "import must not create node_modules",
-    );
+    assert!(!workspace.join("node_modules").exists(), "import must not create node_modules");
 
     drop((root, npmrc_info));
 }
@@ -478,16 +446,10 @@ fn import_from_yarn_lock() {
 
     assert_pins(
         &workspace,
-        &[
-            "@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0",
-            "@pnpm.e2e/pkg-with-1-dep@100.0.0",
-        ],
+        &["@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0", "@pnpm.e2e/pkg-with-1-dep@100.0.0"],
         &["@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"],
     );
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "import must not create node_modules",
-    );
+    assert!(!workspace.join("node_modules").exists(), "import must not create node_modules");
 
     drop((root, npmrc_info));
 }
@@ -528,10 +490,7 @@ fn import_from_yarn_berry_lock() {
             "@pnpm.e2e/bravo-dep@1.1.0",
         ],
     );
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "import must not create node_modules",
-    );
+    assert!(!workspace.join("node_modules").exists(), "import must not create node_modules");
 
     drop((root, mock_instance));
 }
@@ -547,30 +506,17 @@ fn import_fails_when_no_lockfile_is_found() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_file(
-        &workspace,
-        "package.json",
-        r#"{"name":"project","version":"0.0.0"}"#,
-    );
+    write_file(&workspace, "package.json", r#"{"name":"project","version":"0.0.0"}"#);
 
     let output = pacquet
         .with_arg("import")
         .output()
         .expect("run import");
-    assert!(
-        !output.status.success(),
-        "import must fail without a foreign lockfile",
-    );
+    assert!(!output.status.success(), "import must fail without a foreign lockfile");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_LOCKFILE_NOT_FOUND"),
-        "stderr:\n{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_LOCKFILE_NOT_FOUND"), "stderr:\n{stderr}");
     assert!(stderr.contains("No lockfile found"), "stderr:\n{stderr}");
-    assert!(
-        !workspace.join("pnpm-lock.yaml").exists(),
-        "import must not write a lockfile",
-    );
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "import must not write a lockfile");
 
     drop((root, mock_instance));
 }
@@ -588,11 +534,7 @@ fn import_replaces_existing_lockfile() {
 
     write_file(&workspace, "package.json", NPM_FIXTURE_MANIFEST);
     write_file(&workspace, "package-lock.json", NPM_LOCKFILE_V1);
-    write_file(
-        &workspace,
-        "pnpm-lock.yaml",
-        "# stale placeholder lockfile\n",
-    );
+    write_file(&workspace, "pnpm-lock.yaml", "# stale placeholder lockfile\n");
 
     pacquet
         .with_arg("import")
@@ -644,18 +586,12 @@ fn import_preserves_project_lockfile_with_external_lockfile_dir() {
     let lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(root.path())
         .expect("load imported lockfile")
         .expect("imported lockfile exists");
-    assert_eq!(
-        lockfile.importers.into_keys().collect::<Vec<_>>(),
-        ["workspace"],
-    );
+    assert_eq!(lockfile.importers.into_keys().collect::<Vec<_>>(), ["workspace"]);
     assert_eq!(
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read project lockfile"),
         project_lockfile,
     );
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "import must not create node_modules",
-    );
+    assert!(!workspace.join("node_modules").exists(), "import must not create node_modules");
 
     drop((root, npmrc_info));
 }
@@ -673,11 +609,7 @@ fn import_replaces_external_lockfile_and_preserves_its_env_document() {
 
     write_file(&workspace, "package.json", NPM_FIXTURE_MANIFEST);
     write_file(&workspace, "package-lock.json", NPM_LOCKFILE_V1);
-    write_file(
-        root.path(),
-        "pnpm-lock.yaml",
-        "# stale placeholder lockfile\n",
-    );
+    write_file(root.path(), "pnpm-lock.yaml", "# stale placeholder lockfile\n");
     let mut env_lockfile = pnpm_lockfile::EnvLockfile::create();
     env_lockfile
         .root_importer_mut()
@@ -689,9 +621,7 @@ fn import_replaces_external_lockfile_and_preserves_its_env_document() {
                 version: "1.0.0".to_string(),
             },
         );
-    env_lockfile
-        .write(root.path())
-        .expect("write external env document");
+    env_lockfile.write(root.path()).expect("write external env document");
     append_workspace_yaml_key(&workspace, "lockfileDir", "..");
 
     pacquet
@@ -719,10 +649,7 @@ fn import_replaces_external_lockfile_and_preserves_its_env_document() {
         pnpm_lockfile::EnvLockfile::read(root.path()).expect("read external env document"),
         Some(env_lockfile),
     );
-    assert!(
-        !workspace.join("pnpm-lock.yaml").exists(),
-        "no lockfile in the project directory",
-    );
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "no lockfile in the project directory");
     assert_no_import_backups(root.path());
 
     drop((root, npmrc_info));
@@ -757,16 +684,10 @@ fn import_preserves_shared_lockfile_when_writing_a_branch_lockfile() {
                 version: "1.0.0".to_string(),
             },
         );
-    env_lockfile
-        .write(root.path())
-        .expect("write shared env document");
+    env_lockfile.write(root.path()).expect("write shared env document");
     let shared_lockfile =
         fs::read_to_string(root.path().join("pnpm-lock.yaml")).expect("read shared lockfile");
-    write_file(
-        root.path(),
-        "pnpm-lock.feature!import.yaml",
-        "# stale branch lockfile\n",
-    );
+    write_file(root.path(), "pnpm-lock.feature!import.yaml", "# stale branch lockfile\n");
 
     pacquet
         .with_arg("import")
@@ -777,10 +698,7 @@ fn import_preserves_shared_lockfile_when_writing_a_branch_lockfile() {
         pnpm_lockfile::Lockfile::load_from_path(&root.path().join("pnpm-lock.feature!import.yaml"))
             .expect("load branch lockfile")
             .expect("branch lockfile exists");
-    assert_eq!(
-        lockfile.importers.into_keys().collect::<Vec<_>>(),
-        ["workspace"],
-    );
+    assert_eq!(lockfile.importers.into_keys().collect::<Vec<_>>(), ["workspace"]);
     let packages = lockfile.packages.expect("imported packages exist");
     assert!(
         packages
@@ -824,21 +742,14 @@ fn failed_import_restores_branch_lockfile() {
     let shared_lockfile = "# shared lockfile\n";
     let branch_lockfile = "# branch lockfile\n";
     write_file(root.path(), "pnpm-lock.yaml", shared_lockfile);
-    write_file(
-        root.path(),
-        "pnpm-lock.feature!import.yaml",
-        branch_lockfile,
-    );
+    write_file(root.path(), "pnpm-lock.feature!import.yaml", branch_lockfile);
 
     let output = pacquet
         .with_arg("import")
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_NO_MATCHING_VERSION"),
-        "stderr:\n{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_NO_MATCHING_VERSION"), "stderr:\n{stderr}");
     assert_eq!(
         fs::read_to_string(root.path().join("pnpm-lock.feature!import.yaml"))
             .expect("read restored branch lockfile"),
@@ -879,19 +790,13 @@ fn failed_import_restores_external_lockfile() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_NO_MATCHING_VERSION"),
-        "stderr:\n{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_NO_MATCHING_VERSION"), "stderr:\n{stderr}");
     assert_eq!(
         fs::read_to_string(root.path().join("pnpm-lock.yaml")).expect("read restored lockfile"),
         original_lockfile,
     );
     assert_no_import_backups(root.path());
-    assert!(
-        !workspace.join("pnpm-lock.yaml").exists(),
-        "no lockfile in the project directory",
-    );
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "no lockfile in the project directory");
 
     drop((root, mock_instance));
 }
@@ -920,10 +825,7 @@ fn failed_import_writes_no_lockfile_where_there_was_none() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_NO_MATCHING_VERSION"),
-        "stderr:\n{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_NO_MATCHING_VERSION"), "stderr:\n{stderr}");
     assert!(
         !root
             .path()
@@ -932,10 +834,7 @@ fn failed_import_writes_no_lockfile_where_there_was_none() {
         "no lockfile in the external lockfile directory",
     );
     assert_no_import_backups(root.path());
-    assert!(
-        !workspace.join("pnpm-lock.yaml").exists(),
-        "no lockfile in the project directory",
-    );
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "no lockfile in the project directory");
 
     drop((root, mock_instance));
 }

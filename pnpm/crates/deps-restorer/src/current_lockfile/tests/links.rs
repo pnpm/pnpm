@@ -71,10 +71,7 @@ fn materialization_closure_ignores_unknown_link_targets() {
     let importers = HashMap::from([
         (
             Lockfile::ROOT_IMPORTER_KEY.to_string(),
-            ProjectSnapshot {
-                dependencies: Some(dependencies),
-                ..Default::default()
-            },
+            ProjectSnapshot { dependencies: Some(dependencies), ..Default::default() },
         ),
         ("packages/known".to_string(), ProjectSnapshot::default()),
     ]);
@@ -88,11 +85,7 @@ fn materialization_closure_ignores_unknown_link_targets() {
             ..Default::default()
         },
     )]);
-    let lockfile = Lockfile {
-        importers,
-        snapshots: Some(snapshots),
-        ..empty_lockfile()
-    };
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
 
     let closure = super::super::materialization_closure(
         &lockfile,
@@ -102,9 +95,6 @@ fn materialization_closure_ignores_unknown_link_targets() {
         &SkippedSnapshots::new(),
     );
 
-    assert_eq!(
-        closure.importer_ids,
-        HashSet::from([Lockfile::ROOT_IMPORTER_KEY.to_string()]),
-    );
+    assert_eq!(closure.importer_ids, HashSet::from([Lockfile::ROOT_IMPORTER_KEY.to_string()]));
     assert_eq!(closure.lockfile.importers.len(), 1);
 }

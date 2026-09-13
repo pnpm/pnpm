@@ -92,10 +92,7 @@ async fn read_package_hook_failure_aborts_install() {
     )
     .await;
 
-    assert!(
-        result.is_err(),
-        "install must fail when readPackage returns nothing",
-    );
+    assert!(result.is_err(), "install must fail when readPackage returns nothing");
 
     drop((dir, registry));
 }
@@ -114,10 +111,7 @@ async fn pnpmfile_syntax_error_aborts_install() {
     )
     .await;
 
-    assert!(
-        result.is_err(),
-        "install must fail on a pnpmfile syntax error",
-    );
+    assert!(result.is_err(), "install must fail on a pnpmfile syntax error");
 
     drop((dir, registry));
 }
@@ -184,10 +178,7 @@ async fn after_all_resolved_hook_failure_aborts_install() {
     )
     .await;
 
-    assert!(
-        result.is_err(),
-        "install must fail when afterAllResolved throws",
-    );
+    assert!(result.is_err(), "install must fail when afterAllResolved throws");
 }
 // A `readPackage` hook's `context.log(...)`
 // surfaces on the `pnpm:hook` channel with the pnpmfile path (`from`), the
@@ -195,10 +186,7 @@ async fn after_all_resolved_hook_failure_aborts_install() {
 #[tokio::test]
 async fn read_package_hook_log_is_forwarded_to_pnpm_hook_channel() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -231,15 +219,9 @@ async fn read_package_hook_log_is_forwarded_to_pnpm_hook_channel() {
     let captured = EVENTS.lock().unwrap();
     let hook_log = first_hook_log(&captured);
     assert_eq!(hook_log.hook, "readPackage");
-    assert_eq!(
-        hook_log.message,
-        "@pnpm.e2e/dep-of-pkg-with-1-dep pinned to 100.0.0",
-    );
+    assert_eq!(hook_log.message, "@pnpm.e2e/dep-of-pkg-with-1-dep pinned to 100.0.0");
     assert!(!hook_log.from.is_empty(), "from must be the pnpmfile path");
-    assert!(
-        !hook_log.prefix.is_empty(),
-        "prefix must be the project dir",
-    );
+    assert!(!hook_log.prefix.is_empty(), "prefix must be the project dir");
 
     drop((dir, registry));
 }
@@ -248,10 +230,7 @@ async fn read_package_hook_log_is_forwarded_to_pnpm_hook_channel() {
 #[tokio::test]
 async fn after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -283,10 +262,7 @@ async fn after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
     assert_eq!(hook_log.hook, "afterAllResolved");
     assert_eq!(hook_log.message, "All resolved");
     assert!(!hook_log.from.is_empty(), "from must be the pnpmfile path");
-    assert!(
-        !hook_log.prefix.is_empty(),
-        "prefix must be the project dir",
-    );
+    assert!(!hook_log.prefix.is_empty(), "prefix must be the project dir");
 
     drop((dir, registry));
 }
@@ -295,10 +271,7 @@ async fn after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
 #[tokio::test]
 async fn async_after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -342,10 +315,7 @@ async fn async_after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
 #[tokio::test]
 async fn pre_resolution_hook_log_is_forwarded_to_pnpm_hook_channel() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -401,15 +371,8 @@ async fn pre_resolution_hook_log_is_forwarded_to_pnpm_hook_channel() {
         find_hook_event(&captured, LogLevel::Warn, "Some packages may need updates"),
         find_hook_event(&captured, LogLevel::Info, "raw hook output"),
     ] {
-        assert_eq!(
-            log.from, "pnpmfile",
-            "preResolution from is hardcoded to 'pnpmfile'",
-        );
-        assert_eq!(
-            log.prefix,
-            *dir.path().to_string_lossy(),
-            "prefix must be the lockfile dir",
-        );
+        assert_eq!(log.from, "pnpmfile", "preResolution from is hardcoded to 'pnpmfile'");
+        assert_eq!(log.prefix, *dir.path().to_string_lossy(), "prefix must be the lockfile dir");
     }
 
     drop((dir, registry));

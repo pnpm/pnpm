@@ -136,9 +136,7 @@ struct FrozenScope<'a> {
 
 impl FrozenScope<'_> {
     fn lockfile<'l>(&'l self, lockfile: &'l Lockfile) -> &'l Lockfile {
-        self.closure
-            .as_ref()
-            .map_or(lockfile, |closure| &closure.lockfile)
+        self.closure.as_ref().map_or(lockfile, |closure| &closure.lockfile)
     }
 }
 
@@ -224,13 +222,11 @@ impl<'a> MaterializationInputs<'a, '_> {
             lockfile_verification_gate,
             resolution: crate::ResolutionInputs {
                 update_seed_policy: self.resolution.inputs.update_seed_policy,
-                preferred_versions_override: self.resolution.inputs
-                    .preferred_versions_override,
+                preferred_versions_override: self.resolution.inputs.preferred_versions_override,
                 auth_override: self.resolution.inputs.auth_override,
                 observer: self.resolution.inputs.observer,
                 peer_issues_sink: self.resolution.inputs.peer_issues_sink,
-                deps_requiring_build_sink: self.resolution.inputs
-                    .deps_requiring_build_sink,
+                deps_requiring_build_sink: self.resolution.inputs.deps_requiring_build_sink,
             },
             fetching: crate::install_with_fresh_lockfile::FreshFetchingInputs {
                 tarball_mem_cache: self.downloads.tarball_mem_cache,
@@ -285,8 +281,7 @@ impl<'a> MaterializationInputs<'a, '_> {
     async fn fresh<Reporter: self::Reporter + 'static>(
         mut self,
     ) -> Result<MaterializationOutput, InstallError> {
-        let lockfile_verification_gate = self.start_fresh_verification::<Reporter>()
-            .await?;
+        let lockfile_verification_gate = self.start_fresh_verification::<Reporter>().await?;
         let dependency_groups = std::mem::take(&mut self.workspace.dependency_groups);
         let resolution_verifiers =
             std::mem::take(&mut self.lockfiles.verification.resolution_verifiers);

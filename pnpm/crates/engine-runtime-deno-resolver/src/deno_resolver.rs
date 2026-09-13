@@ -49,10 +49,7 @@ pub struct DenoResolver {
 
 impl DenoResolver {
     pub fn new(http_client: Arc<ThrottledClient>, npm_resolver: Arc<dyn Resolver>) -> Self {
-        Self {
-            http_client,
-            npm_resolver,
-        }
+        Self { http_client, npm_resolver }
     }
 }
 
@@ -85,14 +82,24 @@ impl DenoResolver {
         };
         let version_spec = normalize_runtime_spec(version_spec);
 
-        let version = self.resolve_version(wanted_dependency, version_spec)
-            .await?;
+        let version = resolve_package_version(
+            self.npm_resolver.as_ref(),
+            &WantedDependency {
+                alias: wanted_dependency.alias.clone(),
+                bare_specifier: Some(version_spec.to_string()),
+                ..wanted_dependency.clone()
+            },
+            &ResolveOptions::default(),
+        )
+        .await?
+        .ok_or_else(|| {
+            Box::new(DenoResolverError::ResolutionFailure { spec: version_spec.to_string() })
+                as ResolveError
+        })?;
 
         let variants = read_deno_assets(&self.http_client, &version).await
             .map_err(|err| Box::new(DenoResolverError::ReadAssets(err)) as ResolveError)?;
-        let resolution = LockfileResolution::Variations(VariationsResolution {
-            variants,
-        });
+        let resolution = LockfileResolution::Variations(VariationsResolution { variants });
         let manifest = serde_json::json!({
             "name": "deno",
             "version": version,
@@ -113,28 +120,6 @@ impl DenoResolver {
         }))
     }
 
-    async fn resolve_version(
-        &self,
-        wanted_dependency: &WantedDependency,
-        version_spec: &str,
-    ) -> Result<String, ResolveError> {
-        resolve_package_version(
-            self.npm_resolver.as_ref(),
-            &WantedDependency {
-                alias: wanted_dependency.alias.clone(),
-                bare_specifier: Some(version_spec.to_string()),
-                ..wanted_dependency.clone()
-            },
-            &ResolveOptions::default(),
-        )
-        .await?
-        .ok_or_else(|| {
-            Box::new(DenoResolverError::ResolutionFailure {
-                spec: version_spec.to_string(),
-            }) as ResolveError
-        })
-    }
-
     async fn resolve_latest_impl(
         &self,
         query: &LatestQuery,
@@ -143,12 +128,9 @@ impl DenoResolver {
         let Some(manifest_spec) = bare_runtime_spec(&query.wanted_dependency, "deno") else {
             return Ok(None);
         };
-        let version_spec = if query.compatible {
-            normalize_runtime_spec(manifest_spec)
-        } else {
-            "latest"
-        }
-        .to_string();
+        let version_spec =
+            if query.compatible { normalize_runtime_spec(manifest_spec) } else { "latest" }
+                .to_string();
         let mut resolve_opts = opts.clone();
         if !query.compatible {
             resolve_opts.refresh.update = UpdateBehavior::Latest;
@@ -194,19 +176,11 @@ fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> 
 
 fn normalize_runtime_spec(version_spec: &str) -> &str {
     let version_spec = version_spec.trim();
-    if version_spec.is_empty() {
-        "latest"
-    } else {
-        version_spec
-    }
+    if version_spec.is_empty() { "latest" } else { version_spec }
 }
 
 fn deno_bin_for_current_os(platform: &str) -> &'static str {
-    if platform == "win32" {
-        "deno.exe"
-    } else {
-        "deno"
-    }
+    if platform == "win32" { "deno.exe" } else { "deno" }
 }
 
 fn current_platform() -> &'static str {

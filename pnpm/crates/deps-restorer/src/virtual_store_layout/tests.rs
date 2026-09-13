@@ -54,10 +54,7 @@ fn snapshot_with_link(alias: &str, target: &str) -> SnapshotEntry {
         alias.parse::<PkgName>().unwrap(),
         format!("link:{target}").parse::<SnapshotDepRef>().unwrap(),
     );
-    SnapshotEntry {
-        dependencies: Some(dependencies),
-        ..SnapshotEntry::default()
-    }
+    SnapshotEntry { dependencies: Some(dependencies), ..SnapshotEntry::default() }
 }
 
 #[derive(Deserialize)]
@@ -133,10 +130,8 @@ fn cyclic_slot_suffixes() -> Vec<(String, String)> {
 /// `b` reaches the `n` ↔ `y` cycle through a regular `n` and an
 /// optional `c`, whose alias sorts first, so it pins that
 /// `optionalDependencies` still come last.
-fn cyclic_snapshots() -> (
-    HashMap<PackageKey, SnapshotEntry>,
-    HashMap<PackageKey, PackageMetadata>,
-) {
+fn cyclic_snapshots() -> (HashMap<PackageKey, SnapshotEntry>, HashMap<PackageKey, PackageMetadata>)
+{
     let snapshots = HashMap::from([
         (
             key("a@1.0.0"),

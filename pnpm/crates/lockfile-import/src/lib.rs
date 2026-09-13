@@ -113,10 +113,7 @@ pub fn read_foreign_lockfile_versions(
         let path = dir.join(lockfile_name);
         if let Some(contents) = read_if_exists(&path)? {
             let lockfile = serde_json::from_str(&contents)
-                .map_err(|source| ImportLockfileError::Parse {
-                    path,
-                    source,
-                })?;
+                .map_err(|source| ImportLockfileError::Parse { path, source })?;
             collect_npm_lockfile_versions(&lockfile, &mut versions);
             return Ok(versions);
         }
@@ -139,10 +136,7 @@ pub fn to_preferred_versions(versions: &VersionsByPackageName) -> PreferredVersi
             let selectors = versions
                 .iter()
                 .map(|version| {
-                    (
-                        version.clone(),
-                        VersionSelectorEntry::Plain(VersionSelectorType::Version),
-                    )
+                    (version.clone(), VersionSelectorEntry::Plain(VersionSelectorType::Version))
                 })
                 .collect();
             (name.clone(), selectors)
@@ -154,10 +148,7 @@ fn read_if_exists(path: &Path) -> Result<Option<String>, ImportLockfileError> {
     match std::fs::read_to_string(path) {
         Ok(contents) => Ok(Some(contents)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(source) => Err(ImportLockfileError::Read {
-            path: path.to_path_buf(),
-            source,
-        }),
+        Err(source) => Err(ImportLockfileError::Read { path: path.to_path_buf(), source }),
     }
 }
 

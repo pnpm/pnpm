@@ -105,13 +105,7 @@ async fn discovery_rejects_redirects_before_configured_headers_reach_the_target(
     let result = upstream.fetch_search("text=foo").await;
 
     assert!(
-        matches!(
-            result,
-            Err(RegistryError::UpstreamStatus {
-                status: 302,
-                ..
-            })
-        ),
+        matches!(result, Err(RegistryError::UpstreamStatus { status: 302, .. })),
         "expected the first redirect response, got {result:?}",
     );
     redirect.assert_async().await;
@@ -120,11 +114,7 @@ async fn discovery_rejects_redirects_before_configured_headers_reach_the_target(
 
 #[test]
 fn configured_headers_require_a_secure_same_origin_destination() {
-    for base in [
-        "http://registry.example",
-        "https://registry.example",
-        "http://127.0.0.1",
-    ] {
+    for base in ["http://registry.example", "https://registry.example", "http://127.0.0.1"] {
         let upstream = upstream(base.to_string(), auth_and_custom_headers());
         assert_eq!(
             upstream
@@ -177,13 +167,8 @@ async fn fetch_packument_modified_carries_the_body() {
         .await
         .unwrap();
 
-    let PackumentFetch::Modified(fetched) = outcome else {
-        panic!("expected a body")
-    };
-    assert!(
-        !fetched.bytes.is_empty(),
-        "a modified fetch carries the packument body",
-    );
+    let PackumentFetch::Modified(fetched) = outcome else { panic!("expected a body") };
+    assert!(!fetched.bytes.is_empty(), "a modified fetch carries the packument body");
     mock.assert_async().await;
 }
 
@@ -231,13 +216,9 @@ async fn fetch_packument_304_without_validators_is_an_error() {
 
     let upstream = upstream(server.url(), HeaderMap::new());
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
-    let result = upstream.fetch_packument(&name, &CacheValidators::default())
-        .await;
+    let result = upstream.fetch_packument(&name, &CacheValidators::default()).await;
 
-    assert!(
-        result.is_err(),
-        "an unconditional 304 must not be treated as NotModified",
-    );
+    assert!(result.is_err(), "an unconditional 304 must not be treated as NotModified");
     mock.assert_async().await;
 }
 
@@ -274,21 +255,12 @@ async fn fetch_document_forwards_headers_and_accept_and_reports_the_final_url() 
         .create_async()
         .await;
 
-    let upstream = upstream(
-        format!("{}/simple/", server.url()),
-        auth_and_custom_headers(),
-    );
+    let upstream = upstream(format!("{}/simple/", server.url()), auth_and_custom_headers());
     let outcome = upstream
-        .fetch_document(
-            "requests/",
-            Some("application/vnd.pypi.simple.v1+json"),
-            1024,
-        )
+        .fetch_document("requests/", Some("application/vnd.pypi.simple.v1+json"), 1024)
         .await
         .unwrap();
-    let FetchOutcome::Ok(document) = outcome else {
-        panic!("expected a document")
-    };
+    let FetchOutcome::Ok(document) = outcome else { panic!("expected a document") };
     assert_eq!(document.bytes, br#"{"name":"requests"}"#);
     assert_eq!(document.url, format!("{}/simple/requests/", server.url()));
     mock.assert_async().await;
@@ -315,10 +287,7 @@ async fn fetch_document_rejects_a_body_over_the_limit() {
     let upstream = breaking_upstream(server.url(), 1);
     for _ in 0..2 {
         let err = upstream.fetch_document("se/rd/serde", None, 16).await.unwrap_err();
-        assert!(
-            matches!(err, RegistryError::UpstreamResponse { .. }),
-            "{err:?}",
-        );
+        assert!(matches!(err, RegistryError::UpstreamResponse { .. }), "{err:?}");
     }
     mock.assert_async().await;
 }

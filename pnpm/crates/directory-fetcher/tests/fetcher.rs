@@ -20,11 +20,7 @@ fn touch(root: &Path, rel: &str, body: &str) {
 fn run_in_all_files_mode_returns_manifest_and_filesmap() {
     let dir = tempdir().unwrap();
     let root = dir.path();
-    touch(
-        root,
-        "package.json",
-        r#"{ "name": "x", "version": "0.0.0" }"#,
-    );
+    touch(root, "package.json", r#"{ "name": "x", "version": "0.0.0" }"#);
     touch(root, "src/index.ts", "");
     touch(root, "node_modules/foo/index.js", "");
 
@@ -39,23 +35,12 @@ fn run_in_all_files_mode_returns_manifest_and_filesmap() {
 
     // node_modules dropped; manifest read; no install scripts ↔
     // requires_build = false.
-    let mut rels: Vec<_> = out.files_map
-        .keys()
-        .cloned()
-        .collect();
+    let mut rels: Vec<_> = out.files_map.keys().cloned().collect();
     rels.sort();
-    assert_eq!(
-        rels,
-        vec!["package.json".to_string(), "src/index.ts".into()],
-    );
+    assert_eq!(rels, vec!["package.json".to_string(), "src/index.ts".into()]);
 
     let manifest = out.manifest.expect("manifest read");
-    assert_eq!(
-        manifest
-            .get("name")
-            .and_then(|v| v.as_str()),
-        Some("x"),
-    );
+    assert_eq!(manifest.get("name").and_then(|v| v.as_str()), Some("x"));
     assert!(!out.requires_build);
 }
 
@@ -91,11 +76,7 @@ fn run_flags_requires_build_when_install_script_present() {
 fn run_flags_requires_build_when_binding_gyp_present() {
     let dir = tempdir().unwrap();
     let root = dir.path();
-    touch(
-        root,
-        "package.json",
-        r#"{ "name": "native", "version": "0.0.0" }"#,
-    );
+    touch(root, "package.json", r#"{ "name": "native", "version": "0.0.0" }"#);
     touch(root, "binding.gyp", "{ 'targets': [] }");
 
     let out = DirectoryFetcher {
@@ -141,11 +122,7 @@ fn run_returns_none_manifest_for_bit_workspace_directory_without_package_json() 
 fn run_in_package_files_mode_honors_files_field() {
     let dir = tempdir().unwrap();
     let root = dir.path();
-    touch(
-        root,
-        "package.json",
-        r#"{ "name": "x", "version": "0.0.0", "files": ["dist/**"] }"#,
-    );
+    touch(root, "package.json", r#"{ "name": "x", "version": "0.0.0", "files": ["dist/**"] }"#);
     touch(root, "dist/index.js", "");
     touch(root, "dist/node_modules/node-gyp/index.js", "");
     touch(root, "src/internal.ts", "");
@@ -159,10 +136,7 @@ fn run_in_package_files_mode_honors_files_field() {
     .run()
     .unwrap();
 
-    let mut rels: Vec<_> = out.files_map
-        .keys()
-        .cloned()
-        .collect();
+    let mut rels: Vec<_> = out.files_map.keys().cloned().collect();
     rels.sort();
 
     assert_eq!(

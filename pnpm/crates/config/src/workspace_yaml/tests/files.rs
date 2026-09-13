@@ -27,11 +27,7 @@ fn load_at_collects_no_issues_from_a_clean_file() {
         .expect("load pnpm-workspace.yaml")
         .expect("pnpm-workspace.yaml is present");
 
-    assert!(
-        settings.key_issues.is_empty(),
-        "unexpected issues: {:?}",
-        settings.key_issues,
-    );
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
 }
 
 #[test]
@@ -46,19 +42,13 @@ fn apply_resolves_relative_paths_against_base_dir() {
     // Build the expected path via the same join machinery the code
     // under test uses so the component separator matches on every
     // platform (Windows uses `\` between joined components).
-    assert_eq!(
-        config.store_dir,
-        StoreDir::from(base.join("../shared-store")),
-    );
+    assert_eq!(config.store_dir, StoreDir::from(base.join("../shared-store")));
     assert_eq!(config.pnpmfile, Some(vec![base.join("custom.cjs")]));
 
     let settings: WorkspaceSettings =
         serde_saphyr::from_str("pnpmfile: [hooks/../custom.cjs, custom.cjs]\n").unwrap();
     settings.apply_to(&mut config, base);
-    assert_eq!(
-        config.pnpmfile,
-        Some(vec![base.join("custom.cjs"), base.join("custom.cjs")]),
-    );
+    assert_eq!(config.pnpmfile, Some(vec![base.join("custom.cjs"), base.join("custom.cjs")]));
 }
 
 /// `ignoreScripts` parses from `pnpm-workspace.yaml` as a camelCase
@@ -97,10 +87,7 @@ changedFilesIgnorePattern:
     settings.apply_to(&mut config, Path::new("/irrelevant"));
 
     assert_eq!(config.test_pattern, ["*.spec.js", "*.spec.ts"]);
-    assert_eq!(
-        config.changed_files_ignore_pattern,
-        [".github/**", "**/README.md"],
-    );
+    assert_eq!(config.changed_files_ignore_pattern, [".github/**", "**/README.md"]);
 }
 
 #[test]
@@ -143,14 +130,8 @@ fn rejects_a_scheme_less_key_whose_path_contains_a_scheme_separator() {
     let error = WorkspaceSettings::load_at(dir.path())
         .expect_err("credentials must not slip past a path scheme separator")
         .to_string();
-    assert!(
-        !error.contains("hunter2"),
-        "the password must not be echoed: {error}",
-    );
-    assert!(
-        !error.contains("ci-user-6e42"),
-        "the username must not be echoed: {error}",
-    );
+    assert!(!error.contains("hunter2"), "the password must not be echoed: {error}");
+    assert!(!error.contains("ci-user-6e42"), "the username must not be echoed: {error}");
 }
 
 /// A `$schema` line is what an editor adds to an otherwise correct file, so
@@ -168,11 +149,7 @@ fn load_at_collects_no_issues_from_a_clean_file_carrying_a_schema_line() {
         .expect("load pnpm-workspace.yaml")
         .expect("pnpm-workspace.yaml is present");
 
-    assert!(
-        settings.key_issues.is_empty(),
-        "unexpected issues: {:?}",
-        settings.key_issues,
-    );
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
 }
 
 /// Indentation is not measurable where a tab stands in for it, so such a file
@@ -180,11 +157,7 @@ fn load_at_collects_no_issues_from_a_clean_file_carrying_a_schema_line() {
 #[test]
 fn load_at_collects_issues_from_a_tab_indented_file() {
     let dir = tempfile::tempdir().unwrap();
-    fs::write(
-        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
-        "\tzzzNotASettingZzz: 1\n",
-    )
-    .unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "\tzzzNotASettingZzz: 1\n").unwrap();
 
     let settings = WorkspaceSettings::load_at(dir.path())
         .expect("load pnpm-workspace.yaml")

@@ -58,9 +58,7 @@ pub(super) fn build_extra_env(
 pub(super) async fn await_lockfile_gate(
     gate: &mut Option<crate::install::LockfileVerificationGate>,
 ) -> Result<(), InstallWithFreshLockfileError> {
-    let Some(gate) = gate.take() else {
-        return Ok(());
-    };
+    let Some(gate) = gate.take() else { return Ok(()) };
     gate.wait().await.map_err(InstallWithFreshLockfileError::LockfileVerification)
 }
 /// What the on-disk phases read once the lockfile is built and the
@@ -137,8 +135,7 @@ impl<'a> OnDiskInputs<'a> {
             selection: pnpm_deps_restorer::SnapshotSelection {
                 skipped,
                 include_optional: self.include_transitive_optional_dependencies,
-                supported_architectures: self.install.projects
-                    .supported_architectures,
+                supported_architectures: self.install.projects.supported_architectures,
             },
             ctx: self.ctx,
 
@@ -208,29 +205,23 @@ impl<'a> OnDiskInputs<'a> {
                     package_map_manifests: &package_map_project_manifests,
                     dependency_groups: self.install.projects.dependency_groups,
                     symlink_root: self.symlink_root(),
-                    trusted_importer_ids: self.projects
-                        .project_anchor_importer_ids,
+                    trusted_importer_ids: self.projects.project_anchor_importer_ids,
                     root_component_importers: &root_component_importers,
                 },
                 ctx: self.ctx,
 
                 host_node: self.runtime.host_node,
-                supported_architectures: self.install.projects
-                    .supported_architectures,
+                supported_architectures: self.install.projects.supported_architectures,
             },
             skipped,
         )
         .map_err(InstallWithFreshLockfileError::LinkPhase)?;
-        self.report_importing_done::<Reporter>();
-        Ok(linked)
-    }
-
-    fn report_importing_done<Reporter: self::Reporter>(&self) {
         Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
             prefix: self.ctx.requester.to_string(),
             stage: Stage::ImportingDone,
         }));
+        Ok(linked)
     }
 
     /// Run lifecycle scripts, report ignored builds, and re-link top-level
@@ -255,13 +246,9 @@ impl<'a> OnDiskInputs<'a> {
         // value when the probe wasn't deferred.
         let top_level_bin_root = self.symlink_root();
         let engine_name =
-            settle_engine_name(self.runtime.deferred_engine_name, self.runtime.engine_name)
-                .await;
-        let extra_env = build_extra_env(
-            self.ctx.config,
-            self.ctx.linker.kind,
-            self.ctx.workspace_root,
-        );
+            settle_engine_name(self.runtime.deferred_engine_name, self.runtime.engine_name).await;
+        let extra_env =
+            build_extra_env(self.ctx.config, self.ctx.linker.kind, self.ctx.workspace_root);
         publish_deps_requiring_build(
             self.deps_requiring_build_sink.as_ref(),
             &materialized.requires_build_by_snapshot,
@@ -273,12 +260,15 @@ impl<'a> OnDiskInputs<'a> {
                     &self.store.store_index_writer,
                 ),
                 directories: build_directories(self.ctx, linked, top_level_bin_root),
-                graph: build_graph(
-                    self.projects.materialization_lockfile,
-                    self.install.projects.dependency_groups,
-                    linked,
-                    materialized,
-                ),
+                graph: pnpm_deps_restorer::BuildPhaseGraph {
+                    snapshots: self.projects.materialization_lockfile.snapshots.as_ref(),
+                    packages: self.projects.materialization_lockfile.packages.as_ref(),
+                    importers: &self.projects.materialization_lockfile.importers,
+                    dependency_groups: self.install.projects.dependency_groups,
+                    materialized_snapshots: linked.build_snapshots(
+                        &materialized.materialized_snapshots,
+                    ),
+                },
                 policy: pnpm_deps_restorer::BuildPhasePolicy {
                     config: self.ctx.config,
                     patch_groups: self.patched_dependencies,
@@ -351,9 +341,7 @@ pub(super) async fn finish_early_materialization<Reporter: self::Reporter + 'sta
     skipped: &SkippedSnapshots,
     logged_methods: &AtomicU8,
 ) {
-    let Some(materializer) = materializer else {
-        return;
-    };
+    let Some(materializer) = materializer else { return };
     let phase_start = std::time::Instant::now();
     let materialized = materializer.finish(
         |key| wanted.is_some_and(|snapshots| snapshots.contains_key(key)) && !skipped.contains(key),
@@ -458,20 +446,5 @@ fn build_directories<'a>(
         publicly_hoisted_for_post_build: &linked.publicly_hoisted_for_post_build,
         logged_methods: ctx.logged_methods,
         link_options: ctx.linker.bin_options,
-    }
-}
-
-fn build_graph<'a>(
-    lockfile: &'a pnpm_lockfile::Lockfile,
-    dependency_groups: &'a [pnpm_package_manifest::DependencyGroup],
-    linked: &'a pnpm_deps_restorer::linking::LinkPhaseOutput,
-    materialized: &'a CreateVirtualStoreOutput,
-) -> pnpm_deps_restorer::BuildPhaseGraph<'a> {
-    pnpm_deps_restorer::BuildPhaseGraph {
-        snapshots: lockfile.snapshots.as_ref(),
-        packages: lockfile.packages.as_ref(),
-        importers: &lockfile.importers,
-        dependency_groups,
-        materialized_snapshots: linked.build_snapshots(&materialized.materialized_snapshots),
     }
 }

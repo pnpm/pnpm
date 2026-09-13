@@ -73,10 +73,7 @@ pub fn flatten_report(report: &str) -> String {
 pub fn enable_gvs_in_workspace_yaml(workspace: &Path, extra_yaml: &str) {
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    let flipped = yaml.replace(
-        "enableGlobalVirtualStore: false",
-        "enableGlobalVirtualStore: true",
-    );
+    let flipped = yaml.replace("enableGlobalVirtualStore: false", "enableGlobalVirtualStore: true");
     assert_ne!(
         flipped, yaml,
         "expected the default `enableGlobalVirtualStore: false` line written by \
@@ -230,11 +227,7 @@ impl WorkspaceFixture {
     pub fn new() -> Self {
         let CommandTempCwd { root, workspace, npmrc_info, .. } =
             CommandTempCwd::init().add_mocked_registry();
-        let fixture = Self {
-            _root: root,
-            workspace,
-            registry: npmrc_info,
-        };
+        let fixture = Self { _root: root, workspace, registry: npmrc_info };
         fixture.append_workspace_yaml("packages:\n  - 'packages/*'\n");
         fixture
     }

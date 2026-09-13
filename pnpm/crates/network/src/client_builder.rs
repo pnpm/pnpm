@@ -83,10 +83,7 @@ pub(super) fn build_client_with_root_fallback(
     };
     client_builder(inputs, effective_tls, TrustRoots::Bundled, forbid_redirects)?
         .build()
-        .map_err(|bundled| ForInstallsError::ClientBuild {
-            platform,
-            bundled,
-        })
+        .map_err(|bundled| ForInstallsError::ClientBuild { platform, bundled })
 }
 
 /// The builder for one client: proxies, additive roots, TLS, and the redirect
@@ -99,18 +96,10 @@ fn client_builder(
 ) -> Result<reqwest::ClientBuilder, ForInstallsError> {
     let mut builder = default_client_builder(inputs.settings);
     if let Some(url) = inputs.https.clone() {
-        builder = builder.proxy(build_scheme_proxy(
-            url,
-            "https",
-            Arc::clone(&inputs.no_proxy),
-        ));
+        builder = builder.proxy(build_scheme_proxy(url, "https", Arc::clone(&inputs.no_proxy)));
     }
     if let Some(url) = inputs.http.clone() {
-        builder = builder.proxy(build_scheme_proxy(
-            url,
-            "http",
-            Arc::clone(&inputs.no_proxy),
-        ));
+        builder = builder.proxy(build_scheme_proxy(url, "http", Arc::clone(&inputs.no_proxy)));
     }
     // Lowest-priority additive roots; `apply_tls` layers the `.npmrc`
     // ca/cafile roots on top next.
@@ -122,11 +111,7 @@ fn client_builder(
     if cfg!(target_os = "android") || trust_roots == TrustRoots::Bundled {
         builder = builder.tls_certs_only(bundled_root_certs().iter().cloned());
     }
-    Ok(apply_redirect_policy(
-        builder,
-        inputs.redirect_guard,
-        forbid_redirects,
-    ))
+    Ok(apply_redirect_policy(builder, inputs.redirect_guard, forbid_redirects))
 }
 
 /// The proxy URL a setting names, treating an empty value as unset. See the
@@ -148,10 +133,7 @@ fn apply_redirect_policy(
     forbid_redirects: bool,
 ) -> reqwest::ClientBuilder {
     if let Some(guard) = redirect_guard {
-        return builder.redirect(allowlist_redirect_policy(
-            Arc::clone(guard),
-            !forbid_redirects,
-        ));
+        return builder.redirect(allowlist_redirect_policy(Arc::clone(guard), !forbid_redirects));
     }
     if forbid_redirects {
         return builder.redirect(reqwest::redirect::Policy::none());

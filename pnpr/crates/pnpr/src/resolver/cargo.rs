@@ -218,9 +218,7 @@ impl IndexFetcher {
                 .await?;
             index_files.extend(fetched);
         }
-        Err(format!(
-            "Cargo sparse-index discovery did not settle within {MAX_INDEX_WAVES} waves",
-        ))
+        Err(format!("Cargo sparse-index discovery did not settle within {MAX_INDEX_WAVES} waves"))
     }
 
     /// One crate's index file, from the cache when it is still fresh.

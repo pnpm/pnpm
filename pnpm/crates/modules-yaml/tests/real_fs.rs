@@ -223,10 +223,7 @@ fn hoisted_locations_round_trips() {
         .expect("parse raw .modules.yaml");
     assert_eq!(
         raw["hoistedLocations"]["/body-parser/1.19.0"],
-        json!([
-            "node_modules/body-parser",
-            "node_modules/express/node_modules/body-parser"
-        ]),
+        json!(["node_modules/body-parser", "node_modules/express/node_modules/body-parser"]),
     );
 }
 
@@ -248,8 +245,5 @@ fn absent_hoisted_locations_is_omitted_on_write() {
         .expect("read raw .modules.yaml")
         .pipe_as_ref(serde_json::from_str)
         .expect("parse raw .modules.yaml");
-    assert!(
-        raw.get("hoistedLocations").is_none(),
-        "hoistedLocations was emitted when None: {raw}",
-    );
+    assert!(raw.get("hoistedLocations").is_none(), "hoistedLocations was emitted when None: {raw}");
 }

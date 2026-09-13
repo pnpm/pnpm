@@ -145,18 +145,9 @@ async fn abbreviated_accept_header_strips_packument() {
     // `contributors`, etc. on each version. The abbreviated form
     // should drop them but keep the install-relevant fields.
     let version_obj = &doc["versions"]["1.0.0"];
-    assert!(
-        version_obj.get("_nodeVersion").is_none(),
-        "abbreviated form should drop _nodeVersion",
-    );
-    assert!(
-        version_obj.get("_id").is_none(),
-        "abbreviated form should drop per-version _id",
-    );
-    assert!(
-        version_obj.get("contributors").is_none(),
-        "abbreviated form should drop contributors",
-    );
+    assert!(version_obj.get("_nodeVersion").is_none(), "abbreviated form should drop _nodeVersion");
+    assert!(version_obj.get("_id").is_none(), "abbreviated form should drop per-version _id");
+    assert!(version_obj.get("contributors").is_none(), "abbreviated form should drop contributors");
     assert_eq!(version_obj["name"], "@foo/no-deps");
     assert_eq!(version_obj["version"], "1.0.0");
     assert_eq!(
@@ -181,30 +172,12 @@ async fn abbreviated_accept_header_strips_packument() {
     assert_eq!(doc["modified"], doc["time"]["modified"]);
     // README prose is never read during resolution and is the
     // dominant per-packument bloat — the abbreviated form drops it.
-    assert!(
-        doc.get("readme").is_none(),
-        "abbreviated form should drop readme",
-    );
-    assert!(
-        doc.get("readmeFilename").is_none(),
-        "abbreviated form should drop readmeFilename",
-    );
-    assert!(
-        doc.get("_attachments").is_none(),
-        "abbreviated form should drop _attachments",
-    );
-    assert!(
-        doc.get("_uplinks").is_none(),
-        "abbreviated form should drop _uplinks",
-    );
-    assert!(
-        doc.get("_distfiles").is_none(),
-        "abbreviated form should drop _distfiles",
-    );
-    assert!(
-        doc.get("users").is_none(),
-        "abbreviated form should drop users",
-    );
+    assert!(doc.get("readme").is_none(), "abbreviated form should drop readme");
+    assert!(doc.get("readmeFilename").is_none(), "abbreviated form should drop readmeFilename");
+    assert!(doc.get("_attachments").is_none(), "abbreviated form should drop _attachments");
+    assert!(doc.get("_uplinks").is_none(), "abbreviated form should drop _uplinks");
+    assert!(doc.get("_distfiles").is_none(), "abbreviated form should drop _distfiles");
+    assert!(doc.get("users").is_none(), "abbreviated form should drop users");
 }
 
 #[tokio::test]
@@ -232,10 +205,7 @@ async fn full_packument_served_when_accept_does_not_request_abbreviated() {
 
     let doc: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     // Full form keeps the fields the abbreviated form drops.
-    assert!(
-        doc["_attachments"].is_object(),
-        "full form should keep _attachments",
-    );
+    assert!(doc["_attachments"].is_object(), "full form should keep _attachments");
     assert_eq!(doc["versions"]["1.0.0"]["_nodeVersion"], "25.6.1");
 }
 
@@ -322,11 +292,7 @@ async fn serves_a_single_npm_ecosystem_at_the_root() {
     let storage = common::build_storage();
     let app = router(static_config(storage.path().to_path_buf()));
 
-    for path in [
-        "/@foo/no-deps",
-        "/~main/@foo/no-deps",
-        "/~local/@foo/no-deps",
-    ] {
+    for path in ["/@foo/no-deps", "/~main/@foo/no-deps", "/~local/@foo/no-deps"] {
         let response = app
             .clone()
             .oneshot(

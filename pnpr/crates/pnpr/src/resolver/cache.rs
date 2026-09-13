@@ -134,10 +134,7 @@ fn evict_lru_candidate(candidates: &mut Vec<CachedResolution>, private_first: bo
 }
 
 fn count_resolution_candidates(cache: &HashMap<String, Vec<CachedResolution>>) -> usize {
-    cache
-        .values()
-        .map(Vec::len)
-        .sum()
+    cache.values().map(Vec::len).sum()
 }
 
 fn evict_lru_resolution_candidate(
@@ -145,13 +142,7 @@ fn evict_lru_resolution_candidate(
     private_first: bool,
 ) -> bool {
     let target = lru_resolution_candidate(cache, private_first)
-        .or_else(|| {
-            if private_first {
-                lru_resolution_candidate(cache, false)
-            } else {
-                None
-            }
-        });
+        .or_else(|| if private_first { lru_resolution_candidate(cache, false) } else { None });
     let Some((key, index, _)) = target else {
         return false;
     };

@@ -50,14 +50,8 @@ fn dry_run_reports_changes_without_writing() {
         "the report must name the dependency a real install would add; got:\n{stdout}",
     );
 
-    assert!(
-        !workspace.join("pnpm-lock.yaml").exists(),
-        "--dry-run must not write pnpm-lock.yaml",
-    );
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "--dry-run must not create node_modules",
-    );
+    assert!(!workspace.join("pnpm-lock.yaml").exists(), "--dry-run must not write pnpm-lock.yaml");
+    assert!(!workspace.join("node_modules").exists(), "--dry-run must not create node_modules");
 
     drop((root, mock_instance));
 }
@@ -112,14 +106,8 @@ fn dry_run_reports_added_dependency_without_touching_the_lockfile() {
     );
 
     let lockfile_after = fs::read_to_string(&lockfile_path).expect("read lockfile after --dry-run");
-    assert_eq!(
-        lockfile_before, lockfile_after,
-        "--dry-run must not rewrite pnpm-lock.yaml",
-    );
-    assert!(
-        !workspace.join("node_modules").exists(),
-        "--dry-run must not create node_modules",
-    );
+    assert_eq!(lockfile_before, lockfile_after, "--dry-run must not rewrite pnpm-lock.yaml");
+    assert!(!workspace.join("node_modules").exists(), "--dry-run must not create node_modules");
 
     drop((root, mock_instance));
 }
@@ -187,12 +175,7 @@ fn dry_run_rejects_pnpr_server() {
     .expect("write package.json");
 
     let output = pacquet
-        .with_args([
-            "install",
-            "--dry-run",
-            "--pnpr-server",
-            "http://localhost:1",
-        ])
+        .with_args(["install", "--dry-run", "--pnpr-server", "http://localhost:1"])
         .output()
         .expect("spawn pacquet");
     assert!(

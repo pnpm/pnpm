@@ -41,11 +41,7 @@ fn tarball_package_manifest(tarball: &Path) -> serde_json::Value {
 
 #[test]
 fn latest_version_uses_semver_prerelease_order() {
-    let versions = [
-        "1.0.0-beta.2".to_string(),
-        "1.0.0-beta.10".to_string(),
-        "1.0.0".to_string(),
-    ];
+    let versions = ["1.0.0-beta.2".to_string(), "1.0.0-beta.10".to_string(), "1.0.0".to_string()];
     assert_eq!(latest_version(versions.iter()), Some("1.0.0".to_string()));
 }
 
@@ -73,16 +69,10 @@ fn per_run_substitutions_update_packuments_and_tarballs() {
         &std::fs::read(package_dir.join("package.json")).expect("read substituted packument"),
     )
     .expect("parse substituted packument");
-    assert_eq!(
-        packument["versions"]["1.0.0"]["dependencies"]["say-hi"],
-        "git+file:///tmp/hi#main",
-    );
+    assert_eq!(packument["versions"]["1.0.0"]["dependencies"]["say-hi"], "git+file:///tmp/hi#main");
     let manifest =
         tarball_package_manifest(&package_dir.join("has-aliased-git-dependency-1.0.0.tgz"));
-    assert_eq!(
-        manifest["dependencies"]["say-hi"],
-        "git+file:///tmp/hi#main",
-    );
+    assert_eq!(manifest["dependencies"]["say-hi"], "git+file:///tmp/hi#main");
 }
 
 // Both case variants land in the tarball even though a case-insensitive

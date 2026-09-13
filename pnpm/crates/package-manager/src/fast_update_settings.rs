@@ -224,20 +224,13 @@ pub(crate) fn is_directory_dependency(
 }
 
 fn has_directory_reference(importer: &ProjectSnapshot) -> bool {
-    [
-        &importer.dependencies,
-        &importer.dev_dependencies,
-        &importer.optional_dependencies,
-    ]
-    .into_iter()
-    .flatten()
-    .flatten()
-    .any(|(_, dependency)| {
-        matches!(
-            dependency.version,
-            ImporterDepVersion::Link(_) | ImporterDepVersion::File(_),
-        )
-    })
+    [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|(_, dependency)| {
+            matches!(dependency.version, ImporterDepVersion::Link(_) | ImporterDepVersion::File(_))
+        })
 }
 
 fn declares_injected_dependency(manifest: &PackageManifest) -> bool {
@@ -274,11 +267,8 @@ pub(crate) fn workspace_package_names(
         .collect()
 }
 
-const DEPENDENCY_GROUPS: [DependencyGroup; 3] = [
-    DependencyGroup::Dev,
-    DependencyGroup::Prod,
-    DependencyGroup::Optional,
-];
+const DEPENDENCY_GROUPS: [DependencyGroup; 3] =
+    [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional];
 
 #[cfg(test)]
 mod tests;

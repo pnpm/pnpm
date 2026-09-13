@@ -29,10 +29,7 @@ fn target() -> Target {
     .expect("marker environment fixture");
     Target {
         environment,
-        tags: vec![
-            "cp312-cp312-manylinux_2_17_x86_64".to_string(),
-            "py3-none-any".to_string(),
-        ],
+        tags: vec!["cp312-cp312-manylinux_2_17_x86_64".to_string(), "py3-none-any".to_string()],
     }
 }
 
@@ -81,10 +78,7 @@ fn metadata_reads_continued_fields_and_stops_at_the_description() {
 #[test]
 fn metadata_without_a_distribution_is_refused() {
     let error = WheelMetadata::parse("Metadata-Version: 2.1\n").expect_err("no name or version");
-    assert!(
-        error.to_string().contains("names no distribution"),
-        "{error}",
-    );
+    assert!(error.to_string().contains("names no distribution"), "{error}");
 }
 
 #[test]
@@ -101,10 +95,7 @@ fn candidates_prefer_the_first_tag_the_target_lists() {
     .expect("page parses");
 
     let candidate = &candidates[&Version::from_str("1.0.0").unwrap()];
-    assert_eq!(
-        candidate.wheel.name,
-        "demo-1.0.0-cp312-cp312-manylinux_2_17_x86_64.whl",
-    );
+    assert_eq!(candidate.wheel.name, "demo-1.0.0-cp312-cp312-manylinux_2_17_x86_64.whl");
     assert_eq!(
         candidate.wheel.url,
         "https://example.test/simple/demo/demo-1.0.0-cp312-cp312-manylinux_2_17_x86_64.whl",
@@ -171,19 +162,13 @@ fn candidates_carry_the_metadata_file_an_index_advertises() {
         Some(BTreeMap::new()),
         "the legacy spelling declares the file without digests",
     );
-    assert_eq!(
-        candidates[&Version::from_str("3.0.0").unwrap()].core_metadata,
-        None,
-    );
+    assert_eq!(candidates[&Version::from_str("3.0.0").unwrap()].core_metadata, None);
 }
 
 #[test]
 fn wheel_identity_refuses_a_filename_that_is_not_one() {
     let error = wheel_identity("demo-1.0.0.whl", &target().tags).expect_err("too few parts");
-    assert!(
-        error.to_string().contains("invalid Python wheel filename"),
-        "{error}",
-    );
+    assert!(error.to_string().contains("invalid Python wheel filename"), "{error}");
     assert!(wheel_identity("demo-1.0.0.tar.gz", &target().tags).expect("not a wheel").is_none());
 }
 
@@ -214,10 +199,7 @@ fn a_resolution_asks_for_each_distribution_then_each_wheel_then_solves() {
     else {
         panic!("a candidate with no metadata read yet is the next thing needed");
     };
-    assert_eq!(
-        (needed.as_ref(), version.to_string().as_str()),
-        ("demo", "1.0.0"),
-    );
+    assert_eq!((needed.as_ref(), version.to_string().as_str()), ("demo", "1.0.0"));
 
     packages.metadata.insert(
         (name("demo"), Version::from_str("1.0.0").unwrap()),
@@ -248,10 +230,7 @@ fn a_project_with_no_satisfying_version_reports_why() {
 
     let error = step(&packages, &requirements, &target.environment).expect_err("nothing satisfies");
 
-    assert!(
-        error.to_string().contains("Python dependency resolution failed"),
-        "{error}",
-    );
+    assert!(error.to_string().contains("Python dependency resolution failed"), "{error}");
 }
 
 /// The marker environment fixture has to keep parsing as one, or every

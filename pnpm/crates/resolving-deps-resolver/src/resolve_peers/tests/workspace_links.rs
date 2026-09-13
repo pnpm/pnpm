@@ -31,10 +31,7 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
         direct: Vec::new(),
         packages: HashMap::from_iter([
             ("prov@1.0.0".into(), package("prov", "1.0.0", &[], true)),
-            (
-                "consumer@1.0.0".into(),
-                package("consumer", "1.0.0", &[("prov", "*")], false),
-            ),
+            ("consumer@1.0.0".into(), package("consumer", "1.0.0", &[("prov", "*")], false)),
         ]),
         dependencies_tree: HashMap::from_iter([
             (prov.clone(), tree_node("prov@1.0.0", BTreeMap::new(), 1)),

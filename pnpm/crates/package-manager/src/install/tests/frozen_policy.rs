@@ -22,10 +22,7 @@ use text_block_macros::text_block;
 #[tokio::test]
 async fn frozen_lockfile_disables_optimistic_short_circuit() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -211,10 +208,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
     let mut extensions = indexmap::IndexMap::new();
     extensions.insert(
         "foo".to_string(),
-        pnpm_config::PackageExtension {
-            dependencies: Some(deps),
-            ..Default::default()
-        },
+        pnpm_config::PackageExtension { dependencies: Some(deps), ..Default::default() },
     );
     config.package_extensions = Some(extensions);
     let config = config.leak();
@@ -298,10 +292,7 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
     let manifest = PackageManifest::create_if_needed(project_root.join("package.json")).unwrap();
 
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("pacquet-store")
-        .into();
+    config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
@@ -371,8 +362,6 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
 
     assert!(matches!(
         result,
-        Err(InstallError::LockfileConfigMismatch {
-            setting: "pnpmfileChecksum"
-        })
+        Err(InstallError::LockfileConfigMismatch { setting: "pnpmfileChecksum" })
     ));
 }

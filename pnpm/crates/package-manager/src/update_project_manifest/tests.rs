@@ -9,11 +9,8 @@ use tempfile::TempDir;
 fn manifest_from_json(value: &Value) -> (TempDir, PackageManifest) {
     let dir = tempfile::tempdir().expect("create temp dir");
     let path = dir.path().join("package.json");
-    std::fs::write(
-        &path,
-        serde_json::to_string(value).expect("serialize fixture"),
-    )
-    .expect("write package.json");
+    std::fs::write(&path, serde_json::to_string(value).expect("serialize fixture"))
+        .expect("write package.json");
     let manifest = PackageManifest::from_path(path).expect("read package.json");
     (dir, manifest)
 }
@@ -67,10 +64,7 @@ fn preserves_workspace_protocol_when_requested() {
             preserve_workspace_protocol: true,
         },
     );
-    assert_eq!(
-        manifest.value()["dependencies"]["foo"],
-        json!("workspace:../packages/foo/dist"),
-    );
+    assert_eq!(manifest.value()["dependencies"]["foo"], json!("workspace:../packages/foo/dist"));
 }
 
 #[test]
@@ -94,10 +88,7 @@ fn saves_normalized_local_spec_when_workspace_protocol_not_preserved() {
             preserve_workspace_protocol: false,
         },
     );
-    assert_eq!(
-        manifest.value()["dependencies"]["foo"],
-        json!("link:../packages/foo/dist"),
-    );
+    assert_eq!(manifest.value()["dependencies"]["foo"], json!("link:../packages/foo/dist"));
 }
 
 #[test]
@@ -121,10 +112,7 @@ fn saves_normalized_workspace_range_spec() {
             preserve_workspace_protocol: true,
         },
     );
-    assert_eq!(
-        manifest.value()["dependencies"]["foo"],
-        json!("workspace:^1.0.0"),
-    );
+    assert_eq!(manifest.value()["dependencies"]["foo"], json!("workspace:^1.0.0"));
 }
 
 #[test]
@@ -189,11 +177,8 @@ fn does_not_update_unrelated_dependency_when_optional_update_fails_to_resolve() 
 #[test]
 fn updates_manifest_for_github_shorthand_without_alias() {
     let (_dir, mut manifest) = manifest_from_json(&json!({}));
-    let selector = wanted(
-        None,
-        "pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf",
-        true,
-    );
+    let selector =
+        wanted(None, "pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf", true);
     apply(
         &mut manifest,
         &UpdateProjectManifestOptions {
@@ -240,10 +225,7 @@ fn updates_manifest_for_aliasless_dep_whose_specifier_does_not_resemble_resoluti
             preserve_workspace_protocol: false,
         },
     );
-    assert_eq!(
-        *manifest.value(),
-        json!({ "dependencies": { "@foo/bar": "jsr:^0.1.0" } }),
-    );
+    assert_eq!(*manifest.value(), json!({ "dependencies": { "@foo/bar": "jsr:^0.1.0" } }));
 }
 
 #[test]
@@ -255,11 +237,8 @@ fn updates_aliasless_selector_that_resolves_to_an_existing_alias() {
             "test-git-fetch": "github:pnpm/test-git-fetch#0000000000000000000000000000000000000000",
         },
     }));
-    let new_selector = wanted(
-        None,
-        "pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf",
-        true,
-    );
+    let new_selector =
+        wanted(None, "pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf", true);
     let existing_entry = wanted(
         Some("test-git-fetch"),
         "github:pnpm/test-git-fetch#0000000000000000000000000000000000000000",
@@ -296,16 +275,9 @@ fn does_not_misattribute_a_spec_when_an_aliasless_optional_dep_fails_to_resolve(
     // The survivor omits `normalized_bare_specifier` so its spec falls back to
     // the wanted dependency's — the path where a wrong pairing would surface.
     let (_dir, mut manifest) = manifest_from_json(&json!({}));
-    let failed_optional = wanted(
-        None,
-        "github:owner/missing#1111111111111111111111111111111111111111",
-        true,
-    );
-    let survivor = wanted(
-        None,
-        "github:owner/good#2222222222222222222222222222222222222222",
-        true,
-    );
+    let failed_optional =
+        wanted(None, "github:owner/missing#1111111111111111111111111111111111111111", true);
+    let survivor = wanted(None, "github:owner/good#2222222222222222222222222222222222222222", true);
     apply(
         &mut manifest,
         &UpdateProjectManifestOptions {

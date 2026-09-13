@@ -37,10 +37,6 @@ use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 
 mod edit;
-mod reading;
-mod validation;
-use reading::{read_manifest, read_manifest_text};
-use validation::{has_control_char, unsupported_inline_key};
 mod flow;
 mod model;
 mod render;
@@ -101,31 +97,51 @@ pub enum UpdateWorkspaceManifestError {
         "Cannot write the override for {key:?} in {path:?}: it already has a non-string value (a parent-scoped object). Resolve it manually."
     )]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_OVERRIDE_CONFLICT))]
-    OverrideConflict {
-        path: std::path::PathBuf,
-        key: String,
-    },
+    OverrideConflict { path: std::path::PathBuf, key: String },
 
     #[display(
         "Cannot edit {key:?} in {path:?}: it uses an inline YAML value that cannot be edited in place (a multi-line flow collection, an alias, or a scalar). Reformat it to block style and try again."
     )]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_UNSUPPORTED_INLINE_BLOCK))]
-    UnsupportedInlineBlock {
-        path: std::path::PathBuf,
-        key: String,
-    },
+    UnsupportedInlineBlock { path: std::path::PathBuf, key: String },
 
     #[display(
         "Cannot write {value:?} to {path:?}: it contains a control character that would corrupt the YAML."
     )]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_INVALID_CONTROL_CHARACTER))]
-    InvalidControlCharacter {
-        path: std::path::PathBuf,
-        value: String,
-    },
+    InvalidControlCharacter { path: std::path::PathBuf, value: String },
 
     #[diagnostic(transparent)]
     VersionPolicy(#[error(source)] pnpm_config::version_policy::VersionPolicyError),
+}
+
+/// Whether `value` holds a character YAML treats as a line break: a
+/// control character (newline, carriage return, ...) or one of the Unicode
+/// line/paragraph separators, which are not in the control category.
+///
+/// The block-style writers splice `value` into a single `key: value` /
+/// `- item` line. A control character forces a multi-line scalar and
+/// corrupts the document outright; a separator is subtler — the emitter
+/// folds the scalar and the parser reads back the folding indentation as
+/// part of the value, so the write silently succeeds with a mangled
+/// value. The values these writers handle (GHSA ids, version-policy
+/// specs, override selectors/specifiers, catalog names) never
+/// legitimately contain either.
+fn has_control_char(value: &str) -> bool {
+    value
+        .chars()
+        .any(|character| character.is_control() || matches!(character, '\u{2028}' | '\u{2029}'))
+}
+
+/// The first of `paths` whose value is written as an inline shape none of
+/// the writers can edit, named for the error message. A single-line flow
+/// collection is editable and never reported here; a multi-line one, an
+/// alias, or a scalar standing where a collection belongs is.
+fn unsupported_inline_key(text: &str, paths: &[&[&str]]) -> Option<String> {
+    paths
+        .iter()
+        .find(|path| edit::has_unsupported_inline_value(text, path))
+        .map(|path| path.join("."))
 }
 
 /// Inputs of [`update_workspace_manifest`].
@@ -163,13 +179,17 @@ pub fn update_workspace_manifest(
 ) -> Result<(), UpdateWorkspaceManifestError> {
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 
-    let mut manifest = read_manifest(&path)?;
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
 
     if let Some(key) = unsupported_edit_target(&manifest, opts) {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
-            path,
-            key,
-        });
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
 
     let mut changed = add_updated_catalogs(&mut manifest, opts, &path)?;
@@ -232,10 +252,7 @@ fn add_updated_catalogs(
         });
     }
     edit::add_catalogs(manifest, updated_catalogs)
-        .map_err(|source| UpdateWorkspaceManifestError::Edit {
-            path: path.to_path_buf(),
-            source,
-        })
+        .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.to_path_buf(), source })
 }
 
 /// Drop the version-policy entries whose package the workspace no longer
@@ -270,10 +287,7 @@ fn add_minimum_release_age_excludes(
             .chain(opts.added_minimum_release_age_excludes),
     )
     .map_err(UpdateWorkspaceManifestError::VersionPolicy)?;
-    if let Some(bad) = merged
-        .iter()
-        .find(|exclude| has_control_char(exclude))
-    {
+    if let Some(bad) = merged.iter().find(|exclude| has_control_char(exclude)) {
         return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
             path: path.to_path_buf(),
             value: bad.clone(),
@@ -290,9 +304,7 @@ fn first_control_char_value(catalogs: &Catalogs) -> Option<&str> {
     catalogs
         .iter()
         .flat_map(|(catalog_name, entries)| {
-            std::iter::once(catalog_name)
-                .chain(entries.keys())
-                .chain(entries.values())
+            std::iter::once(catalog_name).chain(entries.keys()).chain(entries.values())
         })
         .find(|value| has_control_char(value))
         .map(String::as_str)
@@ -350,14 +362,19 @@ pub fn update_manifest_field(
     key: &str,
     value: &serde_json::Value,
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    let original = read_manifest_text(path)?;
+    let original = match fs::read_to_string(path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => {
+            return Err(UpdateWorkspaceManifestError::Read { path: path.to_path_buf(), source });
+        }
+    };
 
     let edit = edit_manifest_field(original.as_deref(), key, value)
         .map_err(|error| match error {
-            EditManifestFieldError::Parse { source } => UpdateWorkspaceManifestError::Parse {
-                path: path.to_path_buf(),
-                source,
-            },
+            EditManifestFieldError::Parse { source } => {
+                UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source }
+            }
             EditManifestFieldError::UnsupportedInlineBlock { key } => {
                 UpdateWorkspaceManifestError::UnsupportedInlineBlock {
                     path: path.to_path_buf(),
@@ -389,10 +406,7 @@ pub fn update_manifest_field(
     }
 
     write_atomic(path, &text)
-        .map_err(|source| UpdateWorkspaceManifestError::Write {
-            path: path.to_path_buf(),
-            source,
-        })
+        .map_err(|source| UpdateWorkspaceManifestError::Write { path: path.to_path_buf(), source })
 }
 
 /// What [`edit_manifest_field`] leaves the caller to do with the file the
@@ -439,15 +453,11 @@ pub fn edit_manifest_field(
     key: &str,
     value: &serde_json::Value,
 ) -> Result<ManifestEdit, EditManifestFieldError> {
-    let mut manifest = Manifest::parse(original)
-        .map_err(|source| EditManifestFieldError::Parse {
-            source,
-        })?;
+    let mut manifest =
+        Manifest::parse(original).map_err(|source| EditManifestFieldError::Parse { source })?;
 
     if edit::document_root_is_inline(manifest.document.text()) {
-        return Err(EditManifestFieldError::UnsupportedInlineBlock {
-            key: key.to_string(),
-        });
+        return Err(EditManifestFieldError::UnsupportedInlineBlock { key: key.to_string() });
     }
 
     let changed = if value.is_null() {
@@ -468,10 +478,9 @@ fn remove_manifest(path: &Path) -> Result<(), UpdateWorkspaceManifestError> {
     match fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(source) => Err(UpdateWorkspaceManifestError::Remove {
-            path: path.to_path_buf(),
-            source,
-        }),
+        Err(source) => {
+            Err(UpdateWorkspaceManifestError::Remove { path: path.to_path_buf(), source })
+        }
     }
 }
 
@@ -503,9 +512,7 @@ fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
     let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
     tmp.write_all(contents.as_bytes())?;
     tmp.as_file().sync_all()?;
-    tmp
-        .persist(path)
-        .map_err(|err| err.error)?;
+    tmp.persist(path).map_err(|err| err.error)?;
     Ok(())
 }
 

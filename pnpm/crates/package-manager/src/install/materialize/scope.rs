@@ -84,10 +84,7 @@ pub(super) fn importer_manifests_by_id<'a>(
     project_manifests
         .iter()
         .map(|(project_dir, manifest)| {
-            (
-                pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir),
-                *manifest,
-            )
+            (pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir), *manifest)
         })
         .collect()
 }
@@ -98,10 +95,7 @@ pub(super) fn lockfile_specifier_manifests_by_id(
     project_manifests
         .into_iter()
         .map(|(project_dir, manifest)| {
-            (
-                pnpm_workspace::importer_id_from_root_dir(workspace_root, &project_dir),
-                manifest,
-            )
+            (pnpm_workspace::importer_id_from_root_dir(workspace_root, &project_dir), manifest)
         })
         .collect()
 }
@@ -117,9 +111,7 @@ pub(super) fn record_fresh_lockfile_verified(
     if !result.can_record_lockfile_verification {
         return;
     }
-    let Some(lockfile) = result.wanted_lockfile.as_ref() else {
-        return;
-    };
+    let Some(lockfile) = result.wanted_lockfile.as_ref() else { return };
     let lockfile_path =
         derived_lockfile_path.unwrap_or_else(|| workspace_root.join(config.wanted_lockfile_name()));
     record_lockfile_verified(

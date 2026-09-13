@@ -78,27 +78,28 @@ impl PatchRemoveArgs {
     pub async fn run(self, dir: &Path, state: State) -> Result<bool, PatchRemoveError> {
         let mut patched_dependencies =
             state.config.patched_dependencies.clone().unwrap_or_default();
-        let patches_to_remove = patches_to_remove(
-            self.patches,
-            &patched_dependencies,
-            &DialoguerPatchRemovePrompt,
-        )?;
+        let patches_to_remove =
+            patches_to_remove(self.patches, &patched_dependencies, &DialoguerPatchRemovePrompt)?;
         for patch in &patches_to_remove {
             if !patched_dependencies.contains_key(patch) {
-                return Err(PatchRemoveError::PatchNotFound {
-                    patch: patch.clone(),
-                });
+                return Err(PatchRemoveError::PatchNotFound { patch: patch.clone() });
             }
         }
 
-        let lockfile_dir = state.config.workspace_dir
-            .clone()
-            .unwrap_or_else(|| dir.to_path_buf());
+        let lockfile_dir = state.config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         let ctx = PatchRemovalContext::new(
             &lockfile_dir,
             state.config.patches_dir.as_deref().unwrap_or("patches"),
         )?;
-        let targets = patch_removal_targets(&patched_dependencies, &patches_to_remove, &ctx)?;
+        let targets = patches_to_remove
+            .iter()
+            .map(|patch| {
+                let patch_file = patched_dependencies
+                    .get(patch)
+                    .ok_or_else(|| PatchRemoveError::PatchNotFound { patch: patch.clone() })?;
+                PatchRemovalTarget::new(patch, patch_file, &ctx)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let remaining_patch_files =
             remaining_patch_files(&patched_dependencies, &patches_to_remove, &ctx)?;
 
@@ -209,11 +210,7 @@ impl PatchRemovalContext {
                 patches_dir: patches_dir_setting.to_string(),
             });
         }
-        Ok(Self {
-            project_root,
-            patches_dir,
-            real_patches_dir,
-        })
+        Ok(Self { project_root, patches_dir, real_patches_dir })
     }
 }
 
@@ -240,9 +237,8 @@ impl PatchRemovalTarget {
         let parent_dir = target_path.parent().map_or_else(PathBuf::new, Path::to_path_buf);
         let target_stats = lstat_if_exists(&target_path)?;
         let real_parent_dir = realpath_if_exists(&parent_dir);
-        let real_patches_dir = ctx.real_patches_dir
-            .clone()
-            .or_else(|| realpath_if_exists(&ctx.patches_dir));
+        let real_patches_dir =
+            ctx.real_patches_dir.clone().or_else(|| realpath_if_exists(&ctx.patches_dir));
         if let (Some(real_parent_dir), Some(real_patches_dir)) = (real_parent_dir, real_patches_dir)
             && !is_subdir(&real_patches_dir, &real_parent_dir)
         {
@@ -279,11 +275,7 @@ fn join_setting_path(base: &Path, setting: &str) -> PathBuf {
 }
 
 fn resolve_path(base: &Path, path: &Path) -> PathBuf {
-    if path.is_absolute() {
-        lexical_normalize(path)
-    } else {
-        lexical_normalize(&base.join(path))
-    }
+    if path.is_absolute() { lexical_normalize(path) } else { lexical_normalize(&base.join(path)) }
 }
 
 fn lstat_if_exists(path: &Path) -> Result<Option<fs::Metadata>, PatchRemoveError> {
@@ -308,10 +300,9 @@ fn unlink_patch_if_exists(target: &PatchRemovalTarget) -> Result<(), PatchRemove
     match fs::remove_file(&target.target_path) {
         Ok(()) => Ok(()),
         Err(source) if source.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(source) => Err(PatchRemoveError::RemovePatchFile {
-            path: target.target_path.clone(),
-            source,
-        }),
+        Err(source) => {
+            Err(PatchRemoveError::RemovePatchFile { path: target.target_path.clone(), source })
+        }
     }
 }
 
@@ -376,27 +367,7 @@ fn remaining_patch_files(
         .iter()
         .filter(|(patch, _)| !removed_patches.contains(patch))
         .map(|(patch, patch_file)| {
-            PatchRemovalTarget::new(patch, patch_file, ctx)
-                .map(|target| target.target_path)
+            PatchRemovalTarget::new(patch, patch_file, ctx).map(|target| target.target_path)
         })
         .collect::<Result<HashSet<_>, _>>()
-}
-
-fn patch_removal_targets(
-    patched_dependencies: &IndexMap<String, String>,
-    patches_to_remove: &[String],
-    ctx: &PatchRemovalContext,
-) -> Result<Vec<PatchRemovalTarget>, PatchRemoveError> {
-    let targets = patches_to_remove
-        .iter()
-        .map(|patch| {
-            let patch_file = patched_dependencies
-                .get(patch)
-                .ok_or_else(|| PatchRemoveError::PatchNotFound {
-                    patch: patch.clone(),
-                })?;
-            PatchRemovalTarget::new(patch, patch_file, ctx)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(targets)
 }

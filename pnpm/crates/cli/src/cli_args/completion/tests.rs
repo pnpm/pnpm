@@ -11,9 +11,7 @@ fn strings(values: &[&str]) -> Vec<String> {
 }
 
 fn diagnostic_code(err: &CompletionError) -> Option<String> {
-    err
-        .code()
-        .map(|code| code.to_string())
+    err.code().map(|code| code.to_string())
 }
 
 #[test]
@@ -25,34 +23,23 @@ fn supported_shells_are_pnpm_compatible() {
 fn missing_shell_errors_like_pnpm() {
     let err = shell_from_args(None, &[]).expect_err("missing shell rejected");
     assert_eq!(err.to_string(), "`pnpm completion` requires a shell name");
-    assert_eq!(
-        diagnostic_code(&err),
-        Some("ERR_PNPM_MISSING_SHELL_NAME".to_string()),
-    );
+    assert_eq!(diagnostic_code(&err), Some("ERR_PNPM_MISSING_SHELL_NAME".to_string()));
 }
 
 #[test]
 fn empty_shell_errors_like_pnpm() {
     let err = shell_from_args(Some(" \n"), &[]).expect_err("blank shell rejected");
     assert_eq!(err.to_string(), "`pnpm completion` requires a shell name");
-    assert_eq!(
-        diagnostic_code(&err),
-        Some("ERR_PNPM_MISSING_SHELL_NAME".to_string()),
-    );
+    assert_eq!(diagnostic_code(&err), Some("ERR_PNPM_MISSING_SHELL_NAME".to_string()));
 }
 
 #[test]
 fn unsupported_shell_lists_supported_shells() {
     let err = shell_from_args(Some("elvish"), &[]).expect_err("unsupported shell rejected");
     assert_eq!(err.to_string(), "'elvish' is not supported");
+    assert_eq!(diagnostic_code(&err), Some("ERR_PNPM_UNSUPPORTED_SHELL".to_string()));
     assert_eq!(
-        diagnostic_code(&err),
-        Some("ERR_PNPM_UNSUPPORTED_SHELL".to_string()),
-    );
-    assert_eq!(
-        err
-            .help()
-            .map(|help| help.to_string()),
+        err.help().map(|help| help.to_string()),
         Some("Supported shells are: bash, fish, pwsh, zsh".to_string()),
     );
 }
@@ -61,44 +48,22 @@ fn unsupported_shell_lists_supported_shells() {
 fn redundant_parameters_are_rejected_before_shell_validation() {
     let extra = strings(&["fish", "pwsh", "zsh"]);
     let err = shell_from_args(Some("elvish"), &extra).expect_err("redundant params rejected");
-    assert_eq!(
-        err.to_string(),
-        "The 3 parameters after shell is not necessary",
-    );
-    assert_eq!(
-        diagnostic_code(&err),
-        Some("ERR_PNPM_REDUNDANT_PARAMETERS".to_string()),
-    );
+    assert_eq!(err.to_string(), "The 3 parameters after shell is not necessary");
+    assert_eq!(diagnostic_code(&err), Some("ERR_PNPM_REDUNDANT_PARAMETERS".to_string()));
 }
 
 #[test]
 fn supported_shells_parse_after_trimming() {
-    assert_eq!(
-        shell_from_args(Some(" bash\n"), &[]).expect("bash"),
-        CompletionShell::Bash,
-    );
-    assert_eq!(
-        shell_from_args(Some("fish"), &[]).expect("fish"),
-        CompletionShell::Fish,
-    );
-    assert_eq!(
-        shell_from_args(Some("pwsh"), &[]).expect("pwsh"),
-        CompletionShell::Pwsh,
-    );
-    assert_eq!(
-        shell_from_args(Some("zsh"), &[]).expect("zsh"),
-        CompletionShell::Zsh,
-    );
+    assert_eq!(shell_from_args(Some(" bash\n"), &[]).expect("bash"), CompletionShell::Bash);
+    assert_eq!(shell_from_args(Some("fish"), &[]).expect("fish"), CompletionShell::Fish);
+    assert_eq!(shell_from_args(Some("pwsh"), &[]).expect("pwsh"), CompletionShell::Pwsh);
+    assert_eq!(shell_from_args(Some("zsh"), &[]).expect("zsh"), CompletionShell::Zsh);
 }
 
 #[test]
 fn generated_scripts_call_completion_server() {
-    let shells = [
-        CompletionShell::Bash,
-        CompletionShell::Fish,
-        CompletionShell::Pwsh,
-        CompletionShell::Zsh,
-    ];
+    let shells =
+        [CompletionShell::Bash, CompletionShell::Fish, CompletionShell::Pwsh, CompletionShell::Zsh];
 
     for shell in shells {
         let mut output = Vec::new();
@@ -111,10 +76,7 @@ fn generated_scripts_call_completion_server() {
 #[test]
 fn generated_scripts_register_pn_alias() {
     let cases = [
-        (
-            CompletionShell::Bash,
-            &["complete -F _pnpm_completion pnpm pn"][..],
-        ),
+        (CompletionShell::Bash, &["complete -F _pnpm_completion pnpm pn"][..]),
         (
             CompletionShell::Fish,
             &[
@@ -126,10 +88,7 @@ fn generated_scripts_register_pn_alias() {
             CompletionShell::Pwsh,
             &["Register-ArgumentCompleter -Native -CommandName pnpm,pn -ScriptBlock"],
         ),
-        (
-            CompletionShell::Zsh,
-            &["#compdef pnpm pn", "compdef _pnpm_completion pnpm pn"],
-        ),
+        (CompletionShell::Zsh, &["#compdef pnpm pn", "compdef _pnpm_completion pnpm pn"]),
     ];
 
     for (shell, snippets) in cases {
@@ -155,10 +114,7 @@ fn pn_is_stripped_like_the_other_pnpm_binary_names() {
         );
     }
 
-    assert_eq!(
-        super::words_without_binary(&strings(&["npm", ""])),
-        strings(&["npm", ""]),
-    );
+    assert_eq!(super::words_without_binary(&strings(&["npm", ""])), strings(&["npm", ""]));
 }
 
 #[test]

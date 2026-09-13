@@ -42,12 +42,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
     let mut files = HashMap::new();
     files.insert(
         "package.json".to_string(),
-        CafsFileInfo {
-            digest,
-            mode: 0o644,
-            size: 4,
-            checked_at: None,
-        },
+        CafsFileInfo { digest, mode: 0o644, size: 4, checked_at: None },
     );
     let entry = PackageFilesIndex {
         manifest: None,
@@ -91,9 +86,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await

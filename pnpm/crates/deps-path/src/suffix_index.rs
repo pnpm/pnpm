@@ -13,10 +13,7 @@ pub struct DepPathSuffixIndex {
 #[must_use]
 pub fn index_of_dep_path_suffix(dep_path: &str) -> DepPathSuffixIndex {
     let bytes = dep_path.as_bytes();
-    let absent = DepPathSuffixIndex {
-        peers_index: None,
-        patch_hash_index: None,
-    };
+    let absent = DepPathSuffixIndex { peers_index: None, patch_hash_index: None };
     if !dep_path.ends_with(')') {
         return absent;
     }
@@ -45,15 +42,9 @@ fn suffix_index_from_start(dep_path: &str, start: usize) -> DepPathSuffixIndex {
         let peers_index = dep_path[start + 2..]
             .find('(')
             .map(|off| start + 2 + off);
-        return DepPathSuffixIndex {
-            peers_index,
-            patch_hash_index: Some(start),
-        };
+        return DepPathSuffixIndex { peers_index, patch_hash_index: Some(start) };
     }
-    DepPathSuffixIndex {
-        peers_index: Some(start),
-        patch_hash_index: None,
-    }
+    DepPathSuffixIndex { peers_index: Some(start), patch_hash_index: None }
 }
 
 /// Strip the peer-suffix and `(patch_hash=…)` segments from `dep_path`,

@@ -79,10 +79,7 @@ pub fn resolve_hoisted_bin_deps(
     aliases
         .iter()
         .map(|(alias, key)| {
-            (
-                alias.clone(),
-                pkg_dir_under(&layout.slot_dir(key).join("node_modules"), &key.name),
-            )
+            (alias.clone(), pkg_dir_under(&layout.slot_dir(key).join("node_modules"), &key.name))
         })
         .collect()
 }
@@ -235,19 +232,13 @@ pub(super) fn read_dep_bin_source(
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
         Err(error) => {
-            return Some(Err(LinkBinsError::ReadManifest {
-                path: manifest_path,
-                error,
-            }));
+            return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
         }
     };
     let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
         Ok(manifest) => manifest,
         Err(error) => {
-            return Some(Err(LinkBinsError::ParseManifest {
-                path: manifest_path,
-                error,
-            }));
+            return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
         }
     };
     Some(Ok(PackageBinSource::new(location, Arc::new(manifest))
@@ -275,19 +266,13 @@ pub(super) fn link_named_dep_bins(
                 Ok(bytes) => bytes,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
                 Err(error) => {
-                    return Some(Err(LinkBinsError::ReadManifest {
-                        path: manifest_path,
-                        error,
-                    }));
+                    return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
                 }
             };
             let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
                 Ok(manifest) => manifest,
                 Err(error) => {
-                    return Some(Err(LinkBinsError::ParseManifest {
-                        path: manifest_path,
-                        error,
-                    }));
+                    return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
                 }
             };
             let mut source = PackageBinSource::new(location, Arc::new(manifest));
@@ -430,25 +415,16 @@ pub(super) fn read_bin_sources(
                 Ok(bytes) => bytes,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
                 Err(error) => {
-                    return Some(Err(LinkBinsError::ReadManifest {
-                        path: manifest_path,
-                        error,
-                    }));
+                    return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
                 }
             };
             let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
                 Ok(manifest) => manifest,
                 Err(error) => {
-                    return Some(Err(LinkBinsError::ParseManifest {
-                        path: manifest_path,
-                        error,
-                    }));
+                    return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
                 }
             };
-            Some(Ok(PackageBinSource::new(
-                location.clone(),
-                Arc::new(manifest),
-            )))
+            Some(Ok(PackageBinSource::new(location.clone(), Arc::new(manifest))))
         })
         .collect()
 }

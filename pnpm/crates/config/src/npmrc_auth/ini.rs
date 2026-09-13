@@ -69,10 +69,7 @@ impl NpmrcAuth {
         Self::from_ini_with_options::<Sys>(
             text,
             npmrc_dir,
-            ParseOptions {
-                expand_auth_value_env: false,
-                expand_request_destination_env: false,
-            },
+            ParseOptions { expand_auth_value_env: false, expand_request_destination_env: false },
         )
     }
 
@@ -98,10 +95,7 @@ impl NpmrcAuth {
         Self::from_ini_with_options::<Sys>(
             text,
             npmrc_dir,
-            ParseOptions {
-                expand_auth_value_env: true,
-                expand_request_destination_env: true,
-            },
+            ParseOptions { expand_auth_value_env: true, expand_request_destination_env: true },
         )
     }
 
@@ -257,9 +251,7 @@ impl NpmrcAuth {
         } else {
             expand_inline_pem(value)
         };
-        let entry = self.tls.by_uri
-            .entry(uri.to_owned())
-            .or_default();
+        let entry = self.tls.by_uri.entry(uri.to_owned()).or_default();
         apply_tls_field(entry, field, resolved);
     }
 

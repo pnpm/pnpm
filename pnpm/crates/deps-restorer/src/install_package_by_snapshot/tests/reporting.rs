@@ -25,10 +25,7 @@ fn emits_resolved_with_supplied_identifiers() {
         }
     }
 
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     emit_progress_resolved::<RecordingReporter>("react@18.0.0", "/proj");
 
     let captured = EVENTS.lock().unwrap();
@@ -54,19 +51,13 @@ fn registry_resolution_uses_scoped_registry_tarball_base() {
     );
 
     let integrity = DUMMY_SHA512.parse().expect("parse integrity");
-    let resolution = LockfileResolution::Registry(RegistryResolution {
-        integrity,
-        revision: None,
-    });
+    let resolution = LockfileResolution::Registry(RegistryResolution { integrity, revision: None });
     let package_key: PackageKey = "@private/foo@1.0.0".parse().expect("parse package key");
 
     let (tarball_url, _) = tarball_url_and_integrity(&resolution, &package_key, &config)
         .expect("a registry resolution is always fetchable");
 
-    assert_eq!(
-        tarball_url.as_ref(),
-        "https://private.example/npm/@private/foo/-/foo-1.0.0.tgz",
-    );
+    assert_eq!(tarball_url.as_ref(), "https://private.example/npm/@private/foo/-/foo-1.0.0.tgz");
 }
 #[test]
 fn registry_revision_uses_the_scoped_registry_digest_route() {
@@ -87,10 +78,7 @@ fn registry_revision_uses_the_scoped_registry_digest_route() {
 
     assert_eq!(
         tarball_url.as_ref(),
-        format!(
-            "https://private.example/npm/-/tarballs/sha512/{}",
-            "A".repeat(86)
-        ),
+        format!("https://private.example/npm/-/tarballs/sha512/{}", "A".repeat(86)),
     );
 }
 /// A custom fetcher may delegate to a directory resolution, in which

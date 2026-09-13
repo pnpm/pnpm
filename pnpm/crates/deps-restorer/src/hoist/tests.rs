@@ -79,10 +79,7 @@ type LockfileDataRow<'a> = (&'a str, &'a str, &'a [LockfileDataDep<'a>], bool);
 /// `(name, ver, deps_by_alias_to_(name,ver), has_bin)` tuples.
 fn make_lockfile_data(
     rows: &[LockfileDataRow<'_>],
-) -> (
-    HashMap<PackageKey, SnapshotEntry>,
-    HashMap<PackageKey, PackageMetadata>,
-) {
+) -> (HashMap<PackageKey, SnapshotEntry>, HashMap<PackageKey, PackageMetadata>) {
     let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
     let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
     for (n, v, deps, has_bin) in rows {
@@ -99,11 +96,7 @@ fn make_lockfile_data(
             dep_map.insert(dep_alias, dep_ref);
         }
         let snapshot = SnapshotEntry {
-            dependencies: if dep_map.is_empty() {
-                None
-            } else {
-                Some(dep_map)
-            },
+            dependencies: if dep_map.is_empty() { None } else { Some(dep_map) },
             ..Default::default()
         };
         snapshots.insert(pkg_key.clone(), snapshot);
@@ -194,12 +187,7 @@ fn star_public_pattern_hoists_all_publicly() {
 #[test]
 fn public_pattern_wins_ties() {
     let (snapshots, packages) = make_lockfile_data(&[
-        (
-            "eslint-x",
-            "1.0.0",
-            &[("eslint-y", "eslint-y", "1.0.0")],
-            false,
-        ),
+        ("eslint-x", "1.0.0", &[("eslint-y", "eslint-y", "1.0.0")], false),
         ("eslint-y", "1.0.0", &[], false),
     ]);
     let graph = build_hoist_graph(&snapshots, &packages);
@@ -224,12 +212,7 @@ fn public_pattern_wins_ties() {
 #[test]
 fn negation_pattern_excludes_alias() {
     let (snapshots, packages) = make_lockfile_data(&[
-        (
-            "a",
-            "1.0.0",
-            &[("banned", "banned", "1.0.0"), ("ok", "ok", "1.0.0")],
-            false,
-        ),
+        ("a", "1.0.0", &[("banned", "banned", "1.0.0"), ("ok", "ok", "1.0.0")], false),
         ("banned", "1.0.0", &[], false),
         ("ok", "1.0.0", &[], false),
     ]);
@@ -286,34 +269,16 @@ fn traversal_matches_pnpm_graph_walker_ownership() {
     let (snapshots, packages) = make_lockfile_data(&[
         ("a", "1.0.0", &[("x", "x", "1.0.0")], false),
         ("x", "1.0.0", &[("z", "z", "1.0.0")], false),
-        (
-            "z",
-            "1.0.0",
-            &[("aaa-shared", "aaa-shared", "1.0.0")],
-            false,
-        ),
-        (
-            "aaa-shared",
-            "1.0.0",
-            &[("choice", "chosen-through-shared", "1.0.0")],
-            false,
-        ),
+        ("z", "1.0.0", &[("aaa-shared", "aaa-shared", "1.0.0")], false),
+        ("aaa-shared", "1.0.0", &[("choice", "chosen-through-shared", "1.0.0")], false),
         ("b", "1.0.0", &[("y", "y", "1.0.0")], false),
         (
             "y",
             "1.0.0",
-            &[
-                ("aaa-shared", "aaa-shared", "1.0.0"),
-                ("zzz-competitor", "zzz-competitor", "1.0.0"),
-            ],
+            &[("aaa-shared", "aaa-shared", "1.0.0"), ("zzz-competitor", "zzz-competitor", "1.0.0")],
             false,
         ),
-        (
-            "zzz-competitor",
-            "1.0.0",
-            &[("choice", "chosen-through-competitor", "1.0.0")],
-            false,
-        ),
+        ("zzz-competitor", "1.0.0", &[("choice", "chosen-through-competitor", "1.0.0")], false),
         ("chosen-through-shared", "1.0.0", &[], false),
         ("chosen-through-competitor", "1.0.0", &[], false),
     ]);
@@ -341,27 +306,14 @@ fn traversal_matches_pnpm_graph_walker_ownership() {
 #[test]
 fn traversal_includes_alias_collisions_from_every_importer() {
     let (snapshots, packages) = make_lockfile_data(&[
-        (
-            "shared",
-            "1.0.0",
-            &[("from-one", "from-one", "1.0.0")],
-            false,
-        ),
-        (
-            "shared",
-            "2.0.0",
-            &[("from-two", "from-two", "1.0.0")],
-            false,
-        ),
+        ("shared", "1.0.0", &[("from-one", "from-one", "1.0.0")], false),
+        ("shared", "2.0.0", &[("from-two", "from-two", "1.0.0")], false),
         ("from-one", "1.0.0", &[], false),
         ("from-two", "1.0.0", &[], false),
     ]);
     let graph = build_hoist_graph(&snapshots, &packages);
     let direct = IndexMap::from([
-        (
-            ".".to_string(),
-            IndexMap::from([("shared".to_string(), key("shared", "1.0.0"))]),
-        ),
+        (".".to_string(), IndexMap::from([("shared".to_string(), key("shared", "1.0.0"))])),
         (
             "packages/other".to_string(),
             IndexMap::from([("shared".to_string(), key("shared", "2.0.0"))]),
@@ -389,20 +341,13 @@ fn traversal_includes_alias_collisions_from_every_importer() {
 #[test]
 fn direct_dep_blocks_same_alias_transitive() {
     let (snapshots, packages) = make_lockfile_data(&[
-        (
-            "has-shared",
-            "1.0.0",
-            &[("shared", "shared", "2.0.0")],
-            false,
-        ),
+        ("has-shared", "1.0.0", &[("shared", "shared", "2.0.0")], false),
         ("shared", "1.0.0", &[], false),
         ("shared", "2.0.0", &[], false),
     ]);
     let graph = build_hoist_graph(&snapshots, &packages);
-    let direct = root_direct_deps(&[
-        ("has-shared", "has-shared", "1.0.0"),
-        ("shared", "shared", "1.0.0"),
-    ]);
+    let direct =
+        root_direct_deps(&[("has-shared", "has-shared", "1.0.0"), ("shared", "shared", "1.0.0")]);
     let skipped = HashSet::new();
     let result = get_hoisted_dependencies(&HoistInputs {
         graph: &graph,
@@ -478,10 +423,7 @@ fn symlink_skips_dropped_nodes() {
     let kept_key = key("kept", "1.0.0");
     let dropped_key = key("dropped", "1.0.0");
     let mut hoisted: HashMap<PackageKey, HashMap<String, HoistKind>> = HashMap::new();
-    hoisted.insert(
-        kept_key.clone(),
-        HashMap::from([("kept".to_string(), HoistKind::Private)]),
-    );
+    hoisted.insert(kept_key.clone(), HashMap::from([("kept".to_string(), HoistKind::Private)]));
     hoisted.insert(
         dropped_key.clone(),
         HashMap::from([("dropped".to_string(), HoistKind::Private)]),
@@ -562,10 +504,7 @@ fn symlink_rejects_traversal_node_name() {
 
     let node_key = key("evil", "1.0.0");
     let mut hoisted: HashMap<PackageKey, HashMap<String, HoistKind>> = HashMap::new();
-    hoisted.insert(
-        node_key.clone(),
-        HashMap::from([("evil".to_string(), HoistKind::Private)]),
-    );
+    hoisted.insert(node_key.clone(), HashMap::from([("evil".to_string(), HoistKind::Private)]));
 
     let mut graph: HashMap<PackageKey, HoistGraphNode> = HashMap::new();
     graph.insert(
@@ -597,27 +536,13 @@ fn symlink_rejects_traversal_node_name() {
         matches!(result, Err(crate::SymlinkPackageError::InvalidAlias(_))),
         "a traversal hoisted node name must be rejected; got {result:?}",
     );
-    assert!(
-        !dir
-            .path()
-            .join("escaped")
-            .exists(),
-        "no hoist link may be created outside the store",
-    );
+    assert!(!dir.path().join("escaped").exists(), "no hoist link may be created outside the store");
 }
 
 #[test]
 fn private_hoist_with_bins_collected_for_bin_link() {
     let (snapshots, packages) = make_lockfile_data(&[
-        (
-            "a",
-            "1.0.0",
-            &[
-                ("with-bin", "with-bin", "1.0.0"),
-                ("no-bin", "no-bin", "1.0.0"),
-            ],
-            false,
-        ),
+        ("a", "1.0.0", &[("with-bin", "with-bin", "1.0.0"), ("no-bin", "no-bin", "1.0.0")], false),
         ("with-bin", "1.0.0", &[], true),
         ("no-bin", "1.0.0", &[], false),
     ]);
@@ -648,12 +573,7 @@ fn private_hoist_with_bins_collected_for_bin_link() {
 #[test]
 fn public_hoist_does_not_contribute_to_bin_aliases() {
     let (snapshots, packages) = make_lockfile_data(&[
-        (
-            "a",
-            "1.0.0",
-            &[("eslint-bin", "eslint-bin", "1.0.0")],
-            false,
-        ),
+        ("a", "1.0.0", &[("eslint-bin", "eslint-bin", "1.0.0")], false),
         ("eslint-bin", "1.0.0", &[], true),
     ]);
     let graph = build_hoist_graph(&snapshots, &packages);
@@ -678,26 +598,16 @@ fn build_direct_deps_by_importer_collects_from_importers() {
     let mut deps: ResolvedDependencyMap = HashMap::new();
     deps.insert(
         name("a"),
-        ResolvedDependencySpec {
-            specifier: "^1".to_string(),
-            version: ver("1.0.0").into(),
-        },
+        ResolvedDependencySpec { specifier: "^1".to_string(), version: ver("1.0.0").into() },
     );
     importers.insert(
         ".".to_string(),
-        ProjectSnapshot {
-            dependencies: Some(deps),
-            ..Default::default()
-        },
+        ProjectSnapshot { dependencies: Some(deps), ..Default::default() },
     );
 
     let result = build_direct_deps_by_importer(
         &importers,
-        [
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-        ],
+        [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
     );
     let dot = result.get(".").expect("root importer present");
     assert_eq!(dot.get("a"), Some(&key("a", "1.0.0")));
@@ -709,17 +619,11 @@ fn build_direct_deps_by_importer_uses_caller_precedence() {
     let project_snapshot = ProjectSnapshot {
         dependencies: Some(HashMap::from([(
             alias.clone(),
-            ResolvedDependencySpec {
-                specifier: "1.0.0".to_string(),
-                version: ver("1.0.0").into(),
-            },
+            ResolvedDependencySpec { specifier: "1.0.0".to_string(), version: ver("1.0.0").into() },
         )])),
         dev_dependencies: Some(HashMap::from([(
             alias,
-            ResolvedDependencySpec {
-                specifier: "2.0.0".to_string(),
-                version: ver("2.0.0").into(),
-            },
+            ResolvedDependencySpec { specifier: "2.0.0".to_string(), version: ver("2.0.0").into() },
         )])),
         ..Default::default()
     };
@@ -864,10 +768,7 @@ fn update_stale_hoist_symlink_preserves_external_symlink() {
     .expect("should preserve external symlink");
 
     let target = std::fs::read_link(&dest).unwrap();
-    let target_abs = dest
-        .parent()
-        .unwrap()
-        .join(&target);
+    let target_abs = dest.parent().unwrap().join(&target);
     assert!(
         pnpm_fs::lexical_normalize(&target_abs) == pnpm_fs::lexical_normalize(&external_target),
         "external symlink must be preserved unchanged",
@@ -962,15 +863,7 @@ fn kinds_for(map: &HoistedDependencies, key: &str) -> Vec<(String, HoistKind)> {
 #[test]
 fn workspace_packages_hoist_privately_with_lowest_precedence() {
     let (snapshots, packages) = make_lockfile_data(&[
-        (
-            "a",
-            "1.0.0",
-            &[
-                ("shadowed", "shadowed", "1.0.0"),
-                ("pkg-b", "pkg-b", "9.9.9"),
-            ],
-            false,
-        ),
+        ("a", "1.0.0", &[("shadowed", "shadowed", "1.0.0"), ("pkg-b", "pkg-b", "9.9.9")], false),
         ("shadowed", "1.0.0", &[], false),
         ("pkg-b", "9.9.9", &[], false),
     ]);
@@ -980,21 +873,12 @@ fn workspace_packages_hoist_privately_with_lowest_precedence() {
     let skipped = HashSet::new();
     let workspace_packages = IndexMap::from([
         // Free name → hoisted to the project dir.
-        (
-            "pkg-a".to_string(),
-            std::path::PathBuf::from("/ws/packages/pkg-a"),
-        ),
+        ("pkg-a".to_string(), std::path::PathBuf::from("/ws/packages/pkg-a")),
         // Name held by a root direct dep → never hoisted.
-        (
-            "taken".to_string(),
-            std::path::PathBuf::from("/ws/packages/taken"),
-        ),
+        ("taken".to_string(), std::path::PathBuf::from("/ws/packages/taken")),
         // Same name as a transitive: the workspace package is placed
         // first (depth −1 beats depth 0) and claims the alias.
-        (
-            "pkg-b".to_string(),
-            std::path::PathBuf::from("/ws/packages/pkg-b"),
-        ),
+        ("pkg-b".to_string(), std::path::PathBuf::from("/ws/packages/pkg-b")),
     ]);
     let result = get_hoisted_dependencies(&HoistInputs {
         graph: &graph,

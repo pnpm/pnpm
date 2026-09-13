@@ -5,6 +5,7 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{RetryOpts, ThrottledClient, encode_package_name, send_with_retry};
 use serde_json::{Map, Value, json};
+use std::time::Duration;
 
 #[derive(Debug, Parser)]
 pub struct StarArgs {
@@ -23,12 +24,7 @@ pub enum StarError {
 
     #[display("Failed to {action} package: {status} {status_text}. {body}")]
     #[diagnostic(code(ERR_PNPM_REGISTRY_ERROR))]
-    Failed {
-        action: &'static str,
-        status: u16,
-        status_text: String,
-        body: String,
-    },
+    Failed { action: &'static str, status: u16, status_text: String, body: String },
 
     #[display("Package \"{package}\" not found in registry")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_NOT_FOUND))]
@@ -40,12 +36,7 @@ pub enum StarError {
 
     #[display("Failed to {action} package (legacy): {status} {status_text}. {body}")]
     #[diagnostic(code(ERR_PNPM_REGISTRY_ERROR))]
-    LegacyFailed {
-        action: &'static str,
-        status: u16,
-        status_text: String,
-        body: String,
-    },
+    LegacyFailed { action: &'static str, status: u16, status_text: String, body: String },
 }
 
 impl StarArgs {
@@ -65,20 +56,16 @@ pub(crate) async fn star_action(
     let action = action_word(is_star);
     let auth_header = config.auth_headers
         .for_url(&config.registry)
-        .ok_or(StarError::Unauthorized {
-            action,
-        })?;
+        .ok_or(StarError::Unauthorized { action })?;
     let http_client = build_registry_client(config)?;
-    let retry_opts = config.retry_opts();
-    fetch_star(
-        &config.registry,
-        &http_client,
-        &auth_header,
-        retry_opts,
-        package_name,
-        is_star,
-    )
-    .await
+    let retry_opts = RetryOpts {
+        retries: config.fetch_retries,
+        factor: config.fetch_retry_factor,
+        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
+        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
+    };
+    fetch_star(&config.registry, &http_client, &auth_header, retry_opts, package_name, is_star)
+        .await
 }
 
 pub(crate) async fn fetch_star(
@@ -89,11 +76,7 @@ pub(crate) async fn fetch_star(
     package_name: &str,
     is_star: bool,
 ) -> miette::Result<()> {
-    let method = if is_star {
-        reqwest::Method::PUT
-    } else {
-        reqwest::Method::DELETE
-    };
+    let method = if is_star { reqwest::Method::PUT } else { reqwest::Method::DELETE };
     let star_url = format!("{registry_url}-/user/v1/star");
     let body = json!({ "name": package_name, "package": package_name }).to_string();
 
@@ -114,15 +97,8 @@ pub(crate) async fn fetch_star(
     }
     drop(client);
 
-    fetch_alternate_star(
-        registry_url,
-        http_client,
-        auth_header,
-        retry_opts,
-        package_name,
-        is_star,
-    )
-    .await
+    fetch_alternate_star(registry_url, http_client, auth_header, retry_opts, package_name, is_star)
+        .await
 }
 
 /// Star/unstar a package on a registry without the star endpoints by fetching
@@ -138,13 +114,11 @@ async fn perform_legacy_star_action(
     is_star: bool,
 ) -> miette::Result<()> {
     let action = action_word(is_star);
-    let username = fetch_whoami(registry_url, http_client, auth_header, retry_opts)
-        .await?;
+    let username = fetch_whoami(registry_url, http_client, auth_header, retry_opts).await?;
     let pkg_url = format!("{registry_url}{escaped_name}");
 
     let mut pkg_data =
-        fetch_package_document(http_client, &pkg_url, auth_header, retry_opts, package_name)
-            .await?;
+        fetch_package_document(http_client, &pkg_url, auth_header, retry_opts, package_name).await?;
 
     apply_star_to_users(&mut pkg_data, &username, is_star);
 
@@ -168,7 +142,18 @@ async fn perform_legacy_star_action(
         .wrap_err("updating the package metadata")?;
 
     if !update_response.status().is_success() {
-        return Err(legacy_star_error(update_response, action).await.into());
+        let status = update_response.status();
+        let body = update_response.text().await.unwrap_or_default();
+        return Err(StarError::LegacyFailed {
+            action,
+            status: status.as_u16(),
+            status_text: status
+                .canonical_reason()
+                .unwrap_or_default()
+                .to_string(),
+            body,
+        }
+        .into());
     }
     drop(client2);
     Ok(())
@@ -195,10 +180,7 @@ async fn fetch_package_document(
         let status = response.status();
         drop(client);
         if status.as_u16() == 404 {
-            return Err(StarError::PackageNotFound {
-                package: package_name.to_string(),
-            }
-            .into());
+            return Err(StarError::PackageNotFound { package: package_name.to_string() }.into());
         }
         return Err(StarError::FetchPackageInfo {
             status: status.as_u16(),
@@ -221,9 +203,7 @@ async fn fetch_package_document(
 /// Set or clear `pkg_data.users[username]`, creating the `users` map when it is
 /// missing or not an object, mirroring `pkgData.users = pkgData.users || {}`.
 fn apply_star_to_users(pkg_data: &mut Value, username: &str, is_star: bool) {
-    let Some(obj) = pkg_data.as_object_mut() else {
-        return;
-    };
+    let Some(obj) = pkg_data.as_object_mut() else { return };
     let users = obj
         .entry("users")
         .or_insert_with(|| Value::Object(Map::new()));
@@ -250,11 +230,8 @@ async fn fetch_alternate_star(
     package_name: &str,
     is_star: bool,
 ) -> miette::Result<()> {
-    let method = if is_star {
-        reqwest::Method::PUT
-    } else {
-        reqwest::Method::DELETE
-    };
+    let action = action_word(is_star);
+    let method = if is_star { reqwest::Method::PUT } else { reqwest::Method::DELETE };
     let escaped_name = encode_package_name(package_name);
     let alt_star_url = format!("{registry_url}-/user/package/{escaped_name}/star");
     let (client2, response2) = send_with_retry(http_client, &alt_star_url, retry_opts, |client| {
@@ -289,28 +266,13 @@ async fn fetch_alternate_star(
         )
         .await;
     }
-    Err(alternate_star_error(response2, is_star).await.into())
+    Err(star_error(response2, action).await.into())
 }
 
-async fn alternate_star_error(response: reqwest::Response, is_star: bool) -> StarError {
-    let action = action_word(is_star);
+async fn star_error(response: reqwest::Response, action: &'static str) -> StarError {
     let status = response.status();
     let body = response.text().await.unwrap_or_default();
     StarError::Failed {
-        action,
-        status: status.as_u16(),
-        status_text: status
-            .canonical_reason()
-            .unwrap_or_default()
-            .to_string(),
-        body,
-    }
-}
-
-async fn legacy_star_error(response: reqwest::Response, action: &'static str) -> StarError {
-    let status = response.status();
-    let body = response.text().await.unwrap_or_default();
-    StarError::LegacyFailed {
         action,
         status: status.as_u16(),
         status_text: status

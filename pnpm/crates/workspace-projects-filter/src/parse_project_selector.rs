@@ -73,7 +73,22 @@ pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelec
                 include_dependents,
             },
         },
-        None => fallback_selector(raw, prefix, exclude),
+        None => {
+            if is_selector_by_location(raw) {
+                // Location fallback keeps `exclude` and sets `parent_dir`.
+                ProjectSelector {
+                    exclude,
+                    parent_dir: Some(lexical_join(prefix, raw)),
+                    ..ProjectSelector::default()
+                }
+            } else {
+                // Name fallback drops `exclude` and sets `name_pattern`.
+                ProjectSelector {
+                    name_pattern: Some(raw.to_string()),
+                    ..ProjectSelector::default()
+                }
+            }
+        }
     }
 }
 
@@ -102,13 +117,7 @@ fn strip_selector_modifiers(raw_selector: &str) -> SelectorModifiers<'_> {
             raw = rest;
         }
     }
-    SelectorModifiers {
-        raw,
-        exclude,
-        exclude_self,
-        include_dependencies,
-        include_dependents,
-    }
+    SelectorModifiers { raw, exclude, exclude_self, include_dependencies, include_dependents }
 }
 
 /// The three optional capture groups of the selector regex
@@ -197,10 +206,7 @@ fn match_delimited(input: &str, open: char, close: char) -> Option<(Option<&str>
     if close_at == 0 {
         return None;
     }
-    Some((
-        Some(&after_open[..close_at]),
-        &after_open[close_at + close.len_utf8()..],
-    ))
+    Some((Some(&after_open[..close_at]), &after_open[close_at + close.len_utf8()..]))
 }
 
 /// Whether `raw` is a relative-path selector (`.`, `./x`, `..`, `../x`,
@@ -223,20 +229,3 @@ fn is_selector_by_location(raw: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
-
-fn fallback_selector(raw: &str, prefix: &Path, exclude: bool) -> ProjectSelector {
-    if is_selector_by_location(raw) {
-        // Location fallback keeps `exclude` and sets `parent_dir`.
-        ProjectSelector {
-            exclude,
-            parent_dir: Some(lexical_join(prefix, raw)),
-            ..ProjectSelector::default()
-        }
-    } else {
-        // Name fallback drops `exclude` and sets `name_pattern`.
-        ProjectSelector {
-            name_pattern: Some(raw.to_string()),
-            ..ProjectSelector::default()
-        }
-    }
-}

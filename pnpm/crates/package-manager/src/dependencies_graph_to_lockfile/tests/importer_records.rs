@@ -39,10 +39,7 @@ fn fresh_install_records_importer_manifest_metadata() {
     ));
     let importer = lockfile.root_project().expect("root importer exists");
 
-    assert_eq!(
-        importer.dependencies_meta,
-        Some(json!({ "pkg-a": { "injected": true } })),
-    );
+    assert_eq!(importer.dependencies_meta, Some(json!({ "pkg-a": { "injected": true } })));
     assert_eq!(importer.publish_directory.as_deref(), Some("dist"));
     assert_eq!(importer.link_directory, Some(false));
 }
@@ -77,14 +74,8 @@ fn dev_and_optional_direct_deps_split_into_distinct_importer_sections() {
     graph.insert(fsevents.dep_path.clone(), fsevents);
 
     let mut direct = BTreeMap::new();
-    direct.insert(
-        "typescript".to_string(),
-        DepPath::from("typescript@5.1.6".to_string()),
-    );
-    direct.insert(
-        "fsevents".to_string(),
-        DepPath::from("fsevents@2.3.2".to_string()),
-    );
+    direct.insert("typescript".to_string(), DepPath::from("typescript@5.1.6".to_string()));
+    direct.insert("fsevents".to_string(), DepPath::from("fsevents@2.3.2".to_string()));
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, false, false, None, None,
@@ -101,10 +92,7 @@ fn dev_and_optional_direct_deps_split_into_distinct_importer_sections() {
     let typescript_key: PackageKey = "typescript@5.1.6".parse().unwrap();
     assert_eq!(packages[&typescript_key].has_bin, Some(true));
     let fsevents_key: PackageKey = "fsevents@2.3.2".parse().unwrap();
-    assert_eq!(
-        packages[&fsevents_key].os.as_deref(),
-        Some(["darwin".to_string()].as_slice()),
-    );
+    assert_eq!(packages[&fsevents_key].os.as_deref(), Some(["darwin".to_string()].as_slice()));
 }
 #[test]
 fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
@@ -117,9 +105,7 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
     let dep_path = DepPath::from("node@runtime:26.3.0".to_string());
     let resolve_result = ResolveResult {
         id: PkgResolutionId::from("node@runtime:26.3.0"),
-        resolution: LockfileResolution::Variations(VariationsResolution {
-            variants: vec![],
-        }),
+        resolution: LockfileResolution::Variations(VariationsResolution { variants: vec![] }),
         resolved_via: "node-runtime".to_string(),
         normalized_bare_specifier: None,
         alias: Some("node".to_string()),
@@ -306,9 +292,7 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
             name_ver: None,
             latest: None,
             published_at: None,
-            manifest: Some(Arc::new(
-                json!({ "name": "is-negative", "version": "1.0.0" }),
-            )),
+            manifest: Some(Arc::new(json!({ "name": "is-negative", "version": "1.0.0" }))),
         },
     };
     let node = DependenciesGraphNode {
@@ -444,10 +428,7 @@ fn workspace_link_child_renders_as_snapshot_link() {
     graph.insert(link_node.dep_path.clone(), link_node);
 
     let mut direct = BTreeMap::new();
-    direct.insert(
-        "wrapper".to_string(),
-        DepPath::from("wrapper@1.0.0".to_string()),
-    );
+    direct.insert("wrapper".to_string(), DepPath::from("wrapper@1.0.0".to_string()));
 
     let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
         &manifest, &graph, direct, false, false, None, None,
@@ -489,10 +470,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
     );
 
     let mut prod_only_children = BTreeMap::new();
-    prod_only_children.insert(
-        "shared".to_string(),
-        DepPath::from("shared@1.0.0".to_string()),
-    );
+    prod_only_children.insert("shared".to_string(), DepPath::from("shared@1.0.0".to_string()));
     let prod_only = make_node_with_optional(
         "prod-only",
         "1.0.0",
@@ -508,10 +486,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
     );
 
     let mut opt_only_children = BTreeMap::new();
-    opt_only_children.insert(
-        "shared".to_string(),
-        DepPath::from("shared@1.0.0".to_string()),
-    );
+    opt_only_children.insert("shared".to_string(), DepPath::from("shared@1.0.0".to_string()));
     let opt_only = make_node_with_optional(
         "opt-only",
         "1.0.0",
@@ -532,30 +507,18 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
     graph.insert(opt_only.dep_path.clone(), opt_only);
 
     let mut a_direct = BTreeMap::new();
-    a_direct.insert(
-        "prod-only".to_string(),
-        DepPath::from("prod-only@1.0.0".to_string()),
-    );
+    a_direct.insert("prod-only".to_string(), DepPath::from("prod-only@1.0.0".to_string()));
     let mut b_direct = BTreeMap::new();
-    b_direct.insert(
-        "opt-only".to_string(),
-        DepPath::from("opt-only@1.0.0".to_string()),
-    );
+    b_direct.insert("opt-only".to_string(), DepPath::from("opt-only@1.0.0".to_string()));
 
     let mut importers = BTreeMap::new();
     importers.insert(
         "packages/a".to_string(),
-        ImporterLockfileInput {
-            manifest: &a_manifest,
-            direct_dependencies_by_alias: a_direct,
-        },
+        ImporterLockfileInput { manifest: &a_manifest, direct_dependencies_by_alias: a_direct },
     );
     importers.insert(
         "packages/b".to_string(),
-        ImporterLockfileInput {
-            manifest: &b_manifest,
-            direct_dependencies_by_alias: b_direct,
-        },
+        ImporterLockfileInput { manifest: &b_manifest, direct_dependencies_by_alias: b_direct },
     );
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
@@ -595,10 +558,7 @@ fn multi_importer_pruner_marks_shared_dep_non_optional_when_any_importer_reaches
     let prod_only_key: PackageKey = "prod-only@1.0.0".parse().unwrap();
     let opt_only_key: PackageKey = "opt-only@1.0.0".parse().unwrap();
     let shared_key: PackageKey = "shared@1.0.0".parse().unwrap();
-    assert!(
-        !snapshots[&prod_only_key].optional,
-        "prod-only is a direct prod dep of packages/a",
-    );
+    assert!(!snapshots[&prod_only_key].optional, "prod-only is a direct prod dep of packages/a");
     assert!(
         snapshots[&opt_only_key].optional,
         "opt-only is only reachable via packages/b's optional",
@@ -638,25 +598,16 @@ fn workspace_sibling_link_renders_per_importer_with_link_ref() {
     let mut a_direct = BTreeMap::new();
     a_direct.insert("b".to_string(), link_node.dep_path);
     let mut b_direct = BTreeMap::new();
-    b_direct.insert(
-        "lodash".to_string(),
-        DepPath::from("lodash@4.17.21".to_string()),
-    );
+    b_direct.insert("lodash".to_string(), DepPath::from("lodash@4.17.21".to_string()));
 
     let mut importers = BTreeMap::new();
     importers.insert(
         "packages/a".to_string(),
-        ImporterLockfileInput {
-            manifest: &a_manifest,
-            direct_dependencies_by_alias: a_direct,
-        },
+        ImporterLockfileInput { manifest: &a_manifest, direct_dependencies_by_alias: a_direct },
     );
     importers.insert(
         "packages/b".to_string(),
-        ImporterLockfileInput {
-            manifest: &b_manifest,
-            direct_dependencies_by_alias: b_direct,
-        },
+        ImporterLockfileInput { manifest: &b_manifest, direct_dependencies_by_alias: b_direct },
     );
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
@@ -752,10 +703,7 @@ fn importer_records_a_peer_only_alias_only_under_auto_install_peers() {
         BTreeMap::from([("peer".to_string(), peer.dep_path.clone())]),
         BTreeMap::from([(
             "peer".to_string(),
-            PeerDep {
-                version: "^1.0.0".to_string(),
-                optional: true,
-            },
+            PeerDep { version: "^1.0.0".to_string(), optional: true },
         )]),
         HashSet::default(),
     );
@@ -764,10 +712,7 @@ fn importer_records_a_peer_only_alias_only_under_auto_install_peers() {
         graph.insert(node.dep_path.clone(), node);
     }
     let direct = BTreeMap::from([
-        (
-            "consumer".to_string(),
-            DepPath::from("consumer@1.0.0".to_string()),
-        ),
+        ("consumer".to_string(), DepPath::from("consumer@1.0.0".to_string())),
         ("peer".to_string(), DepPath::from("peer@1.0.0".to_string())),
     ]);
 

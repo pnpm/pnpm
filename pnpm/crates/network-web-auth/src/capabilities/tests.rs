@@ -44,20 +44,14 @@ async fn host_fetch_reads_a_token_body_within_the_cap() {
         .create_async()
         .await;
 
-    let response = Host::fetch(
-        &format!("{}/done", server.url()),
-        &WebAuthFetchOptions::default(),
-    )
-    .await
-    .expect("a response");
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
 
     assert!(response.ok, "got {response:?}");
     assert_eq!(response.status, 200);
     assert!(!response.truncated, "a within-cap body is not truncated");
-    assert_eq!(
-        response.token().expect("parse the body"),
-        Some("tok".to_owned()),
-    );
+    assert_eq!(response.token().expect("parse the body"), Some("tok".to_owned()));
 }
 
 #[tokio::test]
@@ -70,22 +64,13 @@ async fn host_fetch_marks_a_token_body_larger_than_the_cap_truncated() {
         .create_async()
         .await;
 
-    let response = Host::fetch(
-        &format!("{}/done", server.url()),
-        &WebAuthFetchOptions::default(),
-    )
-    .await
-    .expect("a response");
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
 
     assert!(response.ok, "got {response:?}");
-    assert!(
-        response.truncated,
-        "an over-cap body must be reported truncated",
-    );
-    assert_eq!(
-        response.token().expect("truncation short-circuits parsing"),
-        None,
-    );
+    assert!(response.truncated, "an over-cap body must be reported truncated");
+    assert_eq!(response.token().expect("truncation short-circuits parsing"), None);
 }
 
 #[tokio::test]
@@ -99,12 +84,9 @@ async fn host_fetch_skips_the_body_of_a_202_response() {
         .create_async()
         .await;
 
-    let response = Host::fetch(
-        &format!("{}/done", server.url()),
-        &WebAuthFetchOptions::default(),
-    )
-    .await
-    .expect("a response");
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
 
     assert!(response.ok, "got {response:?}");
     assert_eq!(response.status, 202);
@@ -123,12 +105,9 @@ async fn host_fetch_skips_the_body_of_a_non_ok_response() {
         .create_async()
         .await;
 
-    let response = Host::fetch(
-        &format!("{}/done", server.url()),
-        &WebAuthFetchOptions::default(),
-    )
-    .await
-    .expect("a response");
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("a response");
 
     assert!(!response.ok, "got {response:?}");
     assert_eq!(response.status, 404);
@@ -154,18 +133,12 @@ async fn host_fetch_maps_a_body_read_failure_to_an_empty_body() {
         .create_async()
         .await;
 
-    let response = Host::fetch(
-        &format!("{}/done", server.url()),
-        &WebAuthFetchOptions::default(),
-    )
-    .await
-    .expect("the headers arrived, so the fetch itself succeeds");
+    let response = Host::fetch(&format!("{}/done", server.url()), &WebAuthFetchOptions::default())
+        .await
+        .expect("the headers arrived, so the fetch itself succeeds");
 
     assert!(response.ok, "got {response:?}");
-    assert!(
-        response.body.is_empty(),
-        "a mid-body read failure yields an empty body",
-    );
+    assert!(response.body.is_empty(), "a mid-body read failure yields an empty body");
     assert!(!response.truncated);
 }
 
@@ -212,11 +185,8 @@ fn enter_handle_never_resolves_after_a_reader_error() {
 fn enter_handle_drop_sets_the_cancel_flag() {
     let (_tx, enter) = tokio::sync::oneshot::channel::<()>();
     let cancel = Arc::new(AtomicBool::new(false));
-    let handle = HostEnterHandle {
-        enter,
-        state: EnterListenerState::Waiting,
-        cancel: Arc::clone(&cancel),
-    };
+    let handle =
+        HostEnterHandle { enter, state: EnterListenerState::Waiting, cancel: Arc::clone(&cancel) };
 
     drop(handle);
     assert!(cancel.load(Ordering::Relaxed));

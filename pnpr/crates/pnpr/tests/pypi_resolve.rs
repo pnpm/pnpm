@@ -64,9 +64,7 @@ fn wheel_of(dist_info: &str, metadata: &str) -> Vec<u8> {
             zip::write::SimpleFileOptions::default(),
         )
         .expect("start the metadata entry");
-    archive
-        .write_all(metadata.as_bytes())
-        .expect("write the metadata entry");
+    archive.write_all(metadata.as_bytes()).expect("write the metadata entry");
     archive
         .finish()
         .expect("finish the wheel")
@@ -103,12 +101,8 @@ fn forget_cached_page(storage: &std::path::Path, suffix: &str) {
         if !entry.file_type().is_file() {
             continue;
         }
-        let Ok(bytes) = std::fs::read(entry.path()) else {
-            continue;
-        };
-        let Ok(document) = serde_json::from_slice::<Value>(&bytes) else {
-            continue;
-        };
+        let Ok(bytes) = std::fs::read(entry.path()) else { continue };
+        let Ok(document) = serde_json::from_slice::<Value>(&bytes) else { continue };
         if document["url"]
             .as_str()
             .is_some_and(|url| url.ends_with(suffix))
@@ -177,10 +171,7 @@ async fn a_project_resolves_from_the_metadata_files_an_index_publishes() {
     // No wheel is fetched: an index that publishes metadata files spares
     // the server the download resolution would otherwise need.
     let wheels = index
-        .mock(
-            "GET",
-            mockito::Matcher::Regex(r"^/files/.*\.whl$".to_string()),
-        )
+        .mock("GET", mockito::Matcher::Regex(r"^/files/.*\.whl$".to_string()))
         .expect(0)
         .create_async()
         .await;
@@ -196,11 +187,7 @@ async fn a_project_resolves_from_the_metadata_files_an_index_publishes() {
     let app = router_with_auth(config, auth);
 
     let response = app
-        .oneshot(resolve_request(
-            &format!("{}/simple/", index.url()),
-            &token,
-            &json!(["demo"]),
-        ))
+        .oneshot(resolve_request(&format!("{}/simple/", index.url()), &token, &json!(["demo"])))
         .await
         .unwrap();
     let lockfile = resolved_lockfile(response).await;
@@ -208,12 +195,7 @@ async fn a_project_resolves_from_the_metadata_files_an_index_publishes() {
     let packages = lockfile["packages"].as_array().expect("the lockfile names packages");
     let mut named = packages
         .iter()
-        .map(|package| {
-            (
-                package["name"].as_str().unwrap(),
-                package["version"].as_str().unwrap(),
-            )
-        })
+        .map(|package| (package["name"].as_str().unwrap(), package["version"].as_str().unwrap()))
         .collect::<Vec<_>>();
     named.sort_unstable();
     assert_eq!(named, [("chained", "2.0.0"), ("demo", "1.0.0")]);
@@ -223,13 +205,7 @@ async fn a_project_resolves_from_the_metadata_files_an_index_publishes() {
         "a relative file URL resolves against the page it was read from",
     );
     assert_eq!(lockfile["lock-version"], "1.0");
-    for mock in [
-        demo_page,
-        chained_page,
-        demo_metadata,
-        chained_metadata,
-        wheels,
-    ] {
+    for mock in [demo_page, chained_page, demo_metadata, chained_metadata, wheels] {
         mock.assert_async().await;
     }
 }
@@ -265,11 +241,7 @@ async fn a_wheel_is_read_when_the_index_publishes_no_metadata_file() {
     let app = router_with_auth(config, auth);
 
     let response = app
-        .oneshot(resolve_request(
-            &format!("{}/simple/", index.url()),
-            &token,
-            &json!(["demo"]),
-        ))
+        .oneshot(resolve_request(&format!("{}/simple/", index.url()), &token, &json!(["demo"])))
         .await
         .unwrap();
     let lockfile = resolved_lockfile(response).await;
@@ -362,11 +334,7 @@ async fn a_metadata_file_that_is_not_what_the_index_vouched_for_is_refused() {
     let app = router_with_auth(config, auth);
 
     let response = app
-        .oneshot(resolve_request(
-            &format!("{}/simple/", index.url()),
-            &token,
-            &json!(["demo"]),
-        ))
+        .oneshot(resolve_request(&format!("{}/simple/", index.url()), &token, &json!(["demo"])))
         .await
         .unwrap();
 
@@ -414,11 +382,7 @@ async fn metadata_describing_another_distribution_is_refused() {
     let app = router_with_auth(config, auth);
 
     let response = app
-        .oneshot(resolve_request(
-            &format!("{}/simple/", index.url()),
-            &token,
-            &json!(["demo"]),
-        ))
+        .oneshot(resolve_request(&format!("{}/simple/", index.url()), &token, &json!(["demo"])))
         .await
         .unwrap();
 
@@ -475,10 +439,7 @@ async fn an_index_url_keeps_its_query_on_every_read() {
     let wheel = wheel_bytes("Name: demo\nVersion: 1.0.0\n");
     let page = index
         .mock("GET", "/simple/demo/")
-        .match_query(mockito::Matcher::UrlEncoded(
-            "token".to_string(),
-            "secret".to_string(),
-        ))
+        .match_query(mockito::Matcher::UrlEncoded("token".to_string(), "secret".to_string()))
         .with_body(project_page(&json!([{
             "filename": "demo-1.0.0-py3-none-any.whl",
             "url": "demo-1.0.0-py3-none-any.whl?token=secret",
@@ -490,10 +451,7 @@ async fn an_index_url_keeps_its_query_on_every_read() {
         .await;
     let metadata = index
         .mock("GET", "/simple/demo/demo-1.0.0-py3-none-any.whl.metadata")
-        .match_query(mockito::Matcher::UrlEncoded(
-            "token".to_string(),
-            "secret".to_string(),
-        ))
+        .match_query(mockito::Matcher::UrlEncoded("token".to_string(), "secret".to_string()))
         .with_body("Name: demo\nVersion: 1.0.0\n")
         .expect(1)
         .create_async()
@@ -723,11 +681,7 @@ async fn an_unsatisfiable_project_is_reported_as_one() {
     let app = router_with_auth(config, auth);
 
     let response = app
-        .oneshot(resolve_request(
-            &format!("{}/simple/", index.url()),
-            &token,
-            &json!(["demo>=2"]),
-        ))
+        .oneshot(resolve_request(&format!("{}/simple/", index.url()), &token, &json!(["demo>=2"])))
         .await
         .unwrap();
 
@@ -752,11 +706,7 @@ async fn an_off_allowlist_index_is_refused() {
     let app = router_with_auth(config_for(tmp.path().to_path_buf()), auth);
 
     let response = app
-        .oneshot(resolve_request(
-            &format!("{}/simple/", index.url()),
-            &token,
-            &json!(["demo"]),
-        ))
+        .oneshot(resolve_request(&format!("{}/simple/", index.url()), &token, &json!(["demo"])))
         .await
         .unwrap();
 

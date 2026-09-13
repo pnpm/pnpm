@@ -85,20 +85,14 @@ fn commands_from_directories_bin<Sys: FsWalkFiles>(
     };
     let mut commands = Vec::new();
     for path in paths {
-        let Some(name) = path
-            .file_name()
-            .and_then(|s| s.to_str())
-        else {
+        let Some(name) = path.file_name().and_then(|s| s.to_str()) else {
             continue;
         };
         // Same URL-safe-name guard as the keyed-bin path.
         if !is_safe_bin_name(name) {
             continue;
         }
-        commands.push(Command {
-            name: name.to_string(),
-            path,
-        });
+        commands.push(Command { name: name.to_string(), path });
     }
     commands
 }
@@ -115,10 +109,7 @@ fn commands_from_bin(bin: &Value, pkg_name: Option<&str>, pkg_path: &Path) -> Ve
         if !is_subdir(pkg_path, &bin_path) {
             continue;
         }
-        commands.push(Command {
-            name: bin_name,
-            path: bin_path,
-        });
+        commands.push(Command { name: bin_name, path: bin_path });
     }
     commands
 }
@@ -174,10 +165,7 @@ pub fn is_safe_bin_name(name: &str) -> bool {
         .bytes()
         .all(|byte| {
             byte.is_ascii_alphanumeric()
-                || matches!(
-                    byte,
-                    b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')',
-                )
+                || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
         })
 }
 

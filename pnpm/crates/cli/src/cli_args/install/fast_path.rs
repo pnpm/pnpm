@@ -31,12 +31,10 @@ fn report_up_to_date_install(
         message: "Already up to date".to_string(),
         prefix: prefix.clone(),
     }));
-    emit(&pnpm_reporter::LogEvent::Summary(
-        pnpm_reporter::SummaryLog {
-            level: pnpm_reporter::LogLevel::Debug,
-            prefix,
-        },
-    ));
+    emit(&pnpm_reporter::LogEvent::Summary(pnpm_reporter::SummaryLog {
+        level: pnpm_reporter::LogLevel::Debug,
+        prefix,
+    }));
 }
 
 impl InstallArgs {

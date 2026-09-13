@@ -22,26 +22,17 @@ impl WorkspaceSettings {
 
         // `catalogPrune`'s former name, applied before the macro so the
         // canonical key wins when a file carries both.
-        overlay(
-            &mut config.catalog_prune,
-            self.cleanup_unused_catalogs.take(),
-        );
+        overlay(&mut config.catalog_prune, self.cleanup_unused_catalogs.take());
 
         // Tri-state on `Config`: `exec` treats "never asked" differently
         // from an explicit `false`, so the macro's "apply when set" shape
         // would collapse the distinction.
-        overlay_some(
-            &mut config.reporter_hide_prefix,
-            self.reporter_hide_prefix.take(),
-        );
+        overlay_some(&mut config.reporter_hide_prefix, self.reporter_hide_prefix.take());
 
         // pnpm spells the setting `gitBranchLockfile` and exposes the
         // resolved answer as `useGitBranchLockfile`; the macro below can
         // only apply fields the two structs name identically.
-        overlay(
-            &mut config.use_git_branch_lockfile,
-            self.git_branch_lockfile.take(),
-        );
+        overlay(&mut config.use_git_branch_lockfile, self.git_branch_lockfile.take());
 
         // `virtualStoreType` is the canonical spelling of the boolean
         // `enableGlobalVirtualStore`, which the macro below applies. Both
@@ -122,10 +113,7 @@ impl WorkspaceSettings {
         overlay_some(&mut config.save_prefix, self.save_prefix.take());
 
         overlay(&mut config.hoist_pattern, self.hoist_pattern.take());
-        overlay(
-            &mut config.public_hoist_pattern,
-            self.public_hoist_pattern.take(),
-        );
+        overlay(&mut config.public_hoist_pattern, self.public_hoist_pattern.take());
 
         // Applied AFTER `hoist_pattern` assignment so a yaml that sets
         // both `hoist: false` and `hoistPattern: ["..."]` still
@@ -238,37 +226,8 @@ impl WorkspaceSettings {
     /// policy and the runtime they run under.
     pub(super) fn apply_project_settings(&mut self, config: &mut Config, base_dir: &Path) {
         config.workspace_dir = Some(base_dir.to_path_buf());
-        overlay_some(
-            &mut config.patched_dependencies,
-            self.patched_dependencies.take(),
-        );
+        overlay_some(&mut config.patched_dependencies, self.patched_dependencies.take());
         overlay_some(&mut config.patches_dir, self.patches_dir.take());
-        self.apply_pnpmfile_paths(config, base_dir);
-        overlay_some(
-            &mut config.config_dependencies,
-            self.config_dependencies.take(),
-        );
-        if let Some(v) = self.allow_builds.take() {
-            config.allow_builds = decided_allow_builds(v);
-        }
-        overlay(
-            &mut config.dangerously_allow_all_builds,
-            self.dangerously_allow_all_builds.take(),
-        );
-        overlay(&mut config.strict_dep_builds, self.strict_dep_builds.take());
-        overlay(&mut config.ignore_scripts, self.ignore_scripts.take());
-        overlay(&mut config.ignore_pnpmfile, self.ignore_pnpmfile.take());
-        overlay(&mut config.git_checks, self.git_checks.take());
-        overlay(&mut config.engine_strict, self.engine_strict.take());
-        overlay_some(&mut config.node_version, self.node_version.take());
-        overlay_some(&mut config.runtime_on_fail, self.runtime_on_fail.take());
-        overlay(
-            &mut config.node_download_mirrors,
-            self.node_download_mirrors.take(),
-        );
-    }
-
-    fn apply_pnpmfile_paths(&mut self, config: &mut Config, base_dir: &Path) {
         if let Some(path) = self.global_pnpmfile.take() {
             config.global_pnpmfile = Some(pnpm_fs::lexical_normalize(&base_dir.join(path)));
         }
@@ -284,6 +243,19 @@ impl WorkspaceSettings {
                     .collect(),
             );
         }
+        overlay_some(&mut config.config_dependencies, self.config_dependencies.take());
+        if let Some(v) = self.allow_builds.take() {
+            config.allow_builds = decided_allow_builds(v);
+        }
+        overlay(&mut config.dangerously_allow_all_builds, self.dangerously_allow_all_builds.take());
+        overlay(&mut config.strict_dep_builds, self.strict_dep_builds.take());
+        overlay(&mut config.ignore_scripts, self.ignore_scripts.take());
+        overlay(&mut config.ignore_pnpmfile, self.ignore_pnpmfile.take());
+        overlay(&mut config.git_checks, self.git_checks.take());
+        overlay(&mut config.engine_strict, self.engine_strict.take());
+        overlay_some(&mut config.node_version, self.node_version.take());
+        overlay_some(&mut config.runtime_on_fail, self.runtime_on_fail.take());
+        overlay(&mut config.node_download_mirrors, self.node_download_mirrors.take());
     }
 
     /// Settings that shape the processes an install spawns.
@@ -292,10 +264,7 @@ impl WorkspaceSettings {
         // file carries both.
         overlay_some(&mut config.max_sockets, self.maxsockets.take());
         overlay_some(&mut config.max_sockets, self.max_sockets.take());
-        overlay(
-            &mut config.scripts_prepend_node_path,
-            self.scripts_prepend_node_path.take(),
-        );
+        overlay(&mut config.scripts_prepend_node_path, self.scripts_prepend_node_path.take());
         overlay(&mut config.script_shell, self.script_shell.take());
         overlay(&mut config.node_options, self.node_options.take());
         overlay(&mut config.unsafe_perm, self.unsafe_perm.take());
@@ -308,10 +277,7 @@ impl WorkspaceSettings {
         if let Some(v) = self.workspace_concurrency.take() {
             config.workspace_concurrency = resolve_child_concurrency(Some(v));
         }
-        overlay_some(
-            &mut config.supported_architectures,
-            self.supported_architectures.take(),
-        );
+        overlay_some(&mut config.supported_architectures, self.supported_architectures.take());
         overlay_some(
             &mut config.ignored_optional_dependencies,
             self.ignored_optional_dependencies.take(),
@@ -346,10 +312,7 @@ impl WorkspaceSettings {
         audit_level_in_yaml: bool,
         audit_config_in_yaml: bool,
     ) {
-        overlay_some(
-            &mut config.minimum_release_age,
-            self.minimum_release_age.take(),
-        );
+        overlay_some(&mut config.minimum_release_age, self.minimum_release_age.take());
         overlay_some(
             &mut config.minimum_release_age_exclude,
             self.minimum_release_age_exclude.take(),
@@ -370,18 +333,9 @@ impl WorkspaceSettings {
 
         self.apply_audit_section(config, audit_level_in_yaml, audit_config_in_yaml);
         overlay(&mut config.versioning, self.versioning.take());
-        overlay_some(
-            &mut config.trust_policy_exclude,
-            self.trust_policy_exclude.take(),
-        );
-        overlay(
-            &mut config.trust_policy_exclude_prune,
-            self.trust_policy_exclude_prune.take(),
-        );
-        overlay_some(
-            &mut config.trust_policy_ignore_after,
-            self.trust_policy_ignore_after.take(),
-        );
+        overlay_some(&mut config.trust_policy_exclude, self.trust_policy_exclude.take());
+        overlay(&mut config.trust_policy_exclude_prune, self.trust_policy_exclude_prune.take());
+        overlay_some(&mut config.trust_policy_ignore_after, self.trust_policy_ignore_after.take());
     }
 
     /// The `audit` section supersedes the deprecated `auditLevel` and

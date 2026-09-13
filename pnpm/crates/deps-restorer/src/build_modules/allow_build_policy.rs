@@ -112,11 +112,7 @@ impl AllowBuildPolicy {
         let git_repo_key = git_repo_key.as_deref();
         let (name, version) = parse_name_version_from_key(&normalized_dep_path);
         let name_at_version = format!("{name}@{version}");
-        if self.denies(
-            &normalized_dep_path,
-            git_repo_key,
-            (&name, &name_at_version),
-        ) {
+        if self.denies(&normalized_dep_path, git_repo_key, (&name, &name_at_version)) {
             return Some(false);
         }
         if self.allowed_dep_paths.contains(&normalized_dep_path)

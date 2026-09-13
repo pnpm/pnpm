@@ -16,16 +16,12 @@ pub(super) fn bind_singleton_peers(
     if linked_workspace_projects.is_empty() {
         return Ok(());
     }
-    let Some(snapshots) = lockfile.snapshots.as_ref() else {
-        return Ok(());
-    };
+    let Some(snapshots) = lockfile.snapshots.as_ref() else { return Ok(()) };
 
     let candidates = resolution_candidates(lockfile, snapshots);
     let bindings = collect_peer_bindings(snapshots, &candidates, linked_workspace_projects)?;
 
-    let Some(snapshots) = lockfile.snapshots.as_mut() else {
-        return Ok(());
-    };
+    let Some(snapshots) = lockfile.snapshots.as_mut() else { return Ok(()) };
     for (package_key, peer, reference) in bindings {
         if let Some(snapshot) = snapshots.get_mut(&package_key) {
             snapshot.dependencies.get_or_insert_default().insert(peer, reference);
@@ -81,14 +77,11 @@ fn resolution_candidates(
     let snapshot_keys = snapshots
         .values()
         .flat_map(|snapshot| {
-            [
-                snapshot.dependencies.as_ref(),
-                snapshot.optional_dependencies.as_ref(),
-            ]
-            .into_iter()
-            .flatten()
-            .flatten()
-            .filter_map(|(alias, dependency)| dependency.resolve(alias))
+            [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter_map(|(alias, dependency)| dependency.resolve(alias))
         });
     let mut candidates: HashMap<PkgName, HashSet<PkgNameVerPeer>> = HashMap::new();
     for key in importer_keys.chain(snapshot_keys) {
@@ -122,22 +115,17 @@ fn singleton_peer_binding(
     let bound = snapshots
         .get(package_key)
         .is_some_and(|snapshot| {
-            [
-                snapshot.dependencies.as_ref(),
-                snapshot.optional_dependencies.as_ref(),
-            ]
-            .into_iter()
-            .flatten()
-            .any(|dependencies| dependencies.contains_key(peer))
+            [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
+                .into_iter()
+                .flatten()
+                .any(|dependencies| dependencies.contains_key(peer))
         });
     if bound {
         return Ok(None);
     }
     // A peer the deployed graph does not provide at all stays unresolved,
     // exactly as it is in the workspace this deploy was taken from.
-    let Some(resolutions) = candidates.get(peer) else {
-        return Ok(None);
-    };
+    let Some(resolutions) = candidates.get(peer) else { return Ok(None) };
     if resolutions.len() > 1 {
         let mut versions = resolutions
             .iter()
@@ -145,9 +133,7 @@ fn singleton_peer_binding(
             .collect::<Vec<_>>();
         versions.sort();
         return Err(DeployError::AmbiguousPeer {
-            package: project.name
-                .clone()
-                .unwrap_or_else(|| package_key.to_string()),
+            package: project.name.clone().unwrap_or_else(|| package_key.to_string()),
             peer: peer.to_string(),
             versions: versions.join(", "),
         }
@@ -168,12 +154,8 @@ pub(super) fn prune_deploy_lockfile_graph(
     lockfile: &mut Lockfile,
     dependency_groups: &[DependencyGroup],
 ) {
-    let Some(snapshots) = lockfile.snapshots.as_ref() else {
-        return;
-    };
-    let Some(importer) = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY) else {
-        return;
-    };
+    let Some(snapshots) = lockfile.snapshots.as_ref() else { return };
+    let Some(importer) = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY) else { return };
 
     let include_optional = dependency_groups.contains(&DependencyGroup::Optional);
     let reachable = reachable_deploy_snapshots(importer, snapshots, include_optional);
@@ -196,9 +178,7 @@ fn retain_reachable_snapshots(
     reachable: &HashSet<PkgNameVerPeer>,
     include_optional: bool,
 ) {
-    let Some(snapshots) = lockfile.snapshots.as_mut() else {
-        return;
-    };
+    let Some(snapshots) = lockfile.snapshots.as_mut() else { return };
     snapshots.retain(|key, _| reachable.contains(key));
     if !include_optional {
         // A retained snapshot's optional edges point at packages this
@@ -235,17 +215,13 @@ fn reachable_deploy_snapshots(
         if !reachable.insert(key.clone()) {
             continue;
         }
-        let Some(snapshot) = snapshots.get(&key) else {
-            continue;
-        };
+        let Some(snapshot) = snapshots.get(&key) else { continue };
         queue.extend(
             snapshot.dependencies
                 .as_ref()
                 .into_iter()
                 .chain(
-                    include_optional
-                        .then_some(snapshot.optional_dependencies.as_ref())
-                        .flatten(),
+                    include_optional.then_some(snapshot.optional_dependencies.as_ref()).flatten(),
                 )
                 .flatten()
                 .filter_map(|(alias, dependency)| dependency.resolve(alias))
@@ -265,9 +241,7 @@ pub(super) fn omit_peers_of_excluded_dependencies(
         .difference(&included_dependencies)
         .cloned()
         .collect::<HashSet<_>>();
-    let Some(manifest) = manifest.as_object_mut() else {
-        return;
-    };
+    let Some(manifest) = manifest.as_object_mut() else { return };
     for field in ["peerDependencies", "peerDependenciesMeta"] {
         if let Some(Value::Object(dependencies)) = manifest.get_mut(field) {
             dependencies.retain(|name, _| !excluded_dependencies.contains(name));

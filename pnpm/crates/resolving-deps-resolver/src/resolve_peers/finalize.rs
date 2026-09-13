@@ -364,9 +364,7 @@ impl Walker<'_> {
     ) -> HashMap<DepPath, i32> {
         let mut min_depth: HashMap<DepPath, i32> = HashMap::default();
         for node_id in self.caches.node_dep_paths.keys() {
-            let Some(tree_node) = self.tree.dependencies_tree.get(node_id) else {
-                continue;
-            };
+            let Some(tree_node) = self.tree.dependencies_tree.get(node_id) else { continue };
             let dep_path = self.final_dep_path_of(node_id, final_dep_paths);
             min_depth
                 .entry(dep_path)
@@ -407,19 +405,11 @@ impl Walker<'_> {
         let pkg = &self.tree.packages[&pkg_id];
         let mut children: BTreeMap<String, DepPath> = BTreeMap::new();
         for (alias, edge_node_id) in &record.edges {
-            children.insert(
-                alias.clone(),
-                self.final_dep_path_of(edge_node_id, final_dep_paths),
-            );
+            children.insert(alias.clone(), self.final_dep_path_of(edge_node_id, final_dep_paths));
         }
         let resolved_peer_names: HashSet<String> = self.nodes.external_peers
             .get(node_id)
-            .map(|peers| {
-                peers
-                    .keys()
-                    .cloned()
-                    .collect()
-            })
+            .map(|peers| peers.keys().cloned().collect())
             .unwrap_or_default();
         DependenciesGraphNode {
             dep_path,

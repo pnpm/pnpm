@@ -67,8 +67,7 @@ fn release_bump_for(
 ) -> Option<ReleaseBumpType> {
     for (reference, bump_type) in releases {
         if reference == &release.name
-            || (is_dir_ref(reference)
-                && normalize_project_dir(reference) == release.dir)
+            || (is_dir_ref(reference) && normalize_project_dir(reference) == release.dir)
         {
             return bump_type.release();
         }
@@ -128,16 +127,10 @@ pub fn prepend_changelog_section(
         Ok(existing) => Some(existing),
         Err(err) if err.kind() == ErrorKind::NotFound => None,
         Err(source) => {
-            return Err(VersioningError::Read {
-                path: changelog_path,
-                source,
-            });
+            return Err(VersioningError::Read { path: changelog_path, source });
         }
     };
     let content = render_changelog(existing.as_deref(), pkg_name, section);
     fs::write(&changelog_path, content)
-        .map_err(|source| VersioningError::Write {
-            path: changelog_path,
-            source,
-        })
+        .map_err(|source| VersioningError::Write { path: changelog_path, source })
 }

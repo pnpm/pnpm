@@ -62,10 +62,7 @@ fn build_elf_with_interp(interp: &[u8]) -> Vec<u8> {
     elf[56..58].copy_from_slice(&1u16.to_le_bytes());
 
     let p_offset = interp_offset;
-    let p_filesz: u64 = interp
-        .len()
-        .try_into()
-        .unwrap();
+    let p_filesz: u64 = interp.len().try_into().unwrap();
     let ph_offset: usize = phoff.try_into().unwrap();
     elf[ph_offset..ph_offset + 4].copy_from_slice(&3u32.to_le_bytes());
     elf[ph_offset + 4..ph_offset + 8].copy_from_slice(&4u32.to_le_bytes());
@@ -111,18 +108,12 @@ fn build_big_endian_elf() -> Vec<u8> {
 
 #[test]
 fn classify_interpreter_glibc() {
-    assert_eq!(
-        classify_interpreter("/lib64/ld-linux-x86-64.so.2"),
-        Some(Implementation::Glibc),
-    );
+    assert_eq!(classify_interpreter("/lib64/ld-linux-x86-64.so.2"), Some(Implementation::Glibc));
 }
 
 #[test]
 fn classify_interpreter_musl() {
-    assert_eq!(
-        classify_interpreter("/lib/ld-musl-x86_64.so.1"),
-        Some(Implementation::Musl),
-    );
+    assert_eq!(classify_interpreter("/lib/ld-musl-x86_64.so.1"), Some(Implementation::Musl));
 }
 
 #[test]
@@ -178,15 +169,9 @@ fn musl_pt_interp() {
 fn bounded_reader_finds_the_interpreter_without_loading_the_whole_executable() {
     let mut elf = build_elf_with_interp(b"/lib64/ld-linux-x86-64.so.2\0");
     elf.resize(1024 * 1024, 0);
-    let mut reader = CountingReader {
-        inner: Cursor::new(elf),
-        bytes_read: 0,
-    };
+    let mut reader = CountingReader { inner: Cursor::new(elf), bytes_read: 0 };
 
-    assert_eq!(
-        read_elf_interpreter(&mut reader).as_deref(),
-        Some("/lib64/ld-linux-x86-64.so.2"),
-    );
+    assert_eq!(read_elf_interpreter(&mut reader).as_deref(), Some("/lib64/ld-linux-x86-64.so.2"));
     assert!(reader.bytes_read < 4096);
 }
 

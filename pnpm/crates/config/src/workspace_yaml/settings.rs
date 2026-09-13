@@ -753,19 +753,11 @@ impl WorkspaceSettings {
         let text = match fs::read_to_string(&path) {
             Ok(text) => text,
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-            Err(source) => {
-                return Err(LoadWorkspaceYamlError::ReadFile {
-                    path,
-                    source,
-                });
-            }
+            Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
         };
         let mut settings: WorkspaceSettings = serde_saphyr::from_str(&text)
             .map_err(Box::new)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
-                path: path.clone(),
-                source,
-            })?;
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
         settings.validate_tasks()?;
         settings.validate_pipelines()?;
@@ -823,20 +815,12 @@ impl WorkspaceSettings {
         let text = match fs::read_to_string(&path) {
             Ok(text) => text,
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-            Err(source) => {
-                return Err(LoadWorkspaceYamlError::ReadFile {
-                    path,
-                    source,
-                });
-            }
+            Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
         };
         let mut settings: WorkspaceSettings = text
             .pipe_as_ref(serde_saphyr::from_str)
             .map_err(Box::new)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
-                path: path.clone(),
-                source,
-            })?;
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
         settings.validate_tasks()?;
         settings.validate_pipelines()?;

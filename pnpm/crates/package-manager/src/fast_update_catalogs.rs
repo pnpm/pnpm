@@ -112,12 +112,10 @@ fn retarget_catalog_entry(
     if !version.satisfies(&range) {
         return None;
     }
-    Some(CatalogEntryUpdate::Retargeted(
-        pnpm_lockfile::ResolvedCatalogEntry {
-            specifier: specifier.clone(),
-            version: entry.version.clone(),
-        },
-    ))
+    Some(CatalogEntryUpdate::Retargeted(pnpm_lockfile::ResolvedCatalogEntry {
+        specifier: specifier.clone(),
+        version: entry.version.clone(),
+    }))
 }
 
 pub(crate) fn catalog_references_have_snapshots(lockfile: &Lockfile, catalogs: &Catalogs) -> bool {
@@ -136,11 +134,7 @@ pub(crate) fn catalog_references_have_snapshots(lockfile: &Lockfile, catalogs: &
                 let Some(catalog_name) = dependency.specifier.strip_prefix("catalog:") else {
                     return true;
                 };
-                let catalog_name = if catalog_name.is_empty() {
-                    "default"
-                } else {
-                    catalog_name
-                };
+                let catalog_name = if catalog_name.is_empty() { "default" } else { catalog_name };
                 let alias = alias.to_string();
                 catalogs
                     .get(catalog_name)
@@ -160,9 +154,7 @@ pub(crate) fn catalog_entry_is_referenced(
     catalog_name: &str,
     alias: &str,
 ) -> bool {
-    let Ok(alias) = PkgName::parse(alias) else {
-        return true;
-    };
+    let Ok(alias) = PkgName::parse(alias) else { return true };
     // Parsed rather than compared to a rebuilt protocol string, so the
     // `catalog:default` spelling of the default catalog counts too.
     lockfile.importers

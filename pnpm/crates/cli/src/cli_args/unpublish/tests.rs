@@ -25,22 +25,10 @@ fn rev_str_falls_back_to_the_undefined_literal() {
 fn versions_matching_range_mirrors_semver_satisfies() {
     let versions = versions(&["1.0.0", "1.5.0", "2.0.0"]);
     assert_eq!(versions_matching_range(&versions, "1.0.0"), ["1.0.0"]);
-    assert_eq!(
-        versions_matching_range(&versions, "^1.0.0"),
-        ["1.0.0", "1.5.0"],
-    );
-    assert_eq!(
-        versions_matching_range(&versions, ">=1.0.0"),
-        ["1.0.0", "1.5.0", "2.0.0"],
-    );
-    assert!(
-        versions_matching_range(&versions, "9.9.9").is_empty(),
-        "no match yields empty",
-    );
-    assert!(
-        versions_matching_range(&versions, "not a range").is_empty(),
-        "junk matches nothing",
-    );
+    assert_eq!(versions_matching_range(&versions, "^1.0.0"), ["1.0.0", "1.5.0"]);
+    assert_eq!(versions_matching_range(&versions, ">=1.0.0"), ["1.0.0", "1.5.0", "2.0.0"]);
+    assert!(versions_matching_range(&versions, "9.9.9").is_empty(), "no match yields empty");
+    assert!(versions_matching_range(&versions, "not a range").is_empty(), "junk matches nothing");
 }
 
 #[test]
@@ -100,19 +88,9 @@ fn packument_round_trips_unknown_fields() {
     packument.other.remove("_revisions");
     packument.other.remove("_attachments");
     let serialized = serde_json::to_value(&packument).expect("a packument serializes");
-    assert_eq!(
-        serialized.get("readme"),
-        Some(&json!("hello")),
-        "unknown fields survive",
-    );
-    assert!(
-        serialized.get("_revisions").is_none(),
-        "couchdb metadata is dropped",
-    );
-    assert!(
-        serialized.get("_attachments").is_none(),
-        "couchdb metadata is dropped",
-    );
+    assert_eq!(serialized.get("readme"), Some(&json!("hello")), "unknown fields survive");
+    assert!(serialized.get("_revisions").is_none(), "couchdb metadata is dropped");
+    assert!(serialized.get("_attachments").is_none(), "couchdb metadata is dropped");
 }
 
 /// The version keys keep the packument's own order — `1.10.0` after `1.9.0`
@@ -126,11 +104,7 @@ fn version_keys_keep_the_packument_order() {
     }))
     .expect("a packument deserializes");
     let keys: Vec<&String> = packument.versions.keys().collect();
-    assert_eq!(
-        keys,
-        ["1.9.0", "1.10.0", "1.2.0"],
-        "insertion order survives",
-    );
+    assert_eq!(keys, ["1.9.0", "1.10.0", "1.2.0"], "insertion order survives");
 }
 
 /// A two-version packument whose tarballs live on `server_url`.
@@ -205,10 +179,7 @@ async fn a_web_auth_challenge_is_answered_and_the_delete_retried_with_the_token(
         .await
         .expect("the challenge is answered and the unpublish succeeds");
 
-    assert_eq!(
-        output,
-        "Successfully unpublished all 2 version(s) of test-pkg",
-    );
+    assert_eq!(output, "Successfully unpublished all 2 version(s) of test-pkg");
     get_mock.assert_async().await;
     challenge_mock.assert_async().await;
     retry_mock.assert_async().await;

@@ -52,9 +52,7 @@ async fn network_fetch_records_progress_key() {
         ignore_file_pattern: None,
 
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -98,10 +96,7 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
     let index_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
     seed_row_holding_another_package(store_path, &index_key);
 
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     let cas_paths = IngestTarballToStore {
         fetching: crate::ArchiveFetchOptions {
             http_client: &fast_fail_client(),
@@ -133,9 +128,7 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<RecordingReporter>()
     .await
@@ -240,9 +233,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_with_mem_cache::<pnpm_reporter::SilentReporter>(&mem_cache)
     .await
@@ -252,10 +243,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     // immediate-`Available` branch and emits one `found_in_store`
     // because no shared progress set says this package status was
     // already reported.
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     IngestTarballToStore {
         fetching: crate::ArchiveFetchOptions {
             http_client: &client,
@@ -285,9 +273,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -369,10 +355,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     let progress_reported = SharedReportedProgressKeys::default();
     let pkg_id = "@fastify/error@3.3.0";
 
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     IngestTarballToStore {
         fetching: crate::ArchiveFetchOptions {
             http_client: &client,
@@ -402,9 +385,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         ignore_file_pattern: None,
 
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -414,10 +395,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     // named guard lexically spans the second download's `.await` below
     // (clippy's `await_holding_lock` is scope-based and ignores an
     // explicit `drop`), even though the data is only read here.
-    let first = EVENTS
-        .lock()
-        .unwrap()
-        .clone();
+    let first = EVENTS.lock().unwrap().clone();
     assert!(
         first
             .iter()
@@ -428,10 +406,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         "first call must report fetched; got {first:?}",
     );
 
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     IngestTarballToStore {
         fetching: crate::ArchiveFetchOptions {
             http_client: &client,
@@ -461,18 +436,13 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         ignore_file_pattern: None,
 
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
     .expect("second call should reuse the mem cache");
 
-    let second = EVENTS
-        .lock()
-        .unwrap()
-        .clone();
+    let second = EVENTS.lock().unwrap().clone();
     assert!(
         !second
             .iter()

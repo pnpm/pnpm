@@ -209,10 +209,7 @@ fn env_only_lockfile_loads_as_none() {
 
     let result = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("env-only lockfile should not error");
-    assert!(
-        result.is_none(),
-        "expected None for env-only lockfile, got: {result:?}",
-    );
+    assert!(result.is_none(), "expected None for env-only lockfile, got: {result:?}");
 }
 
 #[test]
@@ -241,10 +238,7 @@ fn parses_lockfile_larger_than_default_yaml_scalar_byte_budget() {
     content.push_str(&"a".repeat(huge_string_len));
     content.push_str("\n\nimporters:\n  .: {}\n");
 
-    assert!(
-        content.len() > 64 * 1024 * 1024,
-        "fixture must exceed the default scalar budget",
-    );
+    assert!(content.len() > 64 * 1024 * 1024, "fixture must exceed the default scalar budget");
 
     let lockfile = Lockfile::parse(&content, Path::new(Lockfile::FILE_NAME))
         .expect("parse large lockfile")
@@ -259,17 +253,12 @@ fn parses_lockfile_larger_than_default_yaml_scalar_byte_budget() {
 #[test]
 fn snapshot_key_over_simple_key_limit_round_trips() {
     let long_key = (0..40).fold(String::from("@scope/pkg@1.0.0"), |mut key, index| {
-        write!(
-            key,
-            "(@scope/very-long-peer-dependency-name-{index:02}@33.44.55)",
-        )
-        .expect("write peer suffix");
+        write!(key, "(@scope/very-long-peer-dependency-name-{index:02}@33.44.55)").expect(
+            "write peer suffix",
+        );
         key
     });
-    assert!(
-        long_key.len() > 1024,
-        "fixture key must exceed the simple-key limit",
-    );
+    assert!(long_key.len() > 1024, "fixture key must exceed the simple-key limit");
 
     let content = format!(
         "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {{}}\n\nsnapshots:\n\n  ? '{long_key}'\n  : {{}}\n",
@@ -286,10 +275,7 @@ fn snapshot_key_over_simple_key_limit_round_trips() {
     );
 
     let emitted = lockfile.to_yaml_string().expect("emit lockfile");
-    assert!(
-        emitted.contains("? '@scope/pkg@1.0.0"),
-        "long key must be emitted in explicit form",
-    );
+    assert!(emitted.contains("? '@scope/pkg@1.0.0"), "long key must be emitted in explicit form");
     let reparsed = Lockfile::parse(&emitted, Path::new(Lockfile::FILE_NAME))
         .expect("reparse emitted lockfile")
         .expect("reparsed lockfile should be present");
@@ -300,11 +286,8 @@ fn snapshot_key_over_simple_key_limit_round_trips() {
 fn parse_error_does_not_include_lockfile_content() {
     let dir = tempdir().expect("create tempdir");
     let secret = "aws_secret_access_key = marker-secret";
-    std::fs::write(
-        dir.path().join(Lockfile::FILE_NAME),
-        format!("[default]\n{secret}\n"),
-    )
-    .expect("write broken lockfile");
+    std::fs::write(dir.path().join(Lockfile::FILE_NAME), format!("[default]\n{secret}\n"))
+        .expect("write broken lockfile");
 
     let error = Lockfile::load_wanted_from_dir(dir.path()).expect_err("lockfile must be broken");
     let message = error.to_string();
@@ -327,19 +310,13 @@ fn parse_error_does_not_include_lockfile_content() {
         "unexpected error: {message}",
     );
     assert!(message.contains("(1:1)"), "unexpected error: {message}");
-    assert!(
-        !message.contains(secret),
-        "error included lockfile content: {message}",
-    );
+    assert!(!message.contains(secret), "error included lockfile content: {message}");
     assert!(
         std::error::Error::source(&error).is_none(),
         "parse error source could expose lockfile content",
     );
     let report = format!("{:?}", pnpm_diagnostics::miette::Report::new(error));
-    assert!(
-        !report.contains(secret),
-        "diagnostic included lockfile content: {report}",
-    );
+    assert!(!report.contains(secret), "diagnostic included lockfile content: {report}");
 }
 
 /// Heuristic-boundary check: a dropped directory resolution is

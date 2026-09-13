@@ -22,17 +22,10 @@ fn transitive_under_skipped_snapshot_is_pruned() {
     );
 
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key("parent", "1.0.0"),
-        snapshot_with_deps(&[("child", "1.0.0")]),
-    );
+    snapshots.insert(key("parent", "1.0.0"), snapshot_with_deps(&[("child", "1.0.0")]));
     snapshots.insert(key("child", "1.0.0"), SnapshotEntry::default());
 
-    let lockfile = Lockfile {
-        importers,
-        snapshots: Some(snapshots),
-        ..empty_lockfile()
-    };
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
 
     let mut skipped = SkippedSnapshots::new();
     skipped.add_optional_excluded(key("parent", "1.0.0"));
@@ -59,21 +52,11 @@ fn snapshot_reachable_via_kept_path_survives() {
     );
 
     let mut snapshots = HashMap::new();
-    snapshots.insert(
-        key("kept-parent", "1.0.0"),
-        snapshot_with_deps(&[("shared", "1.0.0")]),
-    );
-    snapshots.insert(
-        key("opt-parent", "1.0.0"),
-        snapshot_with_deps(&[("shared", "1.0.0")]),
-    );
+    snapshots.insert(key("kept-parent", "1.0.0"), snapshot_with_deps(&[("shared", "1.0.0")]));
+    snapshots.insert(key("opt-parent", "1.0.0"), snapshot_with_deps(&[("shared", "1.0.0")]));
     snapshots.insert(key("shared", "1.0.0"), SnapshotEntry::default());
 
-    let lockfile = Lockfile {
-        importers,
-        snapshots: Some(snapshots),
-        ..empty_lockfile()
-    };
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
 
     let mut skipped = SkippedSnapshots::new();
     skipped.add_optional_excluded(key("opt-parent", "1.0.0"));
@@ -104,10 +87,7 @@ fn installability_skipped_entries_are_preserved() {
 
     let mut snapshots = HashMap::new();
     snapshots.insert(key("keep", "1.0.0"), SnapshotEntry::default());
-    snapshots.insert(
-        key("drop", "1.0.0"),
-        snapshot_with_deps(&[("child", "1.0.0")]),
-    );
+    snapshots.insert(key("drop", "1.0.0"), snapshot_with_deps(&[("child", "1.0.0")]));
     snapshots.insert(key("child", "1.0.0"), SnapshotEntry::default());
 
     let mut packages = HashMap::new();
@@ -151,11 +131,7 @@ fn fetch_failed_snapshot_is_pruned() {
     snapshots.insert(key("keep", "1.0.0"), SnapshotEntry::default());
     snapshots.insert(key("drop", "1.0.0"), SnapshotEntry::default());
 
-    let lockfile = Lockfile {
-        importers,
-        snapshots: Some(snapshots),
-        ..empty_lockfile()
-    };
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
 
     let mut skipped = SkippedSnapshots::new();
     skipped.add_fetch_failed(key("drop", "1.0.0"));
@@ -188,11 +164,7 @@ fn empty_skipped_and_full_include_is_identity_for_reachables() {
     snapshots.insert(key("a", "1.0.0"), snapshot_with_deps(&[("b", "1.0.0")]));
     snapshots.insert(key("b", "1.0.0"), SnapshotEntry::default());
 
-    let lockfile = Lockfile {
-        importers,
-        snapshots: Some(snapshots),
-        ..empty_lockfile()
-    };
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
 
     let filtered = super::super::filter_lockfile_for_current(
         &lockfile,
@@ -227,11 +199,7 @@ fn orphan_snapshots_are_pruned() {
     snapshots.insert(key("a", "1.0.0"), SnapshotEntry::default());
     snapshots.insert(key("orphan", "1.0.0"), SnapshotEntry::default());
 
-    let lockfile = Lockfile {
-        importers,
-        snapshots: Some(snapshots),
-        ..empty_lockfile()
-    };
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
 
     let filtered = super::super::filter_lockfile_for_current(
         &lockfile,
@@ -311,10 +279,7 @@ fn skip_closure_extends_installability_roots() {
             },
         )]),
         snapshots: Some(HashMap::from([
-            (
-                key("parent", "1.0.0"),
-                snapshot_with_deps(&[("child", "1.0.0")]),
-            ),
+            (key("parent", "1.0.0"), snapshot_with_deps(&[("child", "1.0.0")])),
             (key("child", "1.0.0"), SnapshotEntry::default()),
         ])),
         ..empty_lockfile()
@@ -352,10 +317,7 @@ fn skip_closure_ignores_transient_roots() {
             },
         )]),
         snapshots: Some(HashMap::from([
-            (
-                key("parent", "1.0.0"),
-                snapshot_with_deps(&[("child", "1.0.0")]),
-            ),
+            (key("parent", "1.0.0"), snapshot_with_deps(&[("child", "1.0.0")])),
             (key("child", "1.0.0"), SnapshotEntry::default()),
         ])),
         ..empty_lockfile()

@@ -11,10 +11,7 @@ fn line(key: &str, value: &str) -> String {
 fn parses_flat_key_value_lines() {
     let settings =
         IniSettings::parse("//registry.npmjs.org/:_authToken=my-token-123\nother-setting=value\n");
-    assert_eq!(
-        settings.get("//registry.npmjs.org/:_authToken"),
-        Some("my-token-123"),
-    );
+    assert_eq!(settings.get("//registry.npmjs.org/:_authToken"), Some("my-token-123"));
     assert_eq!(settings.get("other-setting"), Some("value"));
 }
 
@@ -53,11 +50,7 @@ fn a_value_with_a_newline_survives_a_removal_as_one_line() {
     settings.remove("other");
 
     let text = settings.serialize();
-    assert_eq!(
-        text.lines().count(),
-        1,
-        "the value must stay on one line: {text:?}",
-    );
+    assert_eq!(text.lines().count(), 1, "the value must stay on one line: {text:?}");
 
     let reparsed = IniSettings::parse(&text);
     assert_eq!(reparsed.get("//evil.example/:_authToken"), Some(injected));
@@ -85,11 +78,7 @@ fn quotes_every_ambiguous_value_shape_for_a_faithful_round_trip() {
     ] {
         let settings = IniSettings::parse(&line("k", value));
         let reparsed = IniSettings::parse(&settings.serialize());
-        assert_eq!(
-            reparsed.get("k"),
-            Some(value),
-            "round-trip failed for {value:?}",
-        );
+        assert_eq!(reparsed.get("k"), Some(value), "round-trip failed for {value:?}");
     }
 }
 
@@ -105,17 +94,9 @@ fn quotes_and_round_trips_keys_with_a_separator_or_newline() {
     ] {
         let settings = IniSettings::parse(&line(key, "the-token"));
         let text = settings.serialize();
-        assert_eq!(
-            text.lines().count(),
-            1,
-            "one physical line for {key:?}: {text:?}",
-        );
+        assert_eq!(text.lines().count(), 1, "one physical line for {key:?}: {text:?}");
         let reparsed = IniSettings::parse(&text);
-        assert_eq!(
-            reparsed.get(key),
-            Some("the-token"),
-            "key round-trip failed for {key:?}",
-        );
+        assert_eq!(reparsed.get(key), Some("the-token"), "key round-trip failed for {key:?}");
     }
 }
 

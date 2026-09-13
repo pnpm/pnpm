@@ -227,11 +227,7 @@ fn format_violation_error(violations: &[&ResolutionPolicyViolation]) -> String {
     format!(
         "{} {} not meet the minimumReleaseAge constraint:\n{}",
         violations.len(),
-        if violations.len() == 1 {
-            "version does"
-        } else {
-            "versions do"
-        },
+        if violations.len() == 1 { "version does" } else { "versions do" },
         violations
             .iter()
             .map(|violation| format!(
@@ -247,11 +243,7 @@ fn format_prompt(violations: &[&ResolutionPolicyViolation]) -> String {
     format!(
         "{} {} not meet the minimumReleaseAge constraint:\n{}\nAdd to minimumReleaseAgeExclude in pnpm-workspace.yaml and proceed with the install?",
         violations.len(),
-        if violations.len() == 1 {
-            "version does"
-        } else {
-            "versions do"
-        },
+        if violations.len() == 1 { "version does" } else { "versions do" },
         violations
             .iter()
             .map(|violation| format!("  {}@{}", violation.name, violation.version))

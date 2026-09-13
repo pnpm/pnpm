@@ -22,11 +22,7 @@ fn binds_to_requested_listen_addr() {
     let listen = reserved.local_addr().expect("listen addr");
     drop(reserved);
 
-    let profile = LinkProfile {
-        one_way: Duration::ZERO,
-        rate_limit: None,
-        slow_start: false,
-    };
+    let profile = LinkProfile { one_way: Duration::ZERO, rate_limit: None, slow_start: false };
     let proxy = LatencyProxy::spawn_on(listen, upstream_addr, profile).expect("spawn proxy");
     assert_eq!(proxy.addr, listen);
 
@@ -59,11 +55,8 @@ fn injects_round_trip_latency() {
         socket.write_all(b"pong").expect("write reply");
     });
 
-    let profile = LinkProfile {
-        one_way: Duration::from_millis(60),
-        rate_limit: None,
-        slow_start: false,
-    };
+    let profile =
+        LinkProfile { one_way: Duration::from_millis(60), rate_limit: None, slow_start: false };
     let proxy = LatencyProxy::spawn(upstream_addr, profile).expect("spawn proxy");
 
     let mut client = TcpStream::connect(proxy.addr).expect("connect to proxy");
@@ -103,11 +96,8 @@ fn caps_throughput_to_the_rate_limit() {
 
     // No latency, only a bandwidth cap, so the wall time is the
     // serialization delay alone.
-    let profile = LinkProfile {
-        one_way: Duration::ZERO,
-        rate_limit: Some(RATE),
-        slow_start: false,
-    };
+    let profile =
+        LinkProfile { one_way: Duration::ZERO, rate_limit: Some(RATE), slow_start: false };
     let proxy = LatencyProxy::spawn(upstream_addr, profile).expect("spawn proxy");
 
     let mut client = TcpStream::connect(proxy.addr).expect("connect to proxy");
@@ -155,11 +145,8 @@ fn slow_start_ramps_per_connection_throughput() {
                 .expect("write payload");
         });
 
-        let profile = LinkProfile {
-            one_way: Duration::from_millis(20),
-            rate_limit: Some(RATE),
-            slow_start,
-        };
+        let profile =
+            LinkProfile { one_way: Duration::from_millis(20), rate_limit: Some(RATE), slow_start };
         let proxy = LatencyProxy::spawn(upstream_addr, profile).expect("spawn proxy");
 
         let mut client = TcpStream::connect(proxy.addr).expect("connect to proxy");

@@ -75,9 +75,7 @@ fn global_bin_dir_is_in_path(global_bin_dir: &Path, path_env: &str) -> bool {
     std::env::split_paths(path_env)
         .any(|dir| {
             dirs_equal(global_bin_dir, &dir)
-                || real_global_bin_dir
-                    .as_deref()
-                    .is_some_and(|real| dirs_equal(real, &dir))
+                || real_global_bin_dir.as_deref().is_some_and(|real| dirs_equal(real, &dir))
         })
 }
 
@@ -121,14 +119,10 @@ fn can_write_to_dir_and_exists(dir: &Path) -> bool {
     // bin dir is shared or attacker-writable.
     static COUNTER: AtomicU32 = AtomicU32::new(0);
     for _ in 0..5 {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos());
+        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos());
         let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let probe = dir.join(format!(
-            ".pacquet-write-probe-{}-{nanos:x}-{seq:x}",
-            std::process::id(),
-        ));
+        let probe =
+            dir.join(format!(".pacquet-write-probe-{}-{nanos:x}-{seq:x}", std::process::id()));
         match fs::OpenOptions::new()
             .write(true)
             .create_new(true)

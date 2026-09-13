@@ -54,9 +54,7 @@ impl LoadedState {
         if self.check_wanted_lockfile_only {
             self.wanted_lockfile.as_ref()
         } else {
-            self.current_lockfile
-                .as_ref()
-                .or(self.wanted_lockfile.as_ref())
+            self.current_lockfile.as_ref().or(self.wanted_lockfile.as_ref())
         }
     }
 
@@ -99,11 +97,7 @@ impl LoadedState {
         let virtual_store_dir = match &self.modules {
             Some(modules) if !modules.virtual_store_dir.is_empty() => {
                 let dir = PathBuf::from(&modules.virtual_store_dir);
-                if dir.is_absolute() {
-                    dir
-                } else {
-                    self.modules_dir.join(dir)
-                }
+                if dir.is_absolute() { dir } else { self.modules_dir.join(dir) }
             }
             _ => self.modules_dir.join(".pnpm"),
         };

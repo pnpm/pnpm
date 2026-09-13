@@ -98,9 +98,7 @@ pub(crate) async fn materialize_runtime(
     version_spec: String,
 ) -> miette::Result<PathBuf> {
     if state_dir.as_os_str().is_empty() {
-        return Err(miette::miette!(
-            "the pnpm state directory could not be resolved"
-        ));
+        return Err(miette::miette!("the pnpm state directory could not be resolved"));
     }
     let environments_dir = state_dir.join(RUNTIME_ENVS_DIR_NAME);
     let config = trusted_runtime_config(&environments_dir)?;
@@ -124,14 +122,7 @@ pub(crate) async fn materialize_runtime(
         return Ok(bin);
     }
 
-    install_runtime(
-        config,
-        &environment_dir,
-        global_virtual_store_dir,
-        &name,
-        &version_spec,
-    )
-    .await
+    install_runtime(config, &environment_dir, global_virtual_store_dir, &name, &version_spec).await
 }
 
 pub(super) fn managed_runtime_bin(
@@ -187,11 +178,8 @@ async fn install_runtime(
         .into_diagnostic()
         .wrap_err_with(|| format!("create {}", environment_dir.display()))?;
 
-    let install_config = Config::leak(hardened_install_config(
-        config,
-        environment_dir,
-        global_virtual_store_dir,
-    ));
+    let install_config =
+        Config::leak(hardened_install_config(config, environment_dir, global_virtual_store_dir));
     let state = State::init(environment_dir.join("package.json"), install_config, false)
         .wrap_err("initialize the managed runtime environment")?;
     add_package::<SilentReporter, _>(

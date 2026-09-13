@@ -105,9 +105,7 @@ impl Clock for Host {
     fn now_ms() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_or(0, |elapsed| {
-                u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
-            })
+            .map_or(0, |elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
     }
 }
 
@@ -132,17 +130,11 @@ impl OidcFetch for Host {
         let response = builder
             .send()
             .await
-            .map_err(|error| OidcFetchError {
-                reason: error.to_string(),
-            })?;
+            .map_err(|error| OidcFetchError { reason: error.to_string() })?;
         let ok = response.status().is_success();
         let status = response.status().as_u16();
         let body = response.text().await.unwrap_or_default();
-        Ok(OidcResponse {
-            ok,
-            status,
-            body,
-        })
+        Ok(OidcResponse { ok, status, body })
     }
 }
 

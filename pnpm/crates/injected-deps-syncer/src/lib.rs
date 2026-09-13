@@ -116,10 +116,11 @@ fn sync_workspace_injected_deps(
     workspace_dir: &Path,
 ) -> Result<(), SyncInjectedDepsError> {
     let pkg_root_dir = workspace_dir.join(opts.pkg_root_dir);
-    let modules = read_workspace_modules(workspace_dir)?;
-    let Some(injected_deps) = modules
-        .as_ref()
-        .and_then(|modules| modules.injected_deps.as_ref())
+    let modules =
+        read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace_dir.join("node_modules"))
+            .map_err(|error| SyncInjectedDepsError::ReadModules { error })?;
+    let Some(injected_deps) =
+        modules.as_ref().and_then(|modules| modules.injected_deps.as_ref())
     else {
         tracing::debug!(
             target: "pacquet::sync_injected_deps",
@@ -150,13 +151,25 @@ fn sync_workspace_injected_deps(
         bin_names(manifest, &pkg_root_dir)
     });
     // The install hoists bins into the virtual store's own `.bin` as well.
-    let hoisted_bin_dir = hoisted_bin_directory(modules.as_ref(), workspace_dir);
+    let hoisted_bin_dir = hoisted_bin_path(workspace_dir, modules.as_ref());
     sync_bin_links(&SyncBinLinks {
         pkg_root_dir: &pkg_root_dir,
         resolved_targets: &resolved_targets,
         workspace_dir,
         previous_bin_names: &previous_bin_names,
         hoisted_bin_dir: hoisted_bin_dir.as_deref(),
+    })
+}
+
+fn hoisted_bin_path(
+    workspace_dir: &Path,
+    modules: Option<&pnpm_modules_yaml::Modules>,
+) -> Option<PathBuf> {
+    modules.map(|modules| {
+        workspace_dir
+            .join(&modules.virtual_store_dir)
+            .join("node_modules")
+            .join(".bin")
     })
 }
 
@@ -207,7 +220,12 @@ struct RemoveStaleBins<'a> {
 }
 
 fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> {
-    let Some(manifest) = read_named_manifest(opts.pkg_root_dir)? else {
+    let manifest = safe_read_package_json_from_dir(opts.pkg_root_dir)
+        .map_err(|error| SyncInjectedDepsError::ReadManifest {
+            dir: opts.pkg_root_dir.to_path_buf(),
+            error,
+        })?;
+    let Some(manifest) = manifest.filter(|manifest| manifest.get("name").is_some()) else {
         return Ok(());
     };
 
@@ -237,10 +255,7 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
         if !has_bins {
             continue;
         }
-        let packages = [PackageBinSource::new(
-            target_dir.clone(),
-            Arc::clone(&manifest),
-        )];
+        let packages = [PackageBinSource::new(target_dir.clone(), Arc::clone(&manifest))];
         link_bins_of_packages::<pnpm_cmd_shim::Host>(
             &packages,
             &parent_modules_dir.join(".bin"),
@@ -261,9 +276,7 @@ fn relink_project_bins(
 ) -> Result<(), SyncInjectedDepsError> {
     let projects =
         find_workspace_projects_no_check(workspace_dir, &FindWorkspaceProjectsOpts::default())
-            .map_err(|error| SyncInjectedDepsError::FindProjects {
-                error,
-            })?;
+            .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
     for project in projects {
         let project_modules_dir = project.root_dir.join("node_modules");
         // A stale name another package legitimately owns is put back by the
@@ -311,36 +324,4 @@ fn remove_stale_bins(remove: RemoveStaleBins<'_>) -> Result<(), SyncInjectedDeps
         }
     }
     Ok(())
-}
-
-fn hoisted_bin_directory(
-    modules: Option<&pnpm_modules_yaml::Modules>,
-    workspace_dir: &Path,
-) -> Option<PathBuf> {
-    modules.map(|modules| {
-        workspace_dir
-            .join(&modules.virtual_store_dir)
-            .join("node_modules")
-            .join(".bin")
-    })
-}
-
-fn read_named_manifest(
-    pkg_root_dir: &Path,
-) -> Result<Option<serde_json::Value>, SyncInjectedDepsError> {
-    safe_read_package_json_from_dir(pkg_root_dir)
-        .map(|manifest| manifest.filter(|manifest| manifest.get("name").is_some()))
-        .map_err(|error| SyncInjectedDepsError::ReadManifest {
-            dir: pkg_root_dir.to_path_buf(),
-            error,
-        })
-}
-
-fn read_workspace_modules(
-    workspace_dir: &Path,
-) -> Result<Option<pnpm_modules_yaml::Modules>, SyncInjectedDepsError> {
-    read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace_dir.join("node_modules"))
-        .map_err(|error| SyncInjectedDepsError::ReadModules {
-            error,
-        })
 }

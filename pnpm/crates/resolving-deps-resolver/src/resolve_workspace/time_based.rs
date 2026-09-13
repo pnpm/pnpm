@@ -16,23 +16,13 @@ pub(super) async fn time_cutoff<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    let maximum_published_by = sorted.opts
-        .first()
-        .and_then(|opts| opts.base_opts.policy.published_by);
+    let maximum_published_by =
+        sorted.opts.first().and_then(|opts| opts.base_opts.policy.published_by);
     if !settings.version.time_based {
-        return TimeBasedCutoff {
-            published_by: maximum_published_by,
-            time: BTreeMap::new(),
-        };
+        return TimeBasedCutoff { published_by: maximum_published_by, time: BTreeMap::new() };
     }
-    compute_time_based_cutoff(
-        resolver,
-        sorted,
-        dependency_groups,
-        settings,
-        maximum_published_by,
-    )
-    .await
+    compute_time_based_cutoff(resolver, sorted, dependency_groups, settings, maximum_published_by)
+        .await
 }
 
 /// What a `time-based` pre-pass learned about the direct dependencies.
@@ -91,10 +81,7 @@ where
         (Some(candidate), None) => Some(candidate),
         (None, maximum) => maximum,
     };
-    TimeBasedCutoff {
-        published_by,
-        time,
-    }
+    TimeBasedCutoff { published_by, time }
 }
 
 /// Resolve one importer's direct deps and record each one's publish
@@ -118,14 +105,11 @@ pub(super) async fn record_direct_publish_dates<Chain>(
         return;
     };
     let mut direct_opts = opts.base_opts.clone();
-    direct_opts.version.pick_lowest_version = settings.version
-        .pick_lowest_direct;
+    direct_opts.version.pick_lowest_version = settings.version.pick_lowest_direct;
     for spec in specs {
-        let Ok(Some(result)) = resolver.resolve(
-            &crate::resolve_dependency_tree::wanted_from_spec(spec),
-            &direct_opts,
-        )
-        .await
+        let Ok(Some(result)) =
+            resolver.resolve(&crate::resolve_dependency_tree::wanted_from_spec(spec), &direct_opts)
+                .await
         else {
             continue;
         };

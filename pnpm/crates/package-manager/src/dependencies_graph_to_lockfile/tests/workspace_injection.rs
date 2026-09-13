@@ -201,25 +201,15 @@ fn every_importer_of_a_workspace_is_recorded() {
         })
         .collect();
     let direct: BTreeMap<String, DepPath> = BTreeMap::from([("dep".to_string(), dep_path)]);
-    let mut opts = single_importer_opts(
-        &manifests[0].1,
-        &graph,
-        direct.clone(),
-        false,
-        false,
-        None,
-        None,
-    );
+    let mut opts =
+        single_importer_opts(&manifests[0].1, &graph, direct.clone(), false, false, None, None);
     opts.importers = [".", "packages/a", "packages/b"]
         .into_iter()
         .zip(&manifests)
         .map(|(id, (_, manifest))| {
             (
                 id.to_string(),
-                ImporterLockfileInput {
-                    manifest,
-                    direct_dependencies_by_alias: direct.clone(),
-                },
+                ImporterLockfileInput { manifest, direct_dependencies_by_alias: direct.clone() },
             )
         })
         .collect();

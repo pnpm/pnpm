@@ -16,6 +16,7 @@
 //! arise.
 
 pub(crate) mod query;
+
 pub use query::{OutdatedPackage, OutdatedQuery, TargetVersion, collect_outdated};
 pub(crate) use query::{
     OutdatedRun, collect_outdated_for_importer, collect_outdated_for_importer_in_run,
@@ -181,10 +182,6 @@ impl OutdatedArgs {
 
         let config = state.config;
         let manifest = &state.manifest;
-        let root = config.workspace_dir
-            .as_deref()
-            .unwrap_or_else(|| project_dir(manifest));
-        let importer_id = state.active_importer_id();
         let lockfile = loaded_lockfile(&state)?;
         let package_patterns = self.package_patterns();
         let check_packages = self.checks_packages(manifest, &package_patterns);
@@ -198,7 +195,7 @@ impl OutdatedArgs {
             collect_outdated_for_importer(
                 manifest,
                 lockfile,
-                &importer_id,
+                &state.active_importer_id(),
                 config,
                 &state.http_client,
                 &query,
@@ -208,8 +205,16 @@ impl OutdatedArgs {
             Vec::new()
         };
         outdated.extend(
-            self.project_outdated_actions::<Reporter>(config, root, &filters.include)
-                .await?,
+            self
+                .outdated_actions::<Reporter>(
+                    config,
+                    config.workspace_dir.as_deref().unwrap_or_else(|| project_dir(manifest)),
+                    &filters.include,
+                    github_actions::selector_matcher(&self.packages).as_ref(),
+                )
+                .await?
+                .into_iter()
+                .map(OutdatedPackage::from),
         );
 
         self.report_outdated(&mut outdated)
@@ -219,11 +224,7 @@ impl OutdatedArgs {
         sort_outdated(outdated, self.output.sort_by);
         self.write_rendered(outdated)?;
 
-        Ok(if outdated.is_empty() {
-            OutdatedOutcome::UpToDate
-        } else {
-            OutdatedOutcome::Outdated
-        })
+        Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
     }
 
     /// The `outdated <pattern>` arguments that select packages rather than
@@ -257,11 +258,7 @@ impl OutdatedArgs {
     /// `--compatible` reports the newest version the declared range
     /// still admits; the default reports the newest published one.
     fn target_version(&self) -> TargetVersion {
-        if self.compatible {
-            TargetVersion::WithinRange
-        } else {
-            TargetVersion::Latest
-        }
+        if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest }
     }
 
     /// Whether the run inspects lockfile packages at all. An empty
@@ -270,11 +267,7 @@ impl OutdatedArgs {
     /// are still inspected.
     fn checks_packages(&self, manifest: &PackageManifest, package_patterns: &[String]) -> bool {
         let has_any_dependency = manifest
-            .dependencies([
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-            ])
+            .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
             .next()
             .is_some();
         has_any_dependency && (self.packages.is_empty() || !package_patterns.is_empty())
@@ -323,7 +316,8 @@ impl OutdatedArgs {
         let query = filters.query(self.target_version());
 
         // Every project reads the one shared lockfile, or its own.
-        let shared_lockfile = query::shared_outdated_lockfile(&state)?;
+        let shared_lockfile =
+            if config.shares_one_lockfile() { loaded_lockfile(&state)? } else { None };
         let project_inputs = recursive_project_inputs(config, &selection)?;
         let run = OutdatedRun::new(config, Arc::clone(&state.http_client))?;
         let mut outdated = workspace_outdated(
@@ -343,40 +337,10 @@ impl OutdatedArgs {
                 .await?,
         );
 
-        self.report_workspace_outdated(&mut outdated)
-    }
+        sort_workspace_outdated(&mut outdated);
+        self.write_recursive_rendered(&outdated)?;
 
-    fn report_workspace_outdated(
-        &self,
-        outdated: &mut [OutdatedInWorkspace],
-    ) -> miette::Result<OutdatedOutcome> {
-        sort_workspace_outdated(outdated);
-        self.write_recursive_rendered(outdated)?;
-
-        Ok(if outdated.is_empty() {
-            OutdatedOutcome::UpToDate
-        } else {
-            OutdatedOutcome::Outdated
-        })
-    }
-
-    async fn project_outdated_actions<Reporter: self::Reporter>(
-        &self,
-        config: &Config,
-        root: &std::path::Path,
-        include: &[DependencyGroup],
-    ) -> miette::Result<Vec<OutdatedPackage>> {
-        Ok(self
-            .outdated_actions::<Reporter>(
-                config,
-                root,
-                include,
-                github_actions::selector_matcher(&self.packages).as_ref(),
-            )
-            .await?
-            .into_iter()
-            .map(OutdatedPackage::from)
-            .collect())
+        Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
     }
 
     async fn workspace_outdated_actions<Reporter: self::Reporter>(
@@ -437,11 +401,7 @@ impl OutdatedArgs {
         sort_outdated(&mut outdated, self.output.sort_by);
         self.write_rendered(&outdated)?;
 
-        Ok(if outdated.is_empty() {
-            OutdatedOutcome::UpToDate
-        } else {
-            OutdatedOutcome::Outdated
-        })
+        Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
     }
 
     /// Collapse the `--format` flag and its `--no-table` / `--json`

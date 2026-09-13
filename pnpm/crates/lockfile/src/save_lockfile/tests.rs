@@ -328,10 +328,7 @@ fn peers_suffix_max_length_serialized_when_set() {
     );
 
     let reparsed: Lockfile = serde_saphyr::from_str(&saved).expect("reparse lockfile");
-    assert_eq!(
-        reparsed.settings.expect("settings present").peers_suffix_max_length,
-        Some(10),
-    );
+    assert_eq!(reparsed.settings.expect("settings present").peers_suffix_max_length, Some(10));
 }
 
 #[test]
@@ -384,10 +381,7 @@ fn read_current_returns_none_when_file_missing() {
 
     let result = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("missing file should not error");
-    assert!(
-        result.is_none(),
-        "expected None for missing lock.yaml, got: {result:?}",
-    );
+    assert!(result.is_none(), "expected None for missing lock.yaml, got: {result:?}");
 }
 
 #[test]
@@ -412,10 +406,7 @@ fn write_current_deletes_file_when_lockfile_is_empty() {
         .save_current_to_virtual_store_dir(&virtual_store_dir)
         .expect("write should succeed for empty lockfile");
 
-    assert!(
-        !lock_path.exists(),
-        "lock.yaml should be removed for empty lockfile",
-    );
+    assert!(!lock_path.exists(), "lock.yaml should be removed for empty lockfile");
 }
 
 #[test]
@@ -515,10 +506,7 @@ fn write_atomic_rename_failure_surfaces_as_rename_file_error() {
             name_str != Lockfile::CURRENT_FILE_NAME
         })
         .collect();
-    assert!(
-        leftovers.is_empty(),
-        "temp file should have been cleaned up, found: {leftovers:?}",
-    );
+    assert!(leftovers.is_empty(), "temp file should have been cleaned up, found: {leftovers:?}");
 }
 
 #[test]
@@ -538,10 +526,7 @@ fn save_leaves_an_unchanged_lockfile_untouched() {
         .unwrap()
         .modified()
         .unwrap();
-    assert_eq!(
-        mtime_before, mtime_after,
-        "an unchanged lockfile must not be rewritten",
-    );
+    assert_eq!(mtime_before, mtime_after, "an unchanged lockfile must not be rewritten");
 }
 
 #[test]
@@ -589,10 +574,7 @@ fn save_leaves_an_unchanged_lockfile_with_env_document_untouched() {
         .unwrap()
         .modified()
         .unwrap();
-    assert_eq!(
-        mtime_before, mtime_after,
-        "re-prepending the same env document must not rewrite",
-    );
+    assert_eq!(mtime_before, mtime_after, "re-prepending the same env document must not rewrite");
 }
 
 #[cfg(unix)]
@@ -607,10 +589,7 @@ fn save_refuses_symlinked_lockfile_without_touching_target() {
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     let error = lockfile.save_to_path(&path).expect_err("a symlinked lockfile must not be written");
 
-    assert!(
-        error.to_string().contains("symlinked lockfile"),
-        "unexpected error: {error:?}",
-    );
+    assert!(error.to_string().contains("symlinked lockfile"), "unexpected error: {error:?}");
     assert!(
         std::fs::symlink_metadata(&path)
             .unwrap()
@@ -708,10 +687,7 @@ fn save_preserves_the_lockfile_permission_mode() {
         .permissions()
         .mode()
         & 0o777;
-    assert_eq!(
-        mode, 0o640,
-        "an atomic replace must carry the target's mode across",
-    );
+    assert_eq!(mode, 0o640, "an atomic replace must carry the target's mode across");
 }
 
 #[test]
@@ -727,10 +703,7 @@ fn save_leaves_no_temp_file_behind() {
         .map(|entry| entry.unwrap().file_name())
         .filter(|name| name.to_string_lossy() != Lockfile::FILE_NAME)
         .collect();
-    assert!(
-        leftovers.is_empty(),
-        "temp file should not be left behind, found: {leftovers:?}",
-    );
+    assert!(leftovers.is_empty(), "temp file should not be left behind, found: {leftovers:?}");
 }
 
 /// A tool that drives pnpm programmatically records its own state in a
@@ -754,10 +727,7 @@ fn foreign_top_level_keys_survive_a_round_trip() {
     assert!(saved.contains("esbuild@0.25.0"), "saved: {saved}");
     let importers_at = saved.find("importers:").expect("importers survive the round trip");
     let foreign_at = saved.find("bit:").expect("the foreign block survives the round trip");
-    assert!(
-        importers_at < foreign_at,
-        "the foreign block belongs after pnpm's own keys:\n{saved}",
-    );
+    assert!(importers_at < foreign_at, "the foreign block belongs after pnpm's own keys:\n{saved}");
 }
 
 /// The parallel map lowering `serialize_yaml::to_string` uses for
@@ -821,8 +791,5 @@ fn parallel_map_lowering_matches_serial_lowering() {
         via_to_string.matches(decoy).count(),
         "every marker-prefixed character must belong to a planted decoy",
     );
-    assert!(
-        via_to_string.contains(decoy),
-        "marker-shaped data must round-trip untouched",
-    );
+    assert!(via_to_string.contains(decoy), "marker-shaped data must round-trip untouched");
 }

@@ -45,8 +45,5 @@ fn lockfile_records_overrides_in_declaration_order() {
         std::fs::read_to_string(project_dir.join("pnpm-lock.yaml")).expect("read lockfile");
     let zzz = lockfile.find("zzz-unmatched").expect("zzz override recorded");
     let aaa = lockfile.find("aaa-unmatched").expect("aaa override recorded");
-    assert!(
-        zzz < aaa,
-        "overrides must keep declaration order (zzz before aaa), got:\n{lockfile}",
-    );
+    assert!(zzz < aaa, "overrides must keep declaration order (zzz before aaa), got:\n{lockfile}");
 }

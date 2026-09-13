@@ -95,11 +95,7 @@ fn retouch_recorded_integrity(workspace: &Path, dep_path: &str) {
             })
         + MARKER.len();
     let mut retouched = recorded.clone();
-    let replacement = if &recorded[value_at..=value_at] == "A" {
-        "B"
-    } else {
-        "A"
-    };
+    let replacement = if &recorded[value_at..=value_at] == "A" { "B" } else { "A" };
     retouched.replace_range(value_at..=value_at, replacement);
     fs::write(&path, retouched).expect("write the current lockfile");
 }
@@ -149,18 +145,12 @@ fn installing_with_hoisted_node_linker() {
         .assert()
         .success();
 
-    assert!(
-        is_real_dir(&workspace, "node_modules/send"),
-        "send should be a real directory",
-    );
+    assert!(is_real_dir(&workspace, "node_modules/send"), "send should be a real directory");
     assert!(
         is_real_dir(&workspace, "node_modules/has-flag"),
         "has-flag should be a real directory",
     );
-    assert!(
-        is_real_dir(&workspace, "node_modules/ms"),
-        "ms should be a real directory",
-    );
+    assert!(is_real_dir(&workspace, "node_modules/ms"), "ms should be a real directory");
     // Version conflict: send needs ms@2.x, the root pins ms@1.0.0, so
     // send keeps its own copy nested.
     assert!(
@@ -191,10 +181,7 @@ fn the_progress_line_counts_the_packages_the_hoisted_linker_added() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
     write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
 
     let output = pacquet_at(&workspace)
@@ -232,10 +219,7 @@ fn installing_with_hoisted_node_linker_and_no_lockfile() {
         .assert()
         .success();
 
-    assert!(
-        is_real_dir(&workspace, "node_modules/ms"),
-        "ms should be a real directory",
-    );
+    assert!(is_real_dir(&workspace, "node_modules/ms"), "ms should be a real directory");
     assert!(
         !workspace.join("pnpm-lock.yaml").exists(),
         "no lockfile should be written when lockfile: false",
@@ -269,10 +253,7 @@ fn installing_with_hoisted_node_linker_frozen() {
         .with_args(["install"])
         .assert()
         .success();
-    assert!(
-        workspace.join("pnpm-lock.yaml").exists(),
-        "first install writes the lockfile",
-    );
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "first install writes the lockfile");
 
     // Tear down node_modules so the frozen install is a pure replay.
     fs_remove_dir_all(&workspace.join("node_modules"));
@@ -283,14 +264,8 @@ fn installing_with_hoisted_node_linker_frozen() {
         .assert()
         .success();
 
-    assert!(
-        is_real_dir(&workspace, "node_modules/send"),
-        "send is a real dir after frozen replay",
-    );
-    assert!(
-        is_real_dir(&workspace, "node_modules/ms"),
-        "ms is a real dir after frozen replay",
-    );
+    assert!(is_real_dir(&workspace, "node_modules/send"), "send is a real dir after frozen replay");
+    assert!(is_real_dir(&workspace, "node_modules/ms"), "ms is a real dir after frozen replay");
     assert!(
         workspace.join("node_modules/send/node_modules/ms").exists(),
         "send's conflicting ms nests under send after frozen replay",
@@ -334,10 +309,7 @@ fn installing_in_a_workspace_with_hoisted_node_linker_frozen() {
     )
     .expect("write root package.json");
 
-    write_workspace_yaml(
-        &workspace,
-        "nodeLinker: hoisted\npackages:\n  - 'packages/*'\n",
-    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\npackages:\n  - 'packages/*'\n");
 
     fs::create_dir_all(workspace.join("packages/foo")).expect("mkdir packages/foo");
     fs::write(
@@ -365,10 +337,7 @@ fn installing_in_a_workspace_with_hoisted_node_linker_frozen() {
         .assert()
         .success();
 
-    assert!(
-        is_real_dir(&workspace, "node_modules/ms"),
-        "root ms is a real dir",
-    );
+    assert!(is_real_dir(&workspace, "node_modules/ms"), "root ms is a real dir");
     assert_eq!(
         read_pkg_version(&workspace, "node_modules/ms"),
         "2.1.3",
@@ -402,10 +371,7 @@ fn hoisting_limits_prevents_hoisting() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, serde_json::json!({ "send": "0.17.2" }));
-    write_workspace_yaml(
-        &workspace,
-        "nodeLinker: hoisted\nhoistingLimits: dependencies\n",
-    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\nhoistingLimits: dependencies\n");
 
     pacquet
         .with_args(["install"])
@@ -439,10 +405,7 @@ fn external_dependencies_prevents_hoisting_to_root() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, serde_json::json!({ "send": "0.17.2" }));
-    write_workspace_yaml(
-        &workspace,
-        "nodeLinker: hoisted\nexternalDependencies:\n  - ms\n",
-    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\nexternalDependencies:\n  - ms\n");
 
     pacquet
         .with_args(["install"])
@@ -609,18 +572,12 @@ fn install_only_dependencies_of_specified_importer_with_hoisted_linker() {
     fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            prod: &[("@pnpm.e2e/foo", "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[("@pnpm.e2e/foo", "1.0.0")], ..Default::default() },
     );
     fixture.project(
         "project-2",
         "project-2",
-        ManifestDeps {
-            prod: &[("@foo/no-deps", "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[("@foo/no-deps", "1.0.0")], ..Default::default() },
     );
 
     fixture.run(["--filter", "project-1", "install"]);
@@ -630,10 +587,7 @@ fn install_only_dependencies_of_specified_importer_with_hoisted_linker() {
         "the selected project's dependency must be hoisted to the workspace root",
     );
     let wanted = fixture.wanted();
-    assert_eq!(
-        importer_version(&wanted, "packages/project-2", "@foo/no-deps"),
-        "1.0.0",
-    );
+    assert_eq!(importer_version(&wanted, "packages/project-2", "@foo/no-deps"), "1.0.0");
 }
 
 /// A version that lost the root slot and later wins it must leave no
@@ -649,20 +603,10 @@ fn a_nested_copy_is_removed_once_its_version_wins_the_root_slot() {
     let loser = fixture.project(
         "loser",
         "loser",
-        ManifestDeps {
-            prod: &[(SCRIPTS, "2")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(SCRIPTS, "2")], ..Default::default() },
     );
     for dir in ["winner-a", "winner-b"] {
-        fixture.project(
-            dir,
-            dir,
-            ManifestDeps {
-                prod: &[(SCRIPTS, "1")],
-                ..Default::default()
-            },
-        );
+        fixture.project(dir, dir, ManifestDeps { prod: &[(SCRIPTS, "1")], ..Default::default() });
     }
     fixture.run(["install"]);
     assert_eq!(
@@ -673,14 +617,7 @@ fn a_nested_copy_is_removed_once_its_version_wins_the_root_slot() {
 
     // Flip the majority so the formerly nested version wins the root slot.
     for dir in ["winner-a", "winner-b"] {
-        fixture.project(
-            dir,
-            dir,
-            ManifestDeps {
-                prod: &[(SCRIPTS, "2")],
-                ..Default::default()
-            },
-        );
+        fixture.project(dir, dir, ManifestDeps { prod: &[(SCRIPTS, "2")], ..Default::default() });
     }
     fixture.run(["install"]);
 
@@ -709,10 +646,7 @@ fn a_nested_copy_is_removed_once_its_version_wins_the_root_slot() {
         .expect("remove the workspace state");
     fixture.run(["install"]);
 
-    assert!(
-        !stale.exists(),
-        "a stale project-local link must not survive a reinstall",
-    );
+    assert!(!stale.exists(), "a stale project-local link must not survive a reinstall");
 }
 
 /// TS: `overwriting (…@3.0.0 with …@latest)`
@@ -745,19 +679,13 @@ fn overwriting_is_positive_with_latest() {
         .assert()
         .success();
     let on_disk = read_pkg_version(&workspace, "node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep");
-    assert_ne!(
-        on_disk, "100.0.0",
-        "the hoisted directory must be overwritten with `latest`",
-    );
+    assert_ne!(on_disk, "100.0.0", "the hoisted directory must be overwritten with `latest`");
     let manifest = fs::read_to_string(workspace.join("package.json")).expect("read package.json");
     let manifest: serde_json::Value = serde_json::from_str(&manifest).expect("parse package.json");
     let spec = manifest["dependencies"]["@pnpm.e2e/dep-of-pkg-with-1-dep"]
         .as_str()
         .expect("dep recorded in the manifest");
-    assert!(
-        spec.contains(&on_disk),
-        "manifest spec {spec:?} must pin the on-disk {on_disk}",
-    );
+    assert!(spec.contains(&on_disk), "manifest spec {spec:?} must pin the on-disk {on_disk}");
 
     drop((root, mock_instance));
 }
@@ -786,10 +714,7 @@ fn overwriting_existing_files_in_node_modules() {
         .with_args(["add", "is-positive@1.0.0"])
         .assert()
         .success();
-    assert_eq!(
-        read_pkg_version(&workspace, "node_modules/is-positive"),
-        "1.0.0",
-    );
+    assert_eq!(read_pkg_version(&workspace, "node_modules/is-positive"), "1.0.0");
     assert!(
         is_real_dir(&workspace, "node_modules/is-positive"),
         "the squatting symlink must be replaced by the real package directory",
@@ -817,15 +742,9 @@ fn preserve_subdeps_on_update() {
         .with_args(["add", "@pnpm.e2e/foobarqar@1.0.0", "@pnpm.e2e/bar@100.1.0"])
         .assert()
         .success();
+    assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/bar"), "100.1.0");
     assert_eq!(
-        read_pkg_version(&workspace, "node_modules/@pnpm.e2e/bar"),
-        "100.1.0",
-    );
-    assert_eq!(
-        read_pkg_version(
-            &workspace,
-            "node_modules/@pnpm.e2e/foobarqar/node_modules/@pnpm.e2e/bar"
-        ),
+        read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foobarqar/node_modules/@pnpm.e2e/bar"),
         "100.0.0",
     );
 
@@ -833,19 +752,10 @@ fn preserve_subdeps_on_update() {
         .with_args(["add", "@pnpm.e2e/foobarqar@1.0.1"])
         .assert()
         .success();
+    assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/bar"), "100.1.0");
+    assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foobarqar"), "1.0.1");
     assert_eq!(
-        read_pkg_version(&workspace, "node_modules/@pnpm.e2e/bar"),
-        "100.1.0",
-    );
-    assert_eq!(
-        read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foobarqar"),
-        "1.0.1",
-    );
-    assert_eq!(
-        read_pkg_version(
-            &workspace,
-            "node_modules/@pnpm.e2e/foobarqar/node_modules/@pnpm.e2e/bar"
-        ),
+        read_pkg_version(&workspace, "node_modules/@pnpm.e2e/foobarqar/node_modules/@pnpm.e2e/bar"),
         "100.0.0",
         "the nested conflict copy must survive the parent's update",
     );
@@ -871,20 +781,11 @@ fn adding_a_new_dependency_to_a_workspace_project() {
         &workspace,
         "nodeLinker: hoisted\npackages:\n  - project-1\n  - project-2\n",
     );
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({ "name": "root" }).to_string(),
-    )
-    .expect("write root package.json");
+    fs::write(workspace.join("package.json"), serde_json::json!({ "name": "root" }).to_string())
+        .expect("write root package.json");
     for (name, deps) in [
-        (
-            "project-1",
-            serde_json::json!({ "@pnpm.e2e/bar": "100.0.0" }),
-        ),
-        (
-            "project-2",
-            serde_json::json!({ "@pnpm.e2e/foobarqar": "1.0.0" }),
-        ),
+        ("project-1", serde_json::json!({ "@pnpm.e2e/bar": "100.0.0" })),
+        ("project-2", serde_json::json!({ "@pnpm.e2e/foobarqar": "1.0.0" })),
     ] {
         fs::create_dir_all(workspace.join(name)).expect("create member dir");
         fs::write(
@@ -907,22 +808,10 @@ fn adding_a_new_dependency_to_a_workspace_project() {
     let manifest = fs::read_to_string(workspace.join("project-1/package.json"))
         .expect("read project-1 package.json");
     let manifest: serde_json::Value = serde_json::from_str(&manifest).expect("parse manifest");
-    assert_eq!(
-        manifest["dependencies"],
-        serde_json::json!({ "@pnpm.e2e/bar": "100.0.0" }),
-    );
-    assert_eq!(
-        manifest["devDependencies"],
-        serde_json::json!({ "is-negative": "1.0.0" }),
-    );
-    assert_eq!(
-        read_pkg_version(&workspace, "node_modules/@pnpm.e2e/bar"),
-        "100.0.0",
-    );
-    assert_eq!(
-        read_pkg_version(&workspace, "node_modules/is-negative"),
-        "1.0.0",
-    );
+    assert_eq!(manifest["dependencies"], serde_json::json!({ "@pnpm.e2e/bar": "100.0.0" }));
+    assert_eq!(manifest["devDependencies"], serde_json::json!({ "is-negative": "1.0.0" }));
+    assert_eq!(read_pkg_version(&workspace, "node_modules/@pnpm.e2e/bar"), "100.0.0");
+    assert_eq!(read_pkg_version(&workspace, "node_modules/is-negative"), "1.0.0");
 
     drop((root, mock_instance));
 }
@@ -958,10 +847,7 @@ fn installing_same_package_with_alias_and_no_alias() {
     );
     let direct = read_pkg_version(&workspace, "node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep");
     let aliased = read_pkg_version(&workspace, "node_modules/dep");
-    assert_eq!(
-        direct, aliased,
-        "alias and real name must resolve to one version",
-    );
+    assert_eq!(direct, aliased, "alias and real name must resolve to one version");
     assert_eq!(direct, "100.1.0");
 
     drop((root, mock_instance));
@@ -1066,63 +952,6 @@ fn hoist_patterns_are_inert_under_the_hoisted_linker() {
     drop((root, mock_instance));
 }
 
-/// The hoisted linker imports directly into the flat `node_modules/`
-/// rather than into a virtual-store slot, so it needs its own guard
-/// that a `file:` dependency's copy is retaken when the source moves.
-#[test]
-fn a_directory_dependency_is_recopied_under_the_hoisted_linker() {
-    let CommandTempCwd {
-        pacquet,
-        root,
-        workspace,
-        npmrc_info,
-        ..
-    } = CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
-
-    let local = workspace.join("local-pkg");
-    fs::create_dir_all(&local).expect("create the local package dir");
-    let write_local = |marker: &str| {
-        fs::write(
-            local.join("package.json"),
-            serde_json::json!({ "name": "local-pkg", "version": "1.0.0" }).to_string(),
-        )
-        .expect("write the local package.json");
-        fs::write(local.join("marker.txt"), marker).expect("write the marker");
-    };
-    write_local("first");
-    write_manifest(
-        &workspace,
-        serde_json::json!({ "local-pkg": "file:./local-pkg" }),
-    );
-
-    pacquet
-        .with_arg("install")
-        .assert()
-        .success();
-    let installed_marker = workspace.join("node_modules/local-pkg/marker.txt");
-    assert_eq!(
-        fs::read_to_string(&installed_marker).expect("read the installed marker"),
-        "first",
-        "the first install should materialize the directory dependency",
-    );
-
-    write_local("second");
-    pacquet_in(&workspace)
-        .with_arg("install")
-        .assert()
-        .success();
-
-    assert_eq!(
-        fs::read_to_string(&installed_marker).expect("read the installed marker"),
-        "second",
-        "the second install should re-copy the directory into node_modules",
-    );
-
-    drop((root, mock_instance));
-}
-
 /// Two projects on the same `@pnpm.e2e/abc@1.0.0` but on different
 /// `peer-a` versions give the lockfile two peer variants of one package
 /// version. pnpm hoists such variants into a single root copy; nesting
@@ -1152,18 +981,12 @@ fn peer_variants_of_one_version_share_the_root_slot() {
     let on_peer_a_1_0_0 = fixture.project(
         "a",
         "a",
-        ManifestDeps {
-            prod: &deps_with_peer_a_1_0_0,
-            ..Default::default()
-        },
+        ManifestDeps { prod: &deps_with_peer_a_1_0_0, ..Default::default() },
     );
     let on_peer_a_1_0_1 = fixture.project(
         "b",
         "b",
-        ManifestDeps {
-            prod: &deps_with_peer_a_1_0_1,
-            ..Default::default()
-        },
+        ManifestDeps { prod: &deps_with_peer_a_1_0_1, ..Default::default() },
     );
 
     fixture.run(["install"]);

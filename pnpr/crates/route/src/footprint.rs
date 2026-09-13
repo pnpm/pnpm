@@ -14,11 +14,7 @@ pub enum PrivateAccessDescriptor {
     /// gate on cache replay, so a caller the refinement denies cannot obtain
     /// through the cache what a fresh resolve refuses them. Unrefined names
     /// share the plain registry-scoped descriptor (`package: None`).
-    Alias {
-        alias: String,
-        credential_digest: String,
-        package: Option<String>,
-    },
+    Alias { alias: String, credential_digest: String, package: Option<String> },
     /// pnpr-hosted route, gated by re-running the named package access
     /// policy for the caller.
     Hosted { policy_id: String },
@@ -70,12 +66,8 @@ impl PrivateAccessDescriptor {
 /// namespace.
 #[must_use]
 pub fn upstream_cache_digest(upstream: &str, credential_digest: String, secret: &[u8]) -> String {
-    PrivateAccessDescriptor::Alias {
-        alias: upstream.to_string(),
-        credential_digest,
-        package: None,
-    }
-    .digest_id(secret)
+    PrivateAccessDescriptor::Alias { alias: upstream.to_string(), credential_digest, package: None }
+        .digest_id(secret)
 }
 
 /// A hash of an upstream's `Authorization` header value, used as the credential

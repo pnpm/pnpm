@@ -71,13 +71,7 @@ pub fn resolve_and_group(
             workspace_dir.join(candidate)
         };
         let hash = create_hex_hash_from_file(&resolved)?;
-        inputs.push((
-            key.clone(),
-            PatchInput {
-                hash,
-                patch_file_path: Some(resolved),
-            },
-        ));
+        inputs.push((key.clone(), PatchInput { hash, patch_file_path: Some(resolved) }));
     }
 
     let groups = group_patched_dependencies(inputs)?;

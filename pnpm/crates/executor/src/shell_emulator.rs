@@ -69,10 +69,7 @@ pub fn execute_emulated(
     // already passes one; resolving here keeps a relative path from
     // reaching the panic inside the shell.
     let cwd = path::absolute(cwd)
-        .map_err(|source| ShellEmulatorError::Start {
-            script: script.to_string(),
-            source,
-        })?;
+        .map_err(|source| ShellEmulatorError::Start { script: script.to_string(), source })?;
     let cancellation = process_tracker.map(ProcessTracker::track_emulated);
     let run = EmulatedRun {
         list,
@@ -162,10 +159,7 @@ impl EmulatedRun {
         }
         let state = ShellState::new(env, cwd, HashMap::new(), kill_signal);
         let stdin = ShellPipeReader::stdin();
-        Ok(local_set.block_on(
-            &runtime,
-            execute_with_pipes(list, state, stdin, stdout, stderr),
-        ))
+        Ok(local_set.block_on(&runtime, execute_with_pipes(list, state, stdin, stdout, stderr)))
     }
 }
 
@@ -175,11 +169,7 @@ fn pump_lines(
     stdio: LifecycleStdio,
     sink: &(dyn Fn(LifecycleStdio, String) + Sync),
 ) {
-    let mut writer = LineWriter {
-        stdio,
-        sink,
-        pending: Vec::new(),
-    };
+    let mut writer = LineWriter { stdio, sink, pending: Vec::new() };
     let _ = reader.pipe_to(&mut writer);
     writer.flush_pending();
 }
@@ -197,10 +187,7 @@ impl LineWriter<'_> {
     /// newline. A stream that ended on a newline leaves nothing here.
     fn flush_pending(&mut self) {
         if !self.pending.is_empty() {
-            (self.sink)(
-                self.stdio,
-                String::from_utf8_lossy(&self.pending).into_owned(),
-            );
+            (self.sink)(self.stdio, String::from_utf8_lossy(&self.pending).into_owned());
             self.pending.clear();
         }
     }

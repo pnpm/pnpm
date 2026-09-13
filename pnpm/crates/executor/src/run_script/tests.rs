@@ -8,10 +8,7 @@ use tempfile::tempdir;
 #[test]
 fn posix_quote_leaves_safe_strings_unquoted() {
     assert_eq!(posix_quote("hello-world"), "hello-world");
-    assert_eq!(
-        posix_quote("a_b@1.0.0/path:to,thing"),
-        "a_b@1.0.0/path:to,thing",
-    );
+    assert_eq!(posix_quote("a_b@1.0.0/path:to,thing"), "a_b@1.0.0/path:to,thing");
 }
 
 #[test]
@@ -29,30 +26,20 @@ fn posix_quote_escapes_embedded_single_quotes() {
 #[test]
 fn build_command_without_args_returns_script_unchanged() {
     for windows_shell in [false, true] {
-        assert_eq!(
-            build_command("tsc --build", &[], windows_shell),
-            "tsc --build",
-        );
+        assert_eq!(build_command("tsc --build", &[], windows_shell), "tsc --build");
     }
 }
 
 #[test]
 fn build_command_appends_posix_quoted_args() {
     let args = ["plain".to_string(), "needs quoting".to_string()];
-    assert_eq!(
-        build_command("echo", &args, false),
-        "echo plain 'needs quoting'",
-    );
+    assert_eq!(build_command("echo", &args, false), "echo plain 'needs quoting'");
 }
 
 #[test]
 fn build_command_appends_json_quoted_args_for_the_windows_shell() {
-    let args = [
-        r"C:\dir\".to_string(),
-        String::new(),
-        r#"a"b"#.to_string(),
-        "line\nbreak".to_string(),
-    ];
+    let args =
+        [r"C:\dir\".to_string(), String::new(), r#"a"b"#.to_string(), "line\nbreak".to_string()];
     let expected = r#"echo "C:\\dir\\" "" "a\"b" "line\nbreak""#;
     assert_eq!(build_command("echo", &args, true), expected);
 }
@@ -87,11 +74,7 @@ fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> ScriptExi
             shell: None,
             shell_emulator: false,
         },
-        invocation: crate::ScriptInvocation {
-            stage,
-            script,
-            args,
-        },
+        invocation: crate::ScriptInvocation { stage, script, args },
         manifest: &manifest(),
 
         pkg_root,
@@ -108,10 +91,7 @@ fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> ScriptExi
 fn run_script_stamps_npm_lifecycle_event() {
     let dir = tempdir().expect("temp dir");
     let marker = dir.path().join("stage.txt");
-    let script = format!(
-        r#"printf %s "$npm_lifecycle_event" > "{}""#,
-        marker.display(),
-    );
+    let script = format!(r#"printf %s "$npm_lifecycle_event" > "{}""#, marker.display());
 
     let status = run(dir.path(), "build", &script, &[]);
     assert!(status.success(), "the script should exit cleanly");

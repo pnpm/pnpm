@@ -34,11 +34,7 @@ pub(super) fn parse_bump(raw: &str) -> Result<Bump, VersionError> {
         "preminor" => ReleaseType::Preminor,
         "prepatch" => ReleaseType::Prepatch,
         "prerelease" => ReleaseType::Prerelease,
-        _ => {
-            return Err(VersionError::InvalidBump {
-                raw: raw.to_string(),
-            });
-        }
+        _ => return Err(VersionError::InvalidBump { raw: raw.to_string() }),
     };
     Ok(Bump::Release(release))
 }

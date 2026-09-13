@@ -41,10 +41,7 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
             }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "a": "^1.0.0", "b": "^1.0.0" }));
 
     let tree = resolve_dependency_tree(

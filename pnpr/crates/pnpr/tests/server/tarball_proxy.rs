@@ -90,8 +90,7 @@ async fn upstream_auth_and_custom_headers_are_forwarded_upstream() {
 async fn tarball_is_proxied_and_cached() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"fake-tarball-bytes";
-    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes)
-        .await;
+    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
     let mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
@@ -280,10 +279,9 @@ async fn upstream_cache_does_not_leak_to_the_public_path() {
     let public_bytes = b"public-foo-tarball";
     let private_bytes = b"private-corp-foo-tarball";
 
-    for (server, body) in [
-        (&mut public_upstream, &public_bytes[..]),
-        (&mut private_upstream, &private_bytes[..]),
-    ] {
+    for (server, body) in
+        [(&mut public_upstream, &public_bytes[..]), (&mut private_upstream, &private_bytes[..])]
+    {
         let packument = json!({
             "name": "foo",
             "dist-tags": { "latest": "1.0.0" },
@@ -357,10 +355,7 @@ async fn repointing_an_upstream_url_abandons_the_old_origins_cache() {
     let old_bytes = b"old-origin-foo-tarball";
     let new_bytes = b"new-origin-foo-tarball";
 
-    for (server, body) in [
-        (&mut old_origin, &old_bytes[..]),
-        (&mut new_origin, &new_bytes[..]),
-    ] {
+    for (server, body) in [(&mut old_origin, &old_bytes[..]), (&mut new_origin, &new_bytes[..])] {
         let packument = json!({
             "name": "foo",
             "dist-tags": { "latest": "1.0.0" },
@@ -533,8 +528,7 @@ async fn osv_tarball_screening_preserves_access_gate() {
 async fn osv_refuses_vulnerable_tarball_from_cache() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"cached vulnerable tarball";
-    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes)
-        .await;
+    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
     let mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
@@ -829,10 +823,7 @@ async fn non_canonical_upstream_tarball_basename_is_served() {
         .unwrap();
     let doc = body_json(served.into_body()).await;
     let advertised = doc["versions"]["3001.1.0-exotic"]["dist"]["tarball"].as_str().unwrap();
-    assert!(
-        advertised.ends_with(&format!("/foo/-/{exotic}")),
-        "got {advertised}",
-    );
+    assert!(advertised.ends_with(&format!("/foo/-/{exotic}")), "got {advertised}");
 
     // And fetching that URL back serves the verified bytes.
     let response = app
@@ -852,8 +843,8 @@ async fn non_canonical_upstream_tarball_basename_is_served() {
 async fn scoped_tarball_is_proxied() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"scoped-tarball-bytes";
-    let _packument_mock = mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes)
-        .await;
+    let _packument_mock =
+        mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes).await;
     let mock = upstream
         .mock("GET", "/@types/node/-/node-20.0.0.tgz")
         .with_status(200)
@@ -882,8 +873,8 @@ async fn scoped_tarball_is_proxied() {
 async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"scoped-tarball-full-name";
-    let packument_mock = mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes)
-        .await;
+    let packument_mock =
+        mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes).await;
     let mock = upstream
         .mock("GET", "/@types/node/-/node-20.0.0.tgz")
         .with_status(200)

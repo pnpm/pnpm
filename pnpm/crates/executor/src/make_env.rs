@@ -103,14 +103,8 @@ fn build_env_for_platform(
         env.insert(k.clone(), v.clone());
     }
 
-    env.insert(
-        "INIT_CWD".into(),
-        opts.environment.init_cwd.to_string_lossy().into_owned(),
-    );
-    env.insert(
-        "PNPM_SCRIPT_SRC_DIR".into(),
-        opts.script_src_dir.to_string_lossy().into_owned(),
-    );
+    env.insert("INIT_CWD".into(), opts.environment.init_cwd.to_string_lossy().into_owned());
+    env.insert("PNPM_SCRIPT_SRC_DIR".into(), opts.script_src_dir.to_string_lossy().into_owned());
 
     if let Some(ua) = opts.environment.user_agent {
         env.insert("npm_config_user_agent".into(), ua.to_string());
@@ -121,16 +115,27 @@ fn build_env_for_platform(
     // can't disable the guard (pnpm keeps this key authoritative).
     env.insert(VERIFY_DEPS_BEFORE_RUN_ENV.into(), "false".into());
 
-    let tmpdir = configure_tmpdir(&mut env, opts, is_windows);
+    // 5. TMPDIR under <wd>/node_modules/.tmp when !unsafe_perm.
+    //    The caller creates the dir; we only record the path and pass
+    //    it back.
+    let tmpdir = if opts.unsafe_perm {
+        None
+    } else {
+        let dir = opts.pkg_root.join("node_modules").join(".tmp");
+        // Windows treats differently cased spellings as one variable,
+        // so remove them before inserting the authoritative override.
+        if is_windows {
+            env.retain(|key, _| !key.eq_ignore_ascii_case("TMPDIR"));
+        }
+        env.insert("TMPDIR".into(), dir.to_string_lossy().into_owned());
+        Some(dir)
+    };
 
     // 6. `npm_lifecycle_script` is set after `extra_env`, so the
     //    caller can never clobber it.
     env.insert("npm_lifecycle_script".into(), opts.script.to_string());
 
-    EnvBuild {
-        env,
-        tmpdir,
-    }
+    EnvBuild { env, tmpdir }
 }
 
 /// Keep PATH (handled by the caller) and every key [`is_stamping_key`]
@@ -172,12 +177,8 @@ fn is_stamping_key(key: &str, is_windows: bool) -> bool {
     {
         return true;
     }
-    const DROPPED: [&str; 4] = [
-        "NODE",
-        "INIT_CWD",
-        "PNPM_SCRIPT_SRC_DIR",
-        DEV_PREINSTALL_ALREADY_RAN_ENV,
-    ];
+    const DROPPED: [&str; 4] =
+        ["NODE", "INIT_CWD", "PNPM_SCRIPT_SRC_DIR", DEV_PREINSTALL_ALREADY_RAN_ENV];
     if is_windows {
         return DROPPED
             .iter()
@@ -225,11 +226,7 @@ fn strip_env_prefix<'key>(key: &'key str, prefix: &str, is_windows: bool) -> Opt
 pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
     env
         .iter()
-        .find_map(|(k, v)| {
-            k
-                .eq_ignore_ascii_case("PATH")
-                .then(|| v.clone())
-        })
+        .find_map(|(k, v)| k.eq_ignore_ascii_case("PATH").then(|| v.clone()))
 }
 
 /// Look up `node` along the supplied `PATH`. Driven by the filtered
@@ -328,10 +325,7 @@ fn stamp_executables(
         env.insert("npm_execpath".into(), path.to_string_lossy().into_owned());
     }
     if let Some(path) = opts.node_gyp_path {
-        env.insert(
-            "npm_config_node_gyp".into(),
-            path.to_string_lossy().into_owned(),
-        );
+        env.insert("npm_config_node_gyp".into(), path.to_string_lossy().into_owned());
     }
 }
 
@@ -354,13 +348,7 @@ fn stamps_manifest_field(prefix: &str, key: &str) -> bool {
 fn sanitize_env_key(raw: &str) -> String {
     raw
         .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || ch == '_' {
-                ch
-            } else {
-                '_'
-            }
-        })
+        .map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' { ch } else { '_' })
         .collect()
 }
 
@@ -368,34 +356,8 @@ fn sanitize_env_key(raw: &str) -> String {
 /// shells don't break on embedded newlines; single-line strings pass
 /// through unchanged.
 fn escape_newlines(text: &str) -> String {
-    if text.contains('\n') {
-        Value::String(text.to_string()).to_string()
-    } else {
-        text.to_string()
-    }
+    if text.contains('\n') { Value::String(text.to_string()).to_string() } else { text.to_string() }
 }
 
 #[cfg(test)]
 mod tests;
-
-fn configure_tmpdir(
-    env: &mut HashMap<String, String>,
-    opts: &EnvOptions<'_>,
-    is_windows: bool,
-) -> Option<std::path::PathBuf> {
-    // 5. TMPDIR under <wd>/node_modules/.tmp when !unsafe_perm.
-    //    The caller creates the dir; we only record the path and pass
-    //    it back.
-    if opts.unsafe_perm {
-        None
-    } else {
-        let dir = opts.pkg_root.join("node_modules").join(".tmp");
-        // Windows treats differently cased spellings as one variable,
-        // so remove them before inserting the authoritative override.
-        if is_windows {
-            env.retain(|key, _| !key.eq_ignore_ascii_case("TMPDIR"));
-        }
-        env.insert("TMPDIR".into(), dir.to_string_lossy().into_owned());
-        Some(dir)
-    }
-}

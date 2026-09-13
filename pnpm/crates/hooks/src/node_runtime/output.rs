@@ -19,9 +19,7 @@ pub(super) async fn forward_hook_stdout(
     logger: &crate::PreResolutionHookLogger,
 ) {
     let mut reader = BufReader::new(stdout);
-    while let Ok(Some(line)) = next_line_bounded(&mut reader, STDOUT_LINE_LIMIT)
-        .await
-    {
+    while let Ok(Some(line)) = next_line_bounded(&mut reader, STDOUT_LINE_LIMIT).await {
         let line = line.trim();
         if line.is_empty() {
             continue;
@@ -48,19 +46,13 @@ pub(super) fn parse_logger_line(line: &str) -> Option<(LoggerLevel, String)> {
         return None;
     }
     let parsed = serde_json::from_str::<serde_json::Value>(line).ok()?;
-    let level = match parsed
-        .get("level")
-        .and_then(|v| v.as_str())
-    {
+    let level = match parsed.get("level").and_then(|v| v.as_str()) {
         Some("info") => LoggerLevel::Info,
         Some("warn") => LoggerLevel::Warn,
         _ => return None,
     };
     let message = match parsed.get("message")? {
-        v if v.is_string() => v
-            .as_str()
-            .unwrap()
-            .to_string(),
+        v if v.is_string() => v.as_str().unwrap().to_string(),
         v => v.to_string(),
     };
     Some((level, message))

@@ -37,9 +37,7 @@ impl Resolver for OverlayRecordingResolver {
             .lock()
             .unwrap()
             .insert((name.clone(), range.clone()), overlay_view);
-        let result = self.table
-            .get(&(name, range))
-            .cloned();
+        let result = self.table.get(&(name, range)).cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
     }
 
@@ -89,10 +87,7 @@ async fn child_resolution_prefers_parent_level_sibling_versions() {
             ),
         );
     }
-    let resolver = OverlayRecordingResolver {
-        table,
-        seen_overlay: Mutex::new(HashMap::default()),
-    };
+    let resolver = OverlayRecordingResolver { table, seen_overlay: Mutex::new(HashMap::default()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "parent": "1.0.0" }));
 
     resolve_dependency_tree(
@@ -154,24 +149,13 @@ async fn npm_alias_child_consults_overlay_by_inner_name() {
     );
     table.insert(
         ("pinned".to_string(), "5.0.0".to_string()),
-        fake_result(
-            "pinned",
-            "5.0.0",
-            serde_json::json!({ "name": "pinned", "version": "5.0.0" }),
-        ),
+        fake_result("pinned", "5.0.0", serde_json::json!({ "name": "pinned", "version": "5.0.0" })),
     );
     table.insert(
         ("renamed".to_string(), "npm:pinned@~5.0.0".to_string()),
-        fake_result(
-            "pinned",
-            "5.0.0",
-            serde_json::json!({ "name": "pinned", "version": "5.0.0" }),
-        ),
+        fake_result("pinned", "5.0.0", serde_json::json!({ "name": "pinned", "version": "5.0.0" })),
     );
-    let resolver = OverlayRecordingResolver {
-        table,
-        seen_overlay: Mutex::new(HashMap::default()),
-    };
+    let resolver = OverlayRecordingResolver { table, seen_overlay: Mutex::new(HashMap::default()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "parent": "1.0.0" }));
 
     resolve_dependency_tree(

@@ -65,10 +65,7 @@ pub fn link_manifest_link_deps<Reporter: pnpm_reporter::Reporter>(
     }
     for (project_dir, manifest) in project_manifests {
         let importer_snapshot = importers.and_then(|importers| {
-            importers.get(&pnpm_workspace::importer_id_from_root_dir(
-                workspace_root,
-                project_dir,
-            ))
+            importers.get(&pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
         });
         // The per-project modules dir honors a `modulesDir` override
         // the same way `SymlinkDirectDependencies` does — the caller
@@ -105,11 +102,7 @@ fn link_project_manifest_deps<Reporter: pnpm_reporter::Reporter>(
     // Per-group iteration (instead of one flattened
     // `manifest.dependencies([...])` pass) so the `pnpm:root added`
     // event below carries the dependency's real group.
-    for group in [
-        DependencyGroup::Prod,
-        DependencyGroup::Dev,
-        DependencyGroup::Optional,
-    ] {
+    for group in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
         for (alias, spec) in manifest.dependencies([group]) {
             if link_manifest_dep::<Reporter>(project, group, alias, spec)? {
                 // Bins are (re-)linked for reused symlinks too — the
@@ -199,18 +192,14 @@ fn dependency_type_of(group: DependencyGroup) -> DependencyType {
 /// non-peer dependency groups — i.e. the lockfile knows the dep and
 /// the lockfile-driven passes own its materialization.
 fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> bool {
-    [
-        DependencyGroup::Prod,
-        DependencyGroup::Dev,
-        DependencyGroup::Optional,
-    ]
-    .into_iter()
-    .filter_map(|group| snapshot.get_map_by_group(group))
-    .any(|deps| {
-        deps
-            .keys()
-            .any(|name| name.to_string() == alias)
-    })
+    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
+        .into_iter()
+        .filter_map(|group| snapshot.get_map_by_group(group))
+        .any(|deps| {
+            deps
+                .keys()
+                .any(|name| name.to_string() == alias)
+        })
 }
 
 /// Resolve a `link:` payload against the project directory. An
@@ -219,11 +208,7 @@ fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> bool {
 /// semantics pnpm applies to `link:` specifiers in a manifest.
 fn resolve_link_target(project_dir: &Path, target: &str) -> PathBuf {
     let path = Path::new(target);
-    if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        project_dir.join(path)
-    }
+    if path.is_absolute() { path.to_path_buf() } else { project_dir.join(path) }
 }
 
 /// Error type of [`link_manifest_link_deps`].

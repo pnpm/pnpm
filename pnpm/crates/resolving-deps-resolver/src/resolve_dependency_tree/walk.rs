@@ -131,14 +131,9 @@ where
         },
     )
     .await?;
-    let direct = walk_from_seeds(
-        ctx,
-        resolver,
-        vec![seed],
-        base_overlay,
-        Arc::clone(parent_pkg_aliases),
-    )
-    .await?;
+    let direct =
+        walk_from_seeds(ctx, resolver, vec![seed], base_overlay, Arc::clone(parent_pkg_aliases))
+            .await?;
     Ok(direct.into_iter().next())
 }
 

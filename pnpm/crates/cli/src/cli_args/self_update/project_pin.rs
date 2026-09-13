@@ -44,8 +44,7 @@ pub(super) async fn update_project_pin(
         .is_some();
 
     if has_dev_engines {
-        update_dev_engines_pin(config, dir, pm, &mut manifest, target_version)
-            .await?;
+        update_dev_engines_pin(config, dir, pm, &mut manifest, target_version).await?;
     } else if let Some(object) = manifest.value_mut().as_object_mut() {
         object.insert(
             "packageManager".to_string(),
@@ -57,9 +56,7 @@ pub(super) async fn update_project_pin(
             .wrap_err("write the project manifest")?;
     }
 
-    Ok(Some(format!(
-        "The current project has been updated to use pnpm v{target_version}",
-    )))
+    Ok(Some(format!("The current project has been updated to use pnpm v{target_version}")))
 }
 
 /// The `pnpm` entry of `devEngines.packageManager` (which can be a single
@@ -198,11 +195,9 @@ pub(super) fn read_project_pinned_pnpm_version(
         });
     let spec_min = spec.and_then(super::super::package_manager::exact_version);
     match (lockfile_pinned, spec_min) {
-        (Some(lockfile), Some(spec)) => Some(if version_lt(&spec, &lockfile) {
-            lockfile
-        } else {
-            spec
-        }),
+        (Some(lockfile), Some(spec)) => {
+            Some(if version_lt(&spec, &lockfile) { lockfile } else { spec })
+        }
         (lockfile, spec) => lockfile.or(spec),
     }
 }
@@ -216,9 +211,7 @@ async fn update_dev_engines_pin(
 ) -> miette::Result<()> {
     let pin_specifier = write_dev_engines_pin(manifest, target_version)?;
     if super::super::package_manager::should_persist_package_manager_lockfile(&pm_for_persist(pm)) {
-        let root_dir = config.workspace_dir
-            .clone()
-            .unwrap_or_else(|| dir.to_path_buf());
+        let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         Box::pin(config_deps::sync_package_manager_dependencies(
             config,
             &root_dir,

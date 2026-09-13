@@ -34,26 +34,18 @@ pub(crate) async fn execute_plan(
     }
 }
 
-#[expect(
-    clippy::exit,
-    reason = "delegated pnpm must preserve the child exit code"
-)]
+#[expect(clippy::exit, reason = "delegated pnpm must preserve the child exit code")]
 async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Result<bool> {
     let SwitchPlan { config, target } = plan;
     let SwitchTarget { spec, source } = target;
     let config = Config::leak(config);
-    let Some((version, bin_dir)) = install_switch_target(config, &spec, source)
-        .await?
-    else {
+    let Some((version, bin_dir)) = install_switch_target(config, &spec, source).await? else {
         return Ok(false);
     };
 
-    let status = spawn_pnpm(
-        slice::from_ref(&bin_dir),
-        child_argv.iter(),
-        PackageManagerCheck::Enabled,
-    )
-    .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
+    let status =
+        spawn_pnpm(slice::from_ref(&bin_dir), child_argv.iter(), PackageManagerCheck::Enabled)
+            .wrap_err_with(|| format!("switch pnpm to v{version}"))?;
     if !status.success() {
         std::process::exit(status.code().unwrap_or(1));
     }
@@ -146,15 +138,8 @@ async fn install_resolved_switch_target(
         }
     };
     if version == PNPM_VERSION {
-        repair_recorded_entries(
-            config,
-            env_root,
-            spec,
-            &version,
-            frozen_lockfile,
-            force_resync,
-        )
-        .await?;
+        repair_recorded_entries(config, env_root, spec, &version, frozen_lockfile, force_resync)
+            .await?;
         return Ok(None);
     }
     assert_release_is_installable(&version)?;

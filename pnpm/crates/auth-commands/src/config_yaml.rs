@@ -57,15 +57,10 @@ pub fn login_fields(
     token: &str,
 ) -> Result<ConfigYamlFields, ParseConfigYamlError> {
     let root = parse_document(document)?;
-    let mut fields = vec![(
-        AUTH_KEY,
-        auth_with_token(&root, registry, scope.unwrap_or(DEFAULT_SCOPE), token),
-    )];
+    let mut fields =
+        vec![(AUTH_KEY, auth_with_token(&root, registry, scope.unwrap_or(DEFAULT_SCOPE), token))];
     if let Some(scope) = scope {
-        fields.push((
-            REGISTRIES_KEY,
-            registries_with_route(&root, registry, scope),
-        ));
+        fields.push((REGISTRIES_KEY, registries_with_route(&root, registry, scope)));
     }
     Ok(fields)
 }
@@ -98,11 +93,7 @@ pub fn logout_fields(
     } else {
         auth.insert(registry.to_owned(), Value::Object(scopes));
     }
-    let value = if auth.is_empty() {
-        Value::Null
-    } else {
-        Value::Object(auth)
-    };
+    let value = if auth.is_empty() { Value::Null } else { Value::Object(auth) };
     Ok(vec![(AUTH_KEY, value)])
 }
 
@@ -115,9 +106,7 @@ fn parse_document(document: Option<&str>) -> Result<Map<String, Value>, ParseCon
         // A document that is valid YAML but not a mapping holds no settings
         // to preserve, so the fields replace it wholesale.
         Ok(_) => Ok(Map::new()),
-        Err(source) => Err(ParseConfigYamlError {
-            source: Box::new(source),
-        }),
+        Err(source) => Err(ParseConfigYamlError { source: Box::new(source) }),
     }
 }
 

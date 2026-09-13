@@ -19,18 +19,9 @@ fn matches_a_plain_registry_id() {
 
 #[test]
 fn strips_the_recorded_key_peer_and_patch_suffixes() {
-    assert!(landed_on_prior_entry(
-        &key("foo@1.0.0(bar@2.0.0)"),
-        "foo@1.0.0"
-    ));
-    assert!(landed_on_prior_entry(
-        &key("foo@1.0.0(patch_hash=0000)"),
-        "foo@1.0.0"
-    ));
-    assert!(landed_on_prior_entry(
-        &key("foo@1.0.0(patch_hash=0000)(bar@2.0.0)"),
-        "foo@1.0.0"
-    ));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0(bar@2.0.0)"), "foo@1.0.0"));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0(patch_hash=0000)"), "foo@1.0.0"));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0(patch_hash=0000)(bar@2.0.0)"), "foo@1.0.0"));
 }
 
 #[test]
@@ -39,22 +30,13 @@ fn strips_the_resolved_id_patch_suffix() {
         &key("foo@1.0.0(patch_hash=0000)"),
         "foo@1.0.0(patch_hash=0000)"
     ),);
-    assert!(landed_on_prior_entry(
-        &key("foo@1.0.0"),
-        "foo@1.0.0(patch_hash=0000)"
-    ));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0(patch_hash=0000)"));
 }
 
 #[test]
 fn matches_a_name_prefixed_file_id() {
-    assert!(landed_on_prior_entry(
-        &key("foo@file:packages/foo"),
-        "foo@file:packages/foo"
-    ));
-    assert!(!landed_on_prior_entry(
-        &key("foo@file:packages/foo"),
-        "file:packages/foo"
-    ));
+    assert!(landed_on_prior_entry(&key("foo@file:packages/foo"), "foo@file:packages/foo"));
+    assert!(!landed_on_prior_entry(&key("foo@file:packages/foo"), "file:packages/foo"));
 }
 
 fn revision_resolution(revision: u64, integrity: &str) -> LockfileResolution {
@@ -89,10 +71,7 @@ fn identical_registry_revisions_can_share_an_identity() {
 
 #[test]
 fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selectors() {
-    assert_eq!(
-        exact_registry_specifier_for_revision_refresh("^1.0.0", "1.2.3", None),
-        "1.2.3",
-    );
+    assert_eq!(exact_registry_specifier_for_revision_refresh("^1.0.0", "1.2.3", None), "1.2.3");
     assert_eq!(
         exact_registry_specifier_for_revision_refresh("npm:@scope/pkg@^1.0.0", "1.2.3", None,),
         "npm:@scope/pkg@1.2.3",
@@ -121,10 +100,7 @@ fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selecto
         exact_registry_specifier_for_revision_refresh("1.2.3+r1", "1.2.3", None),
         "1.2.3+r1",
     );
-    assert_eq!(
-        exact_registry_specifier_for_revision_refresh("^1.2.3+r1", "1.2.3", None),
-        "1.2.3",
-    );
+    assert_eq!(exact_registry_specifier_for_revision_refresh("^1.2.3+r1", "1.2.3", None), "1.2.3");
     assert_eq!(
         exact_registry_specifier_for_revision_refresh(
             "git+https://example.test/repo.git",

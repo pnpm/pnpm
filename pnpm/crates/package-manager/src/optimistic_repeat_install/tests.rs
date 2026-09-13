@@ -38,11 +38,7 @@ use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
 
 fn isolated_included() -> IncludedDependencies {
-    IncludedDependencies {
-        dependencies: true,
-        dev_dependencies: true,
-        optional_dependencies: true,
-    }
+    IncludedDependencies { dependencies: true, dev_dependencies: true, optional_dependencies: true }
 }
 
 /// Run the fast-path check in single-project mode with no loaded
@@ -116,25 +112,15 @@ fn check_workspace(
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
     catalogs: &Catalogs,
 ) -> Decision {
-    check_with_catalogs(
-        workspace_root,
-        config,
-        node_linker,
-        project_manifests,
-        true,
-        catalogs,
-    )
+    check_with_catalogs(workspace_root, config, node_linker, project_manifests, true, catalogs)
 }
 
 /// Write an empty `pnpm-lock.yaml` to satisfy the single-project
 /// branch's lockfile-existence gate. The fast path only checks
 /// existence, not contents.
 fn write_empty_lockfile(workspace_root: &std::path::Path) {
-    fs::write(
-        workspace_root.join(Lockfile::FILE_NAME),
-        "lockfileVersion: '9.0'\n",
-    )
-    .expect("write pnpm-lock.yaml");
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
+        .expect("write pnpm-lock.yaml");
 }
 
 fn write_local_tarball_lockfile(
@@ -310,17 +296,9 @@ fn setup_fresh_install_with_config(
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some(project_name.into()),
-            version: Some(project_version.into()),
-        },
+        ProjectEntry { name: Some(project_name.into()), version: Some(project_version.into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     (dir, config, manifest)
 }
@@ -374,33 +352,17 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
     config.modules_dir = workspace_root.join("node_modules");
     config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
     fs::create_dir_all(&config.virtual_store_dir).unwrap();
-    fs::write(
-        config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
-        FOO_LOCKFILE,
-    )
-    .unwrap();
+    fs::write(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), FOO_LOCKFILE).unwrap();
     let config = config.leak();
 
-    let settings = current_settings(
-        config,
-        pnpm_config::NodeLinker::Isolated,
-        isolated_included(),
-        None,
-    );
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     (dir, config)
 }
@@ -457,20 +419,12 @@ fn collide_mtimes_with_recorded_state(
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     write_state(
         workspace_root,
         COLLIDING_MTIME_MS,
-        current_settings(
-            config,
-            pnpm_config::NodeLinker::Isolated,
-            isolated_included(),
-            None,
-        ),
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None),
         projects,
     );
 }
@@ -501,10 +455,7 @@ fn assert_content_check_converges_after_collision(subsec_nanos: u32) {
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
     let project_manifests = [(dir.path().to_path_buf(), &manifest)];
 
-    assert_eq!(
-        content_check_decision(&dir, config, true, &project_manifests),
-        Decision::UpToDate,
-    );
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
     let refreshed = recorded_timestamp(dir.path());
     assert!(
         refreshed > COLLIDING_MTIME_MS,
@@ -512,10 +463,7 @@ fn assert_content_check_converges_after_collision(subsec_nanos: u32) {
     );
 
     poison_lockfile_content(dir.path());
-    assert_eq!(
-        content_check_decision(&dir, config, true, &project_manifests),
-        Decision::UpToDate,
-    );
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
     assert_eq!(recorded_timestamp(dir.path()), refreshed);
 }
 
@@ -552,10 +500,7 @@ fn assert_deps_status_converges_after_collision(subsec_nanos: u32) {
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
     let project_manifests = [(dir.path().to_path_buf(), &manifest)];
 
-    assert_eq!(
-        workspace_deps_status(&dir, config, &project_manifests),
-        RunDepsStatus::UpToDate,
-    );
+    assert_eq!(workspace_deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
     let refreshed = recorded_timestamp(dir.path());
     assert!(
         refreshed > COLLIDING_MTIME_MS,
@@ -563,10 +508,7 @@ fn assert_deps_status_converges_after_collision(subsec_nanos: u32) {
     );
 
     poison_lockfile_content(dir.path());
-    assert_eq!(
-        workspace_deps_status(&dir, config, &project_manifests),
-        RunDepsStatus::UpToDate,
-    );
+    assert_eq!(workspace_deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
     assert_eq!(recorded_timestamp(dir.path()), refreshed);
 }
 
@@ -639,33 +581,18 @@ importers:
     let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
     let sibling_manifest = PackageManifest::from_path(sibling_dir.join("package.json")).unwrap();
 
-    let settings = current_settings(
-        config,
-        pnpm_config::NodeLinker::Isolated,
-        isolated_included(),
-        None,
-    );
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     projects.insert(
         sibling_dir.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("pkg-a".into()),
-            version: Some(sibling_version.into()),
-        },
+        ProjectEntry { name: Some("pkg-a".into()), version: Some(sibling_version.into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     // Touch the root manifest so the content re-check runs.
     fs::write(

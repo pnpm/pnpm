@@ -111,21 +111,10 @@ fn claiming_a_directory_that_cannot_hold_the_record_fails() {
 fn transient_release_error_classifier_is_windows_specific() {
     for kind in [io::ErrorKind::PermissionDenied, io::ErrorKind::ResourceBusy] {
         let error = io::Error::from(kind);
-        assert_eq!(
-            super::is_transient_release_error(&error),
-            cfg!(windows),
-            "{kind:?}",
-        );
+        assert_eq!(super::is_transient_release_error(&error), cfg!(windows), "{kind:?}");
     }
 
-    for kind in [
-        io::ErrorKind::NotFound,
-        io::ErrorKind::InvalidInput,
-        io::ErrorKind::Other,
-    ] {
-        assert!(
-            !super::is_transient_release_error(&io::Error::from(kind)),
-            "{kind:?}",
-        );
+    for kind in [io::ErrorKind::NotFound, io::ErrorKind::InvalidInput, io::ErrorKind::Other] {
+        assert!(!super::is_transient_release_error(&io::Error::from(kind)), "{kind:?}");
     }
 }

@@ -10,13 +10,11 @@
 
 pub(crate) use agent::WatchPolling;
 pub use agent::{WatchInvocation, run_watch};
-pub use arguments::{PipelineArgs, PipelineInvocation};
-pub use errors::PipelineError;
+pub use arguments::{PipelineReportArgs, WatchArgs};
 pub use report::RunUpload;
 pub use selection::{Selection, SelectionMode};
 
 mod arguments;
-mod errors;
 
 use super::{
     install::InstallArgs,
@@ -27,9 +25,11 @@ use super::{
 use crate::cli_args::recursive::filtered_projects_dependencies;
 
 use cache::{CacheDisposition, TaskCache};
+use clap::Args;
+use derive_more::{Display, Error};
 use execution::{RunTaskOptions, run_pipeline_task, task_environment};
 use indexmap::IndexMap;
-use miette::IntoDiagnostic;
+use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_executor::ScriptOutput;
 use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
@@ -80,6 +80,50 @@ const DEFAULT_PIPELINE_BASE: &str = "origin/main";
 /// The pipeline `pnpm pipeline` runs when no name is given.
 const DEFAULT_PIPELINE_NAME: &str = "default";
 
+#[derive(Debug, Args)]
+pub struct PipelineArgs {
+    /// The pipeline to run, from the `pipelines` section of
+    /// `pnpm-workspace.yaml`. Defaults to "default".
+    pub name: Option<String>,
+    /// The install `pnpm pipeline` performs first is always a frozen
+    /// install; these flags tune the rest of it. `--dry-run` prints the
+    /// task graph without installing or running anything.
+    #[clap(flatten)]
+    pub install_args: InstallArgs,
+    /// With `--dry-run`, print the tasks and their resolved dependency
+    /// edges as JSON.
+    #[clap(long)]
+    pub json: bool,
+    /// Run every task without reading or writing cached results or Cargo snapshots.
+    #[clap(long = "no-cache")]
+    pub no_cache: bool,
+    /// Run the pipeline over every workspace project instead of the
+    /// affected-since-base selection.
+    #[clap(long)]
+    pub full: bool,
+    /// The git ref the affected selection diffs against (its merge base
+    /// with HEAD). Overrides the `pipelineBase` setting.
+    #[clap(long)]
+    pub base: Option<String>,
+    #[clap(flatten)]
+    pub agent: WatchArgs,
+    #[clap(flatten)]
+    pub reporting: PipelineReportArgs,
+}
+
+/// The pipeline-specific inputs of one invocation, split off
+/// [`PipelineArgs`] once the install half has been consumed.
+pub struct PipelineInvocation {
+    pub name: Option<String>,
+    pub dry_run: bool,
+    pub json: bool,
+    pub no_cache: bool,
+    pub full: bool,
+    pub base: Option<String>,
+    pub report: bool,
+    pub report_to: Option<String>,
+}
+
 /// How the run ended, and what a `--report` submission would carry. The
 /// failure exit is raised by the dispatcher after any reporting, so a
 /// failed run is still recorded.
@@ -90,11 +134,32 @@ pub struct PipelineOutcome {
 
 impl PipelineOutcome {
     fn without_upload() -> Self {
-        PipelineOutcome {
-            failed_tasks: 0,
-            upload: None,
-        }
+        PipelineOutcome { failed_tasks: 0, upload: None }
     }
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum PipelineError {
+    #[display("No pipelines are defined in pnpm-workspace.yaml")]
+    #[diagnostic(
+        code(ERR_PNPM_NO_PIPELINES),
+        help(
+            "Declare one under the \"pipelines\" key, e.g.\n\npipelines:\n  check:\n    - lint\n    - build\n    - test"
+        )
+    )]
+    NoPipelines,
+
+    #[display("There is no pipeline named \"{name}\". Available pipelines: {available}")]
+    #[diagnostic(code(ERR_PNPM_UNKNOWN_PIPELINE))]
+    UnknownPipeline { name: String, available: String },
+
+    #[display("\"pnpm pipeline\" failed in {count} tasks")]
+    #[diagnostic(code(ERR_PNPM_PIPELINE_FAIL))]
+    PipelineFail {
+        #[error(not(source))]
+        count: usize,
+    },
 }
 
 /// Run the pipeline. The frozen install has already happened by the time
@@ -106,7 +171,14 @@ pub fn run_pipeline(
     dir: &Path,
     reporter: ReporterType,
 ) -> miette::Result<PipelineOutcome> {
-    let run = PipelineRun::new(invocation, config, dir, reporter);
+    let run = PipelineRun {
+        invocation,
+        config,
+        dir,
+        workspace_root: config.workspace_dir.as_deref().unwrap_or(dir),
+        emit: reporter_emit(reporter),
+        silent: matches!(reporter, ReporterType::Ndjson | ReporterType::Silent),
+    };
     let (name, requested_tasks) = run.requested_tasks()?;
 
     let (projects, _) = discover_workspace_projects(run.workspace_root, config)?;
@@ -130,9 +202,7 @@ pub fn run_pipeline(
     )?;
 
     if selection.requested.is_empty() {
-        run.info(format!(
-            "No projects are affected since {base} — nothing to run.",
-        ));
+        run.info(format!("No projects are affected since {base} — nothing to run."));
         return run.conclude(&report, None, 0);
     }
     run.execute(&PipelinePlan {
@@ -165,22 +235,6 @@ struct PipelinePlan<'a, 'graph> {
 }
 
 impl<'a> PipelineRun<'a> {
-    fn new(
-        invocation: &'a PipelineInvocation,
-        config: &'a Config,
-        dir: &'a Path,
-        reporter: ReporterType,
-    ) -> Self {
-        Self {
-            invocation,
-            config,
-            dir,
-            workspace_root: config.workspace_dir.as_deref().unwrap_or(dir),
-            emit: reporter_emit(reporter),
-            silent: matches!(reporter, ReporterType::Ndjson | ReporterType::Silent),
-        }
-    }
-
     fn info(&self, message: String) {
         (self.emit)(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Info,
@@ -191,6 +245,26 @@ impl<'a> PipelineRun<'a> {
 
     fn data_dir(&self) -> PathBuf {
         pipeline_data_dir(self.config, self.workspace_root)
+    }
+
+    /// The named pipeline's tasks, or the default pipeline's without a name.
+    fn requested_tasks(&self) -> miette::Result<(&'a str, &'a [String])> {
+        if self.config.pipelines.is_empty() {
+            return Err(PipelineError::NoPipelines.into());
+        }
+        let name = self.invocation.name.as_deref().unwrap_or(DEFAULT_PIPELINE_NAME);
+        let Some(requested_tasks) = self.config.pipelines.get(name) else {
+            return Err(PipelineError::UnknownPipeline {
+                name: name.to_string(),
+                available: self.config.pipelines
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            }
+            .into());
+        };
+        Ok((name, requested_tasks.as_slice()))
     }
 
     /// Run the plan's tasks, serving cached results where the keys match,
@@ -207,12 +281,7 @@ impl<'a> PipelineRun<'a> {
         )?;
 
         if self.invocation.dry_run {
-            print_dry_run(
-                self.invocation,
-                &task_graph,
-                &sequenced_tasks,
-                self.workspace_root,
-            )?;
+            print_dry_run(self.invocation, &task_graph, &sequenced_tasks, self.workspace_root)?;
             return Ok(PipelineOutcome::without_upload());
         }
 
@@ -223,7 +292,11 @@ impl<'a> PipelineRun<'a> {
         // plan, priced, without executing. `--no-cache` skips the pricing
         // altogether: nothing reads a key, and hashing every tracked file of
         // every project is the bulk of what the flag exists to avoid.
-        let task_keys = self.task_keys(&task_graph, &sequenced_tasks, plan, &cache)?;
+        let task_keys = if self.invocation.no_cache {
+            HashMap::new()
+        } else {
+            compute_task_keys(&task_graph, &sequenced_tasks, plan.graph, &cache, self.config)?
+        };
 
         capture::install_forward(self.emit);
         let runner = TaskRunner {
@@ -242,20 +315,6 @@ impl<'a> PipelineRun<'a> {
 
         let statuses = runner.finish()?;
         self.finish_plan(plan, &statuses, &task_keys)
-    }
-
-    fn task_keys(
-        &self,
-        task_graph: &TaskGraph,
-        sequenced_tasks: &[TaskKey],
-        plan: &PipelinePlan<'_, '_>,
-        cache: &TaskCache,
-    ) -> miette::Result<HashMap<TaskKey, Option<String>>> {
-        if self.invocation.no_cache {
-            Ok(HashMap::new())
-        } else {
-            compute_task_keys(task_graph, sequenced_tasks, plan.graph, cache, self.config)
-        }
     }
 
     fn finish_plan(
@@ -370,10 +429,7 @@ impl TaskRunner<'_, '_> {
     }
 
     fn run_task(&self, node: &TaskNode) -> TaskCompletion {
-        let key = TaskKey {
-            project: node.project.clone(),
-            task_name: node.task_name.clone(),
-        };
+        let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
         let summary_key = format_task(&key, self.run.workspace_root);
         let outcome = run_pipeline_task(&RunTaskOptions {
             node,
@@ -393,22 +449,14 @@ impl TaskRunner<'_, '_> {
                 summary_key: &summary_key,
             },
         });
-        record_task_outcome(
-            &self.results.statuses,
-            &self.results.abort,
-            &summary_key,
-            outcome,
-        )
+        record_task_outcome(&self.results.statuses, &self.results.abort, &summary_key, outcome)
     }
 
     fn skip_task(&self, node: &TaskNode) {
-        let key = TaskKey {
-            project: node.project.clone(),
-            task_name: node.task_name.clone(),
-        };
+        let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
         let summary_key = format_task(&key, self.run.workspace_root);
-        self.results.statuses.lock().expect("status lock is not poisoned")[&summary_key]
-            .status = Status::Skipped;
+        self.results.statuses.lock().expect("status lock is not poisoned")[&summary_key].status =
+            Status::Skipped;
         self.report.task_skipped(&summary_key);
     }
 
@@ -443,17 +491,3 @@ mod selection;
 mod execution;
 
 mod reporting;
-
-impl PipelineResults {
-    fn new(graph: &TaskGraph, workspace_root: &Path) -> Self {
-        Self {
-            statuses: Mutex::new(
-                graph
-                    .keys()
-                    .map(|key| (format_task(key, workspace_root), ExecutionStatus::queued()))
-                    .collect(),
-            ),
-            abort: Mutex::new(None),
-        }
-    }
-}

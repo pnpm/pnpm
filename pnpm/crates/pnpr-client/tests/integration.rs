@@ -49,8 +49,7 @@ use tokio::{
 /// caller (pnpr only honors `_authToken` on requests — the resolver
 /// endpoints reject Basic credentials), and the storage guard.
 async fn start_pnpr(registry_url: &str) -> (String, String, TempDir) {
-    start_pnpr_inner(None, Vec::new(), vec![registry_url.to_string()], false)
-        .await
+    start_pnpr_inner(None, Vec::new(), vec![registry_url.to_string()], false).await
 }
 
 /// Like [`start_pnpr`] but registers operator-managed access-bearing
@@ -72,8 +71,7 @@ async fn start_pnpr_with_upstreams_at(
     public_url: &str,
     upstreams: Vec<(String, pnpr::UpstreamConfig)>,
 ) -> (String, String, TempDir) {
-    start_pnpr_inner(Some(public_url.to_string()), upstreams, Vec::new(), false)
-        .await
+    start_pnpr_inner(Some(public_url.to_string()), upstreams, Vec::new(), false).await
 }
 
 async fn start_pnpr_inner(
@@ -172,12 +170,7 @@ async fn capture_one_request_with_response(listener: TcpListener, response: Stri
                 name
                     .trim()
                     .eq_ignore_ascii_case("content-length")
-                    .then(|| {
-                        value
-                            .trim()
-                            .parse::<usize>()
-                            .ok()
-                    })
+                    .then(|| value.trim().parse::<usize>().ok())
                     .flatten()
             })
             .unwrap_or(0);
@@ -217,11 +210,7 @@ async fn register_token(registry_url: &str, username: &str) -> String {
         .send()
         .await
         .expect("adduser request");
-    assert!(
-        response.status().is_success(),
-        "adduser returned {}",
-        response.status(),
-    );
+    assert!(response.status().is_success(), "adduser returned {}", response.status());
     let json: serde_json::Value = response.json().await.expect("adduser response json");
     json["token"]
         .as_str()
@@ -309,10 +298,7 @@ fn signed_artifact_fixture_for(
     let payload = ArtifactPayload {
         kind: "dependency-side-effects:v1".to_string(),
         subject: ArtifactSubject::dependency_side_effects(
-            PackageIdentity {
-                name: "native-addon".to_string(),
-                version: "1.0.0".to_string(),
-            },
+            PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
             "sha512-source",
         ),
         input_key: "dependency-side-effects:v1:deps=abc".to_string(),
@@ -323,9 +309,7 @@ fn signed_artifact_fixture_for(
             architecture_baseline: "x86-64-v2".to_string(),
             environment: BTreeMap::from([("CFLAGS".to_string(), "-O2".to_string())]),
         },
-        compatibility: CompatibilityConstraints::Tagged {
-            tags: vec![tag.to_string()],
-        },
+        compatibility: CompatibilityConstraints::Tagged { tags: vec![tag.to_string()] },
         manifest: ArtifactManifest {
             added: vec![ArtifactFile {
                 path: "build/addon.node".to_string(),
@@ -354,10 +338,7 @@ fn signed_artifact_fixture_for(
         PublishArtifactRequest {
             key: payload.input_key,
             envelope,
-            blobs: vec![ArtifactBlobUpload {
-                integrity,
-                data: BASE64.encode(&blob),
-            }],
+            blobs: vec![ArtifactBlobUpload { integrity, data: BASE64.encode(&blob) }],
         },
         public_key,
         blob,

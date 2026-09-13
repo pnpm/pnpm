@@ -41,10 +41,7 @@ impl GitRepoFixture {
         fs::create_dir_all(&work).expect("create git work tree");
         fs::create_dir_all(&bare).expect("create bare repo directory");
 
-        git(
-            &bare,
-            &["init", "-q", "--bare", "-b", "main", "--template="],
-        );
+        git(&bare, &["init", "-q", "--bare", "-b", "main", "--template="]);
         override_global_config(&bare, &bare);
         git(&work, &["init", "-q", "-b", "main", "--template="]);
         git(&work, &["config", "user.email", "test@example.invalid"]);
@@ -52,10 +49,7 @@ impl GitRepoFixture {
         override_global_config(&work, &work.join(".git"));
         git(&work, &["remote", "add", "origin", &bare.to_string_lossy()]);
 
-        Self {
-            work,
-            bare,
-        }
+        Self { work, bare }
     }
 
     /// Write `contents` to `relative_path` in the work tree, creating
@@ -161,13 +155,10 @@ pub fn init_isolated_repo(path: &Path) {
 /// fixture file missing here is a file the cache key cannot see.
 #[must_use]
 pub fn unignored_files(repo: &Path) -> Vec<String> {
-    git(
-        repo,
-        &["ls-files", "--cached", "--others", "--exclude-standard"],
-    )
-    .lines()
-    .map(str::to_string)
-    .collect()
+    git(repo, &["ls-files", "--cached", "--others", "--exclude-standard"])
+        .lines()
+        .map(str::to_string)
+        .collect()
 }
 
 /// Override, in the local configuration of the repo at `repo` whose git
@@ -268,10 +259,7 @@ exec "$real_git" "$@"
         fs::write(&bin, script).unwrap();
         fs::set_permissions(&bin, fs::Permissions::from_mode(0o755)).unwrap();
         fs::write(&log, "").unwrap();
-        Self {
-            bin,
-            log,
-        }
+        Self { bin, log }
     }
 
     #[must_use]

@@ -76,9 +76,7 @@ fn start_pnpr_registry(upstream_url: &str, ecosystem: Ecosystem) -> String {
             config.routing.registries = Registries::new(
                 indexmap::IndexMap::from([(
                     name.to_string(),
-                    Registry::Upstream {
-                        patterns: Vec::new(),
-                    },
+                    Registry::Upstream { patterns: Vec::new() },
                 )]),
                 Some(name.to_string()),
             )
@@ -112,12 +110,7 @@ impl PnprServer {
         // tokio's `from_std` requires the listener to be non-blocking.
         listener.set_nonblocking(true).expect("set pnpr listener non-blocking");
         let addr = listener.local_addr().expect("pnpr addr");
-        Self {
-            name,
-            listener,
-            addr,
-            storage,
-        }
+        Self { name, listener, addr, storage }
     }
 
     /// Run the server on a detached thread until the process exits, with
@@ -154,11 +147,8 @@ fn configure_pnpr_auth(npmrc_path: &std::path::Path, pnpr_url: &str, token: &str
         .trim_end_matches('/');
     let current = fs::read_to_string(npmrc_path).expect("read .npmrc");
     let separator = if current.ends_with('\n') { "" } else { "\n" };
-    fs::write(
-        npmrc_path,
-        format!("{current}{separator}//{authority}/:_authToken={token}\n"),
-    )
-    .expect("write pnpr auth to .npmrc");
+    fs::write(npmrc_path, format!("{current}{separator}//{authority}/:_authToken={token}\n"))
+        .expect("write pnpr auth to .npmrc");
 }
 
 fn wait_until_ready(addr: SocketAddr) {
@@ -202,10 +192,9 @@ fn revision_fixture_tarball_with_value(value: &str) -> Vec<u8> {
     let manifest = br#"{"name":"revision-pkg","version":"1.0.0","main":"index.js"}"#;
     let source = format!("module.exports = '{value}'\n");
     let mut tar = tar::Builder::new(Vec::new());
-    for (path, body) in [
-        ("package/package.json", manifest.as_slice()),
-        ("package/index.js", source.as_bytes()),
-    ] {
+    for (path, body) in
+        [("package/package.json", manifest.as_slice()), ("package/index.js", source.as_bytes())]
+    {
         let mut header = tar::Header::new_gnu();
         header.set_size(body.len() as u64);
         header.set_mode(0o644);
@@ -306,11 +295,8 @@ fn replace_workspace_dependency(workspace: &Path, dir: &str, dependency: (&str, 
         serde_json::from_str(&fs::read_to_string(&path).expect("read package.json"))
             .expect("parse package.json");
     manifest["dependencies"] = serde_json::json!({ dependency.0: dependency.1 });
-    fs::write(
-        path,
-        serde_json::to_string_pretty(&manifest).expect("serialize package.json"),
-    )
-    .expect("write package.json");
+    fs::write(path, serde_json::to_string_pretty(&manifest).expect("serialize package.json"))
+        .expect("write package.json");
 }
 
 fn read_workspace_lockfile(workspace: &Path) -> Lockfile {
@@ -425,18 +411,8 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
         .to_string(),
     )
     .expect("write workspace root manifest");
-    write_workspace_project(
-        &workspace,
-        "selected",
-        "selected",
-        (WORKSPACE_HELLO, "0.0.0"),
-    );
-    write_workspace_project(
-        &workspace,
-        "unselected",
-        "unselected",
-        (WORKSPACE_PARENT, "100.0.0"),
-    );
+    write_workspace_project(&workspace, "selected", "selected", (WORKSPACE_HELLO, "0.0.0"));
+    write_workspace_project(&workspace, "unselected", "unselected", (WORKSPACE_PARENT, "100.0.0"));
     pacquet_at(&workspace)
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .with_args(["install", "--lockfile-only"])
@@ -467,13 +443,7 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
     }
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
-    let mut args = vec![
-        "--filter",
-        "selected",
-        "install",
-        "--pnpr-server",
-        &pnpr_url,
-    ];
+    let mut args = vec!["--filter", "selected", "install", "--pnpr-server", &pnpr_url];
     if lockfile_only {
         args.push("--lockfile-only");
     }
@@ -488,27 +458,12 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
         fs::read(workspace.join("packages/unselected/package.json")).expect("read manifest"),
         unselected_manifest,
     );
-    assert_eq!(
-        workspace_importer(&after, "packages/unselected"),
-        &prior_unselected,
-    );
-    assert_eq!(
-        workspace_snapshot_entries(&after, WORKSPACE_PARENT),
-        prior_parent,
-    );
-    assert_eq!(
-        workspace_snapshot_entries(&after, WORKSPACE_DEP),
-        prior_child,
-    );
+    assert_eq!(workspace_importer(&after, "packages/unselected"), &prior_unselected);
+    assert_eq!(workspace_snapshot_entries(&after, WORKSPACE_PARENT), prior_parent);
+    assert_eq!(workspace_snapshot_entries(&after, WORKSPACE_DEP), prior_child);
     assert!(workspace_snapshot_entries(&after, WORKSPACE_HELLO_PARENT).is_empty());
-    assert_eq!(
-        workspace_importer_version(&after, "packages/selected", WORKSPACE_HELLO),
-        "1.0.0",
-    );
-    assert_eq!(
-        workspace_importer_version(&after, ".", WORKSPACE_ROOT_DEP),
-        "1.0.0",
-    );
+    assert_eq!(workspace_importer_version(&after, "packages/selected", WORKSPACE_HELLO), "1.0.0");
+    assert_eq!(workspace_importer_version(&after, ".", WORKSPACE_ROOT_DEP), "1.0.0");
     assert_eq!(
         fs::read(workspace.join("package.json")).expect("read root manifest"),
         root_manifest,
@@ -544,18 +499,8 @@ fn assert_filtered_workspace_pnpr(lockfile_only: bool) {
 
 fn seed_filtered_repair_workspace(workspace: &Path, registry_url: &str) {
     configure_workspace(workspace);
-    write_workspace_project(
-        workspace,
-        "selected",
-        "selected",
-        (WORKSPACE_HELLO, "0.0.0"),
-    );
-    write_workspace_project(
-        workspace,
-        "unselected",
-        "unselected",
-        (WORKSPACE_PARENT, "100.0.0"),
-    );
+    write_workspace_project(workspace, "selected", "selected", (WORKSPACE_HELLO, "0.0.0"));
+    write_workspace_project(workspace, "unselected", "unselected", (WORKSPACE_PARENT, "100.0.0"));
     pacquet_at(workspace)
         .with_env("PNPM_CONFIG_REGISTRY", registry_url)
         .with_args(["install", "--lockfile-only"])
@@ -677,10 +622,7 @@ fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
         .success();
 
     let lockfile = fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo lockfile");
-    assert!(
-        lockfile.contains(&format!(r#"source = "sparse+{registry_url}index/""#)),
-        "{lockfile}",
-    );
+    assert!(lockfile.contains(&format!(r#"source = "sparse+{registry_url}index/""#)), "{lockfile}");
     assert!(
         root
             .path()

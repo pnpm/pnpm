@@ -10,17 +10,12 @@ fn workspace_state_anchors_lockfile_at_workspace_root() {
     let manifest_path = project_dir.join("package.json");
     std::fs::write(&manifest_path, r#"{"name":"app"}"#).expect("write project manifest");
 
-    let config = Config::leak(Config {
-        workspace_dir: Some(workspace_root.clone()),
-        ..Config::default()
-    });
+    let config =
+        Config::leak(Config { workspace_dir: Some(workspace_root.clone()), ..Config::default() });
     let state = State::init(manifest_path, config, false).expect("initialize state");
 
     assert_eq!(state.lockfile_dir(), workspace_root);
-    assert_eq!(
-        state.lockfile_path(),
-        workspace_root.join(pnpm_lockfile::Lockfile::FILE_NAME),
-    );
+    assert_eq!(state.lockfile_path(), workspace_root.join(pnpm_lockfile::Lockfile::FILE_NAME));
     assert_eq!(state.active_importer_id(), "packages/app");
 }
 
@@ -41,9 +36,6 @@ fn workspace_state_anchors_per_project_lockfile_at_project_root() {
     let state = State::init(manifest_path, config, false).expect("initialize state");
 
     assert_eq!(state.lockfile_dir(), project_dir);
-    assert_eq!(
-        state.lockfile_path(),
-        project_dir.join(pnpm_lockfile::Lockfile::FILE_NAME),
-    );
+    assert_eq!(state.lockfile_path(), project_dir.join(pnpm_lockfile::Lockfile::FILE_NAME));
     assert_eq!(state.active_importer_id(), ".");
 }

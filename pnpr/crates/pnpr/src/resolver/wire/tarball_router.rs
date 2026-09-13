@@ -23,12 +23,7 @@ impl TarballRouter {
         public_url: String,
         registries: HashMap<String, String>,
     ) -> Self {
-        Self {
-            context,
-            identity,
-            public_url,
-            registries,
-        }
+        Self { context, identity, public_url, registries }
     }
 
     /// Route a registry-resolved package's tarball by the **registry** it came
@@ -118,9 +113,7 @@ impl TarballRouter {
             return upstream;
         };
         for metadata in packages.values_mut() {
-            let LockfileResolution::Tarball(resolution) =
-                &mut metadata.resolution
-            else {
+            let LockfileResolution::Tarball(resolution) = &mut metadata.resolution else {
                 continue;
             };
             if let Some(tarball_url) = self.upstream_endpoint_tarball_url(&resolution.tarball) {
@@ -189,10 +182,7 @@ pub(super) fn pnpr_tarball_url(
     package: &str,
     filename: &str,
 ) -> String {
-    format!(
-        "{}{base_path}/{package}/-/{filename}",
-        public_url.trim_end_matches('/'),
-    )
+    format!("{}{base_path}/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }
 
 /// The registry-endpoint URL a proxied route's tarball is served through.
@@ -203,8 +193,5 @@ pub(super) fn upstream_endpoint_tarball_url(
     package: &str,
     filename: &str,
 ) -> String {
-    format!(
-        "{}{base_path}/~{upstream}/{package}/-/{filename}",
-        public_url.trim_end_matches('/'),
-    )
+    format!("{}{base_path}/~{upstream}/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }

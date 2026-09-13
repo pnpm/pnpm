@@ -71,11 +71,20 @@ pub fn parse_change_intent(
         .split('\n')
         .map(|line| line.strip_suffix('\r').unwrap_or(line))
         .collect();
-    let closing_index = frontmatter_end(&lines);
+    let closing_index = if lines
+        .first()
+        .is_some_and(|line| line.trim() == "---")
+    {
+        lines
+            .iter()
+            .skip(1)
+            .position(|line| line.trim() == "---")
+            .map(|index| index + 1)
+    } else {
+        None
+    };
     let Some(closing_index) = closing_index else {
-        return Err(VersioningError::NoFrontmatter {
-            file_path: file_path.to_path_buf(),
-        });
+        return Err(VersioningError::NoFrontmatter { file_path: file_path.to_path_buf() });
     };
 
     let frontmatter_text = lines[1..closing_index].join("\n");
@@ -107,20 +116,13 @@ pub fn read_change_intents(workspace_dir: &Path) -> Result<Vec<ChangeIntent>, Ve
     let entries = match fs::read_dir(&changes_dir) {
         Ok(entries) => entries,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(source) => {
-            return Err(VersioningError::Read {
-                path: changes_dir,
-                source,
-            });
-        }
+        Err(source) => return Err(VersioningError::Read { path: changes_dir, source }),
     };
 
     let mut file_names = Vec::new();
     for entry in entries {
-        let entry = entry.map_err(|source| VersioningError::Read {
-            path: changes_dir.clone(),
-            source,
-        })?;
+        let entry =
+            entry.map_err(|source| VersioningError::Read { path: changes_dir.clone(), source })?;
         let name = entry
             .file_name()
             .to_string_lossy()
@@ -136,10 +138,7 @@ pub fn read_change_intents(workspace_dir: &Path) -> Result<Vec<ChangeIntent>, Ve
         .map(|file_name| {
             let file_path = changes_dir.join(&file_name);
             let content = fs::read_to_string(&file_path)
-                .map_err(|source| VersioningError::Read {
-                    path: file_path.clone(),
-                    source,
-                })?;
+                .map_err(|source| VersioningError::Read { path: file_path.clone(), source })?;
             let id = file_name.trim_end_matches(".md");
             parse_change_intent(&content, id, &file_path)
         })
@@ -153,10 +152,7 @@ pub fn write_change_intent(
 ) -> Result<String, VersioningError> {
     let changes_dir = workspace_dir.join(CHANGES_DIR);
     fs::create_dir_all(&changes_dir)
-        .map_err(|source| VersioningError::Write {
-            path: changes_dir.clone(),
-            source,
-        })?;
+        .map_err(|source| VersioningError::Write { path: changes_dir.clone(), source })?;
 
     let mut id = random_human_id();
     while changes_dir
@@ -169,10 +165,7 @@ pub fn write_change_intent(
     let content = format_change_intent(releases, summary);
     let file_path = changes_dir.join(format!("{id}.md"));
     fs::write(&file_path, content)
-        .map_err(|source| VersioningError::Write {
-            path: file_path,
-            source,
-        })?;
+        .map_err(|source| VersioningError::Write { path: file_path, source })?;
     Ok(id)
 }
 
@@ -182,17 +175,10 @@ pub fn format_change_intent(releases: &IndexMap<String, IntentBumpType>, summary
     let frontmatter_lines: Vec<String> = releases
         .iter()
         .map(|(pkg_name, bump_type)| {
-            format!(
-                "{}: {bump_type}",
-                serde_json::to_string(pkg_name).expect("serialize string"),
-            )
+            format!("{}: {bump_type}", serde_json::to_string(pkg_name).expect("serialize string"))
         })
         .collect();
-    format!(
-        "---\n{}\n---\n\n{}\n",
-        frontmatter_lines.join("\n"),
-        summary.trim(),
-    )
+    format!("---\n{}\n---\n\n{}\n", frontmatter_lines.join("\n"), summary.trim())
 }
 
 fn parse_intent_releases(
@@ -215,18 +201,3 @@ fn parse_intent_releases(
 
 #[cfg(test)]
 mod tests;
-
-fn frontmatter_end(lines: &[&str]) -> Option<usize> {
-    if lines
-        .first()
-        .is_some_and(|line| line.trim() == "---")
-    {
-        lines
-            .iter()
-            .skip(1)
-            .position(|line| line.trim() == "---")
-            .map(|index| index + 1)
-    } else {
-        None
-    }
-}

@@ -37,10 +37,7 @@ impl Checkout {
                     .push(dir.clone());
             }
         }
-        Ok(Self {
-            manifests,
-            directories_by_crate,
-        })
+        Ok(Self { manifests, directories_by_crate })
     }
 
     /// The directory holding `name` at `version`, if the checkout has one.
@@ -72,10 +69,7 @@ impl Checkout {
             if package.version != version {
                 continue;
             }
-            return Ok(Some(CheckoutPackage {
-                dir: dir.clone(),
-                manifest: package.manifest,
-            }));
+            return Ok(Some(CheckoutPackage { dir: dir.clone(), manifest: package.manifest }));
         }
         unreadable.map_or(Ok(None), Err)
     }
@@ -108,13 +102,7 @@ fn collect_manifests(dir: &Path, manifests: &mut BTreeMap<PathBuf, Manifest>) ->
     match fs::read_to_string(&manifest_path) {
         Ok(text) => {
             if let Ok(document) = toml::from_str(&text) {
-                manifests.insert(
-                    dir.to_path_buf(),
-                    Manifest {
-                        text,
-                        document,
-                    },
-                );
+                manifests.insert(dir.to_path_buf(), Manifest { text, document });
             }
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
@@ -204,12 +192,25 @@ pub(super) fn vendored_package(
 ) -> Result<VendoredPackage> {
     let workspace = workspace.and_then(|manifest| manifest.get("workspace")?.as_table());
     let mut vendored = manifest.document.clone();
-    let mut inherited = inherit_package_fields(&mut vendored, workspace)?;
+    let mut inherited = false;
+    if let Some(package) = vendored.get_mut("package").and_then(toml::Value::as_table_mut) {
+        let workspace_package =
+            workspace.and_then(|workspace| workspace.get("package")?.as_table());
+        for (field, value) in package.iter_mut() {
+            if !inherits_from_workspace(value) {
+                continue;
+            }
+            *value = workspace_package
+                .and_then(|package| package.get(field))
+                .ok_or_else(|| {
+                    miette::miette!("the workspace declares no `package.{field}` to inherit")
+                })?
+                .clone();
+            inherited = true;
+        }
+    }
     inherited |= inherit_dependencies(&mut vendored, workspace)?;
-    if let Some(lints) = vendored
-        .get_mut("lints")
-        .filter(|lints| inherits_from_workspace(lints))
-    {
+    if let Some(lints) = vendored.get_mut("lints").filter(|lints| inherits_from_workspace(lints)) {
         *lints = workspace
             .and_then(|workspace| workspace.get("lints"))
             .ok_or_else(|| miette::miette!("the workspace declares no `lints` to inherit"))?
@@ -230,10 +231,7 @@ pub(super) fn vendored_package(
     } else {
         manifest.text.clone()
     };
-    Ok(VendoredPackage {
-        version,
-        manifest: text,
-    })
+    Ok(VendoredPackage { version, manifest: text })
 }
 
 /// Resolve the inheritance markers in every dependency table the manifest
@@ -246,9 +244,7 @@ fn inherit_dependencies(
     let mut inherited = inherit_dependency_kinds(document, workspace)?;
     if let Some(targets) = document.get_mut("target").and_then(toml::Value::as_table_mut) {
         for (_, target) in targets.iter_mut() {
-            let Some(target) = target.as_table_mut() else {
-                continue;
-            };
+            let Some(target) = target.as_table_mut() else { continue };
             inherited |= inherit_dependency_kinds(target, workspace)?;
         }
     }
@@ -338,29 +334,4 @@ fn inherits_from_workspace(value: &toml::Value) -> bool {
         .get("workspace")
         .and_then(toml::Value::as_bool)
         .unwrap_or(false)
-}
-
-fn inherit_package_fields(
-    vendored: &mut toml::Table,
-    workspace: Option<&toml::Table>,
-) -> Result<bool> {
-    let mut inherited = false;
-    if let Some(package) = vendored.get_mut("package").and_then(toml::Value::as_table_mut) {
-        let workspace_package =
-            workspace.and_then(|workspace| workspace.get("package")?.as_table());
-        for (field, value) in package.iter_mut() {
-            if !inherits_from_workspace(value) {
-                continue;
-            }
-            *value = workspace_package
-                .and_then(|package| package.get(field))
-                .ok_or_else(|| {
-                    miette::miette!("the workspace declares no `package.{field}` to inherit")
-                })?
-                .clone();
-            inherited = true;
-        }
-    }
-
-    Ok(inherited)
 }

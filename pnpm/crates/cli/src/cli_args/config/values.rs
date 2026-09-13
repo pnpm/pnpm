@@ -95,9 +95,7 @@ pub(super) fn validate_yaml_config_key(key: &str) -> Result<String, ConfigError>
     if config_types::is_config_file_key(&kebab) {
         return Ok(kebab);
     }
-    Err(ConfigError::SetUnsupportedYamlConfigKey {
-        key: key.to_string(),
-    })
+    Err(ConfigError::SetUnsupportedYamlConfigKey { key: key.to_string() })
 }
 
 const STRING_ONLY_INI_KEYS: &[&str] = &["_auth", "_authToken", "_password", "username", "registry"];
@@ -129,12 +127,8 @@ pub(super) fn config_get(
 /// reads the setting, so its record shows the resolved paths; pacquet keeps
 /// them as written and resolves lazily — mirror the resolved display.
 fn absolutize_patch_paths(result: &mut Map<String, Value>, config: &Config) {
-    let Some(workspace_dir) = &config.workspace_dir else {
-        return;
-    };
-    let Some(Value::Object(patched)) = result.get_mut("patchedDependencies") else {
-        return;
-    };
+    let Some(workspace_dir) = &config.workspace_dir else { return };
+    let Some(Value::Object(patched)) = result.get_mut("patchedDependencies") else { return };
     for value in patched.values_mut() {
         if let Value::String(path) = value
             && !Path::new(path.as_str()).is_absolute()
@@ -247,15 +241,11 @@ fn lookup_typed_config(config: &Config, kebab: &str) -> Value {
     if let Some(value) = config.explicit_settings.get(&camel) {
         return value.clone();
     }
-    config.raw_auth_config
-        .get(kebab)
-        .map_or(Value::Null, |value| Value::String(value.clone()))
+    config.raw_auth_config.get(kebab).map_or(Value::Null, |value| Value::String(value.clone()))
 }
 
 fn auth_value(config: &Config, key: &str) -> Value {
-    config.raw_auth_config
-        .get(key)
-        .map_or(Value::Null, |value| Value::String(value.clone()))
+    config.raw_auth_config.get(key).map_or(Value::Null, |value| Value::String(value.clone()))
 }
 
 /// `lookupByPropertyPath`: resolve a (possibly nested) property path against the
@@ -266,11 +256,9 @@ fn lookup_by_property_path(config: &Config, property_path: &str) -> Result<Value
     if segments.is_empty() {
         return Ok(record);
     }
-    Ok(
-        property_path::get_object_value_by_property_path(&record, &segments)
-            .cloned()
-            .unwrap_or(Value::Null),
-    )
+    Ok(property_path::get_object_value_by_property_path(&record, &segments)
+        .cloned()
+        .unwrap_or(Value::Null))
 }
 
 /// `parseConfigPropertyPath`: like `parsePropertyPath` but with the first
@@ -332,12 +320,23 @@ fn config_to_record(config: &Config) -> Map<String, Value> {
     record_command_settings(&mut result, config);
     merge_default_catalog(&mut result);
     absolutize_patch_paths(&mut result, config);
-    record_registry_auth_settings(&mut result, config);
+    for (key, value) in &config.raw_auth_config {
+        result.entry(key.clone()).or_insert_with(|| Value::String(value.clone()));
+    }
+    // The `registry` / `@scope:registry` rows show the merged routes — the
+    // values `config get` answers — so a raw `.npmrc` row cannot contradict
+    // the resolved `registries` view.
+    result.insert("registry".to_string(), Value::String(config.registry.clone()));
+    for (scope, url) in &config.registries_by_scope {
+        if scope != "default" {
+            result.insert(format!("{scope}:registry"), Value::String(url.clone()));
+        }
+    }
+    result
+        .entry("@jsr:registry".to_string())
+        .or_insert_with(|| Value::String(DEFAULT_JSR_REGISTRY.to_string()));
     if !config.user_agent.is_empty() {
-        result.insert(
-            "userAgent".to_string(),
-            Value::String(config.user_agent.clone()),
-        );
+        result.insert("userAgent".to_string(), Value::String(config.user_agent.clone()));
     }
 
     // sortDirectKeys: order the top-level keys lexicographically.
@@ -349,13 +348,7 @@ fn config_to_record(config: &Config) -> Map<String, Value> {
 }
 
 fn record_command_settings(result: &mut Map<String, Value>, config: &Config) {
-    for key in [
-        "update",
-        "updateConfig",
-        "audit",
-        "auditConfig",
-        "auditLevel",
-    ] {
+    for key in ["update", "updateConfig", "audit", "auditConfig", "auditLevel"] {
         result.remove(key);
     }
     if let Some(update) = config.resolved_update_settings() {
@@ -370,27 +363,4 @@ fn record_command_settings(result: &mut Map<String, Value>, config: &Config) {
             serde_json::to_value(audit).expect("serializing audit settings to JSON never fails"),
         );
     }
-}
-
-fn record_registry_auth_settings(result: &mut Map<String, Value>, config: &Config) {
-    for (key, value) in &config.raw_auth_config {
-        result
-            .entry(key.clone())
-            .or_insert_with(|| Value::String(value.clone()));
-    }
-    // The `registry` / `@scope:registry` rows show the merged routes — the
-    // values `config get` answers — so a raw `.npmrc` row cannot contradict
-    // the resolved `registries` view.
-    result.insert(
-        "registry".to_string(),
-        Value::String(config.registry.clone()),
-    );
-    for (scope, url) in &config.registries_by_scope {
-        if scope != "default" {
-            result.insert(format!("{scope}:registry"), Value::String(url.clone()));
-        }
-    }
-    result
-        .entry("@jsr:registry".to_string())
-        .or_insert_with(|| Value::String(DEFAULT_JSR_REGISTRY.to_string()));
 }

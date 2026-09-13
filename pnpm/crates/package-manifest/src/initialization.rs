@@ -51,7 +51,23 @@ impl PackageManifest {
         });
         let fields = manifest.as_object_mut().expect("the scaffold is a JSON object");
         if let Some(version) = options.pinned_pnpm_version {
-            pin_package_manager(fields, version);
+            // The pin is written twice on purpose: pnpm reads
+            // `devEngines.packageManager`, corepack reads only the legacy
+            // `packageManager` field. The two must agree — pnpm warns and
+            // ignores the legacy field when they disagree — and corepack
+            // rejects everything but an exact version, so neither carries a
+            // range.
+            fields.insert(
+                "devEngines".to_string(),
+                json!({
+                    "packageManager": {
+                        "name": "pnpm",
+                        "version": version,
+                        "onFail": "download",
+                    },
+                }),
+            );
+            fields.insert("packageManager".to_string(), json!(format!("pnpm@{version}")));
         }
         if options.es_module {
             fields.insert("type".to_string(), json!("module"));
@@ -101,27 +117,4 @@ impl PackageManifest {
         println!("Wrote to {path}\n\n{contents}", path = path.display());
         Ok(())
     }
-}
-
-fn pin_package_manager(fields: &mut serde_json::Map<String, Value>, version: &str) {
-    // The pin is written twice on purpose: pnpm reads
-    // `devEngines.packageManager`, corepack reads only the legacy
-    // `packageManager` field. The two must agree — pnpm warns and
-    // ignores the legacy field when they disagree — and corepack
-    // rejects everything but an exact version, so neither carries a
-    // range.
-    fields.insert(
-        "devEngines".to_string(),
-        json!({
-            "packageManager": {
-                "name": "pnpm",
-                "version": version,
-                "onFail": "download",
-            },
-        }),
-    );
-    fields.insert(
-        "packageManager".to_string(),
-        json!(format!("pnpm@{version}")),
-    );
 }

@@ -19,20 +19,11 @@ fn global_update_preflights_incomplete_target_ownership_before_activation() {
     fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
     assert_fixture_paths(
         root.path(),
-        &[
-            &pnpm_home,
-            &global_bin,
-            &global_pkg_dir,
-            &npmrc_info.store_dir,
-            &npmrc_info.cache_dir,
-        ],
+        &[&pnpm_home, &global_bin, &global_pkg_dir, &npmrc_info.store_dir, &npmrc_info.cache_dir],
     );
 
-    let target_install = seed_global_group(
-        &global_pkg_dir,
-        "target-hash",
-        &[("@pnpm.e2e/print-version", None)],
-    );
+    let target_install =
+        seed_global_group(&global_pkg_dir, "target-hash", &[("@pnpm.e2e/print-version", None)]);
     let stale_bin = global_bin.join("stale-version-bin");
     fs::write(&stale_bin, b"old command\n").expect("seed the stale global bin");
     let packages_before = snapshot_tree(&global_pkg_dir);
@@ -63,10 +54,7 @@ fn global_update_preflights_incomplete_target_ownership_before_activation() {
         .with_args(["update", "-g", "--latest", "@pnpm.e2e/print-version"])
         .assert()
         .success();
-    assert!(
-        !stale_bin.exists(),
-        "the repaired retry must remove the genuinely stale bin",
-    );
+    assert!(!stale_bin.exists(), "the repaired retry must remove the genuinely stale bin");
     assert!(global_bin.join("print-version").exists());
     assert!(!target_install.exists());
     assert_eq!(symlink_entries(&global_pkg_dir).len(), 1);
@@ -96,13 +84,7 @@ fn global_add_preflights_incomplete_survivor_ownership_before_activation() {
     fs::create_dir_all(&global_pkg_dir).expect("create global packages directory");
     assert_fixture_paths(
         root.path(),
-        &[
-            &pnpm_home,
-            &global_bin,
-            &global_pkg_dir,
-            &npmrc_info.store_dir,
-            &npmrc_info.cache_dir,
-        ],
+        &[&pnpm_home, &global_bin, &global_pkg_dir, &npmrc_info.store_dir, &npmrc_info.cache_dir],
     );
 
     let target_install = seed_global_group(
@@ -149,10 +131,7 @@ fn global_add_preflights_incomplete_survivor_ownership_before_activation() {
         .with_args(["add", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();
-    assert_eq!(
-        fs::read(&shared_bin).expect("read survivor-owned bin"),
-        b"keeper command\n",
-    );
+    assert_eq!(fs::read(&shared_bin).expect("read survivor-owned bin"), b"keeper command\n");
     assert!(!stale_bin.exists());
     assert!(global_bin.join("touch-file-one-bin").exists());
     assert!(!target_install.exists());
@@ -163,10 +142,7 @@ fn global_add_preflights_incomplete_survivor_ownership_before_activation() {
         .with_args(["add", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();
-    assert_eq!(
-        fs::read(&shared_bin).expect("read survivor-owned bin"),
-        b"keeper command\n",
-    );
+    assert_eq!(fs::read(&shared_bin).expect("read survivor-owned bin"), b"keeper command\n");
     assert!(!stale_bin.exists());
     assert!(global_bin.join("touch-file-one-bin").exists());
     assert_eq!(symlink_entries(&global_pkg_dir).len(), 2);
@@ -240,10 +216,7 @@ fn global_remove_preflights_all_targets_before_mutating_any_group() {
         .with_args(["remove", "-g", "victim-a", "victim-b"])
         .output()
         .expect("repeat completed multi-target remove");
-    assert!(
-        !output.status.success(),
-        "the existing not-found contract is retained",
-    );
+    assert!(!output.status.success(), "the existing not-found contract is retained");
     assert_eq!(snapshot_tree(&global_pkg_dir), removed_packages);
     assert_eq!(snapshot_tree(&global_bin), removed_bins);
 
@@ -309,10 +282,7 @@ fn global_remove_preflights_survivors_before_mutating_targets() {
         .success();
     assert!(!target_install.exists());
     assert!(survivor_install.exists());
-    assert_eq!(
-        fs::read(&shared_bin).expect("read survivor-owned bin"),
-        b"keeper command\n",
-    );
+    assert_eq!(fs::read(&shared_bin).expect("read survivor-owned bin"), b"keeper command\n");
     assert!(!stale_bin.exists());
     let removed_packages = snapshot_tree(&global_pkg_dir);
     let removed_bins = snapshot_tree(&global_bin);
@@ -321,10 +291,7 @@ fn global_remove_preflights_survivors_before_mutating_targets() {
         .with_args(["remove", "-g", "victim"])
         .output()
         .expect("repeat completed global remove");
-    assert!(
-        !output.status.success(),
-        "the existing not-found contract is retained",
-    );
+    assert!(!output.status.success(), "the existing not-found contract is retained");
     assert_eq!(snapshot_tree(&global_pkg_dir), removed_packages);
     assert_eq!(snapshot_tree(&global_bin), removed_bins);
 
@@ -361,10 +328,7 @@ fn global_add_pnpm_is_rejected() {
             .expect("run add -g");
 
         let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            !output.status.success(),
-            "add -g {selector} must fail, got: {stderr}",
-        );
+        assert!(!output.status.success(), "add -g {selector} must fail, got: {stderr}");
         assert!(
             stderr.contains("ERR_PNPM_GLOBAL_PNPM_INSTALL")
                 && stderr.contains(
@@ -395,10 +359,7 @@ fn global_update_pnpm_is_rejected() {
                 .expect("run update -g");
 
             let stderr = String::from_utf8_lossy(&output.stderr);
-            assert!(
-                !output.status.success(),
-                "update -g {selector} must fail, got: {stderr}",
-            );
+            assert!(!output.status.success(), "update -g {selector} must fail, got: {stderr}");
             assert!(
                 stderr.contains("ERR_PNPM_GLOBAL_PNPM_INSTALL")
                     && stderr.contains(
@@ -429,11 +390,8 @@ fn global_update_leaves_the_pnpm_cli_group_to_self_update() {
     let global_pkg_dir = pnpm_home.join("global/v11");
     let install_dir = global_pkg_dir.join("pnpm-cli-install");
     fs::create_dir_all(&install_dir).expect("create the pnpm CLI install dir");
-    fs::write(
-        install_dir.join("package.json"),
-        r#"{"dependencies":{"@pnpm/exe":"11.24.0"}}"#,
-    )
-    .expect("write the pnpm CLI group manifest");
+    fs::write(install_dir.join("package.json"), r#"{"dependencies":{"@pnpm/exe":"11.24.0"}}"#)
+        .expect("write the pnpm CLI group manifest");
     std::os::unix::fs::symlink(&install_dir, global_pkg_dir.join("hash-pnpm-cli"))
         .expect("link the pnpm CLI group");
 

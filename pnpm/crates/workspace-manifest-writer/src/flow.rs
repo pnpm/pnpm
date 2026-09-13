@@ -87,11 +87,7 @@ pub(crate) fn parse(text: &str, open: usize) -> Option<Collection> {
         .into_iter()
         .map(|span| entry(text, span, kind))
         .collect::<Option<Vec<Entry>>>()?;
-    Some(Collection {
-        kind,
-        span: open..close + 1,
-        entries,
-    })
+    Some(Collection { kind, span: open..close + 1, entries })
 }
 
 /// Replace `key`'s value, or add the entry at the position the reorder pass
@@ -112,10 +108,7 @@ pub(crate) fn upsert(text: &str, collection: &Collection, key: &str, value_text:
             .iter()
             .position(|ordered| ordered == key)
             .expect("key is in the order");
-        entries.insert(
-            position,
-            format!("{}: {value_text}", crate::render::render_value(key)),
-        );
+        entries.insert(position, format!("{}: {value_text}", crate::render::render_value(key)));
     }
     splice(text, collection, &entries)
 }
@@ -271,20 +264,12 @@ fn trim_span(text: &str, span: Range<usize>) -> Option<Range<usize>> {
 /// span of its value; for a sequence, the item alone.
 fn entry(text: &str, span: Range<usize>, kind: Kind) -> Option<Entry> {
     if kind == Kind::Sequence {
-        return Some(Entry {
-            key: None,
-            span: span.clone(),
-            value: span,
-        });
+        return Some(Entry { key: None, span: span.clone(), value: span });
     }
     let delimiter = key_delimiter(text, span.clone())?;
     let key = decode_key(text[span.start..delimiter].trim_end())?;
     let value = trim_span(text, delimiter + 1..span.end)?;
-    Some(Entry {
-        key: Some(key),
-        span,
-        value,
-    })
+    Some(Entry { key: Some(key), span, value })
 }
 
 /// Byte offset of the `:` separating a flow mapping entry's key from its

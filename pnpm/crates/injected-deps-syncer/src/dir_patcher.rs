@@ -156,10 +156,7 @@ pub fn diff_dir(old_index: &InodeMap, new_index: &InodeMap) -> DirDiff {
         .rev()
         .cloned()
         .collect();
-    DirDiff {
-        changes,
-        removed,
-    }
+    DirDiff { changes, removed }
 }
 
 /// Apply a diff produced by [`diff_dir`] to `target_dir`.
@@ -193,10 +190,7 @@ fn apply_change(change: &Change, source_dir: &Path, target_dir: &Path) -> Result
     match change.new_value {
         Value::Dir => retry_over_blocking_inode(&target_path, || {
             fs::create_dir_all(&target_path)
-                .map_err(|error| PatchError::CreateDir {
-                    path: target_path.clone(),
-                    error,
-                })
+                .map_err(|error| PatchError::CreateDir { path: target_path.clone(), error })
         }),
         Value::File(_) => {
             let source_path = source_dir.join(&change.path);
@@ -240,10 +234,9 @@ fn is_already_exists(error: &PatchError) -> bool {
 fn remove_recursive(target_path: &Path) -> Result<(), PatchError> {
     match pnpm_fs::remove_dirent(target_path) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        result => result.map_err(|error| PatchError::Remove {
-            path: target_path.to_path_buf(),
-            error,
-        }),
+        result => {
+            result.map_err(|error| PatchError::Remove { path: target_path.to_path_buf(), error })
+        }
     }
 }
 
@@ -255,10 +248,7 @@ fn load_inode_map(dir: &Path) -> Result<InodeMap, PatchError> {
         allow_path_escape: false,
     }
     .run()
-    .map_err(|error| PatchError::ReadDir {
-        dir: dir.to_path_buf(),
-        error,
-    })?;
+    .map_err(|error| PatchError::ReadDir { dir: dir.to_path_buf(), error })?;
     extend_files_map(&output.files_map)
 }
 
@@ -293,10 +283,7 @@ fn stat_skipping_missing(path: &Path) -> Result<Option<fs::Metadata>, PatchError
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         result => result
             .map(Some)
-            .map_err(|error| PatchError::Stat {
-                path: path.to_path_buf(),
-                error,
-            }),
+            .map_err(|error| PatchError::Stat { path: path.to_path_buf(), error }),
     }
 }
 
@@ -305,9 +292,7 @@ fn add_inode_and_ancestors(result: &mut InodeMap, relative_path: &str, value: Va
     let mut value = value;
     while !path.is_empty() && path != "." && !result.contains_key(path) {
         result.insert(path.to_string(), value);
-        path = path
-            .rsplit_once('/')
-            .map_or("", |(parent, _)| parent);
+        path = path.rsplit_once('/').map_or("", |(parent, _)| parent);
         value = Value::Dir;
     }
 }
@@ -323,27 +308,17 @@ fn file_id(path: &Path, metadata: &fs::Metadata) -> Result<FileId, PatchError> {
     {
         use std::os::unix::fs::MetadataExt as _;
         let _ = path;
-        Ok(FileId {
-            device: metadata.dev(),
-            inode: metadata.ino(),
-        })
+        Ok(FileId { device: metadata.dev(), inode: metadata.ino() })
     }
     #[cfg(windows)]
     {
         let _ = metadata;
-        windows_file_id(path)
-            .map_err(|error| PatchError::Stat {
-                path: path.to_path_buf(),
-                error,
-            })
+        windows_file_id(path).map_err(|error| PatchError::Stat { path: path.to_path_buf(), error })
     }
     #[cfg(not(any(unix, windows)))]
     {
         let _ = (path, metadata);
-        Ok(FileId {
-            device: 0,
-            inode: 0,
-        })
+        Ok(FileId { device: 0, inode: 0 })
     }
 }
 

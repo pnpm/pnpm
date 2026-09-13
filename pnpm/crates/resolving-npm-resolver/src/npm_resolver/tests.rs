@@ -135,9 +135,7 @@ impl PackageVersionGuard for RejectVersions {
     fn check<'a>(&'a self, _name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a> {
         Box::pin(async move {
             if self.versions.contains(version) {
-                Ok(PackageVersionGuardDecision::Reject {
-                    reason: format!("{version} is blocked"),
-                })
+                Ok(PackageVersionGuardDecision::Reject { reason: format!("{version} is blocked") })
             } else {
                 Ok(PackageVersionGuardDecision::Allow)
             }

@@ -3,9 +3,7 @@
 /// must be full commit SHAs.
 #[must_use]
 pub fn is_git_hosted_tarball_url(url: &str) -> bool {
-    let Some((host, path, query)) = parse_https_url(url) else {
-        return false;
-    };
+    let Some((host, path, query)) = parse_https_url(url) else { return false };
     if host.eq_ignore_ascii_case("codeload.github.com") {
         return is_github_codeload_archive(path);
     }
@@ -28,9 +26,7 @@ fn parse_https_url(url: &str) -> Option<(&str, &str, Option<&str>)> {
     }
     let rest = url.get(HTTPS_SCHEME.len()..)?;
     let (host, path_and_query) = rest.split_once('/')?;
-    let path_and_query = path_and_query
-        .split_once('#')
-        .map_or(path_and_query, |(path, _)| path);
+    let path_and_query = path_and_query.split_once('#').map_or(path_and_query, |(path, _)| path);
     let (path, query) = path_and_query
         .split_once('?')
         .map_or((path_and_query, None), |(path, query)| (path, Some(query)));
@@ -47,9 +43,7 @@ fn is_bitbucket_archive(path: &str) -> bool {
     if segments.len() != 4 || segments[2] != "get" {
         return false;
     }
-    let Some(commit) = segments[3].strip_suffix(".tar.gz") else {
-        return false;
-    };
+    let Some(commit) = segments[3].strip_suffix(".tar.gz") else { return false };
     is_full_commit_sha(commit)
 }
 

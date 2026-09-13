@@ -146,14 +146,9 @@ pub fn decode_registry_name(registry_key: &str) -> String {
     };
     let (host, path) = match authority.split_once(PATH_SEPARATOR) {
         None => (authority, None),
-        Some((host, rest)) => (
-            host,
-            Some(
-                rest
-                    .split_once(HASH_SEPARATOR)
-                    .map_or(rest, |(path, _hash)| path),
-            ),
-        ),
+        Some((host, rest)) => {
+            (host, Some(rest.split_once(HASH_SEPARATOR).map_or(rest, |(path, _hash)| path)))
+        }
     };
     let Some(host) = decode_registry_key_component(host, ":") else {
         return registry_key.to_string();
@@ -226,10 +221,7 @@ pub(super) fn path_segments(path: &str) -> Vec<&str> {
     // Every path opens with the `/` that [`PATH_SEPARATOR`] stands for, so its
     // empty head is dropped; a trailing `/` is the one slash the resolver
     // normalizes away, so its empty tail goes with it.
-    let mut segments: Vec<&str> = path
-        .split('/')
-        .skip(1)
-        .collect();
+    let mut segments: Vec<&str> = path.split('/').skip(1).collect();
     if path.ends_with('/') {
         segments.pop();
     }

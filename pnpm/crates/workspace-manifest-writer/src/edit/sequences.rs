@@ -59,17 +59,14 @@ fn item_layout(text: &str, key: &str, current: &[String]) -> Option<ItemLayout> 
             .get(leading_comment_start(&all, key_idx + 1, block_end_idx))
             .map_or(text.len(), |line| line.start),
     );
-    let starts: Vec<usize> = item_idxs
-        .iter()
-        .enumerate()
-        .map(|(position, &idx)| {
-            if position == 0 {
-                all[idx].start
-            } else {
-                all[comment_run_start(&all, idx)].start
-            }
-        })
-        .collect();
+    let starts: Vec<usize> =
+        item_idxs
+            .iter()
+            .enumerate()
+            .map(|(position, &idx)| {
+                if position == 0 { all[idx].start } else { all[comment_run_start(&all, idx)].start }
+            })
+            .collect();
     Some(ItemLayout {
         spans: item_spans(&starts, block_items_end),
         indent,
@@ -79,6 +76,22 @@ fn item_layout(text: &str, key: &str, current: &[String]) -> Option<ItemLayout> 
             "\n"
         },
     })
+}
+
+fn item_spans(starts: &[usize], end: usize) -> Vec<(usize, usize)> {
+    starts
+        .iter()
+        .enumerate()
+        .map(|(position, &start)| {
+            (
+                start,
+                starts
+                    .get(position + 1)
+                    .copied()
+                    .unwrap_or(end),
+            )
+        })
+        .collect()
 }
 
 /// The indentation of `body`'s block-sequence item lines and their indices,
@@ -125,10 +138,7 @@ fn rebuild_items(text: &str, layout: &ItemLayout, current: &[String], items: &[S
     let indent = " ".repeat(layout.indent);
     let mut body = String::new();
     for item in items {
-        if let Some(idx) = unclaimed
-            .get_mut(item.as_str())
-            .and_then(VecDeque::pop_front)
-        {
+        if let Some(idx) = unclaimed.get_mut(item.as_str()).and_then(VecDeque::pop_front) {
             body.push_str(&text[layout.spans[idx].0..layout.spans[idx].1]);
         } else {
             body.push_str(&indent);
@@ -210,12 +220,7 @@ pub(super) fn upsert_sequence_entry(
         return flow::set_items(text, &collection, &rendered_items);
     }
     if let Inline::Flow(collection) = locate_mapping(text, &[block_name]) {
-        return flow::upsert(
-            text,
-            &collection,
-            key,
-            &flow::render_sequence(&rendered_items),
-        );
+        return flow::upsert(text, &collection, key, &flow::render_sequence(&rendered_items));
     }
     let mapping = locate(text, &[block_name]).expect("block exists");
     let rendered = render_block_sequence_entry(mapping.entry_indent, key, items);
@@ -244,20 +249,4 @@ fn render_block_sequence_entry(entry_indent: usize, key: &str, items: &[String])
         rendered.push('\n');
     }
     rendered
-}
-
-fn item_spans(starts: &[usize], block_items_end: usize) -> Vec<(usize, usize)> {
-    starts
-        .iter()
-        .enumerate()
-        .map(|(position, &start)| {
-            (
-                start,
-                starts
-                    .get(position + 1)
-                    .copied()
-                    .unwrap_or(block_items_end),
-            )
-        })
-        .collect()
 }

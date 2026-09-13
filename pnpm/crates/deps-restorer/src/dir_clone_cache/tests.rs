@@ -3,15 +3,10 @@ use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 
 #[test]
 fn eligible_only_for_isolated_clone_capable_local_virtual_store() {
-    let mut config = Config {
-        enable_global_virtual_store: false,
-        ..Config::default()
-    };
-    for method in [
-        PackageImportMethod::Auto,
-        PackageImportMethod::Clone,
-        PackageImportMethod::CloneOrCopy,
-    ] {
+    let mut config = Config { enable_global_virtual_store: false, ..Config::default() };
+    for method in
+        [PackageImportMethod::Auto, PackageImportMethod::Clone, PackageImportMethod::CloneOrCopy]
+    {
         config.package_import_method = method;
         assert_eq!(
             DirCloneCache::eligible(&config, NodeLinker::Isolated),
@@ -141,10 +136,7 @@ mod macos {
             .into_iter()
             .filter(|path| path.ends_with("node_modules/foo/package.json"))
             .count();
-        assert_eq!(
-            canonical_manifests, 1,
-            "one canonical slot for the one snapshot",
-        );
+        assert_eq!(canonical_manifests, 1, "one canonical slot for the one snapshot");
         let expected_slot = crate::VirtualStoreLayout::global(
             links_root.clone(),
             Config::default().virtual_store_dir_max_length as usize,
@@ -234,9 +226,7 @@ mod macos {
         let mut files = Vec::new();
         let mut stack = vec![root.to_path_buf()];
         while let Some(dir) = stack.pop() {
-            let Ok(entries) = fs::read_dir(&dir) else {
-                continue;
-            };
+            let Ok(entries) = fs::read_dir(&dir) else { continue };
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_dir() {

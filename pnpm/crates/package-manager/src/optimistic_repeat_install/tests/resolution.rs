@@ -28,10 +28,8 @@ fn returns_skipped_when_an_override_maps_to_a_local_file_dependency() {
         "1.0.0",
         r#""dependencies":{"foo":"^1.0.0"}"#,
         |config| {
-            config.overrides = Some(IndexMap::from([(
-                "bar".to_string(),
-                "file:../bar".to_string(),
-            )]));
+            config.overrides =
+                Some(IndexMap::from([("bar".to_string(), "file:../bar".to_string())]));
         },
     );
 
@@ -84,10 +82,7 @@ fn returns_skipped_with_parse_error_reason_when_overrides_cannot_be_parsed() {
         "1.0.0",
         r#""dependencies":{"foo":"^1.0.0"}"#,
         |config| {
-            config.overrides = Some(IndexMap::from([(
-                "bar".to_string(),
-                "catalog:".to_string(),
-            )]));
+            config.overrides = Some(IndexMap::from([("bar".to_string(), "catalog:".to_string())]));
         },
     );
 
@@ -134,17 +129,9 @@ fn returns_skipped_when_overrides_drift() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        stale_settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -182,17 +169,9 @@ fn returns_skipped_when_dedupe_peers_drift() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        stale_settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -229,17 +208,9 @@ fn returns_skipped_when_peers_suffix_max_length_drift() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        stale_settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -254,30 +225,15 @@ fn returns_skipped_when_peers_suffix_max_length_drift() {
 #[test]
 fn records_minimum_release_age_strict_like_pnpm_resolves_it() {
     let mut config = Config::new();
-    config.explicit_settings.insert(
-        "minimumReleaseAge".to_string(),
-        serde_json::Value::from(1440),
-    );
-    let settings = current_settings(
-        &config,
-        pnpm_config::NodeLinker::Isolated,
-        isolated_included(),
-        None,
-    );
+    config.explicit_settings.insert("minimumReleaseAge".to_string(), serde_json::Value::from(1440));
+    let settings =
+        current_settings(&config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     assert_eq!(settings.minimum_release_age_strict, Some(true));
 
     config.minimum_release_age_strict = Some(false);
-    let settings = current_settings(
-        &config,
-        pnpm_config::NodeLinker::Isolated,
-        isolated_included(),
-        None,
-    );
-    assert_eq!(
-        settings.minimum_release_age_strict,
-        Some(false),
-        "an explicit value wins",
-    );
+    let settings =
+        current_settings(&config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    assert_eq!(settings.minimum_release_age_strict, Some(false), "an explicit value wins");
 }
 #[test]
 fn returns_up_to_date_when_linked_sibling_still_satisfies_range() {
@@ -302,11 +258,7 @@ fn injected_self_reference_resolved_as_link_is_up_to_date() {
         r#"{"name":"root","version":"1.0.0","dependencies":{"pkg-a":"file:pkg-a"}}"#,
     )
     .unwrap();
-    fs::write(
-        sibling_dir.join("package.json"),
-        r#"{"name":"pkg-a","version":"1.0.0"}"#,
-    )
-    .unwrap();
+    fs::write(sibling_dir.join("package.json"), r#"{"name":"pkg-a","version":"1.0.0"}"#).unwrap();
     let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
     let sibling_manifest = PackageManifest::from_path(sibling_dir.join("package.json")).unwrap();
     let lockfile: Lockfile = serde_saphyr::from_str(
@@ -325,10 +277,8 @@ importers:
     )
     .unwrap();
     let config = Config::new();
-    let project_manifests = [
-        (workspace_root.to_path_buf(), &root_manifest),
-        (sibling_dir, &sibling_manifest),
-    ];
+    let project_manifests =
+        [(workspace_root.to_path_buf(), &root_manifest), (sibling_dir, &sibling_manifest)];
     let context = LinkedPackagesContext::new(&config, &project_manifests);
 
     assert!(linked_packages_are_up_to_date(

@@ -169,10 +169,7 @@ fn using_a_global_virtual_store() {
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     set_gvs_workspace_yaml(&workspace, "privateHoistPattern:\n  - '*'\n");
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
     let assert_layout = |phase: &str| {
         assert!(
@@ -253,10 +250,7 @@ fn reinstall_from_warm_global_virtual_store_after_deleting_node_modules() {
 
     eprintln!("Deleting node_modules only — the GVS stays warm...");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    assert!(
-        gvs_root(&store_dir).is_dir(),
-        "the GVS must survive the node_modules wipe",
-    );
+    assert!(gvs_root(&store_dir).is_dir(), "the GVS must survive the node_modules wipe");
 
     eprintln!("Frozen reinstall — must reattach from the warm GVS...");
     let output = pacquet(&workspace)
@@ -320,10 +314,7 @@ fn a_slot_left_incomplete_by_an_interrupted_import_is_repaired() {
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     set_gvs_workspace_yaml(&workspace, "");
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
     pacquet(&workspace)
         .with_arg("install")
@@ -373,16 +364,11 @@ fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
         .assert()
         .success();
 
-    let fixture_files = [
-        "package.json",
-        "pnpm-workspace.yaml",
-        ".npmrc",
-        "pnpm-lock.yaml",
-    ]
-    .map(|name| {
-        let bytes = fs::read(workspace.join(name)).expect("read concurrent-install fixture");
-        (name, bytes)
-    });
+    let fixture_files =
+        ["package.json", "pnpm-workspace.yaml", ".npmrc", "pnpm-lock.yaml"].map(|name| {
+            let bytes = fs::read(workspace.join(name)).expect("read concurrent-install fixture");
+            (name, bytes)
+        });
     // Siblings of `workspace`, not children of it: the harness writes
     // `storeDir` / `cacheDir` as `../pacquet-store` / `../pacquet-cache`, so
     // only at this depth do all the workers resolve to the one store — and
@@ -432,10 +418,7 @@ fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
         let hash_dir = sole_hash_dir(&version_dir);
         let shared_bin =
             pkg_in_slot(&hash_dir, PARENT).join("node_modules/.bin/hello-world-js-bin");
-        assert!(
-            shared_bin.exists(),
-            "the shared GVS bin must remain materialized",
-        );
+        assert!(shared_bin.exists(), "the shared GVS bin must remain materialized");
 
         if repetition < REPETITIONS {
             for dir in &worker_dirs {
@@ -568,10 +551,7 @@ fn injected_local_packages_work_with_global_virtual_store() {
         serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
     )
     .expect("write root package.json");
-    set_gvs_workspace_yaml(
-        &workspace,
-        "packages:\n  - 'project-*'\ndedupeInjectedDeps: false\n",
-    );
+    set_gvs_workspace_yaml(&workspace, "packages:\n  - 'project-*'\ndedupeInjectedDeps: false\n");
 
     fs::create_dir_all(workspace.join("project-1")).expect("mkdir project-1");
     fs::write(
@@ -613,21 +593,15 @@ fn injected_local_packages_work_with_global_virtual_store() {
         .expect(".modules.yaml must record injectedDeps under GVS");
     let locations =
         injected_deps.get("project-1").expect("injectedDeps must have an entry for project-1");
-    assert!(
-        !locations.is_empty(),
-        "the injectedDeps entry must list at least one location",
-    );
+    assert!(!locations.is_empty(), "the injectedDeps entry must list at least one location");
 
     let gvs_root = gvs_root(&store_dir);
     let location = Path::new(&locations[0]);
     // `.modules.yaml` stores injected-dep locations relative to the
     // project root, matching pnpm — upstream's assertion joins the
     // recorded value straight onto the test's cwd.
-    let resolved = if location.is_absolute() {
-        location.to_path_buf()
-    } else {
-        workspace.join(location)
-    };
+    let resolved =
+        if location.is_absolute() { location.to_path_buf() } else { workspace.join(location) };
     let resolved = dunce::canonicalize(&resolved)
         .unwrap_or_else(|err| panic!("canonicalize injected dep location {resolved:?}: {err}"));
     let gvs_root = dunce::canonicalize(&gvs_root).expect("canonicalize the GVS root");
@@ -654,10 +628,7 @@ fn assert_no_post_import_linking(workspace: &Path) {
         !workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep").exists(),
         "nothing must be hoisted",
     );
-    assert!(
-        !workspace.join("node_modules/.bin").exists(),
-        "no bins must be linked",
-    );
+    assert!(!workspace.join("node_modules/.bin").exists(), "no bins must be linked");
 }
 
 /// The GVS hash of a package inside a dependency cycle depends on the
@@ -673,10 +644,7 @@ fn repeat_installs_reuse_the_slots_of_circular_dependencies() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/circular-deps-1-of-2": "1.0.2" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/circular-deps-1-of-2": "1.0.2" }));
     set_gvs_workspace_yaml(&workspace, "");
     pacquet(&workspace)
         .with_arg("install")
@@ -837,11 +805,8 @@ fn no_optional_excludes_an_optional_link_dep_from_a_slot() {
         "the fixture must exercise an optional link edge: {snapshot:?}",
     );
 
-    let hash_dir = sole_hash_dir(&pkg_version_dir(
-        &store_dir,
-        "@pnpm.e2e/abc-optional-peers",
-        "1.0.0",
-    ));
+    let hash_dir =
+        sole_hash_dir(&pkg_version_dir(&store_dir, "@pnpm.e2e/abc-optional-peers", "1.0.0"));
     let linked_peer = pkg_in_slot(&hash_dir, "@pnpm.e2e/peer-c");
     assert!(
         is_symlink_or_junction(&linked_peer).unwrap_or(false),
@@ -887,10 +852,7 @@ fn adding_a_dependency_over_a_warm_layout_cache_still_hashes_its_slot() {
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     set_gvs_workspace_yaml(&workspace, "");
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
     eprintln!("Installing twice, which is what warms the derived-layout cache...");
     pacquet(&workspace)

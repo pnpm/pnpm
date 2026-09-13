@@ -32,10 +32,7 @@ pub struct RealGitProbe {
 impl RealGitProbe {
     #[must_use]
     pub fn new(http_client: Arc<ThrottledClient>) -> Self {
-        Self {
-            http_client,
-            head_timeout: Duration::from_secs(10),
-        }
+        Self { http_client, head_timeout: Duration::from_secs(10) }
     }
 }
 
@@ -99,9 +96,7 @@ pub struct RealGitRunner {
 impl RealGitRunner {
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            git_bin: None,
-        }
+        Self { git_bin: None }
     }
 }
 
@@ -125,9 +120,7 @@ impl GitCommandRunner for RealGitRunner {
                 run_ls_remote_blocking(bin.as_ref(), &repo_owned, ref_owned.as_ref())
             })
             .await
-            .map_err(|err| GitRunError {
-                message: format!("ls-remote task panicked: {err}"),
-            })?
+            .map_err(|err| GitRunError { message: format!("ls-remote task panicked: {err}") })?
         })
     }
 }
@@ -175,10 +168,7 @@ fn ls_remote_command(bin: Option<&PathBuf>, repo: &str, ref_: Option<&str>) -> C
         None => Command::new("git"),
     };
     cmd.env("GIT_TERMINAL_PROMPT", "0");
-    cmd
-        .arg("ls-remote")
-        .arg("--")
-        .arg(repo);
+    cmd.arg("ls-remote").arg("--").arg(repo);
     if let Some(ref_) = ref_ {
         cmd
             .arg(ref_)

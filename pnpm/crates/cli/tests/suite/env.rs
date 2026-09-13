@@ -26,10 +26,7 @@ fn run_env(args: &[&str]) -> EnvOutput {
         stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
     };
-    eprintln!(
-        "{args:?} stdout={} stderr={}",
-        outcome.stdout, outcome.stderr,
-    );
+    eprintln!("{args:?} stdout={} stderr={}", outcome.stdout, outcome.stderr);
     drop(root);
     outcome
 }
@@ -38,22 +35,14 @@ fn run_env(args: &[&str]) -> EnvOutput {
 fn a_bare_env_asks_for_a_subcommand() {
     let output = run_env(&["env"]);
     assert!(!output.succeeded);
-    assert!(
-        output.stderr.contains("ERR_PNPM_ENV_NO_SUBCOMMAND"),
-        "{}",
-        output.stderr,
-    );
+    assert!(output.stderr.contains("ERR_PNPM_ENV_NO_SUBCOMMAND"), "{}", output.stderr);
 }
 
 #[test]
 fn an_unknown_subcommand_is_rejected() {
     let output = run_env(&["env", "install"]);
     assert!(!output.succeeded);
-    assert!(
-        output.stderr.contains("ERR_PNPM_ENV_UNKNOWN_SUBCOMMAND"),
-        "{}",
-        output.stderr,
-    );
+    assert!(output.stderr.contains("ERR_PNPM_ENV_UNKNOWN_SUBCOMMAND"), "{}", output.stderr);
 }
 
 /// pnpm warns before it validates, so the deprecation notice reaches a user
@@ -62,14 +51,6 @@ fn an_unknown_subcommand_is_rejected() {
 fn use_without_global_is_refused_after_the_deprecation_warning() {
     let output = run_env(&["env", "use", "24"]);
     assert!(!output.succeeded);
-    assert!(
-        output.stderr.contains("ERR_PNPM_NOT_IMPLEMENTED_YET"),
-        "{}",
-        output.stderr,
-    );
-    assert!(
-        output.stdout.contains(r#""pnpm env use" is deprecated"#),
-        "{}",
-        output.stdout,
-    );
+    assert!(output.stderr.contains("ERR_PNPM_NOT_IMPLEMENTED_YET"), "{}", output.stderr);
+    assert!(output.stdout.contains(r#""pnpm env use" is deprecated"#), "{}", output.stdout);
 }

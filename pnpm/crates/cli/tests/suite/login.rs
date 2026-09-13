@@ -150,10 +150,7 @@ fn a_scoped_login_records_the_token_and_route_in_config_yaml() {
         .expect("spawn pacquet login");
 
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    assert!(
-        output.status.success(),
-        "`pacquet login` must succeed; stderr:\n{stderr}",
-    );
+    assert!(output.status.success(), "`pacquet login` must succeed; stderr:\n{stderr}");
     let document: serde_json::Value = root
         .path()
         .join("pnpm")
@@ -167,10 +164,7 @@ fn a_scoped_login_records_the_token_and_route_in_config_yaml() {
         document["_auth"][&normalized],
         serde_json::json!({ "@acme": { "authToken": "cli-scoped-token" } }),
     );
-    assert_eq!(
-        document["registries"][&normalized],
-        serde_json::json!({ "scopes": ["@acme"] }),
-    );
+    assert_eq!(document["registries"][&normalized], serde_json::json!({ "scopes": ["@acme"] }));
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt as _;
@@ -240,19 +234,13 @@ fn a_login_writes_a_config_the_reader_reads_back() {
         .expect("spawn pacquet config list");
 
     let stderr = String::from_utf8_lossy(&listed.stderr).into_owned();
-    assert!(
-        listed.status.success(),
-        "the written config must load; stderr:\n{stderr}",
-    );
+    assert!(listed.status.success(), "the written config must load; stderr:\n{stderr}");
     let stdout = String::from_utf8_lossy(&listed.stdout).into_owned();
     assert!(
         stdout.contains(&format!(r#""@acme:registry": "{registry}/""#)),
         "the scope must resolve to the registry logged in to; got:\n{stdout}",
     );
-    assert!(
-        !stdout.contains(TOKEN),
-        "the token must not be listed; got:\n{stdout}",
-    );
+    assert!(!stdout.contains(TOKEN), "the token must not be listed; got:\n{stdout}");
     drop(root);
 }
 
@@ -294,10 +282,7 @@ fn a_workspace_yaml_scope_is_ignored_and_reported_on_stderr() {
         .expect("spawn pacquet login");
 
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    assert!(
-        output.status.success(),
-        "`pacquet login` must still succeed; stderr:\n{stderr}",
-    );
+    assert!(output.status.success(), "`pacquet login` must still succeed; stderr:\n{stderr}");
     assert_eq!(
         stderr
             .matches(

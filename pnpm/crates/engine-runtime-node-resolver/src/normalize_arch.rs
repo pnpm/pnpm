@@ -27,11 +27,7 @@ pub fn get_normalized_arch(platform: &str, arch: &str, node_version: Option<&str
 }
 
 fn node_major(version: &str) -> Option<u32> {
-    version
-        .split('.')
-        .next()?
-        .parse()
-        .ok()
+    version.split('.').next()?.parse().ok()
 }
 
 #[cfg(test)]

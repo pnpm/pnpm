@@ -48,10 +48,7 @@ impl HookedManifests {
             every_project_manifest_is_pre_hooked,
         )
         .await?;
-        Ok(Self {
-            extended,
-            hooked,
-        })
+        Ok(Self { extended, hooked })
     }
 
     pub(super) fn view<'v>(
@@ -122,17 +119,12 @@ pub(super) fn manifests_view<'v>(
 /// records alike. Empty when no hook applies or every manifest was hooked
 /// already.
 pub(super) async fn hook_project_manifests(
-    hook: (
-        Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-        Option<&pnpm_hooks::LogFn>,
-    ),
+    hook: (Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>, Option<&pnpm_hooks::LogFn>),
     project_manifests: &[(PathBuf, &PackageManifest)],
     pre_hooked_paths: &HashSet<PathBuf>,
     every_manifest_is_pre_hooked: bool,
 ) -> Result<Vec<(PathBuf, PackageManifest)>, InstallError> {
-    let (Some(hook), Some(log)) = hook else {
-        return Ok(Vec::new());
-    };
+    let (Some(hook), Some(log)) = hook else { return Ok(Vec::new()) };
     if every_manifest_is_pre_hooked {
         return Ok(Vec::new());
     }
@@ -140,15 +132,9 @@ pub(super) async fn hook_project_manifests(
         project_manifests
             .iter()
             .map(|(project_dir, manifest)| {
-                let ctx = pnpm_hooks::HookContext {
-                    log: Arc::clone(log),
-                    dir: None,
-                };
+                let ctx = pnpm_hooks::HookContext { log: Arc::clone(log), dir: None };
                 let pre_hooked = pre_hooked_paths.contains(manifest.path());
-                async move {
-                    hook_one_manifest(hook, ctx, project_dir, manifest, pre_hooked)
-                        .await
-                }
+                async move { hook_one_manifest(hook, ctx, project_dir, manifest, pre_hooked).await }
             }),
     )
     .await
@@ -182,10 +168,7 @@ pub(super) fn manifest_freshness_inputs<'a>(
         return project_manifests
             .iter()
             .map(|(project_dir, manifest)| {
-                (
-                    pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir),
-                    *manifest,
-                )
+                (pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir), *manifest)
             })
             .collect();
     };
@@ -255,34 +238,20 @@ pub(super) fn extend_project_manifests(
     // A workspace project is rarely named by an extension — pnpm's
     // compatibility set names published packages — so this usually finds
     // nothing and the caller keeps the manifests it read from disk.
-    if !project_manifests
-        .iter()
-        .any(|(_, manifest)| selects(manifest))
-    {
+    if !project_manifests.iter().any(|(_, manifest)| selects(manifest)) {
         return Ok(Vec::new());
     }
     Ok(project_manifests
         .iter()
         .map(|(project_dir, manifest)| {
-            (
-                project_dir.clone(),
-                apply_project_extensions(manifest, compat_extender, extender.as_ref()),
-            )
+            let mut extended = (*manifest).clone();
+            if let Some(compat_extender) = compat_extender {
+                compat_extender.apply(extended.value_mut());
+            }
+            if let Some(extender) = extender.as_ref() {
+                extender.apply(extended.value_mut());
+            }
+            (project_dir.clone(), extended)
         })
         .collect())
-}
-
-fn apply_project_extensions(
-    manifest: &PackageManifest,
-    compat_extender: Option<&crate::PackageExtender>,
-    extender: Option<&crate::PackageExtender>,
-) -> PackageManifest {
-    let mut extended = manifest.clone();
-    if let Some(compat_extender) = compat_extender {
-        compat_extender.apply(extended.value_mut());
-    }
-    if let Some(extender) = extender {
-        extender.apply(extended.value_mut());
-    }
-    extended
 }

@@ -8,10 +8,7 @@ fn split_and_filtered_sbom_read_per_project_workspace_lockfiles() {
     let tmp = copy_fixture("simple-sbom");
     let lockfile = fs::read(tmp.path().join("pnpm-lock.yaml")).expect("read fixture lockfile");
     for name in ["project-a", "project-b"] {
-        let project_dir = tmp
-            .path()
-            .join("packages")
-            .join(name);
+        let project_dir = tmp.path().join("packages").join(name);
         fs::create_dir_all(&project_dir).expect("create project dir");
         fs::write(
             project_dir.join("package.json"),
@@ -33,18 +30,10 @@ fn split_and_filtered_sbom_read_per_project_workspace_lockfiles() {
     )
     .expect("write workspace manifest");
 
-    let split = pacquet(
-        tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--split",
-        ],
-    )
-    .output()
-    .expect("run split pacquet sbom");
+    let split =
+        pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run split pacquet sbom");
     assert!(
         split.status.success(),
         "split SBOM failed: {}",
@@ -74,14 +63,7 @@ fn split_and_filtered_sbom_read_per_project_workspace_lockfiles() {
 
     let filtered = pacquet(
         tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--filter",
-            "project-a",
-        ],
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "project-a"],
     )
     .output()
     .expect("run filtered pacquet sbom");
@@ -109,10 +91,7 @@ fn sbom_rejects_conflicting_entries_from_dedicated_lockfiles() {
     let lockfile =
         fs::read_to_string(tmp.path().join("pnpm-lock.yaml")).expect("read fixture lockfile");
     for name in ["project-a", "project-b"] {
-        let project_dir = tmp
-            .path()
-            .join("packages")
-            .join(name);
+        let project_dir = tmp.path().join("packages").join(name);
         fs::create_dir_all(&project_dir).expect("create project dir");
         fs::write(
             project_dir.join("package.json"),
@@ -140,36 +119,19 @@ fn sbom_rejects_conflicting_entries_from_dedicated_lockfiles() {
     )
     .expect("write workspace manifest");
 
-    let output = pacquet(
-        tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--split",
-        ],
-    )
-    .output()
-    .expect("run split pacquet sbom");
+    let output =
+        pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run split pacquet sbom");
 
-    assert!(
-        !output.status.success(),
-        "conflicting lockfile entries must fail",
-    );
+    assert!(!output.status.success(), "conflicting lockfile entries must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_SBOM_CONFLICTING_LOCKFILE_ENTRIES"),
-        "stderr: {stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_SBOM_CONFLICTING_LOCKFILE_ENTRIES"), "stderr: {stderr}");
     let compact_stderr: String = stderr
         .replace('│', "")
         .split_whitespace()
         .collect();
-    assert!(
-        compact_stderr.contains("is-positive@3.1.0"),
-        "stderr: {stderr}",
-    );
+    assert!(compact_stderr.contains("is-positive@3.1.0"), "stderr: {stderr}");
 }
 
 #[test]
@@ -182,10 +144,7 @@ fn sbom_merges_snapshot_optionality_from_dedicated_lockfiles() {
         "    engines: {node: '>=0.10.0'}\n    os: [unsupported-test-os]",
     );
     for name in ["project-a", "project-b"] {
-        let project_dir = tmp
-            .path()
-            .join("packages")
-            .join(name);
+        let project_dir = tmp.path().join("packages").join(name);
         fs::create_dir_all(&project_dir).expect("create project dir");
         fs::write(
             project_dir.join("package.json"),
@@ -202,10 +161,7 @@ fn sbom_merges_snapshot_optionality_from_dedicated_lockfiles() {
                 "  is-positive@3.1.0:\n    dev: false",
                 "  is-positive@3.1.0:\n    optional: true\n    dev: false",
             );
-            assert_ne!(
-                project_lockfile, lockfile,
-                "mark project-b's snapshot as optional",
-            );
+            assert_ne!(project_lockfile, lockfile, "mark project-b's snapshot as optional");
             project_lockfile
         } else {
             lockfile.clone()
@@ -221,12 +177,9 @@ fn sbom_merges_snapshot_optionality_from_dedicated_lockfiles() {
     )
     .expect("write workspace manifest");
 
-    let output = pacquet(
-        tmp.path(),
-        ["sbom", "--sbom-format", "cyclonedx", "--split"],
-    )
-    .output()
-    .expect("run split pacquet sbom");
+    let output = pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--split"])
+        .output()
+        .expect("run split pacquet sbom");
 
     assert!(
         output.status.success(),
@@ -256,14 +209,7 @@ fn filtered_sbom_reads_reachable_workspace_project_lockfiles() {
 
     let output = pacquet(
         tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--filter",
-            "project-a",
-        ],
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "project-a"],
     )
     .output()
     .expect("run filtered pacquet sbom");
@@ -293,27 +239,14 @@ fn filtered_sbom_rejects_a_reachable_project_without_a_dedicated_lockfile() {
 
     let output = pacquet(
         tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--filter",
-            "project-a",
-        ],
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "project-a"],
     )
     .output()
     .expect("run filtered pacquet sbom");
 
-    assert!(
-        !output.status.success(),
-        "an incomplete workspace graph must fail",
-    );
+    assert!(!output.status.success(), "an incomplete workspace graph must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_SBOM_MISSING_IMPORTERS"),
-        "stderr: {stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_SBOM_MISSING_IMPORTERS"), "stderr: {stderr}");
     assert!(stderr.contains("packages/project-b"), "stderr: {stderr}");
 }
 
@@ -344,39 +277,19 @@ fn sbom_workspace_link_deps_as_components() {
         .iter()
         .filter_map(|comp| comp["name"].as_str())
         .collect();
-    assert!(
-        names.contains(&"is-positive"),
-        "registry dep should be included",
-    );
-    assert!(
-        names.contains(&"is-negative"),
-        "registry dep from app-b should be included",
-    );
-    assert!(
-        names.contains(&"shared-lib"),
-        "workspace link dep should be included as component",
-    );
-    assert!(
-        names.contains(&"is-odd"),
-        "transitive dep of workspace link should be included",
-    );
+    assert!(names.contains(&"is-positive"), "registry dep should be included");
+    assert!(names.contains(&"is-negative"), "registry dep from app-b should be included");
+    assert!(names.contains(&"shared-lib"), "workspace link dep should be included as component");
+    assert!(names.contains(&"is-odd"), "transitive dep of workspace link should be included");
 }
 
 #[test]
 fn sbom_workspace_split_produces_multiple_lines() {
     let tmp = copy_fixture("workspace-sbom-populated");
-    let output = pacquet(
-        tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--split",
-        ],
-    )
-    .output()
-    .expect("run pacquet");
+    let output =
+        pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run pacquet");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout
@@ -427,10 +340,7 @@ fn sbom_workspace_split_out_writes_files() {
                 })
         })
         .collect();
-    assert!(
-        files.len() >= 3,
-        "should write files for workspace packages, got {files:?}",
-    );
+    assert!(files.len() >= 3, "should write files for workspace packages, got {files:?}");
 }
 
 #[test]
@@ -479,14 +389,7 @@ fn sbom_workspace_filter_selects_importer() {
     let tmp = copy_fixture("workspace-sbom-populated");
     let output = pacquet(
         tmp.path(),
-        [
-            "-F",
-            "app-a",
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-        ],
+        ["-F", "app-a", "sbom", "--sbom-format", "cyclonedx", "--lockfile-only"],
     )
     .output()
     .expect("run pacquet");
@@ -502,14 +405,8 @@ fn sbom_workspace_filter_selects_importer() {
         .iter()
         .filter_map(|comp| comp["name"].as_str())
         .collect();
-    assert!(
-        names.contains(&"is-positive"),
-        "app-a dep should be included",
-    );
-    assert!(
-        !names.contains(&"is-negative"),
-        "app-b dep should be excluded by filter",
-    );
+    assert!(names.contains(&"is-positive"), "app-a dep should be included");
+    assert!(!names.contains(&"is-negative"), "app-b dep should be excluded by filter");
 }
 
 #[test]
@@ -542,18 +439,10 @@ fn sbom_workspace_spdx_link_deps() {
 #[test]
 fn sbom_workspace_split_each_line_has_correct_root() {
     let tmp = copy_fixture("workspace-sbom-populated");
-    let output = pacquet(
-        tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--split",
-        ],
-    )
-    .output()
-    .expect("run pacquet");
+    let output =
+        pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run pacquet");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     let boms: Vec<serde_json::Value> = stdout
@@ -573,18 +462,10 @@ fn sbom_workspace_split_each_line_has_correct_root() {
 fn sbom_workspace_split_from_member_anchors_importers_at_workspace_root() {
     let tmp = copy_fixture("workspace-sbom-populated");
     let member = tmp.path().join("app-a");
-    let output = pacquet(
-        &member,
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--split",
-        ],
-    )
-    .output()
-    .expect("run pacquet from workspace member");
+    let output =
+        pacquet(&member, ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run pacquet from workspace member");
 
     assert!(
         output.status.success(),
@@ -601,18 +482,9 @@ fn sbom_workspace_split_from_member_anchors_importers_at_workspace_root() {
         .filter_map(|bom| bom["metadata"]["component"]["name"].as_str())
         .collect::<Vec<_>>();
 
-    assert!(
-        root_names.contains(&"app-a"),
-        "split should include app-a: {root_names:?}",
-    );
-    assert!(
-        root_names.contains(&"app-b"),
-        "split should include app-b: {root_names:?}",
-    );
-    assert!(
-        root_names.contains(&"shared-lib"),
-        "split should include shared-lib: {root_names:?}",
-    );
+    assert!(root_names.contains(&"app-a"), "split should include app-a: {root_names:?}");
+    assert!(root_names.contains(&"app-b"), "split should include app-b: {root_names:?}");
+    assert!(root_names.contains(&"shared-lib"), "split should include shared-lib: {root_names:?}");
 }
 
 #[test]
@@ -620,10 +492,7 @@ fn sbom_workspace_from_member_uses_the_workspace_root_component() {
     let tmp = copy_fixture("workspace-sbom-populated");
     let parsed = run_sbom_json(&tmp.path().join("app-a"), "cyclonedx", &[]);
 
-    assert_eq!(
-        parsed["metadata"]["component"]["name"],
-        "workspace-sbom-root",
-    );
+    assert_eq!(parsed["metadata"]["component"]["name"], "workspace-sbom-root");
 }
 
 /// `--filter <pkg>...` walks every dependency edge, so a workspace
@@ -633,15 +502,7 @@ fn sbom_filter_selects_dev_dependency_projects() {
     let tmp = copy_fixture("workspace-sbom-filter-prod");
     let output = pacquet(
         tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--split",
-            "--filter",
-            "app...",
-        ],
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split", "--filter", "app..."],
     )
     .output()
     .expect("run pacquet");
@@ -650,10 +511,7 @@ fn sbom_filter_selects_dev_dependency_projects() {
         "pacquet sbom failed: {}",
         String::from_utf8_lossy(&output.stderr),
     );
-    assert_eq!(
-        split_root_names(&String::from_utf8_lossy(&output.stdout)),
-        ["app", "dev-lib"],
-    );
+    assert_eq!(split_root_names(&String::from_utf8_lossy(&output.stdout)), ["app", "dev-lib"]);
 }
 
 /// `--filter-prod <pkg>...` walks production dependencies only, so
@@ -681,10 +539,7 @@ fn sbom_filter_prod_follows_production_deps_only() {
         "pacquet sbom failed: {}",
         String::from_utf8_lossy(&output.stderr),
     );
-    assert_eq!(
-        split_root_names(&String::from_utf8_lossy(&output.stdout)),
-        ["app"],
-    );
+    assert_eq!(split_root_names(&String::from_utf8_lossy(&output.stdout)), ["app"]);
 }
 
 /// Selectors that match no workspace project skip the command entirely:
@@ -694,30 +549,14 @@ fn sbom_filter_matching_nothing_writes_no_sbom() {
     let tmp = copy_fixture("workspace-sbom-populated");
     let output = pacquet(
         tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--filter",
-            "no-such-package",
-        ],
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "no-such-package"],
     )
     .output()
     .expect("run pacquet");
-    assert!(
-        output.status.success(),
-        "no match alone must not fail the run",
-    );
+    assert!(output.status.success(), "no match alone must not fail the run");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.starts_with("No projects matched the filters in"),
-        "stdout:\n{stdout}",
-    );
-    assert!(
-        !stdout.contains("bomFormat"),
-        "no SBOM should be written:\n{stdout}",
-    );
+    assert!(stdout.starts_with("No projects matched the filters in"), "stdout:\n{stdout}");
+    assert!(!stdout.contains("bomFormat"), "no SBOM should be written:\n{stdout}");
 }
 
 /// `--workspace-root` narrows the SBOM to the root project, even though
@@ -729,13 +568,7 @@ fn sbom_workspace_root_selects_only_the_root() {
     let tmp = copy_fixture("workspace-sbom-filter-prod");
     let output = pacquet(
         tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--workspace-root",
-        ],
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--workspace-root"],
     )
     .output()
     .expect("run pacquet");
@@ -746,10 +579,7 @@ fn sbom_workspace_root_selects_only_the_root() {
     );
     let parsed: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("parse JSON output");
-    assert_eq!(
-        parsed["metadata"]["component"]["name"],
-        "workspace-sbom-filter-prod-root",
-    );
+    assert_eq!(parsed["metadata"]["component"]["name"], "workspace-sbom-filter-prod-root");
     assert!(
         parsed["components"]
             .as_array()
@@ -768,11 +598,8 @@ fn sbom_fails_when_the_lockfile_has_no_importer_for_a_selected_project() {
     let tmp = copy_fixture("workspace-sbom-filter-prod");
     let added = tmp.path().join("newpkg");
     fs::create_dir_all(&added).expect("create the added package dir");
-    fs::write(
-        added.join("package.json"),
-        r#"{ "name": "newpkg", "version": "1.0.0" }"#,
-    )
-    .expect("write the added package.json");
+    fs::write(added.join("package.json"), r#"{ "name": "newpkg", "version": "1.0.0" }"#)
+        .expect("write the added package.json");
     fs::write(
         tmp.path().join("pnpm-workspace.yaml"),
         "packages:\n  - app\n  - dev-lib\n  - newpkg\n",
@@ -781,14 +608,7 @@ fn sbom_fails_when_the_lockfile_has_no_importer_for_a_selected_project() {
 
     let output = pacquet(
         tmp.path(),
-        [
-            "sbom",
-            "--sbom-format",
-            "cyclonedx",
-            "--lockfile-only",
-            "--filter",
-            "newpkg",
-        ],
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--filter", "newpkg"],
     )
     .output()
     .expect("run pacquet");
@@ -796,16 +616,7 @@ fn sbom_fails_when_the_lockfile_has_no_importer_for_a_selected_project() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert_eq!(output.status.code(), Some(1), "stdout:\n{stdout}");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_SBOM_MISSING_IMPORTERS"),
-        "stderr:\n{stderr}",
-    );
-    assert!(
-        stderr.contains("newpkg"),
-        "the error should name the missing project:\n{stderr}",
-    );
-    assert!(
-        !stdout.contains("bomFormat"),
-        "no SBOM may be written for an out-of-date lockfile",
-    );
+    assert!(stderr.contains("ERR_PNPM_SBOM_MISSING_IMPORTERS"), "stderr:\n{stderr}");
+    assert!(stderr.contains("newpkg"), "the error should name the missing project:\n{stderr}");
+    assert!(!stdout.contains("bomFormat"), "no SBOM may be written for an out-of-date lockfile");
 }

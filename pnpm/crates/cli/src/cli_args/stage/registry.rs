@@ -34,10 +34,7 @@ impl StageRegistryError {
         } else {
             format!("Failed to {action} (status {status_display}): {trimmed}")
         };
-        StageRegistryError {
-            message,
-            status,
-        }
+        StageRegistryError { message, status }
     }
 }
 
@@ -113,8 +110,7 @@ pub(super) async fn stage_request_with_otp<Reporter: self::Reporter>(
     action: &str,
 ) -> miette::Result<()> {
     let mut session = OtpSession::new(context.web_auth_fetch_options.clone());
-    stage_request_in_session::<Reporter>(context, &mut session, method, url, action)
-        .await
+    stage_request_in_session::<Reporter>(context, &mut session, method, url, action).await
 }
 
 /// Send one stage mutation through `session`, so a series of mutations
@@ -188,9 +184,7 @@ async fn stage_mutation(
     if status.as_u16() == 401
         && let Some(challenge) = parse_stage_otp_challenge(www_authenticate.as_deref(), &body.bytes)
     {
-        return Err(StageHttpError::Otp {
-            challenge,
-        });
+        return Err(StageHttpError::Otp { challenge });
     }
     Err(StageHttpError::Registry(StageRegistryError::new(
         action,
@@ -218,8 +212,7 @@ pub(super) async fn fetch_stage_items(
             url.query_pairs_mut().append_pair("package", package);
         }
         let response: StageListResponse =
-            stage_json_request(context, url.as_str(), "list staged packages")
-                .await?;
+            stage_json_request(context, url.as_str(), "list staged packages").await?;
         let page_len = response.items.len();
         items.extend(response.items);
         if items.len() >= response.total || page_len < PER_PAGE {
@@ -265,13 +258,7 @@ async fn stage_send<'client>(
     method: reqwest::Method,
     url: &str,
     otp: Option<&str>,
-) -> Result<
-    (
-        pnpm_network::ThrottledClientGuard<'client>,
-        reqwest::Response,
-    ),
-    reqwest::Error,
-> {
+) -> Result<(pnpm_network::ThrottledClientGuard<'client>, reqwest::Response), reqwest::Error> {
     send_with_retry(&context.http_client, url, context.retry_opts, |client| {
         let mut builder = client
             .request(method.clone(), url)
@@ -328,12 +315,7 @@ fn parse_stage_otp_challenge(www_authenticate: Option<&str>, body: &[u8]) -> Opt
     if !has_web_auth_urls && !header_mentions_otp {
         return None;
     }
-    Some(OtpChallenge {
-        body: Some(OtpErrorBody {
-            auth_url,
-            done_url,
-        }),
-    })
+    Some(OtpChallenge { body: Some(OtpErrorBody { auth_url, done_url }) })
 }
 
 fn request_failed(action: &str, source: impl std::fmt::Display) -> miette::Report {

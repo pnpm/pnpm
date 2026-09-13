@@ -122,8 +122,7 @@ impl PnprClient {
             "index": opts.index,
             "requiresPython": opts.requires_python,
         });
-        let frame = self.terminal_frame(&request, opts.authorization.as_deref())
-            .await?;
+        let frame = self.terminal_frame(&request, opts.authorization.as_deref()).await?;
         match parse_pypi_frame(&frame)? {
             PypiFrame::Done { lockfile } => Ok(*lockfile),
             PypiFrame::Error { message } => Err(PnprClientError::Server(message)),
@@ -143,8 +142,7 @@ impl PnprClient {
             "metadata": opts.metadata,
             "registry": opts.registry,
         });
-        let frame = self.terminal_frame(&request, opts.authorization.as_deref())
-            .await?;
+        let frame = self.terminal_frame(&request, opts.authorization.as_deref()).await?;
         match parse_cargo_frame(&frame)? {
             CargoFrame::Done { lockfile } => Ok(lockfile),
             CargoFrame::Error { message } => Err(PnprClientError::Server(message)),
@@ -174,15 +172,13 @@ impl PnprClient {
         let response = post.send().await?;
         if !response.status().is_success() {
             let status = response.status();
-            let body = response_body_bounded(response, MAX_ERROR_BODY_SIZE)
-                .await?;
+            let body = response_body_bounded(response, MAX_ERROR_BODY_SIZE).await?;
             return Err(PnprClientError::Server(format!(
                 "/-/pnpr/v0/resolve returned {status}: {}",
                 String::from_utf8_lossy(&body),
             )));
         }
-        let body = response_body_bounded(response, MAX_TERMINAL_RESPONSE_SIZE)
-            .await?;
+        let body = response_body_bounded(response, MAX_TERMINAL_RESPONSE_SIZE).await?;
         let mut frames = body
             .split(|&byte| byte == b'\n')
             .filter(|line| !line.is_empty());
@@ -226,9 +222,9 @@ impl PnprClient {
         let done = read_ndjson_frames(response, |line| match parse_verify_frame(line)? {
             VerifyFrame::Done => Ok(Some(())),
             VerifyFrame::Error { message } => Err(PnprClientError::Server(message)),
-            VerifyFrame::Violations { violations } => Err(PnprClientError::Verification(
-                build_verify_error(violations),
-            )),
+            VerifyFrame::Violations { violations } => {
+                Err(PnprClientError::Verification(build_verify_error(violations)))
+            }
         })
         .await?;
         done.ok_or_else(|| {

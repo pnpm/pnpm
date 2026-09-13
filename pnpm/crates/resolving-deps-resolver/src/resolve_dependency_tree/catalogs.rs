@@ -32,15 +32,12 @@ pub(super) fn resolve_catalog_specifier(
     range: String,
     catalogs: &Catalogs,
 ) -> Result<(String, String), ResolveDependencyTreeError> {
-    let wanted = CatalogWantedDependency {
-        alias: name.clone(),
-        bare_specifier: range.clone(),
-    };
+    let wanted = CatalogWantedDependency { alias: name.clone(), bare_specifier: range.clone() };
     match resolve_from_catalog(catalogs, &wanted) {
         CatalogResolutionResult::Found(found) => Ok((name, found.resolution.specifier)),
         CatalogResolutionResult::Unused => Ok((name, range)),
-        CatalogResolutionResult::Misconfiguration(misconfig) => Err(
-            ResolveDependencyTreeError::CatalogMisconfiguration(misconfig.error),
-        ),
+        CatalogResolutionResult::Misconfiguration(misconfig) => {
+            Err(ResolveDependencyTreeError::CatalogMisconfiguration(misconfig.error))
+        }
     }
 }

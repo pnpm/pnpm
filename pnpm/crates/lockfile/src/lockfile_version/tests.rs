@@ -35,9 +35,6 @@ fn incompatible() {
     );
     assert!(matches!(
         error,
-        LockfileVersionError::IncompatibleMajor(ComVer {
-            major: 6,
-            minor: 0
-        }),
+        LockfileVersionError::IncompatibleMajor(ComVer { major: 6, minor: 0 }),
     ));
 }

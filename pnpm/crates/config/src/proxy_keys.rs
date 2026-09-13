@@ -63,11 +63,7 @@ impl ProxyValue {
     /// only the empty string reads as unset and `false` is a hostname.
     #[must_use]
     pub fn from_flag(raw: &str) -> Self {
-        if raw.is_empty() {
-            Self::Unset
-        } else {
-            Self::Url(raw.to_string())
-        }
+        if raw.is_empty() { Self::Unset } else { Self::Url(raw.to_string()) }
     }
 
     fn url(&self) -> Option<&str> {
@@ -135,11 +131,7 @@ impl ProxyKeys {
             .or_else(|| self.noproxy.url())
             .or(self.env.no_proxy.as_deref())
             .map(parse_no_proxy);
-        ProxyConfig {
-            https_proxy: https.into_url(),
-            http_proxy: http.into_url(),
-            no_proxy,
-        }
+        ProxyConfig { https_proxy: https.into_url(), http_proxy: http.into_url(), no_proxy }
     }
 }
 

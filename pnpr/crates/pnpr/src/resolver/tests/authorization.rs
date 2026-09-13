@@ -27,14 +27,7 @@ fn private_cached_resolution_requires_current_alias_authorization() {
     );
     let context = RouteContext::from_config(&config);
     assert!(
-        cached_resolution(
-            &cache,
-            Duration::from_mins(1),
-            &key,
-            &context,
-            &user("alice")
-        )
-        .is_some(),
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
     );
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_none(),
@@ -45,22 +38,11 @@ fn private_cached_resolution_requires_current_alias_authorization() {
     // for a still-authorized caller.
     config.routing.upstreams.insert(
         "corp".to_string(),
-        upstream_with_token(
-            "https://npm.corp.example/",
-            "alice",
-            "Bearer rotated-secret",
-        ),
+        upstream_with_token("https://npm.corp.example/", "alice", "Bearer rotated-secret"),
     );
     let rotated = RouteContext::from_config(&config);
     assert!(
-        cached_resolution(
-            &cache,
-            Duration::from_mins(1),
-            &key,
-            &rotated,
-            &user("alice")
-        )
-        .is_none(),
+        cached_resolution(&cache, Duration::from_mins(1), &key, &rotated, &user("alice")).is_none(),
     );
 }
 
@@ -86,27 +68,14 @@ fn same_alias_authorized_users_share_private_resolution_cache() {
     let context = RouteContext::from_config(&config);
 
     assert!(
-        cached_resolution(
-            &cache,
-            Duration::from_mins(1),
-            &key,
-            &context,
-            &user("alice")
-        )
-        .is_some(),
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
     );
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_some(),
     );
     assert!(
-        cached_resolution(
-            &cache,
-            Duration::from_mins(1),
-            &key,
-            &context,
-            &Identity::Anonymous,
-        )
-        .is_none(),
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &Identity::Anonymous,)
+            .is_none(),
     );
 }
 
@@ -131,14 +100,7 @@ fn revoked_alias_access_stops_matching_private_resolution_hits() {
     );
     let context = RouteContext::from_config(&config);
     assert!(
-        cached_resolution(
-            &cache,
-            Duration::from_mins(1),
-            &key,
-            &context,
-            &user("alice")
-        )
-        .is_some(),
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
     );
 
     config.routing.upstreams.insert(
@@ -147,14 +109,7 @@ fn revoked_alias_access_stops_matching_private_resolution_hits() {
     );
     let context = RouteContext::from_config(&config);
     assert!(
-        cached_resolution(
-            &cache,
-            Duration::from_mins(1),
-            &key,
-            &context,
-            &user("alice")
-        )
-        .is_none(),
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_none(),
     );
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_some(),
@@ -179,14 +134,7 @@ fn revoked_hosted_package_access_stops_matching_private_resolution_hits() {
     set_local_hosted_rules(&mut config, "@private/*", "alice");
     let context = RouteContext::from_config(&config);
     assert!(
-        cached_resolution(
-            &cache,
-            Duration::from_mins(1),
-            &key,
-            &context,
-            &user("alice")
-        )
-        .is_some(),
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
     );
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_none(),
@@ -195,14 +143,7 @@ fn revoked_hosted_package_access_stops_matching_private_resolution_hits() {
     set_local_hosted_rules(&mut config, "@private/*", "bob");
     let context = RouteContext::from_config(&config);
     assert!(
-        cached_resolution(
-            &cache,
-            Duration::from_mins(1),
-            &key,
-            &context,
-            &user("alice")
-        )
-        .is_none(),
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_none(),
     );
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_some(),

@@ -268,9 +268,7 @@ impl Config {
     #[must_use]
     pub fn resolved_registries(&self) -> BTreeMap<String, String> {
         let mut registries = self.registries_by_scope.clone();
-        registries
-            .entry("@jsr".to_string())
-            .or_insert_with(|| DEFAULT_JSR_REGISTRY.to_string());
+        registries.entry("@jsr".to_string()).or_insert_with(|| DEFAULT_JSR_REGISTRY.to_string());
         registries.insert("default".to_string(), self.registry.clone());
         registries
     }

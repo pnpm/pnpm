@@ -30,11 +30,9 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
     config.features.registry.enabled = false;
     config.features.resolver.enabled = false;
     config.features.pipeline.enabled = true;
-    for (workspace, reader, writer) in [
-        ("demo-abc123", "alice", "alice"),
-        ("hidden", "bob", "bob"),
-        ("read-only", "alice", "bob"),
-    ] {
+    for (workspace, reader, writer) in
+        [("demo-abc123", "alice", "alice"), ("hidden", "bob", "bob"), ("read-only", "alice", "bob")]
+    {
         config.features.pipeline.workspaces.insert(
             workspace.to_string(),
             pnpr_config::StorageAccess {
@@ -157,10 +155,9 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
             expected,
         );
     }
-    for path in [
-        "/-/pnpr/v0/pipeline/runs?workspace=hidden",
-        "/-/pnpr/v0/pipeline/runs/hidden/100-default",
-    ] {
+    for path in
+        ["/-/pnpr/v0/pipeline/runs?workspace=hidden", "/-/pnpr/v0/pipeline/runs/hidden/100-default"]
+    {
         let response = app
             .clone()
             .oneshot(

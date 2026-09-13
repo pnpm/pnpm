@@ -22,15 +22,11 @@ pub struct StreamedScript<'a> {
 impl StreamedScript<'_> {
     /// Announce the script that is about to run.
     pub fn started(&self, script: &str) {
-        self.started_with_optional(script, false);
-    }
-
-    pub(super) fn started_with_optional(&self, script: &str, optional: bool) {
         (self.emit)(&LogEvent::Lifecycle(LifecycleLog {
             level: LogLevel::Debug,
             message: LifecycleMessage::Script {
                 dep_path: self.dep_path.to_string(),
-                optional,
+                optional: false,
                 script: script.to_string(),
                 stage: self.stage.to_string(),
                 wd: self.wd.to_string(),
@@ -61,20 +57,20 @@ impl StreamedScript<'_> {
     /// The child must have been spawned with both streams piped;
     /// whichever is absent is simply not pumped.
     pub fn pump(&self, child: &mut Child) -> io::Result<ExitStatus> {
-        let pumps = self.pump_outputs(child);
-        let status = child.wait();
-        join_output_pumps(pumps);
-        status
-    }
-
-    pub(super) fn pump_outputs(&self, child: &mut Child) -> [Option<thread::JoinHandle<()>>; 2] {
         let stdout_handle = child.stdout
             .take()
             .map(|stream| self.pump_stream(stream, LifecycleStdio::Stdout));
         let stderr_handle = child.stderr
             .take()
             .map(|stream| self.pump_stream(stream, LifecycleStdio::Stderr));
-        [stdout_handle, stderr_handle]
+        let status = child.wait();
+        if let Some(handle) = stdout_handle {
+            let _ = handle.join();
+        }
+        if let Some(handle) = stderr_handle {
+            let _ = handle.join();
+        }
+        status
     }
 
     /// Asynchronously drain a tokio child's piped stdout and stderr into
@@ -110,19 +106,11 @@ impl StreamedScript<'_> {
         reader: impl Read + Send + 'static,
         stdio: LifecycleStdio,
     ) -> thread::JoinHandle<()> {
-        let (dep_path, stage, wd) = (
-            self.dep_path.to_string(),
-            self.stage.to_string(),
-            self.wd.to_string(),
-        );
+        let (dep_path, stage, wd) =
+            (self.dep_path.to_string(), self.stage.to_string(), self.wd.to_string());
         let emit = self.emit;
         thread::spawn(move || {
-            let target = StreamedScript {
-                dep_path: &dep_path,
-                stage: &stage,
-                wd: &wd,
-                emit,
-            };
+            let target = StreamedScript { dep_path: &dep_path, stage: &stage, wd: &wd, emit };
             pump_lines(&target, reader, stdio);
         })
     }
@@ -209,10 +197,4 @@ fn streamed_chunk_len(buffered: &[u8], accumulated: usize) -> usize {
         .position(|byte| *byte == b'\n')
         .map_or(buffered.len(), |i| i + 1);
     through_newline.min(STREAMED_OUTPUT_CHUNK_BYTES - accumulated)
-}
-
-pub(super) fn join_output_pumps(pumps: [Option<thread::JoinHandle<()>>; 2]) {
-    for pump in pumps.into_iter().flatten() {
-        let _ = pump.join();
-    }
 }

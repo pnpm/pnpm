@@ -66,15 +66,12 @@ fn collect_importer_components(
     let (dev_dep_names, prod_dep_names) = importer_dependency_names(importer);
 
     let dep_maps = included_importer_dependencies(inputs.include, importer);
-    for (name, spec) in dep_maps
-        .into_iter()
-        .flatten()
-        .flatten()
-    {
+    for (name, spec) in dep_maps.into_iter().flatten().flatten() {
         if importer_peer_names.contains(&name.to_string()) {
             continue;
         }
-        let dev_only = is_dev_only_dependency(name, &dev_dep_names, &prod_dep_names);
+        let dev_only = dev_dep_names.contains(&name.to_string())
+            && !prod_dep_names.contains(&name.to_string());
         let linked = collect_linked_workspace_component(
             inputs,
             importer_id,
@@ -124,8 +121,15 @@ fn collect_linked_workspace_component(
     dev_only: bool,
     walk: &mut ImporterWalk<'_>,
 ) -> bool {
-    let Some((target_id, ws_manifest)) = linked_workspace_manifest(inputs, importer_id, spec)
-    else {
+    let Some(link_target) = spec.version.as_link_target() else { return false };
+    let Some(target_id) = normalize_link_path(importer_id, link_target) else { return false };
+    if !inputs.lockfile.importers.contains_key(target_id.as_str()) {
+        return false;
+    }
+    let Some(ws_dir) = confined_importer_dir(inputs.lockfile_dir, &target_id) else {
+        return false;
+    };
+    let Ok(Some(ws_manifest)) = safe_read_package_json_from_dir(&ws_dir) else {
         return false;
     };
     let ws_name = ws_manifest
@@ -139,10 +143,7 @@ fn collect_linked_workspace_component(
         .unwrap_or("0.0.0")
         .to_string();
     let ws_purl = build_purl(&ws_name, &ws_version);
-    walk.relationships.push(SbomRelationship {
-        from: parent_purl.to_owned(),
-        to: ws_purl.clone(),
-    });
+    walk.relationships.push(SbomRelationship { from: parent_purl.to_owned(), to: ws_purl.clone() });
     // A sibling reached both ways is a production dependency.
     if let Some(existing) = walk.components_map.get_mut(&ws_purl) {
         if !dev_only && existing.dep_type == DepType::DevOnly {
@@ -170,11 +171,7 @@ fn workspace_component(
         purl: build_purl(&name, &version),
         name,
         version,
-        dep_type: if dev_only {
-            DepType::DevOnly
-        } else {
-            DepType::ProdOnly
-        },
+        dep_type: if dev_only { DepType::DevOnly } else { DepType::ProdOnly },
         integrity: None,
         tarball_url: None,
         license: ws_manifest
@@ -205,8 +202,10 @@ fn walk_snapshot(
 
     while let Some((key, parent_purl)) = queue.pop() {
         let name = key.name.to_string();
-        let pkg_meta = snapshot_metadata(&key, ctx);
-        let version = snapshot_version(&key, pkg_meta);
+        let pkg_meta = ctx.packages.and_then(|pkgs| pkgs.get(&key.without_peer()));
+        let version = pkg_meta
+            .and_then(|meta| meta.version.clone())
+            .unwrap_or_else(|| key.suffix.version().to_string());
 
         if skipped_optional_package(&key, pkg_meta, ctx) {
             continue;
@@ -214,10 +213,7 @@ fn walk_snapshot(
 
         let purl = build_purl(&name, &version);
 
-        relationships.push(SbomRelationship {
-            from: parent_purl,
-            to: purl.clone(),
-        });
+        relationships.push(SbomRelationship { from: parent_purl, to: purl.clone() });
 
         if !visited.insert(key.clone()) {
             continue;
@@ -248,9 +244,7 @@ fn skipped_optional_package(
         return false;
     }
     let optional = ctx.snapshots.is_some_and(|snapshots| {
-        snapshots
-            .get(key)
-            .is_some_and(|snapshot| snapshot.optional)
+        snapshots.get(key).is_some_and(|snapshot| snapshot.optional)
     });
     platform_incompatible_optional(&key.name.bare, optional, pkg_meta, &ctx.installability)
 }
@@ -374,52 +368,8 @@ fn included_importer_dependencies<'a>(
     importer: &'a pnpm_lockfile::ProjectSnapshot,
 ) -> [Option<&'a pnpm_lockfile::ResolvedDependencyMap>; 3] {
     [
-        include.dependencies
-            .then_some(importer.dependencies.as_ref())
-            .flatten(),
-        include.dev_dependencies
-            .then_some(importer.dev_dependencies.as_ref())
-            .flatten(),
-        include.optional_dependencies
-            .then_some(importer.optional_dependencies.as_ref())
-            .flatten(),
+        include.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
+        include.dev_dependencies.then_some(importer.dev_dependencies.as_ref()).flatten(),
+        include.optional_dependencies.then_some(importer.optional_dependencies.as_ref()).flatten(),
     ]
-}
-
-fn linked_workspace_manifest(
-    inputs: &ImporterComponents<'_>,
-    importer_id: &str,
-    spec: &pnpm_lockfile::ResolvedDependencySpec,
-) -> Option<(String, serde_json::Value)> {
-    let link_target = spec.version.as_link_target()?;
-    let target_id = normalize_link_path(importer_id, link_target)?;
-    if !inputs.lockfile.importers.contains_key(target_id.as_str()) {
-        return None;
-    }
-    let ws_dir = confined_importer_dir(inputs.lockfile_dir, &target_id)?;
-    let manifest = safe_read_package_json_from_dir(&ws_dir).ok()??;
-    Some((target_id, manifest))
-}
-
-fn is_dev_only_dependency(
-    name: &PkgName,
-    dev_names: &HashSet<String>,
-    prod_names: &HashSet<String>,
-) -> bool {
-    dev_names.contains(&name.to_string()) && !prod_names.contains(&name.to_string())
-}
-
-fn snapshot_metadata<'a>(
-    key: &PkgNameVerPeer,
-    ctx: &WalkContext<'a>,
-) -> Option<&'a pnpm_lockfile::PackageMetadata> {
-    ctx.packages.and_then(|packages| packages.get(&key.without_peer()))
-}
-fn snapshot_version(
-    key: &PkgNameVerPeer,
-    metadata: Option<&pnpm_lockfile::PackageMetadata>,
-) -> String {
-    metadata
-        .and_then(|meta| meta.version.clone())
-        .unwrap_or_else(|| key.suffix.version().to_string())
 }

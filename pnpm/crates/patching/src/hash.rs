@@ -21,10 +21,7 @@ pub enum CalcPatchHashError {
 /// SHA-256 hex digest of one patch file, with CRLF normalized to LF.
 pub fn create_hex_hash_from_file(path: &Path) -> Result<String, CalcPatchHashError> {
     let bytes = fs::read(path)
-        .map_err(|source| CalcPatchHashError::ReadFile {
-            path: path.to_path_buf(),
-            source,
-        })?;
+        .map_err(|source| CalcPatchHashError::ReadFile { path: path.to_path_buf(), source })?;
     let text = String::from_utf8_lossy(&bytes);
     let normalized = text.replace("\r\n", "\n");
     let mut hasher = Sha256::new();

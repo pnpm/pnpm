@@ -65,11 +65,7 @@ fn strip_bearer_prefix(token: &str) -> &str {
     let rest = &token[6..];
     let trimmed = rest.trim_start_matches(char::is_whitespace);
     // The regex requires `\s+`, so only strip when whitespace actually followed.
-    if trimmed.len() < rest.len() {
-        trimmed
-    } else {
-        token
-    }
+    if trimmed.len() < rest.len() { trimmed } else { token }
 }
 
 #[cfg(test)]

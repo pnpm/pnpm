@@ -200,8 +200,7 @@ pub fn dependencies_graph_to_lockfile(
         settings: Some(opts.settings),
         catalogs: build_catalog_snapshots(&importers, opts.catalogs),
         overrides: opts.manifest_settings.overrides.filter(|map| !map.is_empty()),
-        package_extensions_checksum: opts.manifest_settings
-            .package_extensions_checksum,
+        package_extensions_checksum: opts.manifest_settings.package_extensions_checksum,
         pnpmfile_checksum: opts.manifest_settings.pnpmfile_checksum,
         ignored_optional_dependencies: opts.manifest_settings
             .ignored_optional_dependencies
@@ -234,31 +233,22 @@ fn build_catalog_snapshots(
 ) -> Option<CatalogSnapshots> {
     let mut snapshots: CatalogSnapshots = BTreeMap::new();
     for importer in importers.values() {
-        let Some(specifiers) = importer.specifiers.as_ref() else {
-            continue;
-        };
+        let Some(specifiers) = importer.specifiers.as_ref() else { continue };
         for (alias, specifier) in specifiers {
-            let Some(catalog_name) = parse_catalog_protocol(specifier) else {
-                continue;
-            };
+            let Some(catalog_name) = parse_catalog_protocol(specifier) else { continue };
             let Some(entry_specifier) = catalogs
                 .get(catalog_name)
                 .and_then(|catalog| catalog.get(alias))
             else {
                 continue;
             };
-            let Some(version) = importer_resolved_version(importer, alias) else {
-                continue;
-            };
+            let Some(version) = importer_resolved_version(importer, alias) else { continue };
             snapshots
                 .entry(catalog_name.to_string())
                 .or_default()
                 .insert(
                     alias.clone(),
-                    ResolvedCatalogEntry {
-                        specifier: entry_specifier.clone(),
-                        version,
-                    },
+                    ResolvedCatalogEntry { specifier: entry_specifier.clone(), version },
                 );
         }
     }
@@ -286,36 +276,41 @@ fn compute_corrected_optional(
     importer_inputs: &BTreeMap<String, ImporterLockfileInput<'_>>,
     graph: &DependenciesGraph,
 ) -> HashMap<DepPath, bool> {
-    let (dev_seeds, optional_seeds, prod_seeds) = importer_dependency_seeds(importer_inputs);
+    // Partition every importer's deps into dev / optional / prod
+    // seed sets. Across importers the union of non-optional reach is
+    // what matters, so seeds are pooled before walking.
+    let mut dev_seeds: Vec<&DepPath> = Vec::new();
+    let mut optional_seeds: Vec<&DepPath> = Vec::new();
+    let mut prod_seeds: Vec<&DepPath> = Vec::new();
+    for input in importer_inputs.values() {
+        let alias_to_group = manifest_alias_to_group(input.manifest);
+        for (alias, dep_path) in &input.direct_dependencies_by_alias {
+            // Skip aliases the manifest doesn't declare — auto-installed
+            // peers hoisted into `direct_dependencies_by_alias` when
+            // `autoInstallPeers: true` is on never make it into the
+            // importer's lockfile entry (see [`build_importer`](crate::dependencies_graph_to_lockfile::importers::build_importer)), so we
+            // don't seed from them here either. Seeding them would force
+            // their snapshots' `optional` flag to `false` purely by
+            // virtue of being pulled in to satisfy an optional parent's
+            // peer.
+            let Some(group) = alias_to_group.get(alias).copied() else {
+                continue;
+            };
+            match group {
+                DependencyGroup::Dev => dev_seeds.push(dep_path),
+                DependencyGroup::Optional => optional_seeds.push(dep_path),
+                DependencyGroup::Prod | DependencyGroup::Peer => prod_seeds.push(dep_path),
+            }
+        }
+    }
 
     let mut walked: HashSet<(&DepPath, bool)> = HashSet::new();
     let mut visited: HashSet<&DepPath> = HashSet::new();
     let mut non_optional: HashSet<&DepPath> = HashSet::new();
 
-    walk_subgraph(
-        graph,
-        &mut walked,
-        &mut visited,
-        &mut non_optional,
-        dev_seeds,
-        false,
-    );
-    walk_subgraph(
-        graph,
-        &mut walked,
-        &mut visited,
-        &mut non_optional,
-        optional_seeds,
-        true,
-    );
-    walk_subgraph(
-        graph,
-        &mut walked,
-        &mut visited,
-        &mut non_optional,
-        prod_seeds,
-        false,
-    );
+    walk_subgraph(graph, &mut walked, &mut visited, &mut non_optional, dev_seeds, false);
+    walk_subgraph(graph, &mut walked, &mut visited, &mut non_optional, optional_seeds, true);
+    walk_subgraph(graph, &mut walked, &mut visited, &mut non_optional, prod_seeds, false);
 
     let mut out: HashMap<DepPath, bool> = HashMap::with_capacity(visited.len());
     for dep_path in visited {
@@ -346,9 +341,7 @@ fn walk_subgraph<'g>(
         if !walked.insert((dep_path, optional)) {
             continue;
         }
-        let Some(node) = graph.get(dep_path) else {
-            continue;
-        };
+        let Some(node) = graph.get(dep_path) else { continue };
         visited.insert(dep_path);
         if !optional {
             non_optional.insert(dep_path);
@@ -383,37 +376,3 @@ fn optional_children_of(node: &DependenciesGraphNode) -> rustc_hash::FxHashSet<S
 
 #[cfg(test)]
 mod tests;
-
-fn importer_dependency_seeds<'a>(
-    importer_inputs: &'a BTreeMap<String, ImporterLockfileInput<'_>>,
-) -> (Vec<&'a DepPath>, Vec<&'a DepPath>, Vec<&'a DepPath>) {
-    // Partition every importer's deps into dev / optional / prod
-    // seed sets. Across importers the union of non-optional reach is
-    // what matters, so seeds are pooled before walking.
-    let mut dev_seeds: Vec<&DepPath> = Vec::new();
-    let mut optional_seeds: Vec<&DepPath> = Vec::new();
-    let mut prod_seeds: Vec<&DepPath> = Vec::new();
-    for input in importer_inputs.values() {
-        let alias_to_group = manifest_alias_to_group(input.manifest);
-        for (alias, dep_path) in &input.direct_dependencies_by_alias {
-            // Skip aliases the manifest doesn't declare — auto-installed
-            // peers hoisted into `direct_dependencies_by_alias` when
-            // `autoInstallPeers: true` is on never make it into the
-            // importer's lockfile entry (see [`build_importer`](crate::dependencies_graph_to_lockfile::importers::build_importer)), so we
-            // don't seed from them here either. Seeding them would force
-            // their snapshots' `optional` flag to `false` purely by
-            // virtue of being pulled in to satisfy an optional parent's
-            // peer.
-            let Some(group) = alias_to_group.get(alias).copied() else {
-                continue;
-            };
-            match group {
-                DependencyGroup::Dev => dev_seeds.push(dep_path),
-                DependencyGroup::Optional => optional_seeds.push(dep_path),
-                DependencyGroup::Prod | DependencyGroup::Peer => prod_seeds.push(dep_path),
-            }
-        }
-    }
-
-    (dev_seeds, optional_seeds, prod_seeds)
-}

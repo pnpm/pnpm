@@ -27,21 +27,13 @@ async fn posts_to_escaped_exchange_endpoint_and_returns_token() {
             "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@scope%2fpkg"
         );
         assert_eq!(request.authorization, "Bearer id-token");
-        Ok(OidcResponse {
-            ok: true,
-            status: 200,
-            body: r#"{"token":"registry-token"}"#.to_owned(),
-        })
+        Ok(OidcResponse { ok: true, status: 200, body: r#"{"token":"registry-token"}"#.to_owned() })
     });
 
-    let token = fetch_auth_token::<Sys>(
-        "id-token",
-        "@scope/pkg",
-        REGISTRY,
-        &OidcHttpOptions::default(),
-    )
-    .await
-    .unwrap();
+    let token =
+        fetch_auth_token::<Sys>("id-token", "@scope/pkg", REGISTRY, &OidcHttpOptions::default())
+            .await
+            .unwrap();
     assert_eq!(token, "registry-token");
 }
 
@@ -126,10 +118,7 @@ async fn redacts_registry_credentials_in_the_error_message() {
     .await
     .unwrap_err();
     let message = err.to_string();
-    assert!(
-        !message.contains("secret"),
-        "credentials leaked into the OIDC error: {message}",
-    );
+    assert!(!message.contains("secret"), "credentials leaked into the OIDC error: {message}");
     assert!(
         message.contains("registry.example.com"),
         "the registry host should still be shown: {message}",

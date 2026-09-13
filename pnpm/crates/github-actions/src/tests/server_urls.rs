@@ -1,5 +1,5 @@
 use super::{FakeGitRunner, SilentReporter, find_outdated_with_runner};
-use crate::server::validate_server_url;
+use crate::validate_server_url;
 use std::fs;
 
 #[test]
@@ -24,10 +24,7 @@ fn server_urls_allow_https_and_loopback_http_only() {
     ] {
         let error = validate_server_url(url).expect_err("unsafe server");
         assert_eq!(
-            error
-                .code()
-                .expect("code")
-                .to_string(),
+            error.code().expect("code").to_string(),
             "ERR_PNPM_GITHUB_ACTIONS_SERVER_PROTOCOL",
         );
         assert!(!error.to_string().contains("secret"));
@@ -53,8 +50,5 @@ async fn homepages_do_not_expose_server_credentials() {
     )
     .await
     .expect("outdated");
-    assert_eq!(
-        outdated[0].homepage,
-        "https://github.example.com/actions/checkout",
-    );
+    assert_eq!(outdated[0].homepage, "https://github.example.com/actions/checkout");
 }

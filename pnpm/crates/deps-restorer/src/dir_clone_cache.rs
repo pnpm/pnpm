@@ -140,9 +140,7 @@ impl<'install> DirCloneCache<'install> {
         Some(DirCloneCache {
             layout_inputs: CanonicalLayoutInputs {
                 global_virtual_store_dir: config.global_virtual_store_dir.clone(),
-                virtual_store_dir_max_length: config
-                    .virtual_store_dir_max_length
-                    as usize,
+                virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
                 engine,
                 snapshots,
                 packages,
@@ -253,10 +251,7 @@ impl<'install> DirCloneCache<'install> {
             import_method,
             canonical,
             cas_paths,
-            ImportIndexedDirOpts {
-                safe_to_skip: true,
-                ..ImportIndexedDirOpts::default()
-            },
+            ImportIndexedDirOpts { safe_to_skip: true, ..ImportIndexedDirOpts::default() },
         ) else {
             return true;
         };

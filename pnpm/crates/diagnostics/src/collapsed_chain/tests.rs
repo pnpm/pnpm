@@ -67,24 +67,12 @@ fn messages(collapsed: &Collapsed<'_>) -> Vec<String> {
 
 #[test]
 fn transparent_wrappers_render_the_message_once() {
-    let leaf = Leaf {
-        message: "tarball server returned HTTP 404",
-        source: None,
-    };
-    let wrapped = Wrapper {
-        inner: Wrapper {
-            inner: Wrapper {
-                inner: leaf,
-            },
-        },
-    };
+    let leaf = Leaf { message: "tarball server returned HTTP 404", source: None };
+    let wrapped = Wrapper { inner: Wrapper { inner: Wrapper { inner: leaf } } };
 
     let collapsed = Collapsed::new(&wrapped);
 
-    assert_eq!(
-        messages(&collapsed),
-        vec!["tarball server returned HTTP 404".to_string()],
-    );
+    assert_eq!(messages(&collapsed), vec!["tarball server returned HTTP 404".to_string()]);
 }
 
 /// Only *consecutive* restatements fold: a wrapper that says something
@@ -96,15 +84,10 @@ fn distinct_causes_survive() {
         message: "installing dependencies",
         source: Some(Box::new(Leaf {
             message: "tarball server returned HTTP 404",
-            source: Some(Box::new(Leaf {
-                message: "installing dependencies",
-                source: None,
-            })),
+            source: Some(Box::new(Leaf { message: "installing dependencies", source: None })),
         })),
     };
-    let wrapped = Wrapper {
-        inner: leaf,
-    };
+    let wrapped = Wrapper { inner: leaf };
 
     let collapsed = Collapsed::new(&wrapped);
 
@@ -148,10 +131,7 @@ fn a_context_prefixed_wrapper_absorbs_its_cause() {
 fn a_coincidental_tail_match_is_not_a_restatement() {
     let leaf = Leaf {
         message: "the range resolved to 3.0.1",
-        source: Some(Box::new(Leaf {
-            message: "0.1",
-            source: None,
-        })),
+        source: Some(Box::new(Leaf { message: "0.1", source: None })),
     };
 
     let collapsed = Collapsed::new(&leaf);
@@ -166,21 +146,11 @@ fn a_coincidental_tail_match_is_not_a_restatement() {
 /// still carries the code miette prints above the report.
 #[test]
 fn the_head_keeps_its_diagnostic_code() {
-    let wrapped = Wrapper {
-        inner: Leaf {
-            message: "boom",
-            source: None,
-        },
-    };
+    let wrapped = Wrapper { inner: Leaf { message: "boom", source: None } };
 
     let collapsed = Collapsed::new(&wrapped);
 
-    assert_eq!(
-        collapsed
-            .code()
-            .map(|code| code.to_string()),
-        Some("ERR_PNPM_LEAF".to_string()),
-    );
+    assert_eq!(collapsed.code().map(|code| code.to_string()), Some("ERR_PNPM_LEAF".to_string()));
 }
 
 /// A wrapper that offers its inner error as a *diagnostic* source.
@@ -208,18 +178,12 @@ impl Diagnostic for DiagnosticWrapper {
 #[test]
 fn a_diagnostic_source_is_folded_like_an_error_source() {
     let wrapped = DiagnosticWrapper {
-        inner: Leaf {
-            message: "tarball server returned HTTP 404",
-            source: None,
-        },
+        inner: Leaf { message: "tarball server returned HTTP 404", source: None },
     };
 
     let collapsed = Collapsed::new(&wrapped);
 
-    assert_eq!(
-        messages(&collapsed),
-        vec!["tarball server returned HTTP 404".to_string()],
-    );
+    assert_eq!(messages(&collapsed), vec!["tarball server returned HTTP 404".to_string()]);
 }
 
 /// Renders through the installed handler, which is the only thing the
@@ -235,17 +199,8 @@ fn the_handler_renders_a_repeated_message_once() {
         }
     }
 
-    let handler = CollapsingHandler {
-        inner: MietteHandlerOpts::new().build(),
-    };
-    let wrapped = Wrapper {
-        inner: Wrapper {
-            inner: Leaf {
-                message: "boom",
-                source: None,
-            },
-        },
-    };
+    let handler = CollapsingHandler { inner: MietteHandlerOpts::new().build() };
+    let wrapped = Wrapper { inner: Wrapper { inner: Leaf { message: "boom", source: None } } };
 
     let rendered = format!("{:?}", Rendered(&handler, &wrapped));
 

@@ -24,13 +24,7 @@ pub(super) async fn read_source_packument(
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     match resolved_source {
         RegistrySource::Upstream(source) => {
-            authorize(
-                state,
-                identity,
-                resolved_source,
-                name.as_str(),
-                Action::Access,
-            )?;
+            authorize(state, identity, resolved_source, name.as_str(), Action::Access)?;
             load_upstream_packument_for(state, identity, source, name).await
         }
         RegistrySource::Hosted(source) => {
@@ -71,8 +65,7 @@ pub(super) async fn load_upstream_packument(
     {
         Ok(fetched) => fetched,
         Err(err) => {
-            return recover_stale_upstream_packument(state, namespace, upstream, name, err)
-                .await;
+            return recover_stale_upstream_packument(state, namespace, upstream, name, err).await;
         }
     };
     cache_upstream_packument(state, namespace, upstream, name, fetched).await
@@ -102,8 +95,7 @@ pub(super) async fn cache_upstream_packument(
             // outlive every TTL and a later transient outage could resurrect
             // the unpublished package through the stale-if-error fallback.
             if upstream.caches()
-                && let Err(err) = state.inner.storage.remove_upstream_package(namespace, name)
-                    .await
+                && let Err(err) = state.inner.storage.remove_upstream_package(namespace, name).await
             {
                 tracing::warn!(
                     ?err,
@@ -120,8 +112,7 @@ pub(super) async fn cache_upstream_packument(
         // body is current, so serve it (fresh or stale) rather than a spurious
         // 404 that a client could cache as "package gone".
         PackumentFetch::NotModified => {
-            state.inner.storage.read_upstream_document_any(namespace, name)
-                .await
+            state.inner.storage.read_upstream_document_any(namespace, name).await
         }
     }
 }
@@ -140,9 +131,7 @@ pub(super) async fn recover_stale_upstream_packument(
     if !err.is_transient_upstream_error() || !upstream.caches() {
         return Err(err);
     }
-    let Some(bytes) = state.inner.storage.read_upstream_document_any(namespace, name)
-        .await?
-    else {
+    let Some(bytes) = state.inner.storage.read_upstream_document_any(namespace, name).await? else {
         return Err(err);
     };
     // The upstream error may embed credentials in its request URL, so only its
@@ -198,13 +187,7 @@ pub(super) async fn load_packument_for_read(
     let resolved_source = resolve_registry_source(state, &target, name.as_str());
     match &resolved_source {
         RegistrySource::Upstream(source) => {
-            authorize(
-                state,
-                identity,
-                &resolved_source,
-                name.as_str(),
-                Action::Access,
-            )?;
+            authorize(state, identity, &resolved_source, name.as_str(), Action::Access)?;
             load_upstream_packument_for(state, identity, source, name).await
         }
         RegistrySource::Hosted(source) => {
@@ -228,12 +211,11 @@ pub(super) async fn serve_packument_via_upstream(
     tarball_base: &str,
     revision_registry: Option<&str>,
 ) -> Response {
-    let bytes =
-        match load_upstream_packument_for(state, identity, upstream, name).await {
-            Ok(Some(bytes)) => bytes,
-            Ok(None) => return not_found(),
-            Err(err) => return err.into_response(),
-        };
+    let bytes = match load_upstream_packument_for(state, identity, upstream, name).await {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return not_found(),
+        Err(err) => return err.into_response(),
+    };
     match packument_response(
         name,
         &bytes,

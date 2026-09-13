@@ -28,16 +28,10 @@ fn captures_top_level_files() {
     write(&pkg_dir.path().join("package.json"), "{\"name\":\"x\"}\n");
 
     let added = add_files_from_dir(&store_dir, pkg_dir.path()).expect("walk");
-    let keys: Vec<_> = added.files
-        .keys()
-        .cloned()
-        .collect();
+    let keys: Vec<_> = added.files.keys().cloned().collect();
     let mut keys = keys;
     keys.sort();
-    assert_eq!(
-        keys,
-        vec!["index.js".to_string(), "package.json".to_string()],
-    );
+    assert_eq!(keys, vec!["index.js".to_string(), "package.json".to_string()]);
 
     let pkg = added.files.get("package.json").unwrap();
     assert_eq!(pkg.size, b"{\"name\":\"x\"}\n".len() as u64);
@@ -52,11 +46,7 @@ fn nested_paths_use_forward_slashes() {
     write(&pkg_dir.path().join("lib/inner/deep.js"), "deep\n");
 
     let added = add_files_from_dir(&store_dir, pkg_dir.path()).expect("walk");
-    assert!(
-        added.files.contains_key("lib/inner/deep.js"),
-        "got keys: {:?}",
-        added.files.keys(),
-    );
+    assert!(added.files.contains_key("lib/inner/deep.js"), "got keys: {:?}", added.files.keys());
 }
 
 #[cfg(unix)]
@@ -75,10 +65,7 @@ fn executable_files_get_exec_suffix() {
 
     let on_disk = store_dir.cas_file_path_by_mode(&info.digest, info.mode).unwrap();
     let path_str = on_disk.to_string_lossy();
-    assert!(
-        path_str.ends_with("-exec"),
-        "expected -exec suffix, got `{path_str}`",
-    );
+    assert!(path_str.ends_with("-exec"), "expected -exec suffix, got `{path_str}`");
 }
 
 #[test]
@@ -89,10 +76,7 @@ fn top_level_node_modules_is_skipped() {
     write(&pkg_dir.path().join("node_modules/dep/index.js"), "y\n");
 
     let added = add_files_from_dir(&store_dir, pkg_dir.path()).expect("walk");
-    let keys: Vec<_> = added.files
-        .keys()
-        .cloned()
-        .collect();
+    let keys: Vec<_> = added.files.keys().cloned().collect();
     assert_eq!(keys, vec!["index.js".to_string()]);
 }
 
@@ -123,10 +107,7 @@ fn symlinks_pointing_outside_root_are_skipped() {
         .expect("create symlink");
 
     let added = add_files_from_dir(&store_dir, pkg_dir.path()).expect("walk");
-    let mut keys: Vec<_> = added.files
-        .keys()
-        .cloned()
-        .collect();
+    let mut keys: Vec<_> = added.files.keys().cloned().collect();
     keys.sort();
     assert_eq!(keys, vec!["index.js".to_string()]);
 }
@@ -163,11 +144,7 @@ fn directory_cycle_terminates() {
     let added = add_files_from_dir(&store_dir, pkg_dir.path()).expect("walk");
     // Must contain sub/file.txt; absence would be a bug, infinite
     // recursion would have hung this test.
-    assert!(
-        added.files.contains_key("sub/file.txt"),
-        "got keys: {:?}",
-        added.files.keys(),
-    );
+    assert!(added.files.contains_key("sub/file.txt"), "got keys: {:?}", added.files.keys());
 }
 
 /// Walking a missing root surfaces a structured error rather than
@@ -180,8 +157,5 @@ fn missing_root_errors() {
     let parent = tempdir().expect("create tempdir");
     let missing = parent.path().join("does-not-exist");
     let err = add_files_from_dir(&store_dir, &missing);
-    assert!(matches!(
-        err,
-        Err(AddFilesFromDirError::CanonicalizeRoot { .. })
-    ));
+    assert!(matches!(err, Err(AddFilesFromDirError::CanonicalizeRoot { .. })));
 }

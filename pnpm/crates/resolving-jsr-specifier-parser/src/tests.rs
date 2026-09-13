@@ -79,27 +79,19 @@ fn name_without_scope_is_an_error() {
 fn scope_without_name_is_an_error() {
     assert_eq!(
         parse_jsr_specifier("jsr:@foo@^1.0.0", None),
-        Err(ParseJsrSpecifierError::InvalidPackageName {
-            pkg_name: "@foo".to_string()
-        }),
+        Err(ParseJsrSpecifierError::InvalidPackageName { pkg_name: "@foo".to_string() }),
     );
     assert_eq!(
         parse_jsr_specifier("jsr:@foo", None),
-        Err(ParseJsrSpecifierError::InvalidPackageName {
-            pkg_name: "@foo".to_string()
-        }),
+        Err(ParseJsrSpecifierError::InvalidPackageName { pkg_name: "@foo".to_string() }),
     );
     assert_eq!(
         parse_jsr_specifier("jsr:@foo/", None),
-        Err(ParseJsrSpecifierError::InvalidPackageName {
-            pkg_name: "@foo/".to_string()
-        }),
+        Err(ParseJsrSpecifierError::InvalidPackageName { pkg_name: "@foo/".to_string() }),
     );
     assert_eq!(
         parse_jsr_specifier("jsr:@foo/@^1.0.0", None),
-        Err(ParseJsrSpecifierError::InvalidPackageName {
-            pkg_name: "@foo/".to_string()
-        }),
+        Err(ParseJsrSpecifierError::InvalidPackageName { pkg_name: "@foo/".to_string() }),
     );
 }
 
@@ -107,29 +99,20 @@ fn scope_without_name_is_an_error() {
 fn empty_scope_is_an_error() {
     assert_eq!(
         parse_jsr_specifier("jsr:@/bar", None),
-        Err(ParseJsrSpecifierError::InvalidPackageName {
-            pkg_name: "@/bar".to_string()
-        }),
+        Err(ParseJsrSpecifierError::InvalidPackageName { pkg_name: "@/bar".to_string() }),
     );
 }
 
 #[test]
 fn path_separators_in_name_are_an_error() {
-    for input in [
-        "jsr:@foo/../bar",
-        "jsr:@foo/bar/baz",
-        r"jsr:@foo/bar\baz",
-        r"jsr:@sco\pe/bar",
-    ] {
+    for input in ["jsr:@foo/../bar", "jsr:@foo/bar/baz", r"jsr:@foo/bar\baz", r"jsr:@sco\pe/bar"] {
         let pkg_name = input
             .strip_prefix("jsr:")
             .unwrap()
             .to_string();
         assert_eq!(
             parse_jsr_specifier(input, None),
-            Err(ParseJsrSpecifierError::InvalidPackageName {
-                pkg_name
-            }),
+            Err(ParseJsrSpecifierError::InvalidPackageName { pkg_name }),
             "input: {input}",
         );
     }
@@ -139,9 +122,7 @@ fn path_separators_in_name_are_an_error() {
 fn version_only_specifier_without_alias_errors() {
     assert_eq!(
         parse_jsr_specifier("jsr:^1.0.0", None),
-        Err(ParseJsrSpecifierError::MissingPackageName {
-            specifier: "^1.0.0".to_string()
-        }),
+        Err(ParseJsrSpecifierError::MissingPackageName { specifier: "^1.0.0".to_string() }),
     );
 }
 
@@ -152,8 +133,6 @@ fn version_only_specifier_with_empty_alias_errors() {
     // `""` into a package name.
     assert_eq!(
         parse_jsr_specifier("jsr:^1.0.0", Some("")),
-        Err(ParseJsrSpecifierError::MissingPackageName {
-            specifier: "^1.0.0".to_string()
-        }),
+        Err(ParseJsrSpecifierError::MissingPackageName { specifier: "^1.0.0".to_string() }),
     );
 }

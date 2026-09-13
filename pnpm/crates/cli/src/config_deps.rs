@@ -54,8 +54,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     if config_dependencies.is_empty() {
         return Ok(());
     }
-    resolve_and_install::<Reporter>(config, config_dependencies, root_dir, frozen_lockfile)
-        .await
+    resolve_and_install::<Reporter>(config, config_dependencies, root_dir, frozen_lockfile).await
 }
 
 /// Install the project's `configDependencies` and run their `updateConfig`
@@ -266,8 +265,7 @@ pub async fn add_config_dependencies<Reporter: self::Reporter>(
         );
     }
 
-    resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false)
-        .await?;
+    resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false).await?;
 
     pnpm_workspace_manifest_writer::set_config_dependencies(
         root_dir,
@@ -464,8 +462,7 @@ impl EnvironmentNetwork {
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
                 offline: self.offline,
                 prefer_offline: config.prefer_offline,
-                ignore_missing_time_field: config
-                    .minimum_release_age_ignore_missing_time,
+                ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
             },
         }
     }

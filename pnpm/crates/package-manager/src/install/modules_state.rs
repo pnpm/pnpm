@@ -88,8 +88,8 @@ pub(super) fn frozen_tree_intact(
         return false;
     }
     let skipped = crate::SkippedSnapshots::from_strings(&modules.skipped);
-    let probe_slots = !matches!(node_linker, NodeLinker::Hoisted)
-        && !config.enable_global_virtual_store;
+    let probe_slots =
+        !matches!(node_linker, NodeLinker::Hoisted) && !config.enable_global_virtual_store;
     if probe_slots
         && let Some(snapshots) = wanted.snapshots.as_ref()
         && !all_virtual_store_slots_present(snapshots, config, &skipped)
@@ -144,9 +144,8 @@ fn importer_symlinks_intact(
     skipped: &crate::SkippedSnapshots,
 ) -> bool {
     let groups = crate::prune_direct_deps::selected_groups(modules.included);
-    let modules_dir_name: &std::ffi::OsStr = config.modules_dir
-        .file_name()
-        .unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
+    let modules_dir_name: &std::ffi::OsStr =
+        config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
     wanted.importers
         .iter()
         .all(|(importer_id, snapshot)| {
@@ -191,9 +190,7 @@ pub(super) fn check_modules_settings_diff(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
 ) -> Result<(), InstallError> {
-    if modules.virtual_store_dir_max_length
-        != config.virtual_store_dir_max_length
-    {
+    if modules.virtual_store_dir_max_length != config.virtual_store_dir_max_length {
         return Err(InstallError::VirtualStoreDirMaxLengthDiff);
     }
     if normalized_pattern(modules.public_hoist_pattern.as_deref())
@@ -241,8 +238,7 @@ pub(super) fn modules_layout_consistent_with(
     modules.layout_version == Some(LayoutVersion)
         && modules.node_linker == Some(map_node_linker(node_linker))
         && hoist_patterns_match
-        && modules.virtual_store_dir_max_length
-            == config.virtual_store_dir_max_length
+        && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
         && modules.store_dir == config.store_dir.display().to_string()
         && modules.virtual_store_dir
             == config
@@ -297,9 +293,7 @@ pub(super) fn has_revoked_allowed_builds(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
 ) -> bool {
-    let Some(recorded) = modules.allow_builds.as_ref() else {
-        return false;
-    };
+    let Some(recorded) = modules.allow_builds.as_ref() else { return false };
     recorded
         .iter()
         .filter(|(_, value)| matches!(value, pnpm_modules_yaml::AllowBuildValue::Bool(true)))
@@ -336,11 +330,7 @@ pub(super) fn unapproved_recorded_ignored_builds(
     let policy = crate::AllowBuildPolicy::from_config(config)?;
     let mut names: Vec<String> = ignored
         .iter()
-        .filter(|dep_path| {
-            policy
-                .check(dep_path.as_str())
-                .is_none()
-        })
+        .filter(|dep_path| policy.check(dep_path.as_str()).is_none())
         .map(|dep_path| dep_path.as_str().to_string())
         .collect();
     names.sort();
@@ -398,7 +388,13 @@ pub(super) fn build_modules_manifest(
         // later install can re-run any that an `allowBuilds` change now
         // allows (see [`has_newly_allowed_ignored_builds`]). `None` when
         // empty, matching pnpm's omit-when-empty encoding.
-        ignored_builds: recorded_ignored_builds(ignored_builds),
+        ignored_builds: (!ignored_builds.is_empty()).then(|| {
+            ignored_builds
+                .iter()
+                .cloned()
+                .map(pnpm_modules_yaml::DepPath::from)
+                .collect()
+        }),
         hoist_pattern: config.hoist_pattern.clone(),
         hoisted_dependencies,
         // `Some(empty)` would round-trip on disk as
@@ -445,10 +441,7 @@ pub(super) fn build_modules_manifest(
             config.allow_builds
                 .iter()
                 .map(|(spec, allowed)| {
-                    (
-                        spec.clone(),
-                        pnpm_modules_yaml::AllowBuildValue::Bool(*allowed),
-                    )
+                    (spec.clone(), pnpm_modules_yaml::AllowBuildValue::Bool(*allowed))
                 })
                 .collect(),
         ),
@@ -515,16 +508,4 @@ pub(super) fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Op
         .get(key)
         .and_then(|v| v.as_str())
         .map(ToString::to_string)
-}
-
-fn recorded_ignored_builds(
-    ignored_builds: &[String],
-) -> Option<indexmap::IndexSet<pnpm_modules_yaml::DepPath>> {
-    (!ignored_builds.is_empty()).then(|| {
-        ignored_builds
-            .iter()
-            .cloned()
-            .map(pnpm_modules_yaml::DepPath::from)
-            .collect()
-    })
 }

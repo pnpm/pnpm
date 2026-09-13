@@ -44,19 +44,11 @@ pub(super) fn inject_workspace_license(
     dir: &Path,
     files_map: &mut indexmap::IndexMap<String, PathBuf>,
 ) {
-    let Some(workspace_dir) = &opts.workspace_dir else {
-        return;
-    };
-    if dir == workspace_dir
-        || files_map
-            .values()
-            .any(|file| contains_license(file))
-    {
+    let Some(workspace_dir) = &opts.workspace_dir else { return };
+    if dir == workspace_dir || files_map.values().any(|file| contains_license(file)) {
         return;
     }
-    let Ok(entries) = std::fs::read_dir(workspace_dir) else {
-        return;
-    };
+    let Ok(entries) = std::fs::read_dir(workspace_dir) else { return };
     for entry in entries.flatten() {
         let name = entry
             .file_name()
@@ -71,10 +63,7 @@ pub(super) fn inject_workspace_license(
         // bytes into the published tarball. `DirEntry::file_type` does not
         // follow symlinks, so `is_file()` rejects both — matching the
         // symlink-skipping `read_readme_file` does in `exportable-manifest`.
-        if entry
-            .file_type()
-            .is_ok_and(|file_type| file_type.is_file())
-        {
+        if entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
             files_map.insert(format!("package/{name}"), workspace_dir.join(&name));
         }
     }
@@ -155,9 +144,7 @@ pub fn sort_paths_en_locale(paths: &mut Vec<String>) {
         .map(|item| (item.to_lowercase(), item))
         .collect();
     decorated.sort_by(|(left_lower, left), (right_lower, right)| {
-        left_lower
-            .cmp(right_lower)
-            .then_with(|| case_precedence_tiebreak(left, right))
+        left_lower.cmp(right_lower).then_with(|| case_precedence_tiebreak(left, right))
     });
     *paths = decorated
         .into_iter()
@@ -172,10 +159,7 @@ pub fn sort_paths_en_locale(paths: &mut Vec<String>) {
 /// dependency; this reproduces `en` ordering for plain file paths, where
 /// the two agree.
 fn case_precedence_tiebreak(left: &str, right: &str) -> Ordering {
-    for (left_char, right_char) in left
-        .chars()
-        .zip(right.chars())
-    {
+    for (left_char, right_char) in left.chars().zip(right.chars()) {
         if left_char == right_char {
             continue;
         }
@@ -185,9 +169,7 @@ fn case_precedence_tiebreak(left: &str, right: &str) -> Ordering {
             _ => left_char.cmp(&right_char),
         };
     }
-    left
-        .len()
-        .cmp(&right.len())
+    left.len().cmp(&right.len())
 }
 
 /// Whether a packed path looks like a license file, matching upstream's

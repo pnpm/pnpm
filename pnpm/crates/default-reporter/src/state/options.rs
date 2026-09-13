@@ -82,10 +82,7 @@ impl Default for ReporterOptions {
                 aggregate_output: false,
                 hide_prefix: false,
             },
-            progress: crate::state::ProgressOptions {
-                hide_added_pkgs: false,
-                hide_prefix: false,
-            },
+            progress: crate::state::ProgressOptions { hide_added_pkgs: false, hide_prefix: false },
             scope: crate::state::ScopeOptions {
                 summary: SummaryScope::CurrentPrefix,
                 reports_scope: false,
@@ -97,10 +94,6 @@ impl Default for ReporterOptions {
 
 impl Default for ScopeOptions {
     fn default() -> Self {
-        Self {
-            summary: SummaryScope::CurrentPrefix,
-            reports_scope: false,
-            recursive: false,
-        }
+        Self { summary: SummaryScope::CurrentPrefix, reports_scope: false, recursive: false }
     }
 }

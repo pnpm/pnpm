@@ -22,10 +22,7 @@ fn failed_python_preparation_does_not_publish_cargo_metadata() {
         .failure();
     for relative in ["Cargo.lock", ".cargo/config.toml", "pylock.toml", ".venv"] {
         let path = root.path().join(relative);
-        assert!(
-            !path.exists(),
-            "failed preparation must not publish {path:?}",
-        );
+        assert!(!path.exists(), "failed preparation must not publish {path:?}");
     }
 }
 
@@ -56,27 +53,16 @@ fn failed_publication_restores_prior_cargo_workspaces_and_discards_python_genera
     eprintln!("{stderr}");
     assert!(!output.status.success());
     assert!(stderr.contains("incomplete pnpm-managed Cargo source block"));
-    assert_eq!(
-        fs::read_to_string(first_config).unwrap(),
-        "# preserve user settings\n",
-    );
+    assert_eq!(fs::read_to_string(first_config).unwrap(), "# preserve user settings\n");
     assert_eq!(
         fs::read_to_string(second_config).unwrap(),
         "# >>> pnpm-managed cargo sources >>>\n",
     );
-    for relative in [
-        "rust-a/Cargo.lock",
-        "rust-b/Cargo.lock",
-        "pylock.toml",
-        ".venv",
-    ] {
+    for relative in ["rust-a/Cargo.lock", "rust-b/Cargo.lock", "pylock.toml", ".venv"] {
         let path = root.path().join(relative);
         assert!(!path.exists(), "failed publication must restore {path:?}");
     }
-    assert_eq!(
-        fs::read_dir(root.path().join(".pnpm/python-envs")).unwrap().count(),
-        0,
-    );
+    assert_eq!(fs::read_dir(root.path().join(".pnpm/python-envs")).unwrap().count(), 0);
 }
 
 #[tokio::test]
@@ -96,23 +82,13 @@ async fn rejects_archive_integrity_failure_and_offline_store_misses() {
         .failure();
     index.assert_async().await;
     artifact.assert_async().await;
-    assert!(
-        !root
-            .path()
-            .join(".venv")
-            .exists(),
-    );
+    assert!(!root.path().join(".venv").exists());
     drop(server);
     pacquet_in(root.path())
         .args(["install", "--offline"])
         .assert()
         .failure();
-    assert!(
-        !root
-            .path()
-            .join("pylock.toml")
-            .exists(),
-    );
+    assert!(!root.path().join("pylock.toml").exists());
 }
 
 #[tokio::test]
@@ -122,10 +98,7 @@ async fn rejects_conflicts_and_cyclic_dependency_groups_before_publication() {
     let _alpha = serve(
         &mut server,
         "alpha",
-        &[
-            ("1.0", wheel("alpha", "1.0", "", &[])),
-            ("2.0", wheel("alpha", "2.0", "", &[])),
-        ],
+        &[("1.0", wheel("alpha", "1.0", "", &[])), ("2.0", wheel("alpha", "2.0", "", &[]))],
     )
     .await;
     project(root.path(), &server.url(), &["alpha<2", "alpha>=2"]);
@@ -133,23 +106,13 @@ async fn rejects_conflicts_and_cyclic_dependency_groups_before_publication() {
         .arg("install")
         .assert()
         .failure();
-    assert!(
-        !root
-            .path()
-            .join("pylock.toml")
-            .exists(),
-    );
+    assert!(!root.path().join("pylock.toml").exists());
     fs::write(root.path().join("pyproject.toml"), "[project]\nname = 'app'\nversion = '1.0'\n[dependency-groups]\ndev = [{include-group = 'test'}]\ntest = [{include-group = 'dev'}]\n").unwrap();
     pacquet_in(root.path())
         .arg("install")
         .assert()
         .failure();
-    assert!(
-        !root
-            .path()
-            .join(".venv")
-            .exists(),
-    );
+    assert!(!root.path().join(".venv").exists());
 }
 
 #[tokio::test]
@@ -180,19 +143,12 @@ async fn dependency_cycles_resolve_and_tampered_lockfile_closure_is_rejected() {
         .as_array_mut()
         .unwrap()
         .retain(|package| package["name"].as_str() != Some("beta"));
-    fs::write(
-        root.path().join("pylock.toml"),
-        toml::to_string(&lock).unwrap(),
-    )
-    .unwrap();
+    fs::write(root.path().join("pylock.toml"), toml::to_string(&lock).unwrap()).unwrap();
     pacquet_in(root.path())
         .args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .failure();
-    assert_eq!(
-        environment,
-        pnpm_fs::read_symlink_dir(&root.path().join(".venv")).unwrap(),
-    );
+    assert_eq!(environment, pnpm_fs::read_symlink_dir(&root.path().join(".venv")).unwrap());
 }
 
 #[cfg(unix)]
@@ -208,12 +164,7 @@ async fn rejects_symlinked_generation_parent_without_writing_outside_the_project
         .assert()
         .failure();
     assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 0);
-    assert!(
-        !root
-            .path()
-            .join("pylock.toml")
-            .exists(),
-    );
+    assert!(!root.path().join("pylock.toml").exists());
 }
 
 #[tokio::test]
@@ -232,10 +183,7 @@ async fn backtracks_instead_of_rejecting_conflicting_latest_versions() {
     let _beta = serve(
         &mut server,
         "beta",
-        &[
-            ("1.0", wheel("beta", "1.0", "", &[])),
-            ("2.0", wheel("beta", "2.0", "", &[])),
-        ],
+        &[("1.0", wheel("beta", "1.0", "", &[])), ("2.0", wheel("beta", "2.0", "", &[]))],
     )
     .await;
     project(root.path(), &server.url(), &["alpha>=1", "beta<2"]);
@@ -244,49 +192,27 @@ async fn backtracks_instead_of_rejecting_conflicting_latest_versions() {
         .assert()
         .success();
     python(root.path())
-        .args([
-            "-c",
-            "import alpha, beta; assert alpha.VERSION == beta.VERSION == '1.0'",
-        ])
+        .args(["-c", "import alpha, beta; assert alpha.VERSION == beta.VERSION == '1.0'"])
         .assert()
         .success();
 }
 
 #[tokio::test]
 async fn rejects_wheel_tags_that_disagree_with_the_filename() {
-    for tags in [
-        "",
-        "Tag: py2-none-any\n",
-        "Tag: py3-none-any\nTag: cp311-cp311-win_amd64\n",
-    ] {
+    for tags in ["", "Tag: py2-none-any\n", "Tag: py3-none-any\nTag: cp311-cp311-win_amd64\n"] {
         eprintln!("WHEEL tags: {tags:?}");
         let root = tempfile::tempdir().unwrap();
         let mut server = mockito::Server::new_async().await;
-        let _alpha = serve(
-            &mut server,
-            "alpha",
-            &[("1.0", wheel_with_tags("alpha", "1.0", "", &[], tags))],
-        )
-        .await;
+        let _alpha =
+            serve(&mut server, "alpha", &[("1.0", wheel_with_tags("alpha", "1.0", "", &[], tags))])
+                .await;
         project(root.path(), &server.url(), &["alpha"]);
         assert_failure_contains(
             pacquet_in(root.path()).arg("install"),
             "wheel Tag fields do not match filename",
         );
-        assert!(
-            !root
-                .path()
-                .join("pylock.toml")
-                .exists(),
-            "published rejected wheel lockfile",
-        );
-        assert!(
-            !root
-                .path()
-                .join(".venv")
-                .exists(),
-            "published rejected wheel environment",
-        );
+        assert!(!root.path().join("pylock.toml").exists(), "published rejected wheel lockfile");
+        assert!(!root.path().join(".venv").exists(), "published rejected wheel environment");
     }
 }
 
@@ -318,13 +244,7 @@ async fn rejects_oversized_python_index_without_caching_or_publication() {
             .exists(),
         "cached oversized response",
     );
-    assert!(
-        !root
-            .path()
-            .join("pylock.toml")
-            .exists(),
-        "published oversized response lockfile",
-    );
+    assert!(!root.path().join("pylock.toml").exists(), "published oversized response lockfile");
 }
 
 #[test]
@@ -367,26 +287,12 @@ fn broken_python_environment_errors_identify_the_missing_path() {
         if missing_target {
             fs::remove_dir(&target).unwrap();
         }
-        let missing = if missing_target {
-            target
-        } else {
-            project_root.join(".pnpm/python-envs")
-        };
+        let missing = if missing_target { target } else { project_root.join(".pnpm/python-envs") };
         assert_failure_contains(
             pacquet_in(root.path()).args(["install", "--offline"]),
-            &format!(
-                "{} for {}",
-                missing.display(),
-                project_root.join(".venv").display(),
-            ),
+            &format!("{} for {}", missing.display(), project_root.join(".venv").display()),
         );
-        assert!(
-            !root
-                .path()
-                .join("pylock.toml")
-                .exists(),
-            "published failed environment metadata",
-        );
+        assert!(!root.path().join("pylock.toml").exists(), "published failed environment metadata");
     }
 }
 
@@ -394,23 +300,13 @@ fn broken_python_environment_errors_identify_the_missing_path() {
 async fn frozen_lockfile_rejects_changed_manifest_without_mutation() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
-    let _alpha = serve(
-        &mut server,
-        "alpha",
-        &[("1.0", wheel("alpha", "1.0", "", &[]))],
-    )
-    .await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["alpha>=1"]);
     pacquet_in(root.path())
         .args(["install", "--lockfile-only"])
         .assert()
         .success();
-    assert!(
-        !root
-            .path()
-            .join(".venv")
-            .exists(),
-    );
+    assert!(!root.path().join(".venv").exists());
     let lock = fs::read(root.path().join("pylock.toml")).unwrap();
     project(root.path(), &server.url(), &["alpha>=2"]);
     pacquet_in(root.path())
@@ -418,24 +314,14 @@ async fn frozen_lockfile_rejects_changed_manifest_without_mutation() {
         .assert()
         .failure();
     assert_eq!(fs::read(root.path().join("pylock.toml")).unwrap(), lock);
-    assert!(
-        !root
-            .path()
-            .join(".venv")
-            .exists(),
-    );
+    assert!(!root.path().join(".venv").exists());
 }
 
 #[tokio::test]
 async fn failed_mixed_add_restores_manifests_and_keeps_the_previous_environment() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
-    let _alpha = serve(
-        &mut server,
-        "alpha",
-        &[("1.0", wheel("alpha", "1.0", "", &[]))],
-    )
-    .await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &[]);
     pacquet_in(root.path())
         .args(["install"])
@@ -443,34 +329,18 @@ async fn failed_mixed_add_restores_manifests_and_keeps_the_previous_environment(
         .success();
     let previous_environment = pnpm_fs::read_symlink_dir(&root.path().join(".venv")).unwrap();
     let previous_lock = fs::read(root.path().join("pylock.toml")).unwrap();
-    fs::write(
-        root.path().join("package.json"),
-        "{\"name\":\"app\",\"version\":\"1.0.0\"}\n",
-    )
-    .unwrap();
-    fs::write(
-        root.path().join(".npmrc"),
-        format!("registry={}\n", server.url()),
-    )
-    .unwrap();
+    fs::write(root.path().join("package.json"), "{\"name\":\"app\",\"version\":\"1.0.0\"}\n")
+        .unwrap();
+    fs::write(root.path().join(".npmrc"), format!("registry={}\n", server.url())).unwrap();
     let manifest = fs::read(root.path().join("pyproject.toml")).unwrap();
     let node_manifest = fs::read(root.path().join("package.json")).unwrap();
     pacquet_in(root.path())
         .args(["add", "pypi:alpha@>=1", "nonexistent-node-package"])
         .assert()
         .failure();
-    assert_eq!(
-        manifest,
-        fs::read(root.path().join("pyproject.toml")).unwrap(),
-    );
-    assert_eq!(
-        node_manifest,
-        fs::read(root.path().join("package.json")).unwrap(),
-    );
-    assert_eq!(
-        previous_lock,
-        fs::read(root.path().join("pylock.toml")).unwrap(),
-    );
+    assert_eq!(manifest, fs::read(root.path().join("pyproject.toml")).unwrap());
+    assert_eq!(node_manifest, fs::read(root.path().join("package.json")).unwrap());
+    assert_eq!(previous_lock, fs::read(root.path().join("pylock.toml")).unwrap());
     assert_eq!(
         previous_environment,
         pnpm_fs::read_symlink_dir(&root.path().join(".venv")).unwrap(),
@@ -481,12 +351,7 @@ async fn failed_mixed_add_restores_manifests_and_keeps_the_previous_environment(
 async fn inconsistent_python_lockfile_reports_a_dependency_explanation() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
-    let _requests = serve(
-        &mut server,
-        "alpha",
-        &[("1.0", wheel("alpha", "1.0", "", &[]))],
-    )
-    .await;
+    let _requests = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["alpha>=1"]);
     pacquet_in(root.path())
         .arg("install")
@@ -497,11 +362,7 @@ async fn inconsistent_python_lockfile_reports_a_dependency_explanation() {
     let mut lock: toml::Value =
         toml::from_str(&fs::read_to_string(root.path().join("pylock.toml")).unwrap()).unwrap();
     lock["tool"]["pnpm"]["requirements"][0] = toml::Value::String("alpha>=2".to_string());
-    fs::write(
-        root.path().join("pylock.toml"),
-        toml::to_string(&lock).unwrap(),
-    )
-    .unwrap();
+    fs::write(root.path().join("pylock.toml"), toml::to_string(&lock).unwrap()).unwrap();
     let result = pacquet_in(root.path())
         .args(["install", "--offline", "--frozen-lockfile"])
         .assert()
@@ -510,16 +371,11 @@ async fn inconsistent_python_lockfile_reports_a_dependency_explanation() {
     eprintln!("stderr:\n{stderr}");
     assert!(
         flatten_report(&stderr)
-            .contains(&flatten_report(
-                "Python lockfile does not satisfy the project:"
-            )),
+            .contains(&flatten_report("Python lockfile does not satisfy the project:")),
     );
     assert!(stderr.contains("Python project"));
     assert!(!stderr.contains("NoSolution("));
-    assert_eq!(
-        environment,
-        pnpm_fs::read_symlink_dir(&root.path().join(".venv")).unwrap(),
-    );
+    assert_eq!(environment, pnpm_fs::read_symlink_dir(&root.path().join(".venv")).unwrap());
 }
 
 #[test]
@@ -538,12 +394,7 @@ fn python_add_rejects_dynamic_metadata_without_mutating_the_manifest() {
         let actual = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
         eprintln!("manifest after rejection:\n{actual}");
         assert_eq!(actual, manifest);
-        assert!(
-            !root
-                .path()
-                .join("pylock.toml")
-                .exists(),
-        );
+        assert!(!root.path().join("pylock.toml").exists());
     }
 }
 
@@ -565,47 +416,22 @@ async fn rejects_corrupt_record_and_leaves_no_environment_or_lockfile() {
             std::io::copy(&mut entry, &mut altered).unwrap();
         }
     }
-    let _alpha = serve(
-        &mut server,
-        "alpha",
-        &[(
-            "1.0",
-            altered
-                .finish()
-                .unwrap()
-                .into_inner(),
-        )],
-    )
-    .await;
+    let _alpha =
+        serve(&mut server, "alpha", &[("1.0", altered.finish().unwrap().into_inner())]).await;
     project(root.path(), &server.url(), &["alpha>=1"]);
     pacquet_in(root.path())
         .arg("install")
         .assert()
         .failure();
-    assert!(
-        !root
-            .path()
-            .join("pylock.toml")
-            .exists(),
-    );
-    assert!(
-        !root
-            .path()
-            .join(".venv")
-            .exists(),
-    );
+    assert!(!root.path().join("pylock.toml").exists());
+    assert!(!root.path().join(".venv").exists());
 }
 
 #[tokio::test]
 async fn refuses_unmanaged_environment_and_rolls_back_add() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new_async().await;
-    let _alpha = serve(
-        &mut server,
-        "alpha",
-        &[("1.0", wheel("alpha", "1.0", "", &[]))],
-    )
-    .await;
+    let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &[]);
     fs::create_dir(root.path().join(".venv")).unwrap();
     fs::write(root.path().join(".venv/owned-by-user"), "preserve").unwrap();
@@ -614,12 +440,6 @@ async fn refuses_unmanaged_environment_and_rolls_back_add() {
         .args(["add", "pypi:alpha"])
         .assert()
         .failure();
-    assert_eq!(
-        manifest,
-        fs::read(root.path().join("pyproject.toml")).unwrap(),
-    );
-    assert_eq!(
-        fs::read_to_string(root.path().join(".venv/owned-by-user")).unwrap(),
-        "preserve",
-    );
+    assert_eq!(manifest, fs::read(root.path().join("pyproject.toml")).unwrap());
+    assert_eq!(fs::read_to_string(root.path().join(".venv/owned-by-user")).unwrap(), "preserve");
 }

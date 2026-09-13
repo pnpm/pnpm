@@ -9,6 +9,9 @@ use std::{
     process::Command,
 };
 
+mod diff_output;
+use diff_output::DiffTempFile;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PkgFilesForDiff {
     Original(PathBuf),
@@ -106,25 +109,16 @@ fn prepare_pkg_files_for_diff_with_fs(
     fs_ops: &impl PatchCommitFs,
 ) -> Result<PkgFilesForDiff, PatchCommitError> {
     let manifest = pnpm_package_manifest::safe_read_package_json_from_dir(src)
-        .map_err(|source| PatchCommitError::ReadManifest {
-            dir: src.to_path_buf(),
-            source,
-        })?
+        .map_err(|source| PatchCommitError::ReadManifest { dir: src.to_path_buf(), source })?
         .unwrap_or_else(|| Value::Object(Map::default()));
     let files = pnpm_git_fetcher::packlist(src, &manifest)
-        .map_err(|source| PatchCommitError::Packlist {
-            dir: src.to_path_buf(),
-            source,
-        })?;
+        .map_err(|source| PatchCommitError::Packlist { dir: src.to_path_buf(), source })?;
 
     let temp_dir = temporary_filtered_dir(src);
     remove_existing_temp_dir_with_fs(&temp_dir, fs_ops)?;
     fs_ops
         .create_dir_all(&temp_dir)
-        .map_err(|source| PatchCommitError::CreateTempDir {
-            dir: temp_dir.clone(),
-            source,
-        })?;
+        .map_err(|source| PatchCommitError::CreateTempDir { dir: temp_dir.clone(), source })?;
     for file in files {
         let relative_path = safe_package_file_path(&file)?;
         let source_path = src.join(&relative_path);
@@ -139,11 +133,7 @@ fn prepare_pkg_files_for_diff_with_fs(
             })?;
         fs_ops
             .hard_link(&source_path, &target)
-            .map_err(|source| PatchCommitError::LinkFile {
-                source_path,
-                target,
-                source,
-            })?;
+            .map_err(|source| PatchCommitError::LinkFile { source_path, target, source })?;
     }
     Ok(PkgFilesForDiff::Temporary(temp_dir))
 }
@@ -153,38 +143,53 @@ pub fn diff_folders(folder_a: &Path, folder_b: &Path) -> Result<String, PatchCom
     let folder_b_slash = slash_path(folder_b);
     let stdout = DiffTempFile::new("stdout")?;
     let stderr = DiffTempFile::new("stderr")?;
-    let status = git_diff_command(&folder_a_slash, &folder_b_slash)
+    let status = git_diff_command()
+        .arg(&folder_a_slash)
+        .arg(&folder_b_slash)
         .stdout(
             stdout.writer
                 .try_clone()
-                .map_err(|source| PatchCommitError::DiffSpawn {
-                    source,
-                })?,
+                .map_err(|source| PatchCommitError::DiffSpawn { source })?,
         )
         .stderr(
             stderr.writer
                 .try_clone()
-                .map_err(|source| PatchCommitError::DiffSpawn {
-                    source,
-                })?,
+                .map_err(|source| PatchCommitError::DiffSpawn { source })?,
         )
         .status()
-        .map_err(|source| PatchCommitError::DiffSpawn {
-            source,
-        })?;
+        .map_err(|source| PatchCommitError::DiffSpawn { source })?;
 
     let stderr = stderr.read_to_string("stderr")?;
     if !stderr.is_empty() || !matches!(status.code(), Some(0 | 1)) {
-        return Err(PatchCommitError::DiffFailed {
-            stderr,
-        });
+        return Err(PatchCommitError::DiffFailed { stderr });
     }
     let stdout = stdout.read_to_string("stdout")?;
-    Ok(normalize_diff_output(
-        &stdout,
-        &folder_a_slash,
-        &folder_b_slash,
-    ))
+    Ok(normalize_diff_output(&stdout, &folder_a_slash, &folder_b_slash))
+}
+
+fn git_diff_command() -> Command {
+    let mut command = Command::new("git");
+    command
+        .args([
+            "-c",
+            "core.safecrlf=false",
+            "-c",
+            "core.quotePath=false",
+            "diff",
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
+            "--ignore-cr-at-eol",
+            "--irreversible-delete",
+            "--full-index",
+            "--no-index",
+            "--text",
+            "--no-ext-diff",
+            "--no-color",
+            "--",
+        ])
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null");
+    command
 }
 
 fn remove_existing_temp_dir_with_fs(
@@ -195,10 +200,7 @@ fn remove_existing_temp_dir_with_fs(
         Ok(metadata) => metadata,
         Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(source) => {
-            return Err(PatchCommitError::RemoveTempDir {
-                dir: temp_dir.to_path_buf(),
-                source,
-            });
+            return Err(PatchCommitError::RemoveTempDir { dir: temp_dir.to_path_buf(), source });
         }
     };
     if metadata.file_type().is_symlink() {
@@ -210,10 +212,7 @@ fn remove_existing_temp_dir_with_fs(
     match fs_ops.remove_dir_all(temp_dir) {
         Ok(()) => Ok(()),
         Err(source) if source.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(source) => Err(PatchCommitError::RemoveTempDir {
-            dir: temp_dir.to_path_buf(),
-            source,
-        }),
+        Err(source) => Err(PatchCommitError::RemoveTempDir { dir: temp_dir.to_path_buf(), source }),
     }
 }
 
@@ -247,10 +246,7 @@ impl PatchCommitFs for RealPatchCommitFs {
 fn temporary_filtered_dir(src: &Path) -> PathBuf {
     let name = src
         .file_name()
-        .map_or_else(
-            || String::from("patch"),
-            |name| name.to_string_lossy().into_owned(),
-        );
+        .map_or_else(|| String::from("patch"), |name| name.to_string_lossy().into_owned());
     src
         .parent()
         .unwrap_or_else(|| Path::new("."))
@@ -353,10 +349,7 @@ fn push_non_ds_store_block(output: &mut String, block: &str) {
     if block.is_empty() {
         return;
     }
-    let header = block
-        .lines()
-        .next()
-        .unwrap_or_default();
+    let header = block.lines().next().unwrap_or_default();
     if is_ds_store_diff_header(header) {
         return;
     }
@@ -374,31 +367,3 @@ fn is_ds_store_diff_header(header: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
-
-fn git_diff_command(folder_a: &str, folder_b: &str) -> Command {
-    let mut command = Command::new("git");
-    command
-        .arg("-c")
-        .arg("core.safecrlf=false")
-        .arg("-c")
-        .arg("core.quotePath=false")
-        .arg("diff")
-        .arg("--src-prefix=a/")
-        .arg("--dst-prefix=b/")
-        .arg("--ignore-cr-at-eol")
-        .arg("--irreversible-delete")
-        .arg("--full-index")
-        .arg("--no-index")
-        .arg("--text")
-        .arg("--no-ext-diff")
-        .arg("--no-color")
-        .arg("--")
-        .arg(folder_a)
-        .arg(folder_b)
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/dev/null");
-    command
-}
-
-mod diff_output;
-use diff_output::DiffTempFile;

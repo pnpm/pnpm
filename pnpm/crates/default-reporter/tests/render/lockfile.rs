@@ -86,10 +86,8 @@ Lockfile is up to date, resolution step is skipped",
 
 #[test]
 fn append_only_waits_for_a_terminal_lockfile_policy_verdict() {
-    let mut reporter = state_with_options(ReporterOptions {
-        append_only: true,
-        ..ReporterOptions::default()
-    });
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
     let pending = reporter.handle(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
         message: "Lockfile is up to date, resolution step is skipped".to_string(),
@@ -99,10 +97,7 @@ fn append_only_waits_for_a_terminal_lockfile_policy_verdict() {
 
     let stats = reporter.handle(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Added {
-            added: 1,
-            prefix: CWD.to_string(),
-        },
+        message: StatsMessage::Added { added: 1, prefix: CWD.to_string() },
     }));
     match stats {
         Output::Lines(lines) => {
@@ -120,10 +115,7 @@ fn append_only_waits_for_a_terminal_lockfile_policy_verdict() {
 
     let started = reporter.handle(&LogEvent::LockfileVerification(LockfileVerificationLog {
         level: LogLevel::Debug,
-        message: LockfileVerificationMessage::Started {
-            entries: 2,
-            lockfile_path: None,
-        },
+        message: LockfileVerificationMessage::Started { entries: 2, lockfile_path: None },
     }));
     match started {
         Output::Lines(lines) => {
@@ -157,10 +149,8 @@ fn append_only_waits_for_a_terminal_lockfile_policy_verdict() {
 
 #[test]
 fn install_summary_flushes_the_frozen_message_without_a_policy_verdict() {
-    let mut reporter = state_with_options(ReporterOptions {
-        append_only: true,
-        ..ReporterOptions::default()
-    });
+    let mut reporter =
+        state_with_options(ReporterOptions { append_only: true, ..ReporterOptions::default() });
     let pending = reporter.handle(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
         message: "Lockfile is up to date, resolution step is skipped".to_string(),
@@ -172,10 +162,7 @@ fn install_summary_flushes_the_frozen_message_without_a_policy_verdict() {
     match summary {
         Output::Lines(lines) => {
             dbg!(&lines);
-            assert_eq!(
-                lines,
-                ["Lockfile is up to date, resolution step is skipped"],
-            );
+            assert_eq!(lines, ["Lockfile is up to date, resolution step is skipped"]);
         }
         _ => panic!("the install summary should flush the frozen message"),
     }
@@ -216,17 +203,11 @@ fn skipped_optional_resolution_failure_renders_only_top_level() {
         version: "1.0.0".to_string(),
     };
     let frame = render(&mut reporter, vec![skipped(vec![parent], CWD)]);
-    assert!(
-        frame.is_empty(),
-        "transitive skips must not render, got: {frame:?}",
-    );
+    assert!(frame.is_empty(), "transitive skips must not render, got: {frame:?}");
 
     let mut reporter = state(false);
     let frame = render(&mut reporter, vec![skipped(Vec::new(), "/somewhere/else")]);
-    assert!(
-        frame.is_empty(),
-        "other prefixes must not render, got: {frame:?}",
-    );
+    assert!(frame.is_empty(), "other prefixes must not render, got: {frame:?}");
 }
 
 #[test]
@@ -234,10 +215,7 @@ fn transitive_deprecations_flush_as_a_summary_at_resolution_done() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
-        vec![
-            deprecation("uuid", "3.4.0", 2, CWD),
-            deprecation("request", "2.88.2", 3, CWD),
-        ],
+        vec![deprecation("uuid", "3.4.0", 2, CWD), deprecation("request", "2.88.2", 3, CWD)],
     );
     assert!(
         frame.is_empty(),
@@ -245,8 +223,5 @@ fn transitive_deprecations_flush_as_a_summary_at_resolution_done() {
     );
 
     let frame = render(&mut reporter, vec![resolution_done()]);
-    assert_eq!(
-        frame,
-        "[WARN] 2 deprecated subdependencies found: request@2.88.2, uuid@3.4.0",
-    );
+    assert_eq!(frame, "[WARN] 2 deprecated subdependencies found: request@2.88.2, uuid@3.4.0");
 }

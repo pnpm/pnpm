@@ -1,7 +1,4 @@
-use super::{
-    Arc, Duration, HeaderMap, RedirectGuard, ThrottledClient, UPSTREAM_ERROR_BODY_LIMIT,
-    UpstreamConfig, read_limited_body,
-};
+use super::{Arc, Duration, HeaderMap, RedirectGuard, ThrottledClient, UpstreamConfig};
 
 #[derive(Clone)]
 pub(super) struct UpstreamHttp {
@@ -25,8 +22,11 @@ impl UpstreamHttp {
     }
 }
 
+pub(super) const UPSTREAM_ERROR_BODY_LIMIT: usize = 64 * 1024;
+
 pub(super) async fn read_upstream_error_body(response: reqwest::Response) -> String {
-    let Ok(body) = read_limited_body(response, UPSTREAM_ERROR_BODY_LIMIT).await else {
+    let Ok(body) = pnpm_network::read_limited_body(response, UPSTREAM_ERROR_BODY_LIMIT).await
+    else {
         return String::new();
     };
     let mut text = String::from_utf8_lossy(&body.bytes).into_owned();
@@ -42,4 +42,17 @@ pub(super) async fn read_upstream_error_body(response: reqwest::Response) -> Str
         text.push_str("(response body truncated)");
     }
     text
+}
+
+/// Whether two URLs share a scheme, host and port, so a credential meant for
+/// one may be sent to the other.
+pub(super) fn same_origin(base: &str, url: &str) -> bool {
+    let (Ok(base), Ok(url)) = (reqwest::Url::parse(base), reqwest::Url::parse(url)) else {
+        return false;
+    };
+    base.scheme() == url.scheme()
+        && base
+            .host_str()
+            .is_some_and(|host| Some(host) == url.host_str())
+        && base.port_or_known_default() == url.port_or_known_default()
 }

@@ -145,10 +145,7 @@ async fn accepts_an_advertised_historical_revision() {
         revision: Some(TarballRevision::try_from(1).unwrap()),
     });
     let name = "revision-pkg".parse::<PkgName>().unwrap();
-    assert_eq!(
-        verifier.verify(&resolution, ctx(&name, "1.0.0")).await,
-        ResolutionVerification::Ok,
-    );
+    assert_eq!(verifier.verify(&resolution, ctx(&name, "1.0.0")).await, ResolutionVerification::Ok);
 }
 
 #[tokio::test]
@@ -203,11 +200,7 @@ async fn unplanned_entry_sends_no_head_probe() {
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let planned = pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
     planned
-        .set(std::collections::HashSet::from([(
-            "other".to_string(),
-            "2.0.0".to_string(),
-            None,
-        )]))
+        .set(std::collections::HashSet::from([("other".to_string(), "2.0.0".to_string(), None)]))
         .expect("first fill");
     opts.artifacts.canonical_fetches = Some(std::sync::Arc::clone(&planned));
     let verifier = create_npm_resolution_verifier(opts);
@@ -273,11 +266,8 @@ async fn verify_routes_via_named_registry_prefix() {
         git_hosted: None,
         path: None,
     });
-    let result = verifier.verify(
-        &tarball,
-        ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"),
-    )
-    .await;
+    let result =
+        verifier.verify(&tarball, ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0")).await;
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
@@ -288,11 +278,8 @@ async fn verify_routes_via_named_registry_prefix() {
 fn policy_snapshot_records_all_fields_sorted_and_deduped() {
     let mut opts = default_opts("https://registry.example/");
     opts.release_age.minimum_minutes = Some(60 * 24);
-    opts.release_age.exclude_patterns = vec![
-        "lodash".to_string(),
-        "acme".to_string(),
-        "lodash".to_string(),
-    ];
+    opts.release_age.exclude_patterns =
+        vec!["lodash".to_string(), "acme".to_string(), "lodash".to_string()];
     opts.release_age.exclude = Some(
         create_package_version_policy(["lodash".to_string(), "acme".to_string()]).expect("policy"),
     );
@@ -306,18 +293,9 @@ fn policy_snapshot_records_all_fields_sorted_and_deduped() {
     let policy = verifier.policy();
     // The two unconditional structural rules mark themselves in the
     // snapshot so a pre-rule cache record fails `can_trust_past_check`.
-    assert_eq!(
-        policy.get("tarballUrlBinding").and_then(serde_json::Value::as_bool),
-        Some(true),
-    );
-    assert_eq!(
-        policy.get("integrityRequired").and_then(serde_json::Value::as_bool),
-        Some(true),
-    );
-    assert_eq!(
-        policy.get("minimumReleaseAge").and_then(serde_json::Value::as_u64),
-        Some(60 * 24),
-    );
+    assert_eq!(policy.get("tarballUrlBinding").and_then(serde_json::Value::as_bool), Some(true));
+    assert_eq!(policy.get("integrityRequired").and_then(serde_json::Value::as_bool), Some(true));
+    assert_eq!(policy.get("minimumReleaseAge").and_then(serde_json::Value::as_u64), Some(60 * 24));
     let min_age_excludes = policy
         .get("minimumReleaseAgeExclude")
         .and_then(|value| value.as_array())
@@ -330,12 +308,7 @@ fn policy_snapshot_records_all_fields_sorted_and_deduped() {
         vec!["acme".to_string(), "lodash".to_string()],
         "sorted + deduped",
     );
-    assert_eq!(
-        policy
-            .get("trustPolicy")
-            .and_then(|value| value.as_str()),
-        Some("no-downgrade"),
-    );
+    assert_eq!(policy.get("trustPolicy").and_then(|value| value.as_str()), Some("no-downgrade"));
     assert_eq!(
         policy.get("trustPolicyIgnoreAfter").and_then(serde_json::Value::as_u64),
         Some(60 * 24 * 30),

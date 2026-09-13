@@ -140,10 +140,7 @@ where
     };
     Ok(match value {
         Value::Number(number) => integral_count(&number),
-        Value::String(text) => text
-            .trim()
-            .parse()
-            .ok(),
+        Value::String(text) => text.trim().parse().ok(),
         _ => None,
     })
 }

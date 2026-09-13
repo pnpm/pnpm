@@ -30,11 +30,8 @@ fn installs_configurational_dependencies() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({}).to_string(),
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write package.json");
 
     // Append a configDependencies block to the workspace manifest the
     // mocked-registry helper already wrote.
@@ -49,16 +46,10 @@ fn installs_configurational_dependencies() {
         .success();
 
     let installed = workspace.join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json");
-    assert!(
-        installed.exists(),
-        "config dep must be linked under .pnpm-config",
-    );
+    assert!(installed.exists(), "config dep must be linked under .pnpm-config");
 
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
-    assert!(
-        lockfile.starts_with("---\n"),
-        "env document must lead pnpm-lock.yaml",
-    );
+    assert!(lockfile.starts_with("---\n"), "env document must lead pnpm-lock.yaml");
     assert!(lockfile.contains("configDependencies:"));
     assert!(lockfile.contains("@pnpm.e2e/foo"));
 
@@ -73,11 +64,8 @@ fn second_install_keeps_config_dependency() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({}).to_string(),
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write package.json");
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
     yaml.push_str("\nconfigDependencies:\n  '@pnpm.e2e/foo': 100.0.0\n");
@@ -152,11 +140,8 @@ fn add_config_writes_workspace_yaml_and_installs() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({}).to_string(),
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write package.json");
 
     pacquet_at(&workspace)
         .with_arg("add")
@@ -167,17 +152,11 @@ fn add_config_writes_workspace_yaml_and_installs() {
 
     let yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
     eprintln!("pnpm-workspace.yaml:\n{yaml}");
-    assert!(
-        yaml.contains("configDependencies:"),
-        "configDependencies block written",
-    );
+    assert!(yaml.contains("configDependencies:"), "configDependencies block written");
     assert!(yaml.contains("@pnpm.e2e/foo"));
     assert!(yaml.contains("100.0.0"));
     // The pre-existing storeDir setting must survive the format-preserving edit.
-    assert!(
-        yaml.contains("storeDir:"),
-        "untouched settings are preserved",
-    );
+    assert!(yaml.contains("storeDir:"), "untouched settings are preserved");
 
     assert!(
         workspace.join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists(),
@@ -193,19 +172,11 @@ fn add_config_accepts_multiple_package_selectors_in_one_operation() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({}).to_string(),
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write package.json");
 
     pacquet_at(&workspace)
-        .with_args([
-            "add",
-            "--config",
-            "@pnpm.e2e/foo@100.0.0",
-            "@pnpm.e2e/bar@100.0.0",
-        ])
+        .with_args(["add", "--config", "@pnpm.e2e/foo@100.0.0", "@pnpm.e2e/bar@100.0.0"])
         .assert()
         .success();
 
@@ -217,9 +188,7 @@ fn add_config_accepts_multiple_package_selectors_in_one_operation() {
     for package_name in ["@pnpm.e2e/foo", "@pnpm.e2e/bar"] {
         assert_eq!(
             config_dependencies.get(package_name),
-            Some(&ConfigDependency::VersionWithIntegrity(
-                "100.0.0".to_string()
-            )),
+            Some(&ConfigDependency::VersionWithIntegrity("100.0.0".to_string())),
         );
     }
 
@@ -235,11 +204,7 @@ fn add_config_accepts_multiple_package_selectors_in_one_operation() {
             .join("node_modules/.pnpm-config")
             .join(package_name)
             .join("package.json");
-        assert!(
-            installed.exists(),
-            "config dependency installed at {}",
-            installed.display(),
-        );
+        assert!(installed.exists(), "config dependency installed at {}", installed.display());
     }
 
     drop((root, mock_instance));
@@ -255,11 +220,7 @@ fn add_config_validates_all_selectors_before_writing_files() {
         workspace.join("pnpm-workspace.yaml"),
         workspace.join("node_modules"),
     ] {
-        assert!(
-            !path.exists(),
-            "precondition: {} does not exist",
-            path.display(),
-        );
+        assert!(!path.exists(), "precondition: {} does not exist", path.display());
     }
 
     pacquet
@@ -273,11 +234,7 @@ fn add_config_validates_all_selectors_before_writing_files() {
         workspace.join("pnpm-workspace.yaml"),
         workspace.join("node_modules"),
     ] {
-        assert!(
-            !path.exists(),
-            "invalid selector must not create {}",
-            path.display(),
-        );
+        assert!(!path.exists(), "invalid selector must not create {}", path.display());
     }
 
     drop(root);
@@ -370,16 +327,10 @@ fn update_config_observes_and_can_replace_the_cli_store_dir() {
 #[test]
 fn update_config_observes_an_empty_cli_store_dir() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({}).to_string(),
-    )
-    .expect("write package.json");
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "storeDir: yaml-store\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "storeDir: yaml-store\n")
+        .expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.join(".pnpmfile.cjs"),
         "const fs = require('fs');\nconst path = require('path');\nmodule.exports = { hooks: { updateConfig (config) {\n  fs.writeFileSync(path.join(__dirname, 'observed-store.txt'), JSON.stringify(config.storeDir));\n  return config;\n} } }",

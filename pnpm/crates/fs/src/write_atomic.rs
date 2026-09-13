@@ -49,29 +49,6 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result
     let mut tmp = tempfile::NamedTempFile::new_in(dir.unwrap_or_else(|| Path::new(".")))?;
     tmp.write_all(bytes)?;
     tmp.as_file().sync_all()?;
-    inherit_permissions(path, &tmp, inherit)?;
-    let mut pending = Some(tmp.into_temp_path());
-    crate::retry::retry_transient_file_locks(|| {
-        let temporary = pending.take().expect("temporary path retained after a failed persist");
-        match temporary.persist(path) {
-            Ok(()) => Ok(()),
-            Err(error) => {
-                pending = Some(error.path);
-                Err(error.error)
-            }
-        }
-    })?;
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests;
-
-fn inherit_permissions(
-    path: &Path,
-    tmp: &tempfile::NamedTempFile,
-    inherit: InheritMode,
-) -> io::Result<()> {
     // `NamedTempFile` creates with mode 0600 on Unix; persisting it over an
     // existing regular file would silently tighten that file's permissions, so
     // carry the target's mode across the rename to preserve it.
@@ -92,6 +69,20 @@ fn inherit_permissions(
             .set_permissions(std::fs::Permissions::from_mode(mode))?;
     }
     #[cfg(not(unix))]
-    let _ = (path, tmp, inherit);
+    let _ = inherit;
+    let mut pending = Some(tmp.into_temp_path());
+    crate::retry::retry_transient_file_locks(|| {
+        let temporary = pending.take().expect("temporary path retained after a failed persist");
+        match temporary.persist(path) {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                pending = Some(error.path);
+                Err(error.error)
+            }
+        }
+    })?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

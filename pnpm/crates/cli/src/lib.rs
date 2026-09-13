@@ -177,10 +177,7 @@ fn dispatched_to_pinned_pnpm(
     let Some(plan) = cli_args::pre_command::pre_command_plan(args, config_overrides)? else {
         return Ok(false);
     };
-    block_on_runtime(
-        "pacquet-pre-command",
-        cli_args::pre_command::execute_plan(plan, child_argv),
-    )
+    block_on_runtime("pacquet-pre-command", cli_args::pre_command::execute_plan(plan, child_argv))
 }
 
 /// Stack size for the thread the command runs on. Generous headroom over
@@ -354,10 +351,8 @@ fn run_cli_command(
     // Arm Windows process-tree cleanup until the command succeeds.
     let job_guard = pnpm_executor::arm_process_tree_cleanup();
     configure_rayon_pool();
-    let result = block_on_runtime(
-        "pacquet-main",
-        args.run(config_overrides, builtin_command_forced),
-    );
+    let result =
+        block_on_runtime("pacquet-main", args.run(config_overrides, builtin_command_forced));
     if result.is_ok()
         && let Some(job_guard) = job_guard
     {

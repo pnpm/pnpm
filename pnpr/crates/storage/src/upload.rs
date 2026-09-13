@@ -101,10 +101,7 @@ impl BlobUpload {
             .open(&self.path)
             .await
             .map_err(RegistryError::Io)?;
-        Ok(BlobUploadWriter {
-            file,
-            remote: None,
-        })
+        Ok(BlobUploadWriter { file, remote: None })
     }
 }
 
@@ -153,18 +150,10 @@ impl Storage {
             .open(&path)
             .await
             .map_err(RegistryError::Io)?;
-        fs::write(
-            root.join(repository_record(&id)),
-            self.upload_owner(repository),
-        )
-        .await
-        .map_err(RegistryError::Io)?;
-        Ok(BlobUpload {
-            id,
-            path,
-            remote: None,
-            _temp: None,
-        })
+        fs::write(root.join(repository_record(&id)), self.upload_owner(repository))
+            .await
+            .map_err(RegistryError::Io)?;
+        Ok(BlobUpload { id, path, remote: None, _temp: None })
     }
 
     /// Reopen an upload of `repository` by id.
@@ -185,23 +174,17 @@ impl Storage {
             return remote.open(repository, id).await;
         }
         let root = self.uploads_root();
-        let held =
-            match fs::read_to_string(root.join(repository_record(id))).await {
-                Ok(held) => held,
-                Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-                Err(error) => return Err(RegistryError::Io(error)),
-            };
+        let held = match fs::read_to_string(root.join(repository_record(id))).await {
+            Ok(held) => held,
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(RegistryError::Io(error)),
+        };
         if held != self.upload_owner(repository) {
             return Ok(None);
         }
         let path = root.join(id);
         match fs::metadata(&path).await {
-            Ok(_) => Ok(Some(BlobUpload {
-                id: id.to_string(),
-                path,
-                remote: None,
-                _temp: None,
-            })),
+            Ok(_) => Ok(Some(BlobUpload { id: id.to_string(), path, remote: None, _temp: None })),
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
             Err(error) => Err(RegistryError::Io(error)),
         }
@@ -270,12 +253,7 @@ impl Storage {
             fs::copy(&upload.path, &slot.tmp_path).await.map_err(RegistryError::Io)?;
             let _ = fs::remove_file(&upload.path).await;
         }
-        let _ = fs::remove_file(
-            self
-                .uploads_root()
-                .join(upload.repository_record()),
-        )
-        .await;
+        let _ = fs::remove_file(self.uploads_root().join(upload.repository_record())).await;
         Ok(slot)
     }
 

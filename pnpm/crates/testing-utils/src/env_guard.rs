@@ -66,10 +66,7 @@ impl EnvGuard {
             .into_iter()
             .map(|name| (name, env::var_os(name)))
             .collect();
-        EnvGuard {
-            saved,
-            _lock: lock,
-        }
+        EnvGuard { saved, _lock: lock }
     }
 
     /// Set a variable under the lock the guard holds. Equivalent to

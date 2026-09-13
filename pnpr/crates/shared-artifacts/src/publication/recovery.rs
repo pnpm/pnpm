@@ -69,10 +69,8 @@ impl SharedArtifactStore {
             CompatibilityScopes::These(scopes) => scopes,
         };
         let mut retaken = Vec::new();
-        let held = self.retake_scopes(owner, entry, holder, &scopes, &mut retaken)
-            .await?
-            && self.other_vocabulary_is_free(owner, entry, holder, payload)
-                .await?;
+        let held = self.retake_scopes(owner, entry, holder, &scopes, &mut retaken).await?
+            && self.other_vocabulary_is_free(owner, entry, holder, payload).await?;
         if held {
             return Ok(());
         }
@@ -151,12 +149,9 @@ impl SharedArtifactStore {
         payload: &ArtifactPayload,
     ) -> Result<bool> {
         match compatibility_scopes(&payload.compatibility) {
-            CompatibilityScopes::Every => {
-                self.tagged_scopes_are_free(owner, entry).await
-            }
+            CompatibilityScopes::Every => self.tagged_scopes_are_free(owner, entry).await,
             CompatibilityScopes::These(_) => {
-                Ok(self.scope_marker(owner, entry, UNIVERSAL_SCOPE, holder)
-                    .await?
+                Ok(self.scope_marker(owner, entry, UNIVERSAL_SCOPE, holder).await?
                     != ScopeMarker::Another)
             }
         }

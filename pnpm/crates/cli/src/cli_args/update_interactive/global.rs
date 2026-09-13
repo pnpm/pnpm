@@ -21,11 +21,7 @@ pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
     let config = global_update_config(base_config);
     let ignored = ignored_dependencies_matcher(config);
     let query = OutdatedQuery {
-        target_version: if latest {
-            TargetVersion::Latest
-        } else {
-            TargetVersion::WithinRange
-        },
+        target_version: if latest { TargetVersion::Latest } else { TargetVersion::WithinRange },
         include_direct: &[DependencyGroup::Prod],
         match_names: None,
         ignore_names: ignored.as_ref(),
@@ -35,33 +31,20 @@ pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
         return Ok(None);
     };
     let rows = outdated_group_rows(matched_packages, config, &query).await?;
-    select_group_rows::<Reporter>(&rows, latest, prompt)
-}
-
-fn select_group_rows<Reporter: self::Reporter>(
-    rows: &[PromptRow],
-    latest: bool,
-    prompt: UpdatePrompt,
-) -> miette::Result<Option<HashSet<String>>> {
     if rows.is_empty() {
-        let message = if latest {
-            "All of your dependencies are already up to date"
-        } else {
-            "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
-        };
-        println!("{message}");
+        super::print_up_to_date(latest);
         return Ok(None);
     }
     let Some(selected_indices) = prompt.select(
         "Choose which global package groups to update (space to select, enter to confirm)",
-        rows,
+        &rows,
         PromptStyle::GlobalGroups,
     )?
     else {
         report_cancelled::<Reporter>();
         return Ok(None);
     };
-    let selected = selected_packages(rows, &selected_indices).into_iter().collect::<HashSet<_>>();
+    let selected = selected_packages(&rows, &selected_indices).into_iter().collect::<HashSet<_>>();
     if selected.is_empty() {
         return Ok(None);
     }
@@ -106,11 +89,7 @@ async fn outdated_group_rows(
             })
             .collect::<Vec<_>>()
             .join(", ");
-        rows.push(PromptRow::Choice {
-            short: label.clone(),
-            label,
-            value: pkg.hash,
-        });
+        rows.push(PromptRow::Choice { short: label.clone(), label, value: pkg.hash });
     }
     Ok(rows)
 }

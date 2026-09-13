@@ -39,14 +39,8 @@ fn ensure_git_repo_common(path: &Path) {
 /// Assert that `path` is a git checkout of the pacquet codebase.
 pub fn ensure_pacquet_git_repo(path: &Path) {
     ensure_git_repo_common(path);
-    assert!(
-        path.join("Cargo.toml").is_file(),
-        "{path:?} has no Cargo.toml — pacquet checkout?",
-    );
-    assert!(
-        path.join("Cargo.lock").is_file(),
-        "{path:?} has no Cargo.lock — pacquet checkout?",
-    );
+    assert!(path.join("Cargo.toml").is_file(), "{path:?} has no Cargo.toml — pacquet checkout?");
+    assert!(path.join("Cargo.lock").is_file(), "{path:?} has no Cargo.lock — pacquet checkout?");
 }
 
 /// Assert that `path` is a git checkout of pnpm's source — the
@@ -113,9 +107,6 @@ pub fn executor<'a>(message: &'a str) -> impl FnOnce(&'a mut Command) {
             .stderr(Stdio::inherit())
             .output()
             .expect(message);
-        assert!(
-            output.status.success(),
-            "Process exits with non-zero status: {message}",
-        );
+        assert!(output.status.success(), "Process exits with non-zero status: {message}");
     }
 }

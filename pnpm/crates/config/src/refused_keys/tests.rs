@@ -34,10 +34,7 @@ fn a_derived_key_is_routed_to_the_key_it_derives_from() {
 
 #[test]
 fn dir_names_the_flag_that_sets_it() {
-    assert_eq!(
-        where_refused_key_belongs("dir"),
-        "Pass --dir on the command line instead",
-    );
+    assert_eq!(where_refused_key_belongs("dir"), "Pass --dir on the command line instead");
 }
 
 /// Naming where pnpm gets these would publish how it resolves them, and would
@@ -55,10 +52,7 @@ fn a_key_that_is_no_setting_is_not_offered_a_route() {
         "packageManagerNetworkConfig",
         "packageManagerRegistries",
     ] {
-        assert_eq!(
-            where_refused_key_belongs(camel_key),
-            "This is not a pnpm setting",
-        );
+        assert_eq!(where_refused_key_belongs(camel_key), "This is not a pnpm setting");
     }
 }
 

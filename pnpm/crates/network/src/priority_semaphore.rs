@@ -166,20 +166,12 @@ impl PrioritySemaphore {
             if state.free > 0 {
                 state.free -= 1;
                 *state.in_flight.count_mut(class) += 1;
-                return Permit {
-                    state: Arc::clone(&self.state),
-                    class,
-                    armed: true,
-                };
+                return Permit { state: Arc::clone(&self.state), class, armed: true };
             }
             let (tx, rx) = oneshot::channel();
             let seq = state.next_seq;
             state.next_seq += 1;
-            let waiter = Waiter {
-                priority,
-                seq,
-                tx,
-            };
+            let waiter = Waiter { priority, seq, tx };
             match class {
                 Class::Latency => state.latency_waiters.push_back(waiter),
                 Class::Background => state.background_waiters.push_back(waiter),
@@ -262,11 +254,7 @@ fn release(state_arc: &Arc<Mutex<SemState>>, released: Class) {
             state.free += 1;
             return;
         };
-        let permit = Permit {
-            state: Arc::clone(state_arc),
-            class,
-            armed: true,
-        };
+        let permit = Permit { state: Arc::clone(state_arc), class, armed: true };
         match waiter.tx.send(permit) {
             Ok(()) => {
                 *state.in_flight.count_mut(class) += 1;

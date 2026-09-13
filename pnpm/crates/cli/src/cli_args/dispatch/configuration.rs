@@ -36,26 +36,16 @@ impl RunAnchors {
         let dir = dunce::canonicalize(&args.paths.dir)
             .into_diagnostic()
             .wrap_err_with(|| {
-                format!(
-                    "canonicalizing the `--dir` argument: {}",
-                    args.paths.dir.display(),
-                )
+                format!("canonicalizing the `--dir` argument: {}", args.paths.dir.display())
             })?;
         let cli_dir = if args.paths.dir_from_command_line {
             dir.clone()
         } else {
-            std::env::current_dir()
-                .and_then(dunce::canonicalize)
-                .unwrap_or_else(|_| dir.clone())
+            std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_else(|_| dir.clone())
         };
         let manifest_path = dir.join("package.json");
         let global_config = default_pnpm_home_dir::<Host>().unwrap_or_else(|| dir.clone());
-        Ok(RunAnchors {
-            dir,
-            cli_dir,
-            manifest_path,
-            global_config,
-        })
+        Ok(RunAnchors { dir, cli_dir, manifest_path, global_config })
     }
 }
 
@@ -242,12 +232,8 @@ pub(in super::super) async fn apply_update_config(
         ReporterType::Default | ReporterType::AppendOnly => {
             prepare_config::<DefaultReporter>(config, dir).await?
         }
-        ReporterType::Ndjson => {
-            prepare_config::<NdjsonReporter>(config, dir).await?
-        }
-        ReporterType::Silent => {
-            prepare_config::<SilentReporter>(config, dir).await?
-        }
+        ReporterType::Ndjson => prepare_config::<NdjsonReporter>(config, dir).await?,
+        ReporterType::Silent => prepare_config::<SilentReporter>(config, dir).await?,
     };
     Ok(())
 }

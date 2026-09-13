@@ -24,51 +24,30 @@ use text_block_macros::text_block;
 #[test]
 fn package_map_writer_is_gated_to_supported_pacquet_mode() {
     let mut config = Config::new();
-    assert!(!crate::should_write_package_map(
-        &config,
-        pnpm_config::NodeLinker::Isolated
-    ));
+    assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
     assert!(!crate::should_write_hoisted_package_map(&config));
 
     config.node_experimental_package_map = true;
-    assert!(crate::should_write_package_map(
-        &config,
-        pnpm_config::NodeLinker::Isolated
-    ));
-    assert!(!crate::should_write_package_map(
-        &config,
-        pnpm_config::NodeLinker::Hoisted
-    ));
-    assert!(!crate::should_write_package_map(
-        &config,
-        pnpm_config::NodeLinker::Pnp
-    ));
+    assert!(crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
+    assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Hoisted));
+    assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Pnp));
     // The hoisted linker writes the map from its own writer, so it
     // answers the setting through its own predicate.
     assert!(crate::should_write_hoisted_package_map(&config));
 
     // `virtualStoreOnly` writes no `node_modules` to put a map in.
     config.virtual_store_only = true;
-    assert!(!crate::should_write_package_map(
-        &config,
-        pnpm_config::NodeLinker::Isolated
-    ));
+    assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
     assert!(!crate::should_write_hoisted_package_map(&config));
 
     config.virtual_store_only = false;
     config.node_package_map_type = NodePackageMapType::Loose;
-    assert!(crate::should_write_package_map(
-        &config,
-        pnpm_config::NodeLinker::Isolated
-    ));
+    assert!(crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
 }
 #[tokio::test]
 async fn should_install_dependencies() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -92,11 +71,7 @@ async fn should_install_dependencies() {
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
 
     manifest
-        .add_dependency(
-            "@pnpm.e2e/hello-world-js-bin",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.add_dependency("@pnpm/xyz", "1.0.0", DependencyGroup::Dev).unwrap();
 
@@ -202,13 +177,7 @@ async fn should_install_dependencies() {
             .iter()
             .any(|event| matches!(
                 event,
-                LogEvent::Stats(StatsLog {
-                    message: StatsMessage::Removed {
-                        removed: 0,
-                        ..
-                    },
-                    ..
-                })
+                LogEvent::Stats(StatsLog { message: StatsMessage::Removed { removed: 0, .. }, .. })
             )),
         "install must report that it removed no packages; events={captured:#?}",
     );
@@ -216,14 +185,8 @@ async fn should_install_dependencies() {
         .iter()
         .enumerate()
         .filter_map(|(index, event)| {
-            matches!(
-                event,
-                LogEvent::Stage(StageLog {
-                    stage: Stage::ImportingDone,
-                    ..
-                }),
-            )
-            .then_some(index)
+            matches!(event, LogEvent::Stage(StageLog { stage: Stage::ImportingDone, .. }))
+                .then_some(index)
         })
         .collect();
     assert_eq!(
@@ -258,19 +221,13 @@ async fn should_install_dependencies() {
     drop(captured);
 
     let path = project_root.join("node_modules/@pnpm.e2e/hello-world-js-bin");
-    eprintln!(
-        "path={path:?} symlink_or_junction={:?}",
-        is_symlink_or_junction(&path),
-    );
+    eprintln!("path={path:?} symlink_or_junction={:?}", is_symlink_or_junction(&path));
     assert!(is_symlink_or_junction(&path).unwrap());
     let path = project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
     eprintln!("path={path:?} exists={}", path.exists());
     assert!(path.exists());
     let path = project_root.join("node_modules/@pnpm/xyz");
-    eprintln!(
-        "path={path:?} symlink_or_junction={:?}",
-        is_symlink_or_junction(&path),
-    );
+    eprintln!("path={path:?} symlink_or_junction={:?}", is_symlink_or_junction(&path));
     assert!(is_symlink_or_junction(&path).unwrap());
     // `@pnpm/xyz@1.0.0` has peer dependencies on `@pnpm/x`, `@pnpm/y`,
     // and `@pnpm/z`, so the resolver produces a peer-suffixed
@@ -303,11 +260,7 @@ async fn install_prunes_surplus_virtual_store_dir() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/hello-world-js-bin",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 
@@ -378,10 +331,7 @@ async fn install_prunes_surplus_virtual_store_dir() {
         dirs.virtual_store_dir.join("@pnpm.e2e+hello-world-js-bin@1.0.0").exists(),
         "the installed package's virtual-store dirs.dir must survive the prune",
     );
-    assert!(
-        !surplus.exists(),
-        "the surplus virtual-store dirs.dir must be pruned on install",
-    );
+    assert!(!surplus.exists(), "the surplus virtual-store dirs.dir must be pruned on install");
 
     drop((dirs.dir, mock_instance));
 }
@@ -481,10 +431,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
 
     let virtual_store_path =
         dirs.project_root.join("node_modules/.pacquet/@pnpm.e2e+hello-world-js-bin@1.0.0");
-    assert!(
-        virtual_store_path.is_dir(),
-        "expected real-name virtual store dirs.dir",
-    );
+    assert!(virtual_store_path.is_dir(), "expected real-name virtual store dirs.dir");
     assert!(virtual_store_path.join("node_modules/@pnpm.e2e/hello-world-js-bin").is_dir());
 
     drop((dirs.dir, mock_instance));
@@ -600,10 +547,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
                 .to_string_lossy()
                 .starts_with("@pnpm.e2e+hello-world-js-bin@")
         });
-    assert!(
-        has_real_name_dir,
-        "expected real-name virtual store directory",
-    );
+    assert!(has_real_name_dir, "expected real-name virtual store directory");
 
     drop((dirs.dir, mock_instance));
 }
@@ -725,18 +669,9 @@ pub(super) async fn install_writes_modules_yaml() {
     // `read_modules_manifest` resolves `virtualStoreDir` against
     // `dirs.modules_dir`, so a relative on-disk value round-trips back
     // to the absolute install-time path.
-    assert_eq!(
-        emitted_virtual_store_dir,
-        dirs.virtual_store_dir.to_string_lossy(),
-    );
-    assert_eq!(
-        virtual_store_dir_max_length,
-        pnpm_config::default_virtual_store_dir_max_length(),
-    );
-    assert_eq!(
-        package_manager,
-        format!("pnpm@{}", pnpm_config::PNPM_VERSION),
-    );
+    assert_eq!(emitted_virtual_store_dir, dirs.virtual_store_dir.to_string_lossy());
+    assert_eq!(virtual_store_dir_max_length, pnpm_config::default_virtual_store_dir_max_length());
+    assert_eq!(package_manager, format!("pnpm@{}", pnpm_config::PNPM_VERSION));
 
     drop(dirs.dir);
 }
@@ -763,11 +698,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/has-failing-postinstall-dep",
-            "1.0.0",
-            DependencyGroup::Optional,
-        )
+        .add_dependency("@pnpm.e2e/has-failing-postinstall-dep", "1.0.0", DependencyGroup::Optional)
         .unwrap();
     manifest.save().unwrap();
 

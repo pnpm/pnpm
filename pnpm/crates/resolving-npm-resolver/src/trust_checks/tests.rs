@@ -55,12 +55,7 @@ fn make_package(name: &str, versions: &[(&str, &str, Evidence)]) -> Package {
         .collect();
     let time_json: serde_json::Map<String, serde_json::Value> = versions
         .iter()
-        .map(|(v, t, _)| {
-            (
-                (*v).to_string(),
-                serde_json::Value::String((*t).to_string()),
-            )
-        })
+        .map(|(v, t, _)| ((*v).to_string(), serde_json::Value::String((*t).to_string())))
         .collect();
     let body = serde_json::json!({
         "name": name,
@@ -77,10 +72,7 @@ fn now_at(date: &str) -> DateTime<Utc> {
 
 #[test]
 fn first_version_passes_with_no_history() {
-    let meta = make_package(
-        "acme",
-        &[("1.0.0", "2025-01-10T00:00:00.000Z", Evidence::None)],
-    );
+    let meta = make_package("acme", &[("1.0.0", "2025-01-10T00:00:00.000Z", Evidence::None)]);
     fail_if_trust_downgraded(&meta, "1.0.0", &TrustCheckOptions::default())
         .expect("no prior history → no downgrade possible");
 }
@@ -90,20 +82,13 @@ fn trusted_publisher_to_provenance_downgrade_fails() {
     let meta = make_package(
         "acme",
         &[
-            (
-                "1.0.0",
-                "2025-01-01T00:00:00.000Z",
-                Evidence::TrustedPublisher,
-            ),
+            ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::TrustedPublisher),
             ("1.1.0", "2025-02-01T00:00:00.000Z", Evidence::Provenance),
         ],
     );
     let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
         .expect_err("trusted-publisher → provenance is a downgrade");
-    assert!(
-        matches!(err, TrustViolation::TrustDowngrade { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
 #[test]
@@ -112,19 +97,12 @@ fn staged_publish_to_trusted_publisher_downgrade_fails() {
         "acme",
         &[
             ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::StagedPublish),
-            (
-                "2.0.0",
-                "2025-02-01T00:00:00.000Z",
-                Evidence::TrustedPublisher,
-            ),
+            ("2.0.0", "2025-02-01T00:00:00.000Z", Evidence::TrustedPublisher),
         ],
     );
     let err = fail_if_trust_downgraded(&meta, "2.0.0", &TrustCheckOptions::default())
         .expect_err("staged-publish → trusted-publisher is a downgrade");
-    assert!(
-        matches!(err, TrustViolation::TrustDowngrade { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
 #[test]
@@ -138,10 +116,7 @@ fn provenance_to_unsigned_downgrade_fails() {
     );
     let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
         .expect_err("provenance → no evidence is a downgrade");
-    assert!(
-        matches!(err, TrustViolation::TrustDowngrade { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
 #[test]
@@ -150,20 +125,13 @@ fn trusted_publisher_to_unsigned_downgrade_fails() {
         "acme",
         &[
             ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::None),
-            (
-                "2.0.0",
-                "2025-02-01T00:00:00.000Z",
-                Evidence::TrustedPublisher,
-            ),
+            ("2.0.0", "2025-02-01T00:00:00.000Z", Evidence::TrustedPublisher),
             ("3.0.0", "2025-03-01T00:00:00.000Z", Evidence::None),
         ],
     );
     let err = fail_if_trust_downgraded(&meta, "3.0.0", &TrustCheckOptions::default())
         .expect_err("trusted-publisher → no evidence is a downgrade");
-    assert!(
-        matches!(err, TrustViolation::TrustDowngrade { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
 #[test]
@@ -198,11 +166,7 @@ fn rank_upgrade_passes() {
         "acme",
         &[
             ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::Provenance),
-            (
-                "1.1.0",
-                "2025-02-01T00:00:00.000Z",
-                Evidence::TrustedPublisher,
-            ),
+            ("1.1.0", "2025-02-01T00:00:00.000Z", Evidence::TrustedPublisher),
         ],
     );
     fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
@@ -215,11 +179,7 @@ fn later_publish_does_not_downgrade_earlier_version() {
         "acme",
         &[
             ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::None),
-            (
-                "1.1.0",
-                "2025-02-01T00:00:00.000Z",
-                Evidence::TrustedPublisher,
-            ),
+            ("1.1.0", "2025-02-01T00:00:00.000Z", Evidence::TrustedPublisher),
         ],
     );
     fail_if_trust_downgraded(&meta, "1.0.0", &TrustCheckOptions::default())
@@ -231,11 +191,7 @@ fn stable_version_ignores_prerelease_history() {
     let meta = make_package(
         "acme",
         &[
-            (
-                "1.0.0-alpha.1",
-                "2025-01-01T00:00:00.000Z",
-                Evidence::TrustedPublisher,
-            ),
+            ("1.0.0-alpha.1", "2025-01-01T00:00:00.000Z", Evidence::TrustedPublisher),
             ("1.0.0", "2025-02-01T00:00:00.000Z", Evidence::None),
         ],
     );
@@ -248,20 +204,13 @@ fn prerelease_target_compares_against_prerelease_history() {
     let meta = make_package(
         "acme",
         &[
-            (
-                "1.0.0-alpha.1",
-                "2025-01-01T00:00:00.000Z",
-                Evidence::TrustedPublisher,
-            ),
+            ("1.0.0-alpha.1", "2025-01-01T00:00:00.000Z", Evidence::TrustedPublisher),
             ("1.0.0-alpha.2", "2025-02-01T00:00:00.000Z", Evidence::None),
         ],
     );
     let err = fail_if_trust_downgraded(&meta, "1.0.0-alpha.2", &TrustCheckOptions::default())
         .expect_err("prerelease target sees prerelease history");
-    assert!(
-        matches!(err, TrustViolation::TrustDowngrade { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
 #[test]
@@ -269,11 +218,7 @@ fn ignore_after_skips_check_for_settled_versions() {
     let meta = make_package(
         "acme",
         &[
-            (
-                "1.0.0",
-                "2025-01-01T00:00:00.000Z",
-                Evidence::TrustedPublisher,
-            ),
+            ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::TrustedPublisher),
             ("1.1.0", "2025-01-15T00:00:00.000Z", Evidence::None),
         ],
     );
@@ -290,11 +235,7 @@ fn ignore_after_still_checks_fresh_versions() {
     let meta = make_package(
         "acme",
         &[
-            (
-                "1.0.0",
-                "2025-01-01T00:00:00.000Z",
-                Evidence::TrustedPublisher,
-            ),
+            ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::TrustedPublisher),
             ("1.1.0", "2025-01-15T00:00:00.000Z", Evidence::None),
         ],
     );
@@ -305,10 +246,7 @@ fn ignore_after_still_checks_fresh_versions() {
     };
     let err = fail_if_trust_downgraded(&meta, "1.1.0", &opts)
         .expect_err("fresh version still gets checked");
-    assert!(
-        matches!(err, TrustViolation::TrustDowngrade { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
 #[test]
@@ -316,19 +254,12 @@ fn exclude_any_version_short_circuits_check() {
     let meta = make_package(
         "acme",
         &[
-            (
-                "1.0.0",
-                "2025-01-01T00:00:00.000Z",
-                Evidence::TrustedPublisher,
-            ),
+            ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::TrustedPublisher),
             ("1.1.0", "2025-02-01T00:00:00.000Z", Evidence::None),
         ],
     );
     let exclude = create_package_version_policy(["acme"]).unwrap();
-    let opts = TrustCheckOptions {
-        trust_policy_exclude: Some(&exclude),
-        ..Default::default()
-    };
+    let opts = TrustCheckOptions { trust_policy_exclude: Some(&exclude), ..Default::default() };
     fail_if_trust_downgraded(&meta, "1.1.0", &opts).expect("acme excluded → check short-circuits");
 }
 
@@ -337,43 +268,27 @@ fn exclude_exact_version_short_circuits_check() {
     let meta = make_package(
         "acme",
         &[
-            (
-                "1.0.0",
-                "2025-01-01T00:00:00.000Z",
-                Evidence::TrustedPublisher,
-            ),
+            ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::TrustedPublisher),
             ("1.1.0", "2025-02-01T00:00:00.000Z", Evidence::None),
         ],
     );
     let exclude = create_package_version_policy(["acme@1.1.0"]).unwrap();
-    let opts = TrustCheckOptions {
-        trust_policy_exclude: Some(&exclude),
-        ..Default::default()
-    };
+    let opts = TrustCheckOptions { trust_policy_exclude: Some(&exclude), ..Default::default() };
     fail_if_trust_downgraded(&meta, "1.1.0", &opts)
         .expect("acme@1.1.0 excluded → check short-circuits");
 
     let err = fail_if_trust_downgraded(&meta, "1.0.0", &opts).err();
-    assert!(
-        err.is_none(),
-        "1.0.0 has its own trusted-publisher → passes",
-    );
+    assert!(err.is_none(), "1.0.0 has its own trusted-publisher → passes");
 }
 
 #[test]
 fn exclude_exact_version_with_missing_time_does_not_fail() {
-    let mut meta = make_package(
-        "acme",
-        &[("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::None)],
-    );
+    let mut meta = make_package("acme", &[("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::None)]);
     if let Some(time) = meta.time.as_mut() {
         time.clear();
     }
     let exclude = create_package_version_policy(["acme@1.0.0"]).unwrap();
-    let opts = TrustCheckOptions {
-        trust_policy_exclude: Some(&exclude),
-        ..Default::default()
-    };
+    let opts = TrustCheckOptions { trust_policy_exclude: Some(&exclude), ..Default::default() };
     fail_if_trust_downgraded(&meta, "1.0.0", &opts)
         .expect("excluded version short-circuits before the missing-time check");
 }
@@ -391,49 +306,31 @@ fn exclude_package_name_with_missing_time_does_not_fail() {
         time.clear();
     }
     let exclude = create_package_version_policy(["acme"]).unwrap();
-    let opts = TrustCheckOptions {
-        trust_policy_exclude: Some(&exclude),
-        ..Default::default()
-    };
+    let opts = TrustCheckOptions { trust_policy_exclude: Some(&exclude), ..Default::default() };
     fail_if_trust_downgraded(&meta, "2.0.0", &opts)
         .expect("excluded package short-circuits before the missing-time check");
 }
 
 #[test]
 fn missing_time_surfaces_trust_check_failed() {
-    let mut meta = make_package(
-        "acme",
-        &[("1.0.0", "2025-01-10T00:00:00.000Z", Evidence::None)],
-    );
+    let mut meta = make_package("acme", &[("1.0.0", "2025-01-10T00:00:00.000Z", Evidence::None)]);
     if let Some(time) = meta.time.as_mut() {
         time.clear();
     }
     let err = fail_if_trust_downgraded(&meta, "1.0.0", &TrustCheckOptions::default())
         .expect_err("missing time should fail with TrustCheckFailed");
-    assert!(
-        matches!(err, TrustViolation::TrustCheckFailed { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, TrustViolation::TrustCheckFailed { .. }), "got {err:?}");
 }
 
 #[test]
 fn unparsable_timestamp_surfaces_trust_check_failed() {
-    let mut meta = make_package(
-        "acme",
-        &[("1.0.0", "2025-01-10T00:00:00.000Z", Evidence::None)],
-    );
+    let mut meta = make_package("acme", &[("1.0.0", "2025-01-10T00:00:00.000Z", Evidence::None)]);
     if let Some(time) = meta.time.as_mut() {
-        time.insert(
-            "1.0.0".to_string(),
-            serde_json::Value::String("not-a-date".to_string()),
-        );
+        time.insert("1.0.0".to_string(), serde_json::Value::String("not-a-date".to_string()));
     }
     let err = fail_if_trust_downgraded(&meta, "1.0.0", &TrustCheckOptions::default())
         .expect_err("unparsable timestamp should fail");
-    assert!(
-        matches!(err, TrustViolation::TrustCheckFailed { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, TrustViolation::TrustCheckFailed { .. }), "got {err:?}");
 }
 
 /// Regression: a prior version with no entry in the `time` map must
@@ -448,11 +345,7 @@ fn prior_version_missing_time_does_not_mask_trust_history() {
     let mut meta = make_package(
         "acme",
         &[
-            (
-                "1.0.0",
-                "2025-01-01T00:00:00.000Z",
-                Evidence::TrustedPublisher,
-            ),
+            ("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::TrustedPublisher),
             ("1.0.1", "2025-01-15T00:00:00.000Z", Evidence::Provenance),
             ("1.1.0", "2025-02-01T00:00:00.000Z", Evidence::None),
         ],
@@ -462,10 +355,7 @@ fn prior_version_missing_time_does_not_mask_trust_history() {
     }
     let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
         .expect_err("missing-time on a prior version must not mask the 1.0.0 baseline");
-    assert!(
-        matches!(err, TrustViolation::TrustDowngrade { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
 /// A prior version whose manifest fragment does not decode fails the
@@ -489,10 +379,7 @@ fn undecodable_prior_version_fails_closed() {
     let meta: Package = serde_json::from_value(body).expect("deserialize fixture Package");
     let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
         .expect_err("undecodable prior manifest must fail the trust check");
-    assert!(
-        matches!(err, TrustViolation::TrustCheckFailed { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, TrustViolation::TrustCheckFailed { .. }), "got {err:?}");
 }
 
 mod ignore_missing_time_field {
@@ -526,19 +413,13 @@ mod ignore_missing_time_field {
         let TrustViolation::TrustCheckFailed { reason } = err else {
             panic!("expected TrustCheckFailed, got {err:?}");
         };
-        assert!(
-            reason.contains(r#"missing the "time" field"#),
-            "got reason: {reason}",
-        );
+        assert!(reason.contains(r#"missing the "time" field"#), "got reason: {reason}");
     }
 
     #[test]
     fn skips_the_check_when_the_flag_is_on() {
         let meta = time_free_package();
-        let opts = TrustCheckOptions {
-            ignore_missing_time_field: true,
-            ..Default::default()
-        };
+        let opts = TrustCheckOptions { ignore_missing_time_field: true, ..Default::default() };
         fail_if_trust_downgraded(&meta, "2.0.0", &opts)
             .expect("the opt-in skips the check on a packument with no time map");
     }
@@ -559,19 +440,13 @@ mod ignore_missing_time_field {
             .as_mut()
             .expect("fixture builds a time map")
             .remove("2.0.0");
-        let opts = TrustCheckOptions {
-            ignore_missing_time_field: true,
-            ..Default::default()
-        };
+        let opts = TrustCheckOptions { ignore_missing_time_field: true, ..Default::default() };
         let err = fail_if_trust_downgraded(&meta, "2.0.0", &opts)
             .expect_err("a per-version hole is not a registry that omits the field");
         let TrustViolation::TrustCheckFailed { reason } = err else {
             panic!("expected TrustCheckFailed, got {err:?}");
         };
-        assert!(
-            reason.contains("missing time for version 2.0.0"),
-            "got reason: {reason}",
-        );
+        assert!(reason.contains("missing time for version 2.0.0"), "got reason: {reason}");
     }
 
     #[test]
@@ -583,16 +458,10 @@ mod ignore_missing_time_field {
                 ("2.0.0", "2025-02-01T00:00:00.000Z", Evidence::None),
             ],
         );
-        let opts = TrustCheckOptions {
-            ignore_missing_time_field: true,
-            ..Default::default()
-        };
+        let opts = TrustCheckOptions { ignore_missing_time_field: true, ..Default::default() };
         let err = fail_if_trust_downgraded(&meta, "2.0.0", &opts)
             .expect_err("the opt-in must not blind a check that has the dates it needs");
-        assert!(
-            matches!(err, TrustViolation::TrustDowngrade { .. }),
-            "got {err:?}",
-        );
+        assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
     }
 }
 
@@ -627,10 +496,7 @@ mod get_trust_evidence {
     #[test]
     fn approver_ranks_as_staged_publish() {
         let version = version_json("acme", "1.0.0", Evidence::StagedPublish);
-        assert!(matches!(
-            get_trust_evidence(&parse(version)),
-            Some(TrustEvidence::StagedPublish)
-        ));
+        assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::StagedPublish)));
     }
 
     #[test]
@@ -638,19 +504,13 @@ mod get_trust_evidence {
         let mut version = version_json("acme", "1.0.0", Evidence::TrustedPublisher);
         version["_npmUser"]["approver"] =
             serde_json::json!({ "name": "approver", "email": "approver@example.com" });
-        assert!(matches!(
-            get_trust_evidence(&parse(version)),
-            Some(TrustEvidence::StagedPublish)
-        ));
+        assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::StagedPublish)));
     }
 
     #[test]
     fn provenance_alone_ranks_as_provenance() {
         let version = version_json("acme", "1.0.0", Evidence::Provenance);
-        assert!(matches!(
-            get_trust_evidence(&parse(version)),
-            Some(TrustEvidence::Provenance)
-        ));
+        assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::Provenance)));
     }
 
     #[test]

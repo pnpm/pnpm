@@ -18,8 +18,5 @@ fn registry_path_segment_encodes_each_variant() {
             .registry_path_segment(),
         "1.2.3%2Bbuild.1",
     );
-    assert_eq!(
-        PackageTag::Tag("beta/next".to_owned()).registry_path_segment(),
-        "beta%2Fnext",
-    );
+    assert_eq!(PackageTag::Tag("beta/next".to_owned()).registry_path_segment(), "beta%2Fnext");
 }

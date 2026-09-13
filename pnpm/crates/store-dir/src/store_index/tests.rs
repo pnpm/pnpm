@@ -28,10 +28,7 @@ fn immutable_uri_percent_encodes_sqlite_path_delimiters() {
 fn immutable_uri_absolutizes_a_relative_path() {
     let uri = immutable_sqlite_uri(Path::new("relative-store/index.db")).unwrap();
     assert!(uri.starts_with("file:///"), "{uri}");
-    assert!(
-        uri.ends_with("/relative-store/index.db?immutable=1"),
-        "{uri}",
-    );
+    assert!(uri.ends_with("/relative-store/index.db?immutable=1"), "{uri}");
 }
 
 fn sample_index() -> PackageFilesIndex {
@@ -47,12 +44,7 @@ fn sample_index() -> PackageFilesIndex {
     );
     files.insert(
         "index.js".to_string(),
-        CafsFileInfo {
-            checked_at: None,
-            digest: "def".to_string(),
-            mode: 0o755,
-            size: 42,
-        },
+        CafsFileInfo { checked_at: None, digest: "def".to_string(), mode: 0o755, size: 42 },
     );
     PackageFilesIndex {
         manifest: None,
@@ -67,10 +59,7 @@ fn sample_index() -> PackageFilesIndex {
 
 #[test]
 fn key_format_is_integrity_tab_pkg_id() {
-    assert_eq!(
-        store_index_key("sha512-abc", "lodash@4.17.21"),
-        "sha512-abc\tlodash@4.17.21",
-    );
+    assert_eq!(store_index_key("sha512-abc", "lodash@4.17.21"), "sha512-abc\tlodash@4.17.21");
 }
 
 #[test]
@@ -100,12 +89,7 @@ fn pick_store_index_key_uses_git_hosted_for_flagged_tarball() {
     let key = pick_store_index_key(Some("sha512-abc"), true, "github.com/foo/bar/abc1234", true);
     assert_eq!(key, "github.com/foo/bar/abc1234\tbuilt");
 
-    let key = pick_store_index_key(
-        Some("sha512-abc"),
-        true,
-        "github.com/foo/bar/abc1234",
-        false,
-    );
+    let key = pick_store_index_key(Some("sha512-abc"), true, "github.com/foo/bar/abc1234", false);
     assert_eq!(key, "github.com/foo/bar/abc1234\tnot-built");
 }
 
@@ -198,10 +182,7 @@ fn get_by_pkg_id_escapes_like_metacharacters() {
 
     let neighbor_payload = sample_index();
     idx
-        .set(
-            &store_index_key("sha512-neighbor", wildcard_neighbor_pkg_id),
-            &neighbor_payload,
-        )
+        .set(&store_index_key("sha512-neighbor", wildcard_neighbor_pkg_id), &neighbor_payload)
         .unwrap();
 
     assert!(
@@ -214,16 +195,10 @@ fn get_by_pkg_id_escapes_like_metacharacters() {
     let mut exact_payload = sample_index();
     exact_payload.algo = "sha512-special".to_string();
     idx
-        .set(
-            &store_index_key("sha512-exact", exact_pkg_id),
-            &exact_payload,
-        )
+        .set(&store_index_key("sha512-exact", exact_pkg_id), &exact_payload)
         .unwrap();
 
-    assert_eq!(
-        idx.get_by_pkg_id(exact_pkg_id).unwrap(),
-        Some(exact_payload),
-    );
+    assert_eq!(idx.get_by_pkg_id(exact_pkg_id).unwrap(), Some(exact_payload));
 }
 
 #[test]
@@ -239,10 +214,7 @@ fn set_is_upsert() {
     second.algo = "sha256".to_string();
     idx.set(&key, &second).unwrap();
 
-    let loaded = idx
-        .get(&key)
-        .unwrap()
-        .unwrap();
+    let loaded = idx.get(&key).unwrap().unwrap();
     assert_eq!(loaded.algo, "sha256");
 }
 
@@ -258,13 +230,7 @@ fn reopening_the_same_db_sees_prior_writes() {
     }
 
     let idx = StoreIndex::open(dir.path()).unwrap();
-    assert_eq!(
-        idx
-            .get(&key)
-            .unwrap()
-            .unwrap(),
-        payload,
-    );
+    assert_eq!(idx.get(&key).unwrap().unwrap(), payload);
 }
 
 /// `?` is a legal filename byte on Unix but a `SQLite` URI delimiter, so a raw
@@ -285,13 +251,7 @@ fn open_immutable_handles_a_store_path_containing_a_question_mark() {
         .unwrap();
 
     let idx = StoreIndex::open_immutable(&store_dir).unwrap();
-    assert_eq!(
-        idx
-            .get(&key)
-            .unwrap()
-            .unwrap(),
-        payload,
-    );
+    assert_eq!(idx.get(&key).unwrap().unwrap(), payload);
 }
 
 #[test]
@@ -302,12 +262,7 @@ fn index_db_lives_at_store_dir_v11() {
     idx
         .set("k\tv", &sample_index())
         .unwrap();
-    assert!(
-        store
-            .root()
-            .join("index.db")
-            .exists(),
-    );
+    assert!(store.root().join("index.db").exists());
 }
 
 /// A row whose bytes are msgpackr-records (as pnpm writes) must decode
@@ -357,9 +312,7 @@ fn get_many_returns_empty_for_empty_input() {
         .set(&store_index_key("sha512-a", "x@1.0.0"), &sample_index())
         .unwrap();
 
-    let out = idx
-        .get_many(&[])
-        .unwrap();
+    let out = idx.get_many(&[]).unwrap();
     assert!(out.is_empty());
 }
 
@@ -601,10 +554,7 @@ fn open_immutable_reads_wal_db_on_readonly_directory() {
     // No sidecar may have been created under the read-only directory.
     for sidecar in ["index.db-shm", "index.db-wal", "index.db-journal"] {
         assert!(
-            !dir
-                .path()
-                .join(sidecar)
-                .exists(),
+            !dir.path().join(sidecar).exists(),
             "immutable open must not create the {sidecar} sidecar",
         );
     }

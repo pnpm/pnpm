@@ -18,10 +18,7 @@ fn allow_builds_rejects_a_manifest_with_duplicate_keys() {
 
     let result = crate::set_allow_builds(dir.path(), [("esbuild", false)]);
     assert!(
-        matches!(
-            result,
-            Err(crate::UpdateWorkspaceManifestError::Parse { .. })
-        ),
+        matches!(result, Err(crate::UpdateWorkspaceManifestError::Parse { .. })),
         "duplicate keys must be rejected, got {result:?}",
     );
     assert_eq!(
@@ -48,10 +45,7 @@ fn patched_dependency_preserves_existing_manifest_content() {
 fn patched_dependency_empty_map_does_not_create_manifest() {
     let (_dir, path) = run_patched_deps_path(None, &[]);
 
-    assert!(
-        !path.exists(),
-        "empty patchedDependencies should not create pnpm-workspace.yaml",
-    );
+    assert!(!path.exists(), "empty patchedDependencies should not create pnpm-workspace.yaml");
 }
 
 #[test]
@@ -83,10 +77,7 @@ fn write_or_remove_manifest_reports_remove_errors() {
     let err =
         crate::write_or_remove_manifest(&path, manifest).expect_err("directory remove should fail");
 
-    assert!(matches!(
-        err,
-        crate::UpdateWorkspaceManifestError::Remove { .. }
-    ));
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::Remove { .. }));
 }
 
 #[test]
@@ -101,10 +92,7 @@ fn write_or_remove_manifest_reports_write_errors() {
     let err =
         crate::write_or_remove_manifest(&path, manifest).expect_err("missing parent should fail");
 
-    assert!(matches!(
-        err,
-        crate::UpdateWorkspaceManifestError::Write { .. }
-    ));
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::Write { .. }));
 }
 
 #[test]
@@ -140,10 +128,7 @@ fn a_manifest_already_ending_in_a_blank_line_gains_no_second_one() {
         &serde_json::json!(".pnpm"),
     )
     .expect("file written");
-    assert_eq!(
-        out,
-        "cacheDir: ~/cache\n\nstoreDir: ~/store\n\nvirtualStoreDir: .pnpm\n",
-    );
+    assert_eq!(out, "cacheDir: ~/cache\n\nstoreDir: ~/store\n\nvirtualStoreDir: .pnpm\n");
 }
 
 #[test]
@@ -154,10 +139,7 @@ fn a_manifest_ending_in_a_whitespace_only_line_gains_no_second_blank() {
         &serde_json::json!(".pnpm"),
     )
     .expect("file written");
-    assert_eq!(
-        out,
-        "cacheDir: ~/cache\n\nstoreDir: ~/store\n  \nvirtualStoreDir: .pnpm\n",
-    );
+    assert_eq!(out, "cacheDir: ~/cache\n\nstoreDir: ~/store\n  \nvirtualStoreDir: .pnpm\n");
 }
 
 #[test]

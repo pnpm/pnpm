@@ -15,10 +15,7 @@ fn resolves_null(string: &str) -> bool {
 }
 
 fn resolves_bool(string: &str) -> bool {
-    matches!(
-        string,
-        "true" | "True" | "TRUE" | "false" | "False" | "FALSE",
-    )
+    matches!(string, "true" | "True" | "TRUE" | "false" | "False" | "FALSE")
 }
 
 /// Port of `type/int.js`'s `resolveYamlInteger`.
@@ -157,10 +154,7 @@ fn exponent_consumes_all(tail: &str) -> bool {
     let rest = rest
         .strip_prefix(['-', '+'])
         .unwrap_or(rest);
-    !rest.is_empty()
-        && rest
-            .bytes()
-            .all(|byte| byte.is_ascii_digit())
+    !rest.is_empty() && rest.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 /// Port of `type/timestamp.js`'s `resolveYamlTimestamp` (date and full forms).
@@ -179,108 +173,13 @@ fn matches_date(string: &str) -> bool {
 }
 
 fn matches_timestamp(string: &str) -> bool {
-    let mut scan = TimestampScan {
-        bytes: string.as_bytes(),
-        index: 0,
-    };
+    let mut scan = TimestampScan { bytes: string.as_bytes(), index: 0 };
     scan.date() && scan.time_separator() && scan.time() && scan.timezone()
 }
 
 /// A cursor over a candidate timestamp, matching js-yaml's timestamp regexp
 /// one field at a time.
-struct TimestampScan<'a> {
-    bytes: &'a [u8],
-    index: usize,
-}
-
-impl TimestampScan<'_> {
-    /// `[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}`
-    fn date(&mut self) -> bool {
-        self.digits(4, 4)
-            && self.byte(b'-')
-            && self.digits(1, 2)
-            && self.byte(b'-')
-            && self.digits(1, 2)
-    }
-
-    fn byte(&mut self, expected: u8) -> bool {
-        if self.bytes.get(self.index) != Some(&expected) {
-            return false;
-        }
-        self.index += 1;
-        true
-    }
-
-    /// Consume between `min` and `max` digits, reporting whether at least
-    /// `min` were there.
-    fn digits(&mut self, min: usize, max: usize) -> bool {
-        let start = self.index;
-        while self.index < self.bytes.len()
-            && self.index - start < max
-            && self.bytes[self.index].is_ascii_digit()
-        {
-            self.index += 1;
-        }
-        self.index - start >= min
-    }
-
-    /// `(?:[Tt]|[ \t]+)`
-    fn time_separator(&mut self) -> bool {
-        match self.bytes.get(self.index) {
-            Some(b'T' | b't') => {
-                self.index += 1;
-                true
-            }
-            Some(b' ' | b'\t') => {
-                self.skip_spaces();
-                true
-            }
-            _ => false,
-        }
-    }
-
-    fn skip_spaces(&mut self) {
-        while matches!(self.bytes.get(self.index), Some(b' ' | b'\t')) {
-            self.index += 1;
-        }
-    }
-
-    /// `[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]*)?`
-    fn time(&mut self) -> bool {
-        if !(self.digits(1, 2)
-            && self.byte(b':')
-            && self.digits(2, 2)
-            && self.byte(b':')
-            && self.digits(2, 2))
-        {
-            return false;
-        }
-        if self.byte(b'.') {
-            self.digits(0, usize::MAX);
-        }
-        true
-    }
-
-    /// `(?:[ \t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?`, and nothing
-    /// after it.
-    fn timezone(&mut self) -> bool {
-        self.skip_spaces();
-        if self.index == self.bytes.len() {
-            return true;
-        }
-        match self.bytes.get(self.index) {
-            Some(b'Z') => self.index += 1,
-            Some(b'-' | b'+') => {
-                self.index += 1;
-                if !self.digits(1, 2) {
-                    return false;
-                }
-                if self.byte(b':') && !self.digits(2, 2) {
-                    return false;
-                }
-            }
-            _ => return false,
-        }
-        self.index == self.bytes.len()
-    }
+pub(super) struct TimestampScan<'a> {
+    pub(super) bytes: &'a [u8],
+    pub(super) index: usize,
 }

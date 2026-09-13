@@ -67,9 +67,7 @@ pub(crate) fn scan_for_positional(
     subcommand_union: &ArgTable,
 ) -> Option<PositionalScan> {
     loop {
-        let token = argv
-            .get(index)
-            .and_then(|token| token.to_str())?;
+        let token = argv.get(index).and_then(|token| token.to_str())?;
         if token == "--" {
             return Some(PositionalScan::Separator(index));
         }
@@ -147,9 +145,7 @@ fn expand_recursive_alias(
 ) {
     let mut current_idx = 1;
     while let Some(pos_idx) = find_positional(argv, current_idx, top_level, subcommand_union) {
-        if let Some(token) = argv
-            .get(pos_idx)
-            .and_then(|t| t.to_str())
+        if let Some(token) = argv.get(pos_idx).and_then(|t| t.to_str())
             && matches!(token, "recursive" | "multi" | "m")
             && find_positional(argv, pos_idx + 1, top_level, subcommand_union).is_some()
         {
@@ -219,21 +215,12 @@ fn scan_long_option(rest: &str, top_level: &ArgTable, subcommand_table: &ArgTabl
         .split_once('=')
         .map_or((rest, false), |(name, _)| (name, true));
     if let Some(consumes_value) = top_level.long_consumes_value(name) {
-        return ScannedToken {
-            width: token_width(consumes_value, has_inline_value),
-            moves: false,
-        };
+        return ScannedToken { width: token_width(consumes_value, has_inline_value), moves: false };
     }
     let Some(consumes_value) = subcommand_table.long_consumes_value(name) else {
-        return ScannedToken {
-            width: token_width(false, has_inline_value),
-            moves: false,
-        };
+        return ScannedToken { width: token_width(false, has_inline_value), moves: false };
     };
-    ScannedToken {
-        width: token_width(consumes_value, has_inline_value),
-        moves: true,
-    }
+    ScannedToken { width: token_width(consumes_value, has_inline_value), moves: true }
 }
 
 /// A cluster is judged by every short it stacks, not by its first one:
@@ -291,11 +278,7 @@ fn reorder_after_subcommand(
 /// The number of argv tokens an option occupies: itself, plus its value
 /// when the value is a separate token rather than `--flag=value` inline.
 pub(crate) fn token_width(consumes_value: bool, has_inline_value: bool) -> usize {
-    if consumes_value && !has_inline_value {
-        2
-    } else {
-        1
-    }
+    if consumes_value && !has_inline_value { 2 } else { 1 }
 }
 
 /// Whether a short-option token consumes the next argv token as its
@@ -368,9 +351,7 @@ impl ArgTable {
     fn absorb<'a, Args: IntoIterator<Item = &'a Arg>>(&mut self, args: Args) {
         for arg in args {
             let consumes_value = arg.get_action().takes_values()
-                && arg
-                    .get_num_args()
-                    .is_none_or(|range| range.takes_values())
+                && arg.get_num_args().is_none_or(|range| range.takes_values())
                 && !arg.is_require_equals_set();
             for long in arg
                 .get_long()

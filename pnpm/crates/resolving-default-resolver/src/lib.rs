@@ -29,9 +29,7 @@ impl DefaultResolver {
     /// — earlier entries get the first shot at every wanted dependency.
     #[must_use]
     pub fn new(chain: Vec<Box<dyn Resolver>>) -> Self {
-        Self {
-            chain,
-        }
+        Self { chain }
     }
 
     /// Walk the chain and return the first resolver's claim. Returns
@@ -44,15 +42,11 @@ impl DefaultResolver {
         opts: &ResolveOptions,
     ) -> Result<ResolveResult, ResolveError> {
         for resolver in &self.chain {
-            if let Some(result) = resolver.resolve(wanted_dependency, opts)
-                .await?
-            {
+            if let Some(result) = resolver.resolve(wanted_dependency, opts).await? {
                 return Ok(result);
             }
         }
-        Err(Box::new(SpecNotSupportedByAnyResolverError::new(
-            wanted_dependency,
-        )))
+        Err(Box::new(SpecNotSupportedByAnyResolverError::new(wanted_dependency)))
     }
 
     /// Latest-version companion to [`Self::resolve`]. Returns `Ok(None)`
@@ -88,9 +82,7 @@ impl Resolver for DefaultResolver {
     ) -> ResolveFuture<'a> {
         Box::pin(async move {
             for resolver in &self.chain {
-                if let Some(result) = resolver.resolve(wanted_dependency, opts)
-                    .await?
-                {
+                if let Some(result) = resolver.resolve(wanted_dependency, opts).await? {
                     return Ok(Some(result));
                 }
             }
@@ -134,10 +126,7 @@ impl SpecNotSupportedByAnyResolverError {
     pub fn new(wanted_dependency: &WantedDependency) -> Self {
         let specifier = render_specifier(wanted_dependency);
         let quoted = quote_specifier(&specifier);
-        Self {
-            quoted,
-            specifier,
-        }
+        Self { quoted, specifier }
     }
 }
 
@@ -162,11 +151,7 @@ fn render_specifier(wanted_dependency: &WantedDependency) -> String {
 /// Wrap a non-empty specifier in double quotes and leave the empty
 /// case bare.
 fn quote_specifier(specifier: &str) -> String {
-    if specifier.is_empty() {
-        String::new()
-    } else {
-        format!(r#""{specifier}""#)
-    }
+    if specifier.is_empty() { String::new() } else { format!(r#""{specifier}""#) }
 }
 
 #[cfg(test)]

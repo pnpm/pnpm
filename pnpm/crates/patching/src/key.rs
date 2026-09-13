@@ -38,17 +38,9 @@ pub fn parse_key(input: &str) -> ParsedKey<'_> {
     }
 
     if Version::parse(version).is_ok() {
-        ParsedKey {
-            name: Some(name),
-            version: Some(version),
-            non_semver_version: None,
-        }
+        ParsedKey { name: Some(name), version: Some(version), non_semver_version: None }
     } else {
-        ParsedKey {
-            name: Some(name),
-            version: None,
-            non_semver_version: Some(version),
-        }
+        ParsedKey { name: Some(name), version: None, non_semver_version: Some(version) }
     }
 }
 

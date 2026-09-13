@@ -21,8 +21,7 @@ impl Upstream {
         endpoint: &str,
         accept: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
-        self.fetch_oci_request(repository, endpoint, accept, reqwest::Method::GET)
-            .await
+        self.fetch_oci_request(repository, endpoint, accept, reqwest::Method::GET).await
     }
 
     /// Read OCI object headers without transferring the body.
@@ -32,8 +31,7 @@ impl Upstream {
         endpoint: &str,
         accept: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
-        self.fetch_oci_request(repository, endpoint, accept, reqwest::Method::HEAD)
-            .await
+        self.fetch_oci_request(repository, endpoint, accept, reqwest::Method::HEAD).await
     }
 
     async fn fetch_oci_request(
@@ -193,18 +191,12 @@ impl Upstream {
             .headers(headers)
             .send()
             .await
-            .map_err(|source| RegistryError::Upstream {
-                url: self.base.clone(),
-                source,
-            })?;
+            .map_err(|source| RegistryError::Upstream { url: self.base.clone(), source })?;
         if !response.status().is_success() {
             return Err(self.oci_error("OCI token service refused authentication"));
         }
         let body = read_limited_body(response, 64 * 1024).await
-            .map_err(|source| RegistryError::Upstream {
-                url: self.base.clone(),
-                source,
-            })?;
+            .map_err(|source| RegistryError::Upstream { url: self.base.clone(), source })?;
         if body.truncated {
             return Err(self.oci_error("OCI token response is too large"));
         }
@@ -248,10 +240,7 @@ impl Upstream {
     }
 
     fn oci_error(&self, reason: &str) -> RegistryError {
-        RegistryError::UpstreamResponse {
-            url: self.base.clone(),
-            reason: reason.to_string(),
-        }
+        RegistryError::UpstreamResponse { url: self.base.clone(), reason: reason.to_string() }
     }
 }
 
@@ -293,10 +282,7 @@ fn parse_challenge(value: &str) -> Option<Challenge> {
             remaining = remaining.strip_prefix(',')?;
         }
     }
-    Some(Challenge {
-        realm: realm?,
-        service: service.unwrap_or_default(),
-    })
+    Some(Challenge { realm: realm?, service: service.unwrap_or_default() })
 }
 
 fn token_realm_allowed(base: &Url, realm: &Url) -> bool {

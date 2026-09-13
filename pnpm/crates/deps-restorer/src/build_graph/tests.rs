@@ -49,10 +49,7 @@ fn importer(deps: &[(&str, &str)]) -> ProjectSnapshot {
         .map(|(n, v)| {
             (
                 name(n),
-                ResolvedDependencySpec {
-                    specifier: (*v).to_string(),
-                    version: ver(v).into(),
-                },
+                ResolvedDependencySpec { specifier: (*v).to_string(), version: ver(v).into() },
             )
         })
         .collect();
@@ -108,18 +105,10 @@ fn no_requires_build_yields_empty() {
     let requires_build = requires([(key("a", "1.0.0"), false), (key("b", "1.0.0"), false)]);
     let importers = root_importers(&[("a", "1.0.0")]);
 
-    let graph = build_graph(
-        &requires_build,
-        None,
-        &snapshots,
-        &importers,
-        &SkippedSnapshots::default(),
-    );
+    let graph =
+        build_graph(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
     dbg!(&graph);
-    assert!(
-        graph.is_empty(),
-        "no requires_build ⇒ empty graph: {graph:?}",
-    );
+    assert!(graph.is_empty(), "no requires_build ⇒ empty graph: {graph:?}");
 }
 
 #[test]
@@ -131,13 +120,8 @@ fn leaf_with_requires_build_runs_first() {
     let requires_build = requires([(key("a", "1.0.0"), false), (key("b", "1.0.0"), true)]);
     let importers = root_importers(&[("a", "1.0.0")]);
 
-    let graph = build_graph(
-        &requires_build,
-        None,
-        &snapshots,
-        &importers,
-        &SkippedSnapshots::default(),
-    );
+    let graph =
+        build_graph(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
     assert_eq!(order(&graph), vec![key("b", "1.0.0"), key("a", "1.0.0")]);
 }
 
@@ -155,17 +139,9 @@ fn deep_chain_orders_leaf_first() {
     ]);
     let importers = root_importers(&[("a", "1.0.0")]);
 
-    let graph = build_graph(
-        &requires_build,
-        None,
-        &snapshots,
-        &importers,
-        &SkippedSnapshots::default(),
-    );
-    assert_eq!(
-        order(&graph),
-        vec![key("c", "1.0.0"), key("b", "1.0.0"), key("a", "1.0.0")],
-    );
+    let graph =
+        build_graph(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
+    assert_eq!(order(&graph), vec![key("c", "1.0.0"), key("b", "1.0.0"), key("a", "1.0.0")]);
 }
 
 #[test]
@@ -184,22 +160,14 @@ fn unrelated_subgraph_excluded() {
     ]);
     let importers = root_importers(&[("a", "1.0.0")]);
 
-    let graph = build_graph(
-        &requires_build,
-        None,
-        &snapshots,
-        &importers,
-        &SkippedSnapshots::default(),
-    );
+    let graph =
+        build_graph(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
     dbg!(&graph);
     assert!(
         graph.contains_key(&key("a", "1.0.0")),
         "ancestor of build leaf must appear: {graph:?}",
     );
-    assert!(
-        graph.contains_key(&key("b", "1.0.0")),
-        "build leaf must appear: {graph:?}",
-    );
+    assert!(graph.contains_key(&key("b", "1.0.0")), "build leaf must appear: {graph:?}");
     assert!(
         !graph.contains_key(&key("x", "1.0.0")),
         "unreachable ancestor must be excluded: {graph:?}",
@@ -213,10 +181,7 @@ fn unrelated_subgraph_excluded() {
 #[test]
 fn parallel_build_leaves_precede_their_root() {
     let snapshots = HashMap::from([
-        (
-            key("root", "1.0.0"),
-            snap(&[("a", "1.0.0"), ("b", "1.0.0")]),
-        ),
+        (key("root", "1.0.0"), snap(&[("a", "1.0.0"), ("b", "1.0.0")])),
         (key("a", "1.0.0"), snap(&[])),
         (key("b", "1.0.0"), snap(&[])),
     ]);
@@ -227,13 +192,8 @@ fn parallel_build_leaves_precede_their_root() {
     ]);
     let importers = root_importers(&[("root", "1.0.0")]);
 
-    let graph = build_graph(
-        &requires_build,
-        None,
-        &snapshots,
-        &importers,
-        &SkippedSnapshots::default(),
-    );
+    let graph =
+        build_graph(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
     let order = order(&graph);
     let mut leaves = order[..2].to_vec();
     leaves.sort_by_key(std::string::ToString::to_string);
@@ -262,13 +222,8 @@ fn non_builder_importer_with_shared_builder_child_is_trimmed() {
     ]);
     let importers = root_importers(&[("a", "1.0.0"), ("b", "1.0.0")]);
 
-    let graph = build_graph(
-        &requires_build,
-        None,
-        &snapshots,
-        &importers,
-        &SkippedSnapshots::default(),
-    );
+    let graph =
+        build_graph(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
     assert_eq!(order(&graph), vec![key("c", "1.0.0"), key("a", "1.0.0")]);
 }
 
@@ -301,13 +256,7 @@ fn skipped_patched_snapshot_does_not_enter_build_queue() {
 
     let skipped = SkippedSnapshots::from_set(HashSet::from([a_key]));
 
-    let graph = build_graph(
-        &requires_build,
-        Some(&patches),
-        &snapshots,
-        &importers,
-        &skipped,
-    );
+    let graph = build_graph(&requires_build, Some(&patches), &snapshots, &importers, &skipped);
 
     assert!(
         graph.is_empty(),
@@ -377,14 +326,8 @@ fn descendant_with_non_skipped_parent_still_builds() {
 
     let graph = build_graph(&requires_build, None, &snapshots, &importers, &skipped);
 
-    assert!(
-        graph.contains_key(&c_key),
-        "C reached via non-skipped B must build, got {graph:?}",
-    );
-    assert!(
-        graph.contains_key(&b_key),
-        "B (ancestor of buildable C) must appear, got {graph:?}",
-    );
+    assert!(graph.contains_key(&c_key), "C reached via non-skipped B must build, got {graph:?}");
+    assert!(graph.contains_key(&b_key), "B (ancestor of buildable C) must appear, got {graph:?}");
     assert!(
         graph.contains_key(&root_key),
         "root (ancestor of buildable subtree) must appear, got {graph:?}",

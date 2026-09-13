@@ -8,27 +8,16 @@ fn find_hash_fixture(store_index: &StoreIndex) -> (String, String, String) {
 
     let entries = store_index.get_many(&keys).unwrap();
     for (_key, data) in entries {
-        let Some(manifest) = &data.manifest else {
+        let Some(manifest) = &data.manifest else { continue };
+        let Some(expected_name) = manifest.get("name").and_then(|value| value.as_str()) else {
             continue;
         };
-        let Some(expected_name) = manifest
-            .get("name")
-            .and_then(|value| value.as_str())
-        else {
-            continue;
-        };
-        let Some(expected_version) = manifest
-            .get("version")
-            .and_then(|value| value.as_str())
+        let Some(expected_version) = manifest.get("version").and_then(|value| value.as_str())
         else {
             continue;
         };
         if let Some(file) = data.files.values().next() {
-            return (
-                file.digest.clone(),
-                expected_name.to_string(),
-                expected_version.to_string(),
-            );
+            return (file.digest.clone(), expected_name.to_string(), expected_version.to_string());
         }
     }
 
@@ -69,10 +58,7 @@ fn find_hash_works() {
     println!("STDOUT: {stdout}");
 
     // Output should contain the package name and version we extracted the hash from
-    assert!(
-        stdout.contains(&expected_name),
-        "Expected stdout to contain name {expected_name}",
-    );
+    assert!(stdout.contains(&expected_name), "Expected stdout to contain name {expected_name}");
     assert!(
         stdout.contains(&expected_version),
         "Expected stdout to contain version {expected_version}",
@@ -164,10 +150,7 @@ fn find_hash_works_with_base64() {
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
 
     println!("STDOUT: {stdout}");
-    assert!(
-        stdout.contains(&expected_name),
-        "Expected stdout to contain name {expected_name}",
-    );
+    assert!(stdout.contains(&expected_name), "Expected stdout to contain name {expected_name}");
     assert!(
         stdout.contains(&expected_version),
         "Expected stdout to contain version {expected_version}",

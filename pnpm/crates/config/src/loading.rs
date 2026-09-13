@@ -52,7 +52,10 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        let default_state_dir = self.initialize_default_paths::<Sys>(start_dir);
+        let default_state_dir = default_state_dir::<Sys>().unwrap_or_default();
+        self.state_dir.clone_from(&default_state_dir);
+
+        self.anchor_default_module_dirs(start_dir);
 
         // Read the project/workspace .npmrc plus trusted user-level sources
         // and apply only the auth/network subset. Everything else is
@@ -115,35 +118,15 @@ impl Config {
 
         self.apply_env_settings::<Sys>(&mut explicit, &default_state_dir, start_dir);
 
-        self.finish_layout_settings::<Sys>(explicit, &mut npmrc_auth, start_dir)?;
-
-        Ok(self)
-    }
-
-    fn finish_layout_settings<Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe>(
-        &mut self,
-        explicit: ExplicitPaths,
-        npmrc_auth: &mut NpmrcAuth,
-        start_dir: &Path,
-    ) -> Result<(), LoadWorkspaceYamlError> {
         if !self.explicit_settings.contains_key("lockfile") {
             self.lockfile = self.package_lock;
         }
 
-        self.apply_store_derivations::<Sys>(explicit, npmrc_auth, start_dir)?;
+        self.apply_store_derivations::<Sys>(explicit, &mut npmrc_auth, start_dir)?;
 
         self.apply_layout_derivations::<Sys>();
-        Ok(())
-    }
 
-    fn initialize_default_paths<Sys: EnvVar + GetHomeDir>(
-        &mut self,
-        start_dir: &Path,
-    ) -> std::path::PathBuf {
-        let state_dir = default_state_dir::<Sys>().unwrap_or_default();
-        self.state_dir.clone_from(&state_dir);
-        self.anchor_default_module_dirs(start_dir);
-        state_dir
+        Ok(self)
     }
 
     /// Anchor module defaults to the requested directory, which may differ from the process cwd.
@@ -243,11 +226,8 @@ impl Config {
             self.state_dir = resolve_configured_state_dir(default_state_dir, configured_state_dir);
         }
         if let Some(registry) = env_registry_override {
-            let normalized = if registry.ends_with('/') {
-                registry
-            } else {
-                format!("{registry}/")
-            };
+            let normalized =
+                if registry.ends_with('/') { registry } else { format!("{registry}/") };
             self.registries_by_scope.insert("default".to_string(), normalized.clone());
             self.package_manager_bootstrap.registry.clone_from(&normalized);
             self.package_manager_bootstrap.registries.insert("default".to_string(), normalized);

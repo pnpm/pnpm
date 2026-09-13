@@ -20,13 +20,7 @@ use std::{
 
 /// Empty one benchmark directory's install state and metrics log.
 pub(super) fn wipe_bench_dir(dir: &Path) {
-    for name in [
-        "node_modules",
-        "store-dir",
-        "cache-dir",
-        "pnpr-storage",
-        "cold-mock-storage",
-    ] {
+    for name in ["node_modules", "store-dir", "cache-dir", "pnpr-storage", "cold-mock-storage"] {
         let path = dir.join(name);
         if path.exists() {
             remove_dir_all_with_retry(&path).expect("pre-benchmark wipe");
@@ -183,14 +177,8 @@ where
 
     for dir in &dirs {
         for (dst, src) in cleanup.restore {
-            let src_path = dir
-                .join(src)
-                .maybe_quote()
-                .to_string();
-            let dst_path = dir
-                .join(dst)
-                .maybe_quote()
-                .to_string();
+            let src_path = dir.join(src).maybe_quote().to_string();
+            let dst_path = dir.join(dst).maybe_quote().to_string();
             parts.push(format!("cp {src_path} {dst_path}"));
         }
     }
@@ -203,9 +191,7 @@ pub(super) fn may_create_lockfile(
     src_dir: Option<&Path>,
 ) {
     let load_lockfile = || -> Cow<'_, str> {
-        let Some(src_dir) = src_dir else {
-            return Cow::Borrowed(LOCKFILE);
-        };
+        let Some(src_dir) = src_dir else { return Cow::Borrowed(LOCKFILE) };
         src_dir
             .join("pnpm-lock.yaml")
             .pipe(fs::read_to_string)
@@ -247,9 +233,7 @@ pub(super) fn create_install_script(
     // The proxy-cache populator must reach the registry, so a scenario
     // whose measured args are offline hands it the online pre-warm args.
     let args = if id.is_proxy_cache_populator() {
-        scenario
-            .prewarm_install_args()
-            .unwrap_or_else(|| scenario.install_args())
+        scenario.prewarm_install_args().unwrap_or_else(|| scenario.install_args())
     } else {
         scenario.install_args()
     };
@@ -287,11 +271,7 @@ pub(super) fn write_bench_script(
         // pacquet/pnpr-only. This adds a small one-sided tracing + file-I/O
         // cost to pnpm comparisons, but keeps materialization regressions
         // visible in the benchmark report.
-        writeln!(
-            file,
-            r#"export TRACE="${{TRACE:-pacquet::install::phase=info}}""#,
-        )
-        .unwrap();
+        writeln!(file, r#"export TRACE="${{TRACE:-pacquet::install::phase=info}}""#).unwrap();
         writeln!(file, r#"export TRACE_FORMAT="${{TRACE_FORMAT:-json}}""#).unwrap();
         writeln!(
             file,

@@ -94,24 +94,17 @@ fn directory_entry(
         return None;
     }
     let sources = registries.sources(key, ecosystem);
-    if !sources
-        .iter()
-        .any(|source| visible(source))
-    {
+    if !sources.iter().any(|source| visible(source)) {
         return None;
     }
     let registry = registries.get(key)?;
     let (kind, patterns, route_sources) = match registry {
-        Registry::Hosted { patterns } => (
-            "hosted",
-            disclosed_patterns(&config.routing.hosted[key].rules, patterns),
-            None,
-        ),
-        Registry::Upstream { patterns } => (
-            "upstream",
-            disclosed_patterns(&config.routing.upstreams[key].rules, patterns),
-            None,
-        ),
+        Registry::Hosted { patterns } => {
+            ("hosted", disclosed_patterns(&config.routing.hosted[key].rules, patterns), None)
+        }
+        Registry::Upstream { patterns } => {
+            ("upstream", disclosed_patterns(&config.routing.upstreams[key].rules, patterns), None)
+        }
         Registry::Router { .. } => ("router", None, disclosed_sources(&sources, visible)),
     };
     Some(json!({

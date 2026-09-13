@@ -120,10 +120,7 @@ fn patch_state_read_uses_resolved_edit_dir_key() {
 
     write_edit_dir_state(&modules_dir, &edit_dir, &sample_state()).unwrap();
 
-    let edit_dir_with_dot = tmp
-        .path()
-        .join(".")
-        .join("edit");
+    let edit_dir_with_dot = tmp.path().join(".").join("edit");
     assert_eq!(
         read_edit_dir_state(&modules_dir, &edit_dir_with_dot).unwrap(),
         Some(sample_state()),
@@ -139,10 +136,7 @@ fn patch_state_malformed_json_is_an_error() {
     fs::write(state_dir.join("state.json"), "{").expect("write malformed state");
 
     let err = read_edit_dir_state(&modules_dir, &tmp.path().join("edit")).unwrap_err();
-    assert!(
-        err.to_string().contains("state.json"),
-        "error includes state path: {err}",
-    );
+    assert!(err.to_string().contains("state.json"), "error includes state path: {err}");
 }
 
 #[test]
@@ -199,10 +193,7 @@ fn patch_state_write_rejects_symlinked_state_dir() {
         write_edit_dir_state(&modules_dir, &tmp.path().join("edit"), &sample_state()).unwrap_err();
 
     assert!(matches!(err, StateFileError::UnsafePath { .. }));
-    assert!(
-        !outside_dir.join("state.json").exists(),
-        "outside state file must not be written",
-    );
+    assert!(!outside_dir.join("state.json").exists(), "outside state file must not be written");
 }
 
 #[cfg(unix)]
@@ -221,10 +212,7 @@ fn patch_state_write_rejects_symlinked_state_file() {
         write_edit_dir_state(&modules_dir, &tmp.path().join("edit"), &sample_state()).unwrap_err();
 
     assert!(matches!(err, StateFileError::UnsafePath { .. }));
-    assert_eq!(
-        fs::read_to_string(&outside_target).expect("read outside state"),
-        "{}",
-    );
+    assert_eq!(fs::read_to_string(&outside_target).expect("read outside state"), "{}");
 }
 
 #[test]

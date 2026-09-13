@@ -120,10 +120,7 @@ async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
         .unwrap();
     let response = body_json(response.into_body()).await;
     assert_eq!(response["total"], json!(1));
-    assert_eq!(
-        response["objects"][0]["package"]["name"],
-        json!("remote-package"),
-    );
+    assert_eq!(response["objects"][0]["package"]["name"], json!("remote-package"));
 
     let response = app
         .oneshot(
@@ -135,10 +132,7 @@ async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(
-        body_json(response.into_body()).await["@acme/remote"],
-        json!("read"),
-    );
+    assert_eq!(body_json(response.into_body()).await["@acme/remote"], json!("read"));
     search.assert_async().await;
     org.assert_async().await;
 }
@@ -297,12 +291,7 @@ async fn registry_directory_hides_upstream_access_and_package_rule_metadata() {
                     patterns: vec![PackagePattern::Exact("secret-package".to_string())],
                 },
             ),
-            (
-                "npmjs".to_string(),
-                Registry::Upstream {
-                    patterns: vec![],
-                },
-            ),
+            ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
         ]
         .into_iter()
         .collect(),
@@ -320,10 +309,7 @@ async fn registry_directory_hides_upstream_access_and_package_rule_metadata() {
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let body: Value = serde_json::from_slice(&bytes).unwrap();
     let text = String::from_utf8_lossy(&bytes);
-    assert!(
-        !text.contains("secret-package"),
-        "directory exposes a restricted package name",
-    );
+    assert!(!text.contains("secret-package"), "directory exposes a restricted package name");
     assert!(!text.contains("alice"), "directory exposes an access rule");
     assert_eq!(body["defaultRegistries"], json!({}));
     assert_eq!(

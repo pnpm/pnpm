@@ -102,10 +102,7 @@ async fn strict_no_save_is_rejected_only_once_a_pick_is_immature() {
     let mut config = Config::new();
     config.minimum_release_age = Some(60);
     config.minimum_release_age_strict = Some(true);
-    let mut prompt = FakePrompt {
-        answer: true,
-        messages: Vec::new(),
-    };
+    let mut prompt = FakePrompt { answer: true, messages: Vec::new() };
 
     handle_minimum_release_age_violations_with::<SilentReporter, _>(
         &config,
@@ -141,15 +138,9 @@ async fn strict_no_save_is_rejected_only_once_a_pick_is_immature() {
 /// a skip. A refusal is not a write, so it survives.
 #[test]
 fn a_dry_run_downgrades_a_write_but_not_a_refusal() {
-    assert_eq!(
-        PolicyExcludes::Persist.without_writes(),
-        PolicyExcludes::Skip,
-    );
+    assert_eq!(PolicyExcludes::Persist.without_writes(), PolicyExcludes::Skip);
     assert_eq!(PolicyExcludes::Skip.without_writes(), PolicyExcludes::Skip);
-    assert_eq!(
-        PolicyExcludes::Forbidden.without_writes(),
-        PolicyExcludes::Forbidden,
-    );
+    assert_eq!(PolicyExcludes::Forbidden.without_writes(), PolicyExcludes::Forbidden);
 }
 
 /// Loose mode never needs an approval, so `--no-save` passes through it.
@@ -176,10 +167,7 @@ async fn loose_no_save_proceeds_past_an_immature_pick() {
     .expect("loose mode always proceeds");
 
     assert!(prompt.messages.is_empty());
-    assert_eq!(
-        fs::read_to_string(path).expect("read unchanged manifest"),
-        original,
-    );
+    assert_eq!(fs::read_to_string(path).expect("read unchanged manifest"), original);
 }
 
 #[tokio::test]
@@ -205,10 +193,7 @@ async fn non_interactive_strict_mode_reports_every_immature_pick() {
     .await
     .expect_err("non-interactive strict mode must fail");
 
-    assert!(matches!(
-        error,
-        MinimumReleaseAgeError::NoMatureMatchingVersion { .. }
-    ));
+    assert!(matches!(error, MinimumReleaseAgeError::NoMatureMatchingVersion { .. }));
     let message = error.to_string();
     assert!(message.starts_with("2 versions do not meet the minimumReleaseAge constraint:"));
     assert!(message.find("alpha@1.0.0").unwrap() < message.find("zeta@2.0.0").unwrap());
@@ -229,10 +214,7 @@ async fn approval_persists_canonical_excludes_and_brackets_the_prompt() {
     let mut config = Config::new();
     config.minimum_release_age_strict = Some(true);
     config.minimum_release_age_exclude = Some(vec!["foo@1.0.0".to_string()]);
-    let mut prompt = FakePrompt {
-        answer: true,
-        messages: Vec::new(),
-    };
+    let mut prompt = FakePrompt { answer: true, messages: Vec::new() };
     let violations = vec![
         violation("foo", "2.0.0", "MINIMUM_RELEASE_AGE_VIOLATION"),
         violation("bar", "3.0.0", "MINIMUM_RELEASE_AGE_VIOLATION"),
@@ -355,10 +337,7 @@ async fn strict_approval_without_persistence_proceeds_but_leaves_the_workspace_m
     let original = fs::read_to_string(&path).expect("read original");
     let mut config = Config::new();
     config.minimum_release_age_strict = Some(true);
-    let mut prompt = FakePrompt {
-        answer: true,
-        messages: Vec::new(),
-    };
+    let mut prompt = FakePrompt { answer: true, messages: Vec::new() };
 
     handle_minimum_release_age_violations_with::<RecordingReporter, _>(
         &config,
@@ -372,10 +351,7 @@ async fn strict_approval_without_persistence_proceeds_but_leaves_the_workspace_m
     .expect("approval should continue");
 
     assert_eq!(prompt.messages.len(), 1);
-    assert_eq!(
-        fs::read_to_string(path).expect("read unchanged manifest"),
-        original,
-    );
+    assert_eq!(fs::read_to_string(path).expect("read unchanged manifest"), original);
     assert_eq!(prompt_actions(), [PromptAction::Start, PromptAction::End]);
 }
 
@@ -403,10 +379,7 @@ async fn loose_mode_without_persistence_leaves_the_workspace_manifest_unchanged(
     .expect("loose mode always proceeds");
 
     assert!(prompt.messages.is_empty());
-    assert_eq!(
-        fs::read_to_string(path).expect("read unchanged manifest"),
-        original,
-    );
+    assert_eq!(fs::read_to_string(path).expect("read unchanged manifest"), original);
     assert!(
         EVENTS
             .lock()
@@ -439,10 +412,7 @@ async fn denying_approval_leaves_the_workspace_manifest_unchanged() {
     .expect_err("denied approval must abort");
 
     assert!(matches!(error, MinimumReleaseAgeError::Denied));
-    assert_eq!(
-        fs::read_to_string(path).expect("read unchanged manifest"),
-        original,
-    );
+    assert_eq!(fs::read_to_string(path).expect("read unchanged manifest"), original);
     assert_eq!(prompt_actions(), [PromptAction::Start, PromptAction::End]);
 }
 

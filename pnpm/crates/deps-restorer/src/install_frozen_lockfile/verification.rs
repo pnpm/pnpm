@@ -33,33 +33,9 @@ pub(super) struct ConcurrentVerification<'a> {
 /// waits for the verdict and only surfaces once the lockfile is trusted.
 pub(super) async fn fetch_verified<Reporter: self::Reporter>(
     create_virtual_store: CreateVirtualStore<'_>,
-    ConcurrentVerification {
-        lockfile,
-        verifiers,
-        precomputed,
-        lockfile_path,
-        cache_dir,
-    }: ConcurrentVerification<'_>,
+    verification: ConcurrentVerification<'_>,
 ) -> Result<CreateVirtualStoreOutput, InstallFrozenLockfileError> {
-    let verify = async {
-        if let Some(precomputed) = precomputed {
-            return precomputed.await;
-        }
-        if verifiers.is_empty() {
-            return Ok(());
-        }
-        verify_lockfile_resolutions::<Reporter>(
-            lockfile,
-            verifiers,
-            &VerifyLockfileResolutionsOptions {
-                concurrency: None,
-                lockfile_path,
-                cache_dir: Some(cache_dir),
-            },
-        )
-        .await
-        .map_err(InstallFrozenLockfileError::LockfileVerification)
-    };
+    let verify = verification.run::<Reporter>();
     let fetch = async {
         create_virtual_store
             .run::<Reporter>()
@@ -103,4 +79,33 @@ pub(super) async fn load_custom_fetcher_session(
         return Ok(None);
     }
     Ok(Some(Arc::new(crate::CustomFetcherSession::new(fetchers))))
+}
+
+impl ConcurrentVerification<'_> {
+    async fn run<Reporter: self::Reporter>(self) -> Result<(), InstallFrozenLockfileError> {
+        let ConcurrentVerification {
+            lockfile,
+            verifiers,
+            precomputed,
+            lockfile_path,
+            cache_dir,
+        } = self;
+        if let Some(precomputed) = precomputed {
+            return precomputed.await;
+        }
+        if verifiers.is_empty() {
+            return Ok(());
+        }
+        verify_lockfile_resolutions::<Reporter>(
+            lockfile,
+            verifiers,
+            &VerifyLockfileResolutionsOptions {
+                concurrency: None,
+                lockfile_path,
+                cache_dir: Some(cache_dir),
+            },
+        )
+        .await
+        .map_err(InstallFrozenLockfileError::LockfileVerification)
+    }
 }

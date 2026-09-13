@@ -37,11 +37,7 @@ async fn passes_through_package_without_scripts() {
     let cas_paths = write_to_cas(
         &store_dir,
         &[
-            (
-                "package.json",
-                br#"{"name":"x","version":"1.0.0","main":"index.js"}"#,
-                false,
-            ),
+            ("package.json", br#"{"name":"x","version":"1.0.0","main":"index.js"}"#, false),
             ("index.js", b"module.exports = 42;\n", false),
             // A README that the packlist's always-included rule
             // should preserve regardless of the (absent) `files`
@@ -86,11 +82,7 @@ async fn passes_through_package_without_scripts() {
     // path, so the new map's CAS entries point at the same files we
     // wrote up front.
     for (rel, original) in &cas_paths {
-        assert_eq!(
-            received.cas_paths.get(rel),
-            Some(original),
-            "deterministic CAS path for {rel}",
-        );
+        assert_eq!(received.cas_paths.get(rel), Some(original), "deterministic CAS path for {rel}");
     }
 }
 
@@ -102,11 +94,7 @@ async fn filters_files_outside_files_field() {
     let cas_paths = write_to_cas(
         &store_dir,
         &[
-            (
-                "package.json",
-                br#"{"name":"x","version":"1.0.0","files":["dist/**"]}"#,
-                false,
-            ),
+            ("package.json", br#"{"name":"x","version":"1.0.0","files":["dist/**"]}"#, false),
             ("dist/index.js", b"// built\n", false),
             ("src/index.ts", b"// source\n", false),
             ("test/foo.test.js", b"// test\n", false),
@@ -145,18 +133,9 @@ async fn filters_files_outside_files_field() {
         .map(String::as_str)
         .collect();
     assert!(keys.contains(&"dist/index.js"));
-    assert!(
-        keys.contains(&"package.json"),
-        "package.json always included",
-    );
-    assert!(
-        !keys.contains(&"src/index.ts"),
-        "src excluded by files field",
-    );
-    assert!(
-        !keys.contains(&"test/foo.test.js"),
-        "test excluded by files field",
-    );
+    assert!(keys.contains(&"package.json"), "package.json always included");
+    assert!(!keys.contains(&"src/index.ts"), "src excluded by files field");
+    assert!(!keys.contains(&"test/foo.test.js"), "test excluded by files field");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -254,10 +233,7 @@ async fn surfaces_prepare_script_failure() {
 
     eprintln!("ERROR:\n{err:?}\n");
     assert!(
-        matches!(
-            err,
-            GitFetcherError::Prepare(PreparePackageError::LifecycleFailed { .. })
-        ),
+        matches!(err, GitFetcherError::Prepare(PreparePackageError::LifecycleFailed { .. })),
         "expected prepare lifecycle failure, got {err:?}",
     );
 }
@@ -275,11 +251,7 @@ async fn path_field_packs_only_subdirectory() {
         &store_dir,
         &[
             // Monorepo root manifest — not the published package.
-            (
-                "package.json",
-                br#"{"name":"monorepo","version":"0.0.0","private":true}"#,
-                false,
-            ),
+            ("package.json", br#"{"name":"monorepo","version":"0.0.0","private":true}"#, false),
             // The sub-package we're packing.
             (
                 "packages/sub/package.json",
@@ -289,11 +261,7 @@ async fn path_field_packs_only_subdirectory() {
             ("packages/sub/index.js", b"module.exports = 1;\n", false),
             ("packages/sub/README.md", b"# sub\n", false),
             // A sibling package that must NOT end up in the result.
-            (
-                "packages/other/package.json",
-                br#"{"name":"other","version":"1.0.0"}"#,
-                false,
-            ),
+            ("packages/other/package.json", br#"{"name":"other","version":"1.0.0"}"#, false),
             ("packages/other/index.js", b"// other\n", false),
         ],
     );
@@ -332,19 +300,11 @@ async fn path_field_packs_only_subdirectory() {
     // The fetcher packlists relative to `pkg_dir` (which is
     // `<tmp>/packages/sub`), so the returned keys are *also* relative
     // to that sub-dir — never carrying the `packages/sub/` prefix.
-    assert!(
-        keys.contains(&"package.json"),
-        "sub-dir manifest must be included",
-    );
+    assert!(keys.contains(&"package.json"), "sub-dir manifest must be included");
     assert!(keys.contains(&"index.js"), "sub-dir main must be included");
+    assert!(keys.contains(&"README.md"), "always-included file must be included");
     assert!(
-        keys.contains(&"README.md"),
-        "always-included file must be included",
-    );
-    assert!(
-        !keys
-            .iter()
-            .any(|k| k.contains("other")),
+        !keys.iter().any(|k| k.contains("other")),
         "sibling-package files must not appear in {keys:?}",
     );
     assert!(
@@ -365,10 +325,8 @@ async fn materialized_temp_dir_does_not_corrupt_cas() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
 
-    let cas_paths = write_to_cas(
-        &store_dir,
-        &[("package.json", br#"{"name":"x","version":"1.0.0"}"#, false)],
-    );
+    let cas_paths =
+        write_to_cas(&store_dir, &[("package.json", br#"{"name":"x","version":"1.0.0"}"#, false)]);
     let original_cas_path = cas_paths["package.json"].clone();
     let cas_bytes_before = fs::read(&original_cas_path).unwrap();
 
@@ -419,11 +377,7 @@ async fn writes_index_row_when_writer_provided() {
     let cas_paths = write_to_cas(
         &store_dir,
         &[
-            (
-                "package.json",
-                br#"{"name":"x","version":"1.0.0","main":"index.js"}"#,
-                false,
-            ),
+            ("package.json", br#"{"name":"x","version":"1.0.0","main":"index.js"}"#, false),
             ("index.js", b"module.exports = 7;\n", false),
         ],
     );
@@ -473,14 +427,8 @@ async fn writes_index_row_when_writer_provided() {
         .keys()
         .map(String::as_str)
         .collect();
-    assert!(
-        keys.contains(&"package.json"),
-        "package.json missing from row.files: {keys:?}",
-    );
-    assert!(
-        keys.contains(&"index.js"),
-        "index.js missing from row.files: {keys:?}",
-    );
+    assert!(keys.contains(&"package.json"), "package.json missing from row.files: {keys:?}");
+    assert!(keys.contains(&"index.js"), "index.js missing from row.files: {keys:?}");
 
     // Per-file metadata must round-trip cleanly — the warm prefetch
     // reconstructs the CAS file path from `digest` + `mode`, and the
@@ -490,9 +438,7 @@ async fn writes_index_row_when_writer_provided() {
     let pj = row.files.get("package.json").expect("package.json entry");
     assert!(!pj.digest.is_empty(), "digest must be populated");
     assert!(
-        pj.digest
-            .bytes()
-            .all(|b| b.is_ascii_hexdigit()),
+        pj.digest.bytes().all(|b| b.is_ascii_hexdigit()),
         "digest must be hex: {:?}",
         pj.digest,
     );
@@ -500,15 +446,8 @@ async fn writes_index_row_when_writer_provided() {
     // a regular file, so on POSIX the mode lands as `0o644`; on
     // Windows pacquet writes a fixed `0o644` (matching
     // `add_files_from_dir`).
-    assert_eq!(
-        pj.mode & 0o777,
-        0o644,
-        "package.json must be a non-executable regular-mode file",
-    );
-    assert_eq!(
-        pj.size as usize,
-        br#"{"name":"x","version":"1.0.0","main":"index.js"}"#.len(),
-    );
+    assert_eq!(pj.mode & 0o777, 0o644, "package.json must be a non-executable regular-mode file");
+    assert_eq!(pj.size as usize, br#"{"name":"x","version":"1.0.0","main":"index.js"}"#.len());
     assert_eq!(
         pj.checked_at, None,
         "freshly imported entries have no integrity-check timestamp yet",
@@ -531,11 +470,7 @@ async fn fast_path_returns_input_cas_paths_when_no_build_needed() {
     let cas_paths = write_to_cas(
         &store_dir,
         &[
-            (
-                "package.json",
-                br#"{"name":"x","version":"1.0.0","main":"index.js"}"#,
-                false,
-            ),
+            ("package.json", br#"{"name":"x","version":"1.0.0","main":"index.js"}"#, false),
             ("index.js", b"module.exports = 42;\n", false),
             ("README.md", b"# x\n", false),
         ],
@@ -574,10 +509,7 @@ async fn fast_path_returns_input_cas_paths_when_no_build_needed() {
     // that just happens to point at the same hashes; the fast path
     // skips that work entirely.
     assert!(!received.built);
-    assert_eq!(
-        received.cas_paths, input_snapshot,
-        "fast path returns input cas_paths verbatim",
-    );
+    assert_eq!(received.cas_paths, input_snapshot, "fast path returns input cas_paths verbatim");
 }
 
 /// When the fast path triggers and a writer is provided, the
@@ -594,18 +526,10 @@ async fn fast_path_queues_synthesized_index_row() {
     let cas_paths = write_to_cas(
         &store_dir,
         &[
-            (
-                "package.json",
-                br#"{"name":"x","version":"1.0.0","main":"index.js"}"#,
-                false,
-            ),
+            ("package.json", br#"{"name":"x","version":"1.0.0","main":"index.js"}"#, false),
             // Mark this one executable to confirm the synthesized
             // row's `mode` bit round-trips through the `-exec` suffix.
-            (
-                "bin/cli.js",
-                b"#!/usr/bin/env node\nconsole.log('hi');\n",
-                true,
-            ),
+            ("bin/cli.js", b"#!/usr/bin/env node\nconsole.log('hi');\n", true),
             ("index.js", b"module.exports = 42;\n", false),
         ],
     );
@@ -647,11 +571,7 @@ async fn fast_path_queues_synthesized_index_row() {
         .get(key)
         .unwrap()
         .expect("fast path must still queue a row at the final key");
-    assert_eq!(
-        row.requires_build,
-        Some(false),
-        "fast path implies no build needed",
-    );
+    assert_eq!(row.requires_build, Some(false), "fast path implies no build needed");
     assert_eq!(row.algo, "sha512");
     let row_keys: Vec<&str> = row.files
         .keys()
@@ -665,17 +585,10 @@ async fn fast_path_queues_synthesized_index_row() {
     // `cas_file_path_by_mode` to the same path the input map points
     // at — that's the property a warm prefetch relies on.
     let bin_entry = row.files.get("bin/cli.js").expect("bin entry must exist");
-    assert_eq!(
-        bin_entry.mode & 0o111,
-        0o111,
-        "executable bit must survive the synthesis",
-    );
+    assert_eq!(bin_entry.mode & 0o111, 0o111, "executable bit must survive the synthesis");
     let resolved =
         store_dir.cas_file_path_by_mode(&bin_entry.digest, bin_entry.mode).expect("valid digest");
-    assert_eq!(
-        resolved, bin_cas_path,
-        "synthesized digest must round-trip to the input CAS path",
-    );
+    assert_eq!(resolved, bin_cas_path, "synthesized digest must round-trip to the input CAS path");
 }
 
 /// Sub-path resolutions never qualify for the fast path: even when
@@ -839,21 +752,12 @@ async fn fast_path_ignore_scripts_returns_input_without_queueing_row() {
     drop(writer);
     writer_task.await.unwrap().unwrap();
 
-    assert!(
-        received.built,
-        "should_be_built stays true even when scripts were ignored",
-    );
-    assert_eq!(
-        received.cas_paths, input_snapshot,
-        "ignored-build fast path returns input as-is",
-    );
+    assert!(received.built, "should_be_built stays true even when scripts were ignored");
+    assert_eq!(received.cas_paths, input_snapshot, "ignored-build fast path returns input as-is");
 
     let index = StoreIndex::open_in(&store_dir).unwrap();
     assert!(
-        index
-            .get(key)
-            .unwrap()
-            .is_none(),
+        index.get(key).unwrap().is_none(),
         "ignored-build fast path must NOT queue a final-key row",
     );
 }
@@ -866,10 +770,8 @@ async fn tarball_path_traversal_attack_is_rejected() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
 
-    let cas_paths = write_to_cas(
-        &store_dir,
-        &[("package.json", br#"{"name":"x","version":"1.0.0"}"#, false)],
-    );
+    let cas_paths =
+        write_to_cas(&store_dir, &[("package.json", br#"{"name":"x","version":"1.0.0"}"#, false)]);
 
     let err = GitHostedTarballFetcher {
         scripts: crate::PrepareScriptOptions {
@@ -925,10 +827,8 @@ async fn tarball_path_to_missing_subdir_is_rejected() {
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
 
-    let cas_paths = write_to_cas(
-        &store_dir,
-        &[("package.json", br#"{"name":"x","version":"1.0.0"}"#, false)],
-    );
+    let cas_paths =
+        write_to_cas(&store_dir, &[("package.json", br#"{"name":"x","version":"1.0.0"}"#, false)]);
 
     let err = GitHostedTarballFetcher {
         scripts: crate::PrepareScriptOptions {

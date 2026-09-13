@@ -94,10 +94,7 @@ impl ProjectDirMatcher {
     fn new(dir: &Path) -> Self {
         let normalized = pnpm_fs::lexical_normalize(dir);
         let canonical = std::fs::canonicalize(&normalized).ok();
-        ProjectDirMatcher {
-            normalized,
-            canonical,
-        }
+        ProjectDirMatcher { normalized, canonical }
     }
 
     fn matches(&self, project_dir: &Path) -> bool {
@@ -190,10 +187,7 @@ pub(in super::super) fn selected_manifest_freshness_inputs<'a>(
         .iter()
         .filter(|(project_dir, _)| selected_dirs.contains(&pnpm_fs::lexical_normalize(project_dir)))
         .map(|(project_dir, manifest)| {
-            (
-                pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir),
-                *manifest,
-            )
+            (pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir), *manifest)
         })
         .collect::<Vec<_>>();
     inputs.sort_by(|(left, _), (right, _)| left.cmp(right));

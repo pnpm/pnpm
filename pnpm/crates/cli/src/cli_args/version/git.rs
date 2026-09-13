@@ -18,24 +18,15 @@ pub(super) fn version_from_git(
     tag_version_prefix: &str,
 ) -> Result<Version, VersionError> {
     let pattern = format!("{tag_version_prefix}*.*.*");
-    let args = [
-        "describe",
-        "--tags",
-        "--abbrev=0",
-        "--always",
-        "--match",
-        pattern.as_str(),
-    ];
+    let args = ["describe", "--tags", "--abbrev=0", "--always", "--match", pattern.as_str()];
     let output = git_output(cwd, &args)?;
-    let tag = output.trim();
-    let matching_tag = git_output(cwd, &["tag", "--list", "--", tag])?;
 
-    if matching_tag.trim() != tag {
-        return Err(invalid_version_from_git(
-            cwd,
-            tag_version_prefix,
-            "no matching Git tag found",
-        ));
+    let tag = output.stdout.trim();
+    let tag_args = ["tag", "--list", "--", tag];
+    let matching_tag = git_output(cwd, &tag_args)?;
+
+    if matching_tag.stdout.trim() != tag {
+        return Err(invalid_version_from_git(cwd, tag_version_prefix, "no matching Git tag found"));
     }
 
     let Some(raw_version) = tag.strip_prefix(tag_version_prefix) else {
@@ -59,9 +50,8 @@ pub(super) fn version_from_git(
 /// Run a git command in `cwd`, failing with the command line and git's stderr
 /// when it exits non-zero.
 fn run_git(cwd: &Path, args: &[&str]) -> miette::Result<()> {
-    git_output(cwd, args)
-        .map(|_| ())
-        .map_err(Into::into)
+    git_output(cwd, args)?;
+    Ok(())
 }
 
 impl VersionArgs {
@@ -106,7 +96,7 @@ impl VersionArgs {
     }
 }
 
-fn git_output(cwd: &Path, args: &[&str]) -> Result<String, VersionError> {
+fn git_output(cwd: &Path, args: &[&str]) -> Result<pnpm_publish::CommandOutput, VersionError> {
     let output = <Host as RunCommand>::run("git", args, Some(cwd))
         .map_err(|err| VersionError::GitCommandFailed {
             args: args.join(" "),
@@ -118,5 +108,5 @@ fn git_output(cwd: &Path, args: &[&str]) -> Result<String, VersionError> {
             stderr: output.stderr.trim().to_string(),
         });
     }
-    Ok(output.stdout)
+    Ok(output)
 }

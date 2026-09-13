@@ -168,10 +168,7 @@ fn check_settings_returns_drift_when_config_enables_inject_workspace_packages() 
     .expect_err("enabling inject must surface drift");
     assert_eq!(
         err,
-        StalenessReason::InjectWorkspacePackagesChanged {
-            lockfile: false,
-            config: true
-        },
+        StalenessReason::InjectWorkspacePackagesChanged { lockfile: false, config: true },
     );
 }
 
@@ -198,9 +195,6 @@ fn check_settings_returns_drift_when_config_disables_inject_workspace_packages()
     .expect_err("disabling inject must surface drift");
     assert_eq!(
         err,
-        StalenessReason::InjectWorkspacePackagesChanged {
-            lockfile: true,
-            config: false
-        },
+        StalenessReason::InjectWorkspacePackagesChanged { lockfile: true, config: false },
     );
 }

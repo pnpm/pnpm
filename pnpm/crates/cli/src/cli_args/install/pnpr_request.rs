@@ -216,18 +216,12 @@ impl PnprBenchmarkRegistryOverride {
             .ok()
             .filter(|registry| !registry.is_empty());
         let tarball_rewrite = BenchmarkRegistryRewrite::new(
-            [
-                Some(resolve_registry.as_str()),
-                tarball_rewrite_from.as_deref(),
-            ]
-            .into_iter()
-            .flatten(),
+            [Some(resolve_registry.as_str()), tarball_rewrite_from.as_deref()]
+                .into_iter()
+                .flatten(),
             client_registry,
         );
-        Some(Self {
-            resolve_registry,
-            tarball_rewrite,
-        })
+        Some(Self { resolve_registry, tarball_rewrite })
     }
 
     pub(super) fn resolve_registry(&self) -> String {
@@ -241,12 +235,8 @@ impl PnprBenchmarkRegistryOverride {
     }
 
     pub(super) fn rewrite_lockfile(&self, lockfile: &mut Lockfile) {
-        let Some(rewrite) = self.tarball_rewrite.as_ref() else {
-            return;
-        };
-        let Some(packages) = lockfile.packages.as_mut() else {
-            return;
-        };
+        let Some(rewrite) = self.tarball_rewrite.as_ref() else { return };
+        let Some(packages) = lockfile.packages.as_mut() else { return };
         for metadata in packages.values_mut() {
             rewrite_resolution_registry(&mut metadata.resolution, rewrite);
         }
@@ -272,29 +262,19 @@ impl BenchmarkRegistryRewrite {
                 from_registries.push(registry);
             }
         }
-        (!from_registries.is_empty()).then_some(Self {
-            from: from_registries,
-            to,
-        })
+        (!from_registries.is_empty()).then_some(Self { from: from_registries, to })
     }
 
     pub(in super::super) fn url(&self, url: &str) -> String {
         self.from
             .iter()
             .find_map(|from| url.strip_prefix(from))
-            .map_or_else(
-                || url.to_string(),
-                |suffix| format!("{}{}", self.to, suffix),
-            )
+            .map_or_else(|| url.to_string(), |suffix| format!("{}{}", self.to, suffix))
     }
 }
 
 fn normalize_registry(registry: &str) -> String {
-    if registry.ends_with('/') {
-        registry.to_string()
-    } else {
-        format!("{registry}/")
-    }
+    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
 pub(super) fn rewrite_resolution_registry(
@@ -328,8 +308,7 @@ pub(super) fn verification_policy(
     pnpm_pnpr_client::VerificationPolicy {
         minimum_release_age: config.minimum_release_age,
         minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
-        minimum_release_age_ignore_missing_time: config
-            .minimum_release_age_ignore_missing_time,
+        minimum_release_age_ignore_missing_time: config.minimum_release_age_ignore_missing_time,
         trust_policy: config.trust_policy,
         trust_policy_exclude: config.trust_policy_exclude.clone(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,

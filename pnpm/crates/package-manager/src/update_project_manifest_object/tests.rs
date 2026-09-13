@@ -9,11 +9,8 @@ use tempfile::TempDir;
 fn manifest_from_json(value: &Value) -> (TempDir, PackageManifest) {
     let dir = tempfile::tempdir().expect("create temp dir");
     let path = dir.path().join("package.json");
-    std::fs::write(
-        &path,
-        serde_json::to_string(value).expect("serialize fixture"),
-    )
-    .expect("write package.json");
+    std::fs::write(&path, serde_json::to_string(value).expect("serialize fixture"))
+        .expect("write package.json");
     let manifest = PackageManifest::from_path(path).expect("read package.json");
     (dir, manifest)
 }
@@ -54,19 +51,13 @@ fn guess_dependency_type_finds_the_field_declaring_the_alias() {
         "dependencies": { "bar": "1.0.0" },
         "devDependencies": { "foo": "" },
     }));
-    assert_eq!(
-        guess_dependency_type("foo", with_empty_dev.value()),
-        Some("devDependencies"),
-    );
+    assert_eq!(guess_dependency_type("foo", with_empty_dev.value()), Some("devDependencies"));
 
     let (_dir, both_versioned) = manifest_from_json(&json!({
         "dependencies": { "bar": "1.0.0" },
         "devDependencies": { "foo": "1.0.0" },
     }));
-    assert_eq!(
-        guess_dependency_type("bar", both_versioned.value()),
-        Some("dependencies"),
-    );
+    assert_eq!(guess_dependency_type("bar", both_versioned.value()), Some("dependencies"));
 }
 
 #[test]
@@ -77,10 +68,7 @@ fn peer_dependency_falls_back_to_star_without_resolved_version() {
     ] {
         let (_dir, mut manifest) = manifest_from_json(&json!({}));
         apply(&mut manifest, &[peer_spec(bare_specifier, None, None)]);
-        assert_eq!(
-            manifest.value()["devDependencies"],
-            json!({ "foo": bare_specifier }),
-        );
+        assert_eq!(manifest.value()["devDependencies"], json!({ "foo": bare_specifier }));
         assert_eq!(manifest.value()["peerDependencies"], json!({ "foo": "*" }));
     }
 }
@@ -88,22 +76,12 @@ fn peer_dependency_falls_back_to_star_without_resolved_version() {
 #[test]
 fn peer_dependency_derives_range_from_resolved_version() {
     let (_dir, mut manifest) = manifest_from_json(&json!({}));
-    apply(
-        &mut manifest,
-        &[peer_spec(
-            "https://github.com/kevva/is-negative",
-            Some("2.1.0"),
-            None,
-        )],
-    );
+    apply(&mut manifest, &[peer_spec("https://github.com/kevva/is-negative", Some("2.1.0"), None)]);
     assert_eq!(
         manifest.value()["devDependencies"],
         json!({ "foo": "https://github.com/kevva/is-negative" }),
     );
-    assert_eq!(
-        manifest.value()["peerDependencies"],
-        json!({ "foo": "^2.1.0" }),
-    );
+    assert_eq!(manifest.value()["peerDependencies"], json!({ "foo": "^2.1.0" }));
 }
 
 #[test]
@@ -117,27 +95,15 @@ fn peer_dependency_honors_range_spec_style() {
             Some(RangeSpecStyle::Minor),
         )],
     );
-    assert_eq!(
-        manifest.value()["peerDependencies"],
-        json!({ "foo": "~1.4.0" }),
-    );
+    assert_eq!(manifest.value()["peerDependencies"], json!({ "foo": "~1.4.0" }));
 }
 
 #[test]
 fn peer_dependency_derives_range_for_jsr_protocol() {
     let (_dir, mut manifest) = manifest_from_json(&json!({}));
-    apply(
-        &mut manifest,
-        &[peer_spec("jsr:^0.1.0", Some("0.1.0"), None)],
-    );
-    assert_eq!(
-        manifest.value()["devDependencies"],
-        json!({ "foo": "jsr:^0.1.0" }),
-    );
-    assert_eq!(
-        manifest.value()["peerDependencies"],
-        json!({ "foo": "^0.1.0" }),
-    );
+    apply(&mut manifest, &[peer_spec("jsr:^0.1.0", Some("0.1.0"), None)]);
+    assert_eq!(manifest.value()["devDependencies"], json!({ "foo": "jsr:^0.1.0" }));
+    assert_eq!(manifest.value()["peerDependencies"], json!({ "foo": "^0.1.0" }));
 }
 
 #[test]
@@ -151,18 +117,14 @@ fn peer_dependency_keeps_prerelease_resolved_version_without_prefix() {
             Some(RangeSpecStyle::Minor),
         )],
     );
-    assert_eq!(
-        manifest.value()["peerDependencies"],
-        json!({ "foo": "2.1.0-rc.1" }),
-    );
+    assert_eq!(manifest.value()["peerDependencies"], json!({ "foo": "2.1.0-rc.1" }));
 }
 
 #[test]
 fn peer_dependency_respects_patch_and_none_pins() {
-    for (range_spec_style, expected) in [
-        (RangeSpecStyle::Patch, "3.2.1"),
-        (RangeSpecStyle::None, "^3.2.1"),
-    ] {
+    for (range_spec_style, expected) in
+        [(RangeSpecStyle::Patch, "3.2.1"), (RangeSpecStyle::None, "^3.2.1")]
+    {
         let (_dir, mut manifest) = manifest_from_json(&json!({}));
         apply(
             &mut manifest,
@@ -172,10 +134,7 @@ fn peer_dependency_respects_patch_and_none_pins() {
                 Some(range_spec_style),
             )],
         );
-        assert_eq!(
-            manifest.value()["peerDependencies"],
-            json!({ "foo": expected }),
-        );
+        assert_eq!(manifest.value()["peerDependencies"], json!({ "foo": expected }));
     }
 }
 

@@ -110,10 +110,7 @@ pub enum EnsureFileError {
 /// one wasted `stat` per file on a cold install.
 pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
     fs::create_dir_all(dir)
-        .map_err(|error| EnsureFileError::CreateDir {
-            parent_dir: dir.to_path_buf(),
-            error,
-        })
+        .map_err(|error| EnsureFileError::CreateDir { parent_dir: dir.to_path_buf(), error })
 }
 
 /// Write `content` to `file_path` with content-addressable-store
@@ -194,10 +191,9 @@ pub fn ensure_file(
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
             verify_or_rewrite(file_path, content, mode)
         }
-        Err(error) => Err(EnsureFileError::CreateFile {
-            file_path: file_path.to_path_buf(),
-            error,
-        }),
+        Err(error) => {
+            Err(EnsureFileError::CreateFile { file_path: file_path.to_path_buf(), error })
+        }
     }
 }
 
@@ -293,18 +289,14 @@ fn verify_or_rewrite(
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 write_atomic(file_path, content, mode)
             }
-            Err(error) => Err(EnsureFileError::ReadFile {
-                file_path: file_path.to_path_buf(),
-                error,
-            }),
+            Err(error) => {
+                Err(EnsureFileError::ReadFile { file_path: file_path.to_path_buf(), error })
+            }
         },
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             write_atomic(file_path, content, mode)
         }
-        Err(error) => Err(EnsureFileError::ReadFile {
-            file_path: file_path.to_path_buf(),
-            error,
-        }),
+        Err(error) => Err(EnsureFileError::ReadFile { file_path: file_path.to_path_buf(), error }),
     }
 }
 
@@ -378,9 +370,7 @@ fn write_atomic(
     content: &[u8],
     mode: Option<u32>,
 ) -> Result<(), EnsureFileError> {
-    let parent = file_path
-        .parent()
-        .unwrap_or_else(|| Path::new("."));
+    let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
     let name = file_path
         .file_name()
         .map(|file_name| file_name.to_string_lossy().into_owned())
@@ -390,10 +380,7 @@ fn write_atomic(
     if let Err(error) = file.write_all(content) {
         drop(file);
         let _ = fs::remove_file(&tmp_path);
-        return Err(EnsureFileError::WriteFile {
-            file_path: tmp_path,
-            error,
-        });
+        return Err(EnsureFileError::WriteFile { file_path: tmp_path, error });
     }
     // Close the handle before `rename`. Windows `MoveFileEx` over
     // an open source file can fail with sharing-violation; Unix
@@ -467,10 +454,7 @@ pub fn create_exclusive_temp_file(
                 last_already_exists = Some(error);
             }
             Err(error) => {
-                return Err(EnsureFileError::CreateFile {
-                    file_path: tmp_path,
-                    error,
-                });
+                return Err(EnsureFileError::CreateFile { file_path: tmp_path, error });
             }
         }
     }

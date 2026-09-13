@@ -189,10 +189,27 @@ pub fn package_is_installable(
     manifest: &PackageInstallabilityManifest,
     options: &InstallabilityOptions<'_>,
 ) -> Result<InstallabilityVerdict, Box<InstallabilityError>> {
-    let effective = options.optional
-        .then(|| inferred_manifest(manifest))
-        .flatten();
-    let manifest = effective.as_ref().unwrap_or(manifest);
+    let effective: PackageInstallabilityManifest;
+    let manifest = if options.optional
+        && let Some(platform) = inferred_platform(
+            &manifest.name,
+            WantedPlatformRef {
+                os: manifest.os.as_deref(),
+                cpu: manifest.cpu.as_deref(),
+                libc: manifest.libc.as_deref(),
+            },
+        ) {
+        effective = PackageInstallabilityManifest {
+            name: manifest.name.clone(),
+            engines: manifest.engines.clone(),
+            os: platform.os,
+            cpu: platform.cpu,
+            libc: platform.libc,
+        };
+        &effective
+    } else {
+        manifest
+    };
     let warn = match check_package(package_id, manifest, options) {
         Ok(maybe) => maybe,
         Err(invalid_node) => {
@@ -201,14 +218,10 @@ pub fn package_is_installable(
             // `InvalidNodeVersion` variant so callers keep the
             // `ERR_PNPM_INVALID_NODE_VERSION` code and message rather
             // than a synthesized engine mismatch.
-            return Err(Box::new(InstallabilityError::InvalidNodeVersion(
-                invalid_node,
-            )));
+            return Err(Box::new(InstallabilityError::InvalidNodeVersion(invalid_node)));
         }
     };
-    let Some(warn) = warn else {
-        return Ok(InstallabilityVerdict::Installable);
-    };
+    let Some(warn) = warn else { return Ok(InstallabilityVerdict::Installable) };
 
     if options.optional {
         return Ok(InstallabilityVerdict::SkipOptional {
@@ -221,9 +234,7 @@ pub fn package_is_installable(
         return Err(Box::new(warn));
     }
 
-    Ok(InstallabilityVerdict::ProceedWithWarning {
-        message: warn.to_string(),
-    })
+    Ok(InstallabilityVerdict::ProceedWithWarning { message: warn.to_string() })
 }
 
 /// [`platform_is_supported`] applied to a package whose declared axes may be
@@ -259,24 +270,4 @@ pub fn platform_is_supported_with_inference(
         options.current_cpu,
         options.current_libc,
     )
-}
-
-fn inferred_manifest(
-    manifest: &PackageInstallabilityManifest,
-) -> Option<PackageInstallabilityManifest> {
-    let platform = inferred_platform(
-        &manifest.name,
-        WantedPlatformRef {
-            os: manifest.os.as_deref(),
-            cpu: manifest.cpu.as_deref(),
-            libc: manifest.libc.as_deref(),
-        },
-    )?;
-    Some(PackageInstallabilityManifest {
-        name: manifest.name.clone(),
-        engines: manifest.engines.clone(),
-        os: platform.os,
-        cpu: platform.cpu,
-        libc: platform.libc,
-    })
 }

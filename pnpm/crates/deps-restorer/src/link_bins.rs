@@ -151,10 +151,7 @@ impl LinkVirtualStoreBins<'_> {
                 layout,
                 snapshots,
                 selected_snapshots,
-                BinSlotSets {
-                    has_bin: has_bin_set.as_ref(),
-                    bundling: &bundling_set,
-                },
+                BinSlotSets { has_bin: has_bin_set.as_ref(), bundling: &bundling_set },
                 package_manifests,
                 skipped,
                 link_options,
@@ -303,12 +300,7 @@ where
         .par_iter()
         .try_for_each(|(slot_key, snapshot)| {
             link_slot_bins::<Sys>(
-                &SlotBinContext {
-                    layout,
-                    sets,
-                    package_manifests,
-                    link_options,
-                },
+                &SlotBinContext { layout, sets, package_manifests, link_options },
                 slot_key,
                 snapshot,
             )

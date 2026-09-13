@@ -10,46 +10,26 @@ fn run(mut manifest: Value) -> Result<Value, TransformError> {
 #[test]
 fn missing_name_is_rejected() {
     let err = run(json!({ "version": "1.0.0" })).unwrap_err();
-    assert_eq!(
-        err,
-        TransformError::MissingRequiredField {
-            field: "name"
-        },
-    );
+    assert_eq!(err, TransformError::MissingRequiredField { field: "name" });
 }
 
 #[test]
 fn missing_version_is_rejected() {
     let err = run(json!({ "name": "foo" })).unwrap_err();
-    assert_eq!(
-        err,
-        TransformError::MissingRequiredField {
-            field: "version"
-        },
-    );
+    assert_eq!(err, TransformError::MissingRequiredField { field: "version" });
 }
 
 #[test]
 fn empty_string_name_is_rejected() {
     let err = run(json!({ "name": "", "version": "1.0.0" })).unwrap_err();
-    assert_eq!(
-        err,
-        TransformError::MissingRequiredField {
-            field: "name"
-        },
-    );
+    assert_eq!(err, TransformError::MissingRequiredField { field: "name" });
 }
 
 #[test]
 fn falsy_version_is_rejected() {
     for falsy in [json!(0), json!(false), json!(null), json!("")] {
         let err = run(json!({ "name": "foo", "version": falsy })).unwrap_err();
-        assert_eq!(
-            err,
-            TransformError::MissingRequiredField {
-                field: "version"
-            },
-        );
+        assert_eq!(err, TransformError::MissingRequiredField { field: "version" });
     }
 }
 
@@ -89,12 +69,7 @@ fn object_bin_is_left_untouched() {
 #[test]
 fn scoped_name_without_slash_and_string_bin_is_rejected() {
     let err = run(json!({ "name": "@foo", "version": "1.0.0", "bin": "cli.js" })).unwrap_err();
-    assert_eq!(
-        err,
-        TransformError::InvalidScopedPackageName {
-            invalid_name: "@foo".to_string()
-        },
-    );
+    assert_eq!(err, TransformError::InvalidScopedPackageName { invalid_name: "@foo".to_string() });
 }
 
 #[test]
@@ -105,14 +80,8 @@ fn peer_dependencies_meta_gets_explicit_optional() {
         "peerDependenciesMeta": { "react": {}, "vue": { "optional": true } },
     }))
     .unwrap();
-    assert_eq!(
-        out["peerDependenciesMeta"]["react"],
-        json!({ "optional": false }),
-    );
-    assert_eq!(
-        out["peerDependenciesMeta"]["vue"],
-        json!({ "optional": true }),
-    );
+    assert_eq!(out["peerDependenciesMeta"]["react"], json!({ "optional": false }));
+    assert_eq!(out["peerDependenciesMeta"]["vue"], json!({ "optional": true }));
 }
 
 #[test]
@@ -123,10 +92,7 @@ fn string_repository_becomes_git_object() {
         "repository": "https://github.com/foo/bar",
     }))
     .unwrap();
-    assert_eq!(
-        out["repository"],
-        json!({ "type": "git", "url": "https://github.com/foo/bar" }),
-    );
+    assert_eq!(out["repository"], json!({ "type": "git", "url": "https://github.com/foo/bar" }));
 }
 
 #[test]
@@ -138,8 +104,5 @@ fn object_repository_is_left_untouched() {
         "repository": repo,
     }))
     .unwrap();
-    assert_eq!(
-        out["repository"],
-        json!({ "type": "git", "url": "git+ssh://x" }),
-    );
+    assert_eq!(out["repository"], json!({ "type": "git", "url": "git+ssh://x" }));
 }

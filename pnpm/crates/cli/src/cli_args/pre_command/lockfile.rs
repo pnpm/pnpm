@@ -77,10 +77,7 @@ pub(super) fn read_env_lockfile(root_dir: &Path) -> miette::Result<Option<EnvLoc
     EnvLockfile::read(root_dir)
         .map_err(miette::Report::new)
         .wrap_err_with(|| {
-            format!(
-                "read the package-manager env lockfile in {}",
-                root_dir.display(),
-            )
+            format!("read the package-manager env lockfile in {}", root_dir.display())
         })
 }
 
@@ -96,10 +93,7 @@ pub(super) fn locked_switch_source(
     frozen_lockfile: bool,
 ) -> SwitchSource {
     if assert_package_manager_lockfile_uses_registry_resolutions(&env).is_ok() {
-        return SwitchSource::LockedEnv {
-            env,
-            version,
-        };
+        return SwitchSource::LockedEnv { env, version };
     }
     SwitchSource::Resolve {
         env_root: roots.env.clone(),
@@ -161,12 +155,10 @@ fn assert_package_manager_lockfile_uses_registry_resolutions(
         }
 
         let package_key = key.without_peer();
-        let package_info = env.packages
-            .get(&package_key)
-            .ok_or_else(|| invalid_package_manager_lockfile(&key))?;
-        let snapshot = env.snapshots
-            .get(&key)
-            .ok_or_else(|| invalid_package_manager_lockfile(&key))?;
+        let package_info =
+            env.packages.get(&package_key).ok_or_else(|| invalid_package_manager_lockfile(&key))?;
+        let snapshot =
+            env.snapshots.get(&key).ok_or_else(|| invalid_package_manager_lockfile(&key))?;
 
         assert_registry_package_path(&key, package_info)?;
         assert_integrity_only_resolution(&key, &package_info.resolution)?;
@@ -185,9 +177,8 @@ fn append_snapshot_dependencies(
         [&snapshot.dependencies, &snapshot.optional_dependencies].into_iter().flatten()
     {
         for (name, reference) in dependencies {
-            let next_key = reference
-                .resolve(name)
-                .ok_or_else(|| invalid_package_manager_lockfile(key))?;
+            let next_key =
+                reference.resolve(name).ok_or_else(|| invalid_package_manager_lockfile(key))?;
             pending.push(next_key);
         }
     }

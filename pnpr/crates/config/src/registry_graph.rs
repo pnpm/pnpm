@@ -1,6 +1,6 @@
 pub(super) use namespace::{
-    ecosystem_package_keys, org_collision_error, set_group_ecosystem, validate_org_namespace,
-    validate_registry_key, validate_registry_name,
+    ecosystem_package_keys, org_collision_error, validate_org_namespace, validate_registry_key,
+    validate_registry_name,
 };
 
 mod namespace;
@@ -9,15 +9,30 @@ use super::{
     AccessList, AccessSpec, DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile,
     IndexMap, PackageAccess, PackagePattern, PackageRule, PackageRules, Registries, Registry,
     RegistryConfigError, RegistryError, RegistryFile, RegistryGroupFile, SystemEnv, Teams,
-    UpstreamConfig, UpstreamConfigFile, UpstreamFile, build_teams, resolve_upstream_config,
+    UpstreamConfig, UpstreamConfigFile, UpstreamFile, build_teams, registry_mock_rules,
+    resolve_upstream_config,
 };
 
 /// Turn a static [`RegistryConfigError`] into the server-wide config error so a
 /// bad registry set fails startup and config reload like any other.
 pub(super) fn registry_err(err: &RegistryConfigError) -> RegistryError {
-    RegistryError::InvalidConfig {
-        reason: err.to_string(),
+    RegistryError::InvalidConfig { reason: err.to_string() }
+}
+
+pub(super) fn set_group_ecosystem(
+    name: &str,
+    declared: &mut Option<Ecosystem>,
+    ecosystem: Ecosystem,
+) -> Result<(), RegistryError> {
+    if declared.is_some_and(|declared| declared != ecosystem) {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "registry {name:?} declares an ecosystem different from its {ecosystem} group",
+            ),
+        });
     }
+    *declared = Some(ecosystem);
+    Ok(())
 }
 
 pub(super) fn flatten_registry_groups(
@@ -96,12 +111,7 @@ pub(super) fn build_registries(
     // at `/~<name>/`. No declared patterns ⇒ it serves every name.
     for name in upstreams.keys() {
         validate_registry_name(name)?;
-        builder.graph.insert(
-            name.clone(),
-            Registry::Upstream {
-                patterns: Vec::new(),
-            },
-        );
+        builder.graph.insert(name.clone(), Registry::Upstream { patterns: Vec::new() });
     }
     for (name, file) in registry_files {
         builder.add(name, file, upstreams, resolve_upstreams)?;
@@ -109,15 +119,12 @@ pub(super) fn build_registries(
     let registries = builder.ecosystems
         .iter()
         .filter(|(_, ecosystem)| **ecosystem != Ecosystem::Npm)
-        .fold(
-            Registries::new(builder.graph, default_registry),
-            |registries, (name, ecosystem)| registries.with_ecosystem(name, *ecosystem),
-        );
+        .fold(Registries::new(builder.graph, default_registry), |registries, (name, ecosystem)| {
+            registries.with_ecosystem(name, *ecosystem)
+        });
     let defaults = addressed_defaults(defaults, &registries);
     let registries = registries.with_defaults(defaults);
-    registries
-        .validate()
-        .map_err(|err| registry_err(&err))?;
+    registries.validate().map_err(|err| registry_err(&err))?;
     Ok((builder.hosted, registries))
 }
 
@@ -168,7 +175,13 @@ impl RegistryGraphBuilder {
             });
         }
         match file {
-            RegistryFile::Hosted(registry) => self.add_hosted(name, registry)?,
+            RegistryFile::Hosted(registry) => {
+                let (config, ecosystem, patterns) =
+                    build_hosted_entry(&name, registry, &self.hosted)?;
+                self.hosted.insert(name.clone(), config);
+                self.ecosystems.insert(name.clone(), ecosystem);
+                self.graph.insert(name, Registry::Hosted { patterns });
+            }
             RegistryFile::Upstream(upstream) => {
                 let (resolved, ecosystem, patterns) =
                     build_upstream_entry(&name, *upstream, resolve_upstreams)?;
@@ -176,34 +189,12 @@ impl RegistryGraphBuilder {
                 if let Some(resolved) = resolved {
                     upstreams.insert(name.clone(), resolved);
                 }
-                self.graph.insert(
-                    name,
-                    Registry::Upstream {
-                        patterns,
-                    },
-                );
+                self.graph.insert(name, Registry::Upstream { patterns });
             }
             RegistryFile::Router(router) => {
-                self.graph.insert(
-                    name,
-                    Registry::Router {
-                        sources: router.sources,
-                    },
-                );
+                self.graph.insert(name, Registry::Router { sources: router.sources });
             }
         }
-        Ok(())
-    }
-    fn add_hosted(&mut self, name: String, registry: HostedFile) -> Result<(), RegistryError> {
-        let (config, ecosystem, patterns) = build_hosted_entry(&name, registry, &self.hosted)?;
-        self.hosted.insert(name.clone(), config);
-        self.ecosystems.insert(name.clone(), ecosystem);
-        self.graph.insert(
-            name,
-            Registry::Hosted {
-                patterns,
-            },
-        );
         Ok(())
     }
 }
@@ -246,15 +237,7 @@ pub(super) fn build_hosted_entry(
     let packages = ecosystem_package_keys(name, ecosystem, registry.packages)?;
     let rules = build_rules(name, ecosystem, &packages, access, &teams)?;
     let patterns = rules.patterns();
-    Ok((
-        HostedConfig {
-            org,
-            rules,
-            teams,
-        },
-        ecosystem,
-        patterns,
-    ))
+    Ok((HostedConfig { org, rules, teams }, ecosystem, patterns))
 }
 
 /// The resolved serving config, ecosystem and claimed patterns of one
@@ -376,6 +359,26 @@ pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
     resolve_upstream_config::<Sys>(name, upstream_config_file, teams)
 }
 
+pub(super) fn registry_mock_graph() -> (IndexMap<String, HostedConfig>, Registries) {
+    let rules = registry_mock_rules();
+    let local_patterns = rules.patterns();
+    let mut hosted = IndexMap::new();
+    hosted.insert(
+        "local".to_string(),
+        HostedConfig { org: String::new(), rules, teams: Teams::default() },
+    );
+    let graph = [
+        ("local".to_string(), Registry::Hosted { patterns: local_patterns }),
+        ("npmjs".to_string(), Registry::Upstream { patterns: Vec::new() }),
+        (
+            "main".to_string(),
+            Registry::Router { sources: vec!["local".to_string(), "npmjs".to_string()] },
+        ),
+    ];
+    let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    (hosted, registries)
+}
+
 /// Public origins must reject credentials and access gates rather than silently
 /// exposing private data or sending credentials to anonymous origins.
 pub(super) fn validate_upstream_access(
@@ -433,15 +436,7 @@ pub(super) fn resolve_file_registries(
     registry_enabled: bool,
 ) -> Result<ResolvedFileRegistries, RegistryError> {
     let mut upstreams: IndexMap<String, UpstreamConfig> = IndexMap::new();
-    let (hosted, registries) = build_registries(
-        &mut upstreams,
-        registries,
-        default_registry,
-        registry_enabled,
-    )?;
-    Ok(ResolvedFileRegistries {
-        upstreams,
-        hosted,
-        registries,
-    })
+    let (hosted, registries) =
+        build_registries(&mut upstreams, registries, default_registry, registry_enabled)?;
+    Ok(ResolvedFileRegistries { upstreams, hosted, registries })
 }

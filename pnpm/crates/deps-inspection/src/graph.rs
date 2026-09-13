@@ -78,13 +78,7 @@ pub fn build_dependency_graph(
                 .filter(|target| !visited.contains(*target))
                 .cloned(),
         );
-        graph.nodes.insert(
-            node_id,
-            GraphNode {
-                edges,
-                peers,
-            },
-        );
+        graph.nodes.insert(node_id, GraphNode { edges, peers });
     }
 
     graph
@@ -114,12 +108,7 @@ pub fn peer_names(lockfile: &Lockfile, dep_path: &PkgNameVerPeer) -> HashSet<Str
         .as_ref()
         .and_then(|packages| packages.get(&dep_path.without_peer()))
         .and_then(|metadata| metadata.peer_dependencies.as_ref())
-        .map(|peers| {
-            peers
-                .keys()
-                .cloned()
-                .collect()
-        })
+        .map(|peers| peers.keys().cloned().collect())
         .unwrap_or_default()
 }
 
@@ -129,7 +118,11 @@ fn importer_edges(
     opts: &BuildGraphOptions<'_>,
 ) -> Vec<GraphEdge> {
     let mut edges = Vec::new();
-    let groups = importer_dependency_groups(importer, opts.include);
+    let groups: [(bool, Option<&pnpm_lockfile::ResolvedDependencyMap>); 3] = [
+        (opts.include.dependencies, importer.dependencies.as_ref()),
+        (opts.include.dev_dependencies, importer.dev_dependencies.as_ref()),
+        (opts.include.optional_dependencies, importer.optional_dependencies.as_ref()),
+    ];
     for (included, group) in groups {
         if !included {
             continue;
@@ -160,7 +153,10 @@ fn importer_edges(
 
 fn package_edges(snapshot: &SnapshotEntry, opts: &BuildGraphOptions<'_>) -> Vec<GraphEdge> {
     let mut edges = Vec::new();
-    let groups = package_dependency_groups(snapshot, opts.include);
+    let groups: [(bool, Option<&HashMap<PkgName, pnpm_lockfile::SnapshotDepRef>>); 2] = [
+        (true, snapshot.dependencies.as_ref()),
+        (opts.include.optional_dependencies, snapshot.optional_dependencies.as_ref()),
+    ];
     for (included, group) in groups {
         if !included {
             continue;
@@ -171,12 +167,8 @@ fn package_edges(snapshot: &SnapshotEntry, opts: &BuildGraphOptions<'_>) -> Vec<
             // Links from external packages are not traversed (the
             // TypeScript `getTreeNodeChildId` returns undefined for
             // package parents), so no importer id is passed here.
-            let target = edge_target(
-                dep_path.as_ref(),
-                link_target.as_deref(),
-                None,
-                opts.lockfile,
-            );
+            let target =
+                edge_target(dep_path.as_ref(), link_target.as_deref(), None, opts.lockfile);
             if opts.only_projects && !matches!(target, Some(TreeNodeId::Importer(_))) {
                 continue;
             }
@@ -232,39 +224,5 @@ pub fn normalize_importer_path(base: &str, relative: &str) -> Option<String> {
             other => parts.push(other),
         }
     }
-    if parts.is_empty() {
-        Some(".".to_string())
-    } else {
-        Some(parts.join("/"))
-    }
-}
-
-fn importer_dependency_groups(
-    importer: &ProjectSnapshot,
-    include: IncludedDependencies,
-) -> [(bool, Option<&pnpm_lockfile::ResolvedDependencyMap>); 3] {
-    [
-        (include.dependencies, importer.dependencies.as_ref()),
-        (include.dev_dependencies, importer.dev_dependencies.as_ref()),
-        (
-            include.optional_dependencies,
-            importer.optional_dependencies.as_ref(),
-        ),
-    ]
-}
-
-fn package_dependency_groups(
-    snapshot: &SnapshotEntry,
-    include: IncludedDependencies,
-) -> [(
-    bool,
-    Option<&HashMap<PkgName, pnpm_lockfile::SnapshotDepRef>>,
-); 2] {
-    [
-        (true, snapshot.dependencies.as_ref()),
-        (
-            include.optional_dependencies,
-            snapshot.optional_dependencies.as_ref(),
-        ),
-    ]
+    if parts.is_empty() { Some(".".to_string()) } else { Some(parts.join("/")) }
 }

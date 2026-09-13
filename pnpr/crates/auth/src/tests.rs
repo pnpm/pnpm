@@ -186,10 +186,7 @@ async fn adduser_rejects_same_username_concurrent_registration_with_different_pa
         })
         .count();
 
-    assert_eq!(
-        created, 1,
-        "exactly one concurrent adduser should create the account",
-    );
+    assert_eq!(created, 1, "exactly one concurrent adduser should create the account");
     assert_eq!(unauthorized, 1, "the losing registration must be rejected");
     // Exactly one of the two passwords is the one that was stored: logging in
     // with it succeeds, the other is rejected as unauthorized.
@@ -210,10 +207,7 @@ async fn adduser_rejects_same_username_concurrent_registration_with_different_pa
         .count();
 
     assert_eq!(logged_in, 1, "exactly one password must be the stored one");
-    assert_eq!(
-        unauthorized_logins, 1,
-        "the other password must be unauthorized",
-    );
+    assert_eq!(unauthorized_logins, 1, "the other password must be unauthorized");
 }
 
 #[tokio::test]
@@ -244,10 +238,7 @@ async fn adduser_writes_bcrypt_2y_format() {
         .split_once(':')
         .expect("user:hash line");
     assert_eq!(user, "alice");
-    assert!(
-        hash.starts_with("$2y$"),
-        "expected $2y$ prefix for htpasswd compat, got {hash:?}",
-    );
+    assert!(hash.starts_with("$2y$"), "expected $2y$ prefix for htpasswd compat, got {hash:?}");
 }
 
 #[tokio::test]
@@ -293,10 +284,7 @@ async fn open_rejects_corrupt_htpasswd_at_startup() {
     let path = tmp.path().join("htpasswd");
     std::fs::write(&path, "no-colon-here\nalice:plaintext\n").unwrap();
     let err = UserStore::open(path, MaxUsers::Unlimited).unwrap_err();
-    assert!(
-        matches!(err, pnpr_error::RegistryError::InvalidHtpasswdFile { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, pnpr_error::RegistryError::InvalidHtpasswdFile { .. }), "got {err:?}");
 }
 
 #[test]
@@ -316,10 +304,7 @@ fn parse_htpasswd_preserves_legacy_whitespace_normalization() {
 #[test]
 fn parse_htpasswd_rejects_invalid_usernames() {
     for raw in [" #alice:$2y$10$abcdef\n", "alice\u{1}admin:$2y$10$abcdef\n"] {
-        assert!(
-            parse_htpasswd(raw).is_err(),
-            "expected {raw:?} to be rejected",
-        );
+        assert!(parse_htpasswd(raw).is_err(), "expected {raw:?} to be rejected");
     }
 }
 
@@ -387,10 +372,7 @@ async fn tokens_are_unique_per_issue() {
     let tokens = TokenStore::in_memory();
     let token_a = tokens.issue("alice").await.unwrap();
     let token_b = tokens.issue("alice").await.unwrap();
-    assert_ne!(
-        token_a, token_b,
-        "every call to issue() should mint a fresh token",
-    );
+    assert_ne!(token_a, token_b, "every call to issue() should mint a fresh token");
 }
 
 #[tokio::test]
@@ -449,9 +431,7 @@ async fn tokens_db_stores_hash_not_raw() {
     // never appears in any row.
     let conn = rusqlite::Connection::open(&path).unwrap();
     let mut stmt = conn.prepare("SELECT token_hash FROM tokens").unwrap();
-    let mut rows = stmt
-        .query([])
-        .unwrap();
+    let mut rows = stmt.query([]).unwrap();
     let row = rows
         .next()
         .unwrap()
@@ -473,10 +453,7 @@ async fn token_issue_rolls_back_memory_when_sqlite_persistence_fails() {
 
     let err = store.issue("alice").await.unwrap_err();
 
-    assert_eq!(
-        err.status_code(),
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-    );
+    assert_eq!(err.status_code(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
     assert!(
         store.inner
             .lock()
@@ -493,10 +470,7 @@ async fn identify_recognizes_bearer_and_ignores_basic() {
     let token = tokens.issue("alice").await.unwrap();
 
     let header = format!("Bearer {token}");
-    assert_eq!(
-        identify(Some(&header), &tokens).await.unwrap().as_deref(),
-        Some("alice"),
-    );
+    assert_eq!(identify(Some(&header), &tokens).await.unwrap().as_deref(), Some("alice"));
 
     // Basic credentials are no longer accepted on requests — the header is
     // ignored (treated as anonymous), so request handling never pays a bcrypt.
@@ -555,10 +529,7 @@ async fn an_unreadable_cidr_whitelist_is_refused_rather_than_dropped() {
 
     let err = TokenStore::open(path).expect_err("a corrupt cidr_whitelist must not load");
     let message = err.to_string();
-    assert!(
-        message.contains("cidr_whitelist"),
-        "the error should name the column: {message}",
-    );
+    assert!(message.contains("cidr_whitelist"), "the error should name the column: {message}");
     assert!(
         message.contains("token-hash"),
         "the error should name the row, so an operator can find it: {message}",

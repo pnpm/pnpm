@@ -43,20 +43,14 @@ fn next_path_returns_from_when_not_an_ancestor() {
 #[test]
 #[cfg(unix)]
 fn filesystem_root_unix_is_slash() {
-    assert_eq!(
-        filesystem_root(Path::new("/Volumes/src/proj")),
-        PathBuf::from("/"),
-    );
+    assert_eq!(filesystem_root(Path::new("/Volumes/src/proj")), PathBuf::from("/"));
     assert_eq!(filesystem_root(Path::new("/")), PathBuf::from("/"));
 }
 
 #[test]
 #[cfg(windows)]
 fn filesystem_root_windows_keeps_drive_prefix() {
-    assert_eq!(
-        filesystem_root(Path::new(r"C:\Users\proj")),
-        PathBuf::from(r"C:\"),
-    );
+    assert_eq!(filesystem_root(Path::new(r"C:\Users\proj")), PathBuf::from(r"C:\"));
 }
 
 #[test]
@@ -128,11 +122,7 @@ macro_rules! prefix_probe {
         fn set_allow(prefixes: &[&Path]) {
             let mut slot = ALLOW_PREFIXES.lock().expect("ALLOW_PREFIXES not poisoned");
             slot.clear();
-            slot.extend(
-                prefixes
-                    .iter()
-                    .map(|prefix| prefix.to_path_buf()),
-            );
+            slot.extend(prefixes.iter().map(|prefix| prefix.to_path_buf()));
         }
     };
 }
@@ -201,10 +191,7 @@ fn resolve_store_dir_uses_node_modules_when_only_pkg_root_is_linkable() {
 
     set_allow(&[&pkg_root_canon]);
     let resolved = resolve_store_dir::<PrefixProbe>(home_default, &pnpm_home, &pkg_root_canon);
-    assert_eq!(
-        resolved,
-        pkg_root_canon.join("node_modules").join(".pnpm-store"),
-    );
+    assert_eq!(resolved, pkg_root_canon.join("node_modules").join(".pnpm-store"));
 }
 
 #[test]

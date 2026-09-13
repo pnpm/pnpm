@@ -1,6 +1,7 @@
 //! Applying fixes: overrides, ignores, and dependency updates.
 
 pub(super) mod update;
+
 pub(crate) use update::{
     AuditFixObserver, VulnerabilityGuard, fix_with_update, format_fix_with_update_output,
 };
@@ -77,10 +78,7 @@ pub(crate) fn prune_ignored_ghsas(
             pruned.push(ghsa.clone());
         }
     }
-    PruneIgnoredGhsasResult {
-        pruned,
-        retained,
-    }
+    PruneIgnoredGhsasResult { pruned, retained }
 }
 
 /// Build the `name@vulnerable_versions → patched-range` override map from the
@@ -93,9 +91,7 @@ pub(crate) fn create_overrides(
 ) -> BTreeMap<String, String> {
     let mut overrides = BTreeMap::new();
     for advisory in advisories.values() {
-        let Some(patched) = advisory.patched_versions.as_deref() else {
-            continue;
-        };
+        let Some(patched) = advisory.patched_versions.as_deref() else { continue };
         let key = format!("{}@{}", advisory.module_name, advisory.vulnerable_versions);
         overrides.insert(key, patched_range_for_style(patched, range_spec_style));
     }
@@ -288,22 +284,14 @@ pub(crate) fn minimum_release_age_excludes(
             let patched = advisory.patched_versions.as_deref()?;
             let min = patched
                 .strip_prefix(">=")
-                .and_then(|version| {
-                    version
-                        .trim()
-                        .parse::<Version>()
-                        .ok()
-                })?;
+                .and_then(|version| version.trim().parse::<Version>().ok())?;
             let name = advisory.module_name.trim();
             let Some(info) = publish_infos.get(name).and_then(Option::as_ref) else {
                 return Some(format!("{name}@{min}"));
             };
             let range = patched.parse::<Range>().ok()?;
             let (key, lowest) = info.lowest_non_deprecated_version(&range)?;
-            match info.time
-                .get(key)
-                .and_then(|raw| parse_packument_timestamp(raw))
-            {
+            match info.time.get(key).and_then(|raw| parse_packument_timestamp(raw)) {
                 Some(published_at) if published_at <= cutoff => None,
                 // A present-but-unparsable timestamp fails open like unknown
                 // publish times.
@@ -346,10 +334,7 @@ pub(crate) fn ignore_vulnerabilities(
 ) -> miette::Result<String> {
     let mut ordered: Vec<String> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
-    for ghsa in config.audit_config.ignore_ghsas
-        .iter()
-        .map(|ghsa| normalize_ghsa_id(ghsa))
-    {
+    for ghsa in config.audit_config.ignore_ghsas.iter().map(|ghsa| normalize_ghsa_id(ghsa)) {
         if !ghsa.is_empty() && seen.insert(ghsa.clone()) {
             ordered.push(ghsa);
         }
@@ -384,11 +369,7 @@ fn ignored_summary(new_ignores: &[String]) -> String {
     if new_ignores.is_empty() {
         return "No new vulnerabilities were ignored".to_string();
     }
-    format!(
-        "{} new vulnerabilities were ignored:\n{}",
-        new_ignores.len(),
-        new_ignores.join("\n"),
-    )
+    format!("{} new vulnerabilities were ignored:\n{}", new_ignores.len(), new_ignores.join("\n"))
 }
 
 /// The GHSA ids of every advisory with no inferable fix. An advisory

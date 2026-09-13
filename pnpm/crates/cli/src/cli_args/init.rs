@@ -20,17 +20,11 @@ pub struct InitArgs {
     /// Pin the latest pnpm version in package.json, through
     /// "devEngines.packageManager" and "packageManager", and auto-download
     /// pnpm when it is missing.
-    #[clap(
-        long = "init-package-manager",
-        overrides_with = "no_init_package_manager"
-    )]
+    #[clap(long = "init-package-manager", overrides_with = "no_init_package_manager")]
     pub init_package_manager: bool,
 
     /// Scaffold the manifest without a pnpm version pin.
-    #[clap(
-        long = "no-init-package-manager",
-        overrides_with = "init_package_manager"
-    )]
+    #[clap(long = "no-init-package-manager", overrides_with = "init_package_manager")]
     pub no_init_package_manager: bool,
 }
 
@@ -84,12 +78,8 @@ pub(crate) async fn version_to_pin(config: &Config) -> String {
     // should cost `pnpm init` a moment, not the whole timeout below.
     let mut config = config.clone();
     config.fetch_retries = 0;
-    let lookup = Box::pin(config_deps::resolve_engine_version(
-        &config, "pnpm", "latest",
-    ));
-    let Ok(Ok(Some(resolved))) = tokio::time::timeout(LATEST_LOOKUP_TIMEOUT, lookup)
-        .await
-    else {
+    let lookup = Box::pin(config_deps::resolve_engine_version(&config, "pnpm", "latest"));
+    let Ok(Ok(Some(resolved))) = tokio::time::timeout(LATEST_LOOKUP_TIMEOUT, lookup).await else {
         return PNPM_VERSION.to_string();
     };
     // A `latest` the maturity or trust policy rejects is not something to pin

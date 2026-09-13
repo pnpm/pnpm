@@ -23,23 +23,16 @@ impl SqlAuth<MysqlDatabase> {
     ) -> Result<Self> {
         let startup_options =
             mysql_pool_options(settings, settings.startup_timeout, settings.startup_timeout)?;
-        let startup_pool = with_auth_timeout(
-            settings.startup_timeout,
-            startup_options.connect(&settings.url),
-        )
-        .await?;
-        let startup_db = MysqlDatabase {
-            pool: startup_pool,
-        };
-        with_auth_timeout(settings.startup_timeout, startup_db.init_schema())
-            .await?;
+        let startup_pool =
+            with_auth_timeout(settings.startup_timeout, startup_options.connect(&settings.url))
+                .await?;
+        let startup_db = MysqlDatabase { pool: startup_pool };
+        with_auth_timeout(settings.startup_timeout, startup_db.init_schema()).await?;
         startup_db.pool.close().await;
 
         let pool = mysql_pool_options(settings, settings.timeout, settings.timeout)?
             .connect_lazy(&settings.url)?;
-        let db = MysqlDatabase {
-            pool,
-        };
+        let db = MysqlDatabase { pool };
         Ok(SqlAuth::new(db, max_users, settings.timeout))
     }
 }
@@ -56,18 +49,12 @@ fn mysql_pool_options(
         }
         options = options.max_connections(max_connections);
     }
-    let statement_timeout_sql = format!(
-        "SET SESSION max_execution_time = {}",
-        timeout_millis(session_timeout)
-    );
-    let row_lock_timeout_sql = format!(
-        "SET SESSION innodb_lock_wait_timeout = {}",
-        timeout_seconds(session_timeout)
-    );
-    let metadata_lock_timeout_sql = format!(
-        "SET SESSION lock_wait_timeout = {}",
-        timeout_seconds(session_timeout)
-    );
+    let statement_timeout_sql =
+        format!("SET SESSION max_execution_time = {}", timeout_millis(session_timeout));
+    let row_lock_timeout_sql =
+        format!("SET SESSION innodb_lock_wait_timeout = {}", timeout_seconds(session_timeout));
+    let metadata_lock_timeout_sql =
+        format!("SET SESSION lock_wait_timeout = {}", timeout_seconds(session_timeout));
     options = options.after_connect(move |conn, _meta| {
         let statement_timeout_sql = statement_timeout_sql.clone();
         let row_lock_timeout_sql = row_lock_timeout_sql.clone();
@@ -91,10 +78,7 @@ impl AuthSqlBackend for MysqlDatabase {
             .await?;
         row
             .map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
-                Ok(StoredUser {
-                    username: row.try_get(0)?,
-                    bcrypt_hash: row.try_get(1)?,
-                })
+                Ok(StoredUser { username: row.try_get(0)?, bcrypt_hash: row.try_get(1)? })
             })
             .transpose()
             .map_err(RegistryError::from)
@@ -191,9 +175,7 @@ impl AuthSqlBackend for MysqlDatabase {
         .bind(token_hash)
         .fetch_optional(&self.pool)
         .await?;
-        row
-            .map(|row| token_record_from_row(&row, token_hash))
-            .transpose()
+        row.map(|row| token_record_from_row(&row, token_hash)).transpose()
     }
 
     async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
@@ -222,11 +204,9 @@ impl AuthSqlBackend for MysqlDatabase {
 impl MysqlDatabase {
     async fn init_schema(&self) -> Result<()> {
         sqlx::query(super::super::USERS_TABLE_SQL).execute(&self.pool).await?;
-        sqlx::query(super::super::token_store::TOKENS_TABLE_SQL).execute(&self.pool)
-            .await?;
+        sqlx::query(super::super::token_store::TOKENS_TABLE_SQL).execute(&self.pool).await?;
         create_token_index(&self.pool).await?;
-        sqlx::query(super::super::AUTH_COUNTERS_TABLE_SQL).execute(&self.pool)
-            .await?;
+        sqlx::query(super::super::AUTH_COUNTERS_TABLE_SQL).execute(&self.pool).await?;
         self.ensure_user_counter().await
     }
 
@@ -252,8 +232,8 @@ impl MysqlDatabase {
     }
 
     async fn actual_user_count(&self) -> Result<i64> {
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool)
-            .await?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
         Ok(count.max(0))
     }
 
@@ -291,8 +271,8 @@ impl MysqlDatabase {
             tx.commit().await?;
             return Ok(false);
         };
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&mut *tx)
-            .await?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&mut *tx).await?;
         if counter <= count {
             tx.commit().await?;
             return Ok(false);
@@ -315,8 +295,8 @@ impl MysqlDatabase {
 }
 
 async fn create_token_index(pool: &MySqlPool) -> Result<()> {
-    let result = sqlx::query("CREATE INDEX tokens_username ON tokens(username)").execute(pool)
-        .await;
+    let result =
+        sqlx::query("CREATE INDEX tokens_username ON tokens(username)").execute(pool).await;
     match result {
         Ok(_) => Ok(()),
         Err(err) if is_duplicate_index(&err) => Ok(()),

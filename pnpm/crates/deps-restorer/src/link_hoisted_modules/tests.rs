@@ -20,10 +20,7 @@ use std::{
 };
 
 fn sample_resolution() -> LockfileResolution {
-    DirectoryResolution {
-        directory: "/dev/null/stub".to_string(),
-    }
-    .into()
+    DirectoryResolution { directory: "/dev/null/stub".to_string() }.into()
 }
 
 /// Build a minimal graph node at `dir`. The walker would do
@@ -104,11 +101,7 @@ fn flat_layout(
     lockfile_dir: &Path,
     cas_root: &Path,
     entries: &[FlatLayoutEntry<'_>],
-) -> (
-    DependenciesGraph,
-    BTreeMap<PathBuf, DepHierarchy>,
-    CasPathsByPkgId,
-) {
+) -> (DependenciesGraph, BTreeMap<PathBuf, DepHierarchy>, CasPathsByPkgId) {
     let modules = lockfile_dir.join("node_modules");
     let mut graph = DependenciesGraph::new();
     let mut hierarchy_children = BTreeMap::new();
@@ -117,10 +110,7 @@ fn flat_layout(
         let dir = modules.join(alias);
         graph.insert(dir.clone(), make_node(alias, dep_path, pkg_id, dir.clone()));
         hierarchy_children.insert(dir, DepHierarchy::default());
-        cas_paths.insert(
-            PkgIdWithPatchHash::from(*pkg_id),
-            plant_package(cas_root, pkg_id, files),
-        );
+        cas_paths.insert(PkgIdWithPatchHash::from(*pkg_id), plant_package(cas_root, pkg_id, files));
     }
     let mut hierarchy = BTreeMap::new();
     hierarchy.insert(lockfile_dir.to_path_buf(), DepHierarchy(hierarchy_children));
@@ -135,12 +125,7 @@ fn import_pass_creates_package_directory() {
     let (graph, hierarchy, cas_paths) = flat_layout(
         &lockfile_dir,
         &cas_root,
-        &[(
-            "a",
-            "a@1.0.0",
-            "a@1.0.0",
-            &[("package/index.js", b"module.exports = 1;")],
-        )],
+        &[("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"module.exports = 1;")])],
     );
 
     let logged = AtomicU8::new(0);
@@ -182,10 +167,7 @@ fn orphan_directory_is_removed() {
     assert!(orphan_dir.exists());
 
     let mut prev_graph = DependenciesGraph::new();
-    prev_graph.insert(
-        modules.join("a"),
-        make_node("a", "a@1.0.0", "a@1.0.0", modules.join("a")),
-    );
+    prev_graph.insert(modules.join("a"), make_node("a", "a@1.0.0", "a@1.0.0", modules.join("a")));
     prev_graph.insert(
         orphan_dir.clone(),
         make_node("orphan", "orphan@1.0.0", "orphan@1.0.0", orphan_dir.clone()),
@@ -194,12 +176,7 @@ fn orphan_directory_is_removed() {
     let (graph, hierarchy, cas_paths) = flat_layout(
         &lockfile_dir,
         &cas_root,
-        &[(
-            "a",
-            "a@1.0.0",
-            "a@1.0.0",
-            &[("package/index.js", b"module.exports = 1;")],
-        )],
+        &[("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"module.exports = 1;")])],
     );
 
     let logged = AtomicU8::new(0);
@@ -260,19 +237,11 @@ fn nested_hierarchy_materializes_inner_node_modules() {
     let mut cas_paths = CasPathsByPkgId::new();
     cas_paths.insert(
         PkgIdWithPatchHash::from("outer@1.0.0"),
-        plant_package(
-            &cas_root,
-            "outer@1.0.0",
-            &[("package/outer.js", b"// outer")],
-        ),
+        plant_package(&cas_root, "outer@1.0.0", &[("package/outer.js", b"// outer")]),
     );
     cas_paths.insert(
         PkgIdWithPatchHash::from("inner@2.0.0"),
-        plant_package(
-            &cas_root,
-            "inner@2.0.0",
-            &[("package/inner.js", b"// inner")],
-        ),
+        plant_package(&cas_root, "inner@2.0.0", &[("package/inner.js", b"// inner")]),
     );
 
     let logged = AtomicU8::new(0);
@@ -316,10 +285,7 @@ fn missing_cas_for_required_dep_errors() {
 
     let dir = modules.join("a");
     let mut graph = DependenciesGraph::new();
-    graph.insert(
-        dir.clone(),
-        make_node("a", "a@1.0.0", "a@1.0.0", dir.clone()),
-    );
+    graph.insert(dir.clone(), make_node("a", "a@1.0.0", "a@1.0.0", dir.clone()));
 
     let mut hierarchy_children = BTreeMap::new();
     hierarchy_children.insert(dir, DepHierarchy::default());
@@ -538,18 +504,8 @@ fn import_pass_emits_one_imported_event_per_node() {
         &lockfile_dir,
         &cas_root,
         &[
-            (
-                "a",
-                "a@1.0.0",
-                "a@1.0.0",
-                &[("package/index.js", b"module.exports = 1;")],
-            ),
-            (
-                "b",
-                "b@1.0.0",
-                "b@1.0.0",
-                &[("package/index.js", b"module.exports = 2;")],
-            ),
+            ("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"module.exports = 1;")]),
+            ("b", "b@1.0.0", "b@1.0.0", &[("package/index.js", b"module.exports = 2;")]),
         ],
     );
 
@@ -568,10 +524,7 @@ fn import_pass_emits_one_imported_event_per_node() {
         link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     link_hoisted_modules::<RecordingReporter>(&opts).expect("linker succeeds");
 
     let captured = EVENTS.lock().unwrap();

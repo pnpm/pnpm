@@ -116,9 +116,7 @@ pub fn parse_jsr_specifier(
     // An empty alias triggers `MissingPackageName` rather than
     // falling through into the version-only branch.
     let Some(alias) = alias.filter(|alias| !alias.is_empty()) else {
-        return Err(ParseJsrSpecifierError::MissingPackageName {
-            specifier: rest.to_string(),
-        });
+        return Err(ParseJsrSpecifierError::MissingPackageName { specifier: rest.to_string() });
     };
 
     // Syntax: jsr:<version_selector>
@@ -135,9 +133,8 @@ fn jsr_to_npm_package_name(jsr_pkg_name: &str) -> Result<String, ParseJsrSpecifi
     let Some(after_at) = jsr_pkg_name.strip_prefix('@') else {
         return Err(ParseJsrSpecifierError::MissingScope);
     };
-    let invalid = || ParseJsrSpecifierError::InvalidPackageName {
-        pkg_name: jsr_pkg_name.to_string(),
-    };
+    let invalid =
+        || ParseJsrSpecifierError::InvalidPackageName { pkg_name: jsr_pkg_name.to_string() };
     // The returned name is used in registry URLs and metadata cache file
     // paths, so anything that is not a valid npm package name must never
     // make it through.

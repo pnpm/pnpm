@@ -18,10 +18,7 @@ fn renderer(options: &ReporterOptions) -> (NativeRenderer, Arc<Mutex<String>>) {
 }
 
 fn written(buffer: &Arc<Mutex<String>>) -> String {
-    buffer
-        .lock()
-        .unwrap()
-        .clone()
+    buffer.lock().unwrap().clone()
 }
 
 fn progress() -> LogEvent {
@@ -37,34 +34,23 @@ fn progress() -> LogEvent {
 fn stats(added: u64) -> LogEvent {
     LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Added {
-            prefix: DIR.to_string(),
-            added,
-        },
+        message: StatsMessage::Added { prefix: DIR.to_string(), added },
     })
 }
 
 fn summary() -> LogEvent {
-    LogEvent::Summary(SummaryLog {
-        level: LogLevel::Debug,
-        prefix: DIR.to_string(),
-    })
+    LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix: DIR.to_string() })
 }
 
 #[test]
 fn append_only_writes_each_update_as_a_line() {
-    let (mut renderer, buffer) = renderer(&ReporterOptions {
-        append_only: Some(true),
-        ..ReporterOptions::default()
-    });
+    let (mut renderer, buffer) =
+        renderer(&ReporterOptions { append_only: Some(true), ..ReporterOptions::default() });
 
     renderer.handle(&progress());
 
     let output = written(&buffer);
-    assert!(
-        output.contains("Progress: resolved 1"),
-        "output: {output:?}",
-    );
+    assert!(output.contains("Progress: resolved 1"), "output: {output:?}");
     assert!(output.ends_with('\n'), "output: {output:?}");
 }
 
@@ -73,10 +59,8 @@ fn append_only_writes_each_update_as_a_line() {
 /// live-updating progress line.
 #[test]
 fn in_place_mode_writes_a_frame_with_cursor_control() {
-    let (mut renderer, buffer) = renderer(&ReporterOptions {
-        append_only: Some(false),
-        ..ReporterOptions::default()
-    });
+    let (mut renderer, buffer) =
+        renderer(&ReporterOptions { append_only: Some(false), ..ReporterOptions::default() });
 
     renderer.handle(&progress());
 
@@ -99,23 +83,13 @@ fn progress_is_throttled_and_the_next_non_progress_event_catches_up() {
     renderer.handle(&progress());
     let after_first = written(&buffer);
     renderer.handle(&progress());
-    assert_eq!(
-        written(&buffer),
-        after_first,
-        "the second redraw is inside the throttle window",
-    );
+    assert_eq!(written(&buffer), after_first, "the second redraw is inside the throttle window");
 
     renderer.handle(&stats(2));
     renderer.handle(&summary());
     let after_summary = written(&buffer);
-    assert!(
-        after_summary.len() > after_first.len(),
-        "output: {after_summary:?}",
-    );
-    assert!(
-        after_summary.contains("Packages: +2"),
-        "output: {after_summary:?}",
-    );
+    assert!(after_summary.len() > after_first.len(), "output: {after_summary:?}");
+    assert!(after_summary.contains("Packages: +2"), "output: {after_summary:?}");
 }
 
 /// A zero throttle turns coalescing off, which is what a test or a
@@ -137,18 +111,12 @@ fn a_zero_throttle_renders_every_progress_update() {
 
 #[test]
 fn color_is_off_by_default_for_a_callback_destination() {
-    let (mut renderer, buffer) = renderer(&ReporterOptions {
-        append_only: Some(true),
-        ..ReporterOptions::default()
-    });
+    let (mut renderer, buffer) =
+        renderer(&ReporterOptions { append_only: Some(true), ..ReporterOptions::default() });
 
     renderer.handle(&progress());
 
-    assert!(
-        !written(&buffer).contains("\x1b["),
-        "output: {:?}",
-        written(&buffer),
-    );
+    assert!(!written(&buffer).contains("\x1b["), "output: {:?}", written(&buffer));
 }
 
 #[test]
@@ -161,11 +129,7 @@ fn color_can_be_turned_on_explicitly() {
 
     renderer.handle(&progress());
 
-    assert!(
-        written(&buffer).contains("\x1b["),
-        "output: {:?}",
-        written(&buffer),
-    );
+    assert!(written(&buffer).contains("\x1b["), "output: {:?}", written(&buffer));
 }
 
 /// The reporting options reach the folded reporter state, not just the

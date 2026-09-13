@@ -303,10 +303,7 @@ mod resolution_mode {
     impl RecordingResolver {
         fn new(table: HashMap<(String, String), ResolveResult>) -> Self {
             RecordingResolver {
-                inner: StubResolver {
-                    table,
-                    calls: Mutex::new(Vec::new()),
-                },
+                inner: StubResolver { table, calls: Mutex::new(Vec::new()) },
                 seen: Mutex::new(HashMap::default()),
             }
         }
@@ -330,10 +327,7 @@ mod resolution_mode {
                 self.seen
                     .lock()
                     .unwrap()
-                    .insert(
-                        alias,
-                        (opts.version.pick_lowest_version, opts.policy.published_by),
-                    );
+                    .insert(alias, (opts.version.pick_lowest_version, opts.policy.published_by));
             }
             self.inner.resolve(wanted, opts)
         }
@@ -363,11 +357,7 @@ mod resolution_mode {
         );
         table.insert(
             ("sub".to_string(), "^2.0.0".to_string()),
-            fake_result(
-                "sub",
-                "2.0.0",
-                serde_json::json!({ "name": "sub", "version": "2.0.0" }),
-            ),
+            fake_result("sub", "2.0.0", serde_json::json!({ "name": "sub", "version": "2.0.0" })),
         );
         table
     }

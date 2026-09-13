@@ -70,10 +70,7 @@ fn local_tarball_dependency_is_recorded_and_installed() {
     let installed = workspace.join(
         "node_modules/.pnpm/pkg-from-tarball@file+pkg-from-tarball-1.0.0.tgz/node_modules/pkg-from-tarball/package.json",
     );
-    assert!(
-        installed.exists(),
-        "the tarball must be extracted into the virtual store",
-    );
+    assert!(installed.exists(), "the tarball must be extracted into the virtual store");
 
     // The frozen install proves the recorded entries are complete enough
     // to install from without re-resolving.
@@ -84,10 +81,7 @@ fn local_tarball_dependency_is_recorded_and_installed() {
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
-    assert!(
-        installed.exists(),
-        "a frozen install must materialize the tarball too",
-    );
+    assert!(installed.exists(), "a frozen install must materialize the tarball too");
 
     drop((root, mock_instance));
 }
@@ -108,11 +102,8 @@ fn local_tarball_without_a_bundled_manifest_installs_under_its_alias() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    fs::write(
-        workspace.join("no-manifest-1.0.0.tgz"),
-        tarball_without_manifest(),
-    )
-    .expect("write tarball");
+    fs::write(workspace.join("no-manifest-1.0.0.tgz"), tarball_without_manifest())
+        .expect("write tarball");
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -143,10 +134,7 @@ fn local_tarball_without_a_bundled_manifest_installs_under_its_alias() {
     let installed = workspace.join(
         "node_modules/.pnpm/no-manifest@file+no-manifest-1.0.0.tgz/node_modules/no-manifest",
     );
-    assert!(
-        installed.join("README.md").exists(),
-        "the archive's contents must be extracted",
-    );
+    assert!(installed.join("README.md").exists(), "the archive's contents must be extracted");
     let placeholder =
         fs::read_to_string(installed.join("package.json")).expect("read the placeholder manifest");
     assert!(
@@ -181,10 +169,7 @@ fn local_tarball_with_a_root_level_entry_installs() {
     let manifest = serde_json::json!({ "name": "pkg-root-entry", "version": "1.0.0" }).to_string();
     fs::write(
         workspace.join("pkg-root-entry-1.0.0.tgz"),
-        tarball_entries(&[
-            ("._package", b""),
-            ("package/package.json", manifest.as_bytes()),
-        ]),
+        tarball_entries(&[("._package", b""), ("package/package.json", manifest.as_bytes())]),
     )
     .expect("write tarball");
     fs::write(
@@ -281,10 +266,7 @@ fn flat_local_tarball_is_recorded_under_its_bundled_name() {
     // lands at the package root and `lib/` is gone. pnpm 11 flattens the
     // same way, its `parseString` trimming through the first separator
     // whatever that separator separates.
-    assert!(
-        installed.join("helper.js").exists(),
-        "a nested entry is flattened, as on pnpm 11",
-    );
+    assert!(installed.join("helper.js").exists(), "a nested entry is flattened, as on pnpm 11");
     assert!(!installed.join("lib").exists());
 
     drop((root, mock_instance));
@@ -339,10 +321,7 @@ fn local_tarball_dependency_pulls_in_its_own_dependencies() {
     let installed = workspace.join(
         "node_modules/.pnpm/tarball-with-deps@file+tarball-with-deps-1.0.0.tgz/node_modules/is-positive/package.json",
     );
-    assert!(
-        installed.exists(),
-        "the tarball's dependency must be linked beside it",
-    );
+    assert!(installed.exists(), "the tarball's dependency must be linked beside it");
 
     drop((root, mock_instance));
 }

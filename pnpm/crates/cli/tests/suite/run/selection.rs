@@ -22,10 +22,7 @@ fn run_errors_on_missing_script_without_if_present() {
         .with_arg("nonexistent")
         .output()
         .expect("spawn pacquet run");
-    assert!(
-        !output.status.success(),
-        "missing script must surface as a failure",
-    );
+    assert!(!output.status.success(), "missing script must surface as a failure");
 
     drop(root);
 }
@@ -100,15 +97,9 @@ fn run_lists_scripts_when_no_name_given() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("STDOUT:\n{stdout}\n");
     assert!(output.status.success(), "listing scripts should succeed");
-    assert!(
-        stdout.contains("Commands available via"),
-        "should list non-lifecycle scripts",
-    );
+    assert!(stdout.contains("Commands available via"), "should list non-lifecycle scripts");
     assert!(stdout.contains("build"), "should list the build script");
-    assert!(
-        stdout.contains("Lifecycle scripts:"),
-        "should group lifecycle scripts",
-    );
+    assert!(stdout.contains("Lifecycle scripts:"), "should group lifecycle scripts");
 
     drop(root);
 }
@@ -194,10 +185,7 @@ function finish () {
         .get_output()
         .clone();
 
-    assert!(
-        workspace.join("saw-parallel").exists(),
-        "the selected scripts should overlap",
-    );
+    assert!(workspace.join("saw-parallel").exists(), "the selected scripts should overlap");
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("STDOUT:\n{stdout}\n");
     assert!(stdout.contains("dev:one: one"));
@@ -273,16 +261,10 @@ fn no_bail_reports_failures_in_selection_order() {
         .get_output()
         .clone();
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("Some scripts failed: 2 of 2"),
-        "got: {stderr}",
-    );
+    assert!(stderr.contains("Some scripts failed: 2 of 2"), "got: {stderr}");
     let slow = stderr.find("check:slow-fail: exit").expect("slow-fail is listed");
     let fast = stderr.find("check:fast-fail: exit").expect("fast-fail is listed");
-    assert!(
-        slow < fast,
-        "failures should follow the selection order, got: {stderr}",
-    );
+    assert!(slow < fast, "failures should follow the selection order, got: {stderr}");
 
     drop(root);
 }

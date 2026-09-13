@@ -166,9 +166,7 @@ impl State {
     }
 
     pub fn lockfile_path(&self) -> PathBuf {
-        self
-            .lockfile_dir()
-            .join(self.config.wanted_lockfile_name())
+        self.lockfile_dir().join(self.config.wanted_lockfile_name())
     }
 
     pub fn active_importer_id(&self) -> String {

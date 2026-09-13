@@ -1,6 +1,8 @@
+mod catalogs;
+use catalogs::{find_changed_catalog_entries, uses_changed_catalog_entry};
+
 use super::recursive::discover_workspace_projects;
 use derive_more::{Display, Error};
-use errors::UpdateChangesetError;
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
@@ -25,6 +27,67 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[derive(Debug, Display, Error, Diagnostic)]
+enum UpdateChangesetError {
+    #[display("Failed to read project manifest: {_0}")]
+    #[diagnostic(transparent)]
+    ReadProject(#[error(source)] ReadProjectManifestOnlyError),
+
+    #[display("Failed to inspect project manifest: {_0}")]
+    #[diagnostic(transparent)]
+    InspectProject(#[error(source)] PackageManifestError),
+
+    #[display("Failed to read pnpm-workspace.yaml: {_0}")]
+    #[diagnostic(transparent)]
+    ReadWorkspace(#[error(source)] ReadWorkspaceManifestError),
+
+    #[display("Failed to read {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_INVALID_CHANGESET_CONFIG))]
+    ReadConfig {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display("Failed to parse {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_INVALID_CHANGESET_CONFIG))]
+    ParseConfig {
+        path: PathBuf,
+        #[error(source)]
+        source: serde_json::Error,
+    },
+
+    #[display("Failed to inspect changeset directory at {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_UNSAFE_CHANGESET_DIR))]
+    InspectChangesetDir {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display(
+        "Refusing to use changeset directory at {} because it is a symlink or not a directory",
+        path.display()
+    )]
+    #[diagnostic(code(ERR_PNPM_UNSAFE_CHANGESET_DIR))]
+    UnsafeChangesetDir { path: PathBuf },
+
+    #[display("Failed to generate a changeset ID: {source}")]
+    #[diagnostic(code(ERR_PNPM_CHANGESET_ID_FAILED))]
+    GenerateId {
+        #[error(source)]
+        source: getrandom::Error,
+    },
+
+    #[display("Failed to write {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_CHANGESET_WRITE_FAILED))]
+    WriteChangeset {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+}
+
 #[derive(Default, PartialEq, Eq)]
 struct UpdateDepSpecs {
     dependencies: Option<BTreeMap<String, String>>,
@@ -43,10 +106,7 @@ impl UpdateDepSpecs {
     }
 
     fn production_groups(&self) -> [Option<&BTreeMap<String, String>>; 2] {
-        [
-            self.dependencies.as_ref(),
-            self.optional_dependencies.as_ref(),
-        ]
+        [self.dependencies.as_ref(), self.optional_dependencies.as_ref()]
     }
 }
 
@@ -64,7 +124,16 @@ impl UpdateChangesetContext {
             .as_deref()
             .unwrap_or(project_dir)
             .to_path_buf();
-        let root_dirs = update_project_dirs(config, &workspace_dir, project_dir)?;
+        let root_dirs = if config.workspace_dir.is_some() {
+            let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
+            let dirs = projects
+                .into_iter()
+                .map(|project| project.root_dir)
+                .collect::<Vec<_>>();
+            if dirs.is_empty() { vec![project_dir.to_path_buf()] } else { dirs }
+        } else {
+            vec![project_dir.to_path_buf()]
+        };
         let dep_specs_before = root_dirs
             .iter()
             .map(|root_dir| {
@@ -81,12 +150,7 @@ impl UpdateChangesetContext {
         let workspace_manifest =
             read_workspace_manifest(&workspace_dir).map_err(UpdateChangesetError::ReadWorkspace)?;
         let catalogs_before = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())?;
-        Ok(Self {
-            workspace_dir,
-            root_dirs,
-            dep_specs_before,
-            catalogs_before,
-        })
+        Ok(Self { workspace_dir, root_dirs, dep_specs_before, catalogs_before })
     }
 
     pub(super) fn generate<Output: Reporter>(self) -> miette::Result<()> {
@@ -154,7 +218,7 @@ impl UpdateChangesetContext {
         else {
             return Ok(None);
         };
-        let Some(package_name) = release_package_name(&manifest, ignored) else {
+        let Some(package_name) = releasable_package_name(&manifest, ignored) else {
             return Ok(None);
         };
         let dep_specs =
@@ -171,8 +235,7 @@ impl UpdateChangesetContext {
         }
         let production_dependencies_changed = dep_specs_before.is_none_or(|before| {
             before.dependencies != dep_specs.dependencies
-                || before.optional_dependencies
-                    != dep_specs.optional_dependencies
+                || before.optional_dependencies != dep_specs.optional_dependencies
         }) || uses_changed_catalog_entry(
             dep_specs.production_groups(),
             changed_catalog_entries,
@@ -181,6 +244,26 @@ impl UpdateChangesetContext {
             (package_name.to_string(), IntentBumpType::Patch)
         }))
     }
+}
+
+fn releasable_package_name<'a>(
+    manifest: &'a PackageManifest,
+    ignored: &Matcher,
+) -> Option<&'a str> {
+    let package_name = manifest
+        .value()
+        .get("name")
+        .and_then(Value::as_str)?;
+    if manifest
+        .value()
+        .get("private")
+        .and_then(Value::as_bool)
+        == Some(true)
+        || ignored.matches(package_name)
+    {
+        return None;
+    }
+    Some(package_name)
 }
 
 /// The matcher over the changeset config's `ignore` list, or `None` when
@@ -217,10 +300,7 @@ fn read_ignored_matcher(config_path: &Path) -> Result<Option<Matcher>, UpdateCha
 fn write_changeset(changeset_dir: &Path, content: &str) -> Result<PathBuf, UpdateChangesetError> {
     loop {
         let mut random = [0_u8; 4];
-        getrandom::fill(&mut random)
-            .map_err(|source| UpdateChangesetError::GenerateId {
-                source,
-            })?;
+        getrandom::fill(&mut random).map_err(|source| UpdateChangesetError::GenerateId { source })?;
         let id = format!("pnpm-update-{:08x}", u32::from_be_bytes(random));
         let changeset_path = changeset_dir.join(format!("{id}.md"));
         let mut file = match OpenOptions::new()
@@ -231,10 +311,7 @@ fn write_changeset(changeset_dir: &Path, content: &str) -> Result<PathBuf, Updat
             Ok(file) => file,
             Err(source) if source.kind() == ErrorKind::AlreadyExists => continue,
             Err(source) => {
-                return Err(UpdateChangesetError::WriteChangeset {
-                    path: changeset_path,
-                    source,
-                });
+                return Err(UpdateChangesetError::WriteChangeset { path: changeset_path, source });
             }
         };
         file
@@ -262,9 +339,7 @@ fn ensure_changeset_dir_is_safe(changeset_dir: &Path) -> Result<(), UpdateChange
         || pnpm_fs::read_symlink_dir(changeset_dir).is_ok()
         || !metadata.is_dir()
     {
-        return Err(UpdateChangesetError::UnsafeChangesetDir {
-            path: changeset_dir.to_path_buf(),
-        });
+        return Err(UpdateChangesetError::UnsafeChangesetDir { path: changeset_dir.to_path_buf() });
     }
     Ok(())
 }
@@ -285,73 +360,8 @@ fn dependency_map(value: &Value, field: &str) -> Option<BTreeMap<String, String>
         })
 }
 
-fn find_changed_catalog_entries(
-    before: &Catalogs,
-    after: &Catalogs,
-) -> BTreeMap<String, BTreeSet<String>> {
-    before
-        .keys()
-        .chain(after.keys())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .filter_map(|catalog_name| {
-            let changed = before
-                .get(catalog_name)
-                .into_iter()
-                .flatten()
-                .map(|(name, _)| name)
-                .chain(
-                    after
-                        .get(catalog_name)
-                        .into_iter()
-                        .flatten()
-                        .map(|(name, _)| name),
-                )
-                .collect::<BTreeSet<_>>()
-                .into_iter()
-                .filter(|dependency_name| {
-                    before
-                        .get(catalog_name)
-                        .and_then(|catalog| catalog.get(*dependency_name))
-                        != after
-                            .get(catalog_name)
-                            .and_then(|catalog| catalog.get(*dependency_name))
-                })
-                .cloned()
-                .collect::<BTreeSet<_>>();
-            (!changed.is_empty()).then(|| (catalog_name.clone(), changed))
-        })
-        .collect()
-}
-
-fn uses_changed_catalog_entry<'a>(
-    dependency_groups: impl IntoIterator<Item = Option<&'a BTreeMap<String, String>>>,
-    changed_catalog_entries: &BTreeMap<String, BTreeSet<String>>,
-) -> bool {
-    for dependencies in dependency_groups {
-        let Some(dependencies) = dependencies else {
-            continue;
-        };
-        for (dependency_name, spec) in dependencies {
-            let Some(catalog_name) = parse_catalog_protocol(spec) else {
-                continue;
-            };
-            let Some(names) = changed_catalog_entries.get(catalog_name) else {
-                continue;
-            };
-            if names.contains(dependency_name) {
-                return true;
-            }
-        }
-    }
-    false
-}
-
 fn global_log<Output: Reporter>(level: LogLevel, message: String) {
-    Output::emit(&LogEvent::Global(GlobalLog {
-        level,
-        message,
-    }));
+    Output::emit(&LogEvent::Global(GlobalLog { level, message }));
 }
 
 fn report_generated_changeset<Output: Reporter>(
@@ -370,47 +380,4 @@ fn report_generated_changeset<Output: Reporter>(
                 .join(", "),
         ),
     );
-}
-
-mod errors;
-
-fn update_project_dirs(
-    config: &Config,
-    workspace_dir: &Path,
-    project_dir: &Path,
-) -> miette::Result<Vec<PathBuf>> {
-    Ok(if config.workspace_dir.is_some() {
-        let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
-        let dirs = projects
-            .into_iter()
-            .map(|project| project.root_dir)
-            .collect::<Vec<_>>();
-        if dirs.is_empty() {
-            vec![project_dir.to_path_buf()]
-        } else {
-            dirs
-        }
-    } else {
-        vec![project_dir.to_path_buf()]
-    })
-}
-
-fn release_package_name<'a>(
-    manifest: &'a pnpm_package_manifest::PackageManifest,
-    ignored: &Matcher,
-) -> Option<&'a str> {
-    let package_name = manifest
-        .value()
-        .get("name")
-        .and_then(Value::as_str)?;
-    if manifest
-        .value()
-        .get("private")
-        .and_then(Value::as_bool)
-        == Some(true)
-        || ignored.matches(package_name)
-    {
-        return None;
-    }
-    Some(package_name)
 }

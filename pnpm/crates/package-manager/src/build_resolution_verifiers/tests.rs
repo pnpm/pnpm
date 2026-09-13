@@ -29,10 +29,7 @@ fn reserved_named_registry_is_an_error_not_a_panic() {
     );
 
     assert!(
-        matches!(
-            result,
-            Err(BuildVerifiersError::InvalidNamedRegistries { .. })
-        ),
+        matches!(result, Err(BuildVerifiersError::InvalidNamedRegistries { .. })),
         "expected a diagnostic, got {:?}",
         result.map(|verifiers| verifiers.len()),
     );
@@ -77,11 +74,7 @@ async fn offline_config_threads_to_resolution_verifier() {
 
     let result = verifiers[0].verify(
         &resolution,
-        VerifyCtx {
-            name: &name,
-            version: "1.0.0",
-            registry_name: None,
-        },
+        VerifyCtx { name: &name, version: "1.0.0", registry_name: None },
     )
     .await;
 

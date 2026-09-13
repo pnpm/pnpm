@@ -164,9 +164,7 @@ pub(super) async fn stage_approve<Reporter: self::Reporter>(
             &StageApprovalItem::from_id(stage_id),
         )
         .await?;
-        return Ok(Some(format!(
-            "Staged package {stage_id} approved and published successfully.",
-        )));
+        return Ok(Some(format!("Staged package {stage_id} approved and published successfully.")));
     }
     let items = if stage_ids.is_empty() {
         if !WebAuthHost::stdin_is_tty() || !WebAuthHost::stdout_is_tty() {
@@ -174,9 +172,7 @@ pub(super) async fn stage_approve<Reporter: self::Reporter>(
         }
         let staged = approval_items(&context).await?;
         if staged.is_empty() {
-            return Ok(Some(
-                "There are no staged packages awaiting approval.".to_owned(),
-            ));
+            return Ok(Some("There are no staged packages awaiting approval.".to_owned()));
         }
         let selected = prompt_for_staged_packages(&staged)?;
         if selected.is_empty() {
@@ -203,13 +199,15 @@ fn parse_stage_ids(params: &[String]) -> Result<Vec<String>, StageError> {
         .iter()
         .skip(1)
         .filter(|stage_id| seen.insert(stage_id.to_lowercase()))
-        .map(|stage_id| {
-            if is_uuid(stage_id) {
-                Ok(stage_id.clone())
-            } else {
-                Err(StageError::InvalidStageId)
-            }
-        })
+        .map(
+            |stage_id| {
+                if is_uuid(stage_id) {
+                    Ok(stage_id.clone())
+                } else {
+                    Err(StageError::InvalidStageId)
+                }
+            },
+        )
         .collect()
 }
 
@@ -309,9 +307,7 @@ async fn approve_staged_packages<Reporter: self::Reporter>(
             ));
             continue;
         }
-        match approve_staged_package::<Reporter>(context, &mut session, item)
-            .await
-        {
+        match approve_staged_package::<Reporter>(context, &mut session, item).await {
             Ok(()) => {
                 approved += 1;
                 global_info::<Reporter>(&format!("Approved {}", item.label()));
@@ -326,7 +322,17 @@ async fn approve_staged_packages<Reporter: self::Reporter>(
             Err(error) => return Err(error),
         }
     }
-    approval_summary(approved, items.len())
+    if approved < items.len() {
+        // pnpm prints this summary and exits 1. A command here either returns
+        // output or an error, never both, so print it the way the dispatcher
+        // prints a command's output and exit with the failing status.
+        #[expect(clippy::exit, reason = "an incomplete approval batch exits 1, mirroring pnpm")]
+        {
+            println!("Approved {approved} of {}.", render_package_count(items.len()));
+            std::process::exit(1);
+        }
+    }
+    Ok(Some(format!("Approved {} successfully.", render_package_count(approved))))
 }
 
 async fn approve_staged_package<Reporter: self::Reporter>(
@@ -359,33 +365,10 @@ fn is_missing_stage_error(error: &miette::Report) -> bool {
 }
 
 fn render_package_count(count: usize) -> String {
-    format!(
-        "{count} staged package{}",
-        if count == 1 { "" } else { "s" },
-    )
+    format!("{count} staged package{}", if count == 1 { "" } else { "s" })
 }
 
 #[cfg(test)]
 mod tests;
 
 mod ordering;
-
-fn approval_summary(approved: usize, total: usize) -> miette::Result<Option<String>> {
-    if approved < total {
-        // pnpm prints this summary and exits 1. A command here either returns
-        // output or an error, never both, so print it the way the dispatcher
-        // prints a command's output and exit with the failing status.
-        #[expect(
-            clippy::exit,
-            reason = "an incomplete approval batch exits 1, mirroring pnpm"
-        )]
-        {
-            println!("Approved {approved} of {}.", render_package_count(total));
-            std::process::exit(1);
-        }
-    }
-    Ok(Some(format!(
-        "Approved {} successfully.",
-        render_package_count(approved),
-    )))
-}

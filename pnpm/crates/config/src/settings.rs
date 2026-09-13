@@ -1682,13 +1682,7 @@ impl Config {
                 hashes
                     .iter()
                     .map(|(key, hash)| {
-                        (
-                            key.clone(),
-                            PatchInput {
-                                hash: hash.clone(),
-                                patch_file_path: None,
-                            },
-                        )
+                        (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
                     }),
             )?;
             return Ok((!groups.is_empty()).then_some(groups));

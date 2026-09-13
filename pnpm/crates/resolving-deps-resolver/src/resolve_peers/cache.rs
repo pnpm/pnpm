@@ -265,9 +265,7 @@ impl Walker<'_> {
         {
             return cached_version == current_version;
         }
-        let Some(cached_pkg_id) = cached_info.pkg_id.as_ref() else {
-            return false;
-        };
+        let Some(cached_pkg_id) = cached_info.pkg_id.as_ref() else { return false };
         if cached_info.pkg_id != current_info.pkg_id {
             return false;
         }

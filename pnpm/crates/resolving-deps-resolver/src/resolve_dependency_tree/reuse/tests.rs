@@ -70,10 +70,7 @@ mod real_package_name_of {
 
     #[test]
     fn falls_back_to_alias_for_plain_dep() {
-        assert_eq!(
-            real_package_name_of(Some("foo"), Some("^1.0.0")).as_deref(),
-            Some("foo"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("^1.0.0")).as_deref(), Some("foo"));
     }
 
     #[test]
@@ -85,18 +82,12 @@ mod real_package_name_of {
     fn parses_real_name_from_npm_alias_with_version_range() {
         // Update targeting is keyed by the real name (matches the depPath
         // recorded in the lockfile, not the install alias).
-        assert_eq!(
-            real_package_name_of(Some("foo"), Some("npm:bar@^4")).as_deref(),
-            Some("bar"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:bar@^4")).as_deref(), Some("bar"));
     }
 
     #[test]
     fn parses_real_name_from_npm_alias_without_version() {
-        assert_eq!(
-            real_package_name_of(Some("foo"), Some("npm:bar")).as_deref(),
-            Some("bar"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:bar")).as_deref(), Some("bar"));
     }
 
     #[test]
@@ -124,10 +115,7 @@ mod real_package_name_of {
     fn returns_none_for_empty_npm_alias_target() {
         // Defensive: filtered out so the caller treats this as "not a
         // targeted update."
-        assert_eq!(
-            real_package_name_of(Some("foo"), Some("npm:")).as_deref(),
-            None,
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:")).as_deref(), None);
     }
 
     #[test]
@@ -136,10 +124,7 @@ mod real_package_name_of {
         // not a name. The install alias `foo` is the real package
         // name — without this branch, the range string itself would
         // be returned as the name and update targeting would miss.
-        assert_eq!(
-            real_package_name_of(Some("foo"), Some("npm:^1.0.0")).as_deref(),
-            Some("foo"),
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("npm:^1.0.0")).as_deref(), Some("foo"));
     }
 
     #[test]
@@ -180,10 +165,7 @@ mod real_package_name_of {
         // must not fall back to the install alias — otherwise a broken
         // jsr dep could match an update target by alias and wrongly be
         // treated as one.
-        assert_eq!(
-            real_package_name_of(Some("foo"), Some("jsr:foo@^1.0.0")).as_deref(),
-            None,
-        );
+        assert_eq!(real_package_name_of(Some("foo"), Some("jsr:foo@^1.0.0")).as_deref(), None);
     }
 }
 
@@ -226,10 +208,7 @@ mod is_update_target {
     /// The scope of a `--depth Infinity` update — the default, under
     /// which every node is judged by name alone.
     fn unlimited(reuse: &UpdateReuseScope) -> UpdateScope<'_> {
-        UpdateScope {
-            reuse,
-            max_depth: UpdateDepth::UNLIMITED,
-        }
+        UpdateScope { reuse, max_depth: UpdateDepth::UNLIMITED }
     }
 
     #[test]
@@ -342,21 +321,13 @@ mod is_update_target {
     fn returns_false_when_real_name_is_unrecoverable() {
         // Alias missing AND no bare_specifier pattern that yields a name.
         // Defensive: "not a targeted update" since we can't match.
-        assert!(!is_update_target(
-            unlimited(&except(&["foo"])),
-            &wanted_with(None, None),
-            None,
-            0
-        ));
+        assert!(!is_update_target(unlimited(&except(&["foo"])), &wanted_with(None, None), None, 0));
     }
 
     #[test]
     fn depth_zero_targets_direct_dependencies_only() {
         let reuse = except(&["foo"]);
-        let scope = UpdateScope {
-            reuse: &reuse,
-            max_depth: UpdateDepth::new(0),
-        };
+        let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(0) };
         let wanted = wanted_with(Some("foo"), Some("^1.0.0"));
 
         assert!(is_update_target(scope, &wanted, None, 0));
@@ -366,10 +337,7 @@ mod is_update_target {
     #[test]
     fn a_finite_depth_reaches_every_level_up_to_it() {
         let reuse = except(&["foo"]);
-        let scope = UpdateScope {
-            reuse: &reuse,
-            max_depth: UpdateDepth::new(2),
-        };
+        let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(2) };
         let wanted = wanted_with(Some("foo"), Some("^1.0.0"));
 
         assert!(is_update_target(scope, &wanted, None, 2));
@@ -379,16 +347,8 @@ mod is_update_target {
     #[test]
     fn a_depth_no_graph_can_reach_is_unlimited() {
         let reuse = except(&["foo"]);
-        let scope = UpdateScope {
-            reuse: &reuse,
-            max_depth: UpdateDepth::new(usize::MAX),
-        };
+        let scope = UpdateScope { reuse: &reuse, max_depth: UpdateDepth::new(usize::MAX) };
 
-        assert!(is_update_target(
-            scope,
-            &wanted_with(Some("foo"), Some("^1.0.0")),
-            None,
-            i32::MAX
-        ));
+        assert!(is_update_target(scope, &wanted_with(Some("foo"), Some("^1.0.0")), None, i32::MAX));
     }
 }

@@ -33,11 +33,7 @@ pub fn is_working_tree_clean<Sys: RunCommand>(cwd: &Path) -> bool {
 /// treated as clean).
 #[must_use]
 pub fn is_remote_history_clean<Sys: RunCommand>(cwd: &Path) -> bool {
-    match Sys::run(
-        "git",
-        &["rev-list", "--count", "--left-only", "@{u}...HEAD"],
-        Some(cwd),
-    ) {
+    match Sys::run("git", &["rev-list", "--count", "--left-only", "@{u}...HEAD"], Some(cwd)) {
         Ok(output) if output.success => {
             output.stdout.trim() == "0" || output.stdout.trim().is_empty()
         }
@@ -179,10 +175,7 @@ fn read_git_metadata_file(path: &Path) -> GitMetadata {
         // names something git would have to get past too.
         Err(_) => return GitMetadata::Refused,
     };
-    if !file
-        .metadata()
-        .is_ok_and(|metadata| metadata.is_file())
-    {
+    if !file.metadata().is_ok_and(|metadata| metadata.is_file()) {
         return GitMetadata::Refused;
     }
     // A bounded reader rather than a size check keeps the cap race-free:

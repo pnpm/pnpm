@@ -33,11 +33,7 @@ async fn direct_optional_dep_seeds_resolved_package_optional_true() {
     let mut table = HashMap::default();
     table.insert(
         ("opt".to_string(), "^1.0.0".to_string()),
-        fake_result(
-            "opt",
-            "1.0.0",
-            serde_json::json!({ "name": "opt", "version": "1.0.0" }),
-        ),
+        fake_result("opt", "1.0.0", serde_json::json!({ "name": "opt", "version": "1.0.0" })),
     );
     table.insert(
         ("regular".to_string(), "^1.0.0".to_string()),
@@ -47,10 +43,7 @@ async fn direct_optional_dep_seeds_resolved_package_optional_true() {
             serde_json::json!({ "name": "regular", "version": "1.0.0" }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = manifest_with_groups(
         serde_json::json!({ "regular": "^1.0.0" }),
         serde_json::json!({ "opt": "^1.0.0" }),
@@ -106,14 +99,9 @@ async fn transitive_dep_under_optional_inherits_optional_true() {
             serde_json::json!({ "name": "transitive", "version": "1.0.0" }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
-    let (_tmp, manifest) = manifest_with_groups(
-        serde_json::json!({}),
-        serde_json::json!({ "opt": "^1.0.0" }),
-    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) =
+        manifest_with_groups(serde_json::json!({}), serde_json::json!({ "opt": "^1.0.0" }));
 
     let tree = resolve_dependency_tree(
         &resolver,
@@ -167,16 +155,9 @@ async fn shared_dep_via_non_optional_and_optional_paths_keeps_optional_false() {
     );
     table.insert(
         ("shared".to_string(), "^1.0.0".to_string()),
-        fake_result(
-            "shared",
-            "1.0.0",
-            serde_json::json!({ "name": "shared", "version": "1.0.0" }),
-        ),
+        fake_result("shared", "1.0.0", serde_json::json!({ "name": "shared", "version": "1.0.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = manifest_with_groups(
         serde_json::json!({ "regular": "^1.0.0" }),
         serde_json::json!({ "opt": "^1.0.0" }),
@@ -229,14 +210,9 @@ async fn manifest_level_optional_dependencies_edge_propagates_to_child() {
             serde_json::json!({ "name": "transitive", "version": "1.0.0" }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
-    let (_tmp, manifest) = manifest_with_groups(
-        serde_json::json!({ "regular": "^1.0.0" }),
-        serde_json::json!({}),
-    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) =
+        manifest_with_groups(serde_json::json!({ "regular": "^1.0.0" }), serde_json::json!({}));
 
     let tree = resolve_dependency_tree(
         &resolver,
@@ -288,20 +264,11 @@ async fn dep_listed_in_both_manifest_groups_yields_one_optional_edge() {
     // edge as an optional resolution failure.
     table.insert(
         ("plat".to_string(), "^1.0.0".to_string()),
-        fake_result(
-            "plat",
-            "1.0.0",
-            serde_json::json!({ "name": "plat", "version": "1.0.0" }),
-        ),
+        fake_result("plat", "1.0.0", serde_json::json!({ "name": "plat", "version": "1.0.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
-    let (_tmp, manifest) = manifest_with_groups(
-        serde_json::json!({ "regular": "^1.0.0" }),
-        serde_json::json!({}),
-    );
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
+    let (_tmp, manifest) =
+        manifest_with_groups(serde_json::json!({ "regular": "^1.0.0" }), serde_json::json!({}));
 
     let tree = resolve_dependency_tree(
         &resolver,

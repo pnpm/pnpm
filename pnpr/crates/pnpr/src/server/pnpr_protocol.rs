@@ -159,10 +159,7 @@ pub(super) async fn serve_artifact_blob(
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/octet-stream")
             .header(header::CONTENT_LENGTH, blob.size.to_string())
-            .header(
-                header::CACHE_CONTROL,
-                "private, max-age=31536000, immutable",
-            )
+            .header(header::CACHE_CONTROL, "private, max-age=31536000, immutable")
             .header(header::VARY, "Authorization")
             .body(Body::from_stream(blob.stream))
             .expect("static artifact blob response always builds"),

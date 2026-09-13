@@ -101,18 +101,8 @@ pub(crate) fn update_choices(
             .entry(key)
             .or_insert_with(|| {
                 let index = choices.len();
-                choices.push(Choice {
-                    package,
-                    workspaces: Vec::new(),
-                });
-                let kind = ChoiceGroupKind::of(package);
-                match grouped
-                    .iter_mut()
-                    .find(|(group, _)| *group == kind)
-                {
-                    Some((_, indices)) => indices.push(index),
-                    None => grouped.push((kind, vec![index])),
-                }
+                choices.push(Choice { package, workspaces: Vec::new() });
+                group_choice(&mut grouped, package, index);
                 index
             });
         // Collect every project the collapsed entries came from, so the
@@ -125,7 +115,34 @@ pub(crate) fn update_choices(
         }
     }
 
-    render_choice_groups(grouped, &choices, workspaces_enabled)
+    grouped
+        .into_iter()
+        .map(|(kind, indices)| ChoiceGroup {
+            message: kind.message().to_string(),
+            rows: render_rows(
+                &indices
+                    .into_iter()
+                    .map(|index| &choices[index])
+                    .collect::<Vec<_>>(),
+                workspaces_enabled,
+            ),
+        })
+        .collect()
+}
+
+fn group_choice(
+    grouped: &mut Vec<(ChoiceGroupKind, Vec<usize>)>,
+    package: &OutdatedPackage,
+    index: usize,
+) {
+    let kind = ChoiceGroupKind::of(package);
+    match grouped
+        .iter_mut()
+        .find(|(group, _)| *group == kind)
+    {
+        Some((_, indices)) => indices.push(index),
+        None => grouped.push((kind, vec![index])),
+    }
 }
 
 /// One offered dependency, with every workspace project it was found in.
@@ -139,31 +156,20 @@ type ChoiceKey<'a> = (&'a str, &'a str, &'a Version, &'a Version, bool);
 /// The header row plus one row per offered dependency, padded so every
 /// column lines up within the group.
 fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceRow> {
-    let mut header = vec![
-        "Package".to_string(),
-        "Current".to_string(),
-        String::new(),
-        "Target".to_string(),
-    ];
+    let mut header =
+        vec!["Package".to_string(), "Current".to_string(), String::new(), "Target".to_string()];
     if workspaces_enabled {
         header.push("Workspace".to_string());
     }
     header.push("URL".to_string());
 
     let mut cells = vec![header];
-    cells.extend(
-        choices
-            .iter()
-            .map(|choice| choice_cells(choice, workspaces_enabled)),
-    );
+    cells.extend(choices.iter().map(|choice| choice_cells(choice, workspaces_enabled)));
 
     let widths = column_widths(&cells);
     let mut rows = cells
         .into_iter()
-        .map(|row| ChoiceRow {
-            label: pad_row(&row, &widths),
-            value: None,
-        });
+        .map(|row| ChoiceRow { label: pad_row(&row, &widths), value: None });
     let header = rows.next().expect("the header row is always pushed first");
     std::iter::once(header)
         .chain(
@@ -280,24 +286,4 @@ fn choice_cells(choice: &Choice<'_>, workspaces_enabled: bool) -> Vec<String> {
             .into_owned(),
     );
     row
-}
-
-fn render_choice_groups(
-    grouped: Vec<(ChoiceGroupKind, Vec<usize>)>,
-    choices: &[Choice<'_>],
-    workspaces_enabled: bool,
-) -> Vec<ChoiceGroup> {
-    grouped
-        .into_iter()
-        .map(|(kind, indices)| ChoiceGroup {
-            message: kind.message().to_string(),
-            rows: render_rows(
-                &indices
-                    .into_iter()
-                    .map(|index| &choices[index])
-                    .collect::<Vec<_>>(),
-                workspaces_enabled,
-            ),
-        })
-        .collect()
 }

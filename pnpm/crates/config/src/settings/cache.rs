@@ -31,13 +31,23 @@ impl Config {
                 set_any = true;
             }
         }
-        for (field, suffix) in [
-            (&mut settings.build_env, "BUILD_ENV"),
-            (&mut settings.trusted_keys, "TRUSTED_KEYS"),
-        ] {
-            if let Some(value) = remote_cache_json_env::<Sys>(suffix) {
-                *field = Some(value);
-                set_any = true;
+        for (field, suffix) in
+            [(&mut settings.build_env, "BUILD_ENV"), (&mut settings.trusted_keys, "TRUSTED_KEYS")]
+        {
+            let Some((value, variable)) = side_effects_cache_remote_env::<Sys>(suffix) else {
+                continue;
+            };
+            match serde_json::from_str::<BTreeMap<String, String>>(&value) {
+                Ok(parsed) => {
+                    *field = Some(parsed);
+                    set_any = true;
+                }
+                Err(error) => tracing::warn!(
+                    target: "pacquet::config",
+                    variable,
+                    %error,
+                    "remote side-effects environment variable is not a string-valued JSON object",
+                ),
             }
         }
         if set_any {
@@ -85,21 +95,5 @@ impl Config {
         self.side_effects_cache_write_setting.unwrap_or(
             self.side_effects_cache && !self.side_effects_cache_readonly,
         )
-    }
-}
-
-fn remote_cache_json_env<Sys: EnvVar>(suffix: &str) -> Option<BTreeMap<String, String>> {
-    let (value, variable) = side_effects_cache_remote_env::<Sys>(suffix)?;
-    match serde_json::from_str(&value) {
-        Ok(parsed) => Some(parsed),
-        Err(error) => {
-            tracing::warn!(
-                target: "pacquet::config",
-                variable,
-                %error,
-                "remote side-effects environment variable is not a string-valued JSON object",
-            );
-            None
-        }
     }
 }

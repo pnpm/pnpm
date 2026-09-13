@@ -72,10 +72,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
         .unwrap();
     assert_eq!(selected.status(), StatusCode::OK);
     let selected: Value = serde_json::from_slice(&body_bytes(selected.into_body()).await).unwrap();
-    assert_eq!(
-        selected["dist"]["tarball"],
-        "http://example.test/foo/-/foo-2.0.0.tgz",
-    );
+    assert_eq!(selected["dist"]["tarball"], "http://example.test/foo/-/foo-2.0.0.tgz");
 
     let full = app
         .clone()
@@ -113,10 +110,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     assert_eq!(body_bytes(first.into_body()).await, v1_bytes);
 
     let package_dir = public_cache_pkg(&storage, "foo");
-    assert_eq!(
-        tarball_cache_entries(&package_dir),
-        vec!["foo-2.0.0.tgz".to_string()],
-    );
+    assert_eq!(tarball_cache_entries(&package_dir), vec!["foo-2.0.0.tgz".to_string()]);
 
     // A fresh instance over the same storage and the same origin replays the
     // cached entry; the `expect(1)` mocks prove the upstream is never
@@ -206,10 +200,7 @@ async fn tampered_upstream_tarball_aborts_the_stream_and_is_never_cached() {
     // Draining the body runs the end-of-stream SRI check, which abandons the
     // cache temp on the mismatch.
     assert!(to_bytes(tarball_response.into_body(), usize::MAX).await.is_err());
-    assert!(
-        !cache_path.exists(),
-        "unverified tarball must not be written to the cache",
-    );
+    assert!(!cache_path.exists(), "unverified tarball must not be written to the cache");
 
     packument_mock.assert_async().await;
     tarball_mock.assert_async().await;
@@ -432,8 +423,7 @@ async fn tarball_verification_finalizes_cache_with_no_tmp_leftover() {
     // Large-ish body so the streaming path is exercised across many
     // chunks rather than fitting in a single hyper buffer.
     let bytes = vec![0xAB_u8; 512 * 1024];
-    let _packument_mock = mock_packument_for_tarball(&mut upstream, "big", "1.0.0", &bytes)
-        .await;
+    let _packument_mock = mock_packument_for_tarball(&mut upstream, "big", "1.0.0", &bytes).await;
     let _mock = upstream
         .mock("GET", "/big/-/big-1.0.0.tgz")
         .with_status(200)
@@ -475,8 +465,8 @@ async fn cache_false_upstream_rejects_tampered_tarball_without_mirroring() {
     let mut upstream = mockito::Server::new_async().await;
     let good_bytes = b"good-uncached-tarball";
     let poison_bytes = b"poisoned-uncached-tarball";
-    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", good_bytes)
-        .await;
+    let packument_mock =
+        mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", good_bytes).await;
     let tarball_mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)

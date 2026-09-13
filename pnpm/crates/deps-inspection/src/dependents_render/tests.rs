@@ -59,10 +59,7 @@ fn deep_tree() -> Vec<DependentsTree> {
 }
 
 fn opts(depth: Option<usize>) -> RenderDependentsOptions {
-    RenderDependentsOptions {
-        long: false,
-        depth,
-    }
+    RenderDependentsOptions { long: false, depth }
 }
 
 // Port of upstream's 'renders searchMessage below the root label' (deps/inspection/list/test/renderDependentsTree.test.ts).
@@ -70,11 +67,7 @@ fn opts(depth: Option<usize>) -> RenderDependentsOptions {
 fn renders_search_message_below_the_root_label() {
     let results = vec![DependentsTree {
         search_message: Some("Matched by custom finder".to_string()),
-        ..tree(
-            "foo",
-            "1.0.0",
-            vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-        )
+        ..tree("foo", "1.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)])
     }];
 
     let output = render_dependents_tree(&results, &opts(None));
@@ -97,11 +90,8 @@ fn renders_search_message_below_the_root_label() {
 // Port of upstream's 'does not render extra line when searchMessage is undefined' (deps/inspection/list/test/renderDependentsTree.test.ts).
 #[test]
 fn does_not_render_extra_line_when_search_message_is_undefined() {
-    let results = vec![tree(
-        "foo",
-        "1.0.0",
-        vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-    )];
+    let results =
+        vec![tree("foo", "1.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)])];
 
     let output = render_dependents_tree(&results, &opts(None));
     let lines: Vec<&str> = output.split('\n').collect();
@@ -171,11 +161,8 @@ fn renders_display_name_instead_of_name_when_provided() {
 // Port of upstream's 'falls back to name when displayName is undefined' (deps/inspection/list/test/renderDependentsTree.test.ts).
 #[test]
 fn falls_back_to_name_when_display_name_is_undefined() {
-    let results = vec![tree(
-        "foo",
-        "1.0.0",
-        vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-    )];
+    let results =
+        vec![tree("foo", "1.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)])];
 
     let output = render_dependents_tree(&results, &opts(None));
     eprintln!("output:\n{output}");
@@ -200,11 +187,8 @@ fn renders_package_with_no_dependents_and_a_search_message() {
 // Port of upstream's 'whySummary > single package, single version' (deps/inspection/list/test/renderDependentsTree.test.ts).
 #[test]
 fn why_summary_single_package_single_version() {
-    let results = vec![tree(
-        "foo",
-        "1.0.0",
-        vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-    )];
+    let results =
+        vec![tree("foo", "1.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)])];
 
     let output = render_dependents_tree(&results, &opts(None));
     eprintln!("output:\n{output}");
@@ -216,16 +200,8 @@ fn why_summary_single_package_single_version() {
 #[test]
 fn why_summary_single_package_multiple_versions() {
     let results = vec![
-        tree(
-            "foo",
-            "1.0.0",
-            vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-        ),
-        tree(
-            "foo",
-            "2.0.0",
-            vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-        ),
+        tree("foo", "1.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)]),
+        tree("foo", "2.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)]),
     ];
 
     let output = render_dependents_tree(&results, &opts(None));
@@ -240,19 +216,11 @@ fn why_summary_single_package_same_version_with_multiple_peer_variants_shows_ins
     let results = vec![
         DependentsTree {
             peers_suffix_hash: Some("aaaa".to_string()),
-            ..tree(
-                "foo",
-                "1.0.0",
-                vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-            )
+            ..tree("foo", "1.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)])
         },
         DependentsTree {
             peers_suffix_hash: Some("bbbb".to_string()),
-            ..tree(
-                "foo",
-                "1.0.0",
-                vec![importer("other", "0.0.0", DepField::Dependencies)],
-            )
+            ..tree("foo", "1.0.0", vec![importer("other", "0.0.0", DepField::Dependencies)])
         },
     ];
 
@@ -265,21 +233,9 @@ fn why_summary_single_package_same_version_with_multiple_peer_variants_shows_ins
 #[test]
 fn why_summary_multiple_different_packages_each_get_their_own_summary_line() {
     let results = vec![
-        tree(
-            "foo",
-            "1.0.0",
-            vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-        ),
-        tree(
-            "bar",
-            "2.0.0",
-            vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-        ),
-        tree(
-            "bar",
-            "3.0.0",
-            vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-        ),
+        tree("foo", "1.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)]),
+        tree("bar", "2.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)]),
+        tree("bar", "3.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)]),
     ];
 
     let output = render_dependents_tree(&results, &opts(None));
@@ -294,19 +250,11 @@ fn why_summary_uses_display_name_when_provided() {
     let results = vec![
         DependentsTree {
             display_name: Some("my-component".to_string()),
-            ..tree(
-                "foo",
-                "1.0.0",
-                vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-            )
+            ..tree("foo", "1.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)])
         },
         DependentsTree {
             display_name: Some("my-component".to_string()),
-            ..tree(
-                "foo",
-                "2.0.0",
-                vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-            )
+            ..tree("foo", "2.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)])
         },
     ];
 
@@ -328,11 +276,7 @@ fn empty_results_produce_no_summary() {
 fn includes_search_message_in_json_output() {
     let results = vec![DependentsTree {
         search_message: Some("Matched by custom finder".to_string()),
-        ..tree(
-            "foo",
-            "1.0.0",
-            vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-        )
+        ..tree("foo", "1.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)])
     }];
 
     let parsed: Value =
@@ -470,10 +414,7 @@ fn uses_display_name_in_parseable_output() {
     }];
 
     let output = render_dependents_parseable(&results, &opts(None));
-    assert_eq!(
-        output,
-        "my-project@0.0.0 > other-component@2.0.0 > my-component@1.0.0",
-    );
+    assert_eq!(output, "my-project@0.0.0 > other-component@2.0.0 > my-component@1.0.0");
 }
 
 // Port of upstream's 'renderDependentsParseable > renders parseable output with searchMessage result' (deps/inspection/list/test/renderDependentsTree.test.ts).
@@ -481,11 +422,7 @@ fn uses_display_name_in_parseable_output() {
 fn renders_parseable_output_with_search_message_result() {
     let results = vec![DependentsTree {
         search_message: Some("Found via custom check".to_string()),
-        ..tree(
-            "dep-a",
-            "1.0.0",
-            vec![importer("my-project", "0.0.0", DepField::Dependencies)],
-        )
+        ..tree("dep-a", "1.0.0", vec![importer("my-project", "0.0.0", DepField::Dependencies)])
     }];
 
     let output = render_dependents_parseable(&results, &opts(None));

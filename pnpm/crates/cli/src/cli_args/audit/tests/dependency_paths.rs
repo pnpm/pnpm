@@ -93,27 +93,18 @@ snapshots:
         let importer = env.root_importer_mut();
         importer.config_dependencies.insert(
             "my-config".to_string(),
-            SpecifierAndResolution {
-                specifier: "2.0.0".to_string(),
-                version: "2.0.0".to_string(),
-            },
+            SpecifierAndResolution { specifier: "2.0.0".to_string(), version: "2.0.0".to_string() },
         );
         importer.package_manager_dependencies = Some(BTreeMap::from([(
             "pnpm".to_string(),
-            SpecifierAndResolution {
-                specifier: "9.0.0".to_string(),
-                version: "9.0.0".to_string(),
-            },
+            SpecifierAndResolution { specifier: "9.0.0".to_string(), version: "9.0.0".to_string() },
         )]));
     }
     env.snapshots.insert(
         "my-config@2.0.0".parse().unwrap(),
         snapshot(&[("config-util", "1.0.0")], &[]),
     );
-    env.snapshots.insert(
-        "config-util@1.0.0".parse().unwrap(),
-        SnapshotEntry::default(),
-    );
+    env.snapshots.insert("config-util@1.0.0".parse().unwrap(), SnapshotEntry::default());
     env.snapshots.insert("pnpm@9.0.0".parse().unwrap(), SnapshotEntry::default());
 
     let request = lockfile_to_audit_request(&lockfile, Some(&env), all_dependencies());
@@ -133,23 +124,14 @@ fn lockfile_to_audit_request_includes_optional_dependencies_from_env_snapshots()
         .config_dependencies
         .insert(
             "my-tool".to_string(),
-            SpecifierAndResolution {
-                specifier: "1.0.0".to_string(),
-                version: "1.0.0".to_string(),
-            },
+            SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
         );
     env.snapshots.insert(
         "my-tool@1.0.0".parse().unwrap(),
         snapshot(&[("required-dep", "1.0.0")], &[("optional-dep", "2.0.0")]),
     );
-    env.snapshots.insert(
-        "required-dep@1.0.0".parse().unwrap(),
-        SnapshotEntry::default(),
-    );
-    env.snapshots.insert(
-        "optional-dep@2.0.0".parse().unwrap(),
-        SnapshotEntry::default(),
-    );
+    env.snapshots.insert("required-dep@1.0.0".parse().unwrap(), SnapshotEntry::default());
+    env.snapshots.insert("optional-dep@2.0.0".parse().unwrap(), SnapshotEntry::default());
 
     let request = lockfile_to_audit_request(&lockfile, Some(&env), all_dependencies());
 
@@ -171,16 +153,10 @@ fn lockfile_to_audit_request_ignores_unreachable_env_packages() {
         .config_dependencies
         .insert(
             "my-config".to_string(),
-            SpecifierAndResolution {
-                specifier: "1.0.0".to_string(),
-                version: "1.0.0".to_string(),
-            },
+            SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
         );
     env.snapshots.insert("my-config@1.0.0".parse().unwrap(), SnapshotEntry::default());
-    env.snapshots.insert(
-        "orphan-pkg@3.0.0".parse().unwrap(),
-        SnapshotEntry::default(),
-    );
+    env.snapshots.insert("orphan-pkg@3.0.0".parse().unwrap(), SnapshotEntry::default());
 
     let request = lockfile_to_audit_request(&lockfile, Some(&env), all_dependencies());
 
@@ -211,12 +187,8 @@ snapshots:
   bar@1.0.0: {}
 ",
     );
-    let index = build_audit_path_index(
-        &lockfile,
-        None,
-        &vulnerable_names(&["bar"]),
-        all_dependencies(),
-    );
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["bar"]), all_dependencies());
 
     let info = path_info(&index, "bar", "1.0.0");
     assert_eq!(info.paths, vec![".>foo>bar"]);
@@ -255,12 +227,8 @@ snapshots:
   lodash@4.0.0: {}
 ",
     );
-    let index = build_audit_path_index(
-        &lockfile,
-        None,
-        &vulnerable_names(&["lodash"]),
-        all_dependencies(),
-    );
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["lodash"]), all_dependencies());
 
     let mut paths = path_info(&index, "lodash", "4.0.0").paths.clone();
     paths.sort();
@@ -315,12 +283,8 @@ snapshots:
 ",
     ));
 
-    let index = build_audit_path_index(
-        &lockfile,
-        None,
-        &vulnerable_names(&["vuln"]),
-        all_dependencies(),
-    );
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["vuln"]), all_dependencies());
 
     assert_eq!(path_info(&index, "vuln", "1.0.0").paths.len(), 50);
     assert!(!index.contains_key("cold"));
@@ -355,17 +319,10 @@ snapshots:
 ",
     ));
 
-    let index = build_audit_path_index(
-        &lockfile,
-        None,
-        &vulnerable_names(&["vuln"]),
-        all_dependencies(),
-    );
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["vuln"]), all_dependencies());
 
-    assert_eq!(
-        path_info(&index, "vuln", "1.0.0").paths.len(),
-        MAX_PATHS_PER_FINDING,
-    );
+    assert_eq!(path_info(&index, "vuln", "1.0.0").paths.len(), MAX_PATHS_PER_FINDING);
 }
 
 #[test]
@@ -412,11 +369,7 @@ snapshots:
         &lockfile,
         None,
         &vulnerable_names(&["shared-pkg"]),
-        Include {
-            dependencies: true,
-            dev_dependencies: false,
-            optional_dependencies: true,
-        },
+        Include { dependencies: true, dev_dependencies: false, optional_dependencies: true },
     );
     assert!(path_info(&prod_only, "shared-pkg", "1.0.0").optional);
 }
@@ -440,12 +393,8 @@ snapshots:
   native@1.0.0: {}
 ",
     );
-    let index = build_audit_path_index(
-        &lockfile,
-        None,
-        &vulnerable_names(&["native"]),
-        all_dependencies(),
-    );
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["native"]), all_dependencies());
 
     let info = path_info(&index, "native", "1.0.0");
     assert_eq!(info.paths, vec![".>native"]);
@@ -478,12 +427,8 @@ snapshots:
       a: '1.0.0'
 ",
     );
-    let index = build_audit_path_index(
-        &lockfile,
-        None,
-        &vulnerable_names(&["a", "b"]),
-        all_dependencies(),
-    );
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["a", "b"]), all_dependencies());
 
     assert_eq!(path_info(&index, "a", "1.0.0").paths, vec![".>a"]);
     assert_eq!(path_info(&index, "b", "1.0.0").paths, vec![".>a>b"]);
@@ -518,12 +463,8 @@ snapshots:
       a: '1.0.0'
 ",
     );
-    let index = build_audit_path_index(
-        &lockfile,
-        None,
-        &vulnerable_names(&["a"]),
-        all_dependencies(),
-    );
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["a"]), all_dependencies());
 
     assert_eq!(path_info(&index, "a", "1.0.0").paths, vec![".>root>b>a"]);
 }
@@ -559,12 +500,8 @@ snapshots:
   x@1.0.0: {}
 ",
     );
-    let index = build_audit_path_index(
-        &lockfile,
-        None,
-        &vulnerable_names(&["x"]),
-        all_dependencies(),
-    );
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["x"]), all_dependencies());
 
     let mut paths = path_info(&index, "x", "1.0.0").paths.clone();
     paths.sort();
@@ -576,11 +513,7 @@ fn build_audit_path_index_handles_large_cycle_with_vulnerable_leaf() {
     let size = 400;
     let mut snapshots = String::new();
     for i in 0..size {
-        let next = if i + 1 < size {
-            format!("n{}", i + 1)
-        } else {
-            "n0".to_string()
-        };
+        let next = if i + 1 < size { format!("n{}", i + 1) } else { "n0".to_string() };
         write!(
             snapshots,
             "
@@ -610,12 +543,8 @@ snapshots:
 {snapshots}
 ",
     ));
-    let index = build_audit_path_index(
-        &lockfile,
-        None,
-        &vulnerable_names(&["leaf0"]),
-        all_dependencies(),
-    );
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["leaf0"]), all_dependencies());
 
     let info = path_info(&index, "leaf0", "1.0.0");
     assert_eq!(info.paths, vec![".>n0>leaf0"]);
@@ -626,11 +555,7 @@ fn build_audit_path_index_handles_very_deep_dependency_chain() {
     let size = 12_000;
     let mut snapshots = String::new();
     for i in 0..size {
-        let child = if i + 1 < size {
-            format!("n{}", i + 1)
-        } else {
-            "vuln".to_string()
-        };
+        let child = if i + 1 < size { format!("n{}", i + 1) } else { "vuln".to_string() };
         write!(
             snapshots,
             "
@@ -663,12 +588,8 @@ snapshots:
 ",
     ));
 
-    let index = build_audit_path_index(
-        &lockfile,
-        None,
-        &vulnerable_names(&["vuln"]),
-        all_dependencies(),
-    );
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["vuln"]), all_dependencies());
 
     let info = path_info(&index, "vuln", "1.0.0");
     assert_eq!(info.paths.len(), 1);
@@ -695,15 +616,8 @@ snapshots:
   foo@1.0.0: {}
 ",
     );
-    let index = build_audit_path_index(
-        &lockfile,
-        None,
-        &vulnerable_names(&["foo"]),
-        all_dependencies(),
-    );
+    let index =
+        build_audit_path_index(&lockfile, None, &vulnerable_names(&["foo"]), all_dependencies());
 
-    assert_eq!(
-        path_info(&index, "foo", "1.0.0").paths,
-        vec!["packages__foo>foo"],
-    );
+    assert_eq!(path_info(&index, "foo", "1.0.0").paths, vec!["packages__foo>foo"]);
 }

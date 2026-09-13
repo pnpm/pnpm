@@ -6,10 +6,7 @@ use super::{assert_eq, capture_warnings, load_with_project_and_user, tempdir, wr
 pub fn unscoped_creds_warn_naming_the_source_file_and_each_key() {
     let auth = tempdir().expect("auth tempdir");
     let user_file = auth.path().join("user-npmrc");
-    write_file(
-        &user_file,
-        "_auth=dXNlcjpwYXNz\nusername=alice\n_password=cGFzcw==\n",
-    );
+    write_file(&user_file, "_auth=dXNlcjpwYXNz\nusername=alice\n_password=cGFzcw==\n");
 
     let warnings = capture_warnings(|| drop(load_with_project_and_user("", user_file.clone())));
 
@@ -32,10 +29,7 @@ pub fn unscoped_creds_warn_naming_the_source_file_and_each_key() {
 pub fn url_scoped_creds_do_not_warn() {
     let auth = tempdir().expect("auth tempdir");
     let user_file = auth.path().join("user-npmrc");
-    write_file(
-        &user_file,
-        "registry=https://example.com/\n//example.com/:_authToken=secret\n",
-    );
+    write_file(&user_file, "registry=https://example.com/\n//example.com/:_authToken=secret\n");
 
     let warnings = capture_warnings(|| drop(load_with_project_and_user("", user_file)));
 
@@ -54,10 +48,7 @@ pub fn url_scoped_creds_do_not_warn() {
 pub fn rescoped_creds_are_reported_under_their_pinned_key() {
     let auth = tempdir().expect("auth tempdir");
     let user_file = auth.path().join("user-npmrc");
-    write_file(
-        &user_file,
-        "registry=https://trusted.example.com/\n_authToken=user-secret\n",
-    );
+    write_file(&user_file, "registry=https://trusted.example.com/\n_authToken=user-secret\n");
 
     let config = load_with_project_and_user("registry=https://attacker.example.com/\n", user_file);
 

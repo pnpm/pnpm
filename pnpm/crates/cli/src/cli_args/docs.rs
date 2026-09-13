@@ -18,8 +18,7 @@ impl DocsArgs {
 
     async fn documentation_url(&self, config: &Config) -> miette::Result<String> {
         let (_, manifest) =
-            super::view::fetch_package_metadata(config, None, &self.package, "docs")
-                .await?;
+            super::view::fetch_package_metadata(config, None, &self.package, "docs").await?;
         Ok(documentation_url_from_manifest(&manifest))
     }
 }
@@ -29,10 +28,7 @@ fn documentation_url_from_manifest(manifest: &PackageVersion) -> String {
         .get("homepage")
         .and_then(serde_json::Value::as_str)
         .filter(|homepage| is_http_url(homepage))
-        .map_or_else(
-            || format!("https://npmx.dev/package/{}", manifest.name),
-            ToString::to_string,
-        )
+        .map_or_else(|| format!("https://npmx.dev/package/{}", manifest.name), ToString::to_string)
 }
 
 fn is_http_url(value: &str) -> bool {

@@ -78,9 +78,7 @@ fn same_origin(left: &str, right: &str) -> bool {
 /// for anything else, including a download template that is a bare path.
 fn origin_of(url: &str) -> Option<String> {
     let origin = url::Url::parse(url).ok()?.origin();
-    origin
-        .is_tuple()
-        .then(|| origin.ascii_serialization())
+    origin.is_tuple().then(|| origin.ascii_serialization())
 }
 
 pub(crate) fn cargo_auth_headers(config: &Config) -> Result<Arc<AuthHeaders>> {
@@ -162,14 +160,10 @@ async fn fetch_registry_config(
         fs::read(&cache_path)
             .into_diagnostic()
             .wrap_err_with(|| {
-                format!(
-                    "read cached Cargo registry config at {}",
-                    cache_path.display(),
-                )
+                format!("read cached Cargo registry config at {}", cache_path.display())
             })?
     } else {
-        download_registry_config(config, http_client, auth_headers, &cache_path)
-            .await?
+        download_registry_config(config, http_client, auth_headers, &cache_path).await?
     };
     serde_json::from_slice(&bytes)
         .into_diagnostic()
@@ -238,11 +232,7 @@ async fn download_registry_config(
     auth_headers: &AuthHeaders,
     cache_path: &Path,
 ) -> Result<Vec<u8>> {
-    let url = format!(
-        "{}/{}",
-        config.cargo.index_url.trim_end_matches('/'),
-        RegistryConfig::NAME,
-    );
+    let url = format!("{}/{}", config.cargo.index_url.trim_end_matches('/'), RegistryConfig::NAME);
     let response = http_client
         .get_limited_bytes_with_secure_auth_and_retry(
             &url,
@@ -281,8 +271,7 @@ pub(super) async fn registry_download_config(
     http_client: &ThrottledClient,
 ) -> Result<(RegistryConfig, Arc<AuthHeaders>)> {
     let cargo_auth_headers = cargo_auth_headers(config)?;
-    let registry_config = fetch_registry_config(config, http_client, &cargo_auth_headers)
-        .await?;
+    let registry_config = fetch_registry_config(config, http_client, &cargo_auth_headers).await?;
     let auth_headers = download_auth_headers(config, &registry_config);
     Ok((registry_config, auth_headers))
 }

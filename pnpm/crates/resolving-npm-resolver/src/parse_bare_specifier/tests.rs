@@ -27,18 +27,13 @@ fn version_selector_drops_build_metadata() {
     // pnpm/pnpm#14096: `@parcel/codeframe` is published as
     // `2.0.0-canary.1718`, but dependents declare it as
     // `2.0.0-canary.1718+d8408010f`.
-    for (selector, expected) in [
-        ("1.0.0+build1", "1.0.0"),
-        ("1.0.0-canary.1+build1", "1.0.0-canary.1"),
-    ] {
+    for (selector, expected) in
+        [("1.0.0+build1", "1.0.0"), ("1.0.0-canary.1+build1", "1.0.0-canary.1")]
+    {
         let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY)
             .unwrap_or_else(|| panic!("expected a spec for {selector:?}"));
         assert_eq!(spec.fetch_spec, expected, "for {selector:?}");
-        assert_eq!(
-            spec.spec_type,
-            RegistryPackageSpecType::Version,
-            "for {selector:?}",
-        );
+        assert_eq!(spec.spec_type, RegistryPackageSpecType::Version, "for {selector:?}");
     }
 }
 
@@ -47,10 +42,7 @@ fn version_selector_extracts_registry_revision() {
     for (selector, revision) in [("1.0.0+r0", 0), ("1.0.0+r42", 42)] {
         let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY).unwrap();
         assert_eq!(spec.fetch_spec, "1.0.0");
-        assert_eq!(
-            spec.revision,
-            Some(RegistryRevisionSelector::Valid(revision)),
-        );
+        assert_eq!(spec.revision, Some(RegistryRevisionSelector::Valid(revision)));
     }
 }
 
@@ -124,11 +116,7 @@ fn union_with_unparsable_member_still_classifies_as_any_version_range() {
         let spec = parse_bare_specifier(selector, Some("foo"), DEFAULT_TAG, REGISTRY)
             .unwrap_or_else(|| panic!("expected a spec for {selector:?}"));
         assert_eq!(spec.fetch_spec, "*", "for {selector:?}");
-        assert_eq!(
-            spec.spec_type,
-            RegistryPackageSpecType::Range,
-            "for {selector:?}",
-        );
+        assert_eq!(spec.spec_type, RegistryPackageSpecType::Range, "for {selector:?}");
     }
 }
 
@@ -314,10 +302,7 @@ fn jsr_specifier_declines_for_non_jsr_input() {
 fn jsr_specifier_with_unscoped_name_errors() {
     let err = parse_jsr_specifier_to_registry_package_spec("jsr:foo@^1.0.0", None, "latest")
         .expect_err("unscoped JSR name must error");
-    assert!(
-        matches!(err, ParseJsrSpecifierError::MissingScope),
-        "got {err:?}",
-    );
+    assert!(matches!(err, ParseJsrSpecifierError::MissingScope), "got {err:?}");
 }
 
 fn gh_aliases() -> HashSet<String> {
@@ -348,10 +333,7 @@ fn named_registry_returns_none_on_non_named_specifiers() {
     ] {
         let result =
             parse_named_registry_specifier_to_registry_package_spec(input, &gh, None, "latest");
-        assert!(
-            matches!(result, Ok(None)),
-            "expected None for {input:?}, got {result:?}",
-        );
+        assert!(matches!(result, Ok(None)), "expected None for {input:?}, got {result:?}");
     }
 }
 
@@ -361,17 +343,10 @@ fn named_registry_does_not_intercept_github_git_shorthand() {
     // GitHub git repository shortcut. Even if it shows up, it is not
     // in the built-in `gh` alias set.
     let gh = gh_aliases();
-    for input in [
-        "github:owner/repo",
-        "github:owner/repo#main",
-        "github:@acme/foo",
-    ] {
+    for input in ["github:owner/repo", "github:owner/repo#main", "github:@acme/foo"] {
         let result =
             parse_named_registry_specifier_to_registry_package_spec(input, &gh, None, "latest");
-        assert!(
-            matches!(result, Ok(None)),
-            "expected None for {input:?}, got {result:?}",
-        );
+        assert!(matches!(result, Ok(None)), "expected None for {input:?}, got {result:?}");
     }
 }
 
@@ -430,11 +405,7 @@ fn named_registry_with_any_version_body_uses_the_alias_as_name() {
         .unwrap_or_else(|| panic!("expected a spec for {input:?}"));
         assert_eq!(spec.spec.name, "@acme/foo", "for {input:?}");
         assert_eq!(spec.spec.fetch_spec, "*", "for {input:?}");
-        assert_eq!(
-            spec.spec.spec_type,
-            RegistryPackageSpecType::Range,
-            "for {input:?}",
-        );
+        assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Range, "for {input:?}");
         assert_eq!(spec.registry_name, "gh", "for {input:?}");
     }
 }
@@ -451,10 +422,7 @@ fn named_registry_reads_a_strictly_invalid_union_as_a_package_name() {
         )
         .expect_err("a strictly invalid union is a malformed package name");
         assert!(
-            matches!(
-                err,
-                ParseNamedRegistrySpecifierError::InvalidPackageName { .. }
-            ),
+            matches!(err, ParseNamedRegistrySpecifierError::InvalidPackageName { .. }),
             "got {err:?} for {input:?}",
         );
     }
@@ -538,10 +506,7 @@ fn named_registry_scope_without_name_errors() {
             parse_named_registry_specifier_to_registry_package_spec(input, &gh, None, "latest")
                 .expect_err("scope without name must error");
         assert!(
-            matches!(
-                err,
-                ParseNamedRegistrySpecifierError::InvalidPackageName { .. }
-            ),
+            matches!(err, ParseNamedRegistrySpecifierError::InvalidPackageName { .. }),
             "got {err:?} for {input:?}",
         );
     }
@@ -554,10 +519,7 @@ fn named_registry_empty_scope_errors() {
         parse_named_registry_specifier_to_registry_package_spec("gh:@/bar", &gh, None, "latest")
             .expect_err("empty scope must error");
     assert!(
-        matches!(
-            err,
-            ParseNamedRegistrySpecifierError::InvalidPackageName { .. }
-        ),
+        matches!(err, ParseNamedRegistrySpecifierError::InvalidPackageName { .. }),
         "got {err:?}",
     );
 }
@@ -570,10 +532,7 @@ fn named_registry_dot_segment_name_errors() {
             parse_named_registry_specifier_to_registry_package_spec(input, &gh, None, "latest")
                 .expect_err("dot-segment names must error");
         assert!(
-            matches!(
-                err,
-                ParseNamedRegistrySpecifierError::InvalidPackageName { .. }
-            ),
+            matches!(err, ParseNamedRegistrySpecifierError::InvalidPackageName { .. }),
             "got {err:?} for {input:?}",
         );
     }
@@ -594,10 +553,7 @@ fn named_registry_path_separators_in_name_error() {
             parse_named_registry_specifier_to_registry_package_spec(input, &gh, None, "latest")
                 .expect_err("path separators in the name must error");
         assert!(
-            matches!(
-                err,
-                ParseNamedRegistrySpecifierError::InvalidPackageName { .. }
-            ),
+            matches!(err, ParseNamedRegistrySpecifierError::InvalidPackageName { .. }),
             "got {err:?} for {input:?}",
         );
     }
@@ -691,8 +647,5 @@ fn named_registry_invalid_name_error_carries_user_alias() {
     )
     .expect_err("scope without name must error");
     let message = err.to_string();
-    assert!(
-        message.contains("'work:'"),
-        "expected message to mention 'work:', got {message:?}",
-    );
+    assert!(message.contains("'work:'"), "expected message to mention 'work:', got {message:?}");
 }

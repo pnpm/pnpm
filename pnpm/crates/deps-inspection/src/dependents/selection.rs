@@ -37,9 +37,43 @@ pub fn resolve_package_nodes(
 ) -> HashMap<TreeNodeId, ManifestSource> {
     let mut resolved: HashMap<TreeNodeId, ManifestSource> = HashMap::new();
 
+    fn walk(
+        env: &PkgInfoEnv<'_>,
+        graph: &DependencyGraph,
+        resolved: &mut HashMap<TreeNodeId, ManifestSource>,
+        node_id: &TreeNodeId,
+        parent_dir: Option<&Path>,
+        depth: usize,
+    ) {
+        if depth >= super::super::MAX_WALK_DEPTH {
+            return;
+        }
+        let Some(node) = graph.nodes.get(node_id) else {
+            return;
+        };
+        for edge in &node.edges {
+            let Some(target) = &edge.target else {
+                continue;
+            };
+            if resolved.contains_key(target) || !matches!(target, TreeNodeId::Package(_)) {
+                continue;
+            }
+            let edge_ctx = EdgeContext {
+                peers: None,
+                linked_path_base_dir: env.layout.modules_dir.clone(),
+                rewrite_link_version_dir: None,
+                parent_dir: parent_dir.map(Path::to_path_buf),
+            };
+            let (_, manifest_source) = get_pkg_info(env, edge, &edge_ctx);
+            let target_path = manifest_source.path.clone();
+            resolved.insert(target.clone(), manifest_source);
+            walk(env, graph, resolved, target, Some(&target_path), depth + 1);
+        }
+    }
+
     for node_id in graph.nodes.keys() {
         if matches!(node_id, TreeNodeId::Importer(_)) {
-            walk_package_nodes(env, graph, &mut resolved, node_id, None, 0);
+            walk(env, graph, &mut resolved, node_id, None, 0);
         }
     }
     resolved
@@ -68,45 +102,8 @@ pub fn name_ver_from_dep_path(lockfile: &Lockfile, dep_path: &PkgNameVerPeer) ->
 /// otherwise — the tree ordering the TypeScript CLI uses.
 #[must_use]
 pub fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
-    match (
-        node_semver::Version::parse(left),
-        node_semver::Version::parse(right),
-    ) {
+    match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
         (Ok(left), Ok(right)) => left.cmp(&right),
         _ => left.cmp(right),
-    }
-}
-
-fn walk_package_nodes(
-    env: &PkgInfoEnv<'_>,
-    graph: &DependencyGraph,
-    resolved: &mut HashMap<TreeNodeId, ManifestSource>,
-    node_id: &TreeNodeId,
-    parent_dir: Option<&Path>,
-    depth: usize,
-) {
-    if depth >= super::super::MAX_WALK_DEPTH {
-        return;
-    }
-    let Some(node) = graph.nodes.get(node_id) else {
-        return;
-    };
-    for edge in &node.edges {
-        let Some(target) = &edge.target else {
-            continue;
-        };
-        if resolved.contains_key(target) || !matches!(target, TreeNodeId::Package(_)) {
-            continue;
-        }
-        let edge_ctx = EdgeContext {
-            peers: None,
-            linked_path_base_dir: env.layout.modules_dir.clone(),
-            rewrite_link_version_dir: None,
-            parent_dir: parent_dir.map(Path::to_path_buf),
-        };
-        let (_, manifest_source) = get_pkg_info(env, edge, &edge_ctx);
-        let target_path = manifest_source.path.clone();
-        resolved.insert(target.clone(), manifest_source);
-        walk_package_nodes(env, graph, resolved, target, Some(&target_path), depth + 1);
     }
 }

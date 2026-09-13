@@ -52,39 +52,22 @@ fn from_default_yaml_parses_bundled_file() {
     use pnpr_registry::{ConcreteKind, Resolved};
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
     assert!(config.routing.upstreams.contains_key("npmjs"));
-    assert_eq!(
-        config.routing.upstreams["npmjs"].url,
-        "https://registry.npmjs.org/",
-    );
-    assert_eq!(
-        config.identity.auth.htpasswd.max_users,
-        super::super::MaxUsers::Disabled,
-    );
+    assert_eq!(config.routing.upstreams["npmjs"].url, "https://registry.npmjs.org/");
+    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
     // The bundled file routes fixture scopes, the fixture packages living in
     // real npm scopes, and test-published names to the local hosted org, and
     // everything else — including the rest of those real scopes — to npmjs.
-    for local in [
-        "@pnpm.e2e/foo",
-        "@pnpm/y",
-        "test-publish-tarball",
-        "project-100",
-    ] {
+    for local in ["@pnpm.e2e/foo", "@pnpm/y", "test-publish-tarball", "project-100"] {
         assert_eq!(
             config.routing.registries.resolve_default(Ecosystem::Npm, local),
-            Resolved::Concrete {
-                registry: "local",
-                kind: ConcreteKind::Hosted
-            },
+            Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
             "{local} must be hosted",
         );
     }
     for upstream in ["react", "lodash", "test-exclude", "@pnpm/error"] {
         assert_eq!(
             config.routing.registries.resolve_default(Ecosystem::Npm, upstream),
-            Resolved::Concrete {
-                registry: "npmjs",
-                kind: ConcreteKind::Upstream
-            },
+            Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
             "{upstream} must proxy npm",
         );
     }
@@ -118,10 +101,7 @@ upstreams:
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     // The unimplemented sections parse silently and the config is usable.
-    assert_eq!(
-        config.identity.auth.htpasswd.max_users,
-        super::super::MaxUsers::Disabled,
-    );
+    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
 }
 
 #[test]
@@ -353,10 +333,7 @@ routes:
         config.routing.route_policy.public[0].registry.as_deref(),
         Some("https://registry.npmjs.org/"),
     );
-    assert_eq!(
-        config.routing.route_policy.public[0].package.as_deref(),
-        Some("@babel/*"),
-    );
+    assert_eq!(config.routing.route_policy.public[0].package.as_deref(), Some("@babel/*"));
     assert_eq!(config.routing.route_policy.public[1].registry, None);
 }
 
@@ -369,10 +346,7 @@ fn resolution_secret_uses_yaml_secret_then_falls_back_to_random() {
         None,
     )
     .unwrap();
-    assert_eq!(
-        with_secret.resolution_cache_secret.as_ref(),
-        b"pnpm-registry-mock-secret-key-32",
-    );
+    assert_eq!(with_secret.resolution_cache_secret.as_ref(), b"pnpm-registry-mock-secret-key-32");
 
     // No `secret:` yields a fresh 32-byte CSPRNG value.
     let without_secret = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();

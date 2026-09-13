@@ -19,8 +19,7 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
         });
     }
     let client = if revision_addressed {
-        http_client.acquire_for_url_without_redirects_with_priority(package_url, priority)
-            .await
+        http_client.acquire_for_url_without_redirects_with_priority(package_url, priority).await
     } else {
         http_client.acquire_for_url_with_priority(package_url, priority).await
     };
@@ -44,11 +43,11 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     }));
     let response =
         sent.map_err(|error| TarballError::FetchTarball(NetworkError::new(package_url, error)))?;
-    let response = check_archive_response(response, package_url).await?;
+    let response = check_archive_status(response, package_url).await?;
     Ok((client, response))
 }
 
-async fn check_archive_response(
+async fn check_archive_status(
     response: reqwest::Response,
     package_url: &str,
 ) -> Result<reqwest::Response, TarballError> {

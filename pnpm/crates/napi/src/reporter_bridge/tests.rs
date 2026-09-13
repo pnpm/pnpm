@@ -15,8 +15,5 @@ fn ignored_scripts_are_returned_as_dependencies_requiring_build() {
         strict_dep_builds: false,
     }));
 
-    assert_eq!(
-        take_stats().deps_requiring_build,
-        ["foo@1.0.0", "bar@2.0.0"],
-    );
+    assert_eq!(take_stats().deps_requiring_build, ["foo@1.0.0", "bar@2.0.0"]);
 }

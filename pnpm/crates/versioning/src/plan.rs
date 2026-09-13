@@ -149,11 +149,7 @@ pub fn assemble_release_plan(
             return Ok(plan);
         };
         let before = selected.len();
-        selected.extend(
-            plan.releases
-                .iter()
-                .map(|release| release.dir.clone()),
-        );
+        selected.extend(plan.releases.iter().map(|release| release.dir.clone()));
         if selected.len() == before {
             return Ok(plan);
         }
@@ -182,13 +178,7 @@ fn resolve_workspace<'a>(
     validate_fixed_group_lanes(&fixed_groups, &lanes_by_dir, versioning)?;
     let epics = resolve_epics(&refs, &participants, versioning)?;
     validate_epics(&epics, &fixed_groups)?;
-    Ok(ResolvedWorkspace {
-        refs,
-        participants,
-        lanes_by_dir,
-        fixed_groups,
-        epics,
-    })
+    Ok(ResolvedWorkspace { refs, participants, lanes_by_dir, fixed_groups, epics })
 }
 
 /// The kind of committed-version invariant [`check_versioning_invariants`]
@@ -363,17 +353,11 @@ fn assemble(
     let releases = planned_releases(ctx, &intents, &state, &new_versions);
     assert_no_duplicate_release_identity(&releases)?;
     if ctx.opts.snapshot_suffix.is_none() {
-        enforce_epic_bands(
-            &ctx.workspace.epics,
-            &ctx.workspace.participants,
-            &new_versions,
-        )?;
+        enforce_epic_bands(&ctx.workspace.epics, &ctx.workspace.participants, &new_versions)?;
         enforce_max_bump(&releases, ctx.versioning)?;
     }
 
-    Ok(ReleasePlan {
-        releases,
-    })
+    Ok(ReleasePlan { releases })
 }
 
 #[cfg(test)]

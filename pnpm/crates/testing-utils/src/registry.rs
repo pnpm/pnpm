@@ -18,16 +18,12 @@ pub struct TestRegistry {
 
 impl TestRegistry {
     pub fn start() -> Self {
-        Self {
-            url: TestRegistryInstance::get().url.clone(),
-            storage: None,
-        }
+        Self { url: TestRegistryInstance::get().url.clone(), storage: None }
     }
 
     pub fn start_with_storage(storage: &Path) -> Self {
         Self {
-            url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Proxy)
-                .url,
+            url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Proxy).url,
             storage: Some(storage.to_path_buf()),
         }
     }
@@ -59,8 +55,7 @@ impl TestRegistry {
 
     pub fn start_static_with_storage(storage: &Path) -> Self {
         Self {
-            url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Static)
-                .url,
+            url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Static).url,
             storage: Some(storage.to_path_buf()),
         }
     }
@@ -134,9 +129,7 @@ impl TestRegistryInstance {
             .spawn(move || run_registry(config, listener))
             .expect("spawn test registry thread");
 
-        Self {
-            url,
-        }
+        Self { url }
     }
 }
 

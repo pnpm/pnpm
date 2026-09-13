@@ -61,6 +61,27 @@ where
     }
 }
 
+fn resolve_store_dir<Sys: GetHomeDir>(
+    store_dir: &Path,
+    workspace_dir: &Path,
+) -> miette::Result<std::path::PathBuf> {
+    Ok(if let Some(relative) = home_relative_store_dir(store_dir) {
+        Sys::home_dir()
+            .ok_or_else(|| {
+                let store_dir_display = store_dir.display();
+                miette::miette!(
+                    "Cannot resolve store directory {} because the home directory is unknown",
+                    store_dir_display,
+                )
+            })?
+            .join(relative)
+    } else if store_dir.is_absolute() {
+        store_dir.to_path_buf()
+    } else {
+        workspace_dir.join(store_dir)
+    })
+}
+
 fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
     let store_dir = store_dir.to_str()?;
     store_dir
@@ -84,11 +105,7 @@ pub(crate) fn apply_registry_override(config: &mut Config, registry: &str) {
 }
 
 pub(super) fn normalize_registry_url(registry: &str) -> String {
-    if registry.ends_with('/') {
-        registry.to_string()
-    } else {
-        format!("{registry}/")
-    }
+    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
 impl ConfigOverrides {
@@ -367,26 +384,4 @@ impl ConfigOverrides {
             global_virtual_store_dir_explicit,
         );
     }
-}
-
-fn resolve_store_dir<Sys: GetHomeDir>(
-    store_dir: &Path,
-    workspace_dir: &Path,
-) -> miette::Result<std::path::PathBuf> {
-    let resolved = if let Some(relative) = home_relative_store_dir(store_dir) {
-        Sys::home_dir()
-            .ok_or_else(|| {
-                let store_dir_display = store_dir.display();
-                miette::miette!(
-                    "Cannot resolve store directory {} because the home directory is unknown",
-                    store_dir_display,
-                )
-            })?
-            .join(relative)
-    } else if store_dir.is_absolute() {
-        store_dir.to_path_buf()
-    } else {
-        workspace_dir.join(store_dir)
-    };
-    Ok(resolved)
 }

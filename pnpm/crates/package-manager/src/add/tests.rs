@@ -83,10 +83,7 @@ async fn add_npm_selector(selector: &str) -> Option<String> {
         .await;
 
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("pacquet-store")
-        .into();
+    config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     config.registry = registry_url;
@@ -164,10 +161,7 @@ async fn add_jsr_selector(selector: &str) -> Option<String> {
         .await;
 
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("pacquet-store")
-        .into();
+    config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     config.registry = format!("{}/", default_registry.url());
@@ -267,11 +261,7 @@ fn project_with_foo(root: &std::path::Path, name: &str, specifier: &str) -> Proj
     let mut manifest = project.manifest;
     manifest.add_dependency("foo", specifier, DependencyGroup::Prod).expect("add foo dependency");
     manifest.save().expect("save package.json");
-    Project {
-        root_dir: project.root_dir,
-        manifest,
-        dependency_manifest: None,
-    }
+    Project { root_dir: project.root_dir, manifest, dependency_manifest: None }
 }
 
 fn dependency_specifier<'a>(manifest: &'a PackageManifest, name: &str) -> Option<&'a str> {

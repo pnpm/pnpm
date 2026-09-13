@@ -48,10 +48,7 @@ async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
         .await;
 
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("pacquet-store")
-        .into();
+    config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     config.registry = format!("{}/", default_registry.url());
@@ -219,10 +216,7 @@ pub(super) async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches(
     let written = Lockfile::load_current_from_virtual_store_dir(&dirs.virtual_store_dir)
         .expect("read written current lockfile")
         .expect("current lockfile should be written");
-    assert_eq!(
-        written.snapshots.as_ref().map(std::collections::HashMap::len),
-        Some(1),
-    );
+    assert_eq!(written.snapshots.as_ref().map(std::collections::HashMap::len), Some(1));
 
     drop(dirs.dir);
 }
@@ -234,10 +228,7 @@ pub(super) async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches(
 #[tokio::test]
 pub(super) async fn context_log_reflects_current_lockfile_after_first_install() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -286,16 +277,10 @@ pub(super) async fn context_log_reflects_current_lockfile_after_first_install() 
         "snapshots: {}"
     })
     .expect("parse minimal v9 lockfile");
-    assert!(
-        !lockfile.is_empty(),
-        "fixture must be non-empty so the write path persists it",
-    );
+    assert!(!lockfile.is_empty(), "fixture must be non-empty so the write path persists it");
 
     // First install: `lock.yaml` does not exist yet.
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     Install {
         lockfile_policy: crate::InstallLockfilePolicy {
             frozen: true,
@@ -373,10 +358,7 @@ pub(super) async fn context_log_reflects_current_lockfile_after_first_install() 
     // to skip (no snapshots), but the read-after-write loop still
     // fires `current_lockfile_exists: true` because the first
     // install's `lock.yaml` is now on disk.
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     Install {
         lockfile_policy: crate::InstallLockfilePolicy {
             frozen: true,
@@ -583,11 +565,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/hello-world-js-bin",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 
@@ -661,10 +639,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
     let second = std::fs::read_to_string(&second_path).expect("read second");
     let reparsed: Lockfile = serde_saphyr::from_str(&second).expect("parse second");
 
-    assert_eq!(
-        parsed, reparsed,
-        "lockfile round-trip must preserve every field",
-    );
+    assert_eq!(parsed, reparsed, "lockfile round-trip must preserve every field");
 
     drop((dirs.dir, mock_instance));
 }
@@ -681,11 +656,7 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/hello-world-js-bin",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 
@@ -780,11 +751,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/hello-world-js-bin",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 
@@ -896,11 +863,7 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/hello-world-js-bin",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 

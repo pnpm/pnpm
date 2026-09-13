@@ -58,9 +58,7 @@ pub fn pkg_content_mismatch(
     // A named-registry alias (`foo@work:1.0.0`) qualifies where the version
     // came from, not which version it is, so the manifest states the half
     // after the colon.
-    let expected_version = version_slot
-        .split_once(':')
-        .map_or(version_slot, |(_, rest)| rest);
+    let expected_version = version_slot.split_once(':').map_or(version_slot, |(_, rest)| rest);
     let actual_name = manifest.get("name").and_then(serde_json::Value::as_str);
     let actual_version = manifest.get("version").and_then(serde_json::Value::as_str);
 
@@ -94,9 +92,7 @@ pub fn pkg_content_mismatch(
 /// git resolution id has no such separator; one that happens to have an
 /// `@` anyway is rejected by [`names_a_registry_package`].
 fn split_pkg_id(index_key: &str) -> Option<(&str, &str)> {
-    let pkg_id = index_key
-        .rsplit_once('\t')
-        .map_or(index_key, |(_, pkg_id)| pkg_id);
+    let pkg_id = index_key.rsplit_once('\t').map_or(index_key, |(_, pkg_id)| pkg_id);
     let (name, version_slot) = pkg_id.rsplit_once('@')?;
     (!name.is_empty()).then_some((name, version_slot))
 }
@@ -133,10 +129,7 @@ fn same_version(left: &str, right: &str) -> bool {
     if left == right {
         return true;
     }
-    match (
-        node_semver::Version::parse(left),
-        node_semver::Version::parse(right),
-    ) {
+    match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
         (Ok(left), Ok(right)) => left == right,
         _ => false,
     }

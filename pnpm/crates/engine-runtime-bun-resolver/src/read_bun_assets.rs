@@ -46,9 +46,7 @@ pub async fn read_bun_assets(
 
     let mut variants = Vec::new();
     for item in items {
-        let Some(parsed) = parse_asset_name(&item.file_name) else {
-            continue;
-        };
+        let Some(parsed) = parse_asset_name(&item.file_name) else { continue };
         variants.push(asset_resolution(version, &item, parsed)?);
     }
     variants.sort_by(|a, b| variant_url(a).cmp(variant_url(b)));
@@ -117,21 +115,9 @@ fn parse_asset_name(file_name: &str) -> Option<BunAssetName> {
     if arch_raw.is_empty() || arch_raw.contains('.') || arch_raw.contains('-') {
         return None;
     }
-    let platform = if platform_raw == "windows" {
-        "win32"
-    } else {
-        platform_raw
-    };
-    let arch = if arch_raw == "aarch64" {
-        "arm64"
-    } else {
-        arch_raw
-    };
-    Some(BunAssetName {
-        platform: platform.to_string(),
-        arch: arch.to_string(),
-        musl,
-    })
+    let platform = if platform_raw == "windows" { "win32" } else { platform_raw };
+    let arch = if arch_raw == "aarch64" { "arm64" } else { arch_raw };
+    Some(BunAssetName { platform: platform.to_string(), arch: arch.to_string(), musl })
 }
 
 fn bun_bin_path(os: &str) -> &'static str {

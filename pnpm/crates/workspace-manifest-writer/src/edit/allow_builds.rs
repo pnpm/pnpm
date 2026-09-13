@@ -16,11 +16,7 @@ pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) 
         };
         changed
     } else {
-        let block = format!(
-            "{BLOCK}:\n  {}: {}\n",
-            render::render_value(name),
-            render_bool(value),
-        );
+        let block = format!("{BLOCK}:\n  {}: {}\n", render::render_value(name), render_bool(value));
         let new_text = insert_top_level_block(manifest, BLOCK, &block);
         manifest.document.set_text(new_text);
         manifest.document.keys =
@@ -103,10 +99,7 @@ pub(crate) fn add_undecided_allow_build(
     }
     manifest.allow_builds
         .get_or_insert_with(IndexMap::new)
-        .insert(
-            name.to_string(),
-            AllowBuildValue::String(placeholder.to_string()),
-        );
+        .insert(name.to_string(), AllowBuildValue::String(placeholder.to_string()));
     true
 }
 
@@ -193,10 +186,7 @@ fn text_without_allow_builds(
 ) -> Option<String> {
     let entries = match locate_mapping(text, &[block]) {
         Inline::Flow(collection) => {
-            let prunable: Vec<String> = prunable
-                .iter()
-                .cloned()
-                .collect();
+            let prunable: Vec<String> = prunable.iter().cloned().collect();
             return Some(flow::remove_keys(text, &collection, &prunable));
         }
         Inline::Unsupported => return None,
@@ -210,11 +200,7 @@ fn text_without_allow_builds(
         return None;
     }
     let mut out = text.to_string();
-    for (entry, key) in entries
-        .iter()
-        .zip(all_keys)
-        .rev()
-    {
+    for (entry, key) in entries.iter().zip(all_keys).rev() {
         if prunable.contains(key) {
             out.replace_range(entry.line_start..entry.block_end, "");
         }

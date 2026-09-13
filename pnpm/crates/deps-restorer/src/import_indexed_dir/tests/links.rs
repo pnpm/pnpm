@@ -59,15 +59,9 @@ fn force_replaces_symlink_target_without_following() {
     .expect("symlink target should be replaced");
 
     let target_meta = fs::symlink_metadata(&target).unwrap();
-    assert!(
-        target_meta.file_type().is_dir(),
-        "target is now a real directory",
-    );
+    assert!(target_meta.file_type().is_dir(), "target is now a real directory");
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"new");
-    assert_eq!(
-        fs::read(pointee.join("sentinel.txt")).unwrap(),
-        b"untouched",
-    );
+    assert_eq!(fs::read(pointee.join("sentinel.txt")).unwrap(), b"untouched");
 }
 /// On Unix, when `Hardlink` is available we want force re-imports to
 /// share inodes with the freshly-staged source so re-installs benefit
@@ -99,10 +93,7 @@ fn hardlink_method_survives_staging_swap() {
 
     let src_ino = fs::metadata(&src).unwrap().ino();
     let dst_ino = fs::metadata(target.join("package.json")).unwrap().ino();
-    assert_eq!(
-        src_ino, dst_ino,
-        "hardlinked re-import must share inode with the store source",
-    );
+    assert_eq!(src_ino, dst_ino, "hardlinked re-import must share inode with the store source");
 }
 // `fs::copy` overwrites, so only a linking tier can adopt a damaged file and keep it.
 #[test]
@@ -128,10 +119,7 @@ fn safe_to_skip_replaces_a_damaged_file_the_linking_tiers_would_adopt() {
     )
     .expect("an unfinished slot must be completed, not accepted");
 
-    assert_eq!(
-        fs::read(target.join("index.js")).unwrap(),
-        b"module.exports = 1",
-    );
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
     assert!(
         target.join("build.node").exists(),
         "a file the package does not declare is not ours to remove from a shared slot",
@@ -169,8 +157,5 @@ fn safe_to_skip_replaces_a_symlink_to_matching_store_content() {
             .file_type()
             .is_symlink(),
     );
-    assert_eq!(
-        fs::read(target.join("index.js")).unwrap(),
-        b"module.exports = 1",
-    );
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
 }

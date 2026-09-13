@@ -94,11 +94,7 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
         let _ = fs::remove_dir_all(&install_dir);
         return Err(err);
     }
-    Ok(InstallPnpmResult {
-        install_dir,
-        package_name,
-        already_existed: false,
-    })
+    Ok(InstallPnpmResult { install_dir, package_name, already_existed: false })
 }
 
 /// Fail unless the engine installed at `install_dir` can execute — a release can
@@ -150,11 +146,7 @@ pub(super) fn assert_pnpm_runs(
 /// The native pnpm executable linked into an installed engine wrapper.
 pub(super) fn pnpm_executable_path(install_dir: &Path, package_name: &str) -> PathBuf {
     package_dir(install_dir, package_name)
-        .join(if host_platform() == "win32" {
-            "pnpm.exe"
-        } else {
-            "pnpm"
-        })
+        .join(if host_platform() == "win32" { "pnpm.exe" } else { "pnpm" })
 }
 
 /// The installed wrapper's recorded version, or `None` when the install is
@@ -214,35 +206,20 @@ pub(crate) fn assert_release_is_installable(version: &str) -> miette::Result<()>
     if is_release_installable(version) {
         return Ok(());
     }
-    Err(SelfUpdateError::BrokenPnpmRelease {
-        version: version.to_string(),
-    }
-    .into())
+    Err(SelfUpdateError::BrokenPnpmRelease { version: version.to_string() }.into())
 }
 
 pub(crate) fn pnpm_package_to_install(pnpm_version: &str) -> PnpmPackageToInstall {
     let Some(version) = node_semver::Version::parse(pnpm_version).ok() else {
-        return PnpmPackageToInstall {
-            name: PNPM_EXE_PACKAGE_NAME,
-            links_native_binary: true,
-        };
+        return PnpmPackageToInstall { name: PNPM_EXE_PACKAGE_NAME, links_native_binary: true };
     };
     if version.major >= 12 {
-        return PnpmPackageToInstall {
-            name: PNPM_PACKAGE_NAME,
-            links_native_binary: true,
-        };
+        return PnpmPackageToInstall { name: PNPM_PACKAGE_NAME, links_native_binary: true };
     }
     if version_gte(&version, PNPM_EXE_INTRODUCED) {
-        PnpmPackageToInstall {
-            name: PNPM_EXE_PACKAGE_NAME,
-            links_native_binary: true,
-        }
+        PnpmPackageToInstall { name: PNPM_EXE_PACKAGE_NAME, links_native_binary: true }
     } else {
-        PnpmPackageToInstall {
-            name: PNPM_PACKAGE_NAME,
-            links_native_binary: false,
-        }
+        PnpmPackageToInstall { name: PNPM_PACKAGE_NAME, links_native_binary: false }
     }
 }
 

@@ -227,15 +227,13 @@ impl ImporterInputs<'_> {
                 auto_install_peers: self.config.auto_install_peers,
                 auto_install_peers_from_highest_match: self.config
                     .auto_install_peers_from_highest_match,
-                resolve_peers_from_workspace_root: self.config
-                    .resolve_peers_from_workspace_root,
+                resolve_peers_from_workspace_root: self.config.resolve_peers_from_workspace_root,
                 dedupe_peers: self.config.dedupe_peers,
                 dedupe_peer_dependents: self.config.dedupe_peer_dependents,
             },
             links: pnpm_resolving_deps_resolver::PeerLinkOptions {
                 modules_dir,
-                exclude_links_from_lockfile: self.config
-                    .exclude_links_from_lockfile,
+                exclude_links_from_lockfile: self.config.exclude_links_from_lockfile,
                 lockfile_dir: Some(self.lockfile_dir.to_path_buf()),
             },
             resolution: pnpm_resolving_deps_resolver::ImporterResolutionInputs {
@@ -273,8 +271,7 @@ impl WorkspaceWalk {
                 dedupe_peers: config.dedupe_peers,
                 dedupe_injected_deps: config.dedupe_injected_deps,
                 dedupe_peer_dependents: config.dedupe_peer_dependents,
-                resolve_peers_from_workspace_root: config
-                    .resolve_peers_from_workspace_root,
+                resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
                 exclude_links_from_lockfile: config.exclude_links_from_lockfile,
                 lockfile_dir: shared.lockfile_dir.to_path_buf(),
                 peers_suffix_max_length: shared.peers_suffix_max_length(),
@@ -321,19 +318,14 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
     let workspace_importers: Vec<pnpm_resolving_deps_resolver::WorkspaceImporter<'_>> =
         importer_manifests
             .iter()
-            .map(
-                |(id, manifest)| pnpm_resolving_deps_resolver::WorkspaceImporter {
-                    id: id.clone(),
-                    manifest,
-                },
-            )
+            .map(|(id, manifest)| pnpm_resolving_deps_resolver::WorkspaceImporter {
+                id: id.clone(),
+                manifest,
+            })
             .collect();
     let modules_basename = per_importer.config.modules_dir
         .file_name()
-        .map_or_else(
-            || std::ffi::OsString::from("node_modules"),
-            std::ffi::OsStr::to_os_string,
-        );
+        .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
     pnpm_resolving_deps_resolver::resolve_workspace(
         resolver,
         &workspace_importers,

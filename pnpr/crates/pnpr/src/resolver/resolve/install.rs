@@ -55,16 +55,11 @@ impl<'a> ResolutionInstall<'a> {
             config,
             manifest,
             pnpm_lockfile::MaybeLazyLockfile::Loaded(request.lockfile.as_ref()),
-            [
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-            ],
+            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
         );
         install.lockfile_policy.frozen = request.frozen_lockfile;
         install.lockfile_policy.prefer_frozen = prefer_frozen_lockfile(request);
-        install.lockfile_policy.ignore_manifest_check = request
-            .ignore_manifest_check;
+        install.lockfile_policy.ignore_manifest_check = request.ignore_manifest_check;
         install.lockfile_policy.trust = true;
         install.lockfile_policy.update_checksums = request.update_patches;
         install.execution.skip_runtimes = false;
@@ -73,9 +68,7 @@ impl<'a> ResolutionInstall<'a> {
         install.resolution.update_seed_policy = update_seed_policy(request);
         install.resolution.auth_override = Some(Arc::clone(auth_headers));
         install.resolution.observer = observer;
-        install.context.lockfile_path = request.lockfile
-            .as_ref()
-            .map(|_| lockfile_path);
+        install.context.lockfile_path = request.lockfile.as_ref().map(|_| lockfile_path);
         install.projects.supported_architectures = None;
         install.projects.catalogs_override.clone_from(&request.catalogs);
         install

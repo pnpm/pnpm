@@ -42,18 +42,9 @@ fn normalizes_literal_and_glob_patterns() {
             "pattern: {pattern}",
         );
     }
-    assert_eq!(
-        find_project_names(tmp.path(), &["./packages/.hidden"]),
-        vec!["root", "hidden"],
-    );
-    assert_eq!(
-        find_project_names(tmp.path(), &["./projects/foo/bar/baz"]),
-        vec!["root", "nested"],
-    );
-    assert_eq!(
-        find_project_names(tmp.path(), &["././", "packages/../"]),
-        vec!["root"],
-    );
+    assert_eq!(find_project_names(tmp.path(), &["./packages/.hidden"]), vec!["root", "hidden"]);
+    assert_eq!(find_project_names(tmp.path(), &["./projects/foo/bar/baz"]), vec!["root", "nested"]);
+    assert_eq!(find_project_names(tmp.path(), &["././", "packages/../"]), vec!["root"]);
     assert_eq!(
         find_project_names(tmp.path(), &["packages/alpha", "./packages/./alpha"]),
         vec!["root", "alpha"],
@@ -107,9 +98,7 @@ fn invalid_normalized_globs_report_the_original_pattern() {
     for source in ["./packages//[", "!./packages//["] {
         let result = find_workspace_projects(
             tmp.path(),
-            &FindWorkspaceProjectsOpts {
-                patterns: Some(vec![source.to_string()]),
-            },
+            &FindWorkspaceProjectsOpts { patterns: Some(vec![source.to_string()]) },
         );
         let Err(FindWorkspaceProjectsError::InvalidGlob { pattern, .. }) = result else {
             panic!("expected an invalid glob for {source}");

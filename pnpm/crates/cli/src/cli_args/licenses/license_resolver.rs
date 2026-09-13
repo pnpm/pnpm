@@ -144,5 +144,48 @@ fn detect_license_from_text(contents: &str) -> Option<String> {
     (!matches.is_empty()).then(|| matches.join(" OR "))
 }
 
+pub(super) fn extract_license_author(manifest: &serde_json::Value) -> Option<String> {
+    match manifest.get("author")? {
+        serde_json::Value::String(author) => {
+            if author.is_empty() {
+                return Some(String::new());
+            }
+            let name_end = author
+                .find(['(', '<'])
+                .unwrap_or(author.len());
+            let name = author[..name_end].trim();
+            (!name.is_empty()).then(|| name.to_string())
+        }
+        serde_json::Value::Object(author) => author
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .map(ToString::to_string),
+        _ => None,
+    }
+}
+
+pub(super) fn extract_license_homepage(manifest: &serde_json::Value) -> Option<String> {
+    if let Some(homepage) = manifest
+        .get("homepage")
+        .and_then(serde_json::Value::as_str)
+        .filter(|url| !url.is_empty())
+    {
+        return Some(if url::Url::parse(homepage).is_ok() {
+            homepage.to_string()
+        } else {
+            format!("http://{homepage}")
+        });
+    }
+
+    let repository = match manifest.get("repository")? {
+        serde_json::Value::String(repository) => repository,
+        serde_json::Value::Object(repository) => {
+            repository.get("url").and_then(serde_json::Value::as_str)?
+        }
+        _ => return None,
+    };
+    super::HostedGit::package_docs_url(repository)
+}
+
 #[cfg(test)]
 mod tests;

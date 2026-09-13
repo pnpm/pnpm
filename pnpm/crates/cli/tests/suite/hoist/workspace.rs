@@ -48,11 +48,8 @@ fn publicly_hoisted_workspace_package_bin_lands_in_root_bin_dir() {
         .to_string(),
     )
     .expect("write packages/foo/package.json");
-    fs::write(
-        pkg_dir.join("cli.js"),
-        "#!/usr/bin/env node\nconsole.log('local-foo')\n",
-    )
-    .expect("write packages/foo/cli.js");
+    fs::write(pkg_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('local-foo')\n")
+        .expect("write packages/foo/cli.js");
 
     generate_lockfile(pnpm);
     pacquet
@@ -66,10 +63,7 @@ fn publicly_hoisted_workspace_package_bin_lands_in_root_bin_dir() {
         "the workspace package must be publicly hoisted to {alias_link:?}",
     );
     let shim = workspace.join("node_modules/.bin/local-foo");
-    assert!(
-        shim.exists(),
-        "the hoisted workspace package's bin must be shimmed at {shim:?}",
-    );
+    assert!(shim.exists(), "the hoisted workspace package's bin must be shimmed at {shim:?}");
 
     drop((root, mock_instance));
 }
@@ -175,15 +169,9 @@ pub(super) fn hoist_workspace_packages_links_projects_by_name() {
         )
         .expect("write root package.json");
 
-        let toggle = if enabled {
-            String::new()
-        } else {
-            "hoistWorkspacePackages: false\n".to_string()
-        };
-        write_workspace_yaml(
-            &workspace,
-            &format!("packages:\n  - 'packages/*'\n{toggle}"),
-        );
+        let toggle =
+            if enabled { String::new() } else { "hoistWorkspacePackages: false\n".to_string() };
+        write_workspace_yaml(&workspace, &format!("packages:\n  - 'packages/*'\n{toggle}"));
 
         let pkg_dir = workspace.join("packages/foo");
         fs::create_dir_all(&pkg_dir).expect("mkdir packages/foo");
@@ -257,18 +245,12 @@ fn workspace_hoist_packages_in_selected_projects_tree() {
     fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            prod: &[("@pnpm.e2e/foo", "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[("@pnpm.e2e/foo", "1.0.0")], ..Default::default() },
     );
     fixture.project(
         "project-2",
         "project-2",
-        ManifestDeps {
-            prod: &[("@pnpm.e2e/foo", "2.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[("@pnpm.e2e/foo", "2.0.0")], ..Default::default() },
     );
     fixture.run(["install", "--lockfile-only"]);
 
@@ -279,10 +261,7 @@ fn workspace_hoist_packages_in_selected_projects_tree() {
         &fs::read_to_string(hoisted.join("package.json")).expect("read the hoisted manifest"),
     )
     .expect("parse the hoisted manifest");
-    assert_eq!(
-        manifest["version"], "2.0.0",
-        "the selected project's version must win the hoist",
-    );
+    assert_eq!(manifest["version"], "2.0.0", "the selected project's version must win the hoist");
 }
 
 /// TS: `only hoist packages which is in the dependencies tree of the
@@ -302,18 +281,12 @@ fn workspace_hoist_only_in_selected_projects_with_subdeps() {
     fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            prod: &[(PARENT, "100.0.0"), (DEP, "101.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.0.0"), (DEP, "101.0.0")], ..Default::default() },
     );
     fixture.project(
         "project-2",
         "project-2",
-        ManifestDeps {
-            prod: &[(PARENT, "100.1.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(PARENT, "100.1.0")], ..Default::default() },
     );
     fixture.run(["install", "--lockfile-only"]);
 
@@ -507,10 +480,7 @@ fn publicly_hoisted_workspace_package_bins_reach_the_root_bin_dir() {
         serde_json::json!({ "name": "root", "private": true }).to_string(),
     )
     .expect("write root package.json");
-    write_workspace_yaml(
-        &workspace,
-        "packages:\n  - 'packages/*'\npublicHoistPattern:\n  - '*'\n",
-    );
+    write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\npublicHoistPattern:\n  - '*'\n");
 
     // The root deliberately does not depend on this project, so its bin
     // can only arrive via hoisting.
@@ -536,10 +506,7 @@ fn publicly_hoisted_workspace_package_bins_reach_the_root_bin_dir() {
         .with_arg("install")
         .assert()
         .success();
-    assert!(
-        shim.exists(),
-        "fresh: the publicly hoisted workspace bin must be shimmed at {shim:?}",
-    );
+    assert!(shim.exists(), "fresh: the publicly hoisted workspace bin must be shimmed at {shim:?}");
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     pacquet_in(&workspace)
@@ -582,10 +549,7 @@ fn direct_dep_bin_wins_over_a_publicly_hoisted_workspace_package() {
         .to_string(),
     )
     .expect("write root package.json");
-    write_workspace_yaml(
-        &workspace,
-        "packages:\n  - 'packages/*'\npublicHoistPattern:\n  - '*'\n",
-    );
+    write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\npublicHoistPattern:\n  - '*'\n");
 
     // A workspace package claiming the same bin name.
     let pkg_dir = workspace.join("packages/collide");
@@ -630,10 +594,7 @@ fn direct_dep_bin_wins_over_a_publicly_hoisted_workspace_package() {
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
-    assert!(
-        workspace.join("node_modules/collide").exists(),
-        "hoisted after frozen replay too",
-    );
+    assert!(workspace.join("node_modules/collide").exists(), "hoisted after frozen replay too");
     assert_direct_wins("frozen");
 
     drop((root, mock_instance));

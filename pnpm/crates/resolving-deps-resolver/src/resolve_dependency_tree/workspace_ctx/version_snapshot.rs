@@ -22,10 +22,7 @@ impl WorkspaceTreeCtx {
             children_by_id: lock_recoverable(&self.children.by_id)
                 .iter()
                 .map(|(pkg_id, recorded)| {
-                    (
-                        std::sync::Arc::<str>::clone(pkg_id),
-                        Arc::clone(&recorded.edges),
-                    )
+                    (std::sync::Arc::<str>::clone(pkg_id), Arc::clone(&recorded.edges))
                 })
                 .collect(),
         }
@@ -217,7 +214,22 @@ impl super::WorkspaceChildrenState {
             if owner.importer_id != importer_id {
                 continue;
             }
-            record_owner_missing(owner, pkg_id, missing_by_pkg, &mut record);
+            let recorded_by_current_owner = record
+                .map()
+                .get(&**pkg_id)
+                .is_some_and(|entry| entry.recorded_by.as_ref() == Some(owner));
+            if !recorded_by_current_owner {
+                let names = missing_by_pkg
+                    .get(&**pkg_id)
+                    .map(owned_missing_names)
+                    .unwrap_or_default();
+                record
+                    .map_mut()
+                    .insert(
+                        std::sync::Arc::<str>::clone(pkg_id).to_string(),
+                        OwnerMissingRecord { recorded_by: Some(owner.clone()), names },
+                    );
+            }
         }
         for (pkg_id, names) in missing_by_pkg {
             if record.map().contains_key(*pkg_id) {
@@ -231,13 +243,7 @@ impl super::WorkspaceChildrenState {
                     .map_mut()
                     .insert(
                         (*pkg_id).to_owned(),
-                        OwnerMissingRecord {
-                            recorded_by: None,
-                            names: names
-                                .iter()
-                                .map(str::to_owned)
-                                .collect(),
-                        },
+                        OwnerMissingRecord { recorded_by: None, names: owned_missing_names(names) },
                     );
             }
         }
@@ -291,34 +297,9 @@ impl super::WorkspacePreferredVersions {
     }
 }
 
-fn record_owner_missing(
-    owner: &super::ChildrenOwner,
-    pkg_id: &Arc<str>,
-    missing_by_pkg: &HashMap<&str, MissingNames<'_>>,
-    record: &mut super::FirstWalkMissingCell,
-) {
-    let recorded_by_current_owner = record
-        .map()
-        .get(&**pkg_id)
-        .is_some_and(|entry| entry.recorded_by.as_ref() == Some(owner));
-    if !recorded_by_current_owner {
-        let names = missing_by_pkg
-            .get(&**pkg_id)
-            .map(|names| {
-                names
-                    .iter()
-                    .map(str::to_owned)
-                    .collect()
-            })
-            .unwrap_or_default();
-        record
-            .map_mut()
-            .insert(
-                std::sync::Arc::<str>::clone(pkg_id).to_string(),
-                OwnerMissingRecord {
-                    recorded_by: Some(owner.clone()),
-                    names,
-                },
-            );
-    }
+fn owned_missing_names(names: &MissingNames<'_>) -> super::HashSet<String> {
+    names
+        .iter()
+        .map(str::to_owned)
+        .collect()
 }

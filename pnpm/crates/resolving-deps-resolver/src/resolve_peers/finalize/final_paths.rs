@@ -60,10 +60,7 @@ impl Walker<'_> {
                     node_id,
                     peer_alias,
                     peer_node_id,
-                    FinalPeerContext {
-                        scc_of,
-                        cyclic_peer_names,
-                    },
+                    FinalPeerContext { scc_of, cyclic_peer_names },
                     final_dep_paths,
                     visiting,
                 )
@@ -155,12 +152,7 @@ impl Walker<'_> {
         }
         self.caches.node_dep_paths
             .keys()
-            .map(|node_id| {
-                (
-                    node_id.clone(),
-                    self.final_dep_path_of(node_id, final_dep_paths),
-                )
-            })
+            .map(|node_id| (node_id.clone(), self.final_dep_path_of(node_id, final_dep_paths)))
             .collect()
     }
 
@@ -200,8 +192,7 @@ impl Walker<'_> {
             if peers.is_empty() {
                 continue;
             }
-            let pkg_id =
-                &*self.tree.dependencies_tree[node_id].resolved_package_id;
+            let pkg_id = &*self.tree.dependencies_tree[node_id].resolved_package_id;
             let edges = edges_of_pkg.entry(pkg_id).or_default();
             for peer_alias in peers.keys() {
                 edges.insert(peer_alias.as_str());
@@ -244,10 +235,7 @@ impl Walker<'_> {
             .collect();
         participants.sort();
         participants.dedup();
-        let participant_set: HashSet<NodeId> = participants
-            .iter()
-            .cloned()
-            .collect();
+        let participant_set: HashSet<NodeId> = participants.iter().cloned().collect();
         let neighbors = |node_id: &NodeId| -> Vec<NodeId> {
             let mut out: Vec<NodeId> = self.nodes.external_peers
                 .get(node_id)

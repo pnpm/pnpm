@@ -11,36 +11,19 @@ fn keys(path: &str) -> Vec<Segment> {
 fn parses_dotted_and_bracketed_forms() {
     assert_eq!(
         keys("foo.bar.baz"),
-        vec![
-            Segment::Key("foo".into()),
-            Segment::Key("bar".into()),
-            Segment::Key("baz".into()),
-        ],
+        vec![Segment::Key("foo".into()), Segment::Key("bar".into()), Segment::Key("baz".into()),],
     );
-    assert_eq!(
-        keys(".foo.bar"),
-        vec![Segment::Key("foo".into()), Segment::Key("bar".into())],
-    );
+    assert_eq!(keys(".foo.bar"), vec![Segment::Key("foo".into()), Segment::Key("bar".into())]);
     assert_eq!(
         keys(r#"foo["bar"].baz"#),
-        vec![
-            Segment::Key("foo".into()),
-            Segment::Key("bar".into()),
-            Segment::Key("baz".into()),
-        ],
+        vec![Segment::Key("foo".into()), Segment::Key("bar".into()), Segment::Key("baz".into()),],
     );
-    assert_eq!(
-        keys("foo['bar']"),
-        vec![Segment::Key("foo".into()), Segment::Key("bar".into())],
-    );
+    assert_eq!(keys("foo['bar']"), vec![Segment::Key("foo".into()), Segment::Key("bar".into())]);
     assert_eq!(
         keys(r#"["foo"].bar"#),
         vec![Segment::Key("foo".into()), Segment::Key("bar".into())],
     );
-    assert_eq!(
-        keys("foo[123]"),
-        vec![Segment::Key("foo".into()), Segment::Index(123.0)],
-    );
+    assert_eq!(keys("foo[123]"), vec![Segment::Key("foo".into()), Segment::Index(123.0)]);
     assert!(keys("").is_empty());
 }
 
@@ -60,37 +43,21 @@ fn parses_scoped_package_keys() {
 fn parses_hyphenated_keys() {
     assert_eq!(
         keys("dependencies.some-package-name"),
-        vec![
-            Segment::Key("dependencies".into()),
-            Segment::Key("some-package-name".into())
-        ],
+        vec![Segment::Key("dependencies".into()), Segment::Key("some-package-name".into())],
     );
     assert_eq!(
         keys("devDependencies.another-package"),
-        vec![
-            Segment::Key("devDependencies".into()),
-            Segment::Key("another-package".into())
-        ],
+        vec![Segment::Key("devDependencies".into()), Segment::Key("another-package".into())],
     );
     assert_eq!(
         keys("a.b-c.d-e"),
-        vec![
-            Segment::Key("a".into()),
-            Segment::Key("b-c".into()),
-            Segment::Key("d-e".into())
-        ],
+        vec![Segment::Key("a".into()), Segment::Key("b-c".into()), Segment::Key("d-e".into())],
     );
-    assert_eq!(
-        keys("foo-bar[0]"),
-        vec![Segment::Key("foo-bar".into()), Segment::Index(0.0)],
-    );
+    assert_eq!(keys("foo-bar[0]"), vec![Segment::Key("foo-bar".into()), Segment::Index(0.0)]);
     // The bracketed form already accepted these keys, and still does.
     assert_eq!(
         keys(r#"dependencies["some-package-name"]"#),
-        vec![
-            Segment::Key("dependencies".into()),
-            Segment::Key("some-package-name".into())
-        ],
+        vec![Segment::Key("dependencies".into()), Segment::Key("some-package-name".into())],
     );
 }
 
@@ -98,20 +65,13 @@ fn parses_hyphenated_keys() {
 fn parse_errors() {
     assert_eq!(
         parse_property_path("foo..bar"),
-        Err(ParsePropertyPathError::UnexpectedToken {
-            token: ".".into()
-        }),
+        Err(ParsePropertyPathError::UnexpectedToken { token: ".".into() }),
     );
-    assert_eq!(
-        parse_property_path("foo["),
-        Err(ParsePropertyPathError::UnexpectedEndOfInput),
-    );
+    assert_eq!(parse_property_path("foo["), Err(ParsePropertyPathError::UnexpectedEndOfInput));
     // A hyphen still cannot start an identifier.
     assert_eq!(
         parse_property_path("dependencies.-foo"),
-        Err(ParsePropertyPathError::UnexpectedToken {
-            token: "-".into()
-        }),
+        Err(ParsePropertyPathError::UnexpectedToken { token: "-".into() }),
     );
 }
 
@@ -140,16 +100,7 @@ fn gets_nested_values() {
         Some(&json!("*")),
     );
     // out-of-range index, missing key, and non-numeric array index → None
-    assert_eq!(
-        get_object_value_by_property_path(&value, &keys("trustPolicyExclude[2]")),
-        None,
-    );
-    assert_eq!(
-        get_object_value_by_property_path(&value, &keys("nope")),
-        None,
-    );
-    assert_eq!(
-        get_object_value_by_property_path(&value, &keys("trustPolicyExclude.foo")),
-        None,
-    );
+    assert_eq!(get_object_value_by_property_path(&value, &keys("trustPolicyExclude[2]")), None);
+    assert_eq!(get_object_value_by_property_path(&value, &keys("nope")), None);
+    assert_eq!(get_object_value_by_property_path(&value, &keys("trustPolicyExclude.foo")), None);
 }

@@ -16,11 +16,7 @@ async fn resolves_a_package() {
     let client = PnprClient::new(pnpr_url);
 
     let outcome = client
-        .resolve(options(
-            &registry.url(),
-            &pnpr_auth,
-            deps([("@foo/no-deps", "1.0.0")]),
-        ))
+        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("install should succeed");
 
@@ -101,10 +97,7 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
     let candidate = ArtifactCandidate {
         key: publish.key.clone(),
         subject: ArtifactSubject::dependency_side_effects(
-            PackageIdentity {
-                name: "native-addon".to_string(),
-                version: "1.0.0".to_string(),
-            },
+            PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
             "sha512-source",
         ),
         owner: OwnerScope::organization("pnpr-client"),
@@ -135,8 +128,7 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
     assert!(untrusted.is_empty());
 
     let mut mismatched_candidate = candidate.clone();
-    let ArtifactSubject::DependencySideEffects { package, .. } =
-        &mut mismatched_candidate.subject
+    let ArtifactSubject::DependencySideEffects { package, .. } = &mut mismatched_candidate.subject
     else {
         unreachable!()
     };
@@ -176,10 +168,7 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
         .await
         .expect("resolve signed artifact");
     let artifact = selected.get(&publish.key).expect("trusted compatible variant selected");
-    assert_eq!(
-        artifact.payload.owner,
-        OwnerScope::organization("pnpr-client"),
-    );
+    assert_eq!(artifact.payload.owner, OwnerScope::organization("pnpr-client"));
     assert_eq!(artifact.envelope_digest.len(), 64);
     let quarantined_digest = artifact.envelope_digest.clone();
     let quarantined = client
@@ -221,10 +210,7 @@ async fn artifact_lookup_preserves_script_eligibility_and_allow_build_policy() {
     let candidate = ArtifactCandidate {
         key: publish.key,
         subject: ArtifactSubject::dependency_side_effects(
-            PackageIdentity {
-                name: "native-addon".to_string(),
-                version: "1.0.0".to_string(),
-            },
+            PackageIdentity { name: "native-addon".to_string(), version: "1.0.0".to_string() },
             "sha512-source",
         ),
         owner: OwnerScope::organization("pnpr-client"),
@@ -235,11 +221,7 @@ async fn artifact_lookup_preserves_script_eligibility_and_allow_build_policy() {
     let client = PnprClient::new("http://127.0.0.1:9/");
 
     for (ignore_scripts, eligible_packages, allowed_builds) in [
-        (
-            true,
-            HashSet::from([package_name.clone()]),
-            HashSet::from([package_name.clone()]),
-        ),
+        (true, HashSet::from([package_name.clone()]), HashSet::from([package_name.clone()])),
         (false, HashSet::new(), HashSet::from([package_name.clone()])),
         (false, HashSet::from([package_name]), HashSet::new()),
     ] {
@@ -270,11 +252,8 @@ async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time()
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
     let (fixture, _, _) = signed_artifact_fixture_for_platform(0);
     let (payload, _) = fixture.envelope.decode_payload().expect("decode fixture payload");
-    let candidate = ArtifactCandidate {
-        key: fixture.key,
-        subject: payload.subject,
-        owner: payload.owner,
-    };
+    let candidate =
+        ArtifactCandidate { key: fixture.key, subject: payload.subject, owner: payload.owner };
     let barrier = Arc::new(Barrier::new(PUBLICATIONS + 1));
     let mut publications = Vec::with_capacity(PUBLICATIONS);
     for index in 0..PUBLICATIONS {
@@ -284,8 +263,7 @@ async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time()
         let (publish, _, _) = signed_artifact_fixture_for_platform(index);
         publications.push(tokio::spawn(async move {
             barrier.wait().await;
-            PnprClient::new(pnpr_url).publish_artifact(&publish, Some(&pnpr_auth))
-                .await
+            PnprClient::new(pnpr_url).publish_artifact(&publish, Some(&pnpr_auth)).await
         }));
     }
     barrier.wait().await;
@@ -297,9 +275,7 @@ async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time()
     let response = reqwest::Client::new()
         .post(format!("{pnpr_url}-/pnpr/v0/artifacts/resolve"))
         .header(reqwest::header::AUTHORIZATION, pnpr_auth)
-        .json(&pnpm_pnpr_client::ResolveArtifactsRequest {
-            candidates: vec![candidate],
-        })
+        .json(&pnpm_pnpr_client::ResolveArtifactsRequest { candidates: vec![candidate] })
         .send()
         .await
         .expect("resolve artifacts response")
@@ -310,10 +286,7 @@ async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time()
         .expect("artifact resolve JSON");
     let variants =
         response["artifacts"][0]["variants"].as_array().expect("artifact variants array");
-    assert_eq!(
-        variants.len(),
-        pnpm_shared_artifact_protocol::MAX_VARIANTS_PER_CANDIDATE,
-    );
+    assert_eq!(variants.len(), pnpm_shared_artifact_protocol::MAX_VARIANTS_PER_CANDIDATE);
 }
 
 #[tokio::test]
@@ -332,10 +305,7 @@ async fn artifact_blob_misses_and_errors_are_caller_scoped() {
         .await
         .expect("missing blob response");
     assert_eq!(missing.status(), reqwest::StatusCode::NOT_FOUND);
-    assert_eq!(
-        missing.headers()[reqwest::header::CACHE_CONTROL],
-        "private, no-store",
-    );
+    assert_eq!(missing.headers()[reqwest::header::CACHE_CONTROL], "private, no-store");
     assert_eq!(missing.headers()[reqwest::header::VARY], "Authorization");
 
     let invalid = http
@@ -349,10 +319,7 @@ async fn artifact_blob_misses_and_errors_are_caller_scoped() {
         .await
         .expect("invalid blob response");
     assert_eq!(invalid.status(), reqwest::StatusCode::BAD_REQUEST);
-    assert_eq!(
-        invalid.headers()[reqwest::header::CACHE_CONTROL],
-        "private, no-store",
-    );
+    assert_eq!(invalid.headers()[reqwest::header::CACHE_CONTROL], "private, no-store");
     assert_eq!(invalid.headers()[reqwest::header::VARY], "Authorization");
 }
 
@@ -407,13 +374,9 @@ async fn resolves_a_scope_from_the_registry_declared_for_it() {
     // A default registry that is allowlisted but serves nothing: reaching it
     // for the scoped package is the failure this test is looking for.
     let dead_default = "http://127.0.0.1:9/";
-    let (pnpr_url, pnpr_auth, _storage) = start_pnpr_inner(
-        None,
-        Vec::new(),
-        vec![registry.url(), dead_default.to_string()],
-        false,
-    )
-    .await;
+    let (pnpr_url, pnpr_auth, _storage) =
+        start_pnpr_inner(None, Vec::new(), vec![registry.url(), dead_default.to_string()], false)
+            .await;
 
     let mut opts = options(dead_default, &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.routing.registries = BTreeMap::from([(
@@ -447,11 +410,7 @@ async fn a_declared_registry_the_resolve_never_reaches_is_not_rejected() {
     let registry = TestRegistry::start();
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
 
-    let mut opts = options(
-        &registry.url(),
-        &pnpr_auth,
-        deps([("@foo/no-deps", "1.0.0")]),
-    );
+    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.routing.registries = BTreeMap::from([(
         "http://169.254.169.254/".to_string(),
         RegistryDeclaration {
@@ -476,11 +435,7 @@ async fn a_declared_registry_the_resolve_reaches_is_refused() {
     let registry = TestRegistry::start();
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
 
-    let mut opts = options(
-        &registry.url(),
-        &pnpr_auth,
-        deps([("@foo/no-deps", "1.0.0")]),
-    );
+    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.routing.registries = BTreeMap::from([(
         "http://169.254.169.254/".to_string(),
         RegistryDeclaration {
@@ -493,12 +448,6 @@ async fn a_declared_registry_the_resolve_reaches_is_refused() {
         panic!("an off-allowlist registry the resolve reaches must be refused")
     };
     let error = error.to_string();
-    assert!(
-        error.contains("is not allowed by this pnpr server"),
-        "{error}",
-    );
-    assert!(
-        error.contains("169.254.169.254"),
-        "the refused origin is named: {error}",
-    );
+    assert!(error.contains("is not allowed by this pnpr server"), "{error}");
+    assert!(error.contains("169.254.169.254"), "the refused origin is named: {error}");
 }

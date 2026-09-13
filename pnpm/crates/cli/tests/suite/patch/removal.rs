@@ -15,19 +15,13 @@ fn patch_remove_removes_patch_file_manifest_entry_and_reinstalls() {
     let patched = fs::read_to_string(workspace.join("node_modules/is-positive/index.js")).unwrap();
     assert!(patched.contains("// patched"), "patched install: {patched}");
 
-    pacquet(
-        &workspace,
-        ["patch-remove", "is-positive@1.0.0", "--reporter=silent"],
-    )
-    .assert()
-    .success();
+    pacquet(&workspace, ["patch-remove", "is-positive@1.0.0", "--reporter=silent"])
+        .assert()
+        .success();
 
     let workspace_yaml =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("workspace yaml");
-    assert!(
-        !workspace_yaml.contains("patchedDependencies:"),
-        "workspace yaml: {workspace_yaml}",
-    );
+    assert!(!workspace_yaml.contains("patchedDependencies:"), "workspace yaml: {workspace_yaml}");
     assert!(
         !workspace.join("patches/is-positive@1.0.0.patch").exists(),
         "patch file should be removed",
@@ -46,19 +40,13 @@ fn patch_remove_keeps_missing_patch_files_as_noop_targets() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::remove_file(workspace.join("patches/is-positive@1.0.0.patch")).expect("remove patch file");
 
-    pacquet(
-        &workspace,
-        ["patch-remove", "is-positive@1.0.0", "--reporter=silent"],
-    )
-    .assert()
-    .success();
+    pacquet(&workspace, ["patch-remove", "is-positive@1.0.0", "--reporter=silent"])
+        .assert()
+        .success();
 
     let workspace_yaml =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("workspace yaml");
-    assert!(
-        !workspace_yaml.contains("patchedDependencies:"),
-        "workspace yaml: {workspace_yaml}",
-    );
+    assert!(!workspace_yaml.contains("patchedDependencies:"), "workspace yaml: {workspace_yaml}");
     let installed =
         fs::read_to_string(workspace.join("node_modules/is-positive/index.js")).unwrap();
     assert!(!installed.contains("// patched"), "installed: {installed}");
@@ -72,19 +60,13 @@ fn patch_remove_errors_when_requested_patch_is_missing_from_manifest() {
         setup_configured_patch("is-positive@1.0.0", "is-positive@1.0.0.patch");
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    let output = pacquet(
-        &workspace,
-        ["patch-remove", "is-negative", "--reporter=silent"],
-    )
-    .output()
-    .expect("run patch-remove");
+    let output = pacquet(&workspace, ["patch-remove", "is-negative", "--reporter=silent"])
+        .output()
+        .expect("run patch-remove");
 
     assert!(!output.status.success(), "unknown patch should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_PATCH_NOT_FOUND"),
-        "stderr: {stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_PATCH_NOT_FOUND"), "stderr: {stderr}");
     assert!(
         workspace.join("patches/is-positive@1.0.0.patch").exists(),
         "existing patch should not be removed",
@@ -113,15 +95,9 @@ fn patch_remove_errors_when_no_patches_are_configured() {
         .output()
         .expect("run patch-remove");
 
-    assert!(
-        !output.status.success(),
-        "patch-remove with no configured patches should fail",
-    );
+    assert!(!output.status.success(), "patch-remove with no configured patches should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_NO_PATCHES_TO_REMOVE"),
-        "stderr: {stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_NO_PATCHES_TO_REMOVE"), "stderr: {stderr}");
 
     drop((root, mock_instance));
 }
@@ -135,23 +111,14 @@ fn patch_remove_rejects_traversal_before_deleting_any_patch() {
     fs::write(workspace.join("patches/good.patch"), "good patch").expect("write good patch");
     fs::write(root.path().join("outside.patch"), "outside patch").expect("write outside patch");
 
-    let output = pacquet(
-        &workspace,
-        ["patch-remove", "good", "bad", "--reporter=silent"],
-    )
-    .output()
-    .expect("run patch-remove");
+    let output = pacquet(&workspace, ["patch-remove", "good", "bad", "--reporter=silent"])
+        .output()
+        .expect("run patch-remove");
 
     assert!(!output.status.success(), "outside patch should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_PATCH_FILE_OUTSIDE_PATCHES_DIR"),
-        "stderr: {stderr}",
-    );
-    assert!(
-        workspace.join("patches/good.patch").exists(),
-        "good patch must remain",
-    );
+    assert!(stderr.contains("ERR_PNPM_PATCH_FILE_OUTSIDE_PATCHES_DIR"), "stderr: {stderr}");
+    assert!(workspace.join("patches/good.patch").exists(), "good patch must remain");
     assert!(
         root
             .path()
@@ -173,26 +140,14 @@ fn patch_remove_rejects_directory_entries_before_deleting_any_patch() {
     fs::create_dir_all(workspace.join("patches/not-a-file.patch")).expect("create patch directory");
     fs::write(workspace.join("patches/good.patch"), "good patch").expect("write good patch");
 
-    let output = pacquet(
-        &workspace,
-        ["patch-remove", "good", "bad", "--reporter=silent"],
-    )
-    .output()
-    .expect("run patch-remove");
+    let output = pacquet(&workspace, ["patch-remove", "good", "bad", "--reporter=silent"])
+        .output()
+        .expect("run patch-remove");
 
-    assert!(
-        !output.status.success(),
-        "directory patch target should fail",
-    );
+    assert!(!output.status.success(), "directory patch target should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_PATCH_FILE_IS_DIRECTORY"),
-        "stderr: {stderr}",
-    );
-    assert!(
-        workspace.join("patches/good.patch").exists(),
-        "good patch must remain",
-    );
+    assert!(stderr.contains("ERR_PNPM_PATCH_FILE_IS_DIRECTORY"), "stderr: {stderr}");
+    assert!(workspace.join("patches/good.patch").exists(), "good patch must remain");
 
     drop((root, mock_instance));
 }
@@ -217,15 +172,9 @@ fn patch_remove_rejects_parent_symlink_outside_patches_dir_before_unlinking_targ
         .output()
         .expect("run patch-remove");
 
-    assert!(
-        !output.status.success(),
-        "parent symlink outside patches dir should fail",
-    );
+    assert!(!output.status.success(), "parent symlink outside patches dir should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_PATCH_FILE_OUTSIDE_PATCHES_DIR"),
-        "stderr: {stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_PATCH_FILE_OUTSIDE_PATCHES_DIR"), "stderr: {stderr}");
     assert!(
         fs::symlink_metadata(&outside_link)
             .expect("outside link")
@@ -250,18 +199,12 @@ fn patch_remove_unlinks_final_symlink_without_touching_target() {
     fs::write(&outside_target, "outside target").expect("write outside target");
     std::os::unix::fs::symlink(&outside_target, &patch_link).expect("symlink patch file");
 
-    pacquet(
-        &workspace,
-        ["patch-remove", "is-positive@1.0.0", "--reporter=silent"],
-    )
-    .assert()
-    .success();
+    pacquet(&workspace, ["patch-remove", "is-positive@1.0.0", "--reporter=silent"])
+        .assert()
+        .success();
 
     assert!(!patch_link.exists(), "patch symlink should be removed");
-    assert_eq!(
-        fs::read_to_string(&outside_target).expect("read outside target"),
-        "outside target",
-    );
+    assert_eq!(fs::read_to_string(&outside_target).expect("read outside target"), "outside target");
 
     drop((root, mock_instance));
 }
@@ -279,10 +222,7 @@ fn unused_patch_fails_with_err_pnpm_unused_patch() {
 
     let output = pacquet(&workspace, ["install"]).output().expect("run install");
 
-    assert!(
-        !output.status.success(),
-        "install with unused patch should fail",
-    );
+    assert!(!output.status.success(), "install with unused patch should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_UNUSED_PATCH"),
@@ -309,10 +249,7 @@ fn unused_patch_warns_when_allow_unused_patches_is_set() {
 
     let output = pacquet(&workspace, ["install"]).output().expect("run install");
 
-    assert!(
-        output.status.success(),
-        "install should succeed with allowUnusedPatches",
-    );
+    assert!(output.status.success(), "install should succeed with allowUnusedPatches");
     let combined = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -363,13 +300,10 @@ fn legacy_deploy_honors_allow_unused_patches_overrides() {
     )
     .assert()
     .success();
-    pacquet(
-        &workspace,
-        ["--filter=app", "deploy", "--legacy", "env-deploy"],
-    )
-    .env("PNPM_CONFIG_ALLOW_UNUSED_PATCHES", "true")
-    .assert()
-    .success();
+    pacquet(&workspace, ["--filter=app", "deploy", "--legacy", "env-deploy"])
+        .env("PNPM_CONFIG_ALLOW_UNUSED_PATCHES", "true")
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }
@@ -386,10 +320,7 @@ fn unused_patch_is_not_checked_on_a_filtered_install() {
         pacquet(&workspace, ["install", "--filter", "pkg-a"]).output().expect("run install");
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        output.status.success(),
-        "filtered install should succeed: {stderr}",
-    );
+    assert!(output.status.success(), "filtered install should succeed: {stderr}");
     assert!(
         !stderr.contains("ERR_PNPM_UNUSED_PATCH"),
         "filtered install should not run the unused-patch check: {stderr}",
@@ -412,10 +343,7 @@ fn unused_patch_is_checked_for_a_complete_root_augmented_filtered_install() {
         pacquet(&workspace, ["install", "--filter", "pkg-a"]).output().expect("run install");
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !output.status.success(),
-        "complete filtered install should fail: {stderr}",
-    );
+    assert!(!output.status.success(), "complete filtered install should fail: {stderr}");
     assert!(
         stderr.contains("ERR_PNPM_UNUSED_PATCH"),
         "complete filtered install should run the unused-patch check: {stderr}",

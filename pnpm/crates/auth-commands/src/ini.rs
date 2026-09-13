@@ -48,9 +48,7 @@ impl IniSettings {
                 Some((decode_value(key.trim()), decode_value(value.trim())))
             })
             .collect();
-        IniSettings {
-            entries,
-        }
+        IniSettings { entries }
     }
 
     /// Remove every entry whose key equals `key`. Returns `true` when at

@@ -111,17 +111,9 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
             .path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        dir.path(),
-        backdate_existing_files(dir.path()),
-        settings,
-        projects,
-    );
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -161,17 +153,9 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
             .path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        dir.path(),
-        backdate_existing_files(dir.path()),
-        settings,
-        projects,
-    );
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -261,17 +245,9 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
             .path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        dir.path(),
-        backdate_existing_files(dir.path()),
-        settings,
-        projects,
-    );
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -412,17 +388,9 @@ fn returns_skipped_when_minimum_release_age_drifts() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        stale_settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -461,17 +429,9 @@ fn returns_skipped_when_minimum_release_age_ignore_missing_time_drifts() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        stale_settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -509,17 +469,9 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        stale_settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -540,10 +492,8 @@ fn returns_skipped_when_package_extensions_drift() {
 
     let mut deps = std::collections::BTreeMap::new();
     deps.insert("dep-a".to_string(), "1.0.0".to_string());
-    let extension = pnpm_config::PackageExtension {
-        dependencies: Some(deps),
-        ..Default::default()
-    };
+    let extension =
+        pnpm_config::PackageExtension { dependencies: Some(deps), ..Default::default() };
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
@@ -560,10 +510,7 @@ fn returns_skipped_when_package_extensions_drift() {
     let mut extensions = indexmap::IndexMap::new();
     extensions.insert(
         "foo".to_string(),
-        pnpm_config::PackageExtension {
-            dependencies: Some(deps),
-            ..Default::default()
-        },
+        pnpm_config::PackageExtension { dependencies: Some(deps), ..Default::default() },
     );
     stale_config.package_extensions = Some(extensions);
     let stale_settings = current_settings(
@@ -575,17 +522,9 @@ fn returns_skipped_when_package_extensions_drift() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        stale_settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -625,17 +564,9 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        stale_settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -673,12 +604,8 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
     fs::create_dir_all(&config.modules_dir).unwrap();
     let config = config.leak();
 
-    let mut settings = current_settings(
-        config,
-        pnpm_config::NodeLinker::Isolated,
-        isolated_included(),
-        None,
-    );
+    let mut settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     // Populate fields pacquet records but `settings_match` does not
     // compare, to prove a difference on them keeps the fast path.
     // `workspacePackagePatterns` is recorded by pnpm from
@@ -690,17 +617,9 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     let decision = check(
         workspace_root,
@@ -723,12 +642,8 @@ fn returns_skipped_when_touched_manifest_adds_a_dependency() {
     .unwrap();
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
 
-    let decision = content_check_decision(
-        &dir,
-        config,
-        false,
-        &[(dir.path().to_path_buf(), &manifest)],
-    );
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("satisfied")),
         "expected Skipped(no longer satisfied), got {decision:?}",
@@ -751,22 +666,14 @@ fn modified_at_or_after_compares_at_nanosecond_precision() {
     let ns = ms * 1_000_000; // the same instant, in ns
 
     // Whole-second (coarse filesystem) mtime: the whole second is possibly-after.
-    let coarse = FileMtime {
-        ms,
-        ns,
-        whole_second: true,
-    };
+    let coarse = FileMtime { ms, ns, whole_second: true };
     assert!(modified_at_or_after(coarse, ms));
     assert!(modified_at_or_after(coarse, ms + 999));
     // The reference is in a later second: the whole second is before it.
     assert!(!modified_at_or_after(coarse, ms + 1_000));
 
     // Sub-second mtime exactly on the millisecond boundary: equal is not after.
-    let on_boundary = FileMtime {
-        ms,
-        ns,
-        whole_second: false,
-    };
+    let on_boundary = FileMtime { ms, ns, whole_second: false };
     assert!(!modified_at_or_after(on_boundary, ms));
     assert!(!modified_at_or_after(on_boundary, ms + 1));
     assert!(modified_at_or_after(on_boundary, ms - 1));
@@ -774,11 +681,7 @@ fn modified_at_or_after_compares_at_nanosecond_precision() {
     // Same millisecond as the reference, half a millisecond later: the
     // millisecond values tie, but the nanosecond mtime does not, so the
     // edit is still seen (the same-millisecond flake this guards against).
-    let later_in_same_ms = FileMtime {
-        ms,
-        ns: ns + 500_000,
-        whole_second: false,
-    };
+    let later_in_same_ms = FileMtime { ms, ns: ns + 500_000, whole_second: false };
     assert!(modified_at_or_after(later_in_same_ms, ms));
 }
 /// The reproduction command spells the dependency-group flags the way
@@ -789,27 +692,16 @@ fn modified_at_or_after_compares_at_nanosecond_precision() {
 fn install_args_reproduce_the_recorded_dependency_groups() {
     let args = |dev: Option<bool>, optional: Option<bool>, production: Option<bool>| {
         let state = WorkspaceState {
-            settings: WorkspaceStateSettings {
-                dev,
-                optional,
-                production,
-                ..Default::default()
-            },
+            settings: WorkspaceStateSettings { dev, optional, production, ..Default::default() },
             ..Default::default()
         };
         install_args_from_state(&state)
     };
 
     assert_eq!(args(None, Some(true), Some(true)), ["--prod"]);
-    assert_eq!(
-        args(None, Some(false), Some(true)),
-        ["--prod", "--no-optional"],
-    );
+    assert_eq!(args(None, Some(false), Some(true)), ["--prod", "--no-optional"]);
     assert_eq!(args(Some(true), Some(true), None), ["--dev"]);
-    assert_eq!(
-        args(Some(true), Some(false), None),
-        ["--dev", "--no-optional"],
-    );
+    assert_eq!(args(Some(true), Some(false), None), ["--dev", "--no-optional"]);
     assert_eq!(args(Some(true), Some(true), Some(true)), [] as [&str; 0]);
     assert_eq!(args(Some(true), Some(false), Some(true)), ["--no-optional"]);
 }

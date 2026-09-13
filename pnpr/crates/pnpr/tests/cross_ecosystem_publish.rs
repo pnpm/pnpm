@@ -58,9 +58,7 @@ fn tri_ecosystem_config(storage: PathBuf) -> Config {
         .collect();
     graph.insert(
         "crates".to_string(),
-        Registry::Hosted {
-            patterns: vec![PackagePattern::parse("demo", Ecosystem::Npm).unwrap()],
-        },
+        Registry::Hosted { patterns: vec![PackagePattern::parse("demo", Ecosystem::Npm).unwrap()] },
     );
     graph.insert(
         "python".to_string(),
@@ -70,9 +68,7 @@ fn tri_ecosystem_config(storage: PathBuf) -> Config {
     );
     graph.insert(
         "main".to_string(),
-        Registry::Router {
-            sources: ["local", "crates", "python"].map(str::to_string).to_vec(),
-        },
+        Registry::Router { sources: ["local", "crates", "python"].map(str::to_string).to_vec() },
     );
     let registries = Registries::new(graph, Some("main".to_string()))
         .with_ecosystem("crates", Ecosystem::Cargo)
@@ -136,10 +132,7 @@ fn crate_archive(name: &str, version: &str) -> Vec<u8> {
     let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
     let mut builder = tar::Builder::new(encoder);
     for (path, contents) in [
-        (
-            "Cargo.toml",
-            format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n"),
-        ),
+        ("Cargo.toml", format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n")),
         ("src/lib.rs", "pub fn demo() {}\n".to_string()),
     ] {
         let mut header = tar::Header::new_gnu();
@@ -217,10 +210,7 @@ const WHEEL: &str = "demo_pkg-1.0.0-py3-none-any.whl";
 async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router_with_auth(
-        tri_ecosystem_config(storage.clone()),
-        AuthState::in_memory(),
-    );
+    let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
     let token = token_for(&app, "alice").await;
     let tarball = b"npm-tarball-bytes";
     let archive = crate_archive("demo", "0.1.0");
@@ -250,10 +240,7 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
         .await
         .unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
-    assert_eq!(
-        body_json(packument.into_body()).await["dist-tags"]["latest"],
-        "1.0.0",
-    );
+    assert_eq!(body_json(packument.into_body()).await["dist-tags"]["latest"], "1.0.0");
     let npm_tarball = app
         .clone()
         .oneshot(
@@ -277,13 +264,7 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
         .unwrap();
     assert_eq!(index.status(), StatusCode::OK);
     let line = String::from_utf8(body_bytes(index.into_body()).await).unwrap();
-    let entry: Value = serde_json::from_str(
-        line
-            .lines()
-            .next()
-            .unwrap(),
-    )
-    .unwrap();
+    let entry: Value = serde_json::from_str(line.lines().next().unwrap()).unwrap();
     assert_eq!(entry["vers"], "0.1.0");
     assert_eq!(entry["cksum"], sha256_hex(&archive));
     let download = app
@@ -308,10 +289,7 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
         .await
         .unwrap();
     assert_eq!(page.status(), StatusCode::OK);
-    assert_eq!(
-        body_json(page.into_body()).await["files"][0]["filename"],
-        WHEEL,
-    );
+    assert_eq!(body_json(page.into_body()).await["files"][0]["filename"], WHEEL);
     let file = app
         .oneshot(
             Request::get(format!("/pypi/files/demo-pkg/{WHEEL}"))
@@ -330,10 +308,7 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
 async fn a_batch_with_one_bad_entry_publishes_none_of_it() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router_with_auth(
-        tri_ecosystem_config(storage.clone()),
-        AuthState::in_memory(),
-    );
+    let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
     let token = token_for(&app, "alice").await;
     let wheel = b"PK\x03\x04 pretend wheel";
 
@@ -353,11 +328,7 @@ async fn a_batch_with_one_bad_entry_publishes_none_of_it() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    for path in [
-        "/mixed-pkg",
-        "/cargo/index/de/mo/demo",
-        "/pypi/simple/demo-pkg/",
-    ] {
+    for path in ["/mixed-pkg", "/cargo/index/de/mo/demo", "/pypi/simple/demo-pkg/"] {
         let response = app
             .clone()
             .oneshot(
@@ -429,11 +400,7 @@ async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
         .unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
     let packument = body_json(packument.into_body()).await;
-    assert_eq!(
-        packument["versions"],
-        json!({}),
-        "the version that lost is not advertised",
-    );
+    assert_eq!(packument["versions"], json!({}), "the version that lost is not advertised");
     let index = app
         .oneshot(
             Request::get("/cargo/index/de/mo/demo")
@@ -442,11 +409,7 @@ async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
         )
         .await
         .unwrap();
-    assert_eq!(
-        index.status(),
-        StatusCode::OK,
-        "the crate beside it stays published",
-    );
+    assert_eq!(index.status(), StatusCode::OK, "the crate beside it stays published");
     assert_eq!(
         store
             .get(&ObjectPath::from("mixed-pkg/mixed-pkg-1.0.0.tgz"))
@@ -467,10 +430,7 @@ async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
 async fn a_failure_while_staging_takes_the_staged_blobs_with_it() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router_with_auth(
-        tri_ecosystem_config(storage.clone()),
-        AuthState::in_memory(),
-    );
+    let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
     let token = token_for(&app, "alice").await;
     let mut broken = npm_entry("mixed-pkg", "1.0.0", b"npm-tarball-bytes");
     broken["versions"]["1.0.0"]["dist"]["integrity"] = json!(sri_sha512(b"other bytes"));
@@ -491,11 +451,7 @@ async fn a_failure_while_staging_takes_the_staged_blobs_with_it() {
     let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(reason.contains("EINTEGRITY"), "{reason}");
 
-    for path in [
-        "/mixed-pkg",
-        "/cargo/index/de/mo/demo",
-        "/pypi/simple/demo-pkg/",
-    ] {
+    for path in ["/mixed-pkg", "/cargo/index/de/mo/demo", "/pypi/simple/demo-pkg/"] {
         let response = app
             .clone()
             .oneshot(
@@ -517,10 +473,7 @@ async fn a_failure_while_staging_takes_the_staged_blobs_with_it() {
 async fn a_duplicate_in_one_ecosystem_stops_the_whole_batch() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router_with_auth(
-        tri_ecosystem_config(storage.clone()),
-        AuthState::in_memory(),
-    );
+    let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
     let token = token_for(&app, "alice").await;
     let archive = crate_archive("demo", "0.1.0");
 
@@ -553,11 +506,7 @@ async fn a_duplicate_in_one_ecosystem_stops_the_whole_batch() {
         )
         .await
         .unwrap();
-    assert_eq!(
-        packument.status(),
-        StatusCode::NOT_FOUND,
-        "the npm package must not be published",
-    );
+    assert_eq!(packument.status(), StatusCode::NOT_FOUND, "the npm package must not be published");
     assert_eq!(staged_files(&storage), Vec::<PathBuf>::new());
 }
 
@@ -566,10 +515,8 @@ async fn a_duplicate_in_one_ecosystem_stops_the_whole_batch() {
 #[tokio::test]
 async fn a_malformed_batch_is_a_bad_request() {
     let tmp = TempDir::new().unwrap();
-    let app = router_with_auth(
-        tri_ecosystem_config(tmp.path().to_path_buf()),
-        AuthState::in_memory(),
-    );
+    let app =
+        router_with_auth(tri_ecosystem_config(tmp.path().to_path_buf()), AuthState::in_memory());
     let token = token_for(&app, "alice").await;
 
     for body in [
@@ -591,10 +538,8 @@ async fn a_malformed_batch_is_a_bad_request() {
 #[tokio::test]
 async fn a_spelled_out_npm_entry_does_not_leak_its_routing_field() {
     let tmp = TempDir::new().unwrap();
-    let app = router_with_auth(
-        tri_ecosystem_config(tmp.path().to_path_buf()),
-        AuthState::in_memory(),
-    );
+    let app =
+        router_with_auth(tri_ecosystem_config(tmp.path().to_path_buf()), AuthState::in_memory());
     let token = token_for(&app, "alice").await;
     let mut entry = npm_entry("mixed-pkg", "1.0.0", b"npm-tarball-bytes");
     entry["ecosystem"] = json!("npm");
@@ -627,10 +572,8 @@ async fn a_spelled_out_npm_entry_does_not_leak_its_routing_field() {
 #[tokio::test]
 async fn an_uppercase_digest_is_accepted() {
     let tmp = TempDir::new().unwrap();
-    let app = router_with_auth(
-        tri_ecosystem_config(tmp.path().to_path_buf()),
-        AuthState::in_memory(),
-    );
+    let app =
+        router_with_auth(tri_ecosystem_config(tmp.path().to_path_buf()), AuthState::in_memory());
     let token = token_for(&app, "alice").await;
     let wheel = b"PK\x03\x04 pretend wheel";
     let mut entry = pypi_entry("demo-pkg", "1.0.0", WHEEL, wheel);
@@ -651,10 +594,7 @@ async fn an_uppercase_digest_is_accepted() {
 async fn an_anonymous_batch_publishes_nothing() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router_with_auth(
-        tri_ecosystem_config(storage.clone()),
-        AuthState::in_memory(),
-    );
+    let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
 
     let body = json!({ "packages": [npm_entry("mixed-pkg", "1.0.0", b"npm-tarball-bytes")] });
     let response = app
@@ -681,10 +621,7 @@ async fn an_anonymous_batch_publishes_nothing() {
 async fn a_repeated_package_is_refused_but_a_shared_name_across_ecosystems_is_not() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router_with_auth(
-        tri_ecosystem_config(storage.clone()),
-        AuthState::in_memory(),
-    );
+    let app = router_with_auth(tri_ecosystem_config(storage.clone()), AuthState::in_memory());
     let token = token_for(&app, "alice").await;
 
     let repeated = json!({
@@ -695,11 +632,7 @@ async fn a_repeated_package_is_refused_but_a_shared_name_across_ecosystems_is_no
     });
     let response = app
         .clone()
-        .oneshot(publish_request(
-            "/-/pnpr/v0/publish",
-            &repeated,
-            Some(&token),
-        ))
+        .oneshot(publish_request("/-/pnpr/v0/publish", &repeated, Some(&token)))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -713,11 +646,7 @@ async fn a_repeated_package_is_refused_but_a_shared_name_across_ecosystems_is_no
         ],
     });
     let response = app
-        .oneshot(publish_request(
-            "/-/pnpr/v0/publish",
-            &shared_name,
-            Some(&token),
-        ))
+        .oneshot(publish_request("/-/pnpr/v0/publish", &shared_name, Some(&token)))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);

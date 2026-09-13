@@ -5,11 +5,7 @@ use std::path::Path;
 /// An anchor that is absolute on every platform — a bare `/ws/root` is
 /// not absolute on Windows (no drive prefix), which the guards reject.
 fn abs_root() -> &'static Path {
-    if cfg!(windows) {
-        Path::new(r"C:\ws\root")
-    } else {
-        Path::new("/ws/root")
-    }
+    if cfg!(windows) { Path::new(r"C:\ws\root") } else { Path::new("/ws/root") }
 }
 
 /// Each fast path must agree with the absolute-space math it stands in
@@ -44,16 +40,7 @@ fn rel_space_matches_absolute_space() {
 #[test]
 fn guards_send_unclean_inputs_to_the_fallback() {
     let root = abs_root();
-    assert_eq!(
-        importer_rel_dir(
-            &root
-                .parent()
-                .unwrap()
-                .join("other/app"),
-            root
-        ),
-        None,
-    );
+    assert_eq!(importer_rel_dir(&root.parent().unwrap().join("other/app"), root), None);
     assert_eq!(importer_rel_dir(&root.join("a/../b"), root), None);
     assert_eq!(
         importer_rel_dir(&root.join("../root/app"), &root.join("../root")),
@@ -69,24 +56,12 @@ fn guards_send_unclean_inputs_to_the_fallback() {
 
     assert_eq!(anchor.target_relative_to_lockfile_root(abs_target), None);
     // Escapes the lockfile root: `packages/app` + `../../../outside`.
-    assert_eq!(
-        anchor.target_relative_to_lockfile_root("../../../outside"),
-        None,
-    );
+    assert_eq!(anchor.target_relative_to_lockfile_root("../../../outside"), None);
 
     // A disarmed anchor renders nothing at all.
-    let disarmed = ImporterAnchor::new(
-        &root
-            .parent()
-            .unwrap()
-            .join("other/app"),
-        root,
-    );
+    let disarmed = ImporterAnchor::new(&root.parent().unwrap().join("other/app"), root);
     assert_eq!(disarmed.target_relative_to_importer("packages/lib"), None);
-    assert_eq!(
-        disarmed.target_relative_to_lockfile_root("packages/lib"),
-        None,
-    );
+    assert_eq!(disarmed.target_relative_to_lockfile_root("packages/lib"), None);
 }
 
 /// Targets whose kept tail is not verbatim — collapsed separators, `.`
@@ -95,12 +70,7 @@ fn guards_send_unclean_inputs_to_the_fallback() {
 #[test]
 fn filtered_segments_render_like_their_clean_spelling() {
     let anchor = ImporterAnchor::new(&abs_root().join("packages/app"), abs_root());
-    for messy in [
-        "packages//lib",
-        "packages/./lib",
-        "packages/lib/",
-        "./packages/lib",
-    ] {
+    for messy in ["packages//lib", "packages/./lib", "packages/lib/", "./packages/lib"] {
         assert_eq!(
             anchor.target_relative_to_importer(messy),
             Some("../lib".to_string()),
@@ -139,18 +109,9 @@ fn root_importer_uses_the_empty_suffix() {
 #[cfg(windows)]
 #[test]
 fn windows_drive_relative_and_rootless_anchors_use_the_fallback() {
-    assert_eq!(
-        importer_rel_dir(Path::new(r"C:ws\root\app"), Path::new(r"C:ws\root")),
-        None,
-    );
-    assert_eq!(
-        importer_rel_dir(Path::new(r"\ws\root\app"), Path::new(r"\ws\root")),
-        None,
-    );
+    assert_eq!(importer_rel_dir(Path::new(r"C:ws\root\app"), Path::new(r"C:ws\root")), None);
+    assert_eq!(importer_rel_dir(Path::new(r"\ws\root\app"), Path::new(r"\ws\root")), None);
     let anchor = ImporterAnchor::new(Path::new(r"C:\ws\root\app"), Path::new(r"C:\ws\root"));
-    assert_eq!(
-        anchor.target_relative_to_lockfile_root(r"\abs\target"),
-        None,
-    );
+    assert_eq!(anchor.target_relative_to_lockfile_root(r"\abs\target"), None);
     assert_eq!(anchor.target_relative_to_lockfile_root(r"C:abs"), None);
 }

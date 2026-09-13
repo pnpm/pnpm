@@ -61,9 +61,8 @@ pub(super) struct StreamedResolve {
 /// Resolve, then send the terminal `done` / `error` frame. The `package`
 /// frames reach the channel from the observer as each tarball resolves.
 pub(super) async fn stream_resolution(task: StreamedResolve) {
-    let tx = &task.tx;
-    let config = task.inputs.config;
-    let tarball_router = &task.inputs.tarball_router;
+    let StreamedResolve { inputs, tx, .. } = &task;
+    let StreamedResolveInputs { config, tarball_router, .. } = inputs;
     let resolved = Box::pin(resolve::resolve(
         task.inputs.config,
         &task.client,

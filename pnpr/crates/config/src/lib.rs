@@ -16,9 +16,6 @@ pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix
 
 pub use self::upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy};
 
-mod cors;
-use cors::{build_cors_config, normalize_cors_origin};
-
 mod logging;
 use logging::build_log_config;
 
@@ -41,8 +38,8 @@ use config_file::{
 
 mod registry_graph;
 use registry_graph::{
-    ResolvedFileRegistries, org_collision_error, registry_err, resolve_file_registries,
-    validate_org_namespace, validate_registry_key, validate_registry_name,
+    ResolvedFileRegistries, org_collision_error, registry_err, registry_mock_graph,
+    resolve_file_registries, validate_org_namespace, validate_registry_key, validate_registry_name,
 };
 
 mod access;
@@ -269,9 +266,7 @@ impl CorsConfig {
                 allowed_origins.push(origin);
             }
         }
-        Ok(Self {
-            allowed_origins,
-        })
+        Ok(Self { allowed_origins })
     }
 
     #[must_use]
@@ -316,9 +311,7 @@ pub struct RegistryFeature {
 
 impl Default for RegistryFeature {
     fn default() -> Self {
-        Self {
-            enabled: true,
-        }
+        Self { enabled: true }
     }
 }
 
@@ -335,9 +328,7 @@ pub struct ResolverFeature {
 
 impl Default for ResolverFeature {
     fn default() -> Self {
-        Self {
-            enabled: true,
-        }
+        Self { enabled: true }
     }
 }
 
@@ -485,12 +476,8 @@ fn build_features(
     let artifacts_file = artifacts.unwrap_or_default();
     let pipeline_file = pipeline.unwrap_or_default();
     Ok(Features {
-        registry: RegistryFeature {
-            enabled: registry_declared && !overrides.disable_registry,
-        },
-        resolver: ResolverFeature {
-            enabled: resolver_file.enabled && !overrides.disable_resolver,
-        },
+        registry: RegistryFeature { enabled: registry_declared && !overrides.disable_registry },
+        resolver: ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver },
         artifacts: ArtifactsFeature {
             enabled: artifacts_file.enabled && !overrides.disable_artifacts,
             compiler_caches: parse_storage_access(artifacts_file.compiler_caches)?,
@@ -502,16 +489,38 @@ fn build_features(
     })
 }
 
+fn build_cors_config(file: CorsFile) -> Result<CorsConfig, RegistryError> {
+    CorsConfig::from_allowed_origins(file.allowed_origins)
+}
+
+fn normalize_cors_origin(raw: &str) -> Result<String, RegistryError> {
+    let parsed = url::Url::parse(raw)
+        .map_err(|_| RegistryError::InvalidConfig {
+            reason: format!("CORS allowed origin {raw:?} is not an absolute URL"),
+        })?;
+    if !matches!(parsed.scheme(), "http" | "https")
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+        || parsed.path() != "/"
+    {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "CORS allowed origin {raw:?} must contain only an http(s) scheme, host, and optional port",
+            ),
+        });
+    }
+    Ok(parsed.origin().ascii_serialization())
+}
+
 fn build_route_policy(file: Option<RoutesFile>) -> RoutePolicy {
     match file {
         None => RoutePolicy::default(),
         Some(file) => RoutePolicy {
             public: file.public
                 .into_iter()
-                .map(|route| PublicRoute {
-                    registry: route.registry,
-                    package: route.package,
-                })
+                .map(|route| PublicRoute { registry: route.registry, package: route.package })
                 .collect(),
         },
     }
@@ -554,9 +563,7 @@ fn random_secret() -> Arc<[u8]> {
 fn build_osv_config(file: &OsvFile, base_dir: &Path) -> OsvConfig {
     OsvConfig {
         enabled: file.enabled,
-        path: file.path
-            .as_deref()
-            .map(|path| resolve_relative(path, base_dir)),
+        path: file.path.as_deref().map(|path| resolve_relative(path, base_dir)),
     }
 }
 
@@ -622,10 +629,8 @@ fn parse_storage_access(
                         reason: format!("storage namespace {name:?}: {reason}"),
                     })
             };
-            let access = StorageAccess {
-                access: parse(&policy.access)?,
-                publish: parse(&policy.publish)?,
-            };
+            let access =
+                StorageAccess { access: parse(&policy.access)?, publish: parse(&policy.publish)? };
             Ok((name, access))
         })
         .collect()
@@ -635,9 +640,6 @@ fn resolve_storage_paths(file: &ConfigFile, base_dir: &Path) -> (PathBuf, PathBu
     let storage = resolve_relative(&file.storage, base_dir);
     let cache = file.cache
         .as_deref()
-        .map_or_else(
-            || default_cache_dir(&storage),
-            |raw| resolve_relative(raw, base_dir),
-        );
+        .map_or_else(|| default_cache_dir(&storage), |raw| resolve_relative(raw, base_dir));
     (storage, cache)
 }

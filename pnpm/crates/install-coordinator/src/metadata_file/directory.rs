@@ -59,10 +59,7 @@ impl PinnedDirectory {
             .open(&path)
             .into_diagnostic()
             .wrap_err_with(|| format!("open directory {}", path.display()))?;
-        Ok(Self {
-            path,
-            handle,
-        })
+        Ok(Self { path, handle })
     }
 
     #[cfg(windows)]
@@ -71,18 +68,12 @@ impl PinnedDirectory {
             .into_diagnostic()
             .wrap_err_with(|| format!("open directory {}", path.display()))?;
         ensure_real_windows_directory(&handle, &path)?;
-        Ok(Self {
-            path,
-            handles: vec![handle],
-        })
+        Ok(Self { path, handles: vec![handle] })
     }
 
     pub(super) fn open_descendant(&self, components: &[OsString]) -> io::Result<Self> {
         #[cfg(unix)]
-        let mut directory = Self {
-            path: self.path.clone(),
-            handle: self.handle.try_clone()?,
-        };
+        let mut directory = Self { path: self.path.clone(), handle: self.handle.try_clone()? };
         #[cfg(windows)]
         let mut directory = Self {
             path: self.path.clone(),
@@ -112,10 +103,7 @@ impl PinnedDirectory {
             )
         };
         let handle = file_from_descriptor(descriptor)?;
-        Ok(Self {
-            path: self.path.join(OsStr::from_bytes(name.as_bytes())),
-            handle,
-        })
+        Ok(Self { path: self.path.join(OsStr::from_bytes(name.as_bytes())), handle })
     }
 
     #[cfg(windows)]
@@ -128,10 +116,7 @@ impl PinnedDirectory {
             .map(fs::File::try_clone)
             .collect::<io::Result<Vec<_>>>()?;
         handles.push(handle);
-        Ok(Self {
-            path,
-            handles,
-        })
+        Ok(Self { path, handles })
     }
 }
 

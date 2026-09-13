@@ -15,8 +15,7 @@ pub(super) async fn serve_private_revision_refs(
 ) -> Response {
     for (storage, package, version) in scan.private_refs {
         let response =
-            open_hosted_revision_tarball(&storage, &package, &version, digest, integrity)
-                .await;
+            open_hosted_revision_tarball(&storage, &package, &version, digest, integrity).await;
         if response.status() != StatusCode::NOT_FOUND {
             return response;
         }
@@ -64,9 +63,7 @@ pub(super) async fn serve_revision_refs(
             digest: source.digest,
             integrity: source.integrity,
         };
-        if let Some(response) = serve_revision_ref(state, identity, reference, scan)
-            .await
-        {
+        if let Some(response) = serve_revision_ref(state, identity, reference, scan).await {
             return Some(response);
         }
     }
@@ -100,20 +97,19 @@ pub(super) async fn serve_revision_ref(
         digest,
         integrity,
     } = reference;
-    let package = match parse_revision_package(&original.package, &original.version) {
-        Ok(package) => package,
-        Err(err) => return Some(private_no_cache(err.into_response())),
-    };
-    let routed = Routed {
-        registry,
-        source,
-    };
-    if !readable_here(state, identity, routed, &package) {
+    let package =
+        match CanonicalPackageName::parse(&original.package, pnpr_package_name::Ecosystem::Npm) {
+            Ok(package) => package,
+            Err(err) => return Some(private_no_cache(err.into_response())),
+        };
+    let filename = package.tarball_name_for_version(&original.version);
+    if let Err(err) = package.canonicalize_tarball_name(&filename) {
+        return Some(private_no_cache(err.into_response()));
+    }
+    if !readable_here(state, identity, Routed { registry, source }, &package) {
         return None;
     }
-    match hosted_original_is_current(storage, &package, &original.version, digest)
-        .await
-    {
+    match hosted_original_is_current(storage, &package, &original.version, digest).await {
         Ok(true) => {}
         Ok(false) => return None,
         Err(err) => return Some(private_no_cache(err.into_response())),
@@ -122,13 +118,12 @@ pub(super) async fn serve_revision_ref(
         scan.policy_error.get_or_insert(err);
         return None;
     }
-    if !readable_here(state, &Identity::Anonymous, routed, &package) {
+    if !readable_here(state, &Identity::Anonymous, Routed { registry, source }, &package) {
         scan.private_refs.push((storage.clone(), package, original.version));
         return None;
     }
     let response =
-        open_hosted_revision_tarball(storage, &package, &original.version, digest, integrity)
-            .await;
+        open_hosted_revision_tarball(storage, &package, &original.version, digest, integrity).await;
     (response.status() != StatusCode::NOT_FOUND).then_some(response)
 }
 
@@ -176,13 +171,4 @@ pub(super) async fn hosted_revision_refs(
         .into_iter()
         .map(|bytes| serde_json::from_slice(&bytes).map_err(RegistryError::Json))
         .collect()
-}
-
-fn parse_revision_package(
-    package: &str,
-    version: &str,
-) -> Result<CanonicalPackageName, RegistryError> {
-    let package = CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm)?;
-    package.canonicalize_tarball_name(&package.tarball_name_for_version(version))?;
-    Ok(package)
 }

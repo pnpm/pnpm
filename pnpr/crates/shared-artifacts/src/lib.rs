@@ -1,7 +1,5 @@
 pub use compiler_cache::{CompilerCacheKey, MAX_COMPILER_CACHE_ENTRY_SIZE};
 
-mod resolution;
-
 mod publication_quota;
 use publication_quota::{
     PublicationQuota, expire_stranded_publications, finish_outcome, publication_charge,
@@ -36,7 +34,7 @@ use std::{
 };
 
 use bytes::Bytes;
-use futures_util::stream::BoxStream;
+use futures_util::{StreamExt as _, stream::BoxStream};
 use object_store::{
     ObjectMeta, ObjectStore, ObjectStoreExt, PutMode, PutOptions, PutPayload, UpdateVersion,
     local::LocalFileSystem, path::Path as ObjectPath,
@@ -138,11 +136,7 @@ struct StoredArtifacts {
 
 impl Default for StoredArtifacts {
     fn default() -> Self {
-        Self {
-            referenced_blobs: HashSet::new(),
-            digests: HashSet::new(),
-            every_variant_read: true,
-        }
+        Self { referenced_blobs: HashSet::new(), digests: HashSet::new(), every_variant_read: true }
     }
 }
 
@@ -214,23 +208,49 @@ impl SharedArtifactStore {
                     global_limit: MAX_GLOBAL_ARTIFACT_BYTES,
                 })
             }
-            HostedStoreConfig::S3(settings) => Ok(Self::object_store(
-                build_s3_store(settings)?,
-                &settings.normalized_prefix(),
-            )),
-            HostedStoreConfig::ObjectStore { store, prefix } => Ok(Self::object_store(
-                Arc::clone(store),
-                &normalize_key_prefix(Some(prefix)),
-            )),
+            HostedStoreConfig::S3(settings) => {
+                Ok(Self::object_store(build_s3_store(settings)?, &settings.normalized_prefix()))
+            }
+            HostedStoreConfig::ObjectStore { store, prefix } => {
+                Ok(Self::object_store(Arc::clone(store), &normalize_key_prefix(Some(prefix))))
+            }
         }
+    }
+
+    pub async fn resolve(&self, username: &str, body: &[u8]) -> Result<ResolveArtifactsResponse> {
+        let request: ResolveArtifactsRequest = serde_json::from_slice(body)
+            .map_err(|err| bad_request(format!("invalid shared artifact lookup: {err}")))?;
+        if request.candidates.len() > MAX_CANDIDATES {
+            return Err(bad_request(format!(
+                "lookup contains {} candidates; limit is {MAX_CANDIDATES}",
+                request.candidates.len(),
+            )));
+        }
+        let mut seen = HashSet::with_capacity(request.candidates.len());
+        let mut artifacts = Vec::new();
+        let mut budget = ResolveBudget {
+            used_bytes: serde_json::to_vec(&ResolveArtifactsResponse { artifacts: Vec::new() })?
+                .len(),
+        };
+        for candidate in request.candidates {
+            candidate.validate().map_err(|err| protocol_error(&err))?;
+            if !seen.insert(candidate.key.clone()) {
+                return Err(bad_request("lookup contains a duplicate candidate".to_string()));
+            }
+            let Some(resolved) = self.resolve_candidate(username, &candidate, &mut budget).await?
+            else {
+                continue;
+            };
+            budget.add_response(&resolved, !artifacts.is_empty())?;
+            artifacts.push(resolved);
+        }
+        Ok(ResolveArtifactsResponse { artifacts })
     }
 
     pub async fn read_blob(&self, username: &str, body: &[u8]) -> Result<Option<ArtifactBlob>> {
         let request: ArtifactBlobRequest = serde_json::from_slice(body)
             .map_err(|err| bad_request(format!("invalid artifact blob request: {err}")))?;
-        request
-            .validate()
-            .map_err(|err| protocol_error(&err))?;
+        request.validate().map_err(|err| protocol_error(&err))?;
         let owner = match owner_key(username, &request.owner) {
             Ok(owner) => owner,
             Err(RegistryError::Forbidden { .. }) => return Ok(None),
@@ -246,9 +266,50 @@ impl SharedArtifactStore {
         if result.meta.size > MAX_FILE_SIZE {
             return Err(stored_object_too_large(result.meta.size, MAX_FILE_SIZE));
         }
-        Ok(Some(ArtifactBlob {
-            size: result.meta.size,
-            stream: result.into_stream(),
+        Ok(Some(ArtifactBlob { size: result.meta.size, stream: result.into_stream() }))
+    }
+
+    async fn resolve_candidate(
+        &self,
+        username: &str,
+        candidate: &ArtifactCandidate,
+        budget: &mut ResolveBudget,
+    ) -> Result<Option<ResolvedArtifact>> {
+        let owner = match owner_key(username, &candidate.owner) {
+            Ok(owner) => owner,
+            Err(RegistryError::Forbidden { .. }) => return Ok(None),
+            Err(err) => return Err(err),
+        };
+        let entry = entry_digest(&candidate.key, &candidate.subject);
+        let prefix = format!("{owner}/entries/{entry}/");
+        let prefix = self.object_path(&prefix);
+        let mut listing = self.store.list(Some(&prefix));
+        let mut variants = Vec::new();
+        let mut scanned_variants = 0;
+        while scanned_variants < MAX_VARIANTS_PER_CANDIDATE {
+            let Some(entry) = listing.next().await else { break };
+            let entry = entry?;
+            if !is_variant_file(object_name(&entry.location)) {
+                continue;
+            }
+            scanned_variants += 1;
+            budget.add_scan(entry.size)?;
+            let Some(bytes) = self.read_object_path(&entry.location).await? else {
+                continue;
+            };
+            let Ok(envelope) = serde_json::from_slice::<SignedArtifactEnvelope>(&bytes) else {
+                continue;
+            };
+            let Ok((payload, _)) = envelope.decode_payload() else {
+                continue;
+            };
+            if artifact_matches_candidate(&payload, candidate) {
+                variants.push(ArtifactVariant { envelope });
+            }
+        }
+        Ok((!variants.is_empty()).then(|| ResolvedArtifact {
+            key: candidate.key.clone(),
+            variants,
         }))
     }
 
@@ -269,9 +330,7 @@ fn prepare_publication(
     username: &str,
     request: &PublishArtifactRequest,
 ) -> Result<PreparedPublication> {
-    let validated = request
-        .validate()
-        .map_err(|err| protocol_error(&err))?;
+    let validated = request.validate().map_err(|err| protocol_error(&err))?;
     let payload = validated.payload;
     let owner = owner_key(username, &payload.owner)?;
     let entry = entry_digest(&request.key, &payload.subject);
@@ -280,9 +339,7 @@ fn prepare_publication(
     // input key and one set of compatibility constraints admit one artifact.
     let slot = compatibility_slot(&payload.compatibility);
     let started = std::time::Instant::now();
-    let envelope_digest = request.envelope
-        .digest()
-        .map_err(|err| protocol_error(&err))?;
+    let envelope_digest = request.envelope.digest().map_err(|err| protocol_error(&err))?;
     let variant_path = format!("{owner}/entries/{entry}/{slot}.json");
     Ok(PreparedPublication {
         started,
@@ -332,8 +389,7 @@ fn stored_object_too_large(size: u64, max_size: u64) -> RegistryError {
 }
 
 async fn acquire_artifact_lock(path: PathBuf) -> Result<File> {
-    let file = tokio::task::spawn_blocking(move || open_lock_file(&path))
-        .await??;
+    let file = tokio::task::spawn_blocking(move || open_lock_file(&path)).await??;
     loop {
         match file.try_lock() {
             Ok(()) => return Ok(file),
@@ -407,9 +463,7 @@ fn storage_quota_error() -> RegistryError {
 }
 
 fn quota_counter_underflow() -> RegistryError {
-    RegistryError::Internal {
-        reason: "shared artifact quota counter underflow".to_string(),
-    }
+    RegistryError::Internal { reason: "shared artifact quota counter underflow".to_string() }
 }
 
 fn protocol_error(error: &ArtifactProtocolError) -> RegistryError {
@@ -417,19 +471,8 @@ fn protocol_error(error: &ArtifactProtocolError) -> RegistryError {
 }
 
 fn bad_request(reason: String) -> RegistryError {
-    RegistryError::BadRequest {
-        reason,
-    }
+    RegistryError::BadRequest { reason }
 }
 
 #[cfg(test)]
 mod tests;
-
-fn matching_variant(bytes: &[u8], candidate: &ArtifactCandidate) -> Option<ArtifactVariant> {
-    let envelope = serde_json::from_slice::<SignedArtifactEnvelope>(bytes).ok()?;
-    let (payload, _) = envelope.decode_payload().ok()?;
-    artifact_matches_candidate(&payload, candidate)
-        .then_some(ArtifactVariant {
-            envelope,
-        })
-}

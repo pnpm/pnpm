@@ -59,9 +59,7 @@ pub(super) fn declaring_manifest_dir(
     ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Option<Arc<Path>> {
-    let pnpm_lockfile::LockfileResolution::Directory(resolution) =
-        &result.resolution
-    else {
+    let pnpm_lockfile::LockfileResolution::Directory(resolution) = &result.resolution else {
         return None;
     };
     if !result.id.as_str().starts_with("file:") {
@@ -308,8 +306,7 @@ impl TreeCtx {
     pub fn resolve_new_direct_deps_as_subdeps(&mut self) {
         self.options.direct = ResolveOptions {
             project: pnpm_resolving_resolver_base::ResolverProjectOptions {
-                link_workspace_packages: self.options.direct.project
-                    .link_workspace_packages,
+                link_workspace_packages: self.options.direct.project.link_workspace_packages,
                 ..self.options.subdep.project.clone()
             },
             ..self.options.subdep.clone()
@@ -321,11 +318,7 @@ impl TreeCtx {
     /// [`ResolutionDepthOptions::direct`]; everything below uses
     /// [`ResolutionDepthOptions::subdep`].
     pub(super) fn opts_for_depth(&self, depth: i32) -> &ResolveOptions {
-        if depth == 0 {
-            &self.options.direct
-        } else {
-            &self.options.subdep
-        }
+        if depth == 0 { &self.options.direct } else { &self.options.subdep }
     }
 
     /// Borrow the shared workspace ctx so callers can hand the same
@@ -340,10 +333,7 @@ impl TreeCtx {
     }
 
     pub(super) fn update_scope(&self) -> UpdateScope<'_> {
-        UpdateScope {
-            reuse: self.update_reuse_scope(),
-            max_depth: self.workspace.reuse.depth,
-        }
+        UpdateScope { reuse: self.update_reuse_scope(), max_depth: self.workspace.reuse.depth }
     }
 
     pub(super) fn update_cache_scope(&self) -> Option<String> {
@@ -515,9 +505,7 @@ impl TreeCtx {
                 .into_iter()
                 .flatten()
             {
-                bucket
-                    .entry(selector.clone())
-                    .or_insert_with(|| entry.clone());
+                bucket.entry(selector.clone()).or_insert_with(|| entry.clone());
             }
             if !bucket.is_empty() {
                 out.insert(name.to_string(), bucket);

@@ -48,11 +48,7 @@ pub(super) fn addressed_registry(
 /// Route templates rather than URLs — `{registry}` is a path parameter the
 /// [`TargetRegistry`](super::TargetRegistry) extractor reads back.
 pub(super) fn mount_bases(ecosystem: Ecosystem, prefixed: bool) -> [String; 2] {
-    let prefix = if prefixed {
-        format!("/{ecosystem}")
-    } else {
-        String::new()
-    };
+    let prefix = if prefixed { format!("/{ecosystem}") } else { String::new() };
     [prefix.clone(), format!("{prefix}/~{{registry}}")]
 }
 
@@ -66,10 +62,8 @@ pub(super) fn registry_endpoint(
     registry: Option<&str>,
 ) -> String {
     let public_url = state.inner.config.http.public_url.trim_end_matches('/');
-    let base = format!(
-        "{public_url}{}",
-        state.inner.config.routing.registries.base_path(ecosystem),
-    );
+    let base =
+        format!("{public_url}{}", state.inner.config.routing.registries.base_path(ecosystem));
     match registry {
         Some(registry) => format!("{base}/~{registry}"),
         None => base,
@@ -200,9 +194,7 @@ pub(super) async fn load_upstream_document(
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     let storage = &state.inner.storage;
     let ttl = upstream.maxage().unwrap_or(state.inner.config.http.packument_ttl);
-    if let Some(bytes) = storage.read_upstream_document(namespace, request.name, ttl)
-        .await?
-    {
+    if let Some(bytes) = storage.read_upstream_document(namespace, request.name, ttl).await? {
         return Ok(Some(bytes));
     }
     let fetched = upstream.fetch_document(request.relative_path, request.accept, request.limit);
@@ -211,17 +203,14 @@ pub(super) async fn load_upstream_document(
         FetchOutcome::NotFound => Ok(None),
     }) {
         Ok(Some(bytes)) => {
-            storage.write_upstream_document(namespace, request.name, &bytes)
-                .await?;
+            storage.write_upstream_document(namespace, request.name, &bytes).await?;
             Ok(Some(bytes))
         }
         Ok(None) => {
             storage.remove_upstream_package(namespace, request.name).await?;
             Ok(None)
         }
-        Err(err) => match storage.read_upstream_document_any(namespace, request.name)
-            .await?
-        {
+        Err(err) => match storage.read_upstream_document_any(namespace, request.name).await? {
             Some(stale) => {
                 tracing::warn!(
                     ?err,
@@ -249,12 +238,10 @@ pub(super) async fn serve_upstream_artifact(
     url: &str,
     integrity: &Integrity,
 ) -> Response {
-    let integrity_key = sha256_hex(integrity.to_string().as_bytes());
-    let namespace = format!("{namespace}-{integrity_key}");
+    let namespace = format!("{namespace}-{}", sha256_hex(integrity.to_string().as_bytes()));
     let namespace = namespace.as_str();
     if upstream.caches()
-        && let Some(response) = cached_upstream_tarball(state, namespace, name, filename)
-            .await
+        && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await
     {
         return response;
     }
@@ -263,9 +250,7 @@ pub(super) async fn serve_upstream_artifact(
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let write = match state.inner.storage.open_upstream_blob_tmp(namespace, name, filename)
-        .await
-    {
+    let write = match state.inner.storage.open_upstream_blob_tmp(namespace, name, filename).await {
         Ok(write) => write,
         Err(err) => return err.into_response(),
     };

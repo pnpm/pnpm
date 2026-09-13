@@ -10,12 +10,7 @@
 //! `global*` log channels are emitted through the `Reporter` seam. See
 //! the dependency-injection convention in `pnpm/CODE_STYLE_GUIDE.md`.
 
-use std::{
-    collections::HashMap,
-    future::Future,
-    io,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, future::Future, io, path::PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -103,16 +98,14 @@ impl RevokeToken for Host {
         // request itself still targets the full `revoke_url`.
         let log_url = revoke_log_url(revoke_url);
         match send_with_retry(http_client, log_url, retry, |client| {
-            client
-                .delete(revoke_url)
-                .header(reqwest::header::AUTHORIZATION, authorization.as_str())
+            client.delete(revoke_url).header(reqwest::header::AUTHORIZATION, authorization.as_str())
         })
         .await
         {
             Ok((_guard, response)) if response.status().is_success() => RevokeOutcome::Revoked,
-            Ok((_guard, response)) => RevokeOutcome::Rejected {
-                status: response.status().as_u16(),
-            },
+            Ok((_guard, response)) => {
+                RevokeOutcome::Rejected { status: response.status().as_u16() }
+            }
             Err(_) => RevokeOutcome::Unreachable,
         }
     }
@@ -166,9 +159,7 @@ where
     let registry_display = redact_and_sanitize(&registry);
 
     let Some(token) = opts.auth_config.get(&token_key) else {
-        return Err(LogoutError::NotLoggedIn {
-            registry: registry_display,
-        });
+        return Err(LogoutError::NotLoggedIn { registry: registry_display });
     };
 
     let revoke_url = format!("{registry}-/user/token/{}", encode_uri_component(token));
@@ -177,9 +168,15 @@ where
         opts.prefix,
     );
 
-    let removed = forget_credentials::<Sys>(opts.config_dir, &registry, &token_key)?;
+    // The two files hold independent copies of the same credential, so
+    // failing to clean one must not leave the other behind: a token pnpm
+    // would still send is worse than a logout that reports trouble.
+    let config_removal = forget_in_config_yaml::<Sys>(opts.config_dir, &registry);
+    let ini_removal = forget_in_auth_ini::<Sys>(opts.config_dir, &token_key);
+    let removed_from_config = config_removal?;
+    let removed_from_ini = ini_removal?;
 
-    if !removed {
+    if !removed_from_config && !removed_from_ini {
         if revoked {
             global::<Reporter>(
                 opts.prefix,
@@ -234,12 +231,7 @@ fn forget_in_config_yaml<Sys: FsReadToString + FsWrite>(
     let document = match Sys::read_to_string(&path) {
         Ok(text) => text,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => {
-            return Err(LogoutError::ReadConfigYaml {
-                path,
-                error,
-            });
-        }
+        Err(error) => return Err(LogoutError::ReadConfigYaml { path, error }),
     };
 
     let fields = config_yaml::logout_fields(Some(&document), registry)
@@ -258,10 +250,7 @@ fn forget_in_config_yaml<Sys: FsReadToString + FsWrite>(
             ManifestEdit::Write(text) => text,
         };
         Sys::write(&path, text.as_bytes())
-            .map_err(|error| LogoutError::WriteConfigYaml {
-                path: path.clone(),
-                error,
-            })?;
+            .map_err(|error| LogoutError::WriteConfigYaml { path: path.clone(), error })?;
         document = Some(text);
         removed = true;
     }
@@ -280,10 +269,7 @@ fn forget_in_auth_ini<Sys: FsReadToString + FsWrite>(
         return Ok(false);
     }
     Sys::write(&path, settings.serialize().as_bytes())
-        .map_err(|error| LogoutError::WriteAuthIni {
-            path,
-            error,
-        })?;
+        .map_err(|error| LogoutError::WriteAuthIni { path, error })?;
     Ok(true)
 }
 
@@ -293,19 +279,12 @@ fn safe_read_ini<Sys: FsReadToString>(path: &std::path::Path) -> Result<IniSetti
     match Sys::read_to_string(path) {
         Ok(text) => Ok(IniSettings::parse(&text)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(IniSettings::default()),
-        Err(error) => Err(LogoutError::ReadAuthIni {
-            path: path.to_path_buf(),
-            error,
-        }),
+        Err(error) => Err(LogoutError::ReadAuthIni { path: path.to_path_buf(), error }),
     }
 }
 
 fn global<Reporter: self::Reporter>(prefix: &str, level: LogLevel, message: String) {
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level,
-        message,
-        prefix: prefix.to_string(),
-    }));
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog { level, message, prefix: prefix.to_string() }));
 }
 
 /// The token-free prefix of a `…/-/user/token/<token>` revoke URL — the
@@ -315,9 +294,7 @@ fn global<Reporter: self::Reporter>(prefix: &str, level: LogLevel, message: Stri
 /// token is percent-encoded (so it has no literal `/`), making the last `/`
 /// the segment boundary.
 fn revoke_log_url(revoke_url: &str) -> &str {
-    revoke_url
-        .rsplit_once('/')
-        .map_or(revoke_url, |(prefix, _token)| prefix)
+    revoke_url.rsplit_once('/').map_or(revoke_url, |(prefix, _token)| prefix)
 }
 
 /// Errors surfaced by [`logout`]. The two user-facing variants carry
@@ -337,10 +314,7 @@ pub enum LogoutError {
         config_path.display()
     )]
     #[diagnostic(code(ERR_PNPM_LOGOUT_FAILED))]
-    LogoutFailed {
-        registry: String,
-        config_path: PathBuf,
-    },
+    LogoutFailed { registry: String, config_path: PathBuf },
 
     #[display("Failed to read auth.ini at {}: {error}", path.display())]
     #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_READ_AUTH_INI))]
@@ -383,19 +357,3 @@ pub enum LogoutError {
 
 #[cfg(test)]
 mod tests;
-
-fn forget_credentials<Sys: FsReadToString + FsWrite>(
-    config_dir: &Path,
-    registry: &str,
-    token_key: &str,
-) -> Result<bool, LogoutError> {
-    // The two files hold independent copies of the same credential, so
-    // failing to clean one must not leave the other behind: a token pnpm
-    // would still send is worse than a logout that reports trouble.
-    let config_removal = forget_in_config_yaml::<Sys>(config_dir, registry);
-    let ini_removal = forget_in_auth_ini::<Sys>(config_dir, token_key);
-    let removed_from_config = config_removal?;
-    let removed_from_ini = ini_removal?;
-
-    Ok(removed_from_config || removed_from_ini)
-}

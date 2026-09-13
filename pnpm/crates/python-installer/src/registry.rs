@@ -44,10 +44,7 @@ impl Registry<'_> {
             .into_diagnostic()?;
         let cache = self.config.cache_dir
             .join("python-index-v2")
-            .join(format!(
-                "{}.json",
-                pnpm_crypto_hash::create_hex_hash(index_url.as_str()),
-            ));
+            .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(index_url.as_str())));
         let cached = if self.config.offline {
             read_cached_index(&cache, name).await?
         } else {
@@ -56,12 +53,8 @@ impl Registry<'_> {
         if cached.body.get().len() > MAX_INDEX_BYTES {
             bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
         }
-        let candidates = candidates_from_page(
-            cached.body.get(),
-            &cached.url,
-            name,
-            &self.interpreter.target,
-        )?;
+        let candidates =
+            candidates_from_page(cached.body.get(), &cached.url, name, &self.interpreter.target)?;
         if !self.config.offline {
             tokio::fs::create_dir_all(cache.parent().expect("cache file has a parent"))
                 .await
@@ -92,10 +85,7 @@ impl Registry<'_> {
             bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
         }
         if !response.status.is_success() {
-            bail!(
-                "Python index request for {name} returned {}",
-                response.status,
-            );
+            bail!("Python index request for {name} returned {}", response.status);
         }
         Ok(CachedIndex {
             url: response.url.parse().into_diagnostic()?,
@@ -198,10 +188,7 @@ impl Registry<'_> {
         )
         .await?;
         validate_wheel_metadata(&metadata, name, version)?;
-        Ok(Wheel {
-            files,
-            metadata,
-        })
+        Ok(Wheel { files, metadata })
     }
 }
 
@@ -257,10 +244,7 @@ fn validate_wheel_identity(
 ) -> Result<()> {
     pnpm_python_resolver::validate_url(&Url::parse(&wheel.url).into_diagnostic()?)?;
     let Some((wheel_name, wheel_version, _)) = wheel_identity(&wheel.name, tags)? else {
-        bail!(
-            "Python wheel is incompatible with this interpreter: {}",
-            wheel.name,
-        )
+        bail!("Python wheel is incompatible with this interpreter: {}", wheel.name)
     };
     if wheel_name != *name || wheel_version != *version {
         bail!("Python lockfile wheel identity mismatch: {}", wheel.name);

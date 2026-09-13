@@ -72,14 +72,10 @@ impl HostedBackend for S3Store {
         };
         let size = meta.size;
         let Ok(range) = requested.as_range(size) else {
-            return Ok(Some(crate::RangedBlob::Unsatisfiable {
-                size,
-            }));
+            return Ok(Some(crate::RangedBlob::Unsatisfiable { size }));
         };
         if range.is_empty() {
-            return Ok(Some(crate::RangedBlob::Unsatisfiable {
-                size,
-            }));
+            return Ok(Some(crate::RangedBlob::Unsatisfiable { size }));
         }
         let options = object_store::GetOptions {
             range: Some(object_store::GetRange::Bounded(range.clone())),
@@ -92,11 +88,7 @@ impl HostedBackend for S3Store {
             Err(err) => return Err(err.into()),
         };
         let body = Body::from_stream(result.into_stream());
-        Ok(Some(crate::RangedBlob::Read {
-            body,
-            range,
-            size,
-        }))
+        Ok(Some(crate::RangedBlob::Read { body, range, size }))
     }
 
     async fn reserve_blob_tmp(
@@ -211,8 +203,7 @@ impl HostedBackend for S3Store {
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
-        S3Store::replace_record_if_current(self, namespace, key, expected, bytes)
-            .await
+        S3Store::replace_record_if_current(self, namespace, key, expected, bytes).await
     }
 
     async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {

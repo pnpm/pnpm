@@ -3,9 +3,7 @@
 /// canonical "nerf-darted" form npm uses as `.npmrc` keys.
 #[must_use]
 pub fn nerf_dart(url: &str) -> String {
-    let Some(parsed) = ParsedUrl::parse(url) else {
-        return String::new();
-    };
+    let Some(parsed) = ParsedUrl::parse(url) else { return String::new() };
     parsed.nerf_dart()
 }
 
@@ -56,13 +54,7 @@ impl<'a> ParsedUrl<'a> {
                 None => (host_port, None),
             }
         };
-        Some(ParsedUrl {
-            scheme,
-            user_info,
-            host,
-            port,
-            path,
-        })
+        Some(ParsedUrl { scheme, user_info, host, port, path })
     }
 
     pub(super) fn nerf_dart(&self) -> String {
@@ -103,17 +95,11 @@ impl<'a> ParsedUrl<'a> {
         if user.is_empty() && pass.is_empty() {
             return None;
         }
-        Some(format!(
-            "Basic {}",
-            base64_encode(&format!("{user}:{pass}")),
-        ))
+        Some(format!("Basic {}", base64_encode(&format!("{user}:{pass}"))))
     }
 
     pub(super) fn with_port_stripped(&self) -> ParsedUrl<'a> {
-        ParsedUrl {
-            port: None,
-            ..*self
-        }
+        ParsedUrl { port: None, ..*self }
     }
 }
 

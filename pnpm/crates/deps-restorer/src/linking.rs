@@ -7,9 +7,6 @@
 //! which needs both the linked tree and the hoisted package roots this
 //! reports.
 
-mod sidecars;
-use sidecars::write_project_sidecars;
-
 use crate::{
     LinkVirtualStoreBins, SkippedSnapshots, SymlinkDirectDependencies, VirtualStoreLayout,
     install_frozen_lockfile::{
@@ -21,7 +18,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsOptions;
-use pnpm_config::Config;
+use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::PackageKey;
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
 use std::{
@@ -229,10 +226,7 @@ fn plan_hoist(inputs: &LinkPhaseInputs<'_>, skipped: &SkippedSnapshots) -> Plann
             )
         });
     tracing::info!(target: "pacquet::install::phase", phase = "link.hoist_plan", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
-    PlannedHoist {
-        plan,
-        public_targets,
-    }
+    PlannedHoist { plan, public_targets }
 }
 
 /// Reconcile first, so stale direct-dep and orphaned hoist links vacate
@@ -356,12 +350,7 @@ fn write_project_links<Reporter: self::Reporter>(
     let phase_start = std::time::Instant::now();
     let links = pre_hoist
         .map(|plan| {
-            write_hoist_links(
-                plan,
-                config,
-                inputs.ctx.linker.layout,
-                inputs.ctx.linker.bin_options,
-            )
+            write_hoist_links(plan, config, inputs.ctx.linker.layout, inputs.ctx.linker.bin_options)
         })
         .transpose()?
         .unwrap_or_else(HoistLinks::none);
@@ -386,46 +375,92 @@ fn write_project_links<Reporter: self::Reporter>(
     })
 }
 
+fn write_project_sidecars(inputs: &LinkPhaseInputs<'_>) -> Result<(), LinkPhaseError> {
+    let config = inputs.ctx.config;
+    let phase_start = std::time::Instant::now();
+    if crate::should_write_package_map(config, inputs.ctx.linker.kind) {
+        crate::package_map::write_package_map(
+            inputs.graph.sidecar_lockfile,
+            &crate::package_map::PackageMapOptions {
+                lockfile_dir: inputs.ctx.workspace_root,
+                modules_dir: &config.modules_dir,
+                package_map_type: config.node_package_map_type,
+                layout: inputs.ctx.linker.layout,
+                project_manifests: inputs.projects.manifests,
+            },
+        )
+        .map_err(LinkPhaseError::WritePackageMap)?;
+    } else if inputs.ctx.linker.kind != NodeLinker::Hoisted {
+        // A hoisted install writes its map from its own linker, which
+        // runs after this one — see `should_write_hoisted_package_map`.
+        // Only the linkers whose map this gate speaks for may take one
+        // away.
+        crate::package_map::remove_package_map(&config.modules_dir);
+    }
+    tracing::info!(
+        target: "pacquet::install::phase",
+        phase = "link.package_map",
+        elapsed_ms = phase_start.elapsed().as_millis() as u64,
+        "phase complete",
+    );
+    if matches!(inputs.ctx.linker.kind, NodeLinker::Pnp) {
+        crate::write_pnp_file(
+            inputs.graph.sidecar_lockfile,
+            inputs.ctx.workspace_root,
+            config,
+            inputs.ctx.linker.layout,
+            inputs.projects.manifests,
+        )
+        .map_err(LinkPhaseError::WritePnpFile)?;
+    }
+    Ok(())
+}
+
 fn link_hoisted_projects<Reporter: self::Reporter>(
     inputs: &mut LinkPhaseInputs<'_>,
     skipped: &mut SkippedSnapshots,
 ) -> Result<crate::HoistedLinkerOutput, LinkPhaseError> {
-    if !inputs.ctx.is_hoisted() {
-        return Ok(crate::HoistedLinkerOutput::default());
-    }
     let config = inputs.ctx.config;
-    run_hoisted_linker::<Reporter>(
-        &HoistedLinkerInputs {
-            graph: crate::HoistedLinkGraph {
-                lockfile: inputs.graph.lockfile,
-                layout: inputs.ctx.linker.layout,
-                cas_paths_by_pkg_id: inputs.packages.cas_paths_by_pkg_id.take(),
-            },
-            prior: crate::PriorHoistedState {
-                current_lockfile: inputs.graph.current_lockfile,
-                current_hoisted_locations: inputs.prior.hoisted_locations,
-                unbuilt_builds: inputs.prior.unbuilt_builds,
-                build_present_packages: inputs.prior.build_present_packages,
-            },
-            projects: crate::HoistedProjects {
-                importers: &inputs.graph.lockfile.importers,
-                dependency_groups: inputs.projects.dependency_groups,
-                manifests: inputs.projects.manifests,
-                package_map_manifests: inputs.projects.package_map_manifests,
-                walker_lockfile_dir: inputs.ctx.workspace_root,
-                symlink_workspace_root: inputs.projects.symlink_root,
-            },
-            config,
+    let hoisted = inputs.ctx
+        .is_hoisted()
+        .then(|| {
+            run_hoisted_linker::<Reporter>(
+                &HoistedLinkerInputs {
+                    graph: crate::HoistedLinkGraph {
+                        lockfile: inputs.graph.lockfile,
+                        layout: inputs.ctx.linker.layout,
+                        cas_paths_by_pkg_id: inputs.packages.cas_paths_by_pkg_id.take(),
+                    },
+                    prior: crate::PriorHoistedState {
+                        current_lockfile: inputs.graph.current_lockfile,
+                        current_hoisted_locations: inputs.prior.hoisted_locations,
+                        unbuilt_builds: inputs.prior.unbuilt_builds,
+                        build_present_packages: inputs.prior.build_present_packages,
+                    },
+                    projects: crate::HoistedProjects {
+                        importers: &inputs.graph.lockfile.importers,
+                        dependency_groups: inputs.projects.dependency_groups,
+                        manifests: inputs.projects.manifests,
+                        package_map_manifests: inputs.projects.package_map_manifests,
+                        walker_lockfile_dir: inputs.ctx.workspace_root,
+                        symlink_workspace_root: inputs.projects.symlink_root,
+                    },
+                    config,
 
-            host_node: inputs.host_node,
-            supported_architectures: inputs.supported_architectures,
+                    host_node: inputs.host_node,
+                    supported_architectures: inputs.supported_architectures,
 
-            logged_methods: inputs.ctx.logged_methods,
-            requester: inputs.ctx.requester,
-        },
-        skipped,
-    )
-    .map_err(LinkPhaseError::from)
+                    logged_methods: inputs.ctx.logged_methods,
+                    requester: inputs.ctx.requester,
+                },
+                skipped,
+            )
+            .map_err(LinkPhaseError::from)
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+    Ok(hoisted)
 }
 
 /// Publicly hoisted *workspace* packages are the one source of root

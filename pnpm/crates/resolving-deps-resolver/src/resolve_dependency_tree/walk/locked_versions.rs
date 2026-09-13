@@ -47,17 +47,11 @@ pub(super) fn pin_patched_revision(
     let Some(version) = current_pkg.and_then(|current| current.version.as_deref()) else {
         return;
     };
-    let Some(specifier) = wanted.bare_specifier.as_deref() else {
-        return;
-    };
+    let Some(specifier) = wanted.bare_specifier.as_deref() else { return };
     wanted.bare_specifier = exact_registry_specifier_for_revision_refresh(
         specifier,
         version,
-        prior_key.and_then(|key| {
-            key.suffix
-                .registry_qualified()
-                .map(|(name, _)| name)
-        }),
+        prior_key.and_then(|key| key.suffix.registry_qualified().map(|(name, _)| name)),
     )
     .into();
 }
@@ -155,13 +149,8 @@ pub(super) fn has_registry_revision_specifier(specifier: &str) -> bool {
     if node_semver::Version::parse(selector).is_err() {
         return false;
     }
-    let Some((_, revision)) = selector.rsplit_once("+r") else {
-        return false;
-    };
-    !revision.is_empty()
-        && revision
-            .bytes()
-            .all(|byte| byte.is_ascii_digit())
+    let Some((_, revision)) = selector.rsplit_once("+r") else { return false };
+    !revision.is_empty() && revision.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 pub(super) fn registry_revisions_conflict(
@@ -199,9 +188,7 @@ pub(in super::super) fn node_alias(
         .filter(|alias| !alias.is_empty())
         .or_else(|| result.alias.clone())
         .or_else(|| {
-            result.package.name_ver
-                .as_ref()
-                .map(|name_ver| name_ver.name.to_string())
+            result.package.name_ver.as_ref().map(|name_ver| name_ver.name.to_string())
         })
         .unwrap_or_else(|| id.to_string())
 }

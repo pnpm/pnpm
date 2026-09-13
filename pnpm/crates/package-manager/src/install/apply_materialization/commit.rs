@@ -53,8 +53,7 @@ pub(super) fn commit_modules_state(
         save_relinked_wanted_lockfile(&RelinkedLockfileSave {
             config: inputs.tree.config,
             workspace_root: inputs.tree.workspace_root,
-            lockfile_synthesized_from_current: inputs.write
-                .synthesized_from_current,
+            lockfile_synthesized_from_current: inputs.write.synthesized_from_current,
             lockfile_was_fast_updated: inputs.write.fast_updated,
             save_lockfile: inputs.write.save,
             loaded_wanted_lockfile: inputs.lockfiles.wanted,
@@ -112,21 +111,16 @@ pub(super) fn merge_committed_modules_metadata(
     next_modules: &mut Modules,
     allow_build_policy: Option<&crate::AllowBuildPolicy>,
 ) {
-    if let (Some(previous), Some(current), Some(policy)) = (
-        inputs.prior.layout,
-        inputs.lockfiles.materialized,
-        allow_build_policy,
-    ) {
+    if let (Some(previous), Some(current), Some(policy)) =
+        (inputs.prior.layout, inputs.lockfiles.materialized, allow_build_policy)
+    {
         retain_current_ignored_builds(next_modules, previous, current, policy);
     }
     if inputs.prior.filtered_install
         && !matches!(inputs.tree.node_linker, NodeLinker::Hoisted)
         && !inputs.prior.is_inconsistent
-        && let (Some(previous), Some(current), Some(selected)) = (
-            inputs.prior.metadata,
-            inputs.lockfiles.materialized,
-            inputs.lockfiles.selected,
-        )
+        && let (Some(previous), Some(current), Some(selected)) =
+            (inputs.prior.metadata, inputs.lockfiles.materialized, inputs.lockfiles.selected)
     {
         merge_filtered_modules_metadata(next_modules, previous, current, selected);
     }
@@ -189,9 +183,7 @@ pub(super) fn save_current_lockfile(
     config: &Config,
     materialized_current_lockfile: Option<&Lockfile>,
 ) -> Result<(), InstallError> {
-    let Some(lockfile) = materialized_current_lockfile else {
-        return Ok(());
-    };
+    let Some(lockfile) = materialized_current_lockfile else { return Ok(()) };
     lockfile
         .save_current_to_virtual_store_dir(&config.virtual_store_dir)
         .map_err(InstallError::SaveCurrentLockfile)
@@ -250,9 +242,7 @@ pub(super) fn sweep_virtual_store(
     };
     crate::prune_virtual_store::prune_virtual_store(
         &prune_dir,
-        wanted.snapshots
-            .iter()
-            .flat_map(|snapshots| snapshots.keys()),
+        wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
         install_skipped,
         config.virtual_store_dir_max_length as usize,
     )
@@ -295,18 +285,12 @@ pub(super) fn retain_current_ignored_builds(
     current: &Lockfile,
     allow_build_policy: &crate::AllowBuildPolicy,
 ) {
-    let Some(previous_ignored) = previous.ignored_builds.as_ref() else {
-        return;
-    };
+    let Some(previous_ignored) = previous.ignored_builds.as_ref() else { return };
     for dep_path in previous_ignored {
         if current_contains_dep_path(current, dep_path.as_str())
-            && allow_build_policy
-                .check(dep_path.as_str())
-                .is_none()
+            && allow_build_policy.check(dep_path.as_str()).is_none()
         {
-            next.ignored_builds
-                .get_or_insert_default()
-                .insert(dep_path.clone());
+            next.ignored_builds.get_or_insert_default().insert(dep_path.clone());
         }
     }
 }

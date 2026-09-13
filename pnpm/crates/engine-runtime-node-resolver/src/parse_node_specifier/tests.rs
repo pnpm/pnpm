@@ -26,28 +26,14 @@ fn matches_upstream_table() {
         ("rc/18", "18", "rc"),
         ("rc/18.0.0-rc.4", "18.0.0-rc.4", "rc"),
         ("nightly/latest", "latest", "nightly"),
-        (
-            "24.0.0-nightly20250315d765e70802",
-            "24.0.0-nightly20250315d765e70802",
-            "nightly",
-        ),
-        (
-            "22.0.0-v8-canary20250101abc",
-            "22.0.0-v8-canary20250101abc",
-            "v8-canary",
-        ),
+        ("24.0.0-nightly20250315d765e70802", "24.0.0-nightly20250315d765e70802", "nightly"),
+        ("22.0.0-v8-canary20250101abc", "22.0.0-v8-canary20250101abc", "v8-canary"),
     ];
     for (input, expected_version, expected_channel) in cases {
         let parsed = parse_node_specifier(input)
             .unwrap_or_else(|err| panic!("parse_node_specifier({input}) returned an error: {err}"));
-        assert_eq!(
-            parsed.version_specifier, *expected_version,
-            "specifier `{input}`",
-        );
-        assert_eq!(
-            parsed.release_channel, *expected_channel,
-            "specifier `{input}`",
-        );
+        assert_eq!(parsed.version_specifier, *expected_version, "specifier `{input}`");
+        assert_eq!(parsed.release_channel, *expected_channel, "specifier `{input}`");
     }
 }
 

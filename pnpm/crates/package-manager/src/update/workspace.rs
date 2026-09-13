@@ -50,11 +50,7 @@ pub(super) fn workspace_link_targets(
     config: &Config,
 ) -> Result<Vec<WorkspaceLinkTarget>, UpdateError> {
     if selectors.is_empty() {
-        return Ok(all_workspace_link_targets(
-            direct,
-            workspace_packages,
-            config,
-        ));
+        return Ok(all_workspace_link_targets(direct, workspace_packages, config));
     }
     let mut targets = Vec::new();
     let patterns = selectors
@@ -80,7 +76,15 @@ pub(super) fn workspace_link_targets(
             .find(|(matcher, _)| matcher.matches(name))
             .and_then(|(_, version)| *version)
             .unwrap_or("*");
-        targets.push(workspace_link_target(name, *group, declared, wanted));
+        targets.push(WorkspaceLinkTarget {
+            name: name.clone(),
+            group: *group,
+            declared: declared.clone(),
+            wanted_range: wanted
+                .strip_prefix("workspace:")
+                .unwrap_or(wanted)
+                .to_string(),
+        });
     }
     Ok(targets)
 }
@@ -128,10 +132,7 @@ pub(super) fn workspace_specifier(
         return format!("workspace:{}", target.wanted_range);
     };
     calc_specifier_for_workspace_dep(
-        DeclaredSpecifiers {
-            prev: Some(&target.declared),
-            bare: None,
-        },
+        DeclaredSpecifiers { prev: Some(&target.declared), bare: None },
         None,
         &target.name,
         Some(&version),
@@ -146,11 +147,7 @@ pub(super) fn pick_workspace_version(
     versions: &WorkspacePackagesByVersion,
     range: &str,
 ) -> Option<String> {
-    let range = if node_semver::Range::parse(range).is_ok() {
-        range
-    } else {
-        "*"
-    };
+    let range = if node_semver::Range::parse(range).is_ok() { range } else { "*" };
     resolve_workspace_range(
         range,
         &versions
@@ -158,21 +155,4 @@ pub(super) fn pick_workspace_version(
             .cloned()
             .collect::<Vec<_>>(),
     )
-}
-
-fn workspace_link_target(
-    name: &str,
-    group: DependencyGroup,
-    declared: &str,
-    wanted: &str,
-) -> WorkspaceLinkTarget {
-    WorkspaceLinkTarget {
-        name: name.to_string(),
-        group,
-        declared: declared.to_string(),
-        wanted_range: wanted
-            .strip_prefix("workspace:")
-            .unwrap_or(wanted)
-            .to_string(),
-    }
 }

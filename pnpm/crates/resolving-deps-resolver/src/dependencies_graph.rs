@@ -134,19 +134,14 @@ impl ParentChain {
         self.0
             .to_root_vec()
             .into_iter()
-            .map(|name| ParentPackageRef {
-                name,
-                version: String::new(),
-            })
+            .map(|name| ParentPackageRef { name, version: String::new() })
             .collect()
     }
 }
 
 impl PartialEq for ParentChain {
     fn eq(&self, other: &Self) -> bool {
-        self.0
-            .iter()
-            .eq(other.0.iter())
+        self.0.iter().eq(other.0.iter())
     }
 }
 

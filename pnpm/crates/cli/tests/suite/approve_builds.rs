@@ -81,10 +81,7 @@ fn ignored_builds_lists_the_blocked_dependency() {
         output.contains("Automatically ignored builds during installation:"),
         "output: {output}",
     );
-    assert!(
-        output.contains("@pnpm.e2e/install-script-example"),
-        "output: {output}",
-    );
+    assert!(output.contains("@pnpm.e2e/install-script-example"), "output: {output}");
 
     drop(harness);
 }
@@ -117,10 +114,7 @@ fn allow_builds_placeholder_does_not_block_commands() {
         output.contains("Automatically ignored builds during installation:"),
         "output: {output}",
     );
-    assert!(
-        output.contains("@pnpm.e2e/install-script-example"),
-        "output: {output}",
-    );
+    assert!(output.contains("@pnpm.e2e/install-script-example"), "output: {output}");
     assert!(
         !output.contains("Explicitly ignored package builds"),
         "an undecided entry is not an explicit denial: {output}",
@@ -267,11 +261,7 @@ fn approve_builds_runs_the_build_with_ndjson_and_silent_reporters() {
         let (harness, workspace) = install_with_ignored_build();
 
         pacquet(&workspace)
-            .with_args([
-                reporter,
-                "approve-builds",
-                "@pnpm.e2e/install-script-example",
-            ])
+            .with_args([reporter, "approve-builds", "@pnpm.e2e/install-script-example"])
             .assert()
             .success();
 
@@ -318,10 +308,7 @@ fn approve_builds_with_nothing_pending_reports_so() {
         .success();
 
     let output = stdout_of(pacquet(&workspace).with_arg("approve-builds").assert());
-    assert!(
-        output.contains("There are no packages awaiting approval"),
-        "output: {output}",
-    );
+    assert!(output.contains("There are no packages awaiting approval"), "output: {output}");
 
     drop(harness);
 }
@@ -346,9 +333,7 @@ fn approve_builds_denies_a_package_that_is_not_installed_yet() {
             .assert(),
     );
     assert!(
-        output.contains(&format!(
-            "The following packages are not awaiting approval: {INSTALL}"
-        )),
+        output.contains(&format!("The following packages are not awaiting approval: {INSTALL}")),
         "output: {output}",
     );
     assert_eq!(
@@ -369,14 +354,8 @@ fn approve_builds_rejects_an_argument_that_names_no_package() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
-    assert!(
-        stderr.contains("ERR_PNPM_APPROVE_BUILDS_MISSING_PACKAGE"),
-        "stderr: {stderr}",
-    );
-    assert!(
-        !workspace.join("pnpm-workspace.yaml").exists(),
-        "a rejected run persists nothing",
-    );
+    assert!(stderr.contains("ERR_PNPM_APPROVE_BUILDS_MISSING_PACKAGE"), "stderr: {stderr}");
+    assert!(!workspace.join("pnpm-workspace.yaml").exists(), "a rejected run persists nothing");
 
     drop(root);
 }
@@ -451,14 +430,8 @@ fn install_two_with_ignored_builds() -> (CommandTempCwd<AddMockedRegistry>, std:
         .assert()
         .success();
 
-    assert!(
-        !workspace.join(PREPOST_MARKER).exists(),
-        "prepost build must be ignored initially",
-    );
-    assert!(
-        !workspace.join(INSTALL_MARKER).exists(),
-        "install build must be ignored initially",
-    );
+    assert!(!workspace.join(PREPOST_MARKER).exists(), "prepost build must be ignored initially");
+    assert!(!workspace.join(INSTALL_MARKER).exists(), "install build must be ignored initially");
     (harness, workspace)
 }
 
@@ -472,28 +445,16 @@ fn approve_builds_works_after_removing_an_unrelated_dependency() {
         .success();
 
     let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
-    assert!(
-        output.contains(PREPOST),
-        "the remaining package stays pending: {output}",
-    );
-    assert!(
-        !output.contains(INSTALL),
-        "the removed package must not stay pending: {output}",
-    );
+    assert!(output.contains(PREPOST), "the remaining package stays pending: {output}");
+    assert!(!output.contains(INSTALL), "the removed package must not stay pending: {output}");
 
     pacquet(&workspace)
         .with_args(["approve-builds", "--all"])
         .assert()
         .success();
 
-    assert!(
-        workspace.join(PREPOST_MARKER).exists(),
-        "remaining package built under --all",
-    );
-    assert!(
-        !workspace.join(INSTALL_MARKER).exists(),
-        "removed package was not rebuilt",
-    );
+    assert!(workspace.join(PREPOST_MARKER).exists(), "remaining package built under --all");
+    assert!(!workspace.join(INSTALL_MARKER).exists(), "removed package was not rebuilt");
     assert_eq!(
         allow_builds(&workspace).get(PREPOST),
         Some(&true),
@@ -551,14 +512,8 @@ fn approve_builds_all_flag_builds_everything() {
         .assert()
         .success();
 
-    assert!(
-        workspace.join(PREPOST_MARKER).exists(),
-        "prepost built under --all",
-    );
-    assert!(
-        workspace.join(INSTALL_MARKER).exists(),
-        "install built under --all",
-    );
+    assert!(workspace.join(PREPOST_MARKER).exists(), "prepost built under --all");
+    assert!(workspace.join(INSTALL_MARKER).exists(), "install built under --all");
     assert_eq!(
         allow_builds(&workspace),
         std::collections::BTreeMap::from([
@@ -580,14 +535,8 @@ fn approve_builds_approves_and_denies_via_positional_args() {
         .assert()
         .success();
 
-    assert!(
-        workspace.join(PREPOST_MARKER).exists(),
-        "approved package built",
-    );
-    assert!(
-        !workspace.join(INSTALL_MARKER).exists(),
-        "denied package not built",
-    );
+    assert!(workspace.join(PREPOST_MARKER).exists(), "approved package built");
+    assert!(!workspace.join(INSTALL_MARKER).exists(), "denied package not built");
     assert_eq!(
         allow_builds(&workspace),
         std::collections::BTreeMap::from([
@@ -619,14 +568,8 @@ fn approve_builds_deny_only_keeps_other_pending() {
     let (automatic, explicit) = output
         .split_once("Explicitly ignored package builds (via allowBuilds):")
         .expect("explicit section present");
-    assert!(
-        automatic.contains(PREPOST),
-        "the undecided package stays pending: {output}",
-    );
-    assert!(
-        explicit.contains(INSTALL),
-        "the denied package is explicitly ignored: {output}",
-    );
+    assert!(automatic.contains(PREPOST), "the undecided package stays pending: {output}");
+    assert!(explicit.contains(INSTALL), "the denied package is explicitly ignored: {output}");
 
     drop(harness);
 }
@@ -642,20 +585,9 @@ fn approve_builds_preserves_existing_allow_builds_entries() {
         .success();
 
     let builds = allow_builds(&workspace);
-    assert_eq!(
-        builds.get("@pnpm.e2e/existing-package"),
-        Some(&true),
-        "existing entry kept",
-    );
-    assert_eq!(
-        builds.get(PREPOST),
-        Some(&true),
-        "approved package recorded",
-    );
-    assert!(
-        !builds.contains_key(INSTALL),
-        "unmentioned package not touched: {builds:?}",
-    );
+    assert_eq!(builds.get("@pnpm.e2e/existing-package"), Some(&true), "existing entry kept");
+    assert_eq!(builds.get(PREPOST), Some(&true), "approved package recorded");
+    assert!(!builds.contains_key(INSTALL), "unmentioned package not touched: {builds:?}");
 
     drop(harness);
 }
@@ -686,16 +618,9 @@ fn approve_builds_clears_legacy_build_settings() {
         "neverBuiltDependencies",
         "ignoredBuiltDependencies",
     ] {
-        assert!(
-            !yaml.contains(key),
-            "legacy setting {key} must be cleared: {yaml}",
-        );
+        assert!(!yaml.contains(key), "legacy setting {key} must be cleared: {yaml}");
     }
-    assert_eq!(
-        allow_builds(&workspace).get(PREPOST),
-        Some(&true),
-        "approved package recorded",
-    );
+    assert_eq!(allow_builds(&workspace).get(PREPOST), Some(&true), "approved package recorded");
 
     drop(harness);
 }
@@ -710,10 +635,7 @@ fn approve_builds_all_with_args_is_rejected() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
-    assert!(
-        stderr.contains("ERR_PNPM_APPROVE_BUILDS_ALL_WITH_ARGS"),
-        "stderr: {stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_APPROVE_BUILDS_ALL_WITH_ARGS"), "stderr: {stderr}");
 
     drop(root);
 }

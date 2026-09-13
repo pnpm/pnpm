@@ -284,10 +284,7 @@ struct SnapshotCell<Map, Snapshot> {
 
 impl<Map: Default, Snapshot> Default for SnapshotCell<Map, Snapshot> {
     fn default() -> Self {
-        SnapshotCell {
-            map: Map::default(),
-            snapshot: None,
-        }
+        SnapshotCell { map: Map::default(), snapshot: None }
     }
 }
 

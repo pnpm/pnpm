@@ -28,9 +28,8 @@ pub(crate) fn emit_config_warning(message: &str) {
     // Styling is keyed off stdout, not stderr: pnpm's `formatWarn` colors
     // with chalk's default (stdout-probing) instance even though
     // `console.warn` writes to stderr.
-    let colors = Colors {
-        enabled: pnpm_default_reporter::colors_enabled(std::io::stdout().is_terminal()),
-    };
+    let colors =
+        Colors { enabled: pnpm_default_reporter::colors_enabled(std::io::stdout().is_terminal()) };
     let _ = writeln!(std::io::stderr(), "{} {message}", colors.warn_label());
 }
 
@@ -57,11 +56,7 @@ fn unmatched_registry_options_warning(config: &Config) -> Option<String> {
         .values()
         .chain(config.registries_by_prefix.values())
         .map(String::as_str)
-        .chain(
-            BUILTIN_REGISTRIES_BY_PREFIX
-                .iter()
-                .map(|(_, url)| *url),
-        )
+        .chain(BUILTIN_REGISTRIES_BY_PREFIX.iter().map(|(_, url)| *url))
         .collect();
     let unmatched = config.registry_options_by_url
         .keys()
@@ -108,8 +103,23 @@ fn unapplied_package_configs_warning(config: &Config) -> Option<String> {
         .iter()
         .flatten()
         .flat_map(|(project, settings)| {
-            unapplied_project_settings(settings)
-                .map(move |setting| format!(r#""{}.{setting}""#, redact_and_sanitize(project)))
+            let ProjectConfig {
+                hoist,
+                modules_dir,
+                overrides,
+                save_exact,
+                save_prefix,
+            } = settings;
+            [
+                hoist.is_some().then_some("hoist"),
+                modules_dir.is_some().then_some("modulesDir"),
+                overrides.is_some().then_some("overrides"),
+                save_exact.is_some().then_some("saveExact"),
+                save_prefix.is_some().then_some("savePrefix"),
+            ]
+            .into_iter()
+            .flatten()
+            .map(move |setting| format!(r#""{}.{setting}""#, redact_and_sanitize(project)))
         })
         .collect::<Vec<_>>();
     if ignored.is_empty() {
@@ -160,14 +170,10 @@ pub(crate) fn report_workspace_key_issues(
         ));
     }
     if !issues.non_camel_case.is_empty() {
-        emit_config_warning(&non_camel_case_workspace_keys_warning(
-            &issues.non_camel_case,
-        ));
+        emit_config_warning(&non_camel_case_workspace_keys_warning(&issues.non_camel_case));
     }
     match unrecognized {
-        Some(keys) if strict => Err(UnrecognizedWorkspaceSettingsError {
-            keys,
-        }),
+        Some(keys) if strict => Err(UnrecognizedWorkspaceSettingsError { keys }),
         _ => Ok(()),
     }
 }
@@ -176,12 +182,7 @@ fn refused_workspace_keys_warning(keys: &[String]) -> String {
     let keys = keys
         .iter()
         .map(|key| redact_and_sanitize(key))
-        .map(|key| {
-            format!(
-                r#""{key}" ({})"#,
-                where_refused_key_belongs(&to_camel_case(&key)),
-            )
-        })
+        .map(|key| format!(r#""{key}" ({})"#, where_refused_key_belongs(&to_camel_case(&key))))
         .collect::<Vec<_>>()
         .join(", ");
     format!(
@@ -216,22 +217,3 @@ fn non_camel_case_workspace_keys_warning(keys: &[String]) -> String {
 
 #[cfg(test)]
 mod tests;
-
-fn unapplied_project_settings(settings: &ProjectConfig) -> impl Iterator<Item = &'static str> {
-    let ProjectConfig {
-        hoist,
-        modules_dir,
-        overrides,
-        save_exact,
-        save_prefix,
-    } = settings;
-    [
-        hoist.is_some().then_some("hoist"),
-        modules_dir.is_some().then_some("modulesDir"),
-        overrides.is_some().then_some("overrides"),
-        save_exact.is_some().then_some("saveExact"),
-        save_prefix.is_some().then_some("savePrefix"),
-    ]
-    .into_iter()
-    .flatten()
-}

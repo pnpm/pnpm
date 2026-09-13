@@ -93,7 +93,20 @@ pub(super) fn load(
     // the bound is hit — an over-long file fails validation below
     // either way — so this only caps the memory a preseeded one can
     // make an install allocate.
-    let handle = open_cache_file(file)?;
+    let path = cache_path(file.cache_dir, file.lockfile_dir);
+    // A hostile checkout can point `cacheDir` at a directory it
+    // ships, so this path may be anything it likes. Opening a FIFO
+    // blocks until someone writes to it, which would hang the
+    // install before it has read a single package: require a
+    // regular file, and one that is not reached through a symlink,
+    // before opening.
+    if !std::fs::symlink_metadata(&path).ok()?.is_file() {
+        return None;
+    }
+    let handle = std::fs::File::open(&path).ok()?;
+    if !handle.metadata().ok()?.is_file() {
+        return None;
+    }
     let mut bytes = Vec::new();
     let ceiling = (expected.snapshots.len() as u64 + 1).saturating_mul(MAX_ENTRY_BYTES);
     handle
@@ -195,9 +208,7 @@ pub(super) fn store(file: CacheFile<'_>, suffixes: &HashMap<PackageKey, String>)
     // two concurrent writers never share a staging file. A
     // predictable one would also let anything that can write the
     // cache directory redirect the write through a symlink.
-    let Ok(mut file) = tempfile::NamedTempFile::new_in(parent) else {
-        return;
-    };
+    let Ok(mut file) = tempfile::NamedTempFile::new_in(parent) else { return };
     // No `sync_all`: this runs on the miss path, after the map has
     // already been derived, and an fsync there is latency spent on
     // the install this cache exists to speed up. A crash mid-write
@@ -210,26 +221,4 @@ pub(super) fn store(file: CacheFile<'_>, suffixes: &HashMap<PackageKey, String>)
 fn write_field(bytes: &mut Vec<u8>, field: &str) {
     bytes.extend_from_slice(&(field.len() as u32).to_le_bytes());
     bytes.extend_from_slice(field.as_bytes());
-}
-
-fn open_cache_file(file: CacheFile<'_>) -> Option<std::fs::File> {
-    let path = cache_path(file.cache_dir, file.lockfile_dir);
-    // A hostile checkout can point `cacheDir` at a directory it
-    // ships, so this path may be anything it likes. Opening a FIFO
-    // blocks until someone writes to it, which would hang the
-    // install before it has read a single package: require a
-    // regular file, and one that is not reached through a symlink,
-    // before opening.
-    if !std::fs::symlink_metadata(&path).ok()?.is_file() {
-        return None;
-    }
-    let handle = std::fs::File::open(&path).ok()?;
-    if !handle
-        .metadata()
-        .ok()?
-        .is_file()
-    {
-        return None;
-    }
-    Some(handle)
 }

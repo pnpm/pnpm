@@ -43,9 +43,7 @@ pub(crate) fn has_local_file_dep_requiring_install(
         current_lockfile =
             Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
                 .map_err(|_| "the current lockfile cannot be loaded to verify local tarballs")?;
-        let Some(lockfile) = current_lockfile.as_ref() else {
-            return Ok(true);
-        };
+        let Some(lockfile) = current_lockfile.as_ref() else { return Ok(true) };
         lockfile
     };
 
@@ -66,16 +64,8 @@ enum LocalTarballScan {
 
 fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTarballScan {
     let fields: [(&str, DependencyGroup, bool); 3] = [
-        (
-            "dependencies",
-            DependencyGroup::Prod,
-            check.layout.included.dependencies,
-        ),
-        (
-            "devDependencies",
-            DependencyGroup::Dev,
-            check.layout.included.dev_dependencies,
-        ),
+        ("dependencies", DependencyGroup::Prod, check.layout.included.dependencies),
+        ("devDependencies", DependencyGroup::Dev, check.layout.included.dev_dependencies),
         (
             "optionalDependencies",
             DependencyGroup::Optional,
@@ -88,12 +78,7 @@ fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTar
             if !group_included {
                 continue;
             }
-            let scan = FieldTarballScan {
-                catalogs: check.catalogs,
-                project_dir,
-                field,
-                group,
-            };
+            let scan = FieldTarballScan { catalogs: check.catalogs, project_dir, field, group };
             if !scan_field_tarballs(&scan, manifest, &mut tarballs) {
                 return LocalTarballScan::RequiresInstall;
             }
@@ -159,13 +144,9 @@ fn local_tarball_candidate(
     alias: &str,
     spec: &serde_json::Value,
 ) -> LocalTarballCandidate {
-    let Some(spec) = spec.as_str() else {
-        return LocalTarballCandidate::Skip;
-    };
+    let Some(spec) = spec.as_str() else { return LocalTarballCandidate::Skip };
     let resolved_spec = resolve_catalog_spec(catalogs, alias, spec);
-    let Some(spec) = resolved_spec.as_deref() else {
-        return LocalTarballCandidate::Skip;
-    };
+    let Some(spec) = resolved_spec.as_deref() else { return LocalTarballCandidate::Skip };
     if !is_local_file_spec(spec) {
         return LocalTarballCandidate::Skip;
     }
@@ -174,10 +155,7 @@ fn local_tarball_candidate(
     if must_be_local && path.is_none() {
         return LocalTarballCandidate::Unresolvable;
     }
-    LocalTarballCandidate::Found {
-        path,
-        must_be_local,
-    }
+    LocalTarballCandidate::Found { path, must_be_local }
 }
 
 fn resolve_catalog_spec<'a>(
@@ -190,10 +168,7 @@ fn resolve_catalog_spec<'a>(
     }
     match resolve_from_catalog(
         catalogs,
-        &WantedDependency {
-            alias: alias.to_string(),
-            bare_specifier: spec.to_string(),
-        },
+        &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
     ) {
         CatalogResolutionResult::Found(found) => Some(Cow::Owned(found.resolution.specifier)),
         _ => None,
@@ -249,18 +224,14 @@ fn recorded_tarball<'l>(
     let Some(importer) = lockfile.importers.get(importer_id) else {
         return RecordedTarball::Missing;
     };
-    let Ok(alias) = PkgName::parse(&dependency.alias) else {
-        return RecordedTarball::Missing;
-    };
+    let Ok(alias) = PkgName::parse(&dependency.alias) else { return RecordedTarball::Missing };
     let Some(resolved) = importer
         .get_map_by_group(dependency.group)
         .and_then(|dependencies| dependencies.get(&alias))
     else {
         return RecordedTarball::Missing;
     };
-    let Some(package_key) = resolved.version
-        .resolved_key(&alias)
-        .map(|key| key.without_peer())
+    let Some(package_key) = resolved.version.resolved_key(&alias).map(|key| key.without_peer())
     else {
         return RecordedTarball::NotATarball;
     };
@@ -277,12 +248,8 @@ fn recorded_tarball<'l>(
 }
 
 fn file_matches_integrity(path: &Path, integrity: &Integrity) -> bool {
-    let Ok(mut file) = fs::File::open(path) else {
-        return false;
-    };
-    let Ok(metadata) = file.metadata() else {
-        return false;
-    };
+    let Ok(mut file) = fs::File::open(path) else { return false };
+    let Ok(metadata) = file.metadata() else { return false };
     if !metadata.is_file() {
         return false;
     }
@@ -290,9 +257,7 @@ fn file_matches_integrity(path: &Path, integrity: &Integrity) -> bool {
     let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
     loop {
         match file.read(&mut buffer) {
-            Ok(0) => {
-                return checker.result().is_ok();
-            }
+            Ok(0) => return checker.result().is_ok(),
             Ok(read) => checker.input(&buffer[..read]),
             Err(_) => return false,
         }
@@ -312,10 +277,7 @@ pub(crate) fn catalog_resolves_to_local_file(catalogs: &Catalogs, alias: &str, s
     }
     match resolve_from_catalog(
         catalogs,
-        &WantedDependency {
-            alias: alias.to_string(),
-            bare_specifier: spec.to_string(),
-        },
+        &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
     ) {
         CatalogResolutionResult::Found(found) => is_local_file_spec(&found.resolution.specifier),
         _ => false,
@@ -333,9 +295,9 @@ pub(crate) fn has_local_file_override(
     catalogs: &Catalogs,
 ) -> Result<bool, &'static str> {
     match crate::install::parse_config_overrides(config, catalogs) {
-        Ok(Some(overrides)) => Ok(overrides
-            .iter()
-            .any(|entry| is_local_file_spec(&entry.new_bare_specifier))),
+        Ok(Some(overrides)) => {
+            Ok(overrides.iter().any(|entry| is_local_file_spec(&entry.new_bare_specifier)))
+        }
         Ok(None) => Ok(false),
         Err(_) => Err("pnpm.overrides cannot be parsed"),
     }

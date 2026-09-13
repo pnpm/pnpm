@@ -23,8 +23,8 @@ pub(super) async fn serve_packument(
         return not_found();
     };
     let base = registry_endpoint(state, Ecosystem::Npm, registry);
-    let response = serve_registry_packument(state, identity, headers, &target, raw_name, &base)
-        .await;
+    let response =
+        serve_registry_packument(state, identity, headers, &target, raw_name, &base).await;
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
@@ -58,9 +58,7 @@ pub(super) async fn serve_registry_version_manifest(
         Err(err) => return err.into_response(),
     };
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
-    let bytes = match read_source_packument(state, identity, &resolved_source, &name)
-        .await
-    {
+    let bytes = match read_source_packument(state, identity, &resolved_source, &name).await {
         Ok(Some(bytes)) => bytes,
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
@@ -246,13 +244,9 @@ pub(super) async fn serve_registry_packument(
             // read, so an access-gated name can't be read even through a
             // public upstream. Checked before serving so the decision
             // precedes any existence-revealing signal like an OSV 403.
-            if let Err(err) = authorize(
-                state,
-                identity,
-                &resolved_source,
-                name.as_str(),
-                Action::Access,
-            ) {
+            if let Err(err) =
+                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
+            {
                 return err.into_response();
             }
             let revision_registry = revision_source_registry(state, registry, source);
@@ -271,8 +265,7 @@ pub(super) async fn serve_registry_packument(
         // registry-default denial is a not-found mask, an explicit
         // `packages:` entry denies loudly so clients can prompt for auth.
         RegistrySource::Hosted(source) => {
-            serve_hosted_packument(state, identity, headers, source, &name, tarball_base)
-                .await
+            serve_hosted_packument(state, identity, headers, source, &name, tarball_base).await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
     }
@@ -296,17 +289,12 @@ pub(super) async fn serve_registry_tarball(
     match &resolved_source {
         RegistrySource::Upstream(source) => {
             // Per-package rules before serving — see `serve_registry_packument`.
-            if let Err(err) = authorize(
-                state,
-                identity,
-                &resolved_source,
-                name.as_str(),
-                Action::Access,
-            ) {
+            if let Err(err) =
+                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
+            {
                 return err.into_response();
             }
-            serve_tarball_via_upstream(state, identity, source, name.as_str(), filename)
-                .await
+            serve_tarball_via_upstream(state, identity, source, name.as_str(), filename).await
         }
         // A hosted denial is a not-found mask, inside `serve_hosted_tarball`
         // — see `serve_registry_packument`.
@@ -360,9 +348,9 @@ pub(super) fn hosted_gate(
     // not become an existence probe.
     if effective.access_is_explicit && hosted.rules.default_access().allows(identity) {
         return HostedGate::Denied(match identity {
-            Identity::Anonymous => RegistryError::Unauthenticated {
-                resource: format!("package {package:?}"),
-            },
+            Identity::Anonymous => {
+                RegistryError::Unauthenticated { resource: format!("package {package:?}") }
+            }
             Identity::User { username, .. } => RegistryError::Forbidden {
                 user: username.clone(),
                 action: "access",
@@ -457,7 +445,6 @@ pub(super) async fn serve_tarball(
     let Some(target) = addressed_registry(state, registry, Ecosystem::Npm) else {
         return not_found();
     };
-    let response = serve_registry_tarball(state, identity, &target, raw_name, filename)
-        .await;
+    let response = serve_registry_tarball(state, identity, &target, raw_name, filename).await;
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }

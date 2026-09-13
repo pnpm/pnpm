@@ -20,14 +20,8 @@ pub struct PackageManifestLog {
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum PackageManifestMessage {
-    Initial {
-        prefix: String,
-        initial: serde_json::Value,
-    },
-    Updated {
-        prefix: String,
-        updated: serde_json::Value,
-    },
+    Initial { prefix: String, initial: serde_json::Value },
+    Updated { prefix: String, updated: serde_json::Value },
 }
 
 /// `pnpm:root` payload. Same flatten-on-presence pattern as
@@ -47,14 +41,8 @@ pub struct RootLog {
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum RootMessage {
-    Added {
-        prefix: String,
-        added: AddedRoot,
-    },
-    Removed {
-        prefix: String,
-        removed: RemovedRoot,
-    },
+    Added { prefix: String, added: AddedRoot },
+    Removed { prefix: String, removed: RemovedRoot },
 }
 
 /// `added` payload on a [`RootMessage::Added`] event. `name` is the
@@ -175,11 +163,7 @@ pub struct SkippedOptionalParent {
 pub enum SkippedOptionalPackage {
     /// `{ id, name, version }` shape used by every non-resolver
     /// emit (installability + build-failure).
-    Installed {
-        id: String,
-        name: String,
-        version: String,
-    },
+    Installed { id: String, name: String, version: String },
     /// `{ name?, version?, bareSpecifier }` shape used by the
     /// resolver-side `resolution_failure` emit (the deps resolver's
     /// skipped-optional sink wired in

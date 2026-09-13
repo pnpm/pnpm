@@ -22,14 +22,8 @@ fn discovers_multiple_manifest_kinds_in_one_inventory() {
     )
     .unwrap();
 
-    assert_eq!(
-        inventory.manifests("package.json").unwrap(),
-        [node.join("package.json")],
-    );
-    assert_eq!(
-        inventory.manifests("Cargo.toml").unwrap(),
-        [rust.join("Cargo.toml")],
-    );
+    assert_eq!(inventory.manifests("package.json").unwrap(), [node.join("package.json")]);
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [rust.join("Cargo.toml")]);
     assert!(
         inventory
             .manifests("pyproject.toml")
@@ -52,10 +46,7 @@ fn prunes_generated_directories() {
     let inventory =
         find_workspace_inventory(workspace.path(), &["Cargo.toml"], &["target"], &[], &[]).unwrap();
 
-    assert_eq!(
-        inventory.manifests("Cargo.toml").unwrap(),
-        [project.join("Cargo.toml")],
-    );
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [project.join("Cargo.toml")]);
 }
 
 #[test]
@@ -84,10 +75,7 @@ fn skips_unreadable_unrelated_directories() {
     )
     .unwrap();
 
-    assert_eq!(
-        inventory.manifests("Cargo.toml").unwrap(),
-        [project.join("Cargo.toml")],
-    );
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [project.join("Cargo.toml")]);
 }
 
 #[test]
@@ -193,10 +181,7 @@ fn prunes_managed_paths_before_opening_without_excluding_matching_project_names(
             },
         )
         .unwrap();
-        assert_eq!(
-            inventory.manifests("Cargo.toml").unwrap(),
-            [project.join("Cargo.toml")],
-        );
+        assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [project.join("Cargo.toml")]);
         assert_eq!(
             inventory.manifests("pyproject.toml").unwrap(),
             [project.join("pyproject.toml")],
@@ -230,11 +215,7 @@ fn reads_children_without_accumulating_unvisited_sibling_handles() {
         },
         |_| {
             unread.set(unread.get() + 1);
-            peak.set(
-                peak
-                    .get()
-                    .max(unread.get()),
-            );
+            peak.set(peak.get().max(unread.get()));
             Ok(())
         },
     )
@@ -318,10 +299,7 @@ fn discovers_deep_trees_with_a_small_handle_limit() {
         .unwrap();
     assert!(output.status.success(), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("test result: ok. 1 passed; 0 failed;"),
-        "{output:?}",
-    );
+    assert!(stdout.contains("test result: ok. 1 passed; 0 failed;"), "{output:?}");
 }
 
 #[test]
@@ -383,10 +361,7 @@ fn continues_after_a_child_is_moved_to_a_different_parent() {
         |_| Ok(()),
     )
     .unwrap();
-    assert_eq!(
-        inventory.manifests("Cargo.toml").unwrap(),
-        [sibling.join("Cargo.toml")],
-    );
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [sibling.join("Cargo.toml")]);
 }
 
 #[test]
@@ -447,11 +422,7 @@ fn rejects_parent_navigation_and_absolute_descendant_paths() {
     let root =
         cap_primitives::fs::open_ambient_dir(workspace.path(), cap_primitives::ambient_authority())
             .unwrap();
-    for path in [
-        std::path::Path::new("../outside"),
-        workspace.path(),
-        std::path::Path::new(""),
-    ] {
+    for path in [std::path::Path::new("../outside"), workspace.path(), std::path::Path::new("")] {
         let error = super::open_directory::open_directory(&root, path, &mut 0).unwrap_err();
         assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
     }
@@ -461,11 +432,7 @@ fn rejects_parent_navigation_and_absolute_descendant_paths() {
 fn rejects_intermediate_links_to_directories_inside_the_workspace() {
     let workspace = tempfile::tempdir().unwrap();
     fs::create_dir_all(workspace.path().join("target/child")).unwrap();
-    symlink(
-        &workspace.path().join("target"),
-        &workspace.path().join("linked"),
-    )
-    .unwrap();
+    symlink(&workspace.path().join("target"), &workspace.path().join("linked")).unwrap();
     let root =
         cap_primitives::fs::open_ambient_dir(workspace.path(), cap_primitives::ambient_authority())
             .unwrap();
@@ -503,10 +470,7 @@ fn prunes_negated_package_directories_before_opening() {
             &patterns,
             |_| Ok(()),
             |path| {
-                assert_ne!(
-                    path, excluded,
-                    "excluded directory must not be opened: {pattern}",
-                );
+                assert_ne!(path, excluded, "excluded directory must not be opened: {pattern}");
                 Ok(())
             },
         )
@@ -514,11 +478,7 @@ fn prunes_negated_package_directories_before_opening() {
         for basename in ["Cargo.toml", "pyproject.toml"] {
             let mut expected = [workspace.path().join(basename), selected.join(basename)];
             expected.sort();
-            assert_eq!(
-                inventory.manifests(basename).unwrap(),
-                expected,
-                "{pattern}",
-            );
+            assert_eq!(inventory.manifests(basename).unwrap(), expected, "{pattern}");
         }
     }
 }

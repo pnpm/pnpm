@@ -111,11 +111,8 @@ fn migrated_keys_are_reported_through_a_utf8_bom() {
         "private": true,
         "pnpm": { "overrides": { "is-number": "6.0.0" } },
     });
-    fs::write(
-        workspace.join("package.json"),
-        format!("\u{feff}{manifest}"),
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), format!("\u{feff}{manifest}"))
+        .expect("write package.json");
 
     let assert = pacquet
         .with_arg("install")
@@ -156,11 +153,8 @@ fn migrated_keys_are_reported_through_a_utf8_bom() {
 #[test]
 fn migrated_keys_are_read_from_the_workspace_root() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -259,10 +253,7 @@ fn ignore_pnpmfile_is_settable_without_the_flag() {
             .with_args(["install", "--lockfile-only"])
             .assert()
             .success();
-        assert!(
-            !read_package_hook_applied(&workspace),
-            "{source}: the pnpmfile's hook is skipped",
-        );
+        assert!(!read_package_hook_applied(&workspace), "{source}: the pnpmfile's hook is skipped");
 
         // Resolve the same project with the setting absent, so the assertion
         // above cannot pass on a fixture whose hook never worked.
@@ -274,10 +265,7 @@ fn ignore_pnpmfile_is_settable_without_the_flag() {
             .with_args(["install", "--lockfile-only"])
             .assert()
             .success();
-        assert!(
-            read_package_hook_applied(&workspace),
-            "{source}: the hook otherwise applies",
-        );
+        assert!(read_package_hook_applied(&workspace), "{source}: the hook otherwise applies");
 
         drop((root, mock_instance));
     }
@@ -301,11 +289,8 @@ fn ignore_pnpmfile_in_the_global_config_does_not_disable_hooks() {
     .expect("write package.json");
     let config_home = workspace.join(".config");
     fs::create_dir_all(config_home.join("pnpm")).expect("create global config dir");
-    fs::write(
-        config_home.join("pnpm/config.yaml"),
-        "ignorePnpmfile: true\n",
-    )
-    .expect("write global config");
+    fs::write(config_home.join("pnpm/config.yaml"), "ignorePnpmfile: true\n")
+        .expect("write global config");
 
     pacquet_in(&workspace)
         .with_env("XDG_CONFIG_HOME", &config_home)
@@ -337,10 +322,7 @@ fn the_ignore_pnpmfile_flag_wins_over_a_configured_false() {
         .with_args(["install", "--lockfile-only", "--ignore-pnpmfile"])
         .assert()
         .success();
-    assert!(
-        !read_package_hook_applied(&workspace),
-        "the flag turns the hook off anyway",
-    );
+    assert!(!read_package_hook_applied(&workspace), "the flag turns the hook off anyway");
 
     drop((root, mock_instance));
 }
@@ -415,18 +397,10 @@ fn ignore_pnpmfile_skips_the_read_package_hook_on_add_and_update() {
         ])
         .assert()
         .success();
-    assert!(
-        !read_package_hook_applied(&workspace),
-        "add resolves without the hook's dependency",
-    );
+    assert!(!read_package_hook_applied(&workspace), "add resolves without the hook's dependency");
 
     pacquet_in(&workspace)
-        .with_args([
-            "update",
-            "@pnpm.e2e/pkg-with-1-dep",
-            "--lockfile-only",
-            "--ignore-pnpmfile",
-        ])
+        .with_args(["update", "@pnpm.e2e/pkg-with-1-dep", "--lockfile-only", "--ignore-pnpmfile"])
         .assert()
         .success();
     assert!(
@@ -488,10 +462,7 @@ fn ignore_pnpmfile_skips_the_update_config_hook() {
         .with_args(["install", "--lockfile-only", "--ignore-pnpmfile"])
         .assert()
         .success();
-    assert!(
-        recorded_auto_install_peers(),
-        "--ignore-pnpmfile installs on the unhooked config",
-    );
+    assert!(recorded_auto_install_peers(), "--ignore-pnpmfile installs on the unhooked config");
 
     // Resolve the same project again with the hook honored, so the
     // assertion above cannot pass on a fixture that never worked.
@@ -500,10 +471,7 @@ fn ignore_pnpmfile_skips_the_update_config_hook() {
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
-    assert!(
-        !recorded_auto_install_peers(),
-        "without the flag the hook rewrites the config",
-    );
+    assert!(!recorded_auto_install_peers(), "without the flag the hook rewrites the config");
 
     drop((root, mock_instance));
 }
@@ -614,11 +582,8 @@ fn a_global_pnpmfile_stays_out_of_the_pnpmfile_checksum() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let global_pnpmfile = root.path().join("global-pnpmfile.cjs");
-    fs::write(
-        &global_pnpmfile,
-        "module.exports = { hooks: { readPackage: (pkg) => pkg } }",
-    )
-    .expect("write global pnpmfile");
+    fs::write(&global_pnpmfile, "module.exports = { hooks: { readPackage: (pkg) => pkg } }")
+        .expect("write global pnpmfile");
     write_read_package_pnpmfile(&workspace);
     fs::write(
         workspace.join("package.json"),
@@ -649,11 +614,7 @@ fn a_global_pnpmfile_stays_out_of_the_pnpmfile_checksum() {
         "module.exports = { hooks: { readPackage: (pkg) => { void 0; return pkg } } }",
     )
     .expect("rewrite global pnpmfile");
-    assert_eq!(
-        install(),
-        with_global,
-        "editing the global pnpmfile leaves the checksum alone",
-    );
+    assert_eq!(install(), with_global, "editing the global pnpmfile leaves the checksum alone");
 
     // The value itself has to match what the project alone records, not merely
     // stay stable: `pnpmfileChecksum` is shared with pnpm, so a project that
@@ -668,10 +629,7 @@ fn a_global_pnpmfile_stays_out_of_the_pnpmfile_checksum() {
         .expect("load wanted lockfile")
         .expect("wanted lockfile")
         .pnpmfile_checksum;
-    assert_eq!(
-        with_global, without_global,
-        "a global pnpmfile does not alter the recorded value",
-    );
+    assert_eq!(with_global, without_global, "a global pnpmfile does not alter the recorded value");
 
     drop((root, mock_instance));
 }

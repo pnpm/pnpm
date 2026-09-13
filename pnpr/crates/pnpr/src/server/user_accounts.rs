@@ -102,10 +102,8 @@ pub(super) async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Respo
         .into_response();
     }
     let Some(password) = body.get("password").and_then(Value::as_str) else {
-        return RegistryError::BadRequest {
-            reason: "missing password".to_string(),
-        }
-        .into_response();
+        return RegistryError::BadRequest { reason: "missing password".to_string() }.into_response(
+        );
     };
 
     let (outcome, username) =
@@ -117,10 +115,6 @@ pub(super) async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Respo
         Ok(t) => t,
         Err(err) => return err.into_response(),
     };
-    user_token_response(outcome, &username, &token)
-}
-
-fn user_token_response(outcome: UpsertOutcome, username: &str, token: &str) -> Response {
     let ok_msg = match outcome {
         UpsertOutcome::Created => format!("user '{username}' created"),
         UpsertOutcome::LoggedIn => format!("you are authenticated as '{username}'"),
@@ -183,11 +177,10 @@ pub(super) async fn list_tokens(state: &AppState, identity: &Identity) -> Respon
         Ok(username) => username,
         Err(err) => return err.into_response(),
     };
-    let tokens =
-        match state.inner.identity.auth.tokens.list_for_user(&username).await {
-            Ok(tokens) => tokens,
-            Err(err) => return err.into_response(),
-        };
+    let tokens = match state.inner.identity.auth.tokens.list_for_user(&username).await {
+        Ok(tokens) => tokens,
+        Err(err) => return err.into_response(),
+    };
     let objects: Vec<Value> = tokens
         .into_iter()
         .map(|(key, record)| token_response_object(&key, &record))
@@ -216,13 +209,11 @@ pub(super) async fn revoke_token_by_key(
             resource: "this token".to_string(),
         }
         .into_response(),
-        Ok(Some(_)) => {
-            match state.inner.identity.auth.tokens.revoke_by_key(key).await {
-                Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": "token revoked" })),
-                Ok(None) => not_found(),
-                Err(err) => err.into_response(),
-            }
-        }
+        Ok(Some(_)) => match state.inner.identity.auth.tokens.revoke_by_key(key).await {
+            Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": "token revoked" })),
+            Ok(None) => not_found(),
+            Err(err) => err.into_response(),
+        },
         Ok(None) => not_found(),
         Err(err) => err.into_response(),
     }
@@ -254,12 +245,11 @@ pub(super) async fn logout(state: &AppState, identity: &Identity, raw_token: &st
         Err(err) => return err.into_response(),
         Ok(None) => {}
     }
-    let target_owner =
-        match state.inner.identity.auth.tokens.lookup(raw_token).await {
-            Ok(Some(owner)) => owner,
-            Ok(None) => return not_found(),
-            Err(err) => return err.into_response(),
-        };
+    let target_owner = match state.inner.identity.auth.tokens.lookup(raw_token).await {
+        Ok(Some(owner)) => owner,
+        Ok(None) => return not_found(),
+        Err(err) => return err.into_response(),
+    };
     if target_owner != username {
         return RegistryError::Forbidden {
             user: username,
@@ -276,10 +266,7 @@ pub(super) async fn logout(state: &AppState, identity: &Identity, raw_token: &st
 }
 
 pub(super) fn token_response_object(key: &str, record: &pnpr_auth::TokenRecord) -> Value {
-    let preview: String = key
-        .chars()
-        .take(6)
-        .collect();
+    let preview: String = key.chars().take(6).collect();
     let created = token_timestamp_iso(record.created_at);
     let updated = token_timestamp_iso(record.last_used_at);
     json!({

@@ -38,16 +38,8 @@ pub(super) async fn pick_latest_range(
         .await?
         .resolve(package_name, false)
         .await
-        .map_err(|error| AddError::ResolveLatest {
-            name: package_name.to_string(),
-            error,
-        })?;
-    Ok(calc_version_range(
-        &latest.version,
-        None,
-        None,
-        inputs.add.range_spec_style,
-    ))
+        .map_err(|error| AddError::ResolveLatest { name: package_name.to_string(), error })?;
+    Ok(calc_version_range(&latest.version, None, None, inputs.add.range_spec_style))
 }
 /// Resolve an explicit `add <name>@<spec>` registry specifier to the
 /// manifest range pnpm would record: the spec resolved to a concrete
@@ -125,9 +117,7 @@ pub(super) fn parse_explicit_registry_spec(
     registry: &str,
 ) -> Option<pnpm_resolving_npm_resolver::RegistryPackageSpec> {
     parse_bare_specifier(spec, Some(package_name), "latest", registry)
-        .filter(|parsed| {
-            parsed.normalized_bare_specifier.is_none() && parsed.name == package_name
-        })
+        .filter(|parsed| parsed.normalized_bare_specifier.is_none() && parsed.name == package_name)
 }
 /// The explicit range is authoritative; including the latest tag could exceed its bounds.
 pub(super) fn explicit_registry_pick_options<'a>(
@@ -166,12 +156,7 @@ pub(super) fn saved_registry_range(
     let prev_pin = prev_specifier
         .filter(|prev| is_registry_style_specifier(prev, package_name, registry))
         .and_then(infer_range_spec_style);
-    calc_version_range(
-        version,
-        prev_pin,
-        infer_range_spec_style(spec),
-        range_spec_style,
-    )
+    calc_version_range(version, prev_pin, infer_range_spec_style(spec), range_spec_style)
 }
 /// The registry `package_name` resolves against under the configured scopes.
 pub(super) fn package_registry(config: &Config, package_name: &str) -> String {

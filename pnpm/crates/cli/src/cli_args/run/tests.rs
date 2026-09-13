@@ -5,14 +5,8 @@ use serde_json::json;
 #[test]
 fn specified_scripts_exact_match() {
     let manifest = json!({ "scripts": { "build": "tsc", "test": "jest" } });
-    assert_eq!(
-        ScriptSelector::new("build").unwrap().select(&manifest),
-        vec!["build".to_string()],
-    );
-    assert_eq!(
-        ScriptSelector::new("test").unwrap().select(&manifest),
-        vec!["test".to_string()],
-    );
+    assert_eq!(ScriptSelector::new("build").unwrap().select(&manifest), vec!["build".to_string()]);
+    assert_eq!(ScriptSelector::new("test").unwrap().select(&manifest), vec!["test".to_string()]);
 }
 
 #[test]
@@ -61,11 +55,7 @@ fn specified_scripts_selects_every_regexp_match() {
     // matches keep the manifest's declaration order.
     assert_eq!(
         ScriptSelector::new("/^build/").unwrap().select(&manifest),
-        vec![
-            "build:backend".to_string(),
-            "build:frontend".to_string(),
-            "build".to_string()
-        ],
+        vec!["build:backend".to_string(), "build:frontend".to_string(), "build".to_string()],
     );
 }
 
@@ -74,10 +64,7 @@ fn specified_scripts_selects_every_regexp_match() {
 #[test]
 fn specified_scripts_prefers_an_exact_match_over_the_pattern() {
     let manifest = json!({ "scripts": { "/^a/": "echo literal", "ab": "echo matched" } });
-    assert_eq!(
-        ScriptSelector::new("/^a/").unwrap().select(&manifest),
-        vec!["/^a/".to_string()],
-    );
+    assert_eq!(ScriptSelector::new("/^a/").unwrap().select(&manifest), vec!["/^a/".to_string()]);
 }
 
 #[test]
@@ -85,10 +72,7 @@ fn specified_scripts_rejects_regexp_flags() {
     // Rejected while building the selector, before any manifest is read,
     // so a recursive run reports it once rather than per project.
     let err = ScriptSelector::new("/^BUILD/i").expect_err("flags are rejected");
-    assert!(
-        matches!(err, RunError::UnsupportedScriptCommandFormat),
-        "got {err:?}",
-    );
+    assert!(matches!(err, RunError::UnsupportedScriptCommandFormat), "got {err:?}");
 }
 
 /// Anything that isn't a well-formed regexp literal — a bare `/`-bearing
@@ -111,10 +95,7 @@ fn specified_scripts_treats_non_literals_as_names() {
 #[test]
 fn hidden_filter_passes_visible_scripts() {
     let scripts = vec!["build".to_string()];
-    assert_eq!(
-        throw_or_filter_hidden_scripts(scripts.clone(), "build").unwrap(),
-        scripts,
-    );
+    assert_eq!(throw_or_filter_hidden_scripts(scripts.clone(), "build").unwrap(), scripts);
 }
 
 #[test]
@@ -137,26 +118,11 @@ fn print_commands_groups_lifecycle_and_other() {
         "scripts": { "test": "jest", "build": "tsc", ".hidden": "secret" },
     });
     let output = render_project_commands(&manifest, None);
-    assert!(
-        output.contains("Lifecycle scripts:"),
-        "lifecycle header:\n{output}",
-    );
-    assert!(
-        output.contains("  test\n    jest"),
-        "test under lifecycle:\n{output}",
-    );
-    assert!(
-        output.contains(r#"Commands available via "pnpm run":"#),
-        "other header:\n{output}",
-    );
-    assert!(
-        output.contains("  build\n    tsc"),
-        "build under other:\n{output}",
-    );
-    assert!(
-        !output.contains("hidden"),
-        "hidden scripts are omitted:\n{output}",
-    );
+    assert!(output.contains("Lifecycle scripts:"), "lifecycle header:\n{output}");
+    assert!(output.contains("  test\n    jest"), "test under lifecycle:\n{output}");
+    assert!(output.contains(r#"Commands available via "pnpm run":"#), "other header:\n{output}");
+    assert!(output.contains("  build\n    tsc"), "build under other:\n{output}");
+    assert!(!output.contains("hidden"), "hidden scripts are omitted:\n{output}");
 }
 
 #[test]
@@ -174,10 +140,7 @@ fn print_commands_empty_when_no_scripts() {
 #[test]
 fn run_forwards_every_token_after_the_script_name() {
     for (argv, script_args) in [
-        (
-            ["run", "show", "--", "--other=1"].as_slice(),
-            ["--", "--other=1"].as_slice(),
-        ),
+        (["run", "show", "--", "--other=1"].as_slice(), ["--", "--other=1"].as_slice()),
         (&["run", "show", "--other=1"], &["--other=1"]),
         (&["run", "show", "--", "-s"], &["--", "-s"]),
         (&["run", "show", "--", "a", "b"], &["--", "a", "b"]),
@@ -192,14 +155,8 @@ fn run_forwards_every_token_after_the_script_name() {
 
         assert_eq!(args.script_name(), Some("show"), "{argv:?}");
         assert_eq!(args.script_args(), script_args, "{argv:?}");
-        assert!(
-            !args.sequential,
-            "{argv:?}: -s after the script name is not --sequential",
-        );
-        assert!(
-            !args.if_present,
-            "{argv:?}: --if-present after the script name is the script's",
-        );
+        assert!(!args.sequential, "{argv:?}: -s after the script name is not --sequential");
+        assert!(!args.if_present, "{argv:?}: --if-present after the script name is the script's");
     }
 }
 

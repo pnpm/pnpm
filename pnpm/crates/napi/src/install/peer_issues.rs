@@ -31,11 +31,7 @@ fn run_peer_issues_blocking(options: PeerIssuesOptions) -> napi::Result<serde_js
     let install_options = peer_issues_install_options(options)?;
 
     let sink: pnpm_package_manager::PeerIssuesSink = Arc::default();
-    run_install_inner(
-        &install_options,
-        None,
-        EngineMode::PeerIssues(Arc::clone(&sink)),
-    )?;
+    run_install_inner(&install_options, None, EngineMode::PeerIssues(Arc::clone(&sink)))?;
     let issues_by_importer =
         std::mem::take(&mut *sink.lock().expect("peer-issues sink lock poisoned"));
 
@@ -174,10 +170,7 @@ fn peer_intersections_json(
     let mut conflicts: Vec<String> = Vec::new();
     let mut intersections = serde_json::Map::new();
     for (peer_name, entries) in &issues.missing {
-        if entries
-            .iter()
-            .all(|entry| entry.optional)
-        {
+        if entries.iter().all(|entry| entry.optional) {
             continue;
         }
         if let [entry] = entries.as_slice() {
@@ -187,11 +180,7 @@ fn peer_intersections_json(
             );
             continue;
         }
-        match safe_intersect(
-            entries
-                .iter()
-                .map(|entry| entry.wanted_range.as_str()),
-        ) {
+        match safe_intersect(entries.iter().map(|entry| entry.wanted_range.as_str())) {
             Some(intersection) => {
                 intersections.insert(peer_name.clone(), serde_json::Value::String(intersection));
             }

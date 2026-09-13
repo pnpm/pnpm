@@ -46,10 +46,7 @@ fn prefix_walks_up_to_find_package_json() {
         .with_args(["prefix"])
         .output()
         .expect("run pacquet prefix in the subdir");
-    assert!(
-        pacquet_out.status.success(),
-        "pacquet prefix should succeed in the subdir",
-    );
+    assert!(pacquet_out.status.success(), "pacquet prefix should succeed in the subdir");
 
     let expected = format!("{}\n", canonicalize(&workspace).display());
     assert_eq!(String::from_utf8_lossy(&pacquet_out.stdout), expected);
@@ -72,10 +69,7 @@ fn prefix_walks_up_from_node_modules() {
         .with_args(["prefix"])
         .output()
         .expect("run pacquet prefix from inside node_modules");
-    assert!(
-        pacquet_out.status.success(),
-        "pacquet prefix should succeed from inside node_modules",
-    );
+    assert!(pacquet_out.status.success(), "pacquet prefix should succeed from inside node_modules");
 
     let expected = format!("{}\n", canonicalize(&workspace).display());
     assert_eq!(String::from_utf8_lossy(&pacquet_out.stdout), expected);
@@ -116,10 +110,7 @@ fn prefix_global_prints_the_global_dir_root() {
 
     let expected = format!("{}\n", pnpm_home.join("global").display());
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
-    assert!(
-        global_bin.is_dir(),
-        "pacquet prefix -g should create the global bin dir",
-    );
+    assert!(global_bin.is_dir(), "pacquet prefix -g should create the global bin dir");
 
     drop(root);
 }
@@ -128,18 +119,12 @@ fn prefix_global_prints_the_global_dir_root() {
 fn prefix_resolves_from_a_workspace_subdir() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
 
-    fs::write(
-        workspace.join("package.json"),
-        r#"{ "name": "wsroot", "version": "1.0.0" }"#,
-    )
-    .expect("write workspace-root package.json");
+    fs::write(workspace.join("package.json"), r#"{ "name": "wsroot", "version": "1.0.0" }"#)
+        .expect("write workspace-root package.json");
     let member = workspace.join("packages/foo");
     fs::create_dir_all(&member).expect("create workspace member dir");
-    fs::write(
-        member.join("package.json"),
-        r#"{ "name": "foo", "version": "1.0.0" }"#,
-    )
-    .expect("write member package.json");
+    fs::write(member.join("package.json"), r#"{ "name": "foo", "version": "1.0.0" }"#)
+        .expect("write member package.json");
 
     let sub_member = member.join("src/utils");
     fs::create_dir_all(&sub_member).expect("create sub_member dir");
@@ -150,10 +135,7 @@ fn prefix_resolves_from_a_workspace_subdir() {
         .with_args(["prefix"])
         .output()
         .expect("run pacquet prefix in the subdir");
-    assert!(
-        pacquet_out.status.success(),
-        "pacquet prefix should succeed in the subdir",
-    );
+    assert!(pacquet_out.status.success(), "pacquet prefix should succeed in the subdir");
 
     // From the workspace subdir the nearest package.json parent is the member
     let expected = format!("{}\n", canonicalize(&member).display());
@@ -169,14 +151,8 @@ fn prefix_resolves_from_a_workspace_subdir() {
 #[test]
 fn prefix_stops_at_an_ecosystem_manifest() {
     for (manifest, contents) in [
-        (
-            "Cargo.toml",
-            "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
-        ),
-        (
-            "pyproject.toml",
-            "[project]\nname = 'member'\nversion = '1.0'\n",
-        ),
+        ("Cargo.toml", "[package]\nname = \"member\"\nversion = \"0.1.0\"\n"),
+        ("pyproject.toml", "[project]\nname = 'member'\nversion = '1.0'\n"),
     ] {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
         fs::write(workspace.join("package.json"), r#"{ "name": "outer" }"#)
@@ -192,17 +168,10 @@ fn prefix_stops_at_an_ecosystem_manifest() {
             .output()
             .expect("run pacquet prefix in the member");
         dbg!(&output);
-        assert!(
-            output.status.success(),
-            "pacquet prefix should succeed in the {manifest} member",
-        );
+        assert!(output.status.success(), "pacquet prefix should succeed in the {manifest} member");
 
         let expected = format!("{}\n", canonicalize(&member).display());
-        assert_eq!(
-            String::from_utf8_lossy(&output.stdout),
-            expected,
-            "manifest: {manifest}",
-        );
+        assert_eq!(String::from_utf8_lossy(&output.stdout), expected, "manifest: {manifest}");
 
         drop(root);
     }

@@ -107,9 +107,7 @@ impl PackagePattern {
         }
         CanonicalPackageName::parse(pattern, ecosystem)
             .map(|name| PackagePattern::Exact(name.as_str().to_string()))
-            .map_err(|_| RegistryConfigError::ExactPatternNotAName {
-                pattern: pattern.to_string(),
-            })
+            .map_err(|_| RegistryConfigError::ExactPatternNotAName { pattern: pattern.to_string() })
     }
 
     /// How specific this pattern is: an exact name beats `@scope/*` beats
@@ -141,9 +139,7 @@ impl PackagePattern {
     /// namespace-tier key a specificity lookup consults.
     #[must_use]
     pub fn namespace_of(package: &str) -> Option<&str> {
-        package
-            .split_once('/')
-            .map(|(namespace, _)| namespace)
+        package.split_once('/').map(|(namespace, _)| namespace)
     }
 
     /// Whether this pattern matches `package`.
@@ -231,8 +227,72 @@ pub(super) fn wildcard_shapes(ecosystem: Ecosystem) -> &'static str {
 }
 
 pub(super) fn invalid_pattern(pattern: &str, ecosystem: Ecosystem) -> RegistryConfigError {
-    RegistryConfigError::InvalidPattern {
-        pattern: pattern.to_string(),
-        ecosystem,
+    RegistryConfigError::InvalidPattern { pattern: pattern.to_string(), ecosystem }
+}
+
+/// Reject a router source whose claims an earlier source already covers.
+///
+/// A source is unreachable when every name it claims is already claimed by an
+/// earlier source — the misordered-catch-all hazard and its general form.
+/// Rejecting it makes a shadowed private source a startup error, not a silent
+/// public fall-through.
+///
+/// The whole-source check only fires when *all* of a source's patterns are
+/// covered, so the partial case is caught per pattern: one dead claim of an
+/// otherwise-reachable source would otherwise silently send a private package
+/// to the origin an earlier catch-all or scope claim points at. An identical
+/// claim by two sources is the same defect: whichever is listed later never
+/// receives the name, which is genuinely ambiguous provenance the operator must
+/// resolve in the declared namespaces, not by order.
+pub(super) fn reject_shadowed_source(
+    router: &str,
+    source: &str,
+    index: usize,
+    patterns: &[PackagePattern],
+    seen: &[&PackagePattern],
+) -> Result<(), RegistryConfigError> {
+    if patterns
+        .iter()
+        .all(|pattern| {
+            seen
+                .iter()
+                .any(|earlier| earlier.covers(pattern))
+        })
+    {
+        return Err(RegistryConfigError::UnreachableSource {
+            router: router.to_string(),
+            index,
+            source: source.to_string(),
+        });
     }
+    for pattern in patterns {
+        if let Some(earlier) = seen
+            .iter()
+            .find(|&&earlier| earlier.covers(pattern))
+        {
+            return Err(RegistryConfigError::ShadowedPattern {
+                router: router.to_string(),
+                source: source.to_string(),
+                pattern: pattern.to_string(),
+                by: earlier.to_string(),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Reject a duplicate pattern within one concrete registry's declared namespace.
+pub(super) fn validate_namespace(
+    registry: &str,
+    patterns: &[PackagePattern],
+) -> Result<(), RegistryConfigError> {
+    for (index, pattern) in patterns.iter().enumerate() {
+        if patterns[..index].contains(pattern) {
+            return Err(RegistryConfigError::DuplicatePattern {
+                registry: registry.to_string(),
+                pattern: pattern.to_string(),
+            });
+        }
+    }
+    Ok(())
 }

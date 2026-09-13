@@ -41,17 +41,9 @@ fn bundle_dependencies_optional_deps_of_bundled_dep_are_included() {
         r#"{"name":"top","version":"1.0.0","optionalDependencies":{"opt":"1.0.0"},"devDependencies":{"dev":"1.0.0"}}"#,
     );
     touch(root, "node_modules/top/index.js");
-    write(
-        root,
-        "node_modules/opt/package.json",
-        r#"{"name":"opt","version":"1.0.0"}"#,
-    );
+    write(root, "node_modules/opt/package.json", r#"{"name":"opt","version":"1.0.0"}"#);
     touch(root, "node_modules/opt/index.js");
-    write(
-        root,
-        "node_modules/dev/package.json",
-        r#"{"name":"dev","version":"1.0.0"}"#,
-    );
+    write(root, "node_modules/dev/package.json", r#"{"name":"dev","version":"1.0.0"}"#);
     touch(root, "node_modules/dev/index.js");
 
     let manifest = json!({
@@ -200,11 +192,7 @@ fn bundle_dependencies_closure_stops_past_max_depth() {
                 "version": "1.0.0",
             })
         };
-        write(
-            root,
-            &format!("node_modules/p{n}/package.json"),
-            &manifest.to_string(),
-        );
+        write(root, &format!("node_modules/p{n}/package.json"), &manifest.to_string());
         touch(root, &format!("node_modules/p{n}/index.js"));
     }
 

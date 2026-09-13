@@ -66,8 +66,8 @@ impl LoginArgs {
         )
         .into_diagnostic()?;
 
-        let message = login::<Sys, Reporter>(&http_client, self.login_options(config, config_dir))
-            .await?;
+        let message =
+            login::<Sys, Reporter>(&http_client, self.login_options(config, config_dir)).await?;
         Ok(message)
     }
 
@@ -81,9 +81,7 @@ impl LoginArgs {
             registry: self.registry
                 .as_deref()
                 .or(Some(config.registry.as_str())),
-            scope: self.scope
-                .as_deref()
-                .or(config.scope.as_deref()),
+            scope: self.scope.as_deref().or(config.scope.as_deref()),
             config_dir,
             fetch_retries: config.fetch_retries,
             fetch_retry_factor: config.fetch_retry_factor,

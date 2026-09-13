@@ -57,9 +57,7 @@ pub async fn wanted_lockfile_satisfies_workspace(
     else {
         return false;
     };
-    let workspace_root = workspace_dir_opt
-        .clone()
-        .unwrap_or_else(|| manifest_dir.to_path_buf());
+    let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
     // The importer ids below name projects relative to the directory the
     // check.lockfile sits in, which `lockfileDir` can move away from the
     // workspace root — deriving them from the workspace instead would
@@ -239,24 +237,30 @@ pub(super) async fn check_lockfile_freshness(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
 ) -> Result<(), FreshnessCheckError> {
-    let parsed_overrides_opt = parse_config_overrides(inputs.config, inputs.catalogs)?;
-    let pnpmfile_checksum = pnpm_hooks::current_pnpmfile_checksum(
-        inputs.pnpmfile_hook,
-        lockfile.pnpmfile_checksum.as_deref(),
-    )
-    .await;
+    let LockfileFreshnessInputs {
+        lockfile_dir,
+        manifests: manifest_freshness_inputs,
+        config,
+        catalogs,
+        pnpmfile_hook,
+        scope,
+    } = *inputs;
+    let parsed_overrides_opt = parse_config_overrides(config, catalogs)?;
+    let pnpmfile_checksum =
+        pnpm_hooks::current_pnpmfile_checksum(pnpmfile_hook, lockfile.pnpmfile_checksum.as_deref())
+            .await;
     check_lockfile_settings_drift(
         lockfile,
-        inputs.config,
-        inputs.catalogs,
+        config,
+        catalogs,
         CheckLockfileSettingsDriftOptions {
             parsed_overrides: parsed_overrides_opt.as_deref(),
             pnpmfile_checksum: PnpmfileChecksumCheck::Current(pnpmfile_checksum.as_deref()),
-            dedupe_peers: inputs.config.dedupe_peers,
+            dedupe_peers: config.dedupe_peers,
         },
     )?;
 
-    if inputs.scope.ignore_manifest_check {
+    if scope.ignore_manifest_check {
         return Ok(());
     }
 
@@ -264,23 +268,21 @@ pub(super) async fn check_lockfile_freshness(
     // than the workspace, and it is a root in every reachability walk, so
     // it also keeps that project's dependencies alive. Only an unfiltered
     // install sees the whole project list, so only it may conclude this.
-    if inputs.scope.prune_stale_importers
-        && let Some(importer_id) = removed_importer_id(lockfile, inputs.manifests)
+    if scope.prune_stale_importers
+        && let Some(importer_id) = removed_importer_id(lockfile, manifest_freshness_inputs)
     {
-        return Err(FreshnessCheckError::Stale(
-            StalenessReason::RemovedImporter {
-                importer_id: importer_id.to_string(),
-            },
-        ));
+        return Err(FreshnessCheckError::Stale(StalenessReason::RemovedImporter {
+            importer_id: importer_id.to_string(),
+        }));
     }
 
     check_importer_freshness(
         lockfile,
-        inputs.lockfile_dir,
-        inputs.manifests,
-        inputs.config,
+        lockfile_dir,
+        manifest_freshness_inputs,
+        config,
         parsed_overrides_opt.as_deref(),
-        inputs.scope.allow_missing_dependency_free_importers,
+        scope.allow_missing_dependency_free_importers,
     )
 }
 
@@ -433,20 +435,16 @@ pub(crate) enum FreshnessCheckError {
 impl From<FreshnessCheckError> for InstallError {
     fn from(error: FreshnessCheckError) -> InstallError {
         match error {
-            FreshnessCheckError::NoImporter { importer_id } => InstallError::NoImporter {
-                importer_id,
-            },
+            FreshnessCheckError::NoImporter { importer_id } => {
+                InstallError::NoImporter { importer_id }
+            }
             FreshnessCheckError::InvalidOverrides(inner) => InstallError::InvalidOverrides(inner),
             FreshnessCheckError::CalcPatchHashes(inner) => InstallError::WithFreshLockfile(
                 InstallWithFreshLockfileError::CalcPatchHashes(inner),
             ),
             FreshnessCheckError::Stale(reason) => match reason.setting_name() {
-                Some(setting) => InstallError::LockfileConfigMismatch {
-                    setting,
-                },
-                None => InstallError::OutdatedLockfile {
-                    reason,
-                },
+                Some(setting) => InstallError::LockfileConfigMismatch { setting },
+                None => InstallError::OutdatedLockfile { reason },
             },
         }
     }

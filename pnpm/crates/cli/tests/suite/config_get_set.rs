@@ -42,21 +42,15 @@ fn set_writes_the_setting_and_get_reads_it_back() {
 #[test]
 fn get_keeps_stdout_to_the_value() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "nodeLinker: hoisted\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write pnpm-workspace.yaml");
 
     let output = pacquet
         .with_args(["get", "node-linker"])
         .output()
         .expect("run pacquet get");
     assert!(output.status.success());
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout).trim_end(),
-        "hoisted",
-    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "hoisted");
 
     drop(root);
 }
@@ -64,19 +58,13 @@ fn get_keeps_stdout_to_the_value() {
 #[test]
 fn config_set_can_bootstrap_auth_for_a_global_custom_registry_before_switching_versions() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("package.json"),
-        r#"{ "packageManager": "pnpm@0.0.0" }"#,
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), r#"{ "packageManager": "pnpm@0.0.0" }"#)
+        .expect("write package.json");
     let config_home = root.path().join("xdg-config");
     let config_dir = config_home.join("pnpm");
     fs::create_dir_all(&config_dir).expect("create global config directory");
-    fs::write(
-        config_dir.join("auth.ini"),
-        "registry=http://127.0.0.1:1/\n",
-    )
-    .expect("write global config");
+    fs::write(config_dir.join("auth.ini"), "registry=http://127.0.0.1:1/\n")
+        .expect("write global config");
 
     let output = pacquet
         .with_env("XDG_CONFIG_HOME", &config_home)
@@ -98,29 +86,17 @@ fn config_set_can_bootstrap_auth_for_a_global_custom_registry_before_switching_v
 #[test]
 fn config_set_checks_the_package_manager_when_writing_project_configuration() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("package.json"),
-        r#"{ "packageManager": "yarn@4.0.0" }"#,
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), r#"{ "packageManager": "yarn@4.0.0" }"#)
+        .expect("write package.json");
 
     let output = pacquet
-        .with_args([
-            "config",
-            "set",
-            "--location=project",
-            "node-linker",
-            "hoisted",
-        ])
+        .with_args(["config", "set", "--location=project", "node-linker", "hoisted"])
         .output()
         .expect("run pacquet config set");
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("stderr={stderr}");
     assert!(!output.status.success(), "unexpected success: {stderr}");
-    assert!(
-        stderr.contains("This project is configured to use yarn"),
-        "stderr={stderr}",
-    );
+    assert!(stderr.contains("This project is configured to use yarn"), "stderr={stderr}");
 
     drop(root);
 }

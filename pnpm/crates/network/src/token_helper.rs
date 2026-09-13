@@ -90,33 +90,22 @@ pub fn execute_token_helper(
     run: TokenHelperRunner,
 ) -> Result<String, TokenHelperError> {
     let Some(program) = command.first() else {
-        return Err(TokenHelperError::EmptyToken {
-            program: String::new(),
-        });
+        return Err(TokenHelperError::EmptyToken { program: String::new() });
     };
     let output = run(command)
         .map_err(|source| {
             if source.kind() == io::ErrorKind::TimedOut {
-                TokenHelperError::Timeout {
-                    program: program.clone(),
-                }
+                TokenHelperError::Timeout { program: program.clone() }
             } else {
-                TokenHelperError::Spawn {
-                    program: program.clone(),
-                    source,
-                }
+                TokenHelperError::Spawn { program: program.clone(), source }
             }
         })?;
     if !output.success {
-        return Err(TokenHelperError::ErrorStatus {
-            program: program.clone(),
-        });
+        return Err(TokenHelperError::ErrorStatus { program: program.clone() });
     }
     let token = output.stdout.trim_end();
     if token.is_empty() {
-        return Err(TokenHelperError::EmptyToken {
-            program: program.clone(),
-        });
+        return Err(TokenHelperError::EmptyToken { program: program.clone() });
     }
     if starts_with_auth_scheme(token) {
         Ok(token.to_owned())
@@ -216,9 +205,7 @@ impl Drop for ChildGuard {
 /// read error or absent pipe yields the empty string.
 fn read_pipe<Pipe: Read + Send + 'static>(pipe: Option<Pipe>) -> thread::JoinHandle<String> {
     thread::spawn(move || {
-        let Some(mut pipe) = pipe else {
-            return String::new();
-        };
+        let Some(mut pipe) = pipe else { return String::new() };
         let mut buffer = Vec::new();
         let _ = pipe.read_to_end(&mut buffer);
         String::from_utf8_lossy(&buffer).into_owned()

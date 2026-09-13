@@ -16,10 +16,7 @@ async fn compiler_cache_survives_side_effects_reclamation_and_shares_quota() {
         .await
         .unwrap();
     store
-        .publish(
-            "acme",
-            publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/linux"),
-        )
+        .publish("acme", publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/linux"))
         .await
         .unwrap();
     let before = store.load_usage().await.unwrap().0;
@@ -55,15 +52,12 @@ async fn compiler_cache_failed_writes_reconcile_quota_even_after_remote_commit()
                 usage_writes: None,
             },
         });
-        let hosted = HostedStoreConfig::ObjectStore {
-            store: backend,
-            prefix: String::new(),
-        };
+        let hosted = HostedStoreConfig::ObjectStore { store: backend, prefix: String::new() };
         let directory = TempDir::new().unwrap();
         let store = SharedArtifactStore::new(&hosted, directory.path()).unwrap();
         let key = CompilerCacheKey::try_from("cache-key".to_string()).unwrap();
-        let result = store.publish_compiler_cache("acme", &key, bytes::Bytes::from_static(b"a"))
-            .await;
+        let result =
+            store.publish_compiler_cache("acme", &key, bytes::Bytes::from_static(b"a")).await;
         assert!(result.is_err(), "write failure must surface: {result:?}");
         let usage = store.load_usage().await.unwrap().0;
         assert_eq!(usage.global_bytes, if commit_before_error { 65 } else { 0 });
@@ -165,10 +159,8 @@ async fn concurrent_replicas_update_quota_without_lost_writes() {
     let backend: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let mut publications = Vec::with_capacity(PUBLICATIONS);
     for index in 0..PUBLICATIONS {
-        let config = HostedStoreConfig::ObjectStore {
-            store: Arc::clone(&backend),
-            prefix: String::new(),
-        };
+        let config =
+            HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
         publications.push(tokio::spawn(async move {
             let scratch = TempDir::new().unwrap();
             let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
@@ -222,10 +214,7 @@ async fn quota_is_reserved_before_objects_are_written() {
         .filter_map(std::result::Result::ok)
         .filter(|entry| entry.file_name() != ".locks")
         .collect::<Vec<_>>();
-    assert!(
-        entries.is_empty(),
-        "quota rejection wrote objects: {entries:?}",
-    );
+    assert!(entries.is_empty(), "quota rejection wrote objects: {entries:?}");
 }
 
 #[tokio::test]
@@ -246,10 +235,8 @@ async fn failed_object_writes_reconcile_quota_to_physical_storage() {
             usage_writes: None,
         },
     });
-    let config = HostedStoreConfig::ObjectStore {
-        store: Arc::clone(&backend),
-        prefix: String::new(),
-    };
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     store
@@ -297,10 +284,8 @@ async fn publication_finish_retries_a_transient_quota_write_failure() {
             usage_writes: None,
         },
     });
-    let config = HostedStoreConfig::ObjectStore {
-        store: Arc::clone(&backend),
-        prefix: String::new(),
-    };
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let publication = artifact_operation_id().unwrap();
@@ -354,10 +339,7 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
         },
     });
     let store = SharedArtifactStore::new(
-        &HostedStoreConfig::ObjectStore {
-            store: Arc::clone(&backend),
-            prefix: String::new(),
-        },
+        &HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() },
         TempDir::new().unwrap().path(),
     )
     .unwrap();
@@ -383,10 +365,7 @@ async fn a_failed_reread_after_a_lost_race_still_releases_the_quota() {
     // write is the marker claiming the scope it reaches, which the reservation
     // does not carry through a failure this early — the usage scan reclamation
     // ends with picks it up, along with dropping the marker itself.
-    assert_eq!(
-        usage.global_bytes, 0,
-        "the loser is not charged for what it did not store",
-    );
+    assert_eq!(usage.global_bytes, 0, "the loser is not charged for what it did not store");
 }
 
 /// A retry of a publication that finished writes nothing, so charging it for
@@ -444,10 +423,7 @@ async fn publishing_into_an_entry_that_needs_markers_keeps_its_quota_straight() 
 
     assert!(
         store
-            .read_object_bounded(
-                &format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"),
-                128
-            )
+            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"), 128)
             .await
             .unwrap()
             .is_some(),

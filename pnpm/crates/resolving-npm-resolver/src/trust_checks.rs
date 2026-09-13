@@ -128,8 +128,13 @@ pub fn fail_if_trust_downgraded(
 
     let version_date = trust_version_date(meta, version)?;
 
-    if trust_check_expired(version_date, opts) {
-        return Ok(());
+    // Ignore-after cutoff: a version old enough to be "settled" gets a pass.
+    if let Some(ignore_after_minutes) = opts.trust_policy_ignore_after_minutes {
+        let now = opts.now.unwrap_or_else(Utc::now);
+        let minutes_since_publish = (now - version_date).num_seconds().max(0) as u64 / 60;
+        if minutes_since_publish > ignore_after_minutes {
+            return Ok(());
+        }
     }
 
     let manifest = meta.versions
@@ -313,18 +318,6 @@ fn missing_trust_time(
         return Ok(());
     }
     Err(TrustViolation::TrustCheckFailed {
-        reason: format!(
-            r#"The metadata of {name} is missing the "time" field"#,
-            name = meta.name,
-        ),
+        reason: format!(r#"The metadata of {name} is missing the "time" field"#, name = meta.name),
     })
-}
-
-fn trust_check_expired(version_date: DateTime<Utc>, opts: &TrustCheckOptions<'_>) -> bool {
-    let Some(ignore_after_minutes) = opts.trust_policy_ignore_after_minutes else {
-        return false;
-    };
-    let now = opts.now.unwrap_or_else(Utc::now);
-    let minutes_since_publish = (now - version_date).num_seconds().max(0) as u64 / 60;
-    minutes_since_publish > ignore_after_minutes
 }

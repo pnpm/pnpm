@@ -27,9 +27,7 @@ impl HostedRevisionRefIndex {
     pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let index: Self = serde_json::from_slice(bytes)?;
         if index.refs.len() > MAX_HOSTED_REVISION_REFS {
-            return Err(RegistryError::RevisionReferenceLimit {
-                limit: MAX_HOSTED_REVISION_REFS,
-            });
+            return Err(RegistryError::RevisionReferenceLimit { limit: MAX_HOSTED_REVISION_REFS });
         }
         let mut seen = HashSet::with_capacity(index.refs.len());
         if index.refs
@@ -56,9 +54,7 @@ impl HostedRevisionRefIndex {
     }
 
     pub(crate) fn bodies(&self) -> impl Iterator<Item = &[u8]> {
-        self.refs
-            .iter()
-            .map(|entry| entry.bytes.as_slice())
+        self.refs.iter().map(|entry| entry.bytes.as_slice())
     }
 
     pub(crate) fn insert(
@@ -89,9 +85,7 @@ impl HostedRevisionRefIndex {
             return Ok(HostedRevisionRefWrite::Claimed);
         }
         if self.refs.len() == MAX_HOSTED_REVISION_REFS {
-            return Err(RegistryError::RevisionReferenceLimit {
-                limit: MAX_HOSTED_REVISION_REFS,
-            });
+            return Err(RegistryError::RevisionReferenceLimit { limit: MAX_HOSTED_REVISION_REFS });
         }
         self.refs.push(HostedRevisionRefIndexEntry {
             id: ref_id.to_string(),
@@ -168,17 +162,12 @@ pub(super) fn validate_revision_digest(digest: &str) -> Result<()> {
     if integrity_addressed_tarball_integrity(digest).is_some() {
         Ok(())
     } else {
-        Err(RegistryError::BadRequest {
-            reason: "invalid sha512 revision digest".to_string(),
-        })
+        Err(RegistryError::BadRequest { reason: "invalid sha512 revision digest".to_string() })
     }
 }
 
 pub(crate) fn is_canonical_revision_ref_id(ref_id: &str) -> bool {
-    ref_id.len() == 64
-        && ref_id
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit())
+    ref_id.len() == 64 && ref_id.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 pub(crate) fn is_canonical_revision_ref_owner(owner: &str) -> bool {
@@ -193,9 +182,7 @@ pub(super) fn validate_revision_ref_id(ref_id: &str) -> Result<()> {
     if is_canonical_revision_ref_id(ref_id) {
         Ok(())
     } else {
-        Err(RegistryError::BadRequest {
-            reason: "invalid revision reference id".to_string(),
-        })
+        Err(RegistryError::BadRequest { reason: "invalid revision reference id".to_string() })
     }
 }
 
@@ -203,8 +190,6 @@ pub(super) fn validate_revision_ref_owner(owner: &str) -> Result<()> {
     if is_canonical_revision_ref_owner(owner) {
         Ok(())
     } else {
-        Err(RegistryError::BadRequest {
-            reason: "invalid revision reference owner".to_string(),
-        })
+        Err(RegistryError::BadRequest { reason: "invalid revision reference owner".to_string() })
     }
 }

@@ -1,8 +1,6 @@
 pub(crate) use planning::{FastOverride, build_replacement_plan};
 
-mod manifest_dependencies;
 mod planning;
-use manifest_dependencies::{effective_dependencies, manifest_dependency_map};
 
 use planning::{ResolvedOverride, build_rewrite_plan, package_metadata, resolve_override};
 
@@ -46,11 +44,8 @@ pub(crate) struct RewriteContext<'a> {
 }
 
 pub(crate) async fn try_fast_update_overrides(opts: FastOverrideOptions<'_>) -> Option<Lockfile> {
-    let plan = build_rewrite_plan(
-        opts.context.lockfile,
-        opts.parsed_overrides,
-        opts.resolved_overrides,
-    )?;
+    let plan =
+        build_rewrite_plan(opts.context.lockfile, opts.parsed_overrides, opts.resolved_overrides)?;
     let mut updated = apply_rewrite_plan(&opts.context, &plan).await?;
     updated.overrides = Some(opts.resolved_overrides.clone());
     Some(updated)
@@ -76,9 +71,7 @@ pub(crate) async fn apply_rewrite_plan(
                 override_entry.new_version.is_some()
                     && plan.replacements
                         .iter()
-                        .any(|(old, new)| {
-                            old != new && old.name == override_entry.name
-                        })
+                        .any(|(old, new)| old != new && old.name == override_entry.name)
             })
             .map(|override_entry| resolve_override(context, override_entry)),
     )
@@ -169,11 +162,7 @@ fn apply_replacement(
         plan,
         target.new_key,
     )?;
-    let snapshot = SnapshotEntry {
-        dependencies,
-        optional_dependencies,
-        ..old_snapshot.clone()
-    };
+    let snapshot = SnapshotEntry { dependencies, optional_dependencies, ..old_snapshot.clone() };
     if let Some(existing) = target.snapshots.get(target.new_key)
         && existing != &snapshot
     {
@@ -221,12 +210,8 @@ fn rewrite_importer_dependencies(
     let Some(map) = dependencies else { return };
     map.retain(|alias, _| !should_remove_dependency(alias, None, &plan.overrides));
     for (alias, spec) in map.iter_mut() {
-        let Some(old_key) = spec.version.resolved_key(alias) else {
-            continue;
-        };
-        let Some(new_key) = plan.replacements.get(&old_key) else {
-            continue;
-        };
+        let Some(old_key) = spec.version.resolved_key(alias) else { continue };
+        let Some(new_key) = plan.replacements.get(&old_key) else { continue };
         // An importer is not a package, so a `parent>child` selector never
         // names it — the same exit removals take here.
         if !should_replace_dependency(alias, None, &plan.overrides) {
@@ -258,12 +243,8 @@ fn rewrite_snapshot_dependency_map(
 ) {
     dependencies.retain(|alias, _| !should_remove_dependency(alias, parent_key, &plan.overrides));
     for (alias, dep_ref) in dependencies {
-        let Some(old_key) = dep_ref.resolve(alias) else {
-            continue;
-        };
-        let Some(new_key) = plan.replacements.get(&old_key) else {
-            continue;
-        };
+        let Some(old_key) = dep_ref.resolve(alias) else { continue };
+        let Some(new_key) = plan.replacements.get(&old_key) else { continue };
         if !should_replace_dependency(alias, parent_key, &plan.overrides) {
             continue;
         }
@@ -307,12 +288,8 @@ fn should_replace_dependency(
 /// selector without a parent names every edge; one with a parent names
 /// only edges out of a package it matches, which an importer never is.
 fn override_applies_to(override_entry: &FastOverride, parent_key: Option<&PackageKey>) -> bool {
-    let Some(parent) = override_entry.parent.as_ref() else {
-        return true;
-    };
-    let Some(parent_key) = parent_key else {
-        return false;
-    };
+    let Some(parent) = override_entry.parent.as_ref() else { return true };
+    let Some(parent_key) = parent_key else { return false };
     if parent_key.name.to_string() != parent.name {
         return false;
     }
@@ -344,14 +321,8 @@ fn validate_dependencies(
             continue;
         }
         let range = Range::parse(&range).ok()?;
-        let dep_ref = rewritten_dep_ref(
-            &name,
-            &range,
-            &locked_dependencies,
-            snapshots,
-            packages,
-            plan,
-        )?;
+        let dep_ref =
+            rewritten_dep_ref(&name, &range, &locked_dependencies, snapshots, packages, plan)?;
         let key = dep_ref.resolve(&name)?;
         if !range.satisfies(key.suffix.version_semver()?) {
             return None;
@@ -430,6 +401,27 @@ fn find_reusable_dependency(
         .next()
         .is_none()
         .then(|| SnapshotDepRef::Plain(key.suffix.clone()))
+}
+
+fn effective_dependencies(manifest: &Value) -> Option<HashMap<PkgName, String>> {
+    let optional = manifest_dependency_map(manifest, "optionalDependencies")?;
+    Some(
+        manifest_dependency_map(manifest, "dependencies")?
+            .into_iter()
+            .filter(|(name, _)| !optional.contains_key(name))
+            .collect(),
+    )
+}
+
+fn manifest_dependency_map(manifest: &Value, key: &str) -> Option<HashMap<PkgName, String>> {
+    let Some(value) = manifest.get(key) else {
+        return Some(HashMap::new());
+    };
+    let map = value.as_object()?;
+    map
+        .iter()
+        .map(|(name, spec)| Some((PkgName::parse(name).ok()?, spec.as_str()?.to_string())))
+        .collect()
 }
 
 #[cfg(test)]

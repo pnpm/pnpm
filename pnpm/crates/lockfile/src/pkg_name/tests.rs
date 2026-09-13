@@ -16,20 +16,8 @@ fn parse_ok() {
         assert_eq!(&actual, &output);
     }
 
-    case(
-        "@foo/bar",
-        PkgName {
-            scope: Some("foo".to_string()),
-            bare: "bar".to_string(),
-        },
-    );
-    case(
-        "foo-bar",
-        PkgName {
-            scope: None,
-            bare: "foo-bar".to_string(),
-        },
-    );
+    case("@foo/bar", PkgName { scope: Some("foo".to_string()), bare: "bar".to_string() });
+    case("foo-bar", PkgName { scope: None, bare: "foo-bar".to_string() });
 }
 
 #[test]
@@ -40,20 +28,8 @@ fn deserialize_ok() {
         assert_eq!(&actual, &output);
     }
 
-    case(
-        "'@foo/bar'",
-        PkgName {
-            scope: Some("foo".to_string()),
-            bare: "bar".to_string(),
-        },
-    );
-    case(
-        "foo-bar",
-        PkgName {
-            scope: None,
-            bare: "foo-bar".to_string(),
-        },
-    );
+    case("'@foo/bar'", PkgName { scope: Some("foo".to_string()), bare: "bar".to_string() });
+    case("foo-bar", PkgName { scope: None, bare: "foo-bar".to_string() });
 }
 
 #[test]
@@ -66,13 +42,7 @@ fn deserialize_decodes_escape_sequences() {
     eprintln!("CASE: {input:?}");
     let actual: PkgName = serde_saphyr::from_str(input).unwrap();
     dbg!(&actual);
-    assert_eq!(
-        actual,
-        PkgName {
-            scope: Some("foo".to_string()),
-            bare: "bar".to_string()
-        },
-    );
+    assert_eq!(actual, PkgName { scope: Some("foo".to_string()), bare: "bar".to_string() });
 }
 
 #[test]
@@ -99,20 +69,8 @@ fn to_string() {
         assert_eq!(input.to_string(), output);
     }
 
-    case(
-        PkgName {
-            scope: Some("foo".to_string()),
-            bare: "bar".to_string(),
-        },
-        "@foo/bar",
-    );
-    case(
-        PkgName {
-            scope: None,
-            bare: "foo-bar".to_string(),
-        },
-        "foo-bar",
-    );
+    case(PkgName { scope: Some("foo".to_string()), bare: "bar".to_string() }, "@foo/bar");
+    case(PkgName { scope: None, bare: "foo-bar".to_string() }, "foo-bar");
 }
 
 #[test]
@@ -123,20 +81,8 @@ fn serialize() {
         assert_eq!(received, output);
     }
 
-    case(
-        PkgName {
-            scope: Some("foo".to_string()),
-            bare: "bar".to_string(),
-        },
-        "\"@foo/bar\"\n",
-    );
-    case(
-        PkgName {
-            scope: None,
-            bare: "foo-bar".to_string(),
-        },
-        "foo-bar\n",
-    );
+    case(PkgName { scope: Some("foo".to_string()), bare: "bar".to_string() }, "\"@foo/bar\"\n");
+    case(PkgName { scope: None, bare: "foo-bar".to_string() }, "foo-bar\n");
 }
 
 #[test]

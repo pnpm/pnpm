@@ -26,10 +26,7 @@ pub(super) fn walk_lockfile_edges<'lock>(
 ) -> Result<LockfileEdgeReach<'lock>, Box<InstallabilityError>> {
     let reachable = reachable_snapshots(importers, snapshots);
     let required = required_snapshots(importers, snapshots, packages, base_options, check_cache)?;
-    Ok(LockfileEdgeReach {
-        reachable,
-        required,
-    })
+    Ok(LockfileEdgeReach { reachable, required })
 }
 /// Every snapshot an importer can reach through any edge chain,
 /// including chains through skipped parents.
@@ -40,20 +37,10 @@ pub(super) fn reachable_snapshots<'lock>(
     let mut reachable: HashSet<&'lock PackageKey> = HashSet::new();
     let mut queue: VecDeque<&'lock PackageKey> = VecDeque::new();
     for importer in importers.values() {
-        enqueue_reachable(
-            importer_edges(importer),
-            snapshots,
-            &mut reachable,
-            &mut queue,
-        );
+        enqueue_reachable(importer_edges(importer), snapshots, &mut reachable, &mut queue);
     }
     while let Some(key) = queue.pop_front() {
-        enqueue_reachable(
-            snapshot_edges(&snapshots[key]),
-            snapshots,
-            &mut reachable,
-            &mut queue,
-        );
+        enqueue_reachable(snapshot_edges(&snapshots[key]), snapshots, &mut reachable, &mut queue);
     }
     reachable
 }
@@ -84,10 +71,7 @@ pub(super) fn required_snapshots<'lock>(
     base_options: &InstallabilityOptions<'_>,
     check_cache: &mut CheckCache,
 ) -> Result<HashSet<&'lock PackageKey>, Box<InstallabilityError>> {
-    let mut propagation = EdgePropagation {
-        installed: HashSet::new(),
-        required: HashSet::new(),
-    };
+    let mut propagation = EdgePropagation { installed: HashSet::new(), required: HashSet::new() };
     let mut pending: VecDeque<(&'lock PackageKey, bool)> = importers
         .values()
         .flat_map(importer_edges)
@@ -143,9 +127,7 @@ pub(super) fn is_skip_candidate(
     base_options: &InstallabilityOptions<'_>,
     check_cache: &mut CheckCache,
 ) -> Result<bool, Box<InstallabilityError>> {
-    let Some(metadata) = packages.get(metadata_key) else {
-        return Ok(false);
-    };
+    let Some(metadata) = packages.get(metadata_key) else { return Ok(false) };
     Ok(cached_check(check_cache, metadata_key, metadata, true, base_options)?.is_some())
 }
 pub(super) fn push_child_edges<'lock>(

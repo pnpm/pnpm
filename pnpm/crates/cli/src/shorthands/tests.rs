@@ -45,10 +45,7 @@ fn silent_long_form_expands_for_any_command() {
         expand(&["pnpm", "store", "path", "--silent"]),
         ["pnpm", "store", "path", "--reporter=silent"],
     );
-    assert_eq!(
-        expand(&["pnpm", "install", "--silent"]),
-        ["pnpm", "install", "--reporter=silent"],
-    );
+    assert_eq!(expand(&["pnpm", "install", "--silent"]), ["pnpm", "install", "--reporter=silent"]);
     // Ahead of the script name it is still pnpm's, for `run` too.
     assert_eq!(
         expand(&["pnpm", "run", "--silent", "build"]),
@@ -61,14 +58,8 @@ fn silent_long_form_expands_for_any_command() {
 /// typed (pnpm/pnpm#13302).
 #[test]
 fn silent_is_not_expanded_past_the_script_name() {
-    assert_eq!(
-        expand(&["pnpm", "run", "build", "--silent"]),
-        ["pnpm", "run", "build", "--silent"],
-    );
-    assert_eq!(
-        expand(&["pnpm", "run", "build", "-s"]),
-        ["pnpm", "run", "build", "-s"],
-    );
+    assert_eq!(expand(&["pnpm", "run", "build", "--silent"]), ["pnpm", "run", "build", "--silent"]);
+    assert_eq!(expand(&["pnpm", "run", "build", "-s"]), ["pnpm", "run", "build", "-s"]);
     assert_eq!(
         expand(&["pnpm", "exec", "node", "app.js", "--silent"]),
         ["pnpm", "exec", "node", "app.js", "--silent"],
@@ -77,27 +68,15 @@ fn silent_is_not_expanded_past_the_script_name() {
 
 #[test]
 fn short_s_expands_for_commands_that_do_not_own_it() {
-    assert_eq!(
-        expand(&["pnpm", "install", "-s"]),
-        ["pnpm", "install", "--reporter=silent"],
-    );
+    assert_eq!(expand(&["pnpm", "install", "-s"]), ["pnpm", "install", "--reporter=silent"]);
     // Pre-subcommand placement expands too — nopt is position-independent.
-    assert_eq!(
-        expand(&["pnpm", "-s", "install"]),
-        ["pnpm", "--reporter=silent", "install"],
-    );
+    assert_eq!(expand(&["pnpm", "-s", "install"]), ["pnpm", "--reporter=silent", "install"]);
 }
 
 #[test]
 fn short_s_is_left_for_run_which_defines_sequential() {
-    assert_eq!(
-        expand(&["pnpm", "run", "-s", "build"]),
-        ["pnpm", "run", "-s", "build"],
-    );
-    assert_eq!(
-        expand(&["pnpm", "-s", "run", "build"]),
-        ["pnpm", "-s", "run", "build"],
-    );
+    assert_eq!(expand(&["pnpm", "run", "-s", "build"]), ["pnpm", "run", "-s", "build"]);
+    assert_eq!(expand(&["pnpm", "-s", "run", "build"]), ["pnpm", "-s", "run", "build"]);
     // `recursive run` resolves to `run` as well.
     assert_eq!(
         expand(&["pnpm", "recursive", "run", "build", "-s"]),
@@ -109,10 +88,7 @@ fn short_s_is_left_for_run_which_defines_sequential() {
 fn short_s_is_left_for_the_script_fallback() {
     // `pnpm <script>` dispatches through `run`, which inherits its
     // shorthand table in pnpm.
-    assert_eq!(
-        expand(&["pnpm", "my-script", "-s"]),
-        ["pnpm", "my-script", "-s"],
-    );
+    assert_eq!(expand(&["pnpm", "my-script", "-s"]), ["pnpm", "my-script", "-s"]);
     // `test` / `start` / `stop` are that same fallback in pnpm rather than
     // commands of their own, so `-s` is the script's argument too.
     for command in ["test", "start", "stop"] {
@@ -140,16 +116,10 @@ fn option_values_are_not_rewritten() {
 #[test]
 fn expanded_silent_parses_to_the_silent_reporter() {
     let args = parse(&["pnpm", "store", "path", "--silent"]);
-    assert!(matches!(
-        args.output.presentation.reporter,
-        ReporterType::Silent
-    ));
+    assert!(matches!(args.output.presentation.reporter, ReporterType::Silent));
 
     let args = parse(&["pnpm", "install", "-s"]);
-    assert!(matches!(
-        args.output.presentation.reporter,
-        ReporterType::Silent
-    ));
+    assert!(matches!(args.output.presentation.reporter, ReporterType::Silent));
 }
 
 #[test]
@@ -157,14 +127,8 @@ fn later_reporter_overrides_the_silent_shorthand() {
     // nopt takes the last occurrence of a repeated option; `--silent` is
     // sugar for `--reporter=silent`, so an explicit later `--reporter` wins.
     let args = parse(&["pnpm", "install", "--silent", "--reporter=ndjson"]);
-    assert!(matches!(
-        args.output.presentation.reporter,
-        ReporterType::Ndjson
-    ));
+    assert!(matches!(args.output.presentation.reporter, ReporterType::Ndjson));
 
     let args = parse(&["pnpm", "install", "--reporter=ndjson", "--silent"]);
-    assert!(matches!(
-        args.output.presentation.reporter,
-        ReporterType::Silent
-    ));
+    assert!(matches!(args.output.presentation.reporter, ReporterType::Silent));
 }

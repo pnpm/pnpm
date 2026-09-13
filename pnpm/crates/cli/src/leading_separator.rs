@@ -21,8 +21,7 @@ use crate::parse_boundary::command_boundary;
 use std::ffi::OsString;
 
 pub(crate) fn preserve_leading_separator(mut argv: Vec<OsString>) -> Vec<OsString> {
-    let Some(boundary) =
-        command_boundary(&argv).filter(|boundary| boundary.is_script_shortcut)
+    let Some(boundary) = command_boundary(&argv).filter(|boundary| boundary.is_script_shortcut)
     else {
         return argv;
     };

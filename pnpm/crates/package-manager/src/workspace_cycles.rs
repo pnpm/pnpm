@@ -37,10 +37,7 @@ pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBu
         .keys()
         .map(|dir| PathNode(dir))
         .collect();
-    let included: HashSet<PathNode<'_>> = dirs
-        .iter()
-        .copied()
-        .collect();
+    let included: HashSet<PathNode<'_>> = dirs.iter().copied().collect();
     let edges: HashMap<PathNode<'_>, Vec<PathNode<'_>>> = graph
         .iter()
         .map(|(dir, node)| {
@@ -84,9 +81,7 @@ pub fn install_scope_cycles(
     let mut graph = create_projects_graph(
         projects
             .iter()
-            .map(|project| GraphPkg {
-                project,
-            })
+            .map(|project| GraphPkg { project })
             .collect(),
         &CreateProjectsGraphOptions {
             link_workspace_packages: Some(
@@ -116,14 +111,9 @@ pub fn report_workspace_cycles<Reporter: self::Reporter>(
     let Some(cycles) = cycles.filter(|_| !config.ignore_workspace_cycles) else {
         return Ok(());
     };
-    let message = format!(
-        "There are cyclic workspace dependencies{}",
-        render_cycles(cycles),
-    );
+    let message = format!("There are cyclic workspace dependencies{}", render_cycles(cycles));
     if config.disallow_workspace_cycles {
-        return Err(CyclicWorkspaceDependenciesError {
-            message,
-        });
+        return Err(CyclicWorkspaceDependenciesError { message });
     }
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,

@@ -94,27 +94,18 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("bail", Bool(cfg.bail)),
         ("color", color_mode_scalar(cfg.color)),
         ("embed-readme", Bool(cfg.embed_readme)),
-        (
-            "ignore-workspace-root-check",
-            Bool(cfg.ignore_workspace_root_check),
-        ),
+        ("ignore-workspace-root-check", Bool(cfg.ignore_workspace_root_check)),
         ("optional", Bool(cfg.optional)),
         ("pending", Bool(cfg.pending)),
         ("recursive-install", Bool(cfg.recursive_install)),
         ("reverse", Bool(cfg.reverse)),
         ("shell-emulator", Bool(cfg.shell_emulator)),
-        (
-            "skip-manifest-obfuscation",
-            Bool(cfg.skip_manifest_obfuscation),
-        ),
+        ("skip-manifest-obfuscation", Bool(cfg.skip_manifest_obfuscation)),
         ("sort", Bool(cfg.sort)),
         ("use-beta-cli", Bool(cfg.use_beta_cli)),
         ("auto-install-peers", Bool(cfg.auto_install_peers)),
         ("block-exotic-subdeps", Bool(cfg.block_exotic_subdeps)),
-        (
-            "dangerously-allow-all-builds",
-            Bool(cfg.dangerously_allow_all_builds),
-        ),
+        ("dangerously-allow-all-builds", Bool(cfg.dangerously_allow_all_builds)),
         ("strict-dep-builds", Bool(cfg.strict_dep_builds)),
         ("virtual-store-only", Bool(cfg.virtual_store_only)),
         ("enable-modules-dir", Bool(cfg.enable_modules_dir)),
@@ -124,145 +115,68 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("dedupe-peers", Bool(cfg.dedupe_peers)),
         ("deploy-all-files", Bool(cfg.deploy_all_files)),
         ("enable-pre-post-scripts", Bool(cfg.enable_pre_post_scripts)),
-        (
-            "exclude-links-from-lockfile",
-            Bool(cfg.exclude_links_from_lockfile),
-        ),
+        ("exclude-links-from-lockfile", Bool(cfg.exclude_links_from_lockfile)),
         ("extend-node-path", Bool(cfg.extend_node_path)),
         ("fail-if-no-match", Bool(cfg.fail_if_no_match)),
         ("force-legacy-deploy", Bool(cfg.force_legacy_deploy)),
         ("git-branch-lockfile", Bool(cfg.use_git_branch_lockfile)),
         ("hoist", Bool(cfg.hoist)),
-        (
-            "hoist-workspace-packages",
-            Bool(cfg.hoist_workspace_packages),
-        ),
+        ("hoist-workspace-packages", Bool(cfg.hoist_workspace_packages)),
         ("init-package-manager", Bool(cfg.init_package_manager)),
         ("init-type", init_type_scalar(cfg.init_type)),
-        (
-            "inject-workspace-packages",
-            Bool(cfg.inject_workspace_packages),
-        ),
-        (
-            "lockfile-include-tarball-url",
-            Bool(cfg.lockfile_include_tarball_url),
-        ),
+        ("inject-workspace-packages", Bool(cfg.inject_workspace_packages)),
+        ("lockfile-include-tarball-url", Bool(cfg.lockfile_include_tarball_url)),
         (
             "minimum-release-age-ignore-missing-time",
             Bool(cfg.minimum_release_age_ignore_missing_time),
         ),
-        (
-            "optimistic-repeat-install",
-            Bool(cfg.optimistic_repeat_install),
-        ),
-        (
-            "prefer-workspace-packages",
-            Bool(cfg.prefer_workspace_packages),
-        ),
-        (
-            "registry-supports-time-field",
-            Bool(cfg.registry_supports_time_field),
-        ),
-        (
-            "resolve-peers-from-workspace-root",
-            Bool(cfg.resolve_peers_from_workspace_root),
-        ),
+        ("optimistic-repeat-install", Bool(cfg.optimistic_repeat_install)),
+        ("prefer-workspace-packages", Bool(cfg.prefer_workspace_packages)),
+        ("registry-supports-time-field", Bool(cfg.registry_supports_time_field)),
+        ("resolve-peers-from-workspace-root", Bool(cfg.resolve_peers_from_workspace_root)),
         ("side-effects-cache", Bool(cfg.side_effects_cache)),
-        (
-            "shared-workspace-lockfile",
-            Bool(cfg.shared_workspace_lockfile),
-        ),
-        (
-            "strict-peer-dependencies",
-            Bool(cfg.strict_peer_dependencies),
-        ),
-        (
-            "disallow-workspace-cycles",
-            Bool(cfg.disallow_workspace_cycles),
-        ),
+        ("shared-workspace-lockfile", Bool(cfg.shared_workspace_lockfile)),
+        ("strict-peer-dependencies", Bool(cfg.strict_peer_dependencies)),
+        ("disallow-workspace-cycles", Bool(cfg.disallow_workspace_cycles)),
         ("ignore-workspace-cycles", Bool(cfg.ignore_workspace_cycles)),
-        (
-            "strict-store-pkg-content-check",
-            Bool(cfg.strict_store_pkg_content_check),
-        ),
+        ("strict-store-pkg-content-check", Bool(cfg.strict_store_pkg_content_check)),
         ("symlink", Bool(cfg.symlink)),
         ("verify-store-integrity", Bool(cfg.verify_store_integrity)),
         // `boolean | 'deep'` upstream; the default is `false`.
-        (
-            "link-workspace-packages",
-            link_workspace_packages_scalar(cfg.link_workspace_packages),
-        ),
+        ("link-workspace-packages", link_workspace_packages_scalar(cfg.link_workspace_packages)),
         // `boolean | 'rolling'` upstream; the default is `'rolling'`.
-        (
-            "save-workspace-protocol",
-            save_workspace_protocol_scalar(cfg.save_workspace_protocol),
-        ),
+        ("save-workspace-protocol", save_workspace_protocol_scalar(cfg.save_workspace_protocol)),
         // `boolean | 'install' | 'warn' | 'error' | 'prompt'` upstream;
         // the default is `'install'`.
-        (
-            "verify-deps-before-run",
-            verify_deps_before_run_scalar(cfg.verify_deps_before_run),
-        ),
+        ("verify-deps-before-run", verify_deps_before_run_scalar(cfg.verify_deps_before_run)),
         // `boolean | 'warn-only'` upstream; the default is `false`.
         (
             "scripts-prepend-node-path",
             scripts_prepend_node_path_scalar(cfg.scripts_prepend_node_path),
         ),
         ("node-linker", node_linker_scalar(cfg.node_linker)),
-        (
-            "node-experimental-package-map",
-            Bool(cfg.node_experimental_package_map),
-        ),
-        (
-            "node-package-map-type",
-            node_package_map_type_scalar(cfg.node_package_map_type),
-        ),
-        (
-            "resolution-mode",
-            resolution_mode_scalar(cfg.resolution_mode),
-        ),
+        ("node-experimental-package-map", Bool(cfg.node_experimental_package_map)),
+        ("node-package-map-type", node_package_map_type_scalar(cfg.node_package_map_type)),
+        ("resolution-mode", resolution_mode_scalar(cfg.resolution_mode)),
         ("catalog-mode", catalog_mode_scalar(cfg.catalog_mode)),
-        (
-            "save-catalog-name",
-            save_catalog_name_scalar(cfg.save_catalog_name.as_deref()),
-        ),
+        ("save-catalog-name", save_catalog_name_scalar(cfg.save_catalog_name.as_deref())),
         ("save-peer", Bool(cfg.save_peer)),
         ("fetch-retries", Int(i64::from(cfg.fetch_retries))),
         ("fetch-retry-factor", Int(i64::from(cfg.fetch_retry_factor))),
-        (
-            "fetch-retry-maxtimeout",
-            Int(cfg.fetch_retry_maxtimeout as i64),
-        ),
-        (
-            "fetch-retry-mintimeout",
-            Int(cfg.fetch_retry_mintimeout as i64),
-        ),
+        ("fetch-retry-maxtimeout", Int(cfg.fetch_retry_maxtimeout as i64)),
+        ("fetch-retry-mintimeout", Int(cfg.fetch_retry_mintimeout as i64)),
         ("fetch-timeout", Int(cfg.fetch_timeout as i64)),
-        (
-            "fetch-warn-timeout-ms",
-            Int(cfg.fetch_warn_timeout_ms as i64),
-        ),
-        (
-            "fetch-min-speed-ki-bps",
-            Int(cfg.fetch_min_speed_ki_bps as i64),
-        ),
+        ("fetch-warn-timeout-ms", Int(cfg.fetch_warn_timeout_ms as i64)),
+        ("fetch-min-speed-ki-bps", Int(cfg.fetch_min_speed_ki_bps as i64)),
         ("frozen-store", Bool(cfg.frozen_store)),
         (
             "minimum-release-age",
-            Int(
-                cfg.minimum_release_age.expect("pacquet defaults minimum-release-age to Some")
-                    as i64,
-            ),
+            Int(cfg.minimum_release_age.expect("pacquet defaults minimum-release-age to Some")
+                as i64),
         ),
-        (
-            "modules-cache-max-age",
-            Int(cfg.modules_cache_max_age as i64),
-        ),
+        ("modules-cache-max-age", Int(cfg.modules_cache_max_age as i64)),
         ("dlx-cache-max-age", Int(cfg.dlx_cache_max_age as i64)),
-        (
-            "peers-suffix-max-length",
-            Int(cfg.peers_suffix_max_length as i64),
-        ),
+        ("peers-suffix-max-length", Int(cfg.peers_suffix_max_length as i64)),
         (
             "hoist-pattern",
             Scalar::Set(
@@ -387,10 +301,7 @@ fn scripts_prepend_node_path_scalar(value: ScriptsPrependNodePath) -> Scalar {
 /// config-reader source. Read live so the test tracks pnpm rather than
 /// a checked-in copy that could silently drift.
 fn read_pnpm_default_options() -> String {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../pnpm11/config/reader/src/index.ts",
-    );
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../pnpm11/config/reader/src/index.ts");
     let src = std::fs::read_to_string(path)
         .unwrap_or_else(|err| {
             panic!(
@@ -463,9 +374,7 @@ fn pnpm_raw_value<'a>(block: &'a str, key: &str) -> Option<&'a str> {
         let close = after.find(']').expect("unterminated array literal in defaultOptions");
         Some(&after[..=close])
     } else {
-        let line_end = after
-            .find('\n')
-            .unwrap_or(after.len());
+        let line_end = after.find('\n').unwrap_or(after.len());
         Some(strip_line_comment(&after[..line_end]).trim().trim_end_matches(','))
     }
 }
@@ -603,10 +512,7 @@ fn every_pnpm_default_is_classified() {
         (&not_ported, &divergent, "not-ported ∩ divergent"),
     ] {
         let overlap: Vec<_> = a.intersection(b).collect();
-        assert!(
-            overlap.is_empty(),
-            "keys classified twice ({label}): {overlap:?}",
-        );
+        assert!(overlap.is_empty(), "keys classified twice ({label}): {overlap:?}");
     }
 
     let classified: BTreeSet<String> = [&mapped, &non_literal, &not_ported, &divergent]

@@ -32,11 +32,8 @@ fn an_unrecognized_workspace_setting_fails_when_the_running_pnpm_is_the_pinned_v
     write_workspace_yaml(&workspace, "minimumReleaseAg: 100\npackages:\n  - .\n");
     write_package_manager_pin(&workspace);
 
-    let output = run(
-        pacquet,
-        root.path(),
-        &["install", "--lockfile-only", "--config.pm-on-fail=error"],
-    );
+    let output =
+        run(pacquet, root.path(), &["install", "--lockfile-only", "--config.pm-on-fail=error"]);
 
     assert_failure(&output);
     let stderr = stderr(&output);
@@ -74,14 +71,8 @@ fn config_get_of_one_key_stays_quiet_and_succeeds() {
     assert_success(&output);
     assert_contains(&stdout(&output), "hoisted");
     let stderr = stderr(&output);
-    assert!(
-        !stderr.contains("[WARN]"),
-        "expected no config warning; got:\n{stderr}",
-    );
-    assert!(
-        !stderr.contains("not recognized"),
-        "expected no unrecognized report; got:\n{stderr}",
-    );
+    assert!(!stderr.contains("[WARN]"), "expected no config warning; got:\n{stderr}");
+    assert!(!stderr.contains("not recognized"), "expected no unrecognized report; got:\n{stderr}");
 }
 
 /// A broken config file must stay inspectable and repairable.
@@ -134,14 +125,8 @@ fn a_key_with_control_characters_is_sanitized() {
     assert_success(&output);
     let stderr = stderr(&output);
     assert_contains(&stderr, "not recognized by this version of pnpm");
-    assert!(
-        !stderr.contains('\u{1b}'),
-        "an escape reached the output: {stderr:?}",
-    );
-    assert!(
-        !stderr.contains('\r'),
-        "a carriage return reached the output: {stderr:?}",
-    );
+    assert!(!stderr.contains('\u{1b}'), "an escape reached the output: {stderr:?}");
+    assert!(!stderr.contains('\r'), "a carriage return reached the output: {stderr:?}");
 }
 
 /// `pnpm list --global` refuses to run when the global bin directory is not

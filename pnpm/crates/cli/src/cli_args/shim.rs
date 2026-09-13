@@ -12,13 +12,12 @@
 //! `pnpm setup` or an install: a shim shadows whatever the user's `PATH`
 //! resolved before it, so it is added only when asked for.
 
-pub use errors::ShimError;
 pub(crate) use policy::record_package_manager_shims;
-pub(crate) use state::record_virtual_shim_state;
-
-use state::{read_virtual_shim_state, remove_virtual_shim_state, virtual_shim_state_path};
+pub(crate) use virtual_state::record_virtual_shim_state;
 
 mod policy;
+mod virtual_state;
+use virtual_state::{read_virtual_shim_state, remove_virtual_shim_state, virtual_shim_state_path};
 
 use crate::{
     cli_args::global_bin_lock::acquire_global_bin_lock,
@@ -44,8 +43,7 @@ use std::{
     collections::BTreeMap,
     ffi::OsStr,
     fmt::Write as _,
-    fs,
-    io::{self},
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -59,6 +57,73 @@ const VIRTUAL_SHIM_STATE_PREFIX: &str = ".pnpm-shim-v1-virtual-";
 struct VirtualShimState {
     package: String,
     bins: Vec<String>,
+}
+
+/// Errors specific to `pacquet shim`. The codes carry the shared
+/// `ERR_PNPM_` prefix.
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum ShimError {
+    #[display("Please specify the subcommand")]
+    #[diagnostic(
+        code(ERR_PNPM_SHIM_NO_SUBCOMMAND),
+        help("Usage: pnpm shim add|rm|ls [package...]")
+    )]
+    NoSubcommand,
+
+    #[display("Unknown subcommand: {subcommand}")]
+    #[diagnostic(
+        code(ERR_PNPM_SHIM_UNKNOWN_SUBCOMMAND),
+        help("Usage: pnpm shim add|rm|ls [package...]")
+    )]
+    UnknownSubcommand {
+        #[error(not(source))]
+        subcommand: String,
+    },
+
+    #[display("Please specify at least one package")]
+    #[diagnostic(code(ERR_PNPM_SHIM_NO_PACKAGE))]
+    NoPackage,
+
+    #[display("Unable to find the global bin directory")]
+    #[diagnostic(
+        code(ERR_PNPM_NO_GLOBAL_BIN_DIR),
+        help(
+            r#"Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable."#
+        )
+    )]
+    NoGlobalDir,
+
+    #[display("Cannot create a shim: globalShims is set to false")]
+    #[diagnostic(
+        code(ERR_PNPM_SHIMS_DISABLED),
+        help(
+            r#"That setting turns every context-aware shim off, so the shim would sit on PATH doing nothing. Remove it from the global config.yaml, or set "globalShims: true", and add the shim again."#
+        )
+    )]
+    ShimsDisabled,
+
+    #[display("Cannot create a shim for {package}: {bin} is already in the global bin directory")]
+    #[diagnostic(
+        code(ERR_PNPM_SHIM_BIN_CONFLICT),
+        help(
+            r#"Another package already provides that command. Remove it with "pnpm remove -g <package>", or remove its shim with "pnpm shim rm <package>"."#
+        )
+    )]
+    BinConflict {
+        #[error(not(source))]
+        package: String,
+        bin: String,
+    },
+
+    #[display("Cannot find the bins of {package}")]
+    #[diagnostic(
+        code(ERR_PNPM_SHIM_NO_BINS),
+        help("A shim can only be created for a package that publishes at least one bin.")
+    )]
+    NoBins {
+        #[error(not(source))]
+        package: String,
+    },
 }
 
 #[derive(Debug, Args)]
@@ -83,10 +148,7 @@ impl ShimArgs {
             "add" => add(config, &bin_dir, packages).await,
             "rm" | "remove" | "uninstall" => remove(config, &bin_dir, packages),
             "ls" | "list" => Ok(list(config, &bin_dir)),
-            other => Err(ShimError::UnknownSubcommand {
-                subcommand: other.to_string(),
-            }
-            .into()),
+            other => Err(ShimError::UnknownSubcommand { subcommand: other.to_string() }.into()),
         }
     }
 }
@@ -97,7 +159,19 @@ async fn add(
     bin_dir: &Path,
     packages: &[String],
 ) -> miette::Result<String> {
-    validate_shim_packages(config, packages)?;
+    if packages.is_empty() {
+        return Err(ShimError::NoPackage.into());
+    }
+    // Writing the opt-in would replace that global off switch with a
+    // record of its own, turning the shims it disables back on.
+    if shims_disabled_globally(&global_config_dir(config)?)? {
+        return Err(ShimError::ShimsDisabled.into());
+    }
+    for package in packages {
+        if !would_dispatch(config, package)? {
+            return Err(ShimError::ShimsDisabled.into());
+        }
+    }
     // The global bin directory is `pnpm setup`'s to create, and a shim can
     // be the first thing that ever goes in it.
     fs::create_dir_all(bin_dir)
@@ -119,22 +193,12 @@ async fn add(
         // else — a globally installed package, or another shim. Replacing
         // it would take a working command away, and `pnpm shim rm` would
         // then delete it rather than give it back.
-        if let Some(bin) = bins
-            .iter()
-            .find(|bin| taken_by_another(bin_dir, bin, package))
-        {
-            return Err(ShimError::BinConflict {
-                package: package.clone(),
-                bin: bin.clone(),
-            }
-            .into());
+        if let Some(bin) = bins.iter().find(|bin| taken_by_another(bin_dir, bin, package)) {
+            return Err(
+                ShimError::BinConflict { package: package.clone(), bin: bin.clone() }.into()
+            );
         }
-        publish_virtual_shims(&VirtualShimPublication {
-            config,
-            bin_dir,
-            package,
-            bins: &bins,
-        })?;
+        publish_virtual_shims(&VirtualShimPublication { config, bin_dir, package, bins: &bins })?;
         writeln!(report, "Added {} for {package}", bins.join(", ")).unwrap();
     }
     Ok(report)
@@ -145,11 +209,7 @@ fn publish_virtual_shims(publication: &VirtualShimPublication<'_>) -> miette::Re
     // Commit the governing records first. If publishing a shim later
     // fails, a retry can repair it without rollback racing a process
     // that replaced the public bin slot.
-    set_policy(
-        config,
-        package,
-        Some(ShimPolicyValue::Named(NamedShimPolicy::Auto)),
-    )?;
+    set_policy(config, package, Some(ShimPolicyValue::Named(NamedShimPolicy::Auto)))?;
     record_virtual_shim_state(bin_dir, package, bins)?;
     for bin in bins {
         install_native_shim(bin_dir, bin, &ShimTarget::Virtual(package.to_string()))
@@ -204,13 +264,7 @@ fn list(config: &Config, bin_dir: &Path) -> String {
     for (package, mut bins) in packages {
         bins.sort();
         let policy = config.global_shims.policy(&package);
-        writeln!(
-            report,
-            "{package} ({}): {}",
-            policy.as_str(),
-            bins.join(", "),
-        )
-        .unwrap();
+        writeln!(report, "{package} ({}): {}", policy.as_str(), bins.join(", ")).unwrap();
     }
     report
 }
@@ -229,22 +283,16 @@ async fn bins_of(config: &'static Config, package: &str) -> miette::Result<Vec<S
             .map(|bin| (*bin).to_string())
             .collect());
     }
-    let resolved = config_deps::resolve_engine_version(config, package, "latest")
-        .await?;
+    let resolved = config_deps::resolve_engine_version(config, package, "latest").await?;
     let manifest = resolved
         .and_then(|resolved| resolved.manifest)
-        .ok_or_else(|| ShimError::NoBins {
-            package: package.to_string(),
-        })?;
+        .ok_or_else(|| ShimError::NoBins { package: package.to_string() })?;
     // The manifest came off the registry, so there is no package directory
     // to walk: only the `bin` field can answer, which is what every
     // package that publishes a command sets.
     let bins = get_bins_from_package_manifest::<CmdShimHost>(&manifest, Path::new(""));
     if bins.is_empty() {
-        return Err(ShimError::NoBins {
-            package: package.to_string(),
-        }
-        .into());
+        return Err(ShimError::NoBins { package: package.to_string() }.into());
     }
     Ok(bins
         .into_iter()
@@ -302,9 +350,7 @@ pub(crate) fn virtual_shim_bins_to_restore(
     package: &str,
 ) -> miette::Result<Vec<String>> {
     let path = virtual_shim_state_path(bin_dir, package);
-    let Some(state) = read_virtual_shim_state(&path)? else {
-        return Ok(Vec::new());
-    };
+    let Some(state) = read_virtual_shim_state(&path)? else { return Ok(Vec::new()) };
     if state.package != package {
         let path_display = path.display();
         return Err(miette::miette!(
@@ -355,9 +401,7 @@ fn virtual_shim_state_of_entry(
         return Ok(None);
     }
     let path = entry.path();
-    let Some(state) = read_virtual_shim_state(&path)? else {
-        return Ok(None);
-    };
+    let Some(state) = read_virtual_shim_state(&path)? else { return Ok(None) };
     if virtual_shim_state_path(bin_dir, &state.package) != path {
         let path_display = path.display();
         return Err(miette::miette!(
@@ -390,24 +434,3 @@ fn claim_restoration_bins(
 
 #[cfg(test)]
 mod tests;
-
-mod errors;
-
-mod state;
-
-fn validate_shim_packages(config: &Config, packages: &[String]) -> miette::Result<()> {
-    if packages.is_empty() {
-        return Err(ShimError::NoPackage.into());
-    }
-    // Writing the opt-in would replace that global off switch with a
-    // record of its own, turning the shims it disables back on.
-    if shims_disabled_globally(&global_config_dir(config)?)? {
-        return Err(ShimError::ShimsDisabled.into());
-    }
-    for package in packages {
-        if !would_dispatch(config, package)? {
-            return Err(ShimError::ShimsDisabled.into());
-        }
-    }
-    Ok(())
-}

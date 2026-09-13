@@ -59,12 +59,7 @@ fn the_cursor_starts_on_the_first_choice_below_the_headings() {
     let lines = frame_lines(&prompt);
     assert_eq!(
         &lines[1..5],
-        [
-            " ── dependencies ──",
-            "   Package",
-            "❯◯ foo 1.0.0 ❯ 2.0.0",
-            " ◯ bar 1.0.0 ❯ 2.0.0"
-        ],
+        [" ── dependencies ──", "   Package", "❯◯ foo 1.0.0 ❯ 2.0.0", " ◯ bar 1.0.0 ❯ 2.0.0"],
     );
 }
 
@@ -79,31 +74,17 @@ fn moving_skips_separators_and_wraps_around() {
     );
 
     press(&mut prompt, &[Key::ArrowDown]);
-    assert_eq!(
-        prompt.viewport.active, 2,
-        "moving past the end wraps to the first choice",
-    );
+    assert_eq!(prompt.viewport.active, 2, "moving past the end wraps to the first choice");
 
     press(&mut prompt, &[Key::Char('k')]);
-    assert_eq!(
-        prompt.viewport.active, 6,
-        "moving before the start wraps to the last choice",
-    );
+    assert_eq!(prompt.viewport.active, 6, "moving before the start wraps to the last choice");
 }
 
 #[test]
 fn space_toggles_the_active_choice_only() {
     let mut prompt = grouped_prompt();
 
-    press(
-        &mut prompt,
-        &[
-            Key::Char(' '),
-            Key::Char('j'),
-            Key::Char(' '),
-            Key::Char(' '),
-        ],
-    );
+    press(&mut prompt, &[Key::Char(' '), Key::Char('j'), Key::Char(' '), Key::Char(' ')]);
 
     assert_eq!(selected(&prompt), ["foo"]);
 }
@@ -116,21 +97,13 @@ fn a_toggles_every_choice_and_i_inverts() {
     assert_eq!(selected(&prompt), ["foo", "bar", "baz"]);
 
     press(&mut prompt, &[Key::Char('a')]);
-    assert_eq!(
-        selected(&prompt),
-        Vec::<&str>::new(),
-        "all checked, so `a` clears them",
-    );
+    assert_eq!(selected(&prompt), Vec::<&str>::new(), "all checked, so `a` clears them");
 
     press(&mut prompt, &[Key::Char(' '), Key::Char('i')]);
     assert_eq!(selected(&prompt), ["bar", "baz"]);
 
     press(&mut prompt, &[Key::Char('a')]);
-    assert_eq!(
-        selected(&prompt),
-        ["foo", "bar", "baz"],
-        "one unchecked, so `a` checks the rest",
-    );
+    assert_eq!(selected(&prompt), ["foo", "bar", "baz"], "one unchecked, so `a` checks the rest");
 }
 
 #[test]
@@ -147,10 +120,7 @@ fn a_digit_toggles_that_choice_counting_choices_only() {
 fn enter_submits_and_ctrl_c_cancels() {
     let mut prompt = grouped_prompt();
 
-    assert_eq!(
-        press(&mut prompt, &[Key::Char(' '), Key::Enter]),
-        KeyOutcome::Submit,
-    );
+    assert_eq!(press(&mut prompt, &[Key::Char(' '), Key::Enter]), KeyOutcome::Submit);
     assert_eq!(press(&mut prompt, &[Key::CtrlC]), KeyOutcome::Cancel);
 }
 
@@ -167,22 +137,13 @@ fn a_required_prompt_refuses_an_empty_selection() {
     );
 
     press(&mut prompt, &[Key::ArrowDown]);
-    assert!(
-        !prompt.render_frame().contains("At least one"),
-        "moving clears the error",
-    );
+    assert!(!prompt.render_frame().contains("At least one"), "moving clears the error");
 
     press(&mut prompt, &[Key::Enter, Key::Char('a')]);
-    assert!(
-        !prompt.render_frame().contains("At least one"),
-        "toggling all clears the error",
-    );
+    assert!(!prompt.render_frame().contains("At least one"), "toggling all clears the error");
     press(&mut prompt, &[Key::Char('a')]);
 
-    assert_eq!(
-        press(&mut prompt, &[Key::Char(' '), Key::Enter]),
-        KeyOutcome::Submit,
-    );
+    assert_eq!(press(&mut prompt, &[Key::Char(' '), Key::Enter]), KeyOutcome::Submit);
 }
 
 #[test]
@@ -195,11 +156,7 @@ fn the_frame_ends_with_the_key_help() {
         lines.last().map(String::as_str),
         Some("↑↓ navigate • space select • a all • i invert • ⏎ submit"),
     );
-    assert_eq!(
-        lines[lines.len() - 2].trim(),
-        "",
-        "a blank line separates the list from the help",
-    );
+    assert_eq!(lines[lines.len() - 2].trim(), "", "a blank line separates the list from the help");
 }
 
 #[test]
@@ -208,10 +165,7 @@ fn the_answer_names_the_selection_by_its_short_form() {
 
     press(&mut prompt, &[Key::Char(' '), Key::Char('3')]);
 
-    assert_eq!(
-        strip_ansi_codes(&prompt.render_answer()),
-        "✔ Choose foo, baz",
-    );
+    assert_eq!(strip_ansi_codes(&prompt.render_answer()), "✔ Choose foo, baz");
 }
 
 #[test]
@@ -240,20 +194,10 @@ fn the_page_follows_the_cursor_and_keeps_the_headings_above_it() {
     prompt.viewport.page_size = 3;
 
     let page = |prompt: &CheckboxPrompt<&'static str>| frame_lines(prompt)[1..4].to_vec();
-    assert_eq!(
-        page(&prompt),
-        [" ── dependencies ──", "   Package", "❯◯ foo 1.0.0 ❯ 2.0.0"],
-    );
+    assert_eq!(page(&prompt), [" ── dependencies ──", "   Package", "❯◯ foo 1.0.0 ❯ 2.0.0"]);
 
     press(&mut prompt, &[Key::ArrowDown, Key::ArrowDown]);
-    assert_eq!(
-        page(&prompt),
-        [
-            " ── devDependencies ──",
-            "   Package",
-            "❯◯ baz 1.0.0 ❯ 2.0.0"
-        ],
-    );
+    assert_eq!(page(&prompt), [" ── devDependencies ──", "   Package", "❯◯ baz 1.0.0 ❯ 2.0.0"]);
 
     press(&mut prompt, &[Key::ArrowDown]);
     assert_eq!(
@@ -265,11 +209,7 @@ fn the_page_follows_the_cursor_and_keeps_the_headings_above_it() {
     press(&mut prompt, &[Key::ArrowUp, Key::ArrowUp]);
     assert_eq!(
         page(&prompt),
-        [
-            "❯◯ bar 1.0.0 ❯ 2.0.0",
-            " ── devDependencies ──",
-            "   Package"
-        ],
+        ["❯◯ bar 1.0.0 ❯ 2.0.0", " ── devDependencies ──", "   Package"],
         "a row under another row scrolls in on its own",
     );
 }

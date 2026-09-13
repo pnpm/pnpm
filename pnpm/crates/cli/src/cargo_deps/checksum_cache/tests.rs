@@ -56,10 +56,7 @@ async fn invalidates_checksums_when_verified_files_change() {
     assert_ne!(files[CHECKSUM_FILE], first);
     let manifest: serde_json::Value =
         serde_json::from_slice(&fs::read(&files[CHECKSUM_FILE]).unwrap()).unwrap();
-    assert_eq!(
-        manifest["files"]["src/lib.rs"],
-        pnpm_crypto_hash::create_hex_hash("second"),
-    );
+    assert_eq!(manifest["files"]["src/lib.rs"], pnpm_crypto_hash::create_hex_hash("second"));
 }
 
 #[tokio::test]

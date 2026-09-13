@@ -9,7 +9,7 @@
 //! result over a oneshot channel — so the borrows never have to cross the FFI
 //! boundary or become `'static`.
 //!
-//! [`rebuild()`] takes the frozen path against the already-materialized
+//! [`rebuild`] takes the frozen path against the already-materialized
 //! `node_modules`; [`get_peer_dependency_issues`] runs a sink-driven
 //! `dry_run` resolve that writes nothing and returns the per-importer
 //! peer-dependency issues.
@@ -20,10 +20,8 @@ pub use options::{
     InstallOptions, NetworkConfigInput, NodeApiProject, PackageExtensionInput, PeerIssuesOptions,
     ProxyConfigInput,
 };
+pub(crate) use overlay::install_http_client;
 pub use peer_issues::get_peer_dependency_issues;
-pub use rebuild::rebuild;
-
-mod rebuild;
 
 use std::{
     collections::{BTreeSet, HashMap},
@@ -78,9 +76,7 @@ fn build_renderer(
     options: &InstallOptions,
     on_output: Option<OutputSink>,
 ) -> Option<NativeRenderer> {
-    options.reporter
-        .as_ref()
-        .map(|reporter| NativeRenderer::new(reporter, &options.dir, on_output))
+    options.reporter.as_ref().map(|reporter| NativeRenderer::new(reporter, &options.dir, on_output))
 }
 
 /// Serializes every engine call that touches the process-global log sink /
@@ -156,10 +152,8 @@ fn run_install_blocking(
     );
     let stats = take_stats();
     let store_dir = outcome?;
-    let deps_requiring_build = take_deps_requiring_build(
-        deps_requiring_build_sink.as_ref(),
-        stats.deps_requiring_build,
-    );
+    let deps_requiring_build =
+        take_deps_requiring_build(deps_requiring_build_sink.as_ref(), stats.deps_requiring_build);
     Ok(InstallResult {
         stats: InstallStatsResult {
             added: stats.added as f64,
@@ -415,20 +409,20 @@ fn run_install_inner(
 ) -> napi::Result<String> {
     reject_non_object_manifests(&options.projects)?;
     let dir = PathBuf::from(&options.dir);
-    let manifest = PackageManifest::from_value(
-        dir.join("package.json"),
-        root_manifest_value(options, &dir)?,
-    );
+    let manifest =
+        PackageManifest::from_value(dir.join("package.json"), root_manifest_value(options, &dir)?);
 
     reject_unsupported_install_options(options)?;
-    let config = resolve_config(
-        &dir,
-        &build_overlay(options, ignores_package_manifest(options, &mode))?,
-    )
-    .map_err(|error| to_napi_error(&error))?;
+    let config =
+        resolve_config(&dir, &build_overlay(options, ignores_package_manifest(options, &mode))?)
+            .map_err(|error| to_napi_error(&error))?;
 
     let http_client = install_http_client(config)?;
-    let lazy_lockfile = install_lockfile(config, &dir);
+    let lazy_lockfile = if config.lockfile {
+        LazyLockfile::deferred(dir.clone(), config.wanted_lockfile_selection())
+    } else {
+        LazyLockfile::disabled()
+    };
     let resolved_packages = ResolvedPackages::new();
     let lockfile_path = dir.join(config.wanted_lockfile_name());
     let shape = InstallShape::new(options, &mode);
@@ -475,21 +469,6 @@ fn root_manifest_value(options: &InstallOptions, dir: &Path) -> napi::Result<ser
         })
 }
 
-pub(crate) fn install_http_client(
-    config: &pnpm_config::Config,
-) -> napi::Result<Arc<ThrottledClient>> {
-    Ok(Arc::new(
-        ThrottledClient::for_installs(
-            &config.proxy,
-            &config.tls,
-            &config.tls_by_uri,
-            &config.network_settings(),
-        )
-        .map_err(|error| to_napi_error(&error))?
-        .with_max_sockets_per_host(config.max_sockets),
-    ))
-}
-
 fn dependency_groups(options: &InstallOptions) -> Vec<DependencyGroup> {
     let mut groups = vec![DependencyGroup::Prod, DependencyGroup::Dev];
     if options.include_optional_deps != Some(false) {
@@ -507,6 +486,51 @@ fn multi_thread_runtime() -> napi::Result<tokio::runtime::Runtime> {
         })
 }
 
+#[napi]
+pub async fn rebuild(
+    options: InstallOptions,
+    on_log: Option<LogSink>,
+    selected_names: Option<Vec<String>>,
+    on_output: Option<OutputSink>,
+) -> napi::Result<()> {
+    let _guard = engine_call_lock().lock().await;
+    let renderer = build_renderer(&options, on_output);
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    std::thread::Builder::new()
+        .name("pnpm-napi-rebuild".to_string())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(move || {
+            let _ = tx.send(run_rebuild_blocking(&options, on_log, renderer, selected_names));
+        })
+        .map_err(|error| {
+            napi::Error::from_reason(format!("failed to spawn rebuild thread: {error}"))
+        })?;
+    rx.await.map_err(|_| napi::Error::from_reason("rebuild worker thread panicked"))?
+}
+
+fn run_rebuild_blocking(
+    options: &InstallOptions,
+    on_log: Option<LogSink>,
+    renderer: Option<NativeRenderer>,
+    selected_names: Option<Vec<String>>,
+) -> napi::Result<()> {
+    // Restores the previous sink and renderer on drop — including on a
+    // panic in `run_install_inner`, which unwinds this dedicated thread.
+    let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
+    // `None` (or an empty list) rebuilds every build-needing package; a
+    // non-empty list restricts the rebuild to the matching names / build keys.
+    let rebuild_options = RebuildOptions {
+        selected_names: selected_names
+            .filter(|names| !names.is_empty())
+            .map(|names| names.into_iter().collect()),
+        // The engine API rebuilds dependencies only; running a workspace
+        // project's own deferred scripts is `pnpm rebuild --pending`.
+        pending_projects: Vec::new(),
+    };
+    let outcome = run_install_inner(options, None, EngineMode::Rebuild(rebuild_options));
+    outcome.map(|_| ())
+}
+
 #[cfg(test)]
 mod tests;
 
@@ -518,11 +542,3 @@ mod options;
 
 mod validation;
 use validation::{reject_non_object_manifests, reject_unsupported_install_options};
-
-fn install_lockfile(config: &pnpm_config::Config, dir: &Path) -> LazyLockfile {
-    if config.lockfile {
-        LazyLockfile::deferred(dir.to_path_buf(), config.wanted_lockfile_selection())
-    } else {
-        LazyLockfile::disabled()
-    }
-}

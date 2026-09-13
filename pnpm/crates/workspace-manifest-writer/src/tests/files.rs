@@ -23,11 +23,8 @@ fn scaffold_allow_builds_no_op_when_already_scaffolded_keeps_file() {
 #[test]
 fn ignore_ghsas_replaces_an_existing_list() {
     let original = "auditConfig:\n  ignoreGhsas:\n    - GHSA-aaaa-bbbb-cccc\n";
-    let out = run_ignore_ghsas(
-        Some(original),
-        &["GHSA-aaaa-bbbb-cccc", "GHSA-dddd-eeee-ffff"],
-    )
-    .expect("written");
+    let out = run_ignore_ghsas(Some(original), &["GHSA-aaaa-bbbb-cccc", "GHSA-dddd-eeee-ffff"])
+        .expect("written");
     assert_eq!(
         out,
         "auditConfig:\n  ignoreGhsas:\n    - GHSA-aaaa-bbbb-cccc\n    - GHSA-dddd-eeee-ffff\n",
@@ -59,10 +56,7 @@ fn ignore_ghsas_empty_with_sibling_only_is_a_noop() {
 fn ignore_ghsas_targets_the_canonical_audit_ignore_list() {
     let original = "audit:\n  ignorePrune: true\n  ignore:\n    - GHSA-aaaa-bbbb-cccc\n";
     let out = run_ignore_ghsas(Some(original), &["GHSA-dddd-eeee-ffff"]).expect("written");
-    assert_eq!(
-        out,
-        "audit:\n  ignorePrune: true\n  ignore:\n    - GHSA-dddd-eeee-ffff\n",
-    );
+    assert_eq!(out, "audit:\n  ignorePrune: true\n  ignore:\n    - GHSA-dddd-eeee-ffff\n");
 }
 
 #[test]
@@ -95,10 +89,7 @@ fn ignore_ghsas_rejects_control_characters() {
     let err = crate::set_audit_ignore_ghsas(dir.path(), &["GHSA-aaaa\nbreak".to_string()])
         .expect_err("must reject a control character");
 
-    assert!(matches!(
-        err,
-        crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }
-    ));
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }));
     assert!(!path.exists(), "nothing should be written");
 }
 
@@ -116,12 +107,9 @@ fn allow_builds_clearing_legacy_deletes_the_file_when_nothing_remains() {
 
 #[test]
 fn set_scalar_field_into_existing_file() {
-    let out = run_update_field(
-        Some("storeDir: ~/store\n"),
-        "fetchTimeout",
-        &serde_json::json!(1000),
-    )
-    .expect("file written");
+    let out =
+        run_update_field(Some("storeDir: ~/store\n"), "fetchTimeout", &serde_json::json!(1000))
+            .expect("file written");
     let parsed: indexmap::IndexMap<String, serde_json::Value> =
         serde_saphyr::from_str(&out).expect("parse");
     assert_eq!(parsed["storeDir"], serde_json::json!("~/store"));

@@ -33,9 +33,8 @@ pub(crate) fn modified_manifests_match_lockfile(
 ) -> Result<Option<Lockfile>, &'static str> {
     let mut loaded_current: Option<Lockfile> = None;
     let mut wanted_is_current = false;
-    let lockfile = check.lockfile
-        .get()
-        .map_err(|_| "the wanted lockfile cannot be read or parsed")?;
+    let lockfile =
+        check.lockfile.get().map_err(|_| "the wanted lockfile cannot be read or parsed")?;
     let (wanted, wanted_mtime): (&Lockfile, FileMtime) = if let Some(wanted) = lockfile {
         let Some(mtime) =
             file_mtime(&check.workspace_root.join(check.config.wanted_lockfile_name()))
@@ -46,7 +45,14 @@ pub(crate) fn modified_manifests_match_lockfile(
         };
         (wanted, mtime)
     } else {
-        let (current, mtime) = current_lockfile_with_mtime(check)?;
+        let current_path = check.config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+        let Some(mtime) = file_mtime(&current_path) else {
+            return Err("a manifest is newer than the last validation and no lockfile is loaded");
+        };
+        let current =
+            Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
+                .map_err(|_| "the current lockfile cannot be loaded")?
+                .ok_or("a manifest is newer than the last validation and no lockfile is loaded")?;
         wanted_is_current = true;
         (&*loaded_current.insert(current), mtime)
     };
@@ -55,11 +61,7 @@ pub(crate) fn modified_manifests_match_lockfile(
         check,
         state,
         modified,
-        &WantedLockfileStat {
-            wanted,
-            mtime: wanted_mtime,
-            is_current: wanted_is_current,
-        },
+        &WantedLockfileStat { wanted, mtime: wanted_mtime, is_current: wanted_is_current },
     )?;
     if !to_check.is_empty() {
         check_projects_content(check, wanted, to_check, dedupe_peers)?;
@@ -314,10 +316,7 @@ fn linked_group_is_up_to_date(
 ) -> bool {
     for (dep_name, dep) in lockfile_deps {
         let dep_name = dep_name.to_string();
-        let Some(current_spec) = manifest_deps
-            .get(&dep_name)
-            .and_then(|v| v.as_str())
-        else {
+        let Some(current_spec) = manifest_deps.get(&dep_name).and_then(|v| v.as_str()) else {
             continue;
         };
         if !linked_dep_is_up_to_date(ctx, project_dir, &dep_name, dep, current_spec) {
@@ -436,12 +435,8 @@ pub(crate) fn version_range_of_spec(spec: &str) -> &str {
 /// `semver.satisfies(version, range, { loose: true })` — a version or
 /// range that doesn't parse fails the match.
 pub(crate) fn semver_satisfies_loosely(version: &str, range: &str) -> bool {
-    let Ok(version) = version.parse::<node_semver::Version>() else {
-        return false;
-    };
-    let Ok(range) = range.parse::<node_semver::Range>() else {
-        return false;
-    };
+    let Ok(version) = version.parse::<node_semver::Version>() else { return false };
+    let Ok(range) = range.parse::<node_semver::Range>() else { return false };
     range.satisfies(&version)
 }
 
@@ -454,24 +449,7 @@ pub(crate) fn stat_manifests<'a>(
         .iter()
         .map(|(root_dir, manifest)| {
             file_mtime(manifest.path())
-                .map(|mtime| ManifestStat {
-                    root_dir: root_dir.as_path(),
-                    manifest,
-                    mtime,
-                })
+                .map(|mtime| ManifestStat { root_dir: root_dir.as_path(), manifest, mtime })
         })
         .collect()
-}
-
-fn current_lockfile_with_mtime(
-    check: &OptimisticRepeatInstallCheck<'_>,
-) -> Result<(Lockfile, FileMtime), &'static str> {
-    let current_path = check.config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
-    let Some(mtime) = file_mtime(&current_path) else {
-        return Err("a manifest is newer than the last validation and no lockfile is loaded");
-    };
-    let current = Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
-        .map_err(|_| "the current lockfile cannot be loaded")?
-        .ok_or("a manifest is newer than the last validation and no lockfile is loaded")?;
-    Ok((current, mtime))
 }

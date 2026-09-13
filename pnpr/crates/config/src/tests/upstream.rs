@@ -221,10 +221,7 @@ registries:
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(
         config.http.cors.allowed_origins(),
-        [
-            "https://npmx.dev".to_string(),
-            "http://localhost:3000".to_string()
-        ],
+        ["https://npmx.dev".to_string(), "http://localhost:3000".to_string()],
     );
     assert!(config.routing.upstreams["npmjs"].search);
 }
@@ -241,10 +238,7 @@ registries:
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("private upstream without access must be rejected");
-    assert!(
-        err.to_string().contains("public: true"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("public: true"), "unexpected error: {err}");
 }
 
 /// A `public` upstream is anonymous, so declaring `access:` on it is a
@@ -262,10 +256,7 @@ registries:
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("public upstream with access must be rejected");
-    assert!(
-        err.to_string().contains("`access`"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("`access`"), "unexpected error: {err}");
 }
 
 /// A `public` upstream is fetched anonymously, so *any* custom header — not just
@@ -288,10 +279,7 @@ registries:
         );
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
             .expect_err("public upstream with a custom header must be rejected");
-        assert!(
-            err.to_string().contains("headers"),
-            "unexpected error for {header:?}: {err}",
-        );
+        assert!(err.to_string().contains("headers"), "unexpected error for {header:?}: {err}");
     }
 }
 
@@ -323,10 +311,7 @@ registries:
     let config =
         Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
             .expect("a resolver-only tier must not fail on unused upstream credentials");
-    assert!(
-        config.routing.upstreams.is_empty(),
-        "credentials must not be resolved or carried",
-    );
+    assert!(config.routing.upstreams.is_empty(), "credentials must not be resolved or carried");
     assert!(
         config.routing.registries.get("main").is_some(),
         "the graph is still built and validated",
@@ -444,10 +429,7 @@ registries:
     use pnpr_registry::{ConcreteKind, Resolved};
     assert_eq!(
         config.routing.registries.resolve("corp", Ecosystem::Npm, "@corp/tool"),
-        Resolved::Concrete {
-            registry: "corp",
-            kind: ConcreteKind::Upstream
-        },
+        Resolved::Concrete { registry: "corp", kind: ConcreteKind::Upstream },
     );
     assert_eq!(
         config.routing.registries.resolve("corp", Ecosystem::Npm, "lodash"),
@@ -462,14 +444,8 @@ fn resolve_upstream_config_defaults_knobs_to_verdaccio_values() {
     // while the rest fall back to verdaccio's documented defaults.
     assert_eq!(upstream.maxage, None);
     assert_eq!(upstream.requests.timeout, UpstreamConfig::DEFAULT_TIMEOUT);
-    assert_eq!(
-        upstream.requests.max_fails,
-        UpstreamConfig::DEFAULT_MAX_FAILS,
-    );
-    assert_eq!(
-        upstream.requests.fail_timeout,
-        UpstreamConfig::DEFAULT_FAIL_TIMEOUT,
-    );
+    assert_eq!(upstream.requests.max_fails, UpstreamConfig::DEFAULT_MAX_FAILS);
+    assert_eq!(upstream.requests.fail_timeout, UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
     assert!(upstream.cache);
     assert!(!upstream.search);
 }

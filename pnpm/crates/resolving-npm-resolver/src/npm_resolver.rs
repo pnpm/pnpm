@@ -33,7 +33,6 @@ pub(crate) use guarded_pick::{
 
 pub(crate) use workspace_pick::{no_matching_version, swallowed_as_no_latest};
 
-mod metadata_client;
 mod resolution_result;
 use resolution_result::{
     calculated_specifier, fail_if_trust_downgraded_for_pick, is_not_found_error,
@@ -208,12 +207,10 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         if let Some(bare) = wanted_dependency.bare_specifier.as_deref()
             && bare.starts_with("jsr:")
         {
-            return self.resolve_jsr_impl(wanted_dependency, opts, bare, default_tag)
-                .await;
+            return self.resolve_jsr_impl(wanted_dependency, opts, bare, default_tag).await;
         }
 
-        self.resolve_registry_dependency(wanted_dependency, opts, default_tag)
-            .await
+        self.resolve_registry_dependency(wanted_dependency, opts, default_tag).await
     }
 
     async fn resolve_registry_dependency(
@@ -245,9 +242,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return Ok(Some(result));
         }
 
-        let picked = match self.pick_from_registry(&registry, &spec, opts, optional)
-            .await
-        {
+        let picked = match self.pick_from_registry(&registry, &spec, opts, optional).await {
             Ok(RegistryPick::Picked(picked)) => picked,
             outcome => {
                 return workspace_fallback_for(
@@ -286,13 +281,9 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             self.cache_policy.ignore_missing_time_field,
         )?;
 
-        if let Some(result) = workspace_shadow_pick(
-            workspace_packages_active,
-            spec,
-            picked,
-            wanted_dependency,
-            opts,
-        ) {
+        if let Some(result) =
+            workspace_shadow_pick(workspace_packages_active, spec, picked, wanted_dependency, opts)
+        {
             return Ok(Some(result));
         }
 
@@ -384,8 +375,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let registry = self.registries.get("@jsr").map_or(DEFAULT_JSR_REGISTRY, String::as_str);
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        let picked = match self.pick_from_registry(registry, &jsr_spec.spec, opts, optional)
-            .await?
+        let picked = match self.pick_from_registry(registry, &jsr_spec.spec, opts, optional).await?
         {
             RegistryPick::Picked(picked) => picked,
             RegistryPick::NoMatchingVersion(meta) => {
@@ -488,9 +478,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let result = match self.resolve_impl(&wanted, &resolve_opts).await {
             Ok(result) => result,
             Err(err) if swallowed_as_no_latest(&err, opts) => {
-                return Ok(Some(LatestInfo {
-                    latest_manifest: None,
-                }));
+                return Ok(Some(LatestInfo { latest_manifest: None }));
             }
             Err(err) => return Err(err),
         };
@@ -501,15 +489,36 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             .as_ref()
             .is_some_and(|violation| violation.code == MINIMUM_RELEASE_AGE_VIOLATION_CODE)
         {
-            return Ok(Some(LatestInfo {
-                latest_manifest: None,
-            }));
+            return Ok(Some(LatestInfo { latest_manifest: None }));
         }
-        Ok(Some(LatestInfo {
-            latest_manifest: result.package.manifest,
-        }))
+        Ok(Some(LatestInfo { latest_manifest: result.package.manifest }))
     }
 }
 
 #[cfg(test)]
 mod tests;
+
+impl<Cache: PackageMetaCache> RegistryMetadataClient<Cache> {
+    pub(crate) fn pick_context<'a>(
+        &'a self,
+        format: &'a RegistryMetadataFormat,
+        cache_policy: crate::MetadataCachePolicy,
+    ) -> PickPackageContext<'a, Cache> {
+        PickPackageContext {
+            full_metadata: format.full_metadata,
+            needs_full_metadata_for: format.needs_full_metadata_for.as_deref(),
+            filter_metadata: format.filter_metadata,
+            cache_policy,
+            metadata: crate::MetadataRequestContext {
+                meta_cache: self.meta_cache.as_ref(),
+                fetch_locker: &self.fetch_locker,
+                cache_dir: self.cache_dir.as_deref(),
+                http: crate::MetadataHttpClient {
+                    http_client: &self.http_client,
+                    auth_headers: &self.auth_headers,
+                    retry_opts: self.retry_opts,
+                },
+            },
+        }
+    }
+}

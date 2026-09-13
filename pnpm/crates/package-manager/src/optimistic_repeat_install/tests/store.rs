@@ -40,17 +40,9 @@ fn returns_skipped_when_enable_global_virtual_store_drifts() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        stale_settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -71,12 +63,8 @@ fn returns_up_to_date_when_recorded_global_virtual_store_is_explicit_off() {
     let (dir, config, manifest) =
         setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
-    let mut settings = current_settings(
-        config,
-        pnpm_config::NodeLinker::Isolated,
-        isolated_included(),
-        None,
-    );
+    let mut settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     settings.enable_global_virtual_store = Some(false);
     let mut projects = BTreeMap::new();
     projects.insert(
@@ -84,17 +72,9 @@ fn returns_up_to_date_when_recorded_global_virtual_store_is_explicit_off() {
             .path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        dir.path(),
-        backdate_existing_files(dir.path()),
-        settings,
-        projects,
-    );
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check(
         dir.path(),

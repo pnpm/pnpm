@@ -36,12 +36,7 @@ fn push_bad_sections(project_issues: &PeerIssues, sections: &mut Vec<String>) {
         let header = format!("{} {}", yellow_bright("✕ unmet peer"), bold(peer_name));
         for (found_version, group) in &group_by_found_version(issues) {
             let installed = format!("  {} {}", cyan("Installed:"), dim(found_version));
-            sections.push(format!(
-                "{}\n{}\n{}",
-                header,
-                installed,
-                format_required_by(group),
-            ));
+            sections.push(format!("{}\n{}\n{}", header, installed, format_required_by(group)));
         }
     }
 }
@@ -55,11 +50,7 @@ fn push_missing_sections(project_issues: &PeerIssues, sections: &mut Vec<String>
         if !project_issues.intersections.contains_key(peer_name) && !is_conflict {
             continue;
         }
-        let label = if is_conflict {
-            "✕ conflicting peer"
-        } else {
-            "✕ missing peer"
-        };
+        let label = if is_conflict { "✕ conflicting peer" } else { "✕ missing peer" };
         let header = format!("{} {}", red(label), bold(peer_name));
         sections.push(format!("{}\n{}", header, format_required_by(issues)));
     }
@@ -88,11 +79,7 @@ fn format_required_by(issues: &[impl RequiredByIssue]) -> String {
 
     let mut lines: Vec<String> = vec![format!("  {}", cyan("Wanted:"))];
     for (range, pkgs) in &by_range {
-        lines.push(format!(
-            "    {}{}",
-            cyan_bright(&format_range(range)),
-            cyan(":"),
-        ));
+        lines.push(format!("    {}{}", cyan_bright(&format_range(range)), cyan(":")));
         for pkg in pkgs {
             lines.push(format!("      {}", dim(pkg)));
         }
@@ -135,11 +122,7 @@ fn group_by_found_version(issues: &[BadPeerIssue]) -> BTreeMap<String, Vec<BadPe
 }
 
 pub(super) fn format_range(range: &str) -> String {
-    if range.contains(' ') || range == "*" {
-        format!(r#""{range}""#)
-    } else {
-        range.to_string()
-    }
+    if range.contains(' ') || range == "*" { format!(r#""{range}""#) } else { range.to_string() }
 }
 
 fn bold(text: &str) -> String {

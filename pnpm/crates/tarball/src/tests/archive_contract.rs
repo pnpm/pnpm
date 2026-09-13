@@ -83,10 +83,7 @@ async fn archive_retry_redacts_secrets_and_accepts_the_maximum_retry_budget() {
         "fixture",
         "test",
         None,
-        RetryOpts {
-            retries: u32::MAX,
-            ..fast_retry_opts()
-        },
+        RetryOpts { retries: u32::MAX, ..fast_retry_opts() },
         |attempt| {
             crate::archive_request::request_archive::<RecordingReporter>(
                 &client, &url, "fixture", &auth, 0, attempt, false,
@@ -95,10 +92,7 @@ async fn archive_retry_redacts_secrets_and_accepts_the_maximum_retry_budget() {
     )
     .await
     .unwrap();
-    let events = EVENTS
-        .lock()
-        .unwrap()
-        .clone();
+    let events = EVENTS.lock().unwrap().clone();
     eprintln!("events={events:?}");
     let retry = events
         .iter()
@@ -153,10 +147,7 @@ enum Container {
 #[tokio::test]
 async fn archive_requests_do_not_downgrade_secure_credentials_to_plain_http() {
     let mut server = mockito::Server::new_async().await;
-    let address: std::net::SocketAddr = server
-        .host_with_port()
-        .parse()
-        .unwrap();
+    let address: std::net::SocketAddr = server.host_with_port().parse().unwrap();
     let request = server
         .mock("GET", "/simple/pkg.whl")
         .match_header("authorization", mockito::Matcher::Missing)
@@ -228,8 +219,7 @@ impl Container {
                         index: input.store.index.clone(),
                         index_writer: input.store.index_writer.clone(),
                         verify_integrity: input.store.verify_integrity,
-                        strict_pkg_content_check: input.store
-                            .strict_pkg_content_check,
+                        strict_pkg_content_check: input.store.strict_pkg_content_check,
                         verified_files_cache: Arc::clone(&input.store.verified_files_cache),
                         prefetched_cas_paths: input.store.prefetched_cas_paths,
                     },
@@ -306,10 +296,7 @@ async fn formats_share_projection_offline_replay_and_missing_blob_validation() {
             };
             let paths = container.ingest(&input).await.unwrap();
             dbg!(&paths);
-            assert_eq!(
-                std::fs::read(&paths["data.txt"]).unwrap(),
-                b"native artifact",
-            );
+            assert_eq!(std::fs::read(&paths["data.txt"]).unwrap(), b"native artifact");
             assert_eq!(
                 paths.contains_key("package.json"),
                 matches!(projection, ArchiveStoreProjection::Package { .. }),

@@ -10,10 +10,7 @@ where
     dbg!(&received);
     let expected_version = VersionPart::Semver(expected_version.into());
     let expected_peer = expected_peer.into();
-    assert_eq!(
-        (received.version(), received.peer()),
-        (&expected_version, expected_peer.as_str()),
-    );
+    assert_eq!((received.version(), received.peer()), (&expected_version, expected_peer.as_str()));
     assert_eq!(received.into_tuple(), (expected_version, expected_peer));
 }
 
@@ -42,10 +39,7 @@ fn parse_ok() {
 
     case(
         "1.21.3(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)",
-        (
-            (1, 21, 3),
-            "(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)",
-        ),
+        ((1, 21, 3), "(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)"),
     );
     case("1.21.3(react@17.0.2)", ((1, 21, 3), "(react@17.0.2)"));
     case(
@@ -53,10 +47,7 @@ fn parse_ok() {
         ("1.21.3-rc.0".parse::<Version>().unwrap(), "(react@17.0.2)"),
     );
     case("1.21.3", ((1, 21, 3), ""));
-    case(
-        "1.21.3-rc.0",
-        ("1.21.3-rc.0".parse::<Version>().unwrap(), ""),
-    );
+    case("1.21.3-rc.0", ("1.21.3-rc.0".parse::<Version>().unwrap(), ""));
 }
 
 #[test]
@@ -86,19 +77,12 @@ fn deserialize_ok() {
         Peer: Into<String>,
     {
         eprintln!("CASE: {input:?}");
-        assert_ver_peer(
-            serde_saphyr::from_str(input).unwrap(),
-            expected_version,
-            expected_peer,
-        );
+        assert_ver_peer(serde_saphyr::from_str(input).unwrap(), expected_version, expected_peer);
     }
 
     case(
         "1.21.3(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)",
-        (
-            (1, 21, 3),
-            "(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)",
-        ),
+        ((1, 21, 3), "(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)"),
     );
     case("1.21.3(react@17.0.2)", ((1, 21, 3), "(react@17.0.2)"));
     case(
@@ -106,17 +90,13 @@ fn deserialize_ok() {
         ("1.21.3-rc.0".parse::<Version>().unwrap(), "(react@17.0.2)"),
     );
     case("1.21.3", ((1, 21, 3), ""));
-    case(
-        "1.21.3-rc.0",
-        ("1.21.3-rc.0".parse::<Version>().unwrap(), ""),
-    );
+    case("1.21.3-rc.0", ("1.21.3-rc.0".parse::<Version>().unwrap(), ""));
 }
 
 #[test]
 fn parse_to_string() {
-    let case = |input| {
-        decode_encode_case(input, |input| input.parse().unwrap(), ToString::to_string);
-    };
+    let case =
+        |input| decode_encode_case(input, |input| input.parse().unwrap(), ToString::to_string);
     case("1.21.3(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)");
     case("1.21.3(react@17.0.2)");
     case("1.21.3-rc.0(react@17.0.2)");
@@ -158,10 +138,7 @@ fn parse_runtime_prefix_round_trips() {
     let parsed: PkgVerPeer = "runtime:22.0.0".parse().expect("parse runtime version");
     dbg!(&parsed);
     assert_eq!(parsed.prefix(), Prefix::Runtime);
-    assert_eq!(
-        parsed.version_semver(),
-        Some(&"22.0.0".parse::<Version>().unwrap()),
-    );
+    assert_eq!(parsed.version_semver(), Some(&"22.0.0".parse::<Version>().unwrap()));
     assert_eq!(parsed.peer(), "");
     assert_eq!(parsed.to_string(), "runtime:22.0.0");
 }
@@ -178,10 +155,7 @@ fn parse_runtime_prefix_with_peer_suffix() {
         "runtime:22.0.0(node@22.0.0)".parse().expect("parse runtime with peer");
     dbg!(&parsed);
     assert_eq!(parsed.prefix(), Prefix::Runtime);
-    assert_eq!(
-        parsed.version_semver(),
-        Some(&"22.0.0".parse::<Version>().unwrap()),
-    );
+    assert_eq!(parsed.version_semver(), Some(&"22.0.0".parse::<Version>().unwrap()));
     assert_eq!(parsed.peer(), "(node@22.0.0)");
     assert_eq!(parsed.to_string(), "runtime:22.0.0(node@22.0.0)");
 }
@@ -203,10 +177,7 @@ fn parse_runtime_substring_in_version_is_not_a_prefix() {
     // `1.21.3-runtime` is a valid semver pre-release tag.
     let parsed: PkgVerPeer = "1.21.3-runtime".parse().expect("parse semver pre-release");
     assert_eq!(parsed.prefix(), Prefix::None);
-    assert_eq!(
-        parsed.version_semver(),
-        Some(&"1.21.3-runtime".parse::<Version>().unwrap()),
-    );
+    assert_eq!(parsed.version_semver(), Some(&"1.21.3-runtime".parse::<Version>().unwrap()));
 }
 
 /// Serde round-trip on a runtime version — pacquet stores
@@ -218,10 +189,7 @@ fn parse_runtime_substring_in_version_is_not_a_prefix() {
 fn serde_round_trip_runtime_prefix() {
     let parsed: PkgVerPeer = serde_saphyr::from_str("runtime:22.0.0").expect("deserialize runtime");
     assert_eq!(parsed.prefix(), Prefix::Runtime);
-    assert_eq!(
-        parsed.version_semver(),
-        Some(&"22.0.0".parse::<Version>().unwrap()),
-    );
+    assert_eq!(parsed.version_semver(), Some(&"22.0.0".parse::<Version>().unwrap()));
     let serialized = serde_saphyr::to_string(&parsed)
         .expect("serialize")
         .trim()
@@ -234,10 +202,7 @@ fn parse_file_prefix_round_trips() {
     let parsed: PkgVerPeer = "file:packages/pkg".parse().expect("parse file version");
     dbg!(&parsed);
     assert_eq!(parsed.prefix(), Prefix::None);
-    assert_eq!(
-        parsed.version(),
-        &VersionPart::File("packages/pkg".to_string()),
-    );
+    assert_eq!(parsed.version(), &VersionPart::File("packages/pkg".to_string()));
     assert_eq!(parsed.version_semver(), None);
     assert_eq!(parsed.peer(), "");
     assert_eq!(parsed.to_string(), "file:packages/pkg");
@@ -249,10 +214,7 @@ fn parse_file_prefix_round_trips() {
 fn parse_file_prefix_with_peer_suffix() {
     let parsed: PkgVerPeer = "file:packages/pkg(peer@1.0.0)".parse().expect("parse file with peer");
     assert_eq!(parsed.prefix(), Prefix::None);
-    assert_eq!(
-        parsed.version(),
-        &VersionPart::File("packages/pkg".to_string()),
-    );
+    assert_eq!(parsed.version(), &VersionPart::File("packages/pkg".to_string()));
     assert_eq!(parsed.peer(), "(peer@1.0.0)");
     assert_eq!(parsed.to_string(), "file:packages/pkg(peer@1.0.0)");
 }
@@ -261,10 +223,7 @@ fn parse_file_prefix_with_peer_suffix() {
 fn serde_round_trip_file_prefix() {
     let parsed: PkgVerPeer =
         serde_saphyr::from_str("file:packages/pkg(peer@1.0.0)").expect("deserialize file");
-    assert_eq!(
-        parsed.version(),
-        &VersionPart::File("packages/pkg".to_string()),
-    );
+    assert_eq!(parsed.version(), &VersionPart::File("packages/pkg".to_string()));
     let serialized = serde_saphyr::to_string(&parsed)
         .expect("serialize")
         .trim()
@@ -298,10 +257,7 @@ fn parse_non_semver_with_peer_suffix() {
         &VersionPart::NonSemver("https://example.com/foo.tgz".to_string()),
     );
     assert_eq!(parsed.peer(), "(peer@1.0.0)");
-    assert_eq!(
-        parsed.to_string(),
-        "https://example.com/foo.tgz(peer@1.0.0)",
-    );
+    assert_eq!(parsed.to_string(), "https://example.com/foo.tgz(peer@1.0.0)");
 }
 
 /// Patch-hash + peer leg of dep-path parsing. `PkgVerPeer` folds the
@@ -311,14 +267,8 @@ fn parse_non_semver_with_peer_suffix() {
 fn parse_patch_hash_then_peer_suffix_round_trip() {
     let raw = "1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)";
     let parsed: PkgVerPeer = raw.parse().expect("parse patch-hash + peer");
-    assert_eq!(
-        parsed.version_semver(),
-        Some(&"1.0.0".parse::<Version>().unwrap()),
-    );
-    assert_eq!(
-        parsed.peer(),
-        "(patch_hash=0000)(@types/babel__core@7.1.14)",
-    );
+    assert_eq!(parsed.version_semver(), Some(&"1.0.0".parse::<Version>().unwrap()));
+    assert_eq!(parsed.peer(), "(patch_hash=0000)(@types/babel__core@7.1.14)");
     assert_eq!(parsed.to_string(), raw);
     assert_eq!(parsed.without_peer().to_string(), "1.0.0");
 }
@@ -364,10 +314,7 @@ fn parse_registry_qualified_round_trip() {
 fn reserved_prefixes_do_not_parse_as_registry_qualified() {
     let runtime: PkgVerPeer = "runtime:22.0.0".parse().expect("parse runtime");
     assert_eq!(runtime.registry_qualified(), None);
-    assert_eq!(
-        runtime.version_semver(),
-        Some(&"22.0.0".parse::<Version>().unwrap()),
-    );
+    assert_eq!(runtime.version_semver(), Some(&"22.0.0".parse::<Version>().unwrap()));
 
     let file: PkgVerPeer = "file:pkg-1.0.0".parse().expect("parse file");
     assert_eq!(file.registry_qualified(), None);
@@ -376,8 +323,5 @@ fn reserved_prefixes_do_not_parse_as_registry_qualified() {
     // A non-semver remainder is not registry-qualified.
     let opaque: PkgVerPeer = "work:not-semver".parse().expect("parse opaque");
     assert_eq!(opaque.registry_qualified(), None);
-    assert_eq!(
-        opaque.version(),
-        &VersionPart::NonSemver("work:not-semver".to_string()),
-    );
+    assert_eq!(opaque.version(), &VersionPart::NonSemver("work:not-semver".to_string()));
 }

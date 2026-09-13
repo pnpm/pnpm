@@ -37,10 +37,7 @@ fn walker_forwards_external_dependencies_to_hoister() {
     };
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
 
-    assert!(
-        result.graph.is_empty(),
-        "external strips the alias from the hoist result",
-    );
+    assert!(result.graph.is_empty(), "external strips the alias from the hoist result");
     assert!(
         result.direct_dependencies_by_importer_id[Lockfile::ROOT_IMPORTER_KEY].is_empty(),
         "root direct deps drop the externalised alias",
@@ -56,13 +53,7 @@ fn walker_forwards_external_dependencies_to_hoister() {
 /// skips installability so the walk reaches the alias sink directly.
 #[test]
 fn walker_rejects_invalid_hoisted_alias() {
-    for alias in [
-        "../../../escape",
-        "@scope/../../escape",
-        ".bin",
-        ".pnpm",
-        "node_modules",
-    ] {
+    for alias in ["../../../escape", "@scope/../../escape", ".bin", ".pnpm", "node_modules"] {
         let mut root_deps = ResolvedDependencyMap::new();
         root_deps.insert(pkg_name(alias), resolved_dep("1.0.0"));
 
@@ -73,10 +64,7 @@ fn walker_rejects_invalid_hoisted_alias() {
         snapshots.insert(dep_key(alias, "1.0.0"), SnapshotEntry::default());
 
         let lockfile = lockfile_with(root_deps, packages, snapshots);
-        let opts = LockfileToHoistedDepGraphOptions {
-            force: true,
-            ..host_aware_opts()
-        };
+        let opts = LockfileToHoistedDepGraphOptions { force: true, ..host_aware_opts() };
         let err = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts)
             .expect_err("invalid alias must be rejected");
         match err {

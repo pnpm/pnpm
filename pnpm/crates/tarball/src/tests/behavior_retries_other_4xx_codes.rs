@@ -191,10 +191,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     fetching: crate::ArchiveFetchOptions {
                         http_client: client,
                         auth_headers,
-                        retry_opts: RetryOpts {
-                            retries: 0,
-                            ..RetryOpts::default()
-                        },
+                        retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
                         offline: false,
                     },
                     package: crate::TarballPackage {
@@ -219,9 +216,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     ignore_file_pattern: None,
 
                     progress_reported: None,
-                    store_projection: ArchiveStoreProjection::Package {
-                        append_manifest: None,
-                    },
+                    store_projection: ArchiveStoreProjection::Package { append_manifest: None },
                 };
 
                 // Spawn each task and yield once before the next so the
@@ -285,10 +280,7 @@ async fn zero_retries_makes_a_single_attempt() {
     let url = format!("{}/pkg.tgz", server.url());
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
-    let opts = RetryOpts {
-        retries: 0,
-        ..fast_retry_opts()
-    };
+    let opts = RetryOpts { retries: 0, ..fast_retry_opts() };
 
     fetch_and_extract_with_retry::<SilentReporter>(
         &client,
@@ -382,9 +374,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     };
 
     // Drive both calls concurrently. One hits the `else` branch and
@@ -420,14 +410,8 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
     // task drove the network fetch (gets HttpStatus 404) and which
     // parked on Notify (gets SiblingFetchFailed). Pin only the
     // "both errored, neither hung" invariant.
-    assert!(
-        result_a.is_err(),
-        "task_a must surface the 404 (or sibling failure)",
-    );
-    assert!(
-        result_b.is_err(),
-        "task_b must surface the 404 (or sibling failure)",
-    );
+    assert!(result_a.is_err(), "task_a must surface the 404 (or sibling failure)");
+    assert!(result_b.is_err(), "task_b must surface the 404 (or sibling failure)");
 
     drop(store_dir_keep);
 }
@@ -465,10 +449,7 @@ async fn started_fires_for_connection_level_failures() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
 
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     let _ = fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
         "http://127.0.0.1:1/pkg.tgz", // port 1 is reserved → connect-refused
@@ -478,10 +459,7 @@ async fn started_fires_for_connection_level_failures() {
         "test-pkg",
         "/proj",
         store_path,
-        RetryOpts {
-            retries: 0,
-            ..fast_retry_opts()
-        },
+        RetryOpts { retries: 0, ..fast_retry_opts() },
         &AuthHeaders::default(),
         None,
         None,
@@ -592,9 +570,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -615,10 +591,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
     .expect("spawn_blocking")
     .expect("index opens after the first install");
 
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
     IngestTarballToStore {
         fetching: crate::ArchiveFetchOptions {
             http_client: &client,
@@ -648,9 +621,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<RecordingReporter>()
     .await
@@ -728,10 +699,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
     let client = ThrottledClient::default();
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
 
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
@@ -762,11 +730,7 @@ async fn request_retry_event_fires_per_retried_attempt() {
             _ => None,
         })
         .collect();
-    assert_eq!(
-        retries.len(),
-        1,
-        "exactly one retry emit expected; got {captured:?}",
-    );
+    assert_eq!(retries.len(), 1, "exactly one retry emit expected; got {captured:?}");
 
     let retry = retries[0];
     // attempt is one-indexed (the failed attempt). With one transient
@@ -805,10 +769,7 @@ fn write_zip_entry_to_cas_stops_reading_an_entry_longer_than_it_claims() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
     for declared_size in [16, STREAM_ENTRY_BUFFER_MAX + 1] {
-        let mut liar = EndlessReader {
-            bytes_read: 0,
-            cap: declared_size * 8,
-        };
+        let mut liar = EndlessReader { bytes_read: 0, cap: declared_size * 8 };
         let err = write_zip_entry_to_cas(
             &mut liar,
             declared_size,
@@ -886,9 +847,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -978,9 +937,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -989,10 +946,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
     // Prefetched seed used a placeholder empty map; the return must
     // surface that empty map (the offline gate didn't fire, the
     // prefetch lookup did).
-    assert!(
-        cas_paths.is_empty(),
-        "got the prefetched-empty map back: {cas_paths:?}",
-    );
+    assert!(cas_paths.is_empty(), "got the prefetched-empty map back: {cas_paths:?}");
     must_not_fire.assert_async().await;
 
     drop(store_dir_keep);

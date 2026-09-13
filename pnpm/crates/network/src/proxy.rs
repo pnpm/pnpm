@@ -150,14 +150,8 @@ pub(crate) struct NoProxyMatcher {
 impl NoProxyMatcher {
     pub(crate) fn from(setting: Option<&NoProxySetting>) -> Self {
         match setting {
-            None => NoProxyMatcher {
-                bypass: false,
-                entries: Vec::new(),
-            },
-            Some(NoProxySetting::Bypass) => NoProxyMatcher {
-                bypass: true,
-                entries: Vec::new(),
-            },
+            None => NoProxyMatcher { bypass: false, entries: Vec::new() },
+            Some(NoProxySetting::Bypass) => NoProxyMatcher { bypass: true, entries: Vec::new() },
             Some(NoProxySetting::List(list)) => NoProxyMatcher {
                 bypass: false,
                 entries: list

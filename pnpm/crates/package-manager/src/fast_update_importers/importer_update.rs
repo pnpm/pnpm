@@ -77,9 +77,7 @@ pub(super) fn apply_one_importer_update(
         manifest,
         manifest_dependencies,
     } = *entry;
-    let records_nothing = importers
-        .get(importer_id.as_str())
-        .is_none_or(records_no_dependencies);
+    let records_nothing = importers.get(importer_id.as_str()).is_none_or(records_no_dependencies);
     if records_nothing && !manifest_dependencies.is_empty() {
         let Some(new_importer) =
             importer_from_locked_versions(locked.snapshots, manifest, manifest_dependencies, plan)
@@ -205,14 +203,10 @@ pub(super) fn retarget_names_a_snapshot(
 /// shape a project it has never seen arrives in, alongside an absent
 /// entry.
 pub(super) fn records_no_dependencies(importer: &ProjectSnapshot) -> bool {
-    [
-        &importer.dependencies,
-        &importer.dev_dependencies,
-        &importer.optional_dependencies,
-    ]
-    .into_iter()
-    .flatten()
-    .all(HashMap::is_empty)
+    [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+        .into_iter()
+        .flatten()
+        .all(HashMap::is_empty)
 }
 /// A project's whole importer entry, built from the versions the
 /// lockfile already holds.
@@ -245,12 +239,7 @@ pub(super) fn importer_from_locked_versions(
         }
         let dependency = ResolvedDependencySpec {
             specifier: (*specifier).to_string(),
-            version: ImporterDepVersion::Regular(
-                pick.version
-                    .to_string()
-                    .parse()
-                    .ok()?,
-            ),
+            version: ImporterDepVersion::Regular(pick.version.to_string().parse().ok()?),
         };
         importer_group(&mut importer, *group)
             .get_or_insert_default()

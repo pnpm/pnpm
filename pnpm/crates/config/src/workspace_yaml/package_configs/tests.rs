@@ -68,19 +68,9 @@ packageConfigs:
     )
     .into_record();
     dbg!(&record);
-    assert_eq!(
-        record
-            .get("a")
-            .and_then(|config| config.save_exact),
-        Some(true),
-    );
+    assert_eq!(record.get("a").and_then(|config| config.save_exact), Some(true));
     // A later entry wins over an earlier one naming the same project.
-    assert_eq!(
-        record
-            .get("b")
-            .and_then(|config| config.save_exact),
-        Some(false),
-    );
+    assert_eq!(record.get("b").and_then(|config| config.save_exact), Some(false));
 }
 
 #[test]
@@ -164,10 +154,7 @@ fn a_nameless_project_keeps_the_workspace_settings() {
     let mut config = Config {
         package_configs: Some(IndexMap::from([(
             "a".to_string(),
-            ProjectConfig {
-                save_exact: Some(true),
-                ..ProjectConfig::default()
-            },
+            ProjectConfig { save_exact: Some(true), ..ProjectConfig::default() },
         )])),
         ..Config::default()
     };
@@ -180,10 +167,7 @@ fn hoist_false_clears_the_hoist_pattern() {
     let workspace = tempfile::tempdir().unwrap();
     let config = config_with(
         &workspace.path().join("a"),
-        ProjectConfig {
-            hoist: Some(false),
-            ..ProjectConfig::default()
-        },
+        ProjectConfig { hoist: Some(false), ..ProjectConfig::default() },
     );
     assert!(!config.hoist);
     assert_eq!(config.hoist_pattern, None);
@@ -203,10 +187,7 @@ fn hoist_true_does_not_restore_a_cleared_hoist_pattern() {
         hoist_pattern: None,
         package_configs: Some(IndexMap::from([(
             "a".to_string(),
-            ProjectConfig {
-                hoist: Some(true),
-                ..ProjectConfig::default()
-            },
+            ProjectConfig { hoist: Some(true), ..ProjectConfig::default() },
         )])),
         ..Config::default()
     };
@@ -221,14 +202,8 @@ fn modules_dir_resolves_against_the_project_and_carries_the_virtual_store() {
     let project_dir = workspace.path().join("a");
     let config = config_with(
         &project_dir,
-        ProjectConfig {
-            modules_dir: Some("modules".to_string()),
-            ..ProjectConfig::default()
-        },
+        ProjectConfig { modules_dir: Some("modules".to_string()), ..ProjectConfig::default() },
     );
     assert_eq!(config.modules_dir, project_dir.join("modules"));
-    assert_eq!(
-        config.virtual_store_dir,
-        project_dir.join("modules").join(".pnpm"),
-    );
+    assert_eq!(config.virtual_store_dir, project_dir.join("modules").join(".pnpm"));
 }

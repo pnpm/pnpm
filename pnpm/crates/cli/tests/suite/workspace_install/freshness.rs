@@ -39,10 +39,7 @@ fn changed_workspace_importer_invalidates_lockfile() {
         is_symlink_or_junction(&linked_pkg).expect("query pkg-b link"),
         "normal install did not link the dependency added to pkg-a",
     );
-    assert!(
-        linked_pkg.join("package.json").exists(),
-        "pkg-b link is dangling",
-    );
+    assert!(linked_pkg.join("package.json").exists(), "pkg-b link is dangling");
 
     drop((root, mock_instance));
 }
@@ -152,10 +149,7 @@ fn missing_workspace_importer_is_not_accepted_by_frozen_install() {
         .output()
         .expect("run frozen install");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !output.status.success(),
-        "frozen install accepted a missing importer",
-    );
+    assert!(!output.status.success(), "frozen install accepted a missing importer");
     assert!(
         stderr.contains("ERR_PNPM_PACKAGE_MANAGER_NO_IMPORTER") && stderr.contains("pkg-a"),
         "missing importer returned the wrong error\nstderr:\n{stderr}",

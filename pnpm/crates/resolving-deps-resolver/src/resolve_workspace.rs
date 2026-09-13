@@ -206,17 +206,9 @@ where
 {
     let (workspace, settings) = opts.split();
     let sorted = sorted_importers(importers, per_importer_options, &settings);
-    let cutoff = time_cutoff(resolver, &sorted, dependency_groups, &settings)
-        .await;
-    let mut initialized = init_importers(
-        resolver,
-        sorted,
-        dependency_groups,
-        &cutoff,
-        &settings,
-        &workspace,
-    )
-    .await?;
+    let cutoff = time_cutoff(resolver, &sorted, dependency_groups, &settings).await;
+    let mut initialized =
+        init_importers(resolver, sorted, dependency_groups, &cutoff, &settings, &workspace).await?;
     run_hoist_rounds(resolver, &mut initialized.states, &workspace).await?;
     Ok(finish(&settings, workspace, initialized, cutoff.time))
 }
@@ -237,16 +229,10 @@ impl WorkspaceResolveOptions {
     fn split(self) -> (Arc<WorkspaceTreeCtx>, PassSettings) {
         let recorded_time = self.version.time_based
             .then(|| {
-                self.reuse.lockfile
-                    .as_ref()
-                    .and_then(|lockfile| lockfile.time.clone())
+                self.reuse.lockfile.as_ref().and_then(|lockfile| lockfile.time.clone())
             })
             .flatten();
-        let settings = PassSettings {
-            recorded_time,
-            peers: self.peers,
-            version: self.version,
-        };
+        let settings = PassSettings { recorded_time, peers: self.peers, version: self.version };
         let workspace = WorkspaceTreeCtx::default()
             .with_shared_workspace_resolutions(self.share_workspace_resolutions)
             .with_hooks(self.hooks)
@@ -289,17 +275,13 @@ where
         .map(|importer| {
             let mut opts = per_importer_options(importer);
             opts.peers.auto_install_peers = settings.peers.auto_install_peers;
-            opts.peers.dedupe_peer_dependents = settings.peers
-                .dedupe_peer_dependents;
+            opts.peers.dedupe_peer_dependents = settings.peers.dedupe_peer_dependents;
             (importer, opts)
         })
         .collect();
     paired.sort_by(|(left, _), (right, _)| left.id.cmp(&right.id));
     let (importers, opts) = paired.into_iter().unzip();
-    SortedImporters {
-        importers,
-        opts,
-    }
+    SortedImporters { importers, opts }
 }
 
 struct InitializedImporters<'i, 'a> {
@@ -340,8 +322,7 @@ where
         .zip(sorted.opts)
         .enumerate()
     {
-        importer_opts.resolution.pick_lowest_direct = settings.version
-            .pick_lowest_direct;
+        importer_opts.resolution.pick_lowest_direct = settings.version.pick_lowest_direct;
         importer_opts.resolution.subdep_published_by = cutoff.published_by;
         input_dirs.push((
             importer_opts.base_opts.project.project_dir.clone(),
@@ -363,11 +344,7 @@ where
         );
     }
     share_root_deps(&mut states)?;
-    Ok(InitializedImporters {
-        importers: sorted.importers,
-        states,
-        input_dirs,
-    })
+    Ok(InitializedImporters { importers: sorted.importers, states, input_dirs })
 }
 
 /// Computed after the init barrier and shared unchanged: recomputing it
@@ -403,8 +380,7 @@ where
     Chain: Resolver + ?Sized,
 {
     let mut peer_discovery = PeerHoistDiscovery::new();
-    run_initial_required_rounds(resolver, states, workspace, &mut peer_discovery)
-        .await?;
+    run_initial_required_rounds(resolver, states, workspace, &mut peer_discovery).await?;
     run_hoist_barrier(resolver, states, &mut peer_discovery).await
 }
 
@@ -427,11 +403,7 @@ fn finish(
         Err(arc) => arc.snapshot(Vec::new()),
     };
     let peers = resolve_workspace_peers(settings, &mut merged_tree, peer_inputs);
-    ResolveWorkspaceResult {
-        merged_tree,
-        peers,
-        time,
-    }
+    ResolveWorkspaceResult { merged_tree, peers, time }
 }
 
 struct PeerInputs {
@@ -456,10 +428,7 @@ fn importer_peer_inputs(initialized: InitializedImporters<'_, '_>) -> PeerInputs
             modules_dir,
         });
     }
-    PeerInputs {
-        per_importer,
-        hoisted_provider_node_ids,
-    }
+    PeerInputs { per_importer, hoisted_provider_node_ids }
 }
 
 fn resolve_workspace_peers(
@@ -479,8 +448,7 @@ fn resolve_workspace_peers(
             dedupe_peers: settings.peers.dedupe_peers,
             project_dir: None,
             links: crate::PeerLinkOptions {
-                exclude_links_from_lockfile: settings.peers
-                    .exclude_links_from_lockfile,
+                exclude_links_from_lockfile: settings.peers.exclude_links_from_lockfile,
                 lockfile_dir: Some(settings.peers.lockfile_dir.clone()),
                 // Per-importer; resolve_peers_workspace swaps the
                 // ImporterPeerInput's modules_dir into walker.opts before each
@@ -526,8 +494,7 @@ where
         .zip(rounds)
         .filter_map(|(state, round)| round.map(|round| (state, round)))
     {
-        state.complete_initial_required_round(resolver, round, peer_discovery)
-            .await?;
+        state.complete_initial_required_round(resolver, round, peer_discovery).await?;
     }
     Ok(())
 }

@@ -21,14 +21,8 @@ fn package_map_resolves_declared_hoisted_dependencies_at_runtime() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
-    write_workspace_yaml(
-        &workspace,
-        "nodeLinker: hoisted\nnodeExperimentalPackageMap: true\n",
-    );
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\nnodeExperimentalPackageMap: true\n");
 
     pacquet
         .with_args(["install"])
@@ -72,10 +66,7 @@ fn standard_package_map_blocks_undeclared_hoisted_dependencies_at_runtime() {
             "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
         }),
     );
-    write_workspace_yaml(
-        &workspace,
-        "nodeLinker: hoisted\nnodeExperimentalPackageMap: true\n",
-    );
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\nnodeExperimentalPackageMap: true\n");
 
     pacquet
         .with_args(["install"])
@@ -157,10 +148,7 @@ fn hoisted_install_writes_no_package_map_unless_the_setting_is_on() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
     write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
 
     pacquet
@@ -191,19 +179,13 @@ fn run_pre_and_postinstall_scripts_in_a_workspace_with_hoisted_linker() {
         "nodeLinker: hoisted\nallowBuilds:\n  '{SCRIPTS}': true\n",
     ));
     let mut projects = Vec::new();
-    for (dir, spec) in [
-        ("project-1", "1"),
-        ("project-2", "1"),
-        ("project-3", "2"),
-        ("project-4", "2"),
-    ] {
+    for (dir, spec) in
+        [("project-1", "1"), ("project-2", "1"), ("project-3", "2"), ("project-4", "2")]
+    {
         projects.push(fixture.project(
             dir,
             dir,
-            ManifestDeps {
-                prod: &[(SCRIPTS, spec)],
-                ..Default::default()
-            },
+            ManifestDeps { prod: &[(SCRIPTS, spec)], ..Default::default() },
         ));
     }
     fixture.run(["install", "--lockfile-only"]);
@@ -307,10 +289,7 @@ fn running_install_scripts_in_workspace_without_root_project() {
     fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            prod: &[(SCRIPTS, "1.0.0")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[(SCRIPTS, "1.0.0")], ..Default::default() },
     );
 
     fixture.run(["install"]);
@@ -333,20 +312,14 @@ fn linking_bins_of_local_projects() {
     let consumer = fixture.project(
         "project-1",
         "project-1",
-        ManifestDeps {
-            prod: &[("project-2", "workspace:*")],
-            ..Default::default()
-        },
+        ManifestDeps { prod: &[("project-2", "workspace:*")], ..Default::default() },
     );
     let provider = fixture.project("project-2", "project-2", ManifestDeps::default());
     let mut provider_manifest = read_manifest(&provider);
     provider_manifest["bin"] = serde_json::json!({ "project-2": "index.js" });
     write_manifest_value(&provider, &provider_manifest);
-    fs::write(
-        provider.join("index.js"),
-        "#!/usr/bin/env node\nconsole.log('hello')\n",
-    )
-    .expect("write project bin");
+    fs::write(provider.join("index.js"), "#!/usr/bin/env node\nconsole.log('hello')\n")
+        .expect("write project bin");
 
     fixture.run(["install"]);
 
@@ -358,37 +331,25 @@ fn linking_bins_of_local_projects() {
 /// instead of shell shims — pnpm's `nodeLinker: hoisted` behavior. An
 /// explicit `preferSymlinkedExecutables: false` restores the shims.
 #[test]
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "preferSymlinkedExecutables is inert on Windows"
-)]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
 fn hoisted_linker_symlinks_bins_by_default() {
     for (yaml, expect_symlink) in [
         ("nodeLinker: hoisted\n", true),
-        (
-            "nodeLinker: hoisted\npreferSymlinkedExecutables: false\n",
-            false,
-        ),
+        ("nodeLinker: hoisted\npreferSymlinkedExecutables: false\n", false),
     ] {
         let fixture = WorkspaceFixture::new();
         fixture.append_workspace_yaml(yaml);
         let consumer = fixture.project(
             "project-1",
             "project-1",
-            ManifestDeps {
-                prod: &[("project-2", "workspace:*")],
-                ..Default::default()
-            },
+            ManifestDeps { prod: &[("project-2", "workspace:*")], ..Default::default() },
         );
         let provider = fixture.project("project-2", "project-2", ManifestDeps::default());
         let mut provider_manifest = read_manifest(&provider);
         provider_manifest["bin"] = serde_json::json!({ "project-2": "index.js" });
         write_manifest_value(&provider, &provider_manifest);
-        fs::write(
-            provider.join("index.js"),
-            "#!/usr/bin/env node\nconsole.log('hello')\n",
-        )
-        .expect("write project bin");
+        fs::write(provider.join("index.js"), "#!/usr/bin/env node\nconsole.log('hello')\n")
+            .expect("write project bin");
 
         fixture.run(["install"]);
 
@@ -428,15 +389,9 @@ fn a_present_ignored_build_still_fails_a_strict_install() {
         .with_args(["add", "ms@1.0.0"])
         .output()
         .expect("run pnpm add");
-    assert!(
-        !output.status.success(),
-        "the unapproved build is still unapproved: {output:?}",
-    );
+    assert!(!output.status.success(), "the unapproved build is still unapproved: {output:?}");
     let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
-    assert!(
-        stderr.contains("ERR_PNPM_IGNORED_BUILDS"),
-        "stderr:\n{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_IGNORED_BUILDS"), "stderr:\n{stderr}");
 
     drop((root, mock_instance));
 }

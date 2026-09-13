@@ -18,20 +18,12 @@ fn returns_skipped_when_a_pnpmfile_is_modified() {
             .path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     write_state_with_pnpmfiles(
         dir.path(),
         backdate_existing_files(dir.path()),
-        current_settings(
-            config,
-            pnpm_config::NodeLinker::Isolated,
-            isolated_included(),
-            None,
-        ),
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None),
         projects,
         current_pnpmfiles(dir.path(), config),
     );

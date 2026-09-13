@@ -115,11 +115,7 @@ fn public_cache_pkg(cache_root: &Path, pkg: &str) -> PathBuf {
         .into_iter()
         .flatten()
         .filter_map(Result::ok)
-        .filter(|entry| {
-            entry
-                .file_type()
-                .is_ok_and(|kind| kind.is_dir())
-        })
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
         .map(|entry| entry.path())
         .collect();
     digest_dirs.sort();
@@ -253,10 +249,7 @@ fn hosted_publish_request(
 ) -> Request<Body> {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
-    let basename = package
-        .rsplit('/')
-        .next()
-        .unwrap();
+    let basename = package.rsplit('/').next().unwrap();
     let attachment = format!("{package}-{version}.tgz");
     let body = json!({
         "name": package,
@@ -420,8 +413,8 @@ async fn spawn_truncated_upstream(expected_integrity: String) -> SocketAddr {
                     let _ = socket.write_all(&[0xAA; 100]).await;
                     return;
                 }
-                let _ = socket.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
-                    .await;
+                let _ =
+                    socket.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n").await;
             });
         }
     });
@@ -494,10 +487,7 @@ async fn mock_package(server: &mut mockito::Server, pkg: &str, marker: &str) -> 
     let body = format!("tarball-{marker}").into_bytes();
     // The canonical tarball basename strips any scope: `@corp/secret` →
     // `secret-1.0.0.tgz`.
-    let bare = pkg
-        .rsplit('/')
-        .next()
-        .unwrap();
+    let bare = pkg.rsplit('/').next().unwrap();
     let basename = format!("{bare}-1.0.0.tgz");
     let packument = json!({
         "name": pkg,
@@ -533,12 +523,7 @@ fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
     corp.url = corp_url.to_string();
     config.routing.upstreams.insert("corp".to_string(), corp);
     let graph = vec![
-        (
-            "npmjs".to_string(),
-            Registry::Upstream {
-                patterns: vec![],
-            },
-        ),
+        ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
         (
             "corp".to_string(),
             Registry::Upstream {
@@ -547,9 +532,7 @@ fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
         ),
         (
             "main".to_string(),
-            Registry::Router {
-                sources: vec!["corp".to_string(), "npmjs".to_string()],
-            },
+            Registry::Router { sources: vec!["corp".to_string(), "npmjs".to_string()] },
         ),
     ];
     let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
@@ -570,11 +553,7 @@ fn seed_hosted(storage: &Path, pkg: &str) {
         } } },
     });
     std::fs::create_dir_all(storage.join(pkg)).unwrap();
-    std::fs::write(
-        storage.join(pkg).join("package.json"),
-        packument.to_string(),
-    )
-    .unwrap();
+    std::fs::write(storage.join(pkg).join("package.json"), packument.to_string()).unwrap();
 }
 
 fn seed_hosted_with_maintainer(storage: &Path, pkg: &str, maintainer: &str) {
@@ -615,11 +594,7 @@ async fn read_registry_directory(app: &Router, token: Option<&String>) -> Value 
     }
     let response = app
         .clone()
-        .oneshot(
-            request
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(request.body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);

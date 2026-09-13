@@ -21,10 +21,7 @@ fn a_nested_tree_is_copied_whole() {
 
     assert_eq!(fs::read(dst.join("top.txt")).unwrap(), b"top");
     assert_eq!(fs::read(dst.join("deep/deeper/leaf.txt")).unwrap(), b"leaf");
-    assert!(
-        src.join("top.txt").exists(),
-        "the copy must leave the source in place",
-    );
+    assert!(src.join("top.txt").exists(), "the copy must leave the source in place");
 }
 
 #[test]
@@ -67,14 +64,8 @@ fn symlinks_are_recreated_rather_than_followed() {
     let dst = tmp.path().join("dst");
     copy_dirent(&src, &dst).unwrap();
 
-    assert_eq!(
-        fs::read_link(dst.join("link-to-dir")).unwrap().as_os_str(),
-        "real",
-    );
-    assert_eq!(
-        fs::read_link(dst.join("dangling")).unwrap().as_os_str(),
-        "nowhere",
-    );
+    assert_eq!(fs::read_link(dst.join("link-to-dir")).unwrap().as_os_str(), "real");
+    assert_eq!(fs::read_link(dst.join("dangling")).unwrap().as_os_str(), "nowhere");
     assert!(
         !dst
             .join("link-to-dir")
@@ -150,8 +141,5 @@ fn a_fifo_is_refused_rather_than_opened() {
     let error = copy_dirent(&src, &tmp.path().join("dst")).unwrap_err();
 
     assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
-    assert!(
-        error.to_string().contains("pipe"),
-        "the error must name the offending path: {error}",
-    );
+    assert!(error.to_string().contains("pipe"), "the error must name the offending path: {error}");
 }

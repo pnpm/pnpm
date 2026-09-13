@@ -60,14 +60,8 @@ fn prefix_is_an_alias_of_dir() {
 
 #[test]
 fn add_allow_build_collects_repeated_values() {
-    let args = add_args(&[
-        "pacquet",
-        "add",
-        "foo",
-        "--allow-build=esbuild",
-        "--allow-build",
-        "sharp",
-    ]);
+    let args =
+        add_args(&["pacquet", "add", "foo", "--allow-build=esbuild", "--allow-build", "sharp"]);
     assert_eq!(args.install.allow_build, ["esbuild", "sharp"]);
 }
 
@@ -78,10 +72,7 @@ fn store_is_an_alias_of_store_dir() {
         ["pacquet", "install", "--store=custom-store"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses --store");
-        assert_eq!(
-            parsed.paths.store_dir.as_deref(),
-            Some(Path::new("custom-store")),
-        );
+        assert_eq!(parsed.paths.store_dir.as_deref(), Some(Path::new("custom-store")));
     }
 }
 
@@ -95,28 +86,12 @@ fn store_dir_accepts_an_explicit_empty_value() {
 #[test]
 fn repeated_state_dir_uses_the_last_value_on_either_side_of_the_subcommand() {
     for argv in [
-        [
-            "pacquet",
-            "--state-dir",
-            "first-state",
-            "--state-dir",
-            "last-state",
-            "install",
-        ]
-        .as_slice(),
-        [
-            "pacquet",
-            "install",
-            "--state-dir=first-state",
-            "--state-dir=last-state",
-        ]
-        .as_slice(),
+        ["pacquet", "--state-dir", "first-state", "--state-dir", "last-state", "install"].as_slice(
+        ),
+        ["pacquet", "install", "--state-dir=first-state", "--state-dir=last-state"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses repeated global --state-dir");
-        assert_eq!(
-            parsed.paths.state_dir.as_deref(),
-            Some(Path::new("last-state")),
-        );
+        assert_eq!(parsed.paths.state_dir.as_deref(), Some(Path::new("last-state")));
     }
 }
 
@@ -137,10 +112,7 @@ fn list_accepts_the_electron_builder_collector_invocation() {
     ])
     .expect("parses the electron-builder `pnpm list` invocation");
     assert!(matches!(parsed.command, CliCommand::List(_)));
-    assert_eq!(
-        parsed.output.presentation.loglevel,
-        Some(LogLevelSetting::Error),
-    );
+    assert_eq!(parsed.output.presentation.loglevel, Some(LogLevelSetting::Error));
 }
 
 #[test]
@@ -179,10 +151,7 @@ fn link_command_parses_with_name_and_alias() {
 fn link_command_parses_ln_alias() {
     let parsed = CliArgs::try_parse_from(["pacquet", "ln", "../bar"]).expect("parses pacquet ln");
     let CliCommand::Link(args) = &parsed.command else {
-        panic!(
-            "expected Link command for ln alias, got {:?}",
-            parsed.command,
-        );
+        panic!("expected Link command for ln alias, got {:?}", parsed.command);
     };
     assert_eq!(args.package_paths, ["../bar"]);
 }
@@ -219,10 +188,7 @@ fn unknown_top_level_command_parses_as_external() {
     let CliCommand::External(command) = parsed.command else {
         panic!("expected external command");
     };
-    assert_eq!(
-        command,
-        ["commitlint", "--edit", "--config=commitlint.config.cjs"],
-    );
+    assert_eq!(command, ["commitlint", "--edit", "--config=commitlint.config.cjs"]);
 }
 
 #[test]
@@ -239,10 +205,7 @@ fn parse_package_manager_handles_unscoped_scoped_and_url_references() {
     );
     // No `@` separator → bare name, no version.
     assert_eq!(parse_package_manager("pnpm"), ("pnpm".to_string(), None));
-    assert_eq!(
-        parse_package_manager("@scope/pnpm"),
-        ("@scope/pnpm".to_string(), None),
-    );
+    assert_eq!(parse_package_manager("@scope/pnpm"), ("@scope/pnpm".to_string(), None));
     // The integrity hash carried as `+`-suffixed build metadata is dropped.
     assert_eq!(
         parse_package_manager("pnpm@10.0.0+sha512.abc"),
@@ -319,30 +282,12 @@ fn package_manager_to_sync_records_nothing_for_a_pin_nothing_satisfies() {
 fn resolve_bool_override_tri_state() {
     // force_on wins, force_off wins over a config `true`, and an unset
     // pair falls through to config — in both config polarities.
-    assert!(
-        resolve_bool_override(true, false, false),
-        "force_on over config false",
-    );
-    assert!(
-        resolve_bool_override(true, false, true),
-        "force_on over config true",
-    );
-    assert!(
-        !resolve_bool_override(false, true, true),
-        "force_off over config true",
-    );
-    assert!(
-        !resolve_bool_override(false, true, false),
-        "force_off over config false",
-    );
-    assert!(
-        resolve_bool_override(false, false, true),
-        "unset falls through to config true",
-    );
-    assert!(
-        !resolve_bool_override(false, false, false),
-        "unset falls through to config false",
-    );
+    assert!(resolve_bool_override(true, false, false), "force_on over config false");
+    assert!(resolve_bool_override(true, false, true), "force_on over config true");
+    assert!(!resolve_bool_override(false, true, true), "force_off over config true");
+    assert!(!resolve_bool_override(false, true, false), "force_off over config false");
+    assert!(resolve_bool_override(false, false, true), "unset falls through to config true");
+    assert!(!resolve_bool_override(false, false, false), "unset falls through to config false");
 }
 
 #[test]
@@ -360,26 +305,15 @@ fn trust_lockfile_pair_resolves_last_one_wins() {
 
     // Both spellings in one argv must not error (pnpm forwards raw tokens);
     // mutual `overrides_with` collapses them to the last-specified.
-    let last_off = install_args(&[
-        "pacquet",
-        "install",
-        "--trust-lockfile",
-        "--no-trust-lockfile",
-    ]);
+    let last_off = install_args(&["pacquet", "install", "--trust-lockfile", "--no-trust-lockfile"]);
     assert!(
         last_off.lockfile_updates.no_trust_lockfile
             && !last_off.lockfile_updates.trust_lockfile,
         "--no wins when last",
     );
-    let last_on = install_args(&[
-        "pacquet",
-        "install",
-        "--no-trust-lockfile",
-        "--trust-lockfile",
-    ]);
+    let last_on = install_args(&["pacquet", "install", "--no-trust-lockfile", "--trust-lockfile"]);
     assert!(
-        last_on.lockfile_updates.trust_lockfile
-            && !last_on.lockfile_updates.no_trust_lockfile,
+        last_on.lockfile_updates.trust_lockfile && !last_on.lockfile_updates.no_trust_lockfile,
         "--trust wins when last",
     );
 }
@@ -388,11 +322,8 @@ fn trust_lockfile_pair_resolves_last_one_wins() {
 /// platforms, so a `--dir` redirect would not compare equal otherwise.
 fn workspace_fixture() -> (TempDir, std::path::PathBuf) {
     let root = TempDir::new().expect("tmp dir");
-    std::fs::write(
-        root.path().join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write workspace manifest");
+    std::fs::write(root.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
     std::fs::create_dir_all(root.path().join("packages/a")).expect("create project dir");
     let canonical = dunce::canonicalize(root.path()).expect("canonicalize root");
     (root, canonical)
@@ -511,10 +442,7 @@ fn dedupe_takes_the_install_options_pnpm_documents_for_it() {
         ..pnpm_config::Config::default()
     };
     negated.apply_cli_config(&mut config);
-    assert!(
-        !config.ignore_scripts,
-        "the CLI negation turns a yaml `true` back off",
-    );
+    assert!(!config.ignore_scripts, "the CLI negation turns a yaml `true` back off");
     assert!(!config.offline);
     assert!(!config.prefer_offline);
 }
@@ -555,10 +483,9 @@ fn unlink_args(argv: &[&str]) -> UnlinkArgs {
 
 #[test]
 fn get_and_set_are_top_level_spellings_of_the_config_subcommands() {
-    for (alias, params) in [
-        ("get", ["store-dir"].as_slice()),
-        ("set", ["store-dir", "/tmp/store"].as_slice()),
-    ] {
+    for (alias, params) in
+        [("get", ["store-dir"].as_slice()), ("set", ["store-dir", "/tmp/store"].as_slice())]
+    {
         for case in config_flag_cases() {
             for flag_first in [true, false] {
                 let argv = argv_with_flag(&[alias], params, case.0, flag_first);
@@ -636,11 +563,7 @@ fn assert_config_subcommand_flags(subcommand: &str, argv: &[&str], case: ConfigF
     match (subcommand, args.command) {
         ("set", ConfigSubcommand::Set(set)) => {
             assert_eq!(set.key.as_deref(), Some("registry"), "{argv:?}");
-            assert_eq!(
-                set.value.as_deref(),
-                Some("https://registry.test"),
-                "{argv:?}",
-            );
+            assert_eq!(set.value.as_deref(), Some("https://registry.test"), "{argv:?}");
         }
         ("get", ConfigSubcommand::Get(get)) => {
             assert_eq!(get.key.as_deref(), Some("registry"), "{argv:?}");
@@ -661,18 +584,8 @@ fn config_flag_cases() -> impl Iterator<Item = ConfigFlagCase> {
     [
         (["--global"].as_slice(), true, None, false),
         (["-g"].as_slice(), true, None, false),
-        (
-            ["--location", "project"].as_slice(),
-            false,
-            Some(ConfigLocation::Project),
-            false,
-        ),
-        (
-            ["--location", "global"].as_slice(),
-            false,
-            Some(ConfigLocation::Global),
-            false,
-        ),
+        (["--location", "project"].as_slice(), false, Some(ConfigLocation::Project), false),
+        (["--location", "global"].as_slice(), false, Some(ConfigLocation::Global), false),
         (["--json"].as_slice(), false, None, true),
     ]
     .into_iter()
@@ -700,14 +613,8 @@ fn env_collects_its_subcommand_and_arguments() {
 
 #[test]
 fn the_unimplemented_npm_commands_parse_instead_of_falling_through_to_a_script() {
-    assert!(matches!(
-        command(&["pacquet", "edit", "foo"]),
-        CliCommand::Edit(_)
-    ));
-    assert!(matches!(
-        command(&["pacquet", "profile", "get"]),
-        CliCommand::Profile(_)
-    ));
+    assert!(matches!(command(&["pacquet", "edit", "foo"]), CliCommand::Edit(_)));
+    assert!(matches!(command(&["pacquet", "profile", "get"]), CliCommand::Profile(_)));
     assert!(matches!(
         command(&["pacquet", "token", "create", "--read-only"]),
         CliCommand::Token(_),

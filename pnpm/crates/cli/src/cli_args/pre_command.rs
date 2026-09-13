@@ -121,10 +121,17 @@ fn pre_command_plan_from_input(
     if input.switch.command.as_deref().is_some_and(should_skip_command_name) {
         return Ok(None);
     }
-    let dir = canonicalize_command_dir(&input.switch.dir)?;
+    let dir = dunce::canonicalize(&input.switch.dir)
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!("canonicalizing the `--dir` argument: {}", input.switch.dir.display())
+        })?;
     let config = load_pre_command_config(&input.switch, config_overrides, &dir)?;
 
-    let roots = pin_roots(&config, &dir);
+    let roots = PinRoots {
+        manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.clone()),
+        env: config.root_project_manifest_dir(&dir).to_path_buf(),
+    };
     let manifest = read_manifest_json(&roots.manifest.join("package.json"))?;
 
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
@@ -138,10 +145,7 @@ fn pre_command_plan_from_input(
         wanted_pm,
     )? {
         PinOutcome::Switch(target) => {
-            return Ok(Some(PreCommandPlan::Switch(SwitchPlan {
-                config,
-                target,
-            })));
+            return Ok(Some(PreCommandPlan::Switch(SwitchPlan { config, target })));
         }
         PinOutcome::Sync(sync) => sync,
     };
@@ -164,9 +168,7 @@ fn pre_command_plan_from_input(
 fn pin_matches_running(wanted_pm: Option<&WantedPackageManager>) -> bool {
     wanted_pm.is_some_and(|pm| {
         pm.name == "pnpm"
-            && pm.version
-                .as_deref()
-                .is_some_and(|version| version_satisfies(PNPM_VERSION, version))
+            && pm.version.as_deref().is_some_and(|version| version_satisfies(PNPM_VERSION, version))
     })
 }
 
@@ -180,9 +182,8 @@ fn report_key_issues(
     if input.key_issues == KeyIssueReporting::Skip {
         return Ok(());
     }
-    let strict = input.key_issues == KeyIssueReporting::Enforce
-        && running_matches_pin
-        && !input.global;
+    let strict =
+        input.key_issues == KeyIssueReporting::Enforce && running_matches_pin && !input.global;
     report_workspace_key_issues(&config.workspace_key_issues, strict)?;
     Ok(())
 }
@@ -194,13 +195,11 @@ fn load_pre_command_config(
     config_overrides: &ConfigOverrides,
     dir: &Path,
 ) -> miette::Result<Config> {
-    let mut config = Config {
-        npmrc_auth_file: switch.npmrc_auth_file.clone(),
-        ..Config::default()
-    }
-    .current::<Host>(dir)
-    .map_err(miette::Report::new)
-    .wrap_err("load configuration")?;
+    let mut config =
+        Config { npmrc_auth_file: switch.npmrc_auth_file.clone(), ..Config::default() }
+            .current::<Host>(dir)
+            .map_err(miette::Report::new)
+            .wrap_err("load configuration")?;
     config_overrides.apply(&mut config, dir);
     if let Some(color) = switch.color {
         config.color = color;
@@ -240,13 +239,7 @@ fn switch_or_sync(
         SwitchSource::LockedEnv { env, .. } => ReadEnvLockfile::Already(env),
         SwitchSource::Resolve { .. } => ReadEnvLockfile::NotYet,
     };
-    Ok(PinOutcome::Sync(env_lockfile_sync(
-        config,
-        root_manifest,
-        roots,
-        on_fail,
-        read_lockfile,
-    )?))
+    Ok(PinOutcome::Sync(env_lockfile_sync(config, root_manifest, roots, on_fail, read_lockfile)?))
 }
 
 /// Every warning here quotes the project's manifest, which is untrusted
@@ -254,10 +247,7 @@ fn switch_or_sync(
 /// are stripped before the message reaches the terminal.
 fn global_warn(emit: fn(&LogEvent), message: &str) {
     let message = sanitize_inline(message).into_owned();
-    emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Warn,
-        message,
-    }));
+    emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -270,11 +260,7 @@ pub(crate) enum PreCommandError {
         "This project is configured to use {wanted} of pnpm. Your current pnpm is v{PNPM_VERSION}{note}"
     )]
     #[diagnostic(code(ERR_PNPM_BAD_PM_VERSION), help("{hint}"))]
-    BadPmVersion {
-        wanted: String,
-        note: &'static str,
-        hint: String,
-    },
+    BadPmVersion { wanted: String, note: &'static str, hint: String },
 
     #[diagnostic(code(ERR_PNPM_BAD_RUNTIME_VERSION), help("{RUNTIME_ON_FAIL_HINT}"))]
     BadRuntimeVersion { message: String },
@@ -393,18 +379,3 @@ mod runtime;
 mod pin;
 
 mod execute;
-
-fn canonicalize_command_dir(dir: &Path) -> miette::Result<PathBuf> {
-    dunce::canonicalize(dir)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("canonicalizing the `--dir` argument: {}", dir.display()))
-}
-
-fn pin_roots(config: &Config, dir: &Path) -> PinRoots {
-    PinRoots {
-        manifest: config.workspace_dir
-            .clone()
-            .unwrap_or_else(|| dir.to_path_buf()),
-        env: config.root_project_manifest_dir(dir).to_path_buf(),
-    }
-}

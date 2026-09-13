@@ -173,11 +173,9 @@ impl CliArgs {
         let Ok(dir) = dunce::canonicalize(&self.paths.dir) else {
             return false;
         };
-        let loaded = Config {
-            npmrc_auth_file: self.paths.npmrc_auth_file.clone(),
-            ..Config::default()
-        }
-        .current::<Host>(&dir);
+        let loaded =
+            Config { npmrc_auth_file: self.paths.npmrc_auth_file.clone(), ..Config::default() }
+                .current::<Host>(&dir);
         let Ok(mut config) = loaded else {
             return false;
         };
@@ -222,14 +220,8 @@ impl CliArgs {
         let setup = RunSetup::of(&self);
         let command = std::mem::replace(&mut self.command, CliCommand::Recursive);
 
-        self.run_command(
-            command,
-            config_overrides,
-            builtin_command_forced,
-            &setup,
-            &anchors,
-        )
-        .await?;
+        self.run_command(command, config_overrides, builtin_command_forced, &setup, &anchors)
+            .await?;
 
         // The `Done in ...` footer covers the whole command, mirroring pnpm's
         // `pnpm:execution-time` emit in `main.ts`. Only the install-family
@@ -239,23 +231,6 @@ impl CliArgs {
         }
 
         Ok(())
-    }
-    fn load_self_update_config(
-        &self,
-        config_overrides: &ConfigOverrides,
-        setup: &RunSetup,
-        anchors: &RunAnchors,
-    ) -> miette::Result<&'static mut Config> {
-        seed_config(
-            self.paths.npmrc_auth_file.as_deref(),
-            self.paths.ignore_workspace,
-        )
-        .current_for_self_update::<Host>(&anchors.dir)
-        .map_err(miette::Report::new)
-        .wrap_err("load configuration")
-        .and_then(|cfg| {
-            self.finalize_run_config(cfg, &anchors.dir, config_overrides, setup, anchors)
-        })
     }
     async fn run_command(
         &self,
@@ -268,20 +243,27 @@ impl CliArgs {
         // Load config anchored at `anchor`, reading `.npmrc` /
         // `pnpm-workspace.yaml` from there.
         let load_config = |anchor: &Path| -> miette::Result<&'static mut Config> {
-            seed_config(
-                self.paths.npmrc_auth_file.as_deref(),
-                self.paths.ignore_workspace,
-            )
-            .current::<Host>(anchor)
-            .map_err(miette::Report::new)
-            .wrap_err("load configuration")
-            .and_then(|cfg| self.finalize_run_config(cfg, anchor, config_overrides, setup, anchors))
+            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
+                .current::<Host>(anchor)
+                .map_err(miette::Report::new)
+                .wrap_err("load configuration")
+                .and_then(|cfg| {
+                    self.finalize_run_config(cfg, anchor, config_overrides, setup, anchors)
+                })
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
         // builds its `localPrefix` from `cliOptions.dir`, not `cwd`).
         let config = || load_config(&anchors.dir);
-        let config_self_update = || self.load_self_update_config(config_overrides, setup, anchors);
+        let config_self_update = || -> miette::Result<&'static mut Config> {
+            seed_config(self.paths.npmrc_auth_file.as_deref(), self.paths.ignore_workspace)
+                .current_for_self_update::<Host>(&anchors.dir)
+                .map_err(miette::Report::new)
+                .wrap_err("load configuration")
+                .and_then(|cfg| {
+                    self.finalize_run_config(cfg, &anchors.dir, config_overrides, setup, anchors)
+                })
+        };
         // `require_lockfile` is the "this subcommand cannot run without a
         // lockfile loaded" signal, used by `State::init` to override
         // `config.lockfile=false`. Only `install --frozen-lockfile` needs
@@ -306,10 +288,7 @@ impl CliArgs {
                 state: &state,
             },
         };
-        exit_on_json_error(
-            run_routed_command(command, &ctx).await,
-            setup.print_json_errors,
-        )
+        exit_on_json_error(run_routed_command(command, &ctx).await, setup.print_json_errors)
     }
 
     fn finalize_run_config(
@@ -416,10 +395,7 @@ fn exit_on_json_error(result: miette::Result<()>, print_json_errors: bool) -> mi
         && print_json_errors
     {
         print_json_error(error);
-        #[expect(
-            clippy::exit,
-            reason = "a JSON-mode command exits non-zero after its own report"
-        )]
+        #[expect(clippy::exit, reason = "a JSON-mode command exits non-zero after its own report")]
         std::process::exit(1);
     }
     result
@@ -434,11 +410,7 @@ mod configuration;
 
 impl<'a> From<&'a RunAnchors> for CommandLocations<'a> {
     fn from(anchors: &'a RunAnchors) -> Self {
-        Self {
-            dir: &anchors.dir,
-            cli_dir: &anchors.cli_dir,
-            manifest_path: &anchors.manifest_path,
-        }
+        Self { dir: &anchors.dir, cli_dir: &anchors.cli_dir, manifest_path: &anchors.manifest_path }
     }
 }
 

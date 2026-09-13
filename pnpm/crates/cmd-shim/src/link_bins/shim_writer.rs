@@ -113,12 +113,8 @@ where
             error,
         })?;
 
-    let sh_body = generate_sh_shim(
-        spec.target_path,
-        spec.shim_path,
-        runtime.as_ref(),
-        spec.node_path,
-    );
+    let sh_body =
+        generate_sh_shim(spec.target_path, spec.shim_path, runtime.as_ref(), spec.node_path);
     let windows_shims = windows_shim_bodies(&spec, runtime.as_ref());
 
     let current = shim_body_matches(existing_shim.as_deref(), &sh_body, &spec)
@@ -176,11 +172,7 @@ where
     let fresh = error.kind() == io::ErrorKind::NotFound
         && fresh_write_applies(spec)
         && write_shim_fresh::<Sys>(spec, cache)?;
-    Ok(if fresh {
-        ExistingShim::Written
-    } else {
-        ExistingShim::Absent
-    })
+    Ok(if fresh { ExistingShim::Written } else { ExistingShim::Absent })
 }
 
 /// Whether the shim is one [`write_shim_fresh`] can produce. The node
@@ -212,11 +204,7 @@ fn windows_shim_bodies(
             let ps1_body = generate_pwsh_shim(spec.target_path, &ps1_path, runtime, spec.node_path);
             (ps1_path, ps1_body)
         });
-        WindowsShims {
-            cmd_path,
-            cmd_body,
-            powershell,
-        }
+        WindowsShims { cmd_path, cmd_body, powershell }
     })
 }
 
@@ -351,15 +339,9 @@ fn replace_shim<Sys: FsWrite>(path: &Path, bytes: &[u8]) -> Result<(), LinkBinsE
         Err(error) if error.kind() == io::ErrorKind::Unsupported => {
             remove_stale_bin(path)?;
             Sys::write(path, bytes)
-                .map_err(|error| LinkBinsError::WriteShim {
-                    path: path.to_path_buf(),
-                    error,
-                })
+                .map_err(|error| LinkBinsError::WriteShim { path: path.to_path_buf(), error })
         }
-        Err(error) => Err(LinkBinsError::WriteShim {
-            path: path.to_path_buf(),
-            error,
-        }),
+        Err(error) => Err(LinkBinsError::WriteShim { path: path.to_path_buf(), error }),
     }
 }
 
@@ -370,10 +352,7 @@ fn replace_shim<Sys: FsWrite>(path: &Path, bytes: &[u8]) -> Result<(), LinkBinsE
 /// so a real failure isn't hidden behind a silent skip.
 pub(super) fn remove_stale_bin(path: &Path) -> Result<(), LinkBinsError> {
     remove_if_exists(path)
-        .map_err(|error| LinkBinsError::RemoveStaleBin {
-            path: path.to_path_buf(),
-            error,
-        })
+        .map_err(|error| LinkBinsError::RemoveStaleBin { path: path.to_path_buf(), error })
 }
 
 /// Append `<ext>` to `path` as a *new* extension segment (`foo` becomes
@@ -412,17 +391,4 @@ fn remove_if_exists(path: &Path) -> io::Result<()> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),
     }
-}
-
-pub(super) fn probe_path(pkg: &super::PackageBinSource, target_path: &Path) -> PathBuf {
-    // Resolve the package symlink so importers share the per-target probes.
-    pkg.resolved_location
-        .as_ref()
-        .and_then(|resolved| {
-            target_path
-                .strip_prefix(&pkg.location)
-                .ok()
-                .map(|relative| resolved.join(relative))
-        })
-        .unwrap_or_else(|| target_path.to_path_buf())
 }

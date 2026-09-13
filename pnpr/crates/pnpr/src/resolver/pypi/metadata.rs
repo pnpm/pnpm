@@ -96,9 +96,7 @@ pub(super) fn verify_digest(
     kind: &str,
     filename: &str,
 ) -> Result<(), String> {
-    let Some(expected) = digests.get("sha256") else {
-        return Ok(());
-    };
+    let Some(expected) = digests.get("sha256") else { return Ok(()) };
     let actual = pnpm_crypto_hash::create_hex_hash_bytes(bytes);
     if !actual.eq_ignore_ascii_case(expected) {
         return Err(format!(
@@ -144,9 +142,7 @@ pub(super) fn metadata_from_wheel(wheel: &[u8], filename: &str) -> Result<Vec<u8
         .read_to_end(&mut document)
         .map_err(|err| format!("read {entry} from {filename}: {err}"))?;
     if document.len() > MAX_METADATA_BYTES {
-        return Err(format!(
-            "the metadata in {filename} exceeds {MAX_METADATA_BYTES} bytes",
-        ));
+        return Err(format!("the metadata in {filename} exceeds {MAX_METADATA_BYTES} bytes"));
     }
     Ok(document)
 }

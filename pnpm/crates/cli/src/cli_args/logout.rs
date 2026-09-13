@@ -8,9 +8,9 @@ use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_auth_commands::logout::{Host as AuthHost, LogoutOptions, logout};
 use pnpm_config::Config;
-use pnpm_network::ThrottledClient;
+use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_reporter::Reporter;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 /// Log out of an npm registry.
 #[derive(Debug, Args)]
@@ -56,7 +56,12 @@ impl LogoutArgs {
             .map(|(uri, token)| (format!("{uri}:_authToken"), token.clone()))
             .collect();
 
-        let retry = config.retry_opts();
+        let retry = RetryOpts {
+            retries: config.fetch_retries,
+            factor: config.fetch_retry_factor,
+            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
+            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
+        };
 
         let message = logout::<AuthHost, Reporter>(
             &http_client,

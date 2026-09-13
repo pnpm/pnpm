@@ -41,16 +41,11 @@ impl MaterializationScope {
                     &SkippedSnapshots::new(),
                 )
             });
-        MaterializationScope {
-            importer_ids,
-            closure,
-        }
+        MaterializationScope { importer_ids, closure }
     }
 
     pub(super) fn lockfile<'l>(&'l self, built: &'l Lockfile) -> &'l Lockfile {
-        self.closure
-            .as_ref()
-            .map_or(built, |closure| &closure.lockfile)
+        self.closure.as_ref().map_or(built, |closure| &closure.lockfile)
     }
 
     pub(super) fn finalize(
@@ -84,17 +79,12 @@ impl MaterializationScope {
             );
         let project_anchor_importer_ids =
             project_anchor_importer_ids(install.projects.selected_ids, is_hoisted, &materialized);
-        FinalScope {
-            closure,
-            project_anchor_importer_ids,
-        }
+        FinalScope { closure, project_anchor_importer_ids }
     }
 }
 impl FinalScope {
     pub(super) fn lockfile<'l>(&'l self, built: &'l Lockfile) -> &'l Lockfile {
-        self.closure
-            .as_ref()
-            .map_or(built, |closure| &closure.lockfile)
+        self.closure.as_ref().map_or(built, |closure| &closure.lockfile)
     }
 }
 /// The lockfiles the materialization plan reads: the one the selected
@@ -155,14 +145,7 @@ pub(super) async fn plan_fresh_materialization<'l, 'a: 'l, Reporter: self::Repor
         installability_host.as_ref(),
         scope,
     )?;
-    Ok(FreshPlan {
-        host_node,
-        engine_name,
-        deferred_engine_name,
-        layout,
-        dir_clone_cache,
-        skipped,
-    })
+    Ok(FreshPlan { host_node, engine_name, deferred_engine_name, layout, dir_clone_cache, skipped })
 }
 /// Build the slot layout and the directory-clone cache over the lockfile
 /// the selected importers materialize.
@@ -172,10 +155,7 @@ pub(super) fn lay_out_slots<'l>(
     allow_build_policy: &'l AllowBuildPolicy,
     engine_name: Option<String>,
     deferred_engine_name: Option<&pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
-) -> (
-    VirtualStoreLayout,
-    Option<pnpm_deps_restorer::DirCloneCache<'l>>,
-) {
+) -> (VirtualStoreLayout, Option<pnpm_deps_restorer::DirCloneCache<'l>>) {
     let phase_start = std::time::Instant::now();
     let layout = VirtualStoreLayout::new(
         install.drivers.config,
@@ -300,10 +280,7 @@ pub(super) async fn installability_host(
     config: &Config,
     lockfile: &Lockfile,
     early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
-    host: (
-        Option<String>,
-        Option<&pnpm_package_is_installable::SupportedArchitectures>,
-    ),
+    host: (Option<String>, Option<&pnpm_package_is_installable::SupportedArchitectures>),
 ) -> Option<pnpm_deps_restorer::InstallabilityHost> {
     let (node_version, supported_architectures) = host;
     let needed = !config.force

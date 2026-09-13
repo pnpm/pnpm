@@ -18,11 +18,20 @@ pub async fn schedule_graph_async<Node, Run, Skip, Fut>(
         return;
     }
     let NodeEdges { dependents, pending_dependencies } = node_edges(graph);
-    let mut state = AsyncState::new(pending_dependencies);
-    let policy = FailurePolicy {
-        bail: options.bail,
-        continue_on: options.continue_on_failure,
+    let mut state = AsyncState {
+        ready: pending_dependencies
+            .iter()
+            .enumerate()
+            .filter(|(_, pending)| **pending == 0)
+            .map(|(index, _)| index)
+            .collect(),
+        pending_dependencies,
+        blocked: vec![false; graph.len()],
+        settled: vec![false; graph.len()],
+        unsettled: graph.len(),
+        stop_dispatch: false,
     };
+    let policy = FailurePolicy { bail: options.bail, continue_on: options.continue_on_failure };
     let mut in_flight = FuturesUnordered::new();
     let concurrency = options.concurrency.max(1);
 
@@ -38,9 +47,7 @@ pub async fn schedule_graph_async<Node, Run, Skip, Fut>(
         }
         // Nothing in flight and nothing dispatchable: no task can make
         // further progress.
-        let Some((index, completion)) = in_flight.next().await else {
-            break;
-        };
+        let Some((index, completion)) = in_flight.next().await else { break };
         state.settle(index, completion, &dependents, policy, |dependent| {
             (options.on_node_skipped)(graph.get_index(dependent).expect("graph index exists").0);
         });
@@ -67,23 +74,6 @@ struct AsyncState {
 }
 
 impl AsyncState {
-    fn new(pending_dependencies: Vec<usize>) -> Self {
-        let pending_count = pending_dependencies.len();
-        Self {
-            ready: pending_dependencies
-                .iter()
-                .enumerate()
-                .filter(|(_, pending)| **pending == 0)
-                .map(|(index, _)| index)
-                .collect(),
-            pending_dependencies,
-            blocked: vec![false; pending_count],
-            settled: vec![false; pending_count],
-            unsettled: pending_count,
-            stop_dispatch: false,
-        }
-    }
-
     /// The next task to start, or `None` when dispatch has stopped, the
     /// concurrency limit is reached, or nothing is ready.
     fn next_dispatch(&mut self, in_flight: usize, concurrency: usize) -> Option<usize> {

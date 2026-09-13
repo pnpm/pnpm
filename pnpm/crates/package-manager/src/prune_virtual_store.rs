@@ -155,10 +155,8 @@ fn needed_virtual_store_names<'a>(
     // `install.rs`), so deleting it in the sweep could orphan it.
     // Keeping it is end-state-equivalent whenever the rewrite runs and
     // strictly safer when it doesn't.
-    let mut needed = HashSet::from([
-        "node_modules".to_string(),
-        Lockfile::CURRENT_FILE_NAME.to_string(),
-    ]);
+    let mut needed =
+        HashSet::from(["node_modules".to_string(), Lockfile::CURRENT_FILE_NAME.to_string()]);
     for key in snapshot_keys {
         if skipped.contains(key) {
             continue;

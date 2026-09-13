@@ -18,16 +18,10 @@ fn pacquet_at(workspace: &Path) -> Command {
 fn dedupe_preserves_auto_installed_peer_with_a_newer_major_in_another_importer() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write workspace");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace");
     for (directory, dependencies) in [
-        (
-            "app",
-            serde_json::json!({ "@pnpm.e2e/wants-peer-c-1": "1.0.0" }),
-        ),
+        ("app", serde_json::json!({ "@pnpm.e2e/wants-peer-c-1": "1.0.0" })),
         ("wpkg", serde_json::json!({ "@pnpm.e2e/peer-c": "^2.0.0" })),
     ] {
         let project = workspace.join("packages").join(directory);
@@ -227,10 +221,7 @@ fn dedupe_check_does_not_materialize_nor_write_lockfile() {
         "dedupe --check must not create node_modules",
     );
     let lockfile_after = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    assert_eq!(
-        lockfile_before, lockfile_after,
-        "dedupe --check must not modify pnpm-lock.yaml",
-    );
+    assert_eq!(lockfile_before, lockfile_after, "dedupe --check must not modify pnpm-lock.yaml");
 
     drop((root, mock_instance));
 }
@@ -272,10 +263,7 @@ fn dedupe_check_rejects_a_malformed_modules_manifest() {
         .with_args(["dedupe", "--check"])
         .output()
         .expect("run dedupe check");
-    assert!(
-        !output.status.success(),
-        "dedupe check must reject malformed .modules.yaml",
-    );
+    assert!(!output.status.success(), "dedupe check must reject malformed .modules.yaml");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("Failed to parse")
@@ -331,10 +319,7 @@ fn dedupe_check_keeps_valid_lockfile_pins() {
         .success();
 
     let lockfile_after = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    assert_eq!(
-        lockfile_before, lockfile_after,
-        "dedupe must preserve a valid existing pin",
-    );
+    assert_eq!(lockfile_before, lockfile_after, "dedupe must preserve a valid existing pin");
 
     drop((root, mock_instance));
 }
@@ -383,11 +368,7 @@ fn dedupe_warns_about_peer_dependency_issues() {
         .with_args(["peers", "check"])
         .output()
         .expect("run pnpm peers check");
-    assert_eq!(
-        peers.status.code(),
-        Some(1),
-        "peers check must confirm the issues: {peers:?}",
-    );
+    assert_eq!(peers.status.code(), Some(1), "peers check must confirm the issues: {peers:?}");
 
     drop((root, mock_instance));
 }
@@ -406,11 +387,8 @@ fn dedupe_fails_on_peer_dependency_issues_when_strict() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "strictPeerDependencies: true\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "strictPeerDependencies: true\n")
+        .expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -432,30 +410,15 @@ fn dedupe_fails_on_peer_dependency_issues_when_strict() {
         "dedupe must fail when strictPeerDependencies is true: {output:?}",
     );
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert!(
-        stdout.contains("ERR_PNPM_PEER_DEP_ISSUES"),
-        "stdout:\n{stdout}",
-    );
-    assert!(
-        stdout.contains("Unmet peer dependencies"),
-        "stdout:\n{stdout}",
-    );
+    assert!(stdout.contains("ERR_PNPM_PEER_DEP_ISSUES"), "stdout:\n{stdout}");
+    assert!(stdout.contains("Unmet peer dependencies"), "stdout:\n{stdout}");
     assert!(stdout.contains("@pnpm.e2e/foo"), "stdout:\n{stdout}");
     assert!(stdout.contains("Wanted:"), "stdout:\n{stdout}");
-    assert!(
-        stdout.contains("strictPeerDependencies: false"),
-        "stdout:\n{stdout}",
-    );
-    assert!(
-        !stdout.contains("autoInstallPeers: true"),
-        "stdout:\n{stdout}",
-    );
+    assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
+    assert!(!stdout.contains("autoInstallPeers: true"), "stdout:\n{stdout}");
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    assert!(
-        lockfile_path.exists(),
-        "dedupe still writes the lockfile before failing",
-    );
+    assert!(lockfile_path.exists(), "dedupe still writes the lockfile before failing");
 
     drop((root, mock_instance));
 }
@@ -499,14 +462,8 @@ fn dedupe_strict_failure_hints_at_auto_install_peers_for_a_missing_peer() {
     );
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     assert!(stdout.contains("missing peer"), "stdout:\n{stdout}");
-    assert!(
-        stdout.contains("autoInstallPeers: true"),
-        "stdout:\n{stdout}",
-    );
-    assert!(
-        stdout.contains("strictPeerDependencies: false"),
-        "stdout:\n{stdout}",
-    );
+    assert!(stdout.contains("autoInstallPeers: true"), "stdout:\n{stdout}");
+    assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
 
     drop((root, mock_instance));
 }
@@ -550,11 +507,7 @@ fn dedupe_check_reports_the_lockfile_diff() {
         .output()
         .expect("run pnpm dedupe --check");
 
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "a would-change lockfile must exit 1: {output:?}",
-    );
+    assert_eq!(output.status.code(), Some(1), "a would-change lockfile must exit 1: {output:?}");
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
     let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
     eprintln!("STDOUT:\n{stdout}");
@@ -563,14 +516,8 @@ fn dedupe_check_reports_the_lockfile_diff() {
         stdout.contains("Progress: resolved 1, reused 0, downloaded 0, added 0, done"),
         "stdout:\n{stdout}",
     );
-    assert!(
-        stdout.contains("ERR_PNPM_DEDUPE_CHECK_ISSUES"),
-        "stdout:\n{stdout}",
-    );
-    assert!(
-        stdout.contains("Dedupe --check found changes to the lockfile"),
-        "stdout:\n{stdout}",
-    );
+    assert!(stdout.contains("ERR_PNPM_DEDUPE_CHECK_ISSUES"), "stdout:\n{stdout}");
+    assert!(stdout.contains("Dedupe --check found changes to the lockfile"), "stdout:\n{stdout}");
     assert!(
         stdout.contains("Importers")
             && stdout.contains("@pnpm.e2e/dep-of-pkg-with-1-dep 100.0.0 → 100.1.0"),
@@ -582,10 +529,7 @@ fn dedupe_check_reports_the_lockfile_diff() {
             && stdout.contains("- @pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0"),
         "the added and removed snapshots must be rendered; stdout:\n{stdout}",
     );
-    assert!(
-        stdout.contains("Run pnpm dedupe to apply the changes above."),
-        "stdout:\n{stdout}",
-    );
+    assert!(stdout.contains("Run pnpm dedupe to apply the changes above."), "stdout:\n{stdout}");
     assert!(
         stdout.ends_with("Run pnpm dedupe to apply the changes above.\n\n"),
         "stdout:\n{stdout}",
@@ -597,15 +541,8 @@ fn dedupe_check_reports_the_lockfile_diff() {
         .with_args(["dedupe", "--check", "--reporter=ndjson"])
         .output()
         .expect("run pnpm dedupe --check with the ndjson reporter");
-    assert_eq!(
-        ndjson_output.status.code(),
-        Some(1),
-        "ndjson check: {ndjson_output:?}",
-    );
-    assert!(
-        ndjson_output.stdout.is_empty(),
-        "ndjson stdout: {ndjson_output:?}",
-    );
+    assert_eq!(ndjson_output.status.code(), Some(1), "ndjson check: {ndjson_output:?}");
+    assert!(ndjson_output.stdout.is_empty(), "ndjson stdout: {ndjson_output:?}");
     let ndjson_stderr = String::from_utf8(ndjson_output.stderr).expect("stderr is UTF-8");
     let ndjson_records = ndjson_stderr
         .lines()
@@ -640,25 +577,12 @@ fn dedupe_check_reports_the_lockfile_diff() {
         .with_args(["dedupe", "--check", "--reporter=silent"])
         .output()
         .expect("run pnpm dedupe --check with the silent reporter");
-    assert_eq!(
-        silent_output.status.code(),
-        Some(1),
-        "silent check: {silent_output:?}",
-    );
-    assert!(
-        silent_output.stdout.is_empty(),
-        "silent stdout: {silent_output:?}",
-    );
-    assert!(
-        silent_output.stderr.is_empty(),
-        "silent stderr: {silent_output:?}",
-    );
+    assert_eq!(silent_output.status.code(), Some(1), "silent check: {silent_output:?}");
+    assert!(silent_output.stdout.is_empty(), "silent stdout: {silent_output:?}");
+    assert!(silent_output.stderr.is_empty(), "silent stderr: {silent_output:?}");
 
     let lockfile_after = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    assert_eq!(
-        lockfile_before, lockfile_after,
-        "dedupe --check must not modify pnpm-lock.yaml",
-    );
+    assert_eq!(lockfile_before, lockfile_after, "dedupe --check must not modify pnpm-lock.yaml");
 
     drop((root, mock_instance));
 }
@@ -704,10 +628,7 @@ fn dedupe_check_does_not_persist_minimum_release_age_excludes() {
         .with_args(["dedupe", "--check"])
         .output()
         .expect("run dedupe check");
-    assert!(
-        !output.status.success(),
-        "no lockfile exists, so the check must report a diff",
-    );
+    assert!(!output.status.success(), "no lockfile exists, so the check must report a diff");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains("Dedupe --check found changes to the lockfile"),
@@ -772,15 +693,9 @@ fn dedupe_re_keys_a_hoisted_optional_peer_in_one_pass() {
         "    optionalDependencies:\n",
         "      '@pnpm.e2e/peer-c': 1.0.0\n",
     );
-    assert!(
-        converged.contains(hoisted_host_snapshot),
-        "unexpected lockfile shape:\n{converged}",
-    );
+    assert!(converged.contains(hoisted_host_snapshot), "unexpected lockfile shape:\n{converged}");
     let stale = converged
-        .replace(
-            hoisted_host_snapshot,
-            "  '@pnpm.e2e/optional-peer-c-host@1.0.0': {}\n",
-        )
+        .replace(hoisted_host_snapshot, "  '@pnpm.e2e/optional-peer-c-host@1.0.0': {}\n")
         .replace("(@pnpm.e2e/peer-c@1.0.0)", "");
     fs::write(&lockfile_path, &stale).expect("write the pre-hoisting lockfile");
 
@@ -790,10 +705,7 @@ fn dedupe_re_keys_a_hoisted_optional_peer_in_one_pass() {
         .success();
     let first_pass = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     eprintln!("first pass:\n{first_pass}\nfresh resolution:\n{converged}");
-    assert_eq!(
-        first_pass, converged,
-        "one dedupe pass must reach the fresh resolution",
-    );
+    assert_eq!(first_pass, converged, "one dedupe pass must reach the fresh resolution");
 
     pacquet_at(&workspace)
         .with_args(["dedupe", "--lockfile-only"])
@@ -801,10 +713,7 @@ fn dedupe_re_keys_a_hoisted_optional_peer_in_one_pass() {
         .success();
     let second_pass = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     eprintln!("second pass:\n{second_pass}");
-    assert_eq!(
-        second_pass, first_pass,
-        "a second dedupe pass must change nothing",
-    );
+    assert_eq!(second_pass, first_pass, "a second dedupe pass must change nothing");
 
     drop((root, mock_instance));
 }
@@ -819,11 +728,7 @@ fn write_catalog_workspace(workspace: &Path, shared: bool, version: &str) {
 }
 
 fn create_catalog_projects(workspace: &Path) {
-    for (directory, name) in [
-        (".", "root"),
-        ("packages/a", "pkg-a"),
-        ("packages/b", "pkg-b"),
-    ] {
+    for (directory, name) in [(".", "root"), ("packages/a", "pkg-a"), ("packages/b", "pkg-b")] {
         let project = workspace.join(directory);
         fs::create_dir_all(&project).expect("create project");
         fs::write(
@@ -852,11 +757,7 @@ fn catalog_lockfile_version(workspace: &Path, project: &str, shared: bool) -> St
 fn dedupe_recurses_into_dedicated_lockfiles() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    for options in [
-        vec![],
-        vec!["-r"],
-        vec!["--workspace-concurrency=1", "--no-sort"],
-    ] {
+    for options in [vec![], vec!["-r"], vec!["--workspace-concurrency=1", "--no-sort"]] {
         create_catalog_projects(&workspace);
         write_catalog_workspace(&workspace, false, "1.0.0");
         pacquet_at(&workspace)
@@ -870,10 +771,7 @@ fn dedupe_recurses_into_dedicated_lockfiles() {
             .assert()
             .success();
         for project in [".", "packages/a", "packages/b"] {
-            assert_eq!(
-                catalog_lockfile_version(&workspace, project, false),
-                "1.2.0",
-            );
+            assert_eq!(catalog_lockfile_version(&workspace, project, false), "1.2.0");
         }
     }
     drop((root, npmrc_info));
@@ -913,33 +811,15 @@ fn dedupe_filters_workspace_projects_and_checks_without_writing() {
             .with_args(["dedupe", "--lockfile-only", "-F", "pkg-a"])
             .assert()
             .success();
-        assert_eq!(
-            catalog_lockfile_version(&workspace, "packages/a", shared),
-            "1.2.0",
-        );
+        assert_eq!(catalog_lockfile_version(&workspace, "packages/a", shared), "1.2.0");
         let unselected_version = if shared { "1.2.0" } else { "1.0.0" };
-        assert_eq!(
-            catalog_lockfile_version(&workspace, "packages/b", shared),
-            unselected_version,
-        );
-        assert_eq!(
-            catalog_lockfile_version(&workspace, ".", shared),
-            unselected_version,
-        );
+        assert_eq!(catalog_lockfile_version(&workspace, "packages/b", shared), unselected_version);
+        assert_eq!(catalog_lockfile_version(&workspace, ".", shared), unselected_version);
         pacquet_at(&workspace)
-            .with_args([
-                "dedupe",
-                "--lockfile-only",
-                "-F",
-                "pkg-b",
-                "--workspace-root",
-            ])
+            .with_args(["dedupe", "--lockfile-only", "-F", "pkg-b", "--workspace-root"])
             .assert()
             .success();
-        assert_eq!(
-            catalog_lockfile_version(&workspace, "packages/b", shared),
-            "1.2.0",
-        );
+        assert_eq!(catalog_lockfile_version(&workspace, "packages/b", shared), "1.2.0");
         assert_eq!(catalog_lockfile_version(&workspace, ".", shared), "1.2.0");
     }
     drop((root, npmrc_info));
@@ -953,13 +833,7 @@ fn dedupe_honors_fail_if_no_match() {
         create_catalog_projects(&workspace);
         write_catalog_workspace(&workspace, shared, "1.0.0");
         pacquet_at(&workspace)
-            .with_args([
-                "dedupe",
-                "--lockfile-only",
-                "-F",
-                "no-such-pkg",
-                "--fail-if-no-match",
-            ])
+            .with_args(["dedupe", "--lockfile-only", "-F", "no-such-pkg", "--fail-if-no-match"])
             .assert()
             .code(1);
         pacquet_at(&workspace)
@@ -1002,10 +876,7 @@ fn dedupe_check_detects_config_dependency_changes_when_root_is_unselected() {
         .get_output()
         .clone();
     let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
-    assert!(
-        stdout.contains("ERR_PNPM_DEDUPE_CHECK_ISSUES"),
-        "stdout:\n{stdout}",
-    );
+    assert!(stdout.contains("ERR_PNPM_DEDUPE_CHECK_ISSUES"), "stdout:\n{stdout}");
     for (path, snapshot) in lockfiles.iter().zip(snapshots) {
         assert_eq!(fs::read(path).unwrap(), snapshot);
     }

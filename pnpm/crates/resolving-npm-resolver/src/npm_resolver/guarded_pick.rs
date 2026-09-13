@@ -56,10 +56,7 @@ pub(super) fn pick_options<'o>(
 }
 
 pub(super) fn all_versions_blocked(name: String, reason: String) -> ResolveError {
-    Box::new(AllVersionsBlockedError {
-        name,
-        reason,
-    })
+    Box::new(AllVersionsBlockedError { name, reason })
 }
 
 pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
@@ -88,14 +85,20 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             };
         };
         let Some(guard) = opts.package_version_guard else {
-            return Ok(registry_pick(pick_result.meta, version));
+            return Ok(RegistryPick::Picked(PickedFromRegistry {
+                meta: pick_result.meta,
+                version,
+            }));
         };
 
         let version_str = version.version.to_string();
         let PackageVersionGuardDecision::Reject { reason } =
             guard.check(&opts.spec.name, &version_str).await?
         else {
-            return Ok(registry_pick(pick_result.meta, version));
+            return Ok(RegistryPick::Picked(PickedFromRegistry {
+                meta: pick_result.meta,
+                version,
+            }));
         };
         log_guard_rejection(&opts.spec.name, &version_str, &reason);
         // Block by the *packument key*, which the next pick filters on. It
@@ -109,10 +112,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             return exhausted(&opts, first_rejected, reason, stop.into_error());
         }
         last_rejection = Some(reason);
-        first_rejected.get_or_insert(PickedFromRegistry {
-            meta: pick_result.meta,
-            version,
-        });
+        first_rejected.get_or_insert(PickedFromRegistry { meta: pick_result.meta, version });
     }
 }
 
@@ -130,18 +130,11 @@ pub(super) enum RepickStop {
 impl RepickStop {
     pub(super) fn into_error(self) -> fn(String, String) -> ResolveError {
         match self {
-            RepickStop::AllBlocked => |name, reason| {
-                Box::new(AllVersionsBlockedError {
-                    name,
-                    reason,
-                })
-            },
+            RepickStop::AllBlocked => {
+                |name, reason| Box::new(AllVersionsBlockedError { name, reason })
+            }
             RepickStop::LimitReached => |name, reason| {
-                Box::new(GuardRepickLimitError {
-                    name,
-                    limit: GUARD_REPICK_LIMIT,
-                    reason,
-                })
+                Box::new(GuardRepickLimitError { name, limit: GUARD_REPICK_LIMIT, reason })
             },
         }
     }
@@ -176,11 +169,7 @@ pub(super) fn blocked_packument_key(
     }
     meta.versions
         .keys()
-        .find(|key| {
-            meta.versions
-                .get(key)
-                .is_some_and(|candidate| Arc::ptr_eq(&candidate, picked))
-        })
+        .find(|key| meta.versions.get(key).is_some_and(|candidate| Arc::ptr_eq(&candidate, picked)))
         .cloned()
         .unwrap_or_else(|| version_str.to_string())
 }
@@ -250,11 +239,4 @@ pub(super) fn log_guard_rejection(name: &str, version_str: &str, reason: &str) {
         reason = %reason,
         "package version rejected by resolver guard",
     );
-}
-
-fn registry_pick(meta: Arc<Package>, version: Arc<PackageVersion>) -> RegistryPick {
-    RegistryPick::Picked(PickedFromRegistry {
-        meta,
-        version,
-    })
 }

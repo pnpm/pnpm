@@ -3,10 +3,7 @@ use std::path::Path;
 
 #[test]
 fn collapses_parent_dir_segments() {
-    assert_eq!(
-        lexical_normalize(Path::new("foo/bar/../baz")),
-        Path::new("foo/baz"),
-    );
+    assert_eq!(lexical_normalize(Path::new("foo/bar/../baz")), Path::new("foo/baz"));
 }
 
 #[test]
@@ -18,18 +15,12 @@ fn drops_parent_dir_at_root() {
 #[test]
 fn preserves_leading_parent_dir_when_unanchored() {
     assert_eq!(lexical_normalize(Path::new("../foo")), Path::new("../foo"));
-    assert_eq!(
-        lexical_normalize(Path::new("../../foo")),
-        Path::new("../../foo"),
-    );
+    assert_eq!(lexical_normalize(Path::new("../../foo")), Path::new("../../foo"));
 }
 
 #[test]
 fn drops_current_dir_segments() {
-    assert_eq!(
-        lexical_normalize(Path::new("foo/./bar")),
-        Path::new("foo/bar"),
-    );
+    assert_eq!(lexical_normalize(Path::new("foo/./bar")), Path::new("foo/bar"));
     assert_eq!(lexical_normalize(Path::new("./foo")), Path::new("foo"));
 }
 
@@ -38,10 +29,7 @@ fn collapses_unanchored_absolute_join() {
     let modules_dir = Path::new("/private/tmp/pkg/node_modules");
     let stored_relative = Path::new("../../../../Users/zoltan/Library/pnpm/store/v11/links");
     let joined = modules_dir.join(stored_relative);
-    assert_eq!(
-        lexical_normalize(&joined),
-        Path::new("/Users/zoltan/Library/pnpm/store/v11/links"),
-    );
+    assert_eq!(lexical_normalize(&joined), Path::new("/Users/zoltan/Library/pnpm/store/v11/links"));
 }
 
 #[test]
@@ -54,18 +42,9 @@ fn empty_path_is_empty() {
 /// and doubled separators must not survive.
 #[test]
 fn strips_redundant_separators() {
-    assert_eq!(
-        lexical_normalize(Path::new("foo/bar/")),
-        Path::new("foo/bar"),
-    );
-    assert_eq!(
-        lexical_normalize(Path::new("foo//bar")),
-        Path::new("foo/bar"),
-    );
-    assert_eq!(
-        lexical_normalize(Path::new("/foo//bar/")),
-        Path::new("/foo/bar"),
-    );
+    assert_eq!(lexical_normalize(Path::new("foo/bar/")), Path::new("foo/bar"));
+    assert_eq!(lexical_normalize(Path::new("foo//bar")), Path::new("foo/bar"));
+    assert_eq!(lexical_normalize(Path::new("/foo//bar/")), Path::new("/foo/bar"));
 }
 
 /// A drive letter followed by a colon is a legal file name component
@@ -86,22 +65,13 @@ fn keeps_a_drive_like_component_in_the_middle_of_the_path() {
 #[test]
 #[cfg_attr(not(windows), ignore = "Windows path semantics")]
 fn keeps_windows_prefixes() {
-    assert_eq!(
-        lexical_normalize(Path::new(r"C:\foo\..\bar")),
-        Path::new(r"C:\bar"),
-    );
-    assert_eq!(
-        lexical_normalize(Path::new(r"C:foo\.\bar")),
-        Path::new(r"C:foo\bar"),
-    );
+    assert_eq!(lexical_normalize(Path::new(r"C:\foo\..\bar")), Path::new(r"C:\bar"));
+    assert_eq!(lexical_normalize(Path::new(r"C:foo\.\bar")), Path::new(r"C:foo\bar"));
     assert_eq!(
         lexical_normalize(Path::new(r"\\server\share\foo\..\bar")),
         Path::new(r"\\server\share\bar"),
     );
-    assert_eq!(
-        lexical_normalize(Path::new(r"\foo\..\bar")),
-        Path::new(r"\bar"),
-    );
+    assert_eq!(lexical_normalize(Path::new(r"\foo\..\bar")), Path::new(r"\bar"));
 }
 
 #[test]
@@ -122,17 +92,11 @@ fn preserves_parent_components_after_drive_relative_prefixes() {
 #[cfg_attr(not(windows), ignore = "Windows path semantics")]
 fn relative_paths_preserve_drive_relative_parent_traversal() {
     assert_eq!(
-        crate::relative_path(
-            Path::new(r"C:project\node_modules"),
-            Path::new(r"C:..\target")
-        ),
+        crate::relative_path(Path::new(r"C:project\node_modules"), Path::new(r"C:..\target")),
         Path::new(r"..\..\..\target"),
     );
     assert_eq!(
-        crate::relative_path(
-            Path::new(r"C:project\..\node_modules"),
-            Path::new(r"C:..\target")
-        ),
+        crate::relative_path(Path::new(r"C:project\..\node_modules"), Path::new(r"C:..\target")),
         Path::new(r"..\..\target"),
     );
 }

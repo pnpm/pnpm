@@ -18,10 +18,7 @@ pub(super) fn canonical_path_within(path: &Path, base: &Path) -> Option<Canonica
     };
     canonical_path
         .starts_with(&canonical_base)
-        .then_some(CanonicalPathWithin {
-            path: canonical_path,
-            base: canonical_base,
-        })
+        .then_some(CanonicalPathWithin { path: canonical_path, base: canonical_base })
 }
 
 /// `base_dir` is the directory the `link:` target is relative to — the
@@ -32,8 +29,7 @@ pub(super) fn resolve_link_version(
     lockfile_dir: &Path,
     link_target: &str,
 ) -> Option<String> {
-    let target_dir = canonical_path_within(&base_dir.join(link_target), lockfile_dir)?
-        .path;
+    let target_dir = canonical_path_within(&base_dir.join(link_target), lockfile_dir)?.path;
     let manifest = PackageManifest::from_path(target_dir.join("package.json")).ok()?;
     package_manifest_version(&manifest)
 }
@@ -49,9 +45,7 @@ fn resolve_file_version(
     if let Some(version) = &metadata.version {
         return Some(version.clone());
     }
-    let LockfileResolution::Directory(directory) = &metadata.resolution else {
-        return None;
-    };
+    let LockfileResolution::Directory(directory) = &metadata.resolution else { return None };
     resolve_link_version(lockfile_dir, lockfile_dir, &directory.directory)
 }
 
@@ -102,9 +96,7 @@ pub(super) fn check_linked_package_peers(
     }];
 
     for (peer_name, peer_range_val) in peer_deps {
-        let Some(peer_range) = peer_range_val.as_str() else {
-            continue;
-        };
+        let Some(peer_range) = peer_range_val.as_str() else { continue };
         let peer_range = resolve_peer_range(peer_name, peer_range, inputs.catalogs)?;
         check_one_linked_peer(LinkedPeerCheck {
             parents: &current_parents,
@@ -131,9 +123,7 @@ struct LinkedPeerCheck<'a> {
 
 fn check_one_linked_peer(check: LinkedPeerCheck<'_>) {
     let issues = check.issues;
-    let Ok(peer_pkg_name) = check.peer_name.parse::<PkgName>() else {
-        return;
-    };
+    let Ok(peer_pkg_name) = check.peer_name.parse::<PkgName>() else { return };
 
     // The linked package's own project comes second: a peer the depending
     // project provides is the one that ends up resolved.
@@ -156,9 +146,7 @@ fn check_one_linked_peer(check: LinkedPeerCheck<'_>) {
         &peer_pkg_name,
         spec,
     );
-    let Some(found_version) = found_version else {
-        return;
-    };
+    let Some(found_version) = found_version else { return };
     record_bad_peer(
         issues,
         check.peer_name,
@@ -274,13 +262,9 @@ fn resolve_peer_range(
     peer_range: &str,
     catalogs: Option<&Catalogs>,
 ) -> Result<String, CatalogResolutionError> {
-    let Some(catalogs) = catalogs else {
-        return Ok(peer_range.to_string());
-    };
-    let wanted = WantedDependency {
-        alias: peer_name.to_string(),
-        bare_specifier: peer_range.to_string(),
-    };
+    let Some(catalogs) = catalogs else { return Ok(peer_range.to_string()) };
+    let wanted =
+        WantedDependency { alias: peer_name.to_string(), bare_specifier: peer_range.to_string() };
     match resolve_from_catalog(catalogs, &wanted) {
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(peer_range.to_string()),

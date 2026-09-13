@@ -82,14 +82,8 @@ fn unlink_removes_single_named_link_override() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "name": "test-project", "version": "1.0.0" }),
-    );
-    add_overrides(
-        &workspace,
-        "overrides:\n  foo: link:../foo\n  bar: link:../bar\n  baz: 1.0.0\n",
-    );
+    write_manifest(&workspace, &serde_json::json!({ "name": "test-project", "version": "1.0.0" }));
+    add_overrides(&workspace, "overrides:\n  foo: link:../foo\n  bar: link:../bar\n  baz: 1.0.0\n");
 
     pacquet
         .with_args(["unlink", "foo"])
@@ -97,10 +91,7 @@ fn unlink_removes_single_named_link_override() {
         .success();
 
     let workspace_yaml = read_workspace_yaml(&workspace);
-    assert!(
-        !workspace_yaml.contains("foo"),
-        "foo override must be removed: {workspace_yaml}",
-    );
+    assert!(!workspace_yaml.contains("foo"), "foo override must be removed: {workspace_yaml}");
     assert!(
         workspace_yaml.contains("bar: link:../bar"),
         "bar override must remain: {workspace_yaml}",
@@ -124,14 +115,8 @@ fn unlink_without_args_removes_all_link_overrides() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "name": "test-project", "version": "1.0.0" }),
-    );
-    add_overrides(
-        &workspace,
-        "overrides:\n  foo: link:../foo\n  bar: link:../bar\n  baz: 1.0.0\n",
-    );
+    write_manifest(&workspace, &serde_json::json!({ "name": "test-project", "version": "1.0.0" }));
+    add_overrides(&workspace, "overrides:\n  foo: link:../foo\n  bar: link:../bar\n  baz: 1.0.0\n");
 
     pacquet
         .with_arg("unlink")
@@ -139,14 +124,8 @@ fn unlink_without_args_removes_all_link_overrides() {
         .success();
 
     let workspace_yaml = read_workspace_yaml(&workspace);
-    assert!(
-        !workspace_yaml.contains("foo"),
-        "foo override must be removed: {workspace_yaml}",
-    );
-    assert!(
-        !workspace_yaml.contains("bar"),
-        "bar override must be removed: {workspace_yaml}",
-    );
+    assert!(!workspace_yaml.contains("foo"), "foo override must be removed: {workspace_yaml}");
+    assert!(!workspace_yaml.contains("bar"), "bar override must be removed: {workspace_yaml}");
     assert!(
         workspace_yaml.contains("baz: 1.0.0"),
         "non-link override must remain: {workspace_yaml}",
@@ -166,10 +145,7 @@ fn unlink_keeps_non_link_overrides() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "name": "test-project", "version": "1.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "name": "test-project", "version": "1.0.0" }));
     add_overrides(&workspace, "overrides:\n  baz: 1.0.0\n");
 
     pacquet
@@ -197,19 +173,13 @@ fn unlink_is_noop_without_overrides() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "name": "test-project", "version": "1.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "name": "test-project", "version": "1.0.0" }));
 
     let output = pacquet
         .with_arg("unlink")
         .output()
         .expect("run pacquet unlink");
-    assert!(
-        output.status.success(),
-        "unlink without overrides must succeed",
-    );
+    assert!(output.status.success(), "unlink without overrides must succeed");
     assert!(
         String::from_utf8_lossy(&output.stdout).contains("Nothing to unlink"),
         "unlink must report when there is nothing to unlink, matching pnpm",
@@ -235,14 +205,8 @@ fn unlink_drops_overrides_block_when_it_empties() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "name": "test-project", "version": "1.0.0" }),
-    );
-    add_overrides(
-        &workspace,
-        "overrides:\n  foo: link:../foo\n  bar: link:../bar\n",
-    );
+    write_manifest(&workspace, &serde_json::json!({ "name": "test-project", "version": "1.0.0" }));
+    add_overrides(&workspace, "overrides:\n  foo: link:../foo\n  bar: link:../bar\n");
 
     pacquet
         .with_args(["unlink", "foo", "bar"])
@@ -273,10 +237,7 @@ fn dislink_alias_works() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "name": "test-project", "version": "1.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "name": "test-project", "version": "1.0.0" }));
     add_overrides(&workspace, "overrides:\n  foo: link:../foo\n  baz: 1.0.0\n");
 
     pacquet
@@ -331,10 +292,7 @@ fn unlink_restores_registry_package_in_lockfile() {
             "dependencies": { PKG: "100.0.0" },
         }),
     );
-    add_overrides(
-        &workspace,
-        &format!("overrides:\n  '{PKG}': link:./local-dep\n"),
-    );
+    add_overrides(&workspace, &format!("overrides:\n  '{PKG}': link:./local-dep\n"));
 
     // Materialize the link first: the override makes node_modules a symlink
     // and pins a link: resolution in the lockfile.

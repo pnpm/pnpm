@@ -184,13 +184,7 @@ fn returns_skipped_when_a_project_file_tarball_changes_without_an_mtime_change()
 /// full install path.
 #[test]
 fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
-    for spec in [
-        "../sibling-dir",
-        "~/pkgs/foo",
-        "/abs/path/foo",
-        "c:/pkgs/foo",
-        "c:pkgs",
-    ] {
+    for spec in ["../sibling-dir", "~/pkgs/foo", "/abs/path/foo", "c:/pkgs/foo", "c:pkgs"] {
         let (dir, config, manifest) = setup_fresh_install(
             pnpm_config::NodeLinker::Isolated,
             "root",
@@ -238,22 +232,15 @@ fn returns_skipped_when_workspace_project_set_changes() {
 
     // Append a fake second-project entry to the cached state so
     // count + identity diverge from today's single-project walk.
-    let settings = current_settings(
-        config,
-        pnpm_config::NodeLinker::Isolated,
-        isolated_included(),
-        None,
-    );
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir
             .path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     projects.insert(
         dir
@@ -261,19 +248,11 @@ fn returns_skipped_when_workspace_project_set_changes() {
             .join("pkg-a")
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry {
-            name: Some("pkg-a".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
     );
     // Re-stamp so every file reads as validated and the mtime branch
     // cannot fire. This test is about the project-list branch.
-    write_state(
-        dir.path(),
-        backdate_existing_files(dir.path()),
-        settings,
-        projects,
-    );
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check(
         dir.path(),
@@ -315,17 +294,9 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        stale_settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -363,17 +334,9 @@ fn returns_skipped_when_prefer_workspace_packages_drift() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        workspace_root,
-        backdate_existing_files(workspace_root),
-        stale_settings,
-        projects,
-    );
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -410,36 +373,21 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
     // project-structure check passes, and backdate the tree so the mtime
     // branch reads as validated. We want the modules-dir branch to be the
     // deciding factor.
-    let settings = current_settings(
-        config,
-        pnpm_config::NodeLinker::Isolated,
-        isolated_included(),
-        None,
-    );
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
         dir
             .path()
             .to_string_lossy()
             .into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     projects.insert(
         sibling_dir.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("pkg-a".into()),
-            version: Some("1.0.0".into()),
-        },
+        ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
     );
-    write_state(
-        dir.path(),
-        backdate_existing_files(dir.path()),
-        settings,
-        projects,
-    );
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -481,10 +429,7 @@ fn workspace_content_check_refreshes_last_validated_timestamp() {
         .unwrap()
         .unwrap()
         .last_validated_timestamp;
-    assert!(
-        after > before,
-        "expected the state timestamp to advance ({before} -> {after})",
-    );
+    assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
 }
 #[test]
 fn workspace_content_check_converges_after_a_same_millisecond_mtime_collision() {

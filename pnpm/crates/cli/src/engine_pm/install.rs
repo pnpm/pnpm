@@ -69,10 +69,7 @@ pub(crate) async fn install_engine_to_store<Reporter: self::Reporter + 'static>(
     fs::create_dir_all(env_root)
         .into_diagnostic()
         .wrap_err_with(|| {
-            format!(
-                "create the package-manager env directory at {}",
-                env_root.display(),
-            )
+            format!("create the package-manager env directory at {}", env_root.display())
         })?;
     let env = {
         let _lock = package_manager_env_lock::<Reporter>(config).await?;
@@ -100,8 +97,7 @@ pub(crate) async fn install_engine_from_env<Reporter: self::Reporter + 'static>(
     version: &str,
 ) -> miette::Result<PathBuf> {
     let config = package_manager_engine_config(config)?.leak();
-    install_engine_from_env_with_config::<Reporter>(config, pm, env, version)
-        .await
+    install_engine_from_env_with_config::<Reporter>(config, pm, env, version).await
 }
 
 /// The packages that make up `pm` at `version`. Errors for an engine that
@@ -112,11 +108,7 @@ fn registry_engine_packages(pm: PackageManager, version: &str) -> miette::Result
     pm
         .engine_packages(version)
         .ok_or_else(|| {
-            EngineError::NotRegistryPublished {
-                name,
-                version: version.to_string(),
-            }
-            .into()
+            EngineError::NotRegistryPublished { name, version: version.to_string() }.into()
         })
 }
 
@@ -155,11 +147,7 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
     // and the temp directory holds only symlinks into it.
     let tmp_install_dir = config.store_dir
         .tmp()
-        .join(format!(
-            "{}-engine-{version}-{}",
-            pm.name(),
-            unique_suffix(),
-        ));
+        .join(format!("{}-engine-{version}-{}", pm.name(), unique_suffix()));
     fs::create_dir_all(&tmp_install_dir)
         .into_diagnostic()
         .wrap_err("create the temporary package manager install directory")?;
@@ -288,9 +276,7 @@ pub(crate) fn engine_env_root(config: &Config, pm: PackageManager) -> miette::Re
     if pm == PackageManager::Pnpm {
         return Ok(global_pkg_dir.clone());
     }
-    Ok(package_manager_home(global_pkg_dir)
-        .join("package-manager-envs")
-        .join(pm.name()))
+    Ok(package_manager_home(global_pkg_dir).join("package-manager-envs").join(pm.name()))
 }
 
 /// The pnpm home directory, derived from the versioned global packages
@@ -371,10 +357,7 @@ fn resolve_slot(install_dir: &Path, package_name: &str) -> miette::Result<PathBu
     let install_real = fs::canonicalize(install_dir)
         .into_diagnostic()
         .wrap_err_with(|| {
-            format!(
-                "resolve the temporary install directory at {}",
-                install_dir.display(),
-            )
+            format!("resolve the temporary install directory at {}", install_dir.display())
         })?;
     if real.starts_with(&install_real) {
         let real_display = real.display();
@@ -438,9 +421,8 @@ fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
 /// name, so concurrent `pnpm with` invocations don't collide.
 fn unique_suffix() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_nanos());
+    let nanos =
+        SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_nanos());
     format!("{}-{nanos}", std::process::id())
 }
 

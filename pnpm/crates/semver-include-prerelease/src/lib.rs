@@ -61,9 +61,7 @@ impl IncludePrereleaseRange {
                         .all(|comparator| comparator.bounds.satisfies(version))
                 });
         }
-        let Some(point) = point_range(version) else {
-            return false;
-        };
+        let Some(point) = point_range(version) else { return false };
         let release_point = point_range(&release_of(version));
         self.alternatives
             .iter()
@@ -124,10 +122,7 @@ fn comparators(alternative: &str) -> Option<Vec<Comparator>> {
             (text, omits_a_component(token), 1)
         };
         if let Ok(bounds) = text.parse::<Range>() {
-            comparators.push(Comparator {
-                bounds,
-                lower_bound_admits_prereleases,
-            });
+            comparators.push(Comparator { bounds, lower_bound_admits_prereleases });
         }
         index += width;
     }
@@ -183,10 +178,7 @@ fn npm_upper_bound(token: &str) -> Option<String> {
     }
     let version = version.trim_start_matches('v');
     let mut components = version.split('.');
-    let major: u64 = components
-        .next()?
-        .parse()
-        .ok()?;
+    let major: u64 = components.next()?.parse().ok()?;
     let minor: Option<u64> = components
         .next()
         .and_then(|minor| minor.parse().ok());
@@ -226,10 +218,7 @@ fn release_of(version: &Version) -> Version {
 }
 
 fn point_range(version: &Version) -> Option<Range> {
-    version
-        .to_string()
-        .parse()
-        .ok()
+    version.to_string().parse().ok()
 }
 
 #[cfg(test)]

@@ -49,14 +49,8 @@ fn install_fails_when_the_store_holds_another_package() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE"),
-        "{stderr}",
-    );
-    assert!(
-        stderr.contains("Actual package in the store: not-is-odd@3.0.1."),
-        "{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE"), "{stderr}");
+    assert!(stderr.contains("Actual package in the store: not-is-odd@3.0.1."), "{stderr}");
 }
 
 #[test]
@@ -95,9 +89,6 @@ fn strict_store_pkg_content_check_false_downgrades_the_failure_to_a_warning() {
         ),
         "{stdout}",
     );
-    assert!(
-        stdout.contains("Actual package in the store: not-is-odd@3.0.1."),
-        "{stdout}",
-    );
+    assert!(stdout.contains("Actual package in the store: not-is-odd@3.0.1."), "{stdout}");
     assert!(workspace.join("node_modules/is-odd/package.json").exists());
 }

@@ -74,11 +74,7 @@ pub fn select_shell(
             .map_or_else(|| PathBuf::from("cmd"), PathBuf::from);
         return Ok(SelectedShell {
             program: comspec,
-            args: vec![
-                OsString::from("/d"),
-                OsString::from("/s"),
-                OsString::from("/c"),
-            ],
+            args: vec![OsString::from("/d"), OsString::from("/s"), OsString::from("/c")],
             windows_verbatim_args: true,
         });
     }

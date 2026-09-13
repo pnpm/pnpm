@@ -90,18 +90,25 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
     }
 
     fn schedule(&self, package: &FinalizedPackage) {
-        let Some(name_ver) = package.result.package.name_ver.as_ref() else {
-            return;
-        };
-        let Ok((package_url, _)) = extract_tarball(&package.result.resolution) else {
-            return;
-        };
-        if !can_prefetch_finalized_package(package, package_url) {
+        let Some(name_ver) = package.result.package.name_ver.as_ref() else { return };
+        let Ok((package_url, _)) = extract_tarball(&package.result.resolution) else { return };
+        // The prefetch keys its cache by the plain URL and skips these
+        // shapes altogether; see `PrefetchingResolver::maybe_kickoff_download`.
+        let revision_addressed = matches!(
+            &package.result.resolution,
+            LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
+        );
+        if revision_addressed
+            || package_url.starts_with("file:")
+            || is_git_hosted_tarball_url(package_url)
+        {
             return;
         }
-        let Ok(key) = package.pkg_id.parse::<PackageKey>() else {
+        // A patched package is imported and patched by the normal path.
+        if package.pkg_id.contains("(patch_hash=") {
             return;
-        };
+        }
+        let Ok(key) = package.pkg_id.parse::<PackageKey>() else { return };
         let slot_dir = self.shared.layout.slot_dir(&key);
         let virtual_node_modules_dir = slot_dir.join("node_modules");
         let Ok(package_dir) =
@@ -180,14 +187,10 @@ struct SlotJob {
 
 impl SlotJob {
     async fn run<Reporter: pnpm_reporter::Reporter>(mut self, shared: &Arc<Shared>) {
-        let Some(cas_paths) = wait_for_cas_paths(shared, &self.package_url)
-            .await
-        else {
+        let Some(cas_paths) = wait_for_cas_paths(shared, &self.package_url).await else {
             return;
         };
-        let Ok(_permit) = shared.permits.acquire().await else {
-            return;
-        };
+        let Ok(_permit) = shared.permits.acquire().await else { return };
         // Once the install is linking, the link phase's own parallel
         // pass takes the slot; finishing it here would only delay that.
         if shared.closing.load(Ordering::Acquire) {
@@ -255,9 +258,7 @@ async fn wait_for_cas_paths(
     package_url: &str,
 ) -> Option<Arc<HashMap<String, PathBuf>>> {
     loop {
-        let slot = shared.mem_cache
-            .get(package_url)
-            .map(|entry| Arc::clone(entry.value()));
+        let slot = shared.mem_cache.get(package_url).map(|entry| Arc::clone(entry.value()));
         let Some(slot) = slot else {
             if shared.closing.load(Ordering::Acquire) {
                 return None;
@@ -273,8 +274,7 @@ async fn wait_for_cas_paths(
         // A bounded wait rather than a bare `notified()`: the owner
         // notifies only once, on the flip, and this wait registers after
         // the read above, so the flip may already have happened.
-        let _ = tokio::time::timeout(CACHE_POLL_INTERVAL * 5, notify.notified())
-            .await;
+        let _ = tokio::time::timeout(CACHE_POLL_INTERVAL * 5, notify.notified()).await;
         if shared.closing.load(Ordering::Acquire) {
             return None;
         }
@@ -283,24 +283,4 @@ async fn wait_for_cas_paths(
 
 fn lock<Inner>(mutex: &Mutex<Inner>) -> std::sync::MutexGuard<'_, Inner> {
     mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
-fn can_prefetch_finalized_package(package: &FinalizedPackage, package_url: &str) -> bool {
-    // The prefetch keys its cache by the plain URL and skips these
-    // shapes altogether; see `PrefetchingResolver::maybe_kickoff_download`.
-    let revision_addressed = matches!(
-        &package.result.resolution,
-        LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
-    );
-    if revision_addressed
-        || package_url.starts_with("file:")
-        || is_git_hosted_tarball_url(package_url)
-    {
-        return false;
-    }
-    // A patched package is imported and patched by the normal path.
-    if package.pkg_id.contains("(patch_hash=") {
-        return false;
-    }
-    true
 }

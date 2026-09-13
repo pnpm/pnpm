@@ -36,11 +36,9 @@ fn for_installs_falls_back_to_bundled_roots_without_a_system_trust_store() {
     // A configured `ca` is itself enough to keep the platform verifier
     // constructible, so a user with custom roots never reaches the
     // fallback — their roots cannot be displaced by it.
-    let ca = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/test-ca.pem",
-    ))
-    .expect("read test ca fixture");
+    let ca =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/test-ca.pem"))
+            .expect("read test ca fixture");
     assert!(
         reqwest::Client::builder()
             .add_root_certificate(
@@ -52,10 +50,7 @@ fn for_installs_falls_back_to_bundled_roots_without_a_system_trust_store() {
     );
     ThrottledClient::for_installs(
         &ProxyConfig::default(),
-        &TlsConfig {
-            ca: vec![ca],
-            ..TlsConfig::default()
-        },
+        &TlsConfig { ca: vec![ca], ..TlsConfig::default() },
         &PerRegistryTls::default(),
         &NetworkSettings::default(),
     )
@@ -71,16 +66,7 @@ fn a_corrupt_block_does_not_discard_the_rest_of_a_ca_bundle() {
     // root in it.
     const CORRUPT: &str = "-----BEGIN CERTIFICATE-----\nnot-base64!!!\n-----END CERTIFICATE-----";
     let bundle = format!("{TEST_CA_PEM}\n{CORRUPT}\n{TEST_CA_PEM}\n");
-    assert_eq!(
-        crate::certificates::parse_ca_bundle(bundle.as_bytes()).len(),
-        2,
-    );
-    assert_eq!(
-        crate::certificates::parse_ca_bundle(CORRUPT.as_bytes()).len(),
-        0,
-    );
-    assert_eq!(
-        crate::certificates::parse_ca_bundle(TEST_CA_PEM.as_bytes()).len(),
-        1,
-    );
+    assert_eq!(crate::certificates::parse_ca_bundle(bundle.as_bytes()).len(), 2);
+    assert_eq!(crate::certificates::parse_ca_bundle(CORRUPT.as_bytes()).len(), 0);
+    assert_eq!(crate::certificates::parse_ca_bundle(TEST_CA_PEM.as_bytes()).len(), 1);
 }

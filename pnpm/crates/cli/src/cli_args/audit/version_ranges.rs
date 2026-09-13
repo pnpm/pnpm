@@ -3,12 +3,8 @@
 use super::{Range, RangeSpecStyle, Version};
 
 pub(crate) fn satisfies_safe(version: &str, range: &str) -> bool {
-    let Ok(version) = version.parse::<Version>() else {
-        return false;
-    };
-    let Ok(range) = range.parse::<Range>() else {
-        return false;
-    };
+    let Ok(version) = version.parse::<Version>() else { return false };
+    let Ok(range) = range.parse::<Range>() else { return false };
     satisfies_including_prerelease(&version, &range)
 }
 
@@ -20,9 +16,7 @@ pub(crate) fn satisfies_including_prerelease(version: &Version, range: &Range) -
         .to_string()
         .split("||")
         .any(|comparators| {
-            comparators
-                .split_whitespace()
-                .all(|comparator| comparator_matches(version, comparator))
+            comparators.split_whitespace().all(|comparator| comparator_matches(version, comparator))
         })
 }
 
@@ -31,9 +25,7 @@ pub(crate) fn comparator_matches(version: &Version, comparator: &str) -> bool {
         return true;
     }
     let (operator, wanted) = comparator_operator_and_version(comparator);
-    let Ok(wanted) = wanted.parse::<Version>() else {
-        return false;
-    };
+    let Ok(wanted) = wanted.parse::<Version>() else { return false };
     match operator {
         ">" => version > &wanted,
         ">=" => version >= &wanted,
@@ -92,16 +84,8 @@ pub(crate) fn last_upper_bound(input: &str) -> Option<(&str, &str)> {
 pub(crate) fn patched_range_for_style(patched: &str, style: RangeSpecStyle) -> String {
     patched
         .strip_prefix(">=")
-        .and_then(|version| {
-            version
-                .trim()
-                .parse::<Version>()
-                .ok()
-        })
-        .map_or_else(
-            || patched.to_string(),
-            |version| format!("{}{version}", style.range_prefix()),
-        )
+        .and_then(|version| version.trim().parse::<Version>().ok())
+        .map_or_else(|| patched.to_string(), |version| format!("{}{version}", style.range_prefix()))
 }
 
 /// [`patched_range_for_style`] at pnpm's default caret style.

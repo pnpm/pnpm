@@ -46,10 +46,7 @@ pub enum MultipartError {
 /// The boundary parameter of a `multipart/form-data` content type.
 pub fn boundary(content_type: &str) -> Result<&str, MultipartError> {
     let mut params = content_type.split(';');
-    let media_type = params
-        .next()
-        .unwrap_or_default()
-        .trim();
+    let media_type = params.next().unwrap_or_default().trim();
     if !media_type.eq_ignore_ascii_case("multipart/form-data") {
         return Err(MultipartError::NotMultipart);
     }
@@ -73,11 +70,8 @@ pub fn boundary(content_type: &str) -> Result<&str, MultipartError> {
 /// Split a `multipart/form-data` body (RFC 7578) into its parts.
 pub fn parse_form(content_type: &str, body: &[u8]) -> Result<Vec<FormPart>, MultipartError> {
     let boundary = boundary(content_type)?;
-    let matcher = Regex::new(&format!(
-        r"(?-u)(?:\A|\r\n)--{}(?:\r\n|--)",
-        regex::escape(boundary),
-    ))
-    .expect("escaped ASCII boundary forms a valid byte regex");
+    let matcher = Regex::new(&format!(r"(?-u)(?:\A|\r\n)--{}(?:\r\n|--)", regex::escape(boundary)))
+        .expect("escaped ASCII boundary forms a valid byte regex");
     let opening = matcher.find(body).ok_or(MultipartError::MissingOpeningBoundary)?;
     let mut cursor = opening.end() - 2;
     let mut parts = Vec::new();
@@ -98,11 +92,7 @@ pub fn parse_form(content_type: &str, body: &[u8]) -> Result<Vec<FormPart>, Mult
         if !body[next.start()..].starts_with(b"\r\n") {
             return Err(MultipartError::MissingClosingBoundary);
         }
-        parts.push(FormPart {
-            name,
-            filename,
-            data: body[data_offset..next.start()].to_vec(),
-        });
+        parts.push(FormPart { name, filename, data: body[data_offset..next.start()].to_vec() });
         cursor = next.end() - 2;
     }
 }
@@ -125,9 +115,7 @@ fn content_disposition(headers: &str) -> Result<(String, Option<String>), Multip
     let mut name = None;
     let mut filename = None;
     for param in disposition.split(';').skip(1) {
-        let Some((key, value)) = param.trim().split_once('=') else {
-            continue;
-        };
+        let Some((key, value)) = param.trim().split_once('=') else { continue };
         let value = value
             .trim()
             .trim_matches('"')

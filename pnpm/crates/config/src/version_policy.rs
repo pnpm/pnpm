@@ -104,11 +104,7 @@ where
     let mut by_package: indexmap::IndexMap<String, Option<Vec<String>>> = indexmap::IndexMap::new();
     for spec in specs {
         let parsed = parse_version_policy_rule(spec.as_ref())?;
-        absorb_spec(
-            &mut by_package,
-            parsed.package_name.to_string(),
-            parsed.exact_versions,
-        );
+        absorb_spec(&mut by_package, parsed.package_name.to_string(), parsed.exact_versions);
     }
     Ok(by_package
         .into_iter()
@@ -144,15 +140,11 @@ fn absorb_spec(
 /// One package's canonical entry: the bare name, or `name@v1 || v2` with the
 /// versions in semver order.
 fn render_merged_spec(name: String, versions: Option<Vec<String>>) -> String {
-    let Some(mut versions) = versions else {
-        return name;
-    };
-    versions.sort_by(
-        |left, right| match (Version::parse(left), Version::parse(right)) {
-            (Ok(left), Ok(right)) => left.cmp(&right),
-            _ => left.cmp(right),
-        },
-    );
+    let Some(mut versions) = versions else { return name };
+    versions.sort_by(|left, right| match (Version::parse(left), Version::parse(right)) {
+        (Ok(left), Ok(right)) => left.cmp(&right),
+        _ => left.cmp(right),
+    });
     format!("{name}@{}", versions.join(" || "))
 }
 
@@ -314,14 +306,9 @@ where
         // entry per rule so the rule's own matcher returns true on a
         // name hit and falls through otherwise.
         let name_matcher = create_matcher(&[parsed.package_name.to_string()]);
-        rules.push(VersionPolicyRule {
-            name_matcher,
-            exact_versions: parsed.exact_versions,
-        });
+        rules.push(VersionPolicyRule { name_matcher, exact_versions: parsed.exact_versions });
     }
-    Ok(PackageVersionPolicy {
-        rules,
-    })
+    Ok(PackageVersionPolicy { rules })
 }
 
 /// Parsed `<name>[@<version-union>]` rule. Either `exact_versions`
@@ -347,30 +334,20 @@ fn parse_version_policy_rule(pattern: &str) -> Result<ParsedRule<'_>, VersionPol
     };
 
     let Some(at) = at_index else {
-        return Ok(ParsedRule {
-            package_name: pattern,
-            exact_versions: Vec::new(),
-        });
+        return Ok(ParsedRule { package_name: pattern, exact_versions: Vec::new() });
     };
 
     let package_name = &pattern[..at];
     let versions_part = &pattern[at + 1..];
 
     let exact_versions = parse_exact_versions_union(versions_part)
-        .ok_or_else(|| VersionPolicyError::InvalidVersionUnion {
-            pattern: pattern.to_string(),
-        })?;
+        .ok_or_else(|| VersionPolicyError::InvalidVersionUnion { pattern: pattern.to_string() })?;
 
     if package_name.contains('*') {
-        return Err(VersionPolicyError::NamePatternInVersionUnion {
-            pattern: pattern.to_string(),
-        });
+        return Err(VersionPolicyError::NamePatternInVersionUnion { pattern: pattern.to_string() });
     }
 
-    Ok(ParsedRule {
-        package_name,
-        exact_versions,
-    })
+    Ok(ParsedRule { package_name, exact_versions })
 }
 
 /// Parse `v1 || v2 || …` into a list of strict semver versions.

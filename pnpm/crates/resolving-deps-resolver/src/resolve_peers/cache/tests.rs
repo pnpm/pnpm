@@ -29,16 +29,8 @@ fn materialized_nodes_referenced_by_peer_outputs_are_retained() {
         subtree_missing_by_pkg: None,
     };
 
-    assert!(should_retain_materialized_node(
-        &HashSet::default(),
-        Some(&output),
-        &referenced
-    ));
-    assert!(!should_retain_materialized_node(
-        &HashSet::default(),
-        Some(&output),
-        &unreferenced,
-    ));
+    assert!(should_retain_materialized_node(&HashSet::default(), Some(&output), &referenced));
+    assert!(!should_retain_materialized_node(&HashSet::default(), Some(&output), &unreferenced,));
     assert!(should_retain_materialized_node(
         &HashSet::from_iter([unreferenced.clone()]),
         None,
@@ -63,10 +55,7 @@ fn previously_resolved_children_prefers_closest_same_package_ancestor() {
         packages: HashMap::from_iter([("loop@1.0.0".into(), package("loop", "1.0.0", &[], false))]),
         dependencies_tree: HashMap::from_iter([
             (far_parent.clone(), tree_node("loop@1.0.0", far_children, 0)),
-            (
-                close_parent.clone(),
-                tree_node("loop@1.0.0", close_children, 2),
-            ),
+            (close_parent.clone(), tree_node("loop@1.0.0", close_children, 2)),
         ]),
         all_peer_dep_names: HashSet::default(),
         policy_violations: Vec::new(),

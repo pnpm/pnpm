@@ -4,39 +4,21 @@ use tempfile::TempDir;
 
 #[test]
 fn a_branch_name_is_lowercased_and_stripped_of_path_separators() {
-    assert_eq!(
-        Lockfile::git_branch_file_name("main"),
-        "pnpm-lock.main.yaml",
-    );
-    assert_eq!(
-        Lockfile::git_branch_file_name("a/b/c"),
-        "pnpm-lock.a!b!c.yaml",
-    );
+    assert_eq!(Lockfile::git_branch_file_name("main"), "pnpm-lock.main.yaml");
+    assert_eq!(Lockfile::git_branch_file_name("a/b/c"), "pnpm-lock.a!b!c.yaml");
     assert_eq!(Lockfile::git_branch_file_name("aBc"), "pnpm-lock.abc.yaml");
-    assert_eq!(
-        Lockfile::git_branch_file_name("feat/über"),
-        "pnpm-lock.feat!!ber.yaml",
-    );
+    assert_eq!(Lockfile::git_branch_file_name("feat/über"), "pnpm-lock.feat!!ber.yaml");
 }
 
 #[test]
 fn the_branch_file_matcher_requires_literal_dots_and_a_branch_segment() {
     for name in ["pnpm-lock.main.yaml", "pnpm-lock.feature.x.yaml"] {
-        assert!(
-            Lockfile::is_git_branch_file_name(name),
-            "{name} is a branch lockfile",
-        );
+        assert!(Lockfile::is_git_branch_file_name(name), "{name} is a branch lockfile");
     }
-    for name in [
-        "pnpm-lock.yaml",
-        "pnpm-lock..yaml",
-        "pnpm-lock-main-yaml",
-        "my-pnpm-lock.main.yaml",
-    ] {
-        assert!(
-            !Lockfile::is_git_branch_file_name(name),
-            "{name} is not a branch lockfile",
-        );
+    for name in
+        ["pnpm-lock.yaml", "pnpm-lock..yaml", "pnpm-lock-main-yaml", "my-pnpm-lock.main.yaml"]
+    {
+        assert!(!Lockfile::is_git_branch_file_name(name), "{name} is not a branch lockfile");
     }
 }
 
@@ -81,12 +63,7 @@ fn scanning_lists_only_the_branch_lockfiles_and_cleaning_removes_exactly_those()
     left.sort();
     assert_eq!(
         left,
-        [
-            "README.md",
-            "my-pnpm-lock.main.yaml",
-            "pnpm-lock-main-yaml",
-            "pnpm-lock.yaml"
-        ],
+        ["README.md", "my-pnpm-lock.main.yaml", "pnpm-lock-main-yaml", "pnpm-lock.yaml"],
     );
 }
 

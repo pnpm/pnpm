@@ -122,11 +122,9 @@ fn find_workspace_dir_by_walk(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspa
         for bad in INVALID_WORKSPACE_MANIFEST_FILENAMES {
             let candidate = dir.join(bad);
             if candidate.is_file() {
-                return Err(FindWorkspaceDirError::BadName(
-                    BadWorkspaceManifestNameError {
-                        path: candidate,
-                    },
-                ));
+                return Err(FindWorkspaceDirError::BadName(BadWorkspaceManifestNameError {
+                    path: candidate,
+                }));
             }
         }
     }

@@ -92,35 +92,20 @@ pub(in super::super) fn config_get<'a>(
     ctx: &RunCtx<'a>,
     args: ConfigGetAliasArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    config(
-        ctx,
-        ConfigArgs {
-            flags: args.flags,
-            command: ConfigSubcommand::Get(args.args),
-        },
-    )
+    config(ctx, ConfigArgs { flags: args.flags, command: ConfigSubcommand::Get(args.args) })
 }
 
 pub(in super::super) fn config_set<'a>(
     ctx: &RunCtx<'a>,
     args: ConfigSetAliasArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    config(
-        ctx,
-        ConfigArgs {
-            flags: args.flags,
-            command: ConfigSubcommand::Set(args.args),
-        },
-    )
+    config(ctx, ConfigArgs { flags: args.flags, command: ConfigSubcommand::Set(args.args) })
 }
 
 pub(in super::super) fn not_implemented<'a>(
     command: &'static str,
 ) -> miette::Result<CommandFuture<'a>> {
-    Err(NotImplementedError {
-        command,
-    }
-    .into())
+    Err(NotImplementedError { command }.into())
 }
 
 pub(in super::super) fn repo<'a>(
@@ -131,16 +116,13 @@ pub(in super::super) fn repo<'a>(
     let dir = ctx.locations.dir;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
-            args.run::<pnpm_network_web_auth::Host, DefaultReporter>(cfg, dir)
-                .await
+            args.run::<pnpm_network_web_auth::Host, DefaultReporter>(cfg, dir).await
         }),
         ReporterType::Ndjson => Box::pin(async move {
-            args.run::<pnpm_network_web_auth::Host, NdjsonReporter>(cfg, dir)
-                .await
+            args.run::<pnpm_network_web_auth::Host, NdjsonReporter>(cfg, dir).await
         }),
         ReporterType::Silent => Box::pin(async move {
-            args.run::<pnpm_network_web_auth::Host, SilentReporter>(cfg, dir)
-                .await
+            args.run::<pnpm_network_web_auth::Host, SilentReporter>(cfg, dir).await
         }),
     })
 }
@@ -150,9 +132,7 @@ pub(in super::super) fn docs<'a>(
     args: DocsArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg = (ctx.loaders.config)()?;
-    Ok(Box::pin(async move {
-        args.run::<pnpm_network_web_auth::Host>(cfg).await
-    }))
+    Ok(Box::pin(async move { args.run::<pnpm_network_web_auth::Host>(cfg).await }))
 }
 
 pub(in super::super) fn with<'a>(
@@ -275,9 +255,7 @@ pub(in super::super) fn bugs<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
-    Ok(Box::pin(async move {
-        args.run::<pnpm_network_web_auth::Host>(cfg, dir).await
-    }))
+    Ok(Box::pin(async move { args.run::<pnpm_network_web_auth::Host>(cfg, dir).await }))
 }
 
 pub(in super::super) fn find_hash<'a>(

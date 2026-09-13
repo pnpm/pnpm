@@ -75,10 +75,7 @@ impl HostedGitType {
         match self {
             // gitHosts.github.protocols
             HostedGitType::Github => {
-                matches!(
-                    proto,
-                    "git" | "http" | "git+ssh" | "git+https" | "ssh" | "https",
-                )
+                matches!(proto, "git" | "http" | "git+ssh" | "git+https" | "ssh" | "https")
             }
             // gitHosts.gitlab.protocols and gitHosts.bitbucket.protocols
             HostedGitType::Gitlab | HostedGitType::Bitbucket => {
@@ -125,19 +122,13 @@ impl HostedGit {
     /// Convenience: build options that omit the committish.
     #[must_use]
     pub fn no_committish() -> HostedOpts {
-        HostedOpts {
-            no_committish: true,
-            no_git_plus: false,
-        }
+        HostedOpts { no_committish: true, no_git_plus: false }
     }
 
     /// Convenience: drop both `#commit` and the `git+` prefix.
     #[must_use]
     pub fn no_committish_no_git_plus() -> HostedOpts {
-        HostedOpts {
-            no_committish: true,
-            no_git_plus: true,
-        }
+        HostedOpts { no_committish: true, no_git_plus: true }
     }
 }
 
@@ -196,12 +187,8 @@ impl HostedGit {
     /// upstream's `shortcuttemplate`.
     #[must_use]
     pub fn shortcut(&self, opts: HostedOpts) -> String {
-        let mut out = format!(
-            "{}:{}/{}",
-            self.host_type.shortcut_prefix(),
-            self.user,
-            self.project,
-        );
+        let mut out =
+            format!("{}:{}/{}", self.host_type.shortcut_prefix(), self.user, self.project);
         if !opts.no_committish
             && let Some(ref c) = self.committish
         {
@@ -246,9 +233,7 @@ impl HostedGit {
         let mut hosted = Self::from_url(giturl)?;
         if hosted.host_type == HostedGitType::Github
             && let Some((_, tree_path)) = giturl.split_once("/tree/")
-            && let Some(committish) = tree_path
-                .split(['/', '#', '?'])
-                .next()
+            && let Some(committish) = tree_path.split(['/', '#', '?']).next()
         {
             hosted.committish = Some(percent_decode(committish));
         }

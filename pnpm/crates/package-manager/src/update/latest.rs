@@ -87,10 +87,7 @@ pub(super) async fn latest_specifier(
     };
     let opts = ctx.resolve_options(chain);
     let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts).await
-        .map_err(|error| UpdateError::ResolveLatest {
-            name: name.to_string(),
-            error,
-        })?;
+        .map_err(|error| UpdateError::ResolveLatest { name: name.to_string(), error })?;
     // A resolver that reports back what the manifest already says has
     // nothing to rewrite. Recording it anyway would mark the manifest dirty
     // and persist it, which for a `runtime:` dependency means rewriting the
@@ -118,16 +115,39 @@ pub(super) async fn tag_version(
         bare_specifier: Some(tag.to_string()),
         ..WantedDependency::default()
     };
-    let opts = tag_resolve_options(ctx, chain, tag);
+    let manifest_dir = ctx.manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir")
+        .to_path_buf();
+    let opts = ResolveOptions {
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: manifest_dir.clone(),
+            lockfile_dir: manifest_dir,
+            ..Default::default()
+        },
+        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+            default_tag: Some(tag.to_string()),
+            ..Default::default()
+        },
+        refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+            dry_run: ctx.lockfile_only,
+            ..Default::default()
+        },
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: chain.published_by,
+            published_by_exclude: chain.published_by_exclude.clone(),
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
     let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts).await
         .map_err(|error| UpdateError::ResolveTag {
             name: name.to_string(),
             tag: tag.to_string(),
             error,
         })?;
-    Ok(resolved
-        .and_then(|result| result.package.name_ver)
-        .map(|name_ver| name_ver.suffix))
+    Ok(resolved.and_then(|result| result.package.name_ver).map(|name_ver| name_ver.suffix))
 }
 /// The resolvers that can answer "what is the latest for this dependency",
 /// built on first use so an update whose deps are all local opens no
@@ -155,18 +175,18 @@ pub(super) fn ensure_latest_resolver_chain<'chain>(
             create_configured_npm_resolver(ctx.config, Arc::clone(ctx.http_client_arc), &policy)
                 .map_err(UpdateError::InvalidNamedRegistry)?,
         );
-        let node_resolver = latest_node_resolver(ctx);
+        let mut node_resolver = NodeResolver::new_with_auth(
+            Arc::clone(ctx.http_client_arc),
+            Arc::clone(&ctx.config.auth_headers),
+        );
+        node_resolver.node_download_mirrors.clone_from(&ctx.config.node_download_mirrors);
+        node_resolver.offline = ctx.config.offline;
+        node_resolver.cache_dir = Some(ctx.config.cache_dir.clone());
         let resolver = DefaultResolver::new(vec![
             Box::new(Arc::clone(&npm_resolver)) as Box<dyn Resolver>,
             Box::new(node_resolver),
-            Box::new(DenoResolver::new(
-                Arc::clone(ctx.http_client_arc),
-                Arc::clone(&npm_resolver),
-            )),
-            Box::new(BunResolver::new(
-                Arc::clone(ctx.http_client_arc),
-                Arc::clone(&npm_resolver),
-            )),
+            Box::new(DenoResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
+            Box::new(BunResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
             Box::new(YarnResolver::new(
                 Arc::clone(ctx.http_client_arc),
                 ctx.config.tls.strict_ssl.unwrap_or(true),
@@ -196,10 +216,7 @@ pub(crate) fn is_workspace_local_path_specifier(bare_specifier: &str) -> bool {
     };
     let is_windows_drive = {
         let mut chars = pref.chars();
-        chars
-            .next()
-            .is_some_and(|first| first.is_ascii_alphabetic())
-            && chars.next() == Some(':')
+        chars.next().is_some_and(|first| first.is_ascii_alphabetic()) && chars.next() == Some(':')
     };
     pref.starts_with('.') || pref.starts_with('/') || pref.starts_with("~/") || is_windows_drive
 }
@@ -238,48 +255,4 @@ impl LatestRewriteCtx<'_, '_> {
             },
         }
     }
-}
-
-fn tag_resolve_options(
-    ctx: &LatestRewriteCtx<'_, '_>,
-    chain: &LatestResolverChain,
-    tag: &str,
-) -> ResolveOptions {
-    let manifest_dir = ctx.manifest
-        .path()
-        .parent()
-        .expect("manifest path always has a parent dir")
-        .to_path_buf();
-    ResolveOptions {
-        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
-            project_dir: manifest_dir.clone(),
-            lockfile_dir: manifest_dir,
-            ..Default::default()
-        },
-        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
-            default_tag: Some(tag.to_string()),
-            ..Default::default()
-        },
-        refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
-            dry_run: ctx.lockfile_only,
-            ..Default::default()
-        },
-        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
-            published_by: chain.published_by,
-            published_by_exclude: chain.published_by_exclude.clone(),
-            ..Default::default()
-        },
-        ..ResolveOptions::default()
-    }
-}
-
-fn latest_node_resolver(ctx: &LatestRewriteCtx<'_, '_>) -> NodeResolver {
-    let mut node_resolver = NodeResolver::new_with_auth(
-        Arc::clone(ctx.http_client_arc),
-        Arc::clone(&ctx.config.auth_headers),
-    );
-    node_resolver.node_download_mirrors.clone_from(&ctx.config.node_download_mirrors);
-    node_resolver.offline = ctx.config.offline;
-    node_resolver.cache_dir = Some(ctx.config.cache_dir.clone());
-    node_resolver
 }

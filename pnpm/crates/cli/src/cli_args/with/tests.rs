@@ -54,10 +54,7 @@ fn resolves_unscoped_package_dir_to_global_virtual_store_slot() {
     let slot = Path::new("/store/links/hash");
     let package_dir = slot.join("node_modules").join("pnpm");
 
-    assert_eq!(
-        slot_from_package_dir(&package_dir, "pnpm").as_deref(),
-        Some(slot),
-    );
+    assert_eq!(slot_from_package_dir(&package_dir, "pnpm").as_deref(), Some(slot));
 }
 
 #[test]
@@ -68,8 +65,5 @@ fn resolves_scoped_package_dir_to_global_virtual_store_slot() {
         .join("@pnpm")
         .join("exe");
 
-    assert_eq!(
-        slot_from_package_dir(&package_dir, "@pnpm/exe").as_deref(),
-        Some(slot),
-    );
+    assert_eq!(slot_from_package_dir(&package_dir, "@pnpm/exe").as_deref(), Some(slot));
 }

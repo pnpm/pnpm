@@ -136,21 +136,12 @@ fn deduplicate_dep_paths(
     let mut remaining_duplicates: Vec<Vec<DepPath>> = Vec::new();
 
     for dep_paths in duplicates {
-        let mut unresolved: HashSet<DepPath> = dep_paths
-            .iter()
-            .cloned()
-            .collect();
+        let mut unresolved: HashSet<DepPath> = dep_paths.iter().cloned().collect();
         let mut current = dep_paths.clone();
         current.sort_by(dep_count_sorter);
 
         while let Some(largest) = current.pop() {
-            absorb_compatible(
-                graph,
-                &largest,
-                &mut current,
-                &mut dep_paths_map,
-                &mut unresolved,
-            );
+            absorb_compatible(graph, &largest, &mut current, &mut dep_paths_map, &mut unresolved);
             current.sort_by(dep_count_sorter);
         }
 

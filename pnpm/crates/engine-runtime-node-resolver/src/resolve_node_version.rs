@@ -95,12 +95,9 @@ pub async fn resolve_node_version_with_auth(
     version_spec: &str,
     node_mirror_base_url: Option<&str>,
 ) -> Result<Option<String>, ResolveNodeVersionError> {
-    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url)
-        .await?;
+    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
     if is_latest_selector(version_spec) {
-        return Ok(all_versions
-            .first()
-            .map(|version| version.version.clone()));
+        return Ok(all_versions.first().map(|version| version.version.clone()));
     }
     let (versions, range) = filter_versions(&all_versions, version_spec);
     Ok(max_satisfying(&versions, &range))
@@ -133,8 +130,7 @@ pub async fn resolve_node_versions_with_auth(
     version_spec: Option<&str>,
     node_mirror_base_url: Option<&str>,
 ) -> Result<Vec<String>, ResolveNodeVersionError> {
-    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url)
-        .await?;
+    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
     let Some(version_spec) = version_spec else {
         return Ok(all_versions
             .into_iter()
@@ -149,9 +145,7 @@ pub async fn resolve_node_versions_with_auth(
             .unwrap_or_default());
     }
     let (versions, range) = filter_versions(&all_versions, version_spec);
-    let Ok(parsed_range) = Range::parse(&range) else {
-        return Ok(Vec::new());
-    };
+    let Ok(parsed_range) = Range::parse(&range) else { return Ok(Vec::new()) };
     Ok(versions
         .into_iter()
         .filter(|version| {
@@ -260,9 +254,7 @@ fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
     let parsed_range = Range::parse(range).ok()?;
     let mut best: Option<(Version, String)> = None;
     for version in versions {
-        let Ok(parsed) = Version::parse(version) else {
-            continue;
-        };
+        let Ok(parsed) = Version::parse(version) else { continue };
         if !satisfies_with_prereleases(&parsed, &parsed_range) {
             continue;
         }

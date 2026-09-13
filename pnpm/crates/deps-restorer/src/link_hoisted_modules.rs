@@ -89,10 +89,7 @@ pub enum LinkHoistedModulesError {
     /// linker can't conjure files it wasn't given.
     #[display("Missing CAS paths for required package {pkg_id_with_patch_hash:?} at {dir:?}")]
     #[diagnostic(code(ERR_PNPM_LINK_HOISTED_MISSING_CAS))]
-    MissingCasPaths {
-        pkg_id_with_patch_hash: PkgIdWithPatchHash,
-        dir: PathBuf,
-    },
+    MissingCasPaths { pkg_id_with_patch_hash: PkgIdWithPatchHash, dir: PathBuf },
 
     /// A hierarchy entry referenced a directory that has no
     /// corresponding entry in `graph`. Slice 4's walker inserts
@@ -154,17 +151,11 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
     // isolated linker emit the pair in.
     Reporter::emit(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Added {
-            prefix: opts.import.requester.to_owned(),
-            added,
-        },
+        message: StatsMessage::Added { prefix: opts.import.requester.to_owned(), added },
     }));
     Reporter::emit(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
-        message: StatsMessage::Removed {
-            prefix: opts.import.requester.to_owned(),
-            removed,
-        },
+        message: StatsMessage::Removed { prefix: opts.import.requester.to_owned(), removed },
     }));
 
     Ok(())
@@ -247,9 +238,7 @@ fn link_all_pkgs_in_order<Reporter: self::Reporter>(
         .map(|(dir, sub_hierarchy)| {
             let node = opts.graph
                 .get(dir)
-                .ok_or_else(|| LinkHoistedModulesError::MissingGraphNode {
-                    dir: dir.clone(),
-                })?;
+                .ok_or_else(|| LinkHoistedModulesError::MissingGraphNode { dir: dir.clone() })?;
             let here = u64::from(import_node::<Reporter>(node, opts)?);
             Ok(here + link_all_pkgs_in_order::<Reporter>(sub_hierarchy, dir, opts)?)
         })
@@ -283,9 +272,8 @@ fn link_hierarchy_bins(
     // nodes, so the pass above never sees them; their bins are reachable
     // only from inside the bundling package.
     for child_dir in hierarchy.0.keys() {
-        let bundles = opts.graph
-            .get(child_dir)
-            .is_some_and(|node| node.package.has_bundled_dependencies);
+        let bundles =
+            opts.graph.get(child_dir).is_some_and(|node| node.package.has_bundled_dependencies);
         if !bundles {
             continue;
         }

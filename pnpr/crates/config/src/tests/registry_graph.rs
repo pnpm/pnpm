@@ -30,10 +30,7 @@ fn static_constructor_serves_everything_from_one_hosted() {
     assert_eq!(config.routing.hosted["local"].org, "");
     assert_eq!(
         config.routing.registries.resolve_default(Ecosystem::Npm, "anything"),
-        Resolved::Concrete {
-            registry: "local",
-            kind: ConcreteKind::Hosted
-        },
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
 }
 
@@ -94,10 +91,7 @@ registries:
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("misordered router must be rejected");
-    assert!(
-        err.to_string().contains("unreachable"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("unreachable"), "unexpected error: {err}");
 }
 
 /// An unsupported wildcard key in a registry's `packages:` fails config load, named
@@ -112,14 +106,8 @@ registries:
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("an unsupported registry pattern must be rejected");
     let message = err.to_string();
-    assert!(
-        message.contains("acme"),
-        "expected the registry named, got: {message}",
-    );
-    assert!(
-        message.contains("@acme/ba*r"),
-        "expected the pattern named, got: {message}",
-    );
+    assert!(message.contains("acme"), "expected the registry named, got: {message}");
+    assert!(message.contains("@acme/ba*r"), "expected the pattern named, got: {message}");
 }
 
 /// A duplicate key within one registry's `packages:` map fails config load —
@@ -147,10 +135,7 @@ defaultRegistry: ghost
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("undefined default target must be rejected");
-    assert!(
-        err.to_string().contains("defaultRegistry"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("defaultRegistry"), "unexpected error: {err}");
 }
 
 /// Two hosted registries sharing an `org` namespace would alias the same storage, so
@@ -169,10 +154,7 @@ registries:
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("two hosted registries on the same org must be rejected");
-    assert!(
-        err.to_string().contains("reuses the `org`"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("reuses the `org`"), "unexpected error: {err}");
 }
 
 /// A dot-prefixed `org` would alias a reserved dot-directory inside the
@@ -185,10 +167,7 @@ fn from_yaml_str_rejects_dot_prefixed_hosted_org() {
             format!("storage: ./s\nregistries:\n  sneaky:\n    type: hosted\n    org: {org}\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a dot-prefixed hosted org must be rejected");
-        assert!(
-            err.to_string().contains("path-safe"),
-            "unexpected error for {org:?}: {err}",
-        );
+        assert!(err.to_string().contains("path-safe"), "unexpected error for {org:?}: {err}");
     }
 }
 
@@ -198,16 +177,7 @@ fn from_yaml_str_rejects_dot_prefixed_hosted_org() {
 /// load instead of becoming an unreachable or URL-ambiguous registry.
 #[test]
 fn from_yaml_str_rejects_url_unsafe_registry_names() {
-    for name in [
-        "'a/b'",
-        "'..'",
-        "'.hidden'",
-        "'a b'",
-        "'a%2Fb'",
-        "'a?b'",
-        "'a#b'",
-        "'C:d'",
-    ] {
+    for name in ["'a/b'", "'..'", "'.hidden'", "'a b'", "'a%2Fb'", "'a?b'", "'a#b'", "'C:d'"] {
         let yaml = format!("storage: ./s\nregistries:\n  {name}:\n    type: hosted\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a URL-unsafe registry name must be rejected");
@@ -256,14 +226,8 @@ registries:
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("an unknown registry `type:` must be rejected");
     let message = err.to_string();
-    assert!(
-        message.contains("hosted"),
-        "expected the valid kinds listed, got: {message}",
-    );
-    assert!(
-        message.contains("upstream"),
-        "expected the valid kinds listed, got: {message}",
-    );
+    assert!(message.contains("hosted"), "expected the valid kinds listed, got: {message}");
+    assert!(message.contains("upstream"), "expected the valid kinds listed, got: {message}");
 }
 
 #[test]
@@ -322,17 +286,11 @@ registries:
     // Exact-name keys are canonicalized the way each ecosystem compares names.
     assert!(matches!(
         registries.resolve("cargo", Ecosystem::Cargo, "demo_crate"),
-        pnpr_registry::Resolved::Concrete {
-            registry: "crates",
-            ..
-        }
+        pnpr_registry::Resolved::Concrete { registry: "crates", .. }
     ));
     assert!(matches!(
         registries.resolve("internal", Ecosystem::Pypi, "demo-pkg-extra"),
-        pnpr_registry::Resolved::Concrete {
-            registry: "internal",
-            ..
-        }
+        pnpr_registry::Resolved::Concrete { registry: "internal", .. }
     ));
 }
 
@@ -348,17 +306,11 @@ defaultRegistry: main
     let config = Config::from_yaml_str(mixed, Path::new("/x"), listen(), None).unwrap();
     assert!(matches!(
         config.routing.registries.resolve_default(Ecosystem::Cargo, "serde"),
-        pnpr_registry::Resolved::Concrete {
-            registry: "crates",
-            ..
-        }
+        pnpr_registry::Resolved::Concrete { registry: "crates", .. }
     ));
     assert!(matches!(
         config.routing.registries.resolve_default(Ecosystem::Npm, "serde"),
-        pnpr_registry::Resolved::Concrete {
-            registry: "npmjs",
-            ..
-        }
+        pnpr_registry::Resolved::Concrete { registry: "npmjs", .. }
     ));
     assert_eq!(
         config.routing.registries.resolve_default(Ecosystem::Pypi, "serde"),
@@ -381,10 +333,7 @@ registries:
       'not a crate': {}
 ";
     let err = Config::from_yaml_str(bad_crate_key, Path::new("/x"), listen(), None).unwrap_err();
-    assert!(
-        err.to_string().contains(r#"cargo registry "crates" `packages:` key"#),
-        "{err}",
-    );
+    assert!(err.to_string().contains(r#"cargo registry "crates" `packages:` key"#), "{err}");
 }
 
 #[test]
@@ -433,10 +382,7 @@ defaultRegistry: images
         assert!(
             matches!(
                 config.routing.registries.resolve_default(Ecosystem::Oci, repository),
-                pnpr_registry::Resolved::Concrete {
-                    registry: "images",
-                    ..
-                }
+                pnpr_registry::Resolved::Concrete { registry: "images", .. }
             ),
             "{repository} should resolve to the image registry",
         );
@@ -461,10 +407,7 @@ defaultRegistry: images
     let config = Config::from_yaml_str(case_folded, Path::new("/x"), listen(), None).unwrap();
     assert!(matches!(
         config.routing.registries.resolve_default(Ecosystem::Oci, "acme/app"),
-        pnpr_registry::Resolved::Concrete {
-            registry: "images",
-            ..
-        }
+        pnpr_registry::Resolved::Concrete { registry: "images", .. }
     ));
 
     let duplicate = "
@@ -477,10 +420,7 @@ registries:
       'acme/*': {}
 ";
     let err = Config::from_yaml_str(duplicate, Path::new("/x"), listen(), None).unwrap_err();
-    assert!(
-        err.to_string().contains("duplicates normalized key"),
-        "{err}",
-    );
+    assert!(err.to_string().contains("duplicates normalized key"), "{err}");
 
     let bad_key = "
 registries:
@@ -491,10 +431,7 @@ registries:
       'acme/app/*': {}
 ";
     let err = Config::from_yaml_str(bad_key, Path::new("/x"), listen(), None).unwrap_err();
-    assert!(
-        err.to_string().contains(r#"oci registry "images" `packages:` key"#),
-        "{err}",
-    );
+    assert!(err.to_string().contains(r#"oci registry "images" `packages:` key"#), "{err}");
 }
 
 #[test]
@@ -509,10 +446,7 @@ fn ecosystem_groups_reject_ambiguous_or_cross_ecosystem_configuration() {
         "registries:\n  npm:\n    internal: {type: hosted}\n    internal: {type: hosted}\n",
     ] {
         let result = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None);
-        assert!(
-            result.is_err(),
-            "must reject ambiguous or cross-ecosystem config: {yaml}",
-        );
+        assert!(result.is_err(), "must reject ambiguous or cross-ecosystem config: {yaml}");
     }
 }
 

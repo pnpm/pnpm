@@ -47,10 +47,7 @@ fn create_converts_name_and_runs_via_dlx() {
         .expect("run pacquet create");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        output.status.success(),
-        "create failed\nstdout:\n{stdout}\nstderr:\n{stderr}",
-    );
+    assert!(output.status.success(), "create failed\nstdout:\n{stdout}\nstderr:\n{stderr}");
     // The reporter writes to stderr for create (pnpm's
     // `COMMANDS_WITH_STDERR_REPORTER`), keeping stdout for the executed
     // command.
@@ -87,10 +84,7 @@ fn create_forwards_args_to_package() {
     let touch_txt = workspace.join("touch.txt");
     assert!(touch_txt.exists(), "touch.txt must exist");
     let content = std::fs::read_to_string(&touch_txt).unwrap();
-    assert_eq!(
-        content, r#"["--extra-arg"]"#,
-        "extra argument should be forwarded to the package",
-    );
+    assert_eq!(content, r#"["--extra-arg"]"#, "extra argument should be forwarded to the package");
 
     drop(root);
 }
@@ -113,10 +107,7 @@ fn create_allow_build_before_name_is_parsed() {
         .success();
 
     let touch_txt = workspace.join("touch.txt");
-    assert!(
-        touch_txt.exists(),
-        "the package should install and run with --allow-build",
-    );
+    assert!(touch_txt.exists(), "the package should install and run with --allow-build");
     let content = std::fs::read_to_string(&touch_txt).unwrap();
     assert_eq!(
         content, "[]",
@@ -168,10 +159,7 @@ fn create_accepts_shell_mode_flag() {
         .success();
 
     let touch_txt = workspace.join("touch.txt");
-    assert!(
-        touch_txt.exists(),
-        "the package should install and run with shell mode",
-    );
+    assert!(touch_txt.exists(), "the package should install and run with shell mode");
     let content = std::fs::read_to_string(&touch_txt).unwrap();
     assert_eq!(
         content, "[]",

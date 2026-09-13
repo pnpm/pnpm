@@ -41,12 +41,7 @@ impl Walker<'_> {
         }
 
         let dep_path = self.peer_dep_path(&context.pkg.id, &all_resolved);
-        NodePeers {
-            own_resolved,
-            all_resolved,
-            all_missing,
-            dep_path,
-        }
+        NodePeers { own_resolved, all_resolved, all_missing, dep_path }
     }
 
     /// Empty resolved peers ⇒ pure node: depPath = `pkgIdWithPatchHash`.
@@ -95,12 +90,7 @@ impl Walker<'_> {
         ) else {
             return pins;
         };
-        let context = LockedPinContext {
-            pkg,
-            provider_paths,
-            parent_refs,
-            parent_node_ids,
-        };
+        let context = LockedPinContext { pkg, provider_paths, parent_refs, parent_node_ids };
         for (peer_name, previous_dep_path) in locked_peer_context {
             if let Some(pin) = self.locked_peer_pin(peer_name, previous_dep_path, &context) {
                 pins.push(pin);
@@ -176,9 +166,8 @@ impl Walker<'_> {
         parent_refs: &ParentRefs,
         parent_node_ids: &SharedChain<NodeId>,
     ) -> bool {
-        let Some(peer_node_id) = parent_refs
-            .get(peer_name)
-            .and_then(|parent| parent.node_id.as_ref())
+        let Some(peer_node_id) =
+            parent_refs.get(peer_name).and_then(|parent| parent.node_id.as_ref())
         else {
             return false;
         };
@@ -233,9 +222,7 @@ impl Walker<'_> {
                 continue;
             };
             // Ancestors on the walk path always have realized children.
-            let TreeChildren::Realized(children) = &parent_node.children else {
-                continue;
-            };
+            let TreeChildren::Realized(children) = &parent_node.children else { continue };
             if must_win
                 .iter()
                 .any(|alias| children.get(alias) == Some(peer_node_id))

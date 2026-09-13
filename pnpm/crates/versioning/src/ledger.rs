@@ -106,20 +106,12 @@ pub fn read_ledger(workspace_dir: &Path) -> Result<Ledger, VersioningError> {
     let content = match fs::read_to_string(&ledger_path) {
         Ok(content) => content,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(Ledger::new()),
-        Err(source) => {
-            return Err(VersioningError::Read {
-                path: ledger_path,
-                source,
-            });
-        }
+        Err(source) => return Err(VersioningError::Read { path: ledger_path, source }),
     };
     if content.trim().is_empty() {
         return Ok(Ledger::new());
     }
-    serde_saphyr::from_str(&content)
-        .map_err(|_| VersioningError::InvalidLedger {
-            ledger_path,
-        })
+    serde_saphyr::from_str(&content).map_err(|_| VersioningError::InvalidLedger { ledger_path })
 }
 
 pub fn append_to_ledger(
@@ -141,27 +133,15 @@ pub fn append_to_ledger(
             }
         }
         merged.sort();
-        ledger.insert(
-            key.clone(),
-            LedgerEntry::Attributed {
-                dir: dir.clone(),
-                intents: merged,
-            },
-        );
+        ledger.insert(key.clone(), LedgerEntry::Attributed { dir: dir.clone(), intents: merged });
     }
 
     let changes_dir = workspace_dir.join(CHANGES_DIR);
     fs::create_dir_all(&changes_dir)
-        .map_err(|source| VersioningError::Write {
-            path: changes_dir.clone(),
-            source,
-        })?;
+        .map_err(|source| VersioningError::Write { path: changes_dir.clone(), source })?;
     let ledger_path = changes_dir.join(LEDGER_FILENAME);
     fs::write(&ledger_path, render_ledger(&ledger))
-        .map_err(|source| VersioningError::Write {
-            path: ledger_path,
-            source,
-        })?;
+        .map_err(|source| VersioningError::Write { path: ledger_path, source })?;
     Ok(ledger)
 }
 
@@ -306,18 +286,36 @@ pub fn build_consumption_index(
         by_dir
             .entry(dir)
             .or_default()
-            .extend(
-                entry
-                    .intent_ids()
-                    .iter()
-                    .cloned(),
-            );
+            .extend(entry.intent_ids().iter().cloned());
     }
 
-    Ok(merge_consumption_ids(
-        stable_ids_by_dir,
-        prerelease_ids_by_dir,
-    ))
+    let names: HashSet<String> = stable_ids_by_dir
+        .keys()
+        .chain(prerelease_ids_by_dir.keys())
+        .cloned()
+        .collect();
+    Ok(names
+        .into_iter()
+        .map(|dir| {
+            let stable = stable_ids_by_dir.remove(&dir).unwrap_or_default();
+            let prerelease = prerelease_ids_by_dir.remove(&dir).unwrap_or_default();
+            let consumption = package_consumption(stable, prerelease);
+            (dir, consumption)
+        })
+        .collect())
+}
+
+fn package_consumption(stable: HashSet<String>, prerelease: HashSet<String>) -> PackageConsumption {
+    PackageConsumption {
+        prerelease_only_ids: prerelease
+            .difference(&stable)
+            .cloned()
+            .collect(),
+        all_ids: stable
+            .into_iter()
+            .chain(prerelease)
+            .collect(),
+    }
 }
 
 /// The `name@version` halves of a ledger key.
@@ -382,32 +380,3 @@ pub fn normalize_project_dir(dir: &str) -> String {
 
 #[cfg(test)]
 mod tests;
-
-fn merge_consumption_ids(
-    mut stable_ids_by_dir: HashMap<String, HashSet<String>>,
-    mut prerelease_ids_by_dir: HashMap<String, HashSet<String>>,
-) -> HashMap<String, PackageConsumption> {
-    let names: HashSet<String> = stable_ids_by_dir
-        .keys()
-        .chain(prerelease_ids_by_dir.keys())
-        .cloned()
-        .collect();
-    names
-        .into_iter()
-        .map(|dir| {
-            let stable = stable_ids_by_dir.remove(&dir).unwrap_or_default();
-            let prerelease = prerelease_ids_by_dir.remove(&dir).unwrap_or_default();
-            let consumption = PackageConsumption {
-                prerelease_only_ids: prerelease
-                    .difference(&stable)
-                    .cloned()
-                    .collect(),
-                all_ids: stable
-                    .into_iter()
-                    .chain(prerelease)
-                    .collect(),
-            };
-            (dir, consumption)
-        })
-        .collect()
-}

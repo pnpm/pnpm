@@ -32,10 +32,7 @@ impl PatchFileWriteContext {
                 patches_dir: patches_dir_setting.to_string(),
             });
         }
-        Ok(Self {
-            patches_dir,
-            real_patches_dir,
-        })
+        Ok(Self { patches_dir, real_patches_dir })
     }
 
     pub(super) fn patch_file_path(&self, patch_file: &str) -> Result<PathBuf, PatchCommitError> {
@@ -90,34 +87,25 @@ fn join_setting_path(base: &Path, setting: &str) -> PathBuf {
 }
 
 fn resolve_patch_path(base: &Path, path: &Path) -> PathBuf {
-    if path.is_absolute() {
-        lexical_normalize(path)
-    } else {
-        lexical_normalize(&base.join(path))
-    }
+    if path.is_absolute() { lexical_normalize(path) } else { lexical_normalize(&base.join(path)) }
 }
 
 fn lstat_if_exists(path: &Path) -> Result<Option<fs::Metadata>, PatchCommitError> {
     match fs::symlink_metadata(path) {
         Ok(meta) => Ok(Some(meta)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(source) => Err(PatchCommitError::ReadPatchFileMetadata {
-            path: path.to_path_buf(),
-            source,
-        }),
+        Err(source) => {
+            Err(PatchCommitError::ReadPatchFileMetadata { path: path.to_path_buf(), source })
+        }
     }
 }
 
 pub(super) fn write_patch_file_atomically(target: &Path, content: &[u8]) -> io::Result<()> {
-    let parent = target
-        .parent()
-        .unwrap_or_else(|| Path::new("."));
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
     let mut tmp = tempfile::NamedTempFile::new_in(parent)?;
     tmp.write_all(content)?;
     tmp.as_file().sync_all()?;
-    tmp
-        .persist(target)
-        .map_err(|error| error.error)?;
+    tmp.persist(target).map_err(|error| error.error)?;
     Ok(())
 }
 
@@ -140,10 +128,7 @@ pub(super) fn cleanup_after_diff(
         })?;
     if let PkgFilesForDiff::Temporary(path) = filtered {
         remove_dir_if_exists(path)
-            .map_err(|source| PatchCommitError::CleanupTempDir {
-                path: path.clone(),
-                source,
-            })?;
+            .map_err(|source| PatchCommitError::CleanupTempDir { path: path.clone(), source })?;
     }
     Ok(())
 }
@@ -181,11 +166,7 @@ pub(super) fn normalize_patches_dir_name(input: &str) -> String {
             Component::RootDir | Component::Prefix(_) => {}
         }
     }
-    if parts.is_empty() {
-        ".".to_string()
-    } else {
-        parts.join("/")
-    }
+    if parts.is_empty() { ".".to_string() } else { parts.join("/") }
 }
 
 pub(super) fn path_from_forward_slash(path: &str) -> PathBuf {

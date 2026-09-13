@@ -18,12 +18,7 @@ fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![(
-            "node".to_string(),
-            "runtime:22.19.0".to_string(),
-            false,
-            false
-        )],
+        vec![("node".to_string(), "runtime:22.19.0".to_string(), false, false)],
     );
 }
 
@@ -70,12 +65,7 @@ fn bundled_dependencies_are_not_walked() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![(
-            "regular-dep".to_string(),
-            "^2.0.0".to_string(),
-            false,
-            false
-        )],
+        vec![("regular-dep".to_string(), "^2.0.0".to_string(), false, false)],
     );
 }
 
@@ -89,12 +79,7 @@ fn bundle_dependencies_spelling_is_honored() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![(
-            "regular-dep".to_string(),
-            "^2.0.0".to_string(),
-            false,
-            false
-        )],
+        vec![("regular-dep".to_string(), "^2.0.0".to_string(), false, false)],
     );
 }
 
@@ -127,12 +112,7 @@ fn bundled_dependencies_true_also_drops_the_optional_duplicate() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![(
-            "optional-only".to_string(),
-            "^3.0.0".to_string(),
-            true,
-            false
-        )],
+        vec![("optional-only".to_string(), "^3.0.0".to_string(), true, false)],
     );
 }
 
@@ -147,18 +127,8 @@ fn dependencies_meta_marks_children_as_injected() {
     assert_eq!(
         extract_children(&result).unwrap(),
         vec![
-            (
-                "injected".to_string(),
-                "workspace:*".to_string(),
-                false,
-                true
-            ),
-            (
-                "linked".to_string(),
-                "workspace:*".to_string(),
-                false,
-                false
-            ),
+            ("injected".to_string(), "workspace:*".to_string(), false, true),
+            ("linked".to_string(), "workspace:*".to_string(), false, false),
         ],
     );
 }

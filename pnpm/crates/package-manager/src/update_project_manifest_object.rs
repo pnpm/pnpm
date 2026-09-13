@@ -11,12 +11,8 @@ const DEPENDENCIES_FIELDS: [&str; 3] = ["optionalDependencies", "dependencies", 
 /// The three dependency fields plus `peerDependencies`.
 /// [`guess_dependency_type`] scans them in this order and
 /// returns the first that already declares the alias.
-const DEPENDENCIES_OR_PEER_FIELDS: [&str; 4] = [
-    "optionalDependencies",
-    "dependencies",
-    "devDependencies",
-    "peerDependencies",
-];
+const DEPENDENCIES_OR_PEER_FIELDS: [&str; 4] =
+    ["optionalDependencies", "dependencies", "devDependencies", "peerDependencies"];
 
 /// One manifest mutation request.
 ///
@@ -82,9 +78,7 @@ fn save_spec_into_field(
         .clone()
         .or_else(|| find_spec(&spec.alias, root))
         .filter(|spec| !spec.is_empty());
-    let Some(spec_str) = resolved_spec else {
-        return Ok(());
-    };
+    let Some(spec_str) = resolved_spec else { return Ok(()) };
     define_dep_entry(root, field, &spec.alias, &spec_str)?;
     for dep_field in DEPENDENCIES_FIELDS {
         if dep_field != field {
@@ -92,11 +86,8 @@ fn save_spec_into_field(
         }
     }
     if spec.peer {
-        let peer_spec = get_peer_specifier(
-            &spec_str,
-            spec.resolved_version.as_deref(),
-            spec.range_spec_style,
-        );
+        let peer_spec =
+            get_peer_specifier(&spec_str, spec.resolved_version.as_deref(), spec.range_spec_style);
         define_dep_entry(root, "peerDependencies", &spec.alias, &peer_spec)?;
     }
     Ok(())

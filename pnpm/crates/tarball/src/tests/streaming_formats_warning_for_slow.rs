@@ -30,12 +30,7 @@ fn formats_warning_for_slow_tarball_download() {
 #[test]
 fn does_not_warn_for_short_or_fast_tarball_download() {
     assert_eq!(
-        slow_download_warning(
-            1,
-            Duration::from_secs(1),
-            50,
-            "https://example.test/pkg.tgz"
-        ),
+        slow_download_warning(1, Duration::from_secs(1), 50, "https://example.test/pkg.tgz"),
         None,
     );
     assert_eq!(
@@ -61,10 +56,7 @@ fn gzip_size_hint_enforces_untrusted_preallocation_limit() {
         bounded_gzip_size_hint(Some(MAX_UNTRUSTED_PREALLOC_BYTES + 1)),
         Some(MAX_UNTRUSTED_PREALLOC_BYTES),
     );
-    assert_eq!(
-        bounded_gzip_size_hint(Some(usize::MAX)),
-        Some(MAX_UNTRUSTED_PREALLOC_BYTES),
-    );
+    assert_eq!(bounded_gzip_size_hint(Some(usize::MAX)), Some(MAX_UNTRUSTED_PREALLOC_BYTES));
 }
 
 /// Covers the wiring rather than the bound itself: nothing in
@@ -101,11 +93,7 @@ fn allocate_tarball_buffer_returns_empty_when_content_length_is_absent() {
 fn allocate_tarball_buffer_presizes_for_reasonable_content_length() {
     let buf = allocate_tarball_buffer(Some(1024 * 1024), "https://example.test/pkg.tgz")
         .expect("1 MiB pre-allocation should succeed on any dev / CI box");
-    assert!(
-        buf.capacity() >= 1024 * 1024,
-        "capacity = {}",
-        buf.capacity(),
-    );
+    assert!(buf.capacity() >= 1024 * 1024, "capacity = {}", buf.capacity());
     assert_eq!(buf.len(), 0);
 }
 
@@ -277,24 +265,16 @@ fn extract_tarball_applies_ignore_filter_dropping_entries_from_both_maps() {
 /// archive itself and stops at the ceiling.
 #[test]
 fn decompress_gzip_stops_at_the_eager_ceiling() {
-    let bomb = gzip_bomb_tarball(
-        &[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)],
-        &[],
-    );
+    let bomb =
+        gzip_bomb_tarball(&[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)], &[]);
     assert!(
         !should_stream_extract(bomb.len(), None),
         "the compressed body must look small enough to route to the eager path",
     );
 
     let err = decompress_gzip(&bomb, None).expect_err("the archive must not inflate past the cap");
-    assert!(
-        is_eager_decode_limit_exceeded(&err),
-        "expected an output-limit refusal, got {err:?}",
-    );
-    assert!(
-        is_transient_error(&err),
-        "a decode failure must remain retryable",
-    );
+    assert!(is_eager_decode_limit_exceeded(&err), "expected an output-limit refusal, got {err:?}");
+    assert!(is_transient_error(&err), "a decode failure must remain retryable");
 }
 
 /// A lockfile records no unpacked size, so on a frozen install the
@@ -303,10 +283,8 @@ fn decompress_gzip_stops_at_the_eager_ceiling() {
 /// extractor instead of discovering its size by decoding it twice.
 #[test]
 fn gzip_isize_hint_routes_a_large_archive_before_it_is_decoded() {
-    let bomb = gzip_bomb_tarball(
-        &[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)],
-        &[],
-    );
+    let bomb =
+        gzip_bomb_tarball(&[("package/bomb.bin", MAX_UNTRUSTED_PREALLOC_BYTES as u64 + 1)], &[]);
     let hint = gzip_isize_hint(&bomb).expect("a gzip stream carries an unpacked size");
     assert!(
         hint > MAX_UNTRUSTED_PREALLOC_BYTES,
@@ -368,18 +346,9 @@ fn extract_gzipped_tarball_streams_an_archive_past_the_eager_ceiling() {
 #[test]
 fn should_stream_extract_pivots_on_compressed_size_and_unpacked_hint() {
     assert!(!should_stream_extract(0, None));
-    assert!(!should_stream_extract(
-        STREAM_EXTRACT_COMPRESSED_THRESHOLD - 1,
-        None
-    ));
-    assert!(should_stream_extract(
-        STREAM_EXTRACT_COMPRESSED_THRESHOLD,
-        None
-    ));
-    assert!(!should_stream_extract(
-        0,
-        Some(MAX_UNTRUSTED_PREALLOC_BYTES - 1)
-    ));
+    assert!(!should_stream_extract(STREAM_EXTRACT_COMPRESSED_THRESHOLD - 1, None));
+    assert!(should_stream_extract(STREAM_EXTRACT_COMPRESSED_THRESHOLD, None));
+    assert!(!should_stream_extract(0, Some(MAX_UNTRUSTED_PREALLOC_BYTES - 1)));
     assert!(should_stream_extract(0, Some(MAX_UNTRUSTED_PREALLOC_BYTES)));
     // A hostile hint only routes to the (still correct) streaming path.
     assert!(should_stream_extract(0, Some(usize::MAX)));
@@ -409,9 +378,7 @@ fn streaming_extract_matches_eager_extract() {
             cas_paths
                 .iter()
                 .map(|(key, path)| {
-                    let path = path
-                        .strip_prefix(store.root())
-                        .expect("path within store");
+                    let path = path.strip_prefix(store.root()).expect("path within store");
                     (key.clone(), path.to_path_buf())
                 })
                 .collect()
@@ -603,10 +570,7 @@ fn streaming_extract_propagates_corrupt_gzip_as_read_error() {
         matches!(err, TarballError::ReadTarballEntries(_)),
         "expected ReadTarballEntries, got: {err:?}",
     );
-    assert!(
-        is_transient_error(&err),
-        "a corrupt stream must remain retryable",
-    );
+    assert!(is_transient_error(&err), "a corrupt stream must remain retryable");
 
     drop(tempdir);
 }
@@ -675,14 +639,8 @@ fn local_file_tarball_path_rejects_hosted_file_urls() {
 
 #[test]
 fn local_file_tarball_path_rejects_unc_like_fallback_paths() {
-    assert_eq!(
-        local_file_tarball_path("file:////server/share/pkg.tgz"),
-        None,
-    );
-    assert_eq!(
-        local_file_tarball_path(r"file:\\server\share\pkg.tgz"),
-        None,
-    );
+    assert_eq!(local_file_tarball_path("file:////server/share/pkg.tgz"), None);
+    assert_eq!(local_file_tarball_path(r"file:\\server\share\pkg.tgz"), None);
 }
 
 #[test]
@@ -737,10 +695,7 @@ async fn read_local_tarball_buffer_rejects_growth_past_checked_size() {
         TarballError::ReadLocalTarball { path, source } => {
             assert_eq!(path, tarball_path);
             assert_eq!(source.kind(), ErrorKind::InvalidData);
-            assert!(
-                source.to_string().contains("changed while reading"),
-                "got: {source}",
-            );
+            assert!(source.to_string().contains("changed while reading"), "got: {source}");
         }
         other => panic!("expected ReadLocalTarball, got {other:?}"),
     }

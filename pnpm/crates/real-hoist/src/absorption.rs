@@ -172,10 +172,7 @@ pub(super) enum ChildStep {
     /// position in the result graph, so peer checks deeper down see
     /// ancestors that are actually ancestors. `moved` reports whether
     /// applying the decision changed the graph.
-    Descend {
-        path: Vec<Rc<HoisterResult>>,
-        moved: bool,
-    },
+    Descend { path: Vec<Rc<HoisterResult>>, moved: bool },
 }
 
 pub(super) fn apply_decision(
@@ -190,10 +187,7 @@ pub(super) fn apply_decision(
     // Root's direct children are already at root — no movement happens, and
     // their ancestor path is simply `[root]`.
     if Rc::ptr_eq(node, root) {
-        return ChildStep::Descend {
-            path: path_for_children.to_vec(),
-            moved: false,
-        };
+        return ChildStep::Descend { path: path_for_children.to_vec(), moved: false };
     }
     match decision {
         AbsorbDecision::Free => {
@@ -201,16 +195,11 @@ pub(super) fn apply_decision(
             node.hoisted_dependencies
                 .borrow_mut()
                 .insert(child.0.name.clone(), Rc::clone(&child.0));
-            root.dependencies
-                .borrow_mut()
-                .insert(child.clone());
+            root.dependencies.borrow_mut().insert(child.clone());
             root_index.insert(child.0.name.clone(), child.clone());
             // Child is now a direct dep of root; its ancestor path collapses
             // to `[root]`.
-            ChildStep::Descend {
-                path: vec![Rc::clone(root)],
-                moved: true,
-            }
+            ChildStep::Descend { path: vec![Rc::clone(root)], moved: true }
         }
         AbsorbDecision::SameNode => {
             // A copy of this package is already at root;
@@ -234,10 +223,9 @@ pub(super) fn apply_decision(
         | AbsorbDecision::PathShadow
         | AbsorbDecision::UsedShadow
         | AbsorbDecision::Border
-        | AbsorbDecision::Defer => ChildStep::Descend {
-            path: path_for_children.to_vec(),
-            moved: false,
-        },
+        | AbsorbDecision::Defer => {
+            ChildStep::Descend { path: path_for_children.to_vec(), moved: false }
+        }
     }
 }
 
@@ -296,9 +284,7 @@ fn would_shadow_peer(
             // current slot for the same name. Root carrying this exact provider
             // means promoting the candidate doesn't change resolution; a
             // different ident, or no entry at all, means hoisting would shadow.
-            !root_index
-                .get(peer_name)
-                .is_some_and(|at_root| same_locator(&at_root.0, &provider))
+            !root_index.get(peer_name).is_some_and(|at_root| same_locator(&at_root.0, &provider))
         })
 }
 

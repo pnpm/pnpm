@@ -34,11 +34,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
     let manifest_path = project_root.join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/abc-optional-peers",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/abc-optional-peers", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.add_dependency("@pnpm.e2e/peer-c", "link:../peer-c", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
@@ -205,10 +201,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
 #[tokio::test]
 async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {

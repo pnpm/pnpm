@@ -16,14 +16,8 @@ fn runtime_unknown_subcommand_runs_with_default_ndjson_and_silent_reporters() {
         let output = command.output().expect("spawn pacquet runtime");
         let stderr = String::from_utf8_lossy(&output.stderr);
 
-        assert!(
-            !output.status.success(),
-            "unknown runtime subcommand must fail",
-        );
-        assert!(
-            stderr.contains("ERR_PNPM_RUNTIME_UNKNOWN_SUBCOMMAND"),
-            "stderr: {stderr}",
-        );
+        assert!(!output.status.success(), "unknown runtime subcommand must fail");
+        assert!(stderr.contains("ERR_PNPM_RUNTIME_UNKNOWN_SUBCOMMAND"), "stderr: {stderr}");
 
         drop(root);
     }
@@ -47,10 +41,7 @@ fn setting_a_project_runtime_suggests_the_explicit_global_shim() {
         .success();
 
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
-    assert!(
-        stdout.contains("pnpm shim add node"),
-        "stdout was:\n{stdout}",
-    );
+    assert!(stdout.contains("pnpm shim add node"), "stdout was:\n{stdout}");
     assert!(
         !pnpm_home
             .join("bin")
@@ -60,23 +51,14 @@ fn setting_a_project_runtime_suggests_the_explicit_global_shim() {
 }
 
 fn configure_node_runtime(root: &tempfile::TempDir, workspace: &Path, server: &mockito::Server) {
-    let config_dir = root
-        .path()
-        .join("config")
-        .join("pnpm");
+    let config_dir = root.path().join("config").join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(
         config_dir.join("config.yaml"),
         format!(
             "storeDir: {}\ncacheDir: {}\nnodeDownloadMirrors:\n  rc: '{}/'\n",
-            root
-                .path()
-                .join("store")
-                .display(),
-            root
-                .path()
-                .join("cache")
-                .display(),
+            root.path().join("store").display(),
+            root.path().join("cache").display(),
             server.url(),
         ),
     )

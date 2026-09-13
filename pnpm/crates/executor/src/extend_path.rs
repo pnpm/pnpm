@@ -87,11 +87,7 @@ pub fn extend_path(
 /// an embedded entry; `std::env::join_paths` would instead have erred
 /// and dropped the entire computed PATH in that case.
 fn join_paths_lossy(paths: &[PathBuf]) -> OsString {
-    let sep: &OsStr = if cfg!(windows) {
-        OsStr::new(";")
-    } else {
-        OsStr::new(":")
-    };
+    let sep: &OsStr = if cfg!(windows) { OsStr::new(";") } else { OsStr::new(":") };
     let mut out = OsString::new();
     for (i, p) in paths.iter().enumerate() {
         if i > 0 {
@@ -151,11 +147,7 @@ fn ancestor_node_modules_bins(wd: &Path) -> Vec<PathBuf> {
 
 fn normalize_for_split(wd: &Path) -> String {
     let text = wd.to_string_lossy().into_owned();
-    if cfg!(windows) {
-        text.replace('\\', "/")
-    } else {
-        text
-    }
+    if cfg!(windows) { text.replace('\\', "/") } else { text }
 }
 
 #[cfg(test)]

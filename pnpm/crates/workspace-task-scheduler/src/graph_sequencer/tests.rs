@@ -47,30 +47,19 @@ fn linear_chain_runs_leaf_first() {
     let result = graph_sequencer(&graph_map, &nodes);
     dbg!(&result);
     assert!(is_safe(&result), "DAG must sort safely: {result:?}");
-    assert_eq!(
-        result.order,
-        vec!["c".to_string(), "b".to_string(), "a".to_string()],
-    );
+    assert_eq!(result.order, vec!["c".to_string(), "b".to_string(), "a".to_string()]);
 }
 
 #[test]
 fn parallel_siblings_keep_included_order() {
-    let graph_map = graph(&[
-        ("root", &["a", "b", "c"]),
-        ("a", &[]),
-        ("b", &[]),
-        ("c", &[]),
-    ]);
+    let graph_map = graph(&[("root", &["a", "b", "c"]), ("a", &[]), ("b", &[]), ("c", &[])]);
     let nodes = included(&["root", "a", "b", "c"]);
     let result = graph_sequencer(&graph_map, &nodes);
     dbg!(&result);
     assert!(is_safe(&result), "DAG must sort safely: {result:?}");
     let mut first = result.order[..3].to_vec();
     first.sort();
-    assert_eq!(
-        first,
-        vec!["a".to_string(), "b".to_string(), "c".to_string()],
-    );
+    assert_eq!(first, vec!["a".to_string(), "b".to_string(), "c".to_string()]);
     assert_eq!(result.order[3], "root");
 }
 
@@ -95,10 +84,7 @@ fn excluded_nodes_are_ignored() {
     let nodes = included(&["a", "c"]);
     let result = graph_sequencer(&graph_map, &nodes);
     dbg!(&result);
-    assert!(
-        is_safe(&result),
-        "excluded-edge subgraph must sort safely: {result:?}",
-    );
+    assert!(is_safe(&result), "excluded-edge subgraph must sort safely: {result:?}");
     let mut only = result.order;
     only.sort();
     assert_eq!(only, vec!["a".to_string(), "c".to_string()]);
@@ -110,14 +96,8 @@ fn cycle_reports_every_member() {
     let nodes = included(&["a", "b"]);
     let result = graph_sequencer(&graph_map, &nodes);
     dbg!(&result);
-    assert!(
-        !is_safe(&result),
-        "length-2 cycle must mark unsafe: {result:?}",
-    );
-    assert!(
-        !result.cycles.is_empty(),
-        "cycle list must record the cycle: {result:?}",
-    );
+    assert!(!is_safe(&result), "length-2 cycle must mark unsafe: {result:?}");
+    assert!(!result.cycles.is_empty(), "cycle list must record the cycle: {result:?}");
     let mut sorted = result.order;
     sorted.sort();
     assert_eq!(sorted, vec!["a".to_string(), "b".to_string()]);
@@ -129,10 +109,7 @@ fn self_loop_is_reported_without_making_the_graph_unorderable() {
     let nodes = included(&["a"]);
     let result = graph_sequencer(&graph_map, &nodes);
     dbg!(&result);
-    assert!(
-        is_safe(&result),
-        "length-1 self-loop must not mark unsafe: {result:?}",
-    );
+    assert!(is_safe(&result), "length-1 self-loop must not mark unsafe: {result:?}");
     assert_eq!(result.order, vec!["a".to_string()]);
 }
 
@@ -141,14 +118,8 @@ fn deterministic_order_follows_included() {
     let graph_map = graph(&[("x", &[]), ("y", &[]), ("z", &[])]);
     let r1 = graph_sequencer(&graph_map, &included(&["x", "y", "z"]));
     let r2 = graph_sequencer(&graph_map, &included(&["z", "y", "x"]));
-    assert_eq!(
-        r1.order,
-        vec!["x".to_string(), "y".to_string(), "z".to_string()],
-    );
-    assert_eq!(
-        r2.order,
-        vec!["z".to_string(), "y".to_string(), "x".to_string()],
-    );
+    assert_eq!(r1.order, vec!["x".to_string(), "y".to_string(), "z".to_string()]);
+    assert_eq!(r2.order, vec!["z".to_string(), "y".to_string(), "x".to_string()]);
 }
 
 #[test]
@@ -157,15 +128,8 @@ fn node_depending_on_a_cycle_runs_after_it() {
     let nodes = included(&["a", "b", "c"]);
     let result = graph_sequencer(&graph_map, &nodes);
     dbg!(&result);
-    assert!(
-        !is_safe(&result),
-        "length-2 cycle must mark unsafe: {result:?}",
-    );
-    assert_eq!(
-        result.order.len(),
-        3,
-        "cycle, then its dependent: {result:?}",
-    );
+    assert!(!is_safe(&result), "length-2 cycle must mark unsafe: {result:?}");
+    assert_eq!(result.order.len(), 3, "cycle, then its dependent: {result:?}");
     let mut cycle_nodes = result.order[..2].to_vec();
     cycle_nodes.sort();
     assert_eq!(cycle_nodes, vec!["a".to_string(), "b".to_string()]);
@@ -185,11 +149,7 @@ fn cycle_members_appear_once() {
     let mut sorted = result.order.clone();
     sorted.sort();
     sorted.dedup();
-    assert_eq!(
-        result.order.len(),
-        sorted.len(),
-        "no node may repeat: {result:?}",
-    );
+    assert_eq!(result.order.len(), sorted.len(), "no node may repeat: {result:?}");
     assert_eq!(result.order.len(), 2);
 }
 
@@ -266,32 +226,21 @@ fn dependents_of_a_cycle_sort_in_linear_time() {
     let elapsed = started.elapsed();
     dbg!(elapsed);
     assert!(!is_safe(&result));
-    assert_eq!(
-        result.cycles.len(),
-        1,
-        "one ring, one reported cycle: {:?}",
-        result.cycles.len(),
-    );
+    assert_eq!(result.cycles.len(), 1, "one ring, one reported cycle: {:?}", result.cycles.len());
     assert_eq!(result.order.len(), ring_len + dependent_count);
     assert_eq!(
         result.order[..ring_len]
             .iter()
             .cloned()
             .collect::<std::collections::HashSet<_>>(),
-        ring
-            .iter()
-            .cloned()
-            .collect(),
+        ring.iter().cloned().collect(),
     );
     assert_eq!(
         result.order[ring_len..]
             .iter()
             .cloned()
             .collect::<std::collections::HashSet<_>>(),
-        dependents
-            .iter()
-            .cloned()
-            .collect(),
+        dependents.iter().cloned().collect(),
     );
     assert!(
         elapsed < std::time::Duration::from_secs(5),

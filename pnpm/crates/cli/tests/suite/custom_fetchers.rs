@@ -76,11 +76,8 @@ fn custom_fetcher_delegates_a_custom_typed_resolution_on_fresh_and_frozen_instal
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, "^100.0.0");
-    fs::write(
-        workspace.join(".pnpmfile.cjs"),
-        custom_type_pnpmfile(&mock_instance.url(), true),
-    )
-    .expect("write pnpmfile");
+    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), true))
+        .expect("write pnpmfile");
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
@@ -108,11 +105,8 @@ fn custom_typed_resolution_without_a_fetcher_fails_the_install() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, "100.0.0");
-    fs::write(
-        workspace.join(".pnpmfile.cjs"),
-        custom_type_pnpmfile(&mock_instance.url(), false),
-    )
-    .expect("write pnpmfile");
+    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), false))
+        .expect("write pnpmfile");
 
     let output = pacquet_at(&workspace)
         .with_arg("install")
@@ -134,11 +128,8 @@ fn ignore_pnpmfile_skips_the_custom_fetcher_on_fetch() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, "100.0.0");
-    fs::write(
-        workspace.join(".pnpmfile.cjs"),
-        custom_type_pnpmfile(&mock_instance.url(), true),
-    )
-    .expect("write pnpmfile");
+    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), true))
+        .expect("write pnpmfile");
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
@@ -170,11 +161,8 @@ fn ignore_pnpmfile_skips_the_custom_resolver_on_install() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, "100.0.0");
-    fs::write(
-        workspace.join(".pnpmfile.cjs"),
-        custom_type_pnpmfile(&mock_instance.url(), true),
-    )
-    .expect("write pnpmfile");
+    fs::write(workspace.join(".pnpmfile.cjs"), custom_type_pnpmfile(&mock_instance.url(), true))
+        .expect("write pnpmfile");
 
     pacquet_at(&workspace)
         .with_args(["install", "--ignore-pnpmfile"])
@@ -214,10 +202,7 @@ fn a_configured_pnpmfile_that_is_missing_names_itself() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_PNPMFILE_NOT_FOUND"),
-        "stderr: {stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_PNPMFILE_NOT_FOUND"), "stderr: {stderr}");
     assert!(stderr.contains("is not found"), "stderr: {stderr}");
     assert!(stderr.contains("absent.cjs"), "stderr: {stderr}");
     drop((metadata, original));
@@ -235,25 +220,16 @@ fn an_extensionless_configured_pnpmfile_is_not_reported_as_missing() {
     let (metadata, original) = mock_fetcher_package(&mut registry, None);
     configure_fetcher_project(&workspace, &registry.url(), Some("hooks/custom"));
     fs::create_dir_all(workspace.join("hooks")).expect("create hooks dir");
-    fs::write(
-        workspace.join("hooks/custom.cjs"),
-        "module.exports = { hooks: {} };\n",
-    )
-    .expect("write pnpmfile");
+    fs::write(workspace.join("hooks/custom.cjs"), "module.exports = { hooks: {} };\n")
+        .expect("write pnpmfile");
 
     let output = pacquet_at(&workspace)
         .with_arg("install")
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(
-        !stderr.contains("ERR_PNPM_PNPMFILE_NOT_FOUND"),
-        "stderr: {stderr}",
-    );
-    assert!(
-        stderr.contains("Error during pnpmfile execution"),
-        "stderr: {stderr}",
-    );
+    assert!(!stderr.contains("ERR_PNPM_PNPMFILE_NOT_FOUND"), "stderr: {stderr}");
+    assert!(stderr.contains("Error during pnpmfile execution"), "stderr: {stderr}");
     drop((metadata, original));
 }
 
@@ -304,11 +280,8 @@ fn configure_fetcher_project(workspace: &Path, registry: &str, pnpmfile: Option<
         ),
     )
     .expect("write workspace configuration");
-    fs::write(
-        workspace.join("package.json"),
-        r#"{"dependencies":{"fetcher-pkg":"1.0.0"}}"#,
-    )
-    .expect("write package.json");
+    fs::write(workspace.join("package.json"), r#"{"dependencies":{"fetcher-pkg":"1.0.0"}}"#)
+        .expect("write package.json");
 }
 
 fn mock_fetcher_package(
@@ -390,12 +363,7 @@ fn configured_fetchers_intercept_fresh_and_frozen_tarball_downloads() {
       return fetchers.remoteTarball(cafs, { tarball: resolution.tarball.replace('original.tgz', 'custom.tgz') }, opts);";
     for (pnpmfile, fetch_body, pinned, expected_calls) in [
         ("configured.cjs", local_fetch, true, "fetch\n"),
-        (
-            "[declining.cjs, configured.cjs, unused.cjs]",
-            remote_fetch,
-            false,
-            "decline\nfetch\n",
-        ),
+        ("[declining.cjs, configured.cjs, unused.cjs]", remote_fetch, false, "decline\nfetch\n"),
     ] {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
         let mut registry = mockito::Server::new();
@@ -472,8 +440,7 @@ module.exports = { fetchers: [{
                     .expect("read lockfile")
                     .expect("lockfile exists");
                 let key: pnpm_lockfile::PackageKey = "fetcher-pkg@1.0.0".parse().unwrap();
-                let resolution =
-                    &lockfile.packages.as_ref().unwrap()[&key].resolution;
+                let resolution = &lockfile.packages.as_ref().unwrap()[&key].resolution;
                 assert_eq!(
                     resolution
                         .checkable_integrity()
@@ -531,11 +498,7 @@ fn assert_offline_install_reuses_archive(
 }
 
 fn install_args(frozen: bool) -> &'static [&'static str] {
-    if frozen {
-        &["install", "--frozen-lockfile"]
-    } else {
-        &["install"]
-    }
+    if frozen { &["install", "--frozen-lockfile"] } else { &["install"] }
 }
 
 /// A frozen-lockfile install has to resolve from the lockfile alone, so
@@ -624,10 +587,7 @@ fn a_declining_fetcher_cannot_swap_a_locked_archive_for_a_directory() {
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_TARBALL_INTEGRITY"),
-        "stderr: {stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_TARBALL_INTEGRITY"), "stderr: {stderr}");
     assert!(
         !workspace.join("node_modules/fetcher-pkg/package.json").exists(),
         "a rewritten resolution must not import content",

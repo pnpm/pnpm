@@ -135,11 +135,7 @@ impl<'de> serde::Deserialize<'de> for SaveWorkspaceProtocol {
                 f.write_str(r#"a boolean or the string "rolling""#)
             }
             fn visit_bool<DeError: de::Error>(self, value: bool) -> Result<Self::Value, DeError> {
-                Ok(if value {
-                    SaveWorkspaceProtocol::On
-                } else {
-                    SaveWorkspaceProtocol::Off
-                })
+                Ok(if value { SaveWorkspaceProtocol::On } else { SaveWorkspaceProtocol::Off })
             }
             fn visit_str<DeError: de::Error>(self, value: &str) -> Result<Self::Value, DeError> {
                 match value {
@@ -189,10 +185,7 @@ impl ResolutionMode {
     /// [`Self::LowestDirect`].
     #[must_use]
     pub fn picks_lowest_direct(self) -> bool {
-        matches!(
-            self,
-            ResolutionMode::TimeBased | ResolutionMode::LowestDirect,
-        )
+        matches!(self, ResolutionMode::TimeBased | ResolutionMode::LowestDirect)
     }
 }
 

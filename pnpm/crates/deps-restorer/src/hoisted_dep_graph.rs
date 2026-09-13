@@ -331,10 +331,7 @@ fn build_dep_graph<'a>(
 
     let modules_dir = opts.lockfile_dir.join("node_modules");
     let mut state = WalkState {
-        result: LockfileToDepGraphResult {
-            skipped: opts.skipped.clone(),
-            ..Default::default()
-        },
+        result: LockfileToDepGraphResult { skipped: opts.skipped.clone(), ..Default::default() },
         lockfile,
         lockfile_dir: &opts.lockfile_dir,
         opts,

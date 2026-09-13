@@ -76,7 +76,7 @@ impl LinkArgs {
         config: &'static mut Config,
         manifest_path: PathBuf,
     ) -> miette::Result<()> {
-        validate_link_targets(&self.package_paths)?;
+        self.validate_package_paths()?;
 
         let manifest_dir = manifest_path
             .parent()
@@ -86,9 +86,7 @@ impl LinkArgs {
         let mut manifest = PackageManifest::create_if_needed(manifest_path.clone())
             .wrap_err("reading the project package.json")?;
 
-        let root_dir = config.workspace_dir
-            .clone()
-            .unwrap_or_else(|| manifest_dir.clone());
+        let root_dir = config.workspace_dir.clone().unwrap_or_else(|| manifest_dir.clone());
 
         let mut new_overrides = IndexMap::<String, String>::new();
         for path_str in &self.package_paths {
@@ -108,10 +106,39 @@ impl LinkArgs {
 
         manifest.save().wrap_err("saving package.json with linked dependencies")?;
 
-        record_link_overrides(config, &root_dir, &new_overrides)?;
+        set_overrides(
+            &root_dir,
+            new_overrides
+                .iter()
+                .map(|(selector, specifier)| (selector.as_str(), specifier.as_str())),
+        )
+        .wrap_err("recording linked dependencies in pnpm-workspace.yaml")?;
+
+        config.overrides
+            .get_or_insert_with(IndexMap::new)
+            .extend(
+                new_overrides
+                    .iter()
+                    .map(|(selector, specifier)| (selector.clone(), specifier.clone())),
+            );
 
         let state = State::init(manifest_path, config, false).wrap_err("initialize the state")?;
         install_linked::<Reporter>(&state).await
+    }
+
+    fn validate_package_paths(&self) -> miette::Result<()> {
+        if self.package_paths.is_empty() {
+            return Err(LinkError::NoParams.into());
+        }
+
+        if let Some(name) = self.package_paths
+            .iter()
+            .find(|path| !is_filespec(path))
+        {
+            return Err(LinkError::LinkByName { name: name.clone() }.into());
+        }
+
+        Ok(())
     }
 }
 
@@ -126,12 +153,7 @@ async fn install_linked<Reporter: self::Reporter + 'static>(state: &State) -> mi
             state.config,
             &state.manifest,
             pnpm_lockfile::MaybeLazyLockfile::Lazy(&state.lockfile),
-            [
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-            ]
-            .into_iter(),
+            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional].into_iter(),
         );
         base_install.lockfile_policy.prefer_frozen = Some(false);
         base_install.execution.mutation = ProjectMutation::NoInstall;
@@ -147,11 +169,8 @@ async fn install_linked<Reporter: self::Reporter + 'static>(state: &State) -> mi
 /// The linked package's directory, and the name it is declared under.
 fn link_target(manifest_dir: &Path, path_str: &str) -> miette::Result<(PathBuf, String)> {
     let target_path = PathBuf::from(path_str);
-    let target_dir = if target_path.is_absolute() {
-        target_path
-    } else {
-        manifest_dir.join(&target_path)
-    };
+    let target_dir =
+        if target_path.is_absolute() { target_path } else { manifest_dir.join(&target_path) };
     let target_manifest_path = target_dir.join("package.json");
     let dir_display = target_dir.display();
     let target_manifest = PackageManifest::from_path(target_manifest_path)
@@ -161,44 +180,4 @@ fn link_target(manifest_dir: &Path, path_str: &str) -> miette::Result<(PathBuf, 
         .ok_or_else(|| miette::miette!("Target package does not have a name field"))?
         .to_string();
     Ok((target_dir, package_name))
-}
-
-fn validate_link_targets(package_paths: &[String]) -> miette::Result<()> {
-    if package_paths.is_empty() {
-        return Err(LinkError::NoParams.into());
-    }
-
-    if let Some(name) = package_paths
-        .iter()
-        .find(|path| !is_filespec(path))
-    {
-        return Err(LinkError::LinkByName {
-            name: name.clone(),
-        }
-        .into());
-    }
-    Ok(())
-}
-
-fn record_link_overrides(
-    config: &mut Config,
-    root_dir: &Path,
-    new_overrides: &IndexMap<String, String>,
-) -> miette::Result<()> {
-    set_overrides(
-        root_dir,
-        new_overrides
-            .iter()
-            .map(|(selector, specifier)| (selector.as_str(), specifier.as_str())),
-    )
-    .wrap_err("recording linked dependencies in pnpm-workspace.yaml")?;
-
-    config.overrides
-        .get_or_insert_with(IndexMap::new)
-        .extend(
-            new_overrides
-                .iter()
-                .map(|(selector, specifier)| (selector.clone(), specifier.clone())),
-        );
-    Ok(())
 }

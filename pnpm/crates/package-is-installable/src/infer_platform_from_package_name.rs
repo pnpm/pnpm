@@ -60,11 +60,7 @@ pub fn infer_platform_from_package_name(name: &str) -> Option<WantedPlatform> {
     if os.is_none() && cpu.is_none() && libc.is_none() {
         return None;
     }
-    Some(WantedPlatform {
-        os,
-        cpu,
-        libc,
-    })
+    Some(WantedPlatform { os, cpu, libc })
 }
 
 fn pick_token_values(
@@ -74,9 +70,7 @@ fn pick_token_values(
     let mut values: Vec<String> = Vec::new();
     for token in tokens {
         if let Some(value) = value_for_token(token)
-            && !values
-                .iter()
-                .any(|seen| seen == value)
+            && !values.iter().any(|seen| seen == value)
         {
             values.push(value.to_string());
         }

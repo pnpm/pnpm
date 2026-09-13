@@ -18,10 +18,7 @@ fn locked_resolution_is_unallocated_until_written() {
         true,
     );
 
-    assert!(
-        node.locked.is_none(),
-        "a fresh resolution carries no wanted-lockfile state",
-    );
+    assert!(node.locked.is_none(), "a fresh resolution carries no wanted-lockfile state");
     assert!(node.previous_dep_path().is_none());
     assert!(node.locked_peer_context().is_none());
     assert!(node.must_win_dependency_names().is_none());
@@ -34,8 +31,5 @@ fn locked_resolution_is_unallocated_until_written() {
         Some(&pnpm_deps_path::DepPath::from("a@1.0.0")),
         "the accessor reads back what `locked_mut` wrote",
     );
-    assert!(
-        node.has_no_locked_peer_context(),
-        "a previous depPath is not a locked peer",
-    );
+    assert!(node.has_no_locked_peer_context(), "a previous depPath is not a locked peer");
 }

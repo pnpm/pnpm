@@ -34,10 +34,7 @@ where
         known_importers: known_importer_ids
             .into_iter()
             .map(|id| {
-                (
-                    pnpm_fs::lexical_normalize(&crate::importer_root_dir(workspace_root, &id)),
-                    id,
-                )
+                (pnpm_fs::lexical_normalize(&crate::importer_root_dir(workspace_root, &id)), id)
             })
             .collect(),
         included,
@@ -86,12 +83,8 @@ impl<ShouldSkip: Fn(&PackageKey) -> bool> ReachableWalk<'_, ShouldSkip> {
         self.reached.importer_ids.insert(importer_id.to_owned());
         let included = self.included;
         for map in [
-            included.dependencies
-                .then_some(importer.dependencies.as_ref())
-                .flatten(),
-            included.dev_dependencies
-                .then_some(importer.dev_dependencies.as_ref())
-                .flatten(),
+            included.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
+            included.dev_dependencies.then_some(importer.dev_dependencies.as_ref()).flatten(),
             included.optional_dependencies
                 .then_some(importer.optional_dependencies.as_ref())
                 .flatten(),

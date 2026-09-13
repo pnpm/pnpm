@@ -52,43 +52,39 @@ fn approve_downloads_every_tarball_before_approving_any_stage_with_one_otp() {
     let registry = format!("{}/", server.url());
     write_registry_config(dir.path(), &registry);
     let events = Arc::new(Mutex::new(Vec::new()));
-    let described_mocks: Vec<mockito::Mock> = [
-        (STAGE_ID, "@scope/first"),
-        (SECOND_STAGE_ID, "@scope/second"),
-    ]
-    .into_iter()
-    .map(|(stage_id, package_name)| {
-        server
-            .mock("GET", format!("/-/stage/{stage_id}").as_str())
-            .with_body(staged_item_of(stage_id, package_name).to_string())
-            .expect(1)
-            .create()
-    })
-    .collect();
-    let tarball_mocks: Vec<mockito::Mock> = [
-        (STAGE_ID, "@scope/first"),
-        (SECOND_STAGE_ID, "@scope/second"),
-    ]
-    .into_iter()
-    .map(|(stage_id, package_name)| {
-        let events = Arc::clone(&events);
-        let tarball = package_tarball(&json!({
-            "name": package_name,
-            "version": "1.0.0",
-        }));
-        server
-            .mock("GET", format!("/-/stage/{stage_id}/tarball").as_str())
-            .with_body_from_request(move |_| {
-                events
-                    .lock()
-                    .expect("lock events")
-                    .push(format!("tarball:{stage_id}"));
-                tarball.clone()
+    let described_mocks: Vec<mockito::Mock> =
+        [(STAGE_ID, "@scope/first"), (SECOND_STAGE_ID, "@scope/second")]
+            .into_iter()
+            .map(|(stage_id, package_name)| {
+                server
+                    .mock("GET", format!("/-/stage/{stage_id}").as_str())
+                    .with_body(staged_item_of(stage_id, package_name).to_string())
+                    .expect(1)
+                    .create()
             })
-            .expect(1)
-            .create()
-    })
-    .collect();
+            .collect();
+    let tarball_mocks: Vec<mockito::Mock> =
+        [(STAGE_ID, "@scope/first"), (SECOND_STAGE_ID, "@scope/second")]
+            .into_iter()
+            .map(|(stage_id, package_name)| {
+                let events = Arc::clone(&events);
+                let tarball = package_tarball(&json!({
+                    "name": package_name,
+                    "version": "1.0.0",
+                }));
+                server
+                    .mock("GET", format!("/-/stage/{stage_id}/tarball").as_str())
+                    .with_body_from_request(move |_| {
+                        events
+                            .lock()
+                            .expect("lock events")
+                            .push(format!("tarball:{stage_id}"));
+                        tarball.clone()
+                    })
+                    .expect(1)
+                    .create()
+            })
+            .collect();
     let approve_mocks: Vec<mockito::Mock> = [STAGE_ID, SECOND_STAGE_ID]
         .into_iter()
         .map(|stage_id| {
@@ -111,14 +107,7 @@ fn approve_downloads_every_tarball_before_approving_any_stage_with_one_otp() {
 
     let output = stage(
         dir.path(),
-        &[
-            "approve",
-            STAGE_ID,
-            SECOND_STAGE_ID,
-            "--otp",
-            "123456",
-            "--reporter=silent",
-        ],
+        &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
     );
 
     for mock in described_mocks
@@ -152,19 +141,17 @@ fn approve_skips_a_staged_package_whose_selected_dependency_could_not_be_approve
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     write_registry_config(dir.path(), &registry);
-    let described_mocks: Vec<mockito::Mock> = [
-        (STAGE_ID, "@scope/dependent"),
-        (SECOND_STAGE_ID, "@scope/dependency"),
-    ]
-    .into_iter()
-    .map(|(stage_id, package_name)| {
-        server
-            .mock("GET", format!("/-/stage/{stage_id}").as_str())
-            .with_body(staged_item_of(stage_id, package_name).to_string())
-            .expect(1)
-            .create()
-    })
-    .collect();
+    let described_mocks: Vec<mockito::Mock> =
+        [(STAGE_ID, "@scope/dependent"), (SECOND_STAGE_ID, "@scope/dependency")]
+            .into_iter()
+            .map(|(stage_id, package_name)| {
+                server
+                    .mock("GET", format!("/-/stage/{stage_id}").as_str())
+                    .with_body(staged_item_of(stage_id, package_name).to_string())
+                    .expect(1)
+                    .create()
+            })
+            .collect();
     let tarball_mocks = [
         (
             STAGE_ID,
@@ -189,10 +176,7 @@ fn approve_skips_a_staged_package_whose_selected_dependency_could_not_be_approve
     })
     .collect::<Vec<_>>();
     let dependency_mock = server
-        .mock(
-            "POST",
-            format!("/-/stage/{SECOND_STAGE_ID}/approve").as_str(),
-        )
+        .mock("POST", format!("/-/stage/{SECOND_STAGE_ID}/approve").as_str())
         .with_status(409)
         .with_body(r#"{"error":"version already exists"}"#)
         .expect_at_least(1)
@@ -204,14 +188,7 @@ fn approve_skips_a_staged_package_whose_selected_dependency_could_not_be_approve
 
     let output = stage(
         dir.path(),
-        &[
-            "approve",
-            STAGE_ID,
-            SECOND_STAGE_ID,
-            "--otp",
-            "123456",
-            "--reporter=silent",
-        ],
+        &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
     );
 
     for mock in described_mocks.iter().chain(&tarball_mocks) {
@@ -219,14 +196,8 @@ fn approve_skips_a_staged_package_whose_selected_dependency_could_not_be_approve
     }
     dependency_mock.assert();
     dependent_mock.assert();
-    assert!(
-        !output.status.success(),
-        "an incomplete approval batch must exit non-zero",
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "Approved 0 of 2 staged packages.\n",
-    );
+    assert!(!output.status.success(), "an incomplete approval batch must exit non-zero");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "Approved 0 of 2 staged packages.\n");
 }
 
 #[test]
@@ -235,19 +206,17 @@ fn approve_derives_package_identity_and_aliases_from_tarballs() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     write_registry_config(dir.path(), &registry);
-    let described_mocks = [
-        (STAGE_ID, "@scope/not-the-dependent"),
-        (SECOND_STAGE_ID, "@scope/not-the-dependency"),
-    ]
-    .into_iter()
-    .map(|(stage_id, package_name)| {
-        server
-            .mock("GET", format!("/-/stage/{stage_id}").as_str())
-            .with_body(staged_item_of(stage_id, package_name).to_string())
-            .expect(1)
-            .create()
-    })
-    .collect::<Vec<_>>();
+    let described_mocks =
+        [(STAGE_ID, "@scope/not-the-dependent"), (SECOND_STAGE_ID, "@scope/not-the-dependency")]
+            .into_iter()
+            .map(|(stage_id, package_name)| {
+                server
+                    .mock("GET", format!("/-/stage/{stage_id}").as_str())
+                    .with_body(staged_item_of(stage_id, package_name).to_string())
+                    .expect(1)
+                    .create()
+            })
+            .collect::<Vec<_>>();
     let tarball_mocks = [
         (
             STAGE_ID,
@@ -295,14 +264,7 @@ fn approve_derives_package_identity_and_aliases_from_tarballs() {
 
     let output = stage(
         dir.path(),
-        &[
-            "approve",
-            STAGE_ID,
-            SECOND_STAGE_ID,
-            "--otp",
-            "123456",
-            "--reporter=silent",
-        ],
+        &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
     );
 
     for mock in described_mocks
@@ -313,10 +275,7 @@ fn approve_derives_package_identity_and_aliases_from_tarballs() {
         mock.assert();
     }
     assert_success(&output);
-    assert_eq!(
-        *approved.lock().expect("lock approvals"),
-        [SECOND_STAGE_ID, STAGE_ID],
-    );
+    assert_eq!(*approved.lock().expect("lock approvals"), [SECOND_STAGE_ID, STAGE_ID]);
 }
 
 #[test]
@@ -325,19 +284,16 @@ fn approve_does_not_bind_an_npm_alias_tag_to_a_selected_version() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     write_registry_config(dir.path(), &registry);
-    let described_mocks = [
-        (STAGE_ID, "@scope/dependent"),
-        (SECOND_STAGE_ID, "@scope/dependency"),
-    ]
-    .into_iter()
-    .map(|(stage_id, package_name)| {
-        server
-            .mock("GET", format!("/-/stage/{stage_id}").as_str())
-            .with_body(staged_item_of(stage_id, package_name).to_string())
-            .expect(1)
-            .create()
-    })
-    .collect::<Vec<_>>();
+    let described_mocks = [(STAGE_ID, "@scope/dependent"), (SECOND_STAGE_ID, "@scope/dependency")]
+        .into_iter()
+        .map(|(stage_id, package_name)| {
+            server
+                .mock("GET", format!("/-/stage/{stage_id}").as_str())
+                .with_body(staged_item_of(stage_id, package_name).to_string())
+                .expect(1)
+                .create()
+        })
+        .collect::<Vec<_>>();
     let tarball_mocks = [
         (
             STAGE_ID,
@@ -385,14 +341,7 @@ fn approve_does_not_bind_an_npm_alias_tag_to_a_selected_version() {
 
     let output = stage(
         dir.path(),
-        &[
-            "approve",
-            STAGE_ID,
-            SECOND_STAGE_ID,
-            "--otp",
-            "123456",
-            "--reporter=silent",
-        ],
+        &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
     );
 
     for mock in described_mocks
@@ -403,10 +352,7 @@ fn approve_does_not_bind_an_npm_alias_tag_to_a_selected_version() {
         mock.assert();
     }
     assert_success(&output);
-    assert_eq!(
-        *approved.lock().expect("lock approvals"),
-        [STAGE_ID, SECOND_STAGE_ID],
-    );
+    assert_eq!(*approved.lock().expect("lock approvals"), [STAGE_ID, SECOND_STAGE_ID]);
 }
 
 #[test]
@@ -446,14 +392,7 @@ fn approve_rejects_duplicate_package_versions_before_approving_the_batch() {
 
     let output = stage(
         dir.path(),
-        &[
-            "approve",
-            STAGE_ID,
-            SECOND_STAGE_ID,
-            "--otp",
-            "123456",
-            "--reporter=silent",
-        ],
+        &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
     );
 
     for mock in described_mocks.iter().chain(&tarball_mocks) {
@@ -481,17 +420,8 @@ fn approve_sends_one_request_for_a_repeated_stage_id() {
         .expect(1)
         .create();
 
-    let output = stage(
-        dir.path(),
-        &[
-            "approve",
-            STAGE_ID,
-            STAGE_ID,
-            "--otp",
-            "123456",
-            "--reporter=silent",
-        ],
-    );
+    let output =
+        stage(dir.path(), &["approve", STAGE_ID, STAGE_ID, "--otp", "123456", "--reporter=silent"]);
 
     read_mock.assert();
     approve_mock.assert();
@@ -577,8 +507,5 @@ fn approve_surfaces_a_plain_401_as_a_stage_registry_error() {
         "stderr: {stderr}",
     );
     // miette wraps long lines, so the status clause is asserted separately.
-    assert!(
-        stderr.contains("(status 401 Unauthorized)"),
-        "stderr: {stderr}",
-    );
+    assert!(stderr.contains("(status 401 Unauthorized)"), "stderr: {stderr}");
 }

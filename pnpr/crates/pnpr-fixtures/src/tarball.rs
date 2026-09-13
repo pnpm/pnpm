@@ -12,43 +12,6 @@ pub(super) fn build_tarball(
         .unwrap_or_default();
     let gzip = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(gzip);
-    append_fixture_files(&mut tar, root, package_dir, manifest_text);
-    // Files whose names differ only by case cannot coexist in a case-insensitive
-    // working tree (the default on macOS and Windows), so they are composed into
-    // the archive here instead of being committed as colliding fixture files.
-    for (relative, content) in in_memory_files(name) {
-        let path_in_archive = Path::new("package").join(relative);
-        append_file(&mut tar, &path_in_archive, content.as_bytes(), 0o644);
-    }
-    // pnpm's `publish` copies the workspace-root LICENSE into every package that
-    // doesn't ship its own; registry-mock published these fixtures that way, so
-    // reproduce the injected LICENSE here.
-    if should_inject_root_license(name) && !package_dir.join("LICENSE").exists() {
-        append_file(
-            &mut tar,
-            Path::new("package/LICENSE"),
-            INJECTED_LICENSE.as_bytes(),
-            0o644,
-        );
-    }
-    // `bundleDependencies` packages publish their resolved dependency tree inside
-    // the tarball's `node_modules`. registry-mock produces this with a
-    // `prepublishOnly` install; reproduce it here so `node_modules` (gitignored)
-    // never has to be committed.
-    for (relative, content, mode) in bundled_node_modules(root, manifest) {
-        let path_in_archive = Path::new("package").join(relative);
-        append_file(&mut tar, &path_in_archive, &content, mode);
-    }
-    let gzip = tar.into_inner().expect("finish tar archive");
-    gzip.finish().expect("finish gzip archive")
-}
-
-fn append_fixture_files(
-    tar: &mut tar::Builder<GzEncoder<Vec<u8>>>,
-    root: &Path,
-    package_dir: &Path,
-    manifest_text: &str,
-) {
     for entry in fixture_files(package_dir) {
         let relative = entry
             .path()
@@ -61,8 +24,31 @@ fn append_fixture_files(
             fs::read(entry.path()).expect("read fixture file")
         };
         let mode = file_mode(root, entry.path(), &content).expect("read fixture file mode");
-        append_file(tar, &path_in_archive, &content, mode);
+        append_file(&mut tar, &path_in_archive, &content, mode);
     }
+    // Files whose names differ only by case cannot coexist in a case-insensitive
+    // working tree (the default on macOS and Windows), so they are composed into
+    // the archive here instead of being committed as colliding fixture files.
+    for (relative, content) in in_memory_files(name) {
+        let path_in_archive = Path::new("package").join(relative);
+        append_file(&mut tar, &path_in_archive, content.as_bytes(), 0o644);
+    }
+    // pnpm's `publish` copies the workspace-root LICENSE into every package that
+    // doesn't ship its own; registry-mock published these fixtures that way, so
+    // reproduce the injected LICENSE here.
+    if should_inject_root_license(name) && !package_dir.join("LICENSE").exists() {
+        append_file(&mut tar, Path::new("package/LICENSE"), INJECTED_LICENSE.as_bytes(), 0o644);
+    }
+    // `bundleDependencies` packages publish their resolved dependency tree inside
+    // the tarball's `node_modules`. registry-mock produces this with a
+    // `prepublishOnly` install; reproduce it here so `node_modules` (gitignored)
+    // never has to be committed.
+    for (relative, content, mode) in bundled_node_modules(root, manifest) {
+        let path_in_archive = Path::new("package").join(relative);
+        append_file(&mut tar, &path_in_archive, &content, mode);
+    }
+    let gzip = tar.into_inner().expect("finish tar archive");
+    gzip.finish().expect("finish gzip archive")
 }
 
 pub(super) const INJECTED_LICENSE: &str = include_str!("../../../../LICENSE");
@@ -99,9 +85,7 @@ pub(super) fn bundled_node_modules(root: &Path, manifest: &Value) -> Vec<(PathBu
             .and_then(|deps| deps.get(&dep))
             .and_then(Value::as_str)
             .unwrap_or("*");
-        let Some(version) = resolve_fixture_version(root, &dep, spec) else {
-            continue;
-        };
+        let Some(version) = resolve_fixture_version(root, &dep, spec) else { continue };
         let dep_dir = root.join(&dep).join(&version);
         for entry in fixture_files(&dep_dir) {
             let relative = entry
@@ -126,12 +110,7 @@ pub(super) fn bundled_dependency_names(manifest: &Value) -> Vec<String> {
         Some(Value::Bool(true)) => manifest
             .get("dependencies")
             .and_then(Value::as_object)
-            .map(|deps| {
-                deps
-                    .keys()
-                    .cloned()
-                    .collect()
-            })
+            .map(|deps| deps.keys().cloned().collect())
             .unwrap_or_default(),
         Some(Value::Array(names)) => names
             .iter()
@@ -150,9 +129,7 @@ pub(super) fn resolve_fixture_version(root: &Path, dep: &str, spec: &str) -> Opt
             .file_name()
             .to_string_lossy()
             .into_owned();
-        let Ok(version) = Version::parse(&raw) else {
-            continue;
-        };
+        let Ok(version) = Version::parse(&raw) else { continue };
         if range.satisfies(&version)
             && best
                 .as_ref()
@@ -170,11 +147,7 @@ pub(super) fn fixture_files(root: &Path) -> Vec<walkdir::DirEntry> {
         .map(|entry| entry.expect("walk registry package fixtures"))
         .filter(|entry| entry.file_type().is_file())
         .collect();
-    entries.sort_by(|left, right| {
-        left
-            .path()
-            .cmp(right.path())
-    });
+    entries.sort_by(|left, right| left.path().cmp(right.path()));
     entries
 }
 

@@ -54,50 +54,16 @@ fn a_lone_alias_is_kept() {
 #[test]
 fn the_canonical_spelling_wins_over_the_alias_in_either_order() {
     for argv in [
-        [
-            "pnpm",
-            "--prefix",
-            "aliased",
-            "--dir",
-            "canonical",
-            "install",
-        ]
-        .as_slice(),
-        [
-            "pnpm",
-            "--dir",
-            "canonical",
-            "--prefix",
-            "aliased",
-            "install",
-        ]
-        .as_slice(),
+        ["pnpm", "--prefix", "aliased", "--dir", "canonical", "install"].as_slice(),
+        ["pnpm", "--dir", "canonical", "--prefix", "aliased", "install"].as_slice(),
         ["pnpm", "--prefix=aliased", "-C", "canonical", "install"].as_slice(),
     ] {
-        assert_eq!(
-            parse(argv).paths.dir,
-            Path::new("canonical"),
-            "argv: {argv:?}",
-        );
+        assert_eq!(parse(argv).paths.dir, Path::new("canonical"), "argv: {argv:?}");
     }
 
     for argv in [
-        [
-            "pnpm",
-            "--store",
-            "aliased",
-            "--store-dir",
-            "canonical",
-            "install",
-        ]
-        .as_slice(),
-        [
-            "pnpm",
-            "--store-dir=canonical",
-            "--store=aliased",
-            "install",
-        ]
-        .as_slice(),
+        ["pnpm", "--store", "aliased", "--store-dir", "canonical", "install"].as_slice(),
+        ["pnpm", "--store-dir=canonical", "--store=aliased", "install"].as_slice(),
     ] {
         assert_eq!(
             parse(argv).paths.store_dir.as_deref(),
@@ -127,8 +93,7 @@ fn a_canonical_short_inside_an_attached_value_is_not_the_option() {
         ["pnpm", "-rCcanonical", "install"],
     );
     assert_eq!(
-        parse(&["pnpm", "-rCcanonical", "--prefix", "here", "install"]).paths
-            .dir,
+        parse(&["pnpm", "-rCcanonical", "--prefix", "here", "install"]).paths.dir,
         Path::new("canonical"),
     );
 }

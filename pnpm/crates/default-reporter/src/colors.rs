@@ -19,11 +19,7 @@ pub struct Colors {
 macro_rules! paint {
     ($name:ident, $method:ident) => {
         pub fn $name(&self, text: &str) -> String {
-            if self.enabled {
-                text.$method().to_string()
-            } else {
-                text.to_string()
-            }
+            if self.enabled { text.$method().to_string() } else { text.to_string() }
         }
     };
 }

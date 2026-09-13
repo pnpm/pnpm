@@ -43,9 +43,7 @@ pub fn transform(manifest: &mut Map<String, Value>) -> Result<(), TransformError
 fn transform_required_fields(manifest: &Map<String, Value>) -> Result<(), TransformError> {
     for field in ["name", "version"] {
         if !manifest.get(field).is_some_and(is_truthy) {
-            return Err(TransformError::MissingRequiredField {
-                field,
-            });
+            return Err(TransformError::MissingRequiredField { field });
         }
     }
     Ok(())
@@ -79,9 +77,7 @@ fn normalize_bin_name(name: &str) -> Result<String, TransformError> {
     }
     match name.find('/') {
         Some(slash_index) => Ok(name[slash_index + 1..].to_string()),
-        None => Err(TransformError::InvalidScopedPackageName {
-            invalid_name: name.to_string(),
-        }),
+        None => Err(TransformError::InvalidScopedPackageName { invalid_name: name.to_string() }),
     }
 }
 

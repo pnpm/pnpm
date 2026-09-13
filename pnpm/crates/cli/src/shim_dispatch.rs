@@ -23,6 +23,7 @@
 
 pub(crate) mod native_shim;
 pub(crate) mod runtime_env;
+
 pub(crate) use native_shim::{
     ShimTarget, install_native_shim, is_legacy_context_aware_shim, migrate_legacy_shims,
     native_shim_is_installed, native_shim_paths, native_shim_target, native_shims,
@@ -30,10 +31,6 @@ pub(crate) use native_shim::{
 };
 pub(crate) use runtime_env::materialize_runtime;
 pub(crate) use settings::{apply_settings_above_global_config, global_shims_setting};
-
-use shebang::{interpreter_path, split_shebang_args};
-
-use execution::{exec_program, exec_program_with_bin_dirs};
 
 use crate::{
     cli_args::package_manager::wanted_package_manager,
@@ -87,11 +84,7 @@ const BYPASS_ENV: &str = "PNPM_SHIM_BYPASS";
 /// a successful dispatch never returns at all — the target is `exec`ed in
 /// place.
 pub(crate) fn try_dispatch(argv: &[OsString]) -> Option<i32> {
-    if argv
-        .get(1)
-        .and_then(|arg| arg.to_str())
-        == Some("--shim")
-    {
+    if argv.get(1).and_then(|arg| arg.to_str()) == Some("--shim") {
         return Some(dispatch_legacy_shim(&argv[2..]));
     }
     try_native_dispatch(argv)
@@ -154,9 +147,7 @@ fn dispatch_target(
 fn shim_package(target: &ShimTarget) -> Option<String> {
     match target {
         ShimTarget::Virtual(package) => Some(package.clone()),
-        ShimTarget::Installed(path) => {
-            provider_of_target(path).map(|provider| provider.name)
-        }
+        ShimTarget::Installed(path) => provider_of_target(path).map(|provider| provider.name),
     }
 }
 
@@ -241,6 +232,40 @@ fn run_global_target(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
     }
 }
 
+/// Where the shebang's interpreter comes from: the bin dir's own entry
+/// when there is one, else the bare name for a `PATH` lookup. An absolute
+/// interpreter path joins to itself.
+fn interpreter_path(bin_dir: &Path, prog: &str) -> PathBuf {
+    let sibling = bin_dir.join(prog);
+    if sibling.is_file() {
+        return sibling;
+    }
+    if cfg!(windows) {
+        let sibling = bin_dir.join(format!("{prog}.exe"));
+        if sibling.is_file() {
+            return sibling;
+        }
+    }
+    PathBuf::from(prog)
+}
+
+/// The interpreter arguments a shebang carries, split the way the shell
+/// running a cmd-shim would split them. A line the shell could not parse
+/// (an unbalanced quote) falls back to whitespace splitting.
+fn split_shebang_args(shebang_args: &str) -> Vec<OsString> {
+    let words = shell_words::split(shebang_args)
+        .unwrap_or_else(|_| {
+            shebang_args
+                .split_whitespace()
+                .map(str::to_string)
+                .collect()
+        });
+    words
+        .into_iter()
+        .map(OsString::from)
+        .collect()
+}
+
 fn bypass_requested() -> bool {
     std::env::var(BYPASS_ENV)
         .is_ok_and(|value| !value.is_empty() && value != "0" && value != "false")
@@ -250,11 +275,7 @@ fn bypass_requested() -> bool {
 enum Candidate {
     /// The project has `node_modules/.bin/<name>` — an installed
     /// dependency (including a materialized runtime) providing the bin.
-    LocalBin {
-        project_dir: PathBuf,
-        bin: PathBuf,
-        identity: String,
-    },
+    LocalBin { project_dir: PathBuf, bin: PathBuf, identity: String },
     /// The project pins the runtime `<name>` in `devEngines.runtime` /
     /// `engines.runtime` but has not materialized it; the pinned version
     /// is fetched into the store on demand.
@@ -415,13 +436,37 @@ fn run_package_manager_from_pin(
             exec_program_with_bin_dirs(&program, &engine.bin_dirs, args)
         }
         Err(error) => {
-            eprintln!(
-                "pnpm: failed to prepare {}@{version_spec}: {error:?}",
-                pm.name(),
-            );
+            eprintln!("pnpm: failed to prepare {}@{version_spec}: {error:?}", pm.name());
             1
         }
     }
+}
+
+/// Run `program` with `bin_dirs` prepended to `PATH`. A JavaScript
+/// package manager needs the Node.js it was provisioned with to be
+/// reachable, and its own directory has to come first so a nested
+/// invocation finds the same version.
+fn exec_program_with_bin_dirs(program: &Path, bin_dirs: &[PathBuf], args: &[OsString]) -> i32 {
+    match crate::path_env::prepend_dirs_to_path(bin_dirs) {
+        // The `PATH` travels on the command rather than through this
+        // process's own environment: an `exec` hands the child the
+        // command's environment just the same, and nothing here has to
+        // reason about which threads are running.
+        Ok(path) => exec_program_with_path(program, args, Some(path.as_os_str())),
+        Err(error) => {
+            // Rendered as a report so the failure carries the same
+            // `ERR_PNPM_BAD_PATH_DIR` code the commands report it under.
+            eprintln!("pnpm: {:?}", miette::Report::new(error));
+            1
+        }
+    }
+}
+
+/// Run `program` with `args`, replacing this process where the platform
+/// allows. Exit codes follow the shell convention: 127 when the program
+/// does not exist, 126 when it cannot be executed.
+fn exec_program(program: &Path, args: &[OsString]) -> i32 {
+    exec_program_with_path(program, args, None)
 }
 
 #[cfg(unix)]
@@ -434,11 +479,7 @@ fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr
     }
     let error = command.exec();
     eprintln!("pnpm: failed to exec {}: {error}", program.display());
-    if error.kind() == std::io::ErrorKind::NotFound {
-        127
-    } else {
-        126
-    }
+    if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
 }
 
 #[cfg(windows)]
@@ -456,11 +497,7 @@ fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr
         Ok(status) => status.code().unwrap_or(1),
         Err(error) => {
             eprintln!("pnpm: failed to run {}: {error}", program.display());
-            if error.kind() == std::io::ErrorKind::NotFound {
-                127
-            } else {
-                126
-            }
+            if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
         }
     }
 }
@@ -469,7 +506,3 @@ fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr
 mod tests;
 
 mod settings;
-
-mod execution;
-
-mod shebang;

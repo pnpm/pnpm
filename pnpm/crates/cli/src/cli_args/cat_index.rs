@@ -102,9 +102,7 @@ fn lockfile_store_index_keys(
     let mut keys = Vec::new();
     let mut seen = HashSet::new();
     for importer_id in importer_ids(lockfile_dir, dir) {
-        let Some(importer) = lockfile.importers.get(&importer_id) else {
-            continue;
-        };
+        let Some(importer) = lockfile.importers.get(&importer_id) else { continue };
         for key in
             importer_store_index_keys(&lockfile, importer, &alias_name, alias, requested_bare)
         {
@@ -126,9 +124,7 @@ fn importer_store_index_keys(
     alias: &str,
     requested_bare: Option<&str>,
 ) -> Vec<String> {
-    let Some(dependency) = find_dependency(importer, alias_name) else {
-        return Vec::new();
-    };
+    let Some(dependency) = find_dependency(importer, alias_name) else { return Vec::new() };
     let Some(snapshot_key) = dependency.version.resolved_key(alias_name) else {
         return Vec::new();
     };
@@ -155,10 +151,7 @@ fn importer_ids(lockfile_dir: &Path, current_dir: &Path) -> Vec<String> {
         };
         ids.push(id);
     }
-    if !ids
-        .iter()
-        .any(|id| id == ".")
-    {
+    if !ids.iter().any(|id| id == ".") {
         ids.push(".".to_string());
     }
     ids
@@ -168,17 +161,13 @@ fn find_dependency<'a>(
     importer: &'a ProjectSnapshot,
     alias: &PkgName,
 ) -> Option<&'a ResolvedDependencySpec> {
-    [
-        &importer.dependencies,
-        &importer.dev_dependencies,
-        &importer.optional_dependencies,
-    ]
-    .into_iter()
-    .find_map(|dependencies| {
-        dependencies
-            .as_ref()
-            .and_then(|dependencies| dependencies.get(alias))
-    })
+    [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+        .into_iter()
+        .find_map(|dependencies| {
+            dependencies
+                .as_ref()
+                .and_then(|dependencies| dependencies.get(alias))
+        })
 }
 
 fn request_matches_dependency(
@@ -187,9 +176,7 @@ fn request_matches_dependency(
     dependency: &ResolvedDependencySpec,
     lockfile_key: &str,
 ) -> bool {
-    let Some(requested_bare) = requested_bare else {
-        return true;
-    };
+    let Some(requested_bare) = requested_bare else { return true };
     dependency.specifier == requested_bare || lockfile_key == format!("{alias}@{requested_bare}")
 }
 
@@ -219,16 +206,11 @@ fn metadata_store_index_keys(pkg_id: &str, metadata: &PackageMetadata) -> Vec<St
 }
 
 fn git_store_index_keys(pkg_id: &str) -> Vec<String> {
-    vec![
-        git_hosted_store_index_key(pkg_id, true),
-        git_hosted_store_index_key(pkg_id, false),
-    ]
+    vec![git_hosted_store_index_key(pkg_id, true), git_hosted_store_index_key(pkg_id, false)]
 }
 
 fn fallback_pkg_ids(alias: &str, requested_bare: Option<&str>) -> Vec<String> {
-    let Some(requested_bare) = requested_bare else {
-        return Vec::new();
-    };
+    let Some(requested_bare) = requested_bare else { return Vec::new() };
     let pkg_id = requested_bare
         .strip_prefix("npm:")
         .and_then(npm_alias_pkg_id)
@@ -279,9 +261,7 @@ fn read_package_index(
 
 fn sort_deep_keys(value: &mut Value, depth: usize) -> Result<()> {
     if depth > MAX_JSON_SORT_DEPTH {
-        return Err(miette::miette!(
-            "Package index JSON is nested too deeply to print safely"
-        ));
+        return Err(miette::miette!("Package index JSON is nested too deeply to print safely"));
     }
     match value {
         Value::Object(map) => {

@@ -122,10 +122,7 @@ fn skips_slot_own_package_when_walking_children() {
         bin_dir.join("other").exists(),
         "child bin `other` must be linked under the slot's own package",
     );
-    assert!(
-        !bin_dir.join("tsc").exists(),
-        "self-bin `tsc` must not be linked into own slot",
-    );
+    assert!(!bin_dir.join("tsc").exists(), "self-bin `tsc` must not be linked into own slot");
 }
 
 /// [`LinkVirtualStoreBins`] with a non-existent virtual-store directory
@@ -194,10 +191,7 @@ fn link_virtual_store_bins_handles_scoped_slot_name() {
     .unwrap();
 
     let shim = parent_dir.join("node_modules/.bin/child");
-    assert!(
-        shim.exists(),
-        "scoped-slot bin linking must produce a shim at {shim:?}",
-    );
+    assert!(shim.exists(), "scoped-slot bin linking must produce a shim at {shim:?}");
 }
 
 /// Peer-resolved slots have version segments that contain additional
@@ -387,9 +381,7 @@ fn lockfile_driven_linking_only_visits_selected_snapshots() {
         (
             selected.clone(),
             metadata_with_resolution(
-                LockfileResolution::Directory(DirectoryResolution {
-                    directory: "selected".into(),
-                }),
+                LockfileResolution::Directory(DirectoryResolution { directory: "selected".into() }),
                 Some(true),
             ),
         ),
@@ -451,11 +443,8 @@ fn link_direct_dep_bins_writes_shims_for_each_dep() {
     let modules = tmp.path().join("node_modules");
     let foo_dir = modules.join("foo");
     create_dir_all(&foo_dir).unwrap();
-    write_file(
-        foo_dir.join("package.json"),
-        json!({"name": "foo", "bin": "cli.js"}).to_string(),
-    )
-    .unwrap();
+    write_file(foo_dir.join("package.json"), json!({"name": "foo", "bin": "cli.js"}).to_string())
+        .unwrap();
     write_file(foo_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
 
     link_direct_dep_bins(&modules, &["foo".to_string()], &LinkBinsOptions::default()).unwrap();
@@ -491,11 +480,8 @@ fn link_direct_dep_bins_follows_symlink_to_real_package() {
     // virtual-store layout).
     let real_pkg = tmp.path().join("virtual/foo@1.0.0/node_modules/foo");
     create_dir_all(&real_pkg).unwrap();
-    write_file(
-        real_pkg.join("package.json"),
-        json!({"name": "foo", "bin": "cli.js"}).to_string(),
-    )
-    .unwrap();
+    write_file(real_pkg.join("package.json"), json!({"name": "foo", "bin": "cli.js"}).to_string())
+        .unwrap();
     write_file(real_pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
 
     // Use the same approach pacquet uses in production: symlink on
@@ -508,10 +494,7 @@ fn link_direct_dep_bins_follows_symlink_to_real_package() {
 
     link_direct_dep_bins(&modules, &["foo".to_string()], &LinkBinsOptions::default()).unwrap();
 
-    assert!(
-        modules.join(".bin/foo").exists(),
-        "symlinked dep must produce a shim",
-    );
+    assert!(modules.join(".bin/foo").exists(), "symlinked dep must produce a shim");
 }
 
 /// Skip dep names whose symlink points at a non-existent target.
@@ -605,10 +588,7 @@ fn link_virtual_store_bins_propagates_read_error_via_di() {
     }
     .run_with::<DenyVirtualStore>()
     .expect_err("read_dir error must propagate");
-    assert!(matches!(
-        err,
-        LinkVirtualStoreBinsError::ReadVirtualStore { .. }
-    ));
+    assert!(matches!(err, LinkVirtualStoreBinsError::ReadVirtualStore { .. }));
 }
 
 /// Build a minimal [`PackageMetadata`] for the runtime-skip / bin-set
@@ -707,9 +687,7 @@ fn build_has_bin_set_includes_runtime_resolutions_even_when_has_bin_is_absent() 
     packages.insert(
         directory.clone(),
         metadata_with_resolution(
-            LockfileResolution::Directory(DirectoryResolution {
-                directory: "fixture".into(),
-            }),
+            LockfileResolution::Directory(DirectoryResolution { directory: "fixture".into() }),
             None,
         ),
     );
@@ -717,26 +695,14 @@ fn build_has_bin_set_includes_runtime_resolutions_even_when_has_bin_is_absent() 
     let set = build_has_bin_set(Some(&packages)).expect("packages map present");
     dbg!(&set);
 
-    assert!(
-        set.contains(&registry_with_bin),
-        "registry+has_bin must be in the set",
-    );
-    assert!(
-        !set.contains(&registry_no_bin),
-        "registry without has_bin must be filtered out",
-    );
-    assert!(
-        set.contains(&runtime_binary),
-        "Binary runtime must be in the set unconditionally",
-    );
+    assert!(set.contains(&registry_with_bin), "registry+has_bin must be in the set");
+    assert!(!set.contains(&registry_no_bin), "registry without has_bin must be filtered out");
+    assert!(set.contains(&runtime_binary), "Binary runtime must be in the set unconditionally");
     assert!(
         set.contains(&runtime_variations),
         "Variations runtime must be in the set unconditionally",
     );
-    assert!(
-        !set.contains(&directory),
-        "directory without has_bin must be filtered out",
-    );
+    assert!(!set.contains(&directory), "directory without has_bin must be filtered out");
 }
 
 #[test]
@@ -745,20 +711,15 @@ fn prefetched_bin_pass_trusts_the_has_bin_gate_over_the_disk_manifest() {
     let modules = tmp.path().join("node_modules");
     let foo_dir = modules.join("foo");
     create_dir_all(&foo_dir).unwrap();
-    write_file(
-        foo_dir.join("package.json"),
-        json!({"name": "foo", "bin": "cli.js"}).to_string(),
-    )
-    .unwrap();
+    write_file(foo_dir.join("package.json"), json!({"name": "foo", "bin": "cli.js"}).to_string())
+        .unwrap();
     write_file(foo_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
 
     let key: PackageKey = "foo@1.0.0".parse().expect("parse key");
     let packages = HashMap::from([(
         key.clone(),
         metadata_with_resolution(
-            LockfileResolution::Directory(DirectoryResolution {
-                directory: "foo".into(),
-            }),
+            LockfileResolution::Directory(DirectoryResolution { directory: "foo".into() }),
             Some(false),
         ),
     )]);
@@ -771,10 +732,7 @@ fn prefetched_bin_pass_trusts_the_has_bin_gate_over_the_disk_manifest() {
         &LinkBinsOptions::default(),
     )
     .unwrap();
-    assert!(
-        !modules.join(".bin").exists(),
-        "hasBin: false must skip the dep without IO",
-    );
+    assert!(!modules.join(".bin").exists(), "hasBin: false must skip the dep without IO");
 }
 
 /// The lockfile `hasBin` gate cannot judge a snapshot that may run
@@ -786,20 +744,15 @@ fn prefetched_bin_pass_reads_a_may_build_dep_from_disk() {
     let modules = tmp.path().join("node_modules");
     let foo_dir = modules.join("foo");
     create_dir_all(&foo_dir).unwrap();
-    write_file(
-        foo_dir.join("package.json"),
-        json!({"name": "foo", "bin": "cli.js"}).to_string(),
-    )
-    .unwrap();
+    write_file(foo_dir.join("package.json"), json!({"name": "foo", "bin": "cli.js"}).to_string())
+        .unwrap();
     write_file(foo_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
 
     let key: PackageKey = "foo@1.0.0".parse().expect("parse key");
     let packages = HashMap::from([(
         key.clone(),
         metadata_with_resolution(
-            LockfileResolution::Directory(DirectoryResolution {
-                directory: "foo".into(),
-            }),
+            LockfileResolution::Directory(DirectoryResolution { directory: "foo".into() }),
             Some(false),
         ),
     )]);
@@ -829,9 +782,7 @@ fn prefetched_bin_pass_links_from_the_prefetched_manifest_without_a_disk_manifes
     let packages = HashMap::from([(
         key.clone(),
         metadata_with_resolution(
-            LockfileResolution::Directory(DirectoryResolution {
-                directory: "foo".into(),
-            }),
+            LockfileResolution::Directory(DirectoryResolution { directory: "foo".into() }),
             Some(true),
         ),
     )]);

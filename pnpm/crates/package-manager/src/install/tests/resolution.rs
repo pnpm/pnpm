@@ -28,11 +28,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
     // Pin 100.0.0 exactly so the first install writes that version, even
     // though 100.1.0 exists and satisfies the widened range used below.
     manifest
-        .add_dependency(
-            "@pnpm.e2e/dep-of-pkg-with-1-dep",
-            "100.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/dep-of-pkg-with-1-dep", "100.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 
@@ -108,11 +104,7 @@ async fn install_with_drop_all_seed_policy_bumps_dependency_within_range() {
 
     // Widen the range and reload the lockfile (which now pins 100.0.0).
     manifest
-        .add_dependency(
-            "@pnpm.e2e/dep-of-pkg-with-1-dep",
-            "^100.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/dep-of-pkg-with-1-dep", "^100.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
     let lockfile = Lockfile::load_current_from_virtual_store_dir(&dirs.virtual_store_dir)
@@ -193,11 +185,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/abc-optional-peers",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/abc-optional-peers", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 
@@ -326,11 +314,7 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/abc-optional-peers-meta-only",
-            "1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/abc-optional-peers-meta-only", "1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 
@@ -557,11 +541,7 @@ async fn fresh_install_records_user_written_specifier() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
     manifest
-        .add_dependency(
-            "@pnpm.e2e/hello-world-js-bin",
-            "^1.0.0",
-            DependencyGroup::Prod,
-        )
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "^1.0.0", DependencyGroup::Prod)
         .unwrap();
     manifest.save().unwrap();
 
@@ -635,10 +615,7 @@ async fn fresh_install_records_user_written_specifier() {
     let deps = importer.dependencies.as_ref().expect("prod deps");
     let key = pnpm_lockfile::PkgName::parse("@pnpm.e2e/hello-world-js-bin").unwrap();
     let entry = deps.get(&key).expect("hello-world-js-bin entry");
-    assert_eq!(
-        entry.specifier, "^1.0.0",
-        "specifier must echo the manifest declaration",
-    );
+    assert_eq!(entry.specifier, "^1.0.0", "specifier must echo the manifest declaration");
 
     drop((dirs.dir, mock_instance));
 }
@@ -786,8 +763,5 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
     .expect("2nd install success");
 
     // Canary should still exist because dry_run doesn't mutate node_modules
-    assert!(
-        canary_path.exists(),
-        "canary was deleted despite dry_run: true",
-    );
+    assert!(canary_path.exists(), "canary was deleted despite dry_run: true");
 }

@@ -47,11 +47,7 @@ pub(crate) struct ChannelBytesReader {
 
 impl ChannelBytesReader {
     pub(crate) fn new(rx: BodyChunkReceiver) -> Self {
-        Self {
-            rx,
-            current: bytes::Bytes::new(),
-            offset: 0,
-        }
+        Self { rx, current: bytes::Bytes::new(), offset: 0 }
     }
 }
 
@@ -157,11 +153,7 @@ pub(crate) fn extract_tarball_entries_streaming(
 
     for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {
         let mut entry = entry.map_err(TarballError::ReadTarballEntries)?;
-        if !entry
-            .header()
-            .entry_type()
-            .is_file()
-        {
+        if !entry.header().entry_type().is_file() {
             continue;
         }
         let Some(meta) = entry_meta(&entry, ignore_file_pattern)? else {
@@ -207,12 +199,7 @@ pub(super) fn entry_meta<Source: Read>(
     if ignore_file_pattern.is_some_and(|filter| filter(&cleaned_path)) {
         return Ok(None);
     }
-    Ok(Some(EntryMeta {
-        cleaned_path,
-        executable: file_mode::is_executable(mode),
-        mode,
-        size,
-    }))
+    Ok(Some(EntryMeta { cleaned_path, executable: file_mode::is_executable(mode), mode, size }))
 }
 
 /// The running state of a streaming extraction: the CAFS rows written so

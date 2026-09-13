@@ -67,23 +67,28 @@ pub(in super::super) fn pipeline<'a>(
     let install_future = if invocation.dry_run {
         None
     } else {
-        Some(install_with_config(
-            ctx,
-            install_args,
-            UpdateCheckPolicy::Skip,
-        )?)
+        Some(install_with_config(ctx, install_args, UpdateCheckPolicy::Skip)?)
     };
     let dir = ctx.locations.dir;
     let reporter = ctx.reporter;
     let config = ctx.loaders.config;
     Ok(Box::pin(async move {
-        let cfg = if let Some(install) = install_future {
-            install.await?
-        } else {
-            config()?
-        };
+        let cfg = if let Some(install) = install_future { install.await? } else { config()? };
         let outcome = run_pipeline(&invocation, cfg, dir, reporter)?;
-        finish_pipeline_run(&invocation, cfg, outcome, reporter).await
+        // The run is recorded before the failure exit is raised, so a red
+        // run reaches the server too.
+        if invocation.report
+            && let Some(upload) = outcome.upload
+        {
+            report_pipeline_run(cfg, invocation.report_to.as_deref(), upload, reporter).await;
+        }
+        if outcome.failed_tasks > 0 {
+            return Err(super::super::pipeline::PipelineError::PipelineFail {
+                count: outcome.failed_tasks,
+            }
+            .into());
+        }
+        Ok(())
     }))
 }
 
@@ -161,31 +166,6 @@ async fn report_pipeline_run(
             ),
             prefix: String::new(),
         })),
-        Err(error) => warn(format!(
-            "failed to publish the pipeline run to {server}: {error}",
-        )),
+        Err(error) => warn(format!("failed to publish the pipeline run to {server}: {error}")),
     }
-}
-
-async fn finish_pipeline_run(
-    invocation: &PipelineInvocation,
-    cfg: &Config,
-    outcome: super::super::pipeline::PipelineOutcome,
-    reporter: ReporterType,
-) -> miette::Result<()> {
-    // The run is recorded before the failure exit is raised, so a red
-    // run reaches the server too.
-    if invocation.report
-        && let Some(upload) = outcome.upload
-    {
-        report_pipeline_run(cfg, invocation.report_to.as_deref(), upload, reporter)
-            .await;
-    }
-    if outcome.failed_tasks > 0 {
-        return Err(super::super::pipeline::PipelineError::PipelineFail {
-            count: outcome.failed_tasks,
-        }
-        .into());
-    }
-    Ok(())
 }

@@ -51,14 +51,10 @@ fn resolves_git_snapshot_patch_from_package_version() {
         },
     )]);
 
-    let patches = resolve_snapshot_patches(
-        &Config::new(),
-        Some(&groups),
-        Some(&snapshots),
-        Some(&packages),
-    )
-    .expect("resolve snapshot patches")
-    .expect("patches are configured");
+    let patches =
+        resolve_snapshot_patches(&Config::new(), Some(&groups), Some(&snapshots), Some(&packages))
+            .expect("resolve snapshot patches")
+            .expect("patches are configured");
 
     assert_eq!(patches.get(&key.without_peer()), Some(&patch));
 }

@@ -4,7 +4,7 @@ use super::{
     cache_keys::SnapshotCacheKey,
     cold::{ColdBatch, ColdBatchState, ColdInputs, run_cold_batch},
     create_build_marker_source, init_store_dir_unless_frozen, nothing_to_materialize, partition,
-    removed_aliases_by_key,
+    publish_planned_canonical_fetches, removed_aliases_by_key,
     slot_linking::LinkSlotsParallel,
     snapshot_plan,
     warm::{WarmLinkBatch, enforce_cached_git_prepare_policy, link_warm_batch},
@@ -62,14 +62,32 @@ impl<'a> CreateVirtualStore<'a> {
         store: CreateVirtualStoreStoreContext<'_>,
         marker_source: Option<&tempfile::NamedTempFile>,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
-        let mut partition = self.partition_plan(wanted, &plan, prefetched);
+        let mut partition = partition::partition_snapshots(
+            &plan.survivors,
+            &plan.skipped_entries,
+            prefetched,
+            &plan.marker_rebuilds,
+            self.ctx.linker.kind,
+        );
+
+        // Publish the cold-batch fetch plan for the concurrent
+        // verification fan-out: every cold registry-resolved snapshot
+        // with a pinned hash is downloaded from its canonical registry
+        // URL by this run (or fails the install / is dropped as an
+        // uninstallable optional), which is the existence evidence the
+        // npm verifier's age gate may substitute for a metadata body.
+        // First fill wins; entries outside the plan keep the
+        // metadata-backed path.
+        publish_planned_canonical_fetches(
+            self.fetching.planned_canonical_fetches,
+            &partition.cold,
+            wanted.packages,
+            self.fetching.custom_fetcher_session.is_some(),
+        );
 
         let links = self.link_plan(&plan);
-        let mut indexes = CasIndexes::warm(
-            links.shared_packages.as_ref(),
-            &partition.warm,
-            self.is_hoisted(),
-        );
+        let mut indexes =
+            CasIndexes::warm(links.shared_packages.as_ref(), &partition.warm, self.is_hoisted());
         self.link_warm::<Reporter>(
             wanted,
             &partition,
@@ -77,19 +95,12 @@ impl<'a> CreateVirtualStore<'a> {
             marker_source.map(tempfile::NamedTempFile::path),
         )?;
         let fetch_failed = self.download_cold::<Reporter>(
-            ColdInputs {
-                wanted,
-                store,
-                prefetched,
-                marker_source,
-                links: &links,
-            },
+            ColdInputs { wanted, store, prefetched, marker_source, links: &links },
             &mut partition,
             &mut indexes,
         )
         .await?;
-        self.apply_side_effects(wanted, &mut partition, &indexes.shared_base)
-            .await;
+        self.apply_side_effects(wanted, &mut partition, &indexes.shared_base).await;
 
         // The writer is owned by the caller now. They drop their
         // sender and await the join handle after the build phase
@@ -99,8 +110,7 @@ impl<'a> CreateVirtualStore<'a> {
 
         Ok(CreateVirtualStoreOutput {
             package_manifests: partition.package_manifests,
-            side_effects_maps_by_snapshot: partition
-                .side_effects_maps_by_snapshot,
+            side_effects_maps_by_snapshot: partition.side_effects_maps_by_snapshot,
             requires_build_by_snapshot: partition.requires_build_by_snapshot,
             materialized_snapshots: plan.materialized_keys(),
             fetch_failed,
@@ -116,15 +126,10 @@ impl<'a> CreateVirtualStore<'a> {
         // No snapshots to install. If the lockfile also has no project deps
         // this is a valid no-op; if it does, pnpm would have populated
         // `snapshots`, so bailing out here is safe enough for v9.
-        let Some(snapshots) = self.entries.snapshots else {
-            return Ok(None);
-        };
+        let Some(snapshots) = self.entries.snapshots else { return Ok(None) };
         let packages =
             self.entries.packages.ok_or(CreateVirtualStoreError::MissingPackagesSection)?;
-        Ok(Some(WantedEntries {
-            packages,
-            snapshots,
-        }))
+        Ok(Some(WantedEntries { packages, snapshots }))
     }
 
     async fn prefetch(&mut self, wanted: WantedEntries<'a>) -> CasPrefetch {
@@ -233,8 +238,7 @@ impl<'a> CreateVirtualStore<'a> {
             );
             PrefetchResult::default()
         });
-        let prefetched = self.verify_imported_rows(prefetched, verified_files_cache, plan)
-            .await;
+        let prefetched = self.verify_imported_rows(prefetched, verified_files_cache, plan).await;
         enforce_cached_git_prepare_policy(
             &mut plan.survivors,
             packages,
@@ -383,8 +387,7 @@ impl<'a> CreateVirtualStore<'a> {
             },
             &mut ColdBatchState {
                 fetch_failed: &mut fetch_failed,
-                requires_build_by_snapshot: &mut partition
-                    .requires_build_by_snapshot,
+                requires_build_by_snapshot: &mut partition.requires_build_by_snapshot,
                 shared_base_cas_paths: &mut indexes.shared_base,
             },
             &mut cold_cas_paths,
@@ -437,20 +440,16 @@ impl<'a> CreateVirtualStore<'a> {
                 cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
                     base_cas_paths,
                     by_snapshot: &partition.side_effects_by_snapshot,
-                    quarantine_by_snapshot: &partition
-                        .remote_side_effects_quarantine_by_snapshot,
-                    store_index_keys_by_snapshot: &partition
-                        .store_index_keys_by_snapshot,
+                    quarantine_by_snapshot: &partition.remote_side_effects_quarantine_by_snapshot,
+                    store_index_keys_by_snapshot: &partition.store_index_keys_by_snapshot,
                 },
                 config: self.ctx.config,
                 snapshots: wanted.snapshots,
                 packages: wanted.packages,
-                requires_build_by_snapshot: &partition
-                    .requires_build_by_snapshot,
+                requires_build_by_snapshot: &partition.requires_build_by_snapshot,
                 allow_build_policy: self.ctx.allow_build_policy,
 
-                side_effects_maps_by_snapshot: &mut partition
-                    .side_effects_maps_by_snapshot,
+                side_effects_maps_by_snapshot: &mut partition.side_effects_maps_by_snapshot,
 
                 store_index_writer: self.fetching.store_index_writer,
             },

@@ -30,10 +30,7 @@ fn s3_config(storage: PathBuf, store: Arc<dyn ObjectStore>) -> Config {
     let mut config = Config::static_serve(listen, storage);
     config.http.public_url = "http://example.test".to_string();
     config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
-    config.storage.hosted_backend = HostedStoreConfig::ObjectStore {
-        store,
-        prefix: String::new(),
-    };
+    config.storage.hosted_backend = HostedStoreConfig::ObjectStore { store, prefix: String::new() };
     config
 }
 
@@ -61,10 +58,7 @@ async fn publishes_to_and_serves_from_the_object_store() {
 
     // The hosted store is the bucket, so nothing lands in the local
     // `storage` directory.
-    assert!(
-        !storage.join("mypkg").exists(),
-        "hosted content must not touch local storage",
-    );
+    assert!(!storage.join("mypkg").exists(), "hosted content must not touch local storage");
 
     // The packument round-trips out of the bucket, with the tarball URL
     // rewritten to the public URL.
@@ -168,20 +162,10 @@ async fn rejected_publish_uploads_nothing_and_leaves_no_staging_file() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    assert!(
-        text.contains("EINTEGRITY"),
-        "error body should carry EINTEGRITY: {text}",
-    );
+    assert!(text.contains("EINTEGRITY"), "error body should carry EINTEGRITY: {text}");
 
-    assert!(
-        bucket_keys(&store, "bad-pkg").await.is_empty(),
-        "nothing should be uploaded",
-    );
-    assert_eq!(
-        staging_file_count(&storage),
-        0,
-        "no staging tmp file should be left behind",
-    );
+    assert!(bucket_keys(&store, "bad-pkg").await.is_empty(), "nothing should be uploaded");
+    assert_eq!(staging_file_count(&storage), 0, "no staging tmp file should be left behind");
 }
 
 /// A full-package unpublish (`DELETE /:pkg/-rev/:rev`) must remove the
@@ -209,11 +193,7 @@ async fn unpublish_removes_the_package_from_the_bucket() {
             .status(),
         StatusCode::CREATED,
     );
-    assert_eq!(
-        bucket_keys(&store, "mypkg").await.len(),
-        2,
-        "packument + tarball uploaded",
-    );
+    assert_eq!(bucket_keys(&store, "mypkg").await.len(), 2, "packument + tarball uploaded");
 
     let request = Request::delete("/mypkg/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))

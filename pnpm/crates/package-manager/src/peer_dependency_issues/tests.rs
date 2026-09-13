@@ -11,10 +11,7 @@ use crate::InstallError;
 #[test]
 fn only_resolver_issue_candidates_are_walked() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -60,13 +57,7 @@ snapshots:
         Some(&catalogs),
     )
     .expect("a clean resolver candidate set must skip the lockfile walk");
-    assert_eq!(
-        EVENTS
-            .lock()
-            .unwrap()
-            .len(),
-        0,
-    );
+    assert_eq!(EVENTS.lock().unwrap().len(), 0);
 
     let error = report_peer_dependency_issues::<RecordingReporter>(
         Some(&lockfile),
@@ -79,8 +70,5 @@ snapshots:
     .expect_err("a resolver candidate with a missing peer must fail in strict mode");
     assert!(matches!(error, InstallError::PeerDependencyIssues));
     let events = EVENTS.lock().unwrap();
-    assert!(
-        matches!(events.as_slice(), [LogEvent::Global(_)]),
-        "unexpected events: {events:?}",
-    );
+    assert!(matches!(events.as_slice(), [LogEvent::Global(_)]), "unexpected events: {events:?}");
 }

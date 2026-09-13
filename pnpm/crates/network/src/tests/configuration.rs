@@ -95,10 +95,7 @@ async fn https_target_uses_configured_proxy() {
         .expect_err("the recording proxy rejects the tunnel");
     let connect = proxy.await.expect("proxy task");
 
-    assert!(
-        connect.starts_with("CONNECT target.example:443 HTTP/1.1\r\n"),
-        "got {connect:?}",
-    );
+    assert!(connect.starts_with("CONNECT target.example:443 HTTP/1.1\r\n"), "got {connect:?}");
 }
 
 #[test]
@@ -121,9 +118,6 @@ fn for_installs_honors_custom_network_settings() {
     )
     .expect("custom network settings build");
     assert_eq!(client.semaphore.available_permits(), 4);
-    assert_eq!(
-        client.fetch_warn_timeout(),
-        std::time::Duration::from_secs(2),
-    );
+    assert_eq!(client.fetch_warn_timeout(), std::time::Duration::from_secs(2));
     assert_eq!(client.fetch_min_speed_ki_bps(), 75);
 }

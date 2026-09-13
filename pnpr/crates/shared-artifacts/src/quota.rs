@@ -15,8 +15,7 @@ impl SharedArtifactStore {
     /// the decision unwritten whenever the refusal happens, so a registration
     /// nobody keeps would be re-stamped on every read and outlive every pass.
     pub(super) async fn expire_publications(&self) -> Result<()> {
-        self.mutate_usage(|usage| Ok(expire_stranded_publications(usage)))
-            .await?;
+        self.mutate_usage(|usage| Ok(expire_stranded_publications(usage))).await?;
         Ok(())
     }
 
@@ -38,8 +37,7 @@ impl SharedArtifactStore {
     /// the usage document. A write that fails but landed anyway counts as
     /// registered, so the caller is not told a registration it now has failed.
     pub(super) async fn try_begin_publication(&self, publication: &str) -> Result<bool> {
-        let registered = self.mutate_usage(|usage| register_publication(usage, publication))
-            .await;
+        let registered = self.mutate_usage(|usage| register_publication(usage, publication)).await;
         match registered {
             Ok(begun) => Ok(begun),
             Err(error) => {
@@ -73,8 +71,7 @@ impl SharedArtifactStore {
                 Err(error) => error,
             };
             let Some(retry_error) =
-                self.publication_finish_retry_error(publication, reclamation_needed, error)
-                    .await?
+                self.publication_finish_retry_error(publication, reclamation_needed, error).await?
             else {
                 return Ok(());
             };
@@ -152,9 +149,7 @@ impl SharedArtifactStore {
             QuotaCoordination::Local { lock_path } => {
                 self.mutate_usage_under_lock(lock_path.clone(), mutation).await
             }
-            QuotaCoordination::Conditional => {
-                self.mutate_usage_conditionally(mutation).await
-            }
+            QuotaCoordination::Conditional => self.mutate_usage_conditionally(mutation).await,
         }
     }
 
@@ -253,21 +248,15 @@ impl SharedArtifactStore {
         let mut listing = self.list_objects(None);
         while let Some(entry) = listing.next().await {
             let entry = entry?;
-            let Some(relative) = self.relative_path(&entry.location) else {
-                continue;
-            };
+            let Some(relative) = self.relative_path(&entry.location) else { continue };
             if relative == self.quota_object() || relative.starts_with(".locks/") {
                 continue;
             }
-            let Some((owner, _)) = relative.split_once('/') else {
-                continue;
-            };
+            let Some((owner, _)) = relative.split_once('/') else { continue };
             let size = entry.size;
             usage.global_bytes =
                 usage.global_bytes.checked_add(size).ok_or_else(storage_quota_error)?;
-            let owner_bytes = usage.owner_bytes
-                .entry(owner.to_string())
-                .or_default();
+            let owner_bytes = usage.owner_bytes.entry(owner.to_string()).or_default();
             *owner_bytes = owner_bytes.checked_add(size).ok_or_else(storage_quota_error)?;
         }
         Ok(usage)
@@ -277,10 +266,7 @@ impl SharedArtifactStore {
         self.store.put_opts(
             &self.object_path(self.quota_object()),
             PutPayload::from(serde_json::to_vec(usage)?),
-            PutOptions {
-                mode,
-                ..PutOptions::default()
-            },
+            PutOptions { mode, ..PutOptions::default() },
         )
         .await?;
         Ok(())

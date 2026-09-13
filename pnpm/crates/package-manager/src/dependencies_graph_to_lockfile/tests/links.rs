@@ -11,8 +11,5 @@ fn recognizes_bin_directories_in_package_manifests() {
         }))),
         Some(true),
     );
-    assert_eq!(
-        manifest_has_bin(Some(&json!({ "directories": { "bin": "" } }))),
-        None,
-    );
+    assert_eq!(manifest_has_bin(Some(&json!({ "directories": { "bin": "" } }))), None);
 }

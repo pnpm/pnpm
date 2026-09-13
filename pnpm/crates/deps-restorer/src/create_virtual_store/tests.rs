@@ -101,10 +101,7 @@ impl SeededStoreInstall {
 
         let mut config = Config::new();
         config.registry = "https://registry.test".to_string();
-        config.store_dir = root
-            .path()
-            .join("store")
-            .into();
+        config.store_dir = root.path().join("store").into();
         config.modules_dir = modules_dir.clone();
         config.virtual_store_dir = modules_dir.join(".pacquet");
         config.enable_global_virtual_store = true;
@@ -116,10 +113,7 @@ impl SeededStoreInstall {
         let mut files = HashMap::new();
         let mut body_blob = None;
         for (path, content) in [
-            (
-                "package.json",
-                br#"{"name":"seeded","version":"1.0.0"}"#.as_slice(),
-            ),
+            ("package.json", br#"{"name":"seeded","version":"1.0.0"}"#.as_slice()),
             ("index.js", b"module.exports = true\n".as_slice()),
         ] {
             let (blob, digest) =
@@ -151,11 +145,7 @@ impl SeededStoreInstall {
             )]);
             HashMap::from([(
                 "linux-x64-node22".to_string(),
-                SideEffectsDiff {
-                    added: Some(added),
-                    deleted: None,
-                    remote_origin: None,
-                },
+                SideEffectsDiff { added: Some(added), deleted: None, remote_origin: None },
             )])
         });
         StoreIndex::open_in(&config.store_dir)
@@ -386,11 +376,7 @@ fn slot_link<'a>(
     removed_aliases: &'a [PkgName],
 ) -> crate::create_virtual_store::slot_linking::SlotLink<'a> {
     crate::create_virtual_store::slot_linking::SlotLink {
-        source: crate::SlotImportSource {
-            is_mutable: true,
-            force: false,
-            build_marker: None,
-        },
+        source: crate::SlotImportSource { is_mutable: true, force: false, build_marker: None },
         snapshot_key,
         snapshot,
         cas_paths,

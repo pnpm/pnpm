@@ -31,8 +31,5 @@ snapshots:
     let VerifyError::InvalidDependencyAlias { breakdown, .. } = err else {
         panic!("expected InvalidDependencyAlias, got {err:?}");
     };
-    assert!(
-        breakdown.contains("../../../escape"),
-        "breakdown {breakdown:?}",
-    );
+    assert!(breakdown.contains("../../../escape"), "breakdown {breakdown:?}");
 }

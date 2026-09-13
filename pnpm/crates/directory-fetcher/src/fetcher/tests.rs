@@ -38,11 +38,7 @@ fn confined_package_files_fetcher_packs_a_linked_root() {
     let dir = tempdir().unwrap();
     let real_root = dir.path().join("real-root");
     fs::create_dir_all(&real_root).unwrap();
-    fs::write(
-        real_root.join("package.json"),
-        r#"{ "name": "x", "version": "0.0.0" }"#,
-    )
-    .unwrap();
+    fs::write(real_root.join("package.json"), r#"{ "name": "x", "version": "0.0.0" }"#).unwrap();
     fs::write(real_root.join("index.js"), "content").unwrap();
     let root_link = dir.path().join("root-link");
     pnpm_fs::symlink_dir(&real_root, &root_link).unwrap();

@@ -6,12 +6,8 @@ use super::{
 use tempfile::TempDir;
 
 fn storage_in(tmp: &TempDir) -> Storage {
-    Storage::new(
-        &HostedStoreConfig::Fs,
-        tmp.path().join("storage"),
-        tmp.path().join("cache"),
-    )
-    .unwrap()
+    Storage::new(&HostedStoreConfig::Fs, tmp.path().join("storage"), tmp.path().join("cache"))
+        .unwrap()
 }
 
 fn pkg(name: &str) -> CanonicalPackageName {
@@ -33,10 +29,7 @@ async fn hosted_revision_refs_roundtrip_in_the_org_namespace() {
     let digest = "A".repeat(86);
     let ref_id = "b".repeat(64);
 
-    assert_eq!(
-        storage.read_hosted_revision_refs(&digest).await.unwrap(),
-        Vec::<Vec<u8>>::new(),
-    );
+    assert_eq!(storage.read_hosted_revision_refs(&digest).await.unwrap(), Vec::<Vec<u8>>::new());
     storage
         .write_hosted_revision_ref(
             &digest,
@@ -64,8 +57,8 @@ async fn hosted_revision_ref_paths_reject_noncanonical_segments() {
 
     let invalid_digest = storage.read_hosted_revision_refs("../escape").await;
     assert!(invalid_digest.is_err());
-    let invalid_ref = storage.write_hosted_revision_ref(&digest, "../escape", "owner-a", b"{}")
-        .await;
+    let invalid_ref =
+        storage.write_hosted_revision_ref(&digest, "../escape", "owner-a", b"{}").await;
     assert!(invalid_ref.is_err());
 }
 
@@ -107,11 +100,7 @@ async fn hosted_revision_ref_writes_enforce_the_read_bound() {
     fs::write(stray_dir.join("interrupted.tmp"), b"stray").await.unwrap();
     let refs = storage.read_hosted_revision_refs(&digest).await.unwrap();
     assert_eq!(refs.len(), MAX_HOSTED_REVISION_REFS);
-    assert!(
-        refs
-            .iter()
-            .all(|bytes| bytes == b"{}"),
-    );
+    assert!(refs.iter().all(|bytes| bytes == b"{}"));
 }
 
 #[tokio::test]
@@ -179,11 +168,7 @@ async fn temp_file_creation_retries_existing_candidate_without_overwriting() {
 
     let mut first = true;
     let (mut file, path) = create_tmp_file_with(&final_path, |_| {
-        if std::mem::replace(&mut first, false) {
-            occupied.clone()
-        } else {
-            retry.clone()
-        }
+        if std::mem::replace(&mut first, false) { occupied.clone() } else { retry.clone() }
     })
     .await
     .unwrap();
@@ -212,11 +197,7 @@ async fn temp_file_creation_does_not_follow_symlink_candidate() {
 
     let mut first = true;
     let (mut file, path) = create_tmp_file_with(&final_path, |_| {
-        if std::mem::replace(&mut first, false) {
-            symlink_path.clone()
-        } else {
-            retry.clone()
-        }
+        if std::mem::replace(&mut first, false) { symlink_path.clone() } else { retry.clone() }
     })
     .await
     .unwrap();
@@ -245,18 +226,11 @@ async fn failed_blob_finalize_removes_tmp_file() {
     fs::write(final_path.join("block-rename"), b"occupied").await.unwrap();
 
     let file = fs::File::create(&tmp_path).await.unwrap();
-    let mut write = BlobWrite {
-        file: Some(file),
-        tmp_path: Some(tmp_path.clone()),
-        final_path,
-    };
+    let mut write = BlobWrite { file: Some(file), tmp_path: Some(tmp_path.clone()), final_path };
     write.write_all(b"tarball").await.unwrap();
 
     assert!(write.finalize().await.is_err());
-    assert!(
-        !tmp_path.exists(),
-        "failed finalization must remove its temporary file",
-    );
+    assert!(!tmp_path.exists(), "failed finalization must remove its temporary file");
 }
 
 #[tokio::test]
@@ -268,15 +242,9 @@ async fn package_index_migrates_nested_legacy_documents_and_ignores_removed_ones
     fs::write(root.join("acme/app/package.json"), b"{}").await.unwrap();
     fs::write(root.join("acme/app/tool/package.json"), b"{}").await.unwrap();
     storage.rebuild_package_index().await.unwrap();
-    assert_eq!(
-        storage.hosted_package_names().await.unwrap(),
-        ["acme/app", "acme/app/tool"],
-    );
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app", "acme/app/tool"]);
     fs::remove_file(root.join("acme/app/package.json")).await.unwrap();
-    assert_eq!(
-        storage.hosted_package_names().await.unwrap(),
-        ["acme/app/tool"],
-    );
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app/tool"]);
 }
 
 #[tokio::test]

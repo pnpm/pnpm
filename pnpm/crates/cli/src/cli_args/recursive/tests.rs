@@ -18,10 +18,7 @@ fn make_graph(adjacency: &[(&str, &[&str])]) -> ProjectGraph<()> {
     adjacency
         .iter()
         .map(|(dir, deps)| {
-            let node = ProjectGraphNode {
-                package: (),
-                dependencies: dirs(deps),
-            };
+            let node = ProjectGraphNode { package: (), dependencies: dirs(deps) };
             (PathBuf::from(dir), node)
         })
         .collect()
@@ -44,10 +41,7 @@ fn select(graph: &ProjectGraph<()>, names: &[&str]) -> ProjectGraph<()> {
 /// Concatenate selected subsets in order, so a project a `--filter-prod`
 /// selector contributed keeps the prod-pruned edges it was selected with.
 fn merge(graphs: [ProjectGraph<()>; 2]) -> ProjectGraph<()> {
-    graphs
-        .into_iter()
-        .flatten()
-        .collect()
+    graphs.into_iter().flatten().collect()
 }
 
 fn dirs(names: &[&str]) -> Vec<PathBuf> {
@@ -94,38 +88,26 @@ fn sorts_every_project_when_only_one_graph_is_given() {
 #[test]
 fn orders_selected_projects_connected_only_through_an_unselected_project() {
     let graph = make_graph(&[("a", &["b"]), ("b", &["c"]), ("c", &[])]);
-    assert_eq!(
-        sequence_graph(&select(&graph, &["a", "c"]), &graph).order,
-        dirs(&["c", "a"]),
-    );
+    assert_eq!(sequence_graph(&select(&graph, &["a", "c"]), &graph).order, dirs(&["c", "a"]));
 }
 
 #[test]
 fn keeps_independent_selected_projects_in_selection_order() {
     let graph = make_graph(&[("a", &["b"]), ("b", &[]), ("c", &[])]);
-    assert_eq!(
-        sequence_graph(&select(&graph, &["a", "c"]), &graph).order,
-        dirs(&["a", "c"]),
-    );
+    assert_eq!(sequence_graph(&select(&graph, &["a", "c"]), &graph).order, dirs(&["a", "c"]));
 }
 
 #[test]
 fn resolves_transitive_edges_across_a_diamond_of_unselected_projects() {
     let graph = make_graph(&[("a", &["x", "y"]), ("x", &["c"]), ("y", &["c"]), ("c", &[])]);
-    assert_eq!(
-        sequence_graph(&select(&graph, &["a", "c"]), &graph).order,
-        dirs(&["c", "a"]),
-    );
+    assert_eq!(sequence_graph(&select(&graph, &["a", "c"]), &graph).order, dirs(&["c", "a"]));
 }
 
 #[test]
 fn without_a_full_graph_resolution_is_limited_to_edges_among_the_sorted_projects() {
     let graph = make_graph(&[("a", &["b"]), ("b", &["c"]), ("c", &[])]);
     let selected = select(&graph, &["a", "c"]);
-    assert_eq!(
-        sequence_graph(&selected, &selected).order,
-        dirs(&["a", "c"]),
-    );
+    assert_eq!(sequence_graph(&selected, &selected).order, dirs(&["a", "c"]));
 }
 
 #[test]
@@ -133,20 +115,14 @@ fn does_not_reintroduce_edges_that_the_selected_graph_pruned() {
     let full_graph = make_graph(&[("a", &["b"]), ("b", &[])]);
     // The selection dropped a's edge to b, as a prod-only filter drops dev edges.
     let selected = make_graph(&[("a", &[]), ("b", &[])]);
-    assert_eq!(
-        sequence_graph(&selected, &full_graph).order,
-        dirs(&["a", "b"]),
-    );
+    assert_eq!(sequence_graph(&selected, &full_graph).order, dirs(&["a", "b"]));
 }
 
 #[test]
 fn filtered_projects_dependencies_resolves_transitive_order_for_regular_filters() {
     let full = make_graph(&[("a", &["b"]), ("b", &["c"]), ("c", &[])]);
     let selected = select(&full, &["a", "c"]);
-    assert_eq!(
-        filtered_order(&selected, &full, None, &prod_only(&[])),
-        dirs(&["c", "a"]),
-    );
+    assert_eq!(filtered_order(&selected, &full, None, &prod_only(&[])), dirs(&["c", "a"]));
 }
 
 #[test]
@@ -175,20 +151,9 @@ fn filtered_projects_dependencies_orders_a_prod_only_selection_by_transitive_pro
 
 #[test]
 fn filtered_projects_dependencies_keeps_prod_only_roots_on_the_prod_graph_in_mixed_selections() {
-    let full = make_graph(&[
-        ("a", &["b"]),
-        ("b", &["c"]),
-        ("c", &["x"]),
-        ("x", &["a"]),
-        ("d", &[]),
-    ]);
-    let prod = make_graph(&[
-        ("a", &["b"]),
-        ("b", &["c"]),
-        ("c", &["x"]),
-        ("x", &[]),
-        ("d", &[]),
-    ]);
+    let full =
+        make_graph(&[("a", &["b"]), ("b", &["c"]), ("c", &["x"]), ("x", &["a"]), ("d", &[])]);
+    let prod = make_graph(&[("a", &["b"]), ("b", &["c"]), ("c", &["x"]), ("x", &[]), ("d", &[])]);
     let selected = merge([select(&prod, &["a", "c"]), select(&full, &["d"])]);
     assert_eq!(
         filtered_order(&selected, &full, Some(&prod), &prod_only(&["a", "c"])),

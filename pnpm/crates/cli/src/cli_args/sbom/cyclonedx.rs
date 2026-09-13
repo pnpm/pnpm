@@ -65,11 +65,7 @@ fn cyclonedx_metadata(
     root_component: &serde_json::Value,
 ) -> serde_json::Value {
     let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-    let phase = if opts.lockfile_only {
-        "pre-build"
-    } else {
-        "build"
-    };
+    let phase = if opts.lockfile_only { "pre-build" } else { "build" };
 
     let mut metadata = serde_json::json!({
         "timestamp": timestamp,
@@ -223,9 +219,7 @@ fn cyclonedx_dependencies(result: &SbomResult, root_purl: &str) -> Vec<serde_jso
 fn integrity_to_hashes(integrity: &str) -> Option<Vec<serde_json::Value>> {
     let mut hashes = Vec::new();
     for part in integrity.split_whitespace() {
-        let Some((alg, hash)) = part.split_once('-') else {
-            continue;
-        };
+        let Some((alg, hash)) = part.split_once('-') else { continue };
         let cdx_alg = match alg {
             "sha1" => "SHA-1",
             "sha256" => "SHA-256",
@@ -240,9 +234,5 @@ fn integrity_to_hashes(integrity: &str) -> Option<Vec<serde_json::Value>> {
             "content": hex,
         }));
     }
-    if hashes.is_empty() {
-        None
-    } else {
-        Some(hashes)
-    }
+    if hashes.is_empty() { None } else { Some(hashes) }
 }

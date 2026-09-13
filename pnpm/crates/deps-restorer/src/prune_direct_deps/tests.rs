@@ -17,11 +17,7 @@ fn lockfile_with_root_importer(snapshot: ProjectSnapshot) -> Lockfile {
     let mut importers = HashMap::new();
     importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), snapshot);
     Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer {
-            major: 9,
-            minor: 0,
-        })
-        .unwrap(),
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor: 0 }).unwrap(),
         settings: None,
         catalogs: None,
         overrides: None,
@@ -100,10 +96,7 @@ fn removes_only_excluded_direct_dep_links_and_their_bins() {
     let modules_dir = workspace_root.join("node_modules");
 
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("pacquet-store")
-        .into();
+    config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
@@ -172,10 +165,7 @@ fn refuses_to_prune_through_a_modules_dir_escaping_the_workspace() {
     pnpm_fs::symlink_dir(&outside, &modules_dir).unwrap();
 
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("pacquet-store")
-        .into();
+    config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
@@ -209,10 +199,7 @@ fn skips_shim_removal_through_a_symlinked_bin_dir() {
     let outside_bins = workspace_root.join("outside-bins");
 
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("pacquet-store")
-        .into();
+    config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
@@ -256,10 +243,7 @@ fn refuses_to_unlink_through_a_symlinked_scope_dir() {
     let outside_scope = workspace_root.join("outside-scope");
 
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("pacquet-store")
-        .into();
+    config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
@@ -298,10 +282,7 @@ fn widening_the_selection_removes_nothing() {
     let modules_dir = workspace_root.join("node_modules");
 
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("pacquet-store")
-        .into();
+    config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     let config = config.leak();
@@ -334,10 +315,7 @@ fn prune_direct_deps_respects_trusted_importer_allow_set() {
     let unselected_modules = workspace_root.join("packages/unselected/node_modules");
 
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("pacquet-store")
-        .into();
+    config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = workspace_root.join("node_modules");
     config.virtual_store_dir = config.modules_dir.join(".pacquet");
     let config = config.leak();

@@ -21,11 +21,7 @@ fn native_shim_preserves_non_shell_identifier_environment_variables() {
         .output()
         .unwrap();
 
-    assert!(
-        output.status.success(),
-        "stderr:\n{}",
-        String::from_utf8_lossy(&output.stderr),
-    );
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "123");
 }
 
@@ -51,16 +47,10 @@ fn native_shim_dispatches_and_falls_back_to_cmd_targets() {
     fs::write(global_package.join("package.json"), r#"{"name":"tool"}"#).unwrap();
     fs::write(&local_target, "@ECHO local:%*\r\n").unwrap();
     fs::write(&global_target, "@ECHO global:%*\r\n").unwrap();
-    fs::write(
-        local_bin.join("tool"),
-        format!("# cmd-shim-target={}\n", local_target.display()),
-    )
-    .unwrap();
-    fs::write(
-        local_bin.join("tool.cmd"),
-        format!("@CALL \"{}\" %*\r\n", local_target.display()),
-    )
-    .unwrap();
+    fs::write(local_bin.join("tool"), format!("# cmd-shim-target={}\n", local_target.display()))
+        .unwrap();
+    fs::write(local_bin.join("tool.cmd"), format!("@CALL \"{}\" %*\r\n", local_target.display()))
+        .unwrap();
 
     let local = windows_shim_command(&root, &project, "tool", &global_target)
         .arg("value with spaces")
@@ -74,10 +64,7 @@ fn native_shim_dispatches_and_falls_back_to_cmd_targets() {
         "stdout:\n{local_stdout}\nstderr:\n{}",
         String::from_utf8_lossy(&local.stderr),
     );
-    assert!(
-        local_stdout.contains("value with spaces"),
-        "stdout:\n{local_stdout}",
-    );
+    assert!(local_stdout.contains("value with spaces"), "stdout:\n{local_stdout}");
 
     let global = windows_shim_command(&root, &outside, "tool", &global_target)
         .arg("value with spaces")
@@ -89,10 +76,7 @@ fn native_shim_dispatches_and_falls_back_to_cmd_targets() {
         "stdout:\n{global_stdout}\nstderr:\n{}",
         String::from_utf8_lossy(&global.stderr),
     );
-    assert!(
-        global_stdout.contains("value with spaces"),
-        "stdout:\n{global_stdout}",
-    );
+    assert!(global_stdout.contains("value with spaces"), "stdout:\n{global_stdout}");
 }
 
 #[cfg(windows)]
@@ -109,11 +93,7 @@ fn native_shim_runs_the_global_executable_fallback() {
         .output()
         .unwrap();
 
-    assert!(
-        output.status.success(),
-        "stderr:\n{}",
-        String::from_utf8_lossy(&output.stderr),
-    );
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
     assert!(String::from_utf8_lossy(&output.stdout).contains("native-fallback"));
 }
 
@@ -125,11 +105,8 @@ fn legacy_shim_launch_dispatches_and_migrates_the_bin_dir() {
     let global_bin = root.path().join("global-bin");
     let other = install_legacy_shim(&global_bin, "other", "pkg:other");
     let shim = install_legacy_shim(&global_bin, "tool", global_target.to_str().unwrap());
-    fs::write(
-        project.join("node_modules/tool/cli.sh"),
-        "#!/bin/sh\nprintf '<%s>\\n' \"$@\"\n",
-    )
-    .unwrap();
+    fs::write(project.join("node_modules/tool/cli.sh"), "#!/bin/sh\nprintf '<%s>\\n' \"$@\"\n")
+        .unwrap();
     let launch = |shim: &Path| {
         Command::new(shim)
             .without_ambient_pnpm_config()
@@ -147,15 +124,8 @@ fn legacy_shim_launch_dispatches_and_migrates_the_bin_dir() {
     };
 
     let first = launch(&shim);
-    assert!(
-        first.status.success(),
-        "stderr:\n{}",
-        String::from_utf8_lossy(&first.stderr),
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&first.stdout).trim(),
-        "<--flag>\n<value with spaces>",
-    );
+    assert!(first.status.success(), "stderr:\n{}", String::from_utf8_lossy(&first.stderr));
+    assert_eq!(String::from_utf8_lossy(&first.stdout).trim(), "<--flag>\n<value with spaces>");
 
     let executable_len = fs::metadata(assert_cmd::cargo::cargo_bin("pnpm")).unwrap().len();
     for name in ["tool", "other"] {
@@ -169,22 +139,12 @@ fn legacy_shim_launch_dispatches_and_migrates_the_bin_dir() {
         fs::read(global_bin.join(".pnpm-shim-v1-tool-target")).unwrap(),
         global_target.as_os_str().as_encoded_bytes(),
     );
-    assert_eq!(
-        fs::read(global_bin.join(".pnpm-shim-v1-other-target")).unwrap(),
-        b"pkg:other",
-    );
+    assert_eq!(fs::read(global_bin.join(".pnpm-shim-v1-other-target")).unwrap(), b"pkg:other");
     assert!(!global_bin.join(".pnpm-shim-v1").exists());
 
     let second = launch(&shim);
-    assert!(
-        second.status.success(),
-        "stderr:\n{}",
-        String::from_utf8_lossy(&second.stderr),
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&second.stdout).trim(),
-        "<--flag>\n<value with spaces>",
-    );
+    assert!(second.status.success(), "stderr:\n{}", String::from_utf8_lossy(&second.stderr));
+    assert_eq!(String::from_utf8_lossy(&second.stdout).trim(), "<--flag>\n<value with spaces>");
     let unprovided = launch(&other);
     assert!(!unprovided.status.success());
     assert!(String::from_utf8_lossy(&unprovided.stderr).contains("ERR_PNPM_SHIM_NO_TARGET"));
@@ -234,11 +194,7 @@ fn legacy_shim_dispatches_without_waiting_for_the_migration_lock() {
         .output()
         .unwrap();
 
-    assert!(
-        output.status.success(),
-        "stderr:\n{}",
-        String::from_utf8_lossy(&output.stderr),
-    );
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "launched");
     assert!(global_bin.join(".pnpm-shim-v1").exists());
     assert!(fs::read(&shim).unwrap().starts_with(b"#!"));
@@ -276,10 +232,7 @@ fn adding_a_shim_migrates_the_legacy_shim_for_the_same_package() {
         .unwrap();
 
     assert!(stdout_of(&added).contains("yarn, yarnpkg"));
-    assert_eq!(
-        fs::read(global_bin.join(".pnpm-shim-v1-yarn-target")).unwrap(),
-        b"pkg:yarn",
-    );
+    assert_eq!(fs::read(global_bin.join(".pnpm-shim-v1-yarn-target")).unwrap(), b"pkg:yarn");
     assert_eq!(
         fs::metadata(&legacy).unwrap().len(),
         fs::metadata(assert_cmd::cargo::cargo_bin("pnpm")).unwrap().len(),

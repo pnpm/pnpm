@@ -69,10 +69,7 @@ fn lockfile_local_path_rejects_workspace_escape() {
 
     let err = validate_lockfile_local_path(&workspace.join("../outside"), workspace)
         .expect_err("parent traversal should be rejected");
-    assert!(
-        err.to_string().contains("outside workspace"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("outside workspace"), "unexpected error: {err}");
 }
 
 #[test]
@@ -176,14 +173,8 @@ fn index_projects_keeps_the_first_project_per_lossy_root() {
     // Both roots print as `a\u{FFFD}`, so they share a comparison key while
     // staying distinct paths.
     assert_first_project_wins(&[
-        workspace_project(
-            "first",
-            PathBuf::from(OsStr::from_bytes(b"/workspace/packages/a\xff")),
-        ),
-        workspace_project(
-            "second",
-            PathBuf::from(OsStr::from_bytes(b"/workspace/packages/a\xfe")),
-        ),
+        workspace_project("first", PathBuf::from(OsStr::from_bytes(b"/workspace/packages/a\xff"))),
+        workspace_project("second", PathBuf::from(OsStr::from_bytes(b"/workspace/packages/a\xfe"))),
     ]);
 }
 
@@ -199,19 +190,12 @@ fn index_projects_keeps_the_first_project_per_case_variant_root() {
 fn workspace_project(name: &str, root_dir: PathBuf) -> Project {
     let manifest =
         PackageManifest::from_value(root_dir.join("package.json"), json!({ "name": name }));
-    Project {
-        root_dir,
-        manifest,
-        dependency_manifest: None,
-    }
+    Project { root_dir, manifest, dependency_manifest: None }
 }
 
 /// The two projects must have distinct roots that share one comparison key.
 fn assert_first_project_wins(projects: &[Project; 2]) {
-    assert_ne!(
-        projects[0].root_dir, projects[1].root_dir,
-        "the roots must be distinct paths",
-    );
+    assert_ne!(projects[0].root_dir, projects[1].root_dir, "the roots must be distinct paths");
 
     let index = index_projects(projects);
 
@@ -219,11 +203,7 @@ fn assert_first_project_wins(projects: &[Project; 2]) {
     let project = index
         .get(&ProjectPathKey::new(&projects[1].root_dir))
         .expect("indexed project");
-    assert_eq!(
-        project.name.as_deref(),
-        Some("first"),
-        "the first discovered project wins",
-    );
+    assert_eq!(project.name.as_deref(), Some("first"), "the first discovered project wins");
 }
 
 #[cfg(unix)]
@@ -256,10 +236,7 @@ fn write_deploy_files_replaces_lockfile_symlink() {
         "do not overwrite\n",
     );
     let metadata = std::fs::symlink_metadata(&lockfile_path).expect("read lockfile metadata");
-    assert!(
-        !metadata.file_type().is_symlink(),
-        "lockfile symlink should be replaced",
-    );
+    assert!(!metadata.file_type().is_symlink(), "lockfile symlink should be replaced");
     assert_eq!(
         std::fs::read_to_string(&lockfile_path).expect("read deployed lockfile"),
         "lockfileVersion: '9.0'\n",
@@ -269,18 +246,9 @@ fn write_deploy_files_replaces_lockfile_symlink() {
 #[cfg(windows)]
 #[test]
 fn windows_path_comparison_matches_case_variants() {
-    assert!(same_path(
-        Path::new(r"C:\Workspace"),
-        Path::new(r"c:\workspace")
-    ));
-    assert!(is_child_path(
-        Path::new(r"c:\workspace\out"),
-        Path::new(r"C:\Workspace"),
-    ));
-    assert!(is_ancestor_path(
-        Path::new(r"c:\workspace"),
-        Path::new(r"C:\Workspace\packages\app"),
-    ));
+    assert!(same_path(Path::new(r"C:\Workspace"), Path::new(r"c:\workspace")));
+    assert!(is_child_path(Path::new(r"c:\workspace\out"), Path::new(r"C:\Workspace"),));
+    assert!(is_ancestor_path(Path::new(r"c:\workspace"), Path::new(r"C:\Workspace\packages\app"),));
 }
 
 #[cfg(windows)]

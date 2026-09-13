@@ -36,16 +36,10 @@ pub(crate) fn apply_published_by_policy(
 ) -> PublishedByView {
     let exclude_result = exclude.map_or(PolicyMatch::No, |policy| policy.matches(&meta.name));
     if matches!(exclude_result, PolicyMatch::AnyVersion) {
-        return PublishedByView {
-            filtered: None,
-            needs_full_metadata: false,
-        };
+        return PublishedByView { filtered: None, needs_full_metadata: false };
     }
     if meta.time.is_none() {
-        return PublishedByView {
-            filtered: None,
-            needs_full_metadata: true,
-        };
+        return PublishedByView { filtered: None, needs_full_metadata: true };
     }
     let trusted = match &exclude_result {
         PolicyMatch::ExactVersions(versions) => Some(versions.as_slice()),
@@ -188,9 +182,7 @@ pub(super) fn repopulate_dist_tags(
             dist_tags_within_date.insert(tag.clone(), version.clone());
             continue;
         }
-        let Ok(original) = Version::parse(version) else {
-            continue;
-        };
+        let Ok(original) = Version::parse(version) else { continue };
         let candidates = parsed_candidates.get_or_insert_with(|| {
             filtered_versions
                 .keys()
@@ -200,13 +192,9 @@ pub(super) fn repopulate_dist_tags(
                 })
                 .collect()
         });
-        if let Some(best) = best_tag_candidate(
-            candidates,
-            filtered_versions,
-            tag,
-            &original,
-            bound_dist_tags,
-        ) {
+        if let Some(best) =
+            best_tag_candidate(candidates, filtered_versions, tag, &original, bound_dist_tags)
+        {
             dist_tags_within_date.insert(tag.clone(), best.clone());
         }
     }

@@ -21,10 +21,7 @@ async fn cancelled_request_removes_its_pending_entry() {
 
     let call = worker.call("readPackage", serde_json::json!({}), Arc::new(|_| {}));
     let cancelled = timeout(Duration::from_millis(500), call).await;
-    assert!(
-        cancelled.is_err(),
-        "the never-resolving hook must outlive the local timeout",
-    );
+    assert!(cancelled.is_err(), "the never-resolving hook must outlive the local timeout");
 
     assert!(
         worker.pending
@@ -103,8 +100,7 @@ async fn call_read_package_concurrently(worker: &Arc<NodeWorker>, count: usize) 
     for _ in 0..count {
         let worker = Arc::clone(worker);
         calls.spawn(async move {
-            worker.call("readPackage", serde_json::json!({}), Arc::new(|_| {}))
-                .await
+            worker.call("readPackage", serde_json::json!({}), Arc::new(|_| {})).await
         });
     }
 

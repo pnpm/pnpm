@@ -19,10 +19,8 @@ packages:
 ",
     );
     let seen = Arc::new(Mutex::new(Vec::new()));
-    let verifier: Arc<dyn ResolutionVerifier> = Arc::new(CapturingVerifier {
-        seen: Arc::clone(&seen),
-        policy: serde_json::Map::new(),
-    });
+    let verifier: Arc<dyn ResolutionVerifier> =
+        Arc::new(CapturingVerifier { seen: Arc::clone(&seen), policy: serde_json::Map::new() });
 
     verify_lockfile_resolutions::<SilentReporter>(
         &lockfile,
@@ -49,10 +47,8 @@ async fn verifier_receives_the_lockfile_resolution_verbatim() {
         .resolution
         .clone();
     let seen = Arc::new(Mutex::new(Vec::new()));
-    let verifier: Arc<dyn ResolutionVerifier> = Arc::new(CapturingVerifier {
-        seen: Arc::clone(&seen),
-        policy: serde_json::Map::new(),
-    });
+    let verifier: Arc<dyn ResolutionVerifier> =
+        Arc::new(CapturingVerifier { seen: Arc::clone(&seen), policy: serde_json::Map::new() });
 
     verify_lockfile_resolutions::<SilentReporter>(
         &lockfile,
@@ -137,13 +133,7 @@ snapshots:
 
 #[tokio::test]
 async fn rejects_invalid_importer_alias_even_with_no_verifiers() {
-    for alias in [
-        "../../../escape",
-        "@scope/../../escape",
-        ".bin",
-        ".pnpm",
-        "node_modules",
-    ] {
+    for alias in ["../../../escape", "@scope/../../escape", ".bin", ".pnpm", "node_modules"] {
         let yaml = format!(
             "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      '{alias}':\n        specifier: ^1.0.0\n        version: 1.0.0\n\npackages:\n\n  real@1.0.0:\n    resolution: {{integrity: sha512-deadbeef}}\n\nsnapshots:\n\n  real@1.0.0: {{}}\n",
         );
@@ -159,10 +149,7 @@ async fn rejects_invalid_importer_alias_even_with_no_verifiers() {
             panic!("expected InvalidDependencyAlias for {alias:?}, got {err:?}");
         };
         assert_eq!(count, 1);
-        assert!(
-            breakdown.contains(alias),
-            "breakdown {breakdown:?} should mention {alias:?}",
-        );
+        assert!(breakdown.contains(alias), "breakdown {breakdown:?} should mention {alias:?}");
     }
 }
 
@@ -183,16 +170,10 @@ importers:
         version: link:local
 ",
     );
-    assert!(
-        lockfile.packages.is_none(),
-        "fixture must have no packages section",
-    );
+    assert!(lockfile.packages.is_none(), "fixture must have no packages section");
     let err = super::super::verify_lockfile_dependency_names(&lockfile)
         .expect_err("a traversal alias in a packages-less lockfile must be rejected");
-    assert!(
-        matches!(err, VerifyError::InvalidDependencyAlias { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, VerifyError::InvalidDependencyAlias { .. }), "got {err:?}");
 }
 
 #[test]

@@ -204,9 +204,15 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
 
     let mut trees: Vec<DependentsTree> = Vec::new();
     for node_id in opts.graph.nodes.keys() {
-        let Some(dep_path) = installed_dep_path(lockfile, node_id) else {
+        let TreeNodeId::Package(dep_path) = node_id else {
             continue;
         };
+        if !lockfile.snapshots
+            .as_ref()
+            .is_some_and(|snapshots| snapshots.contains_key(dep_path))
+        {
+            continue;
+        }
         let (name, version) = name_ver_from_dep_path(lockfile, dep_path);
         let Some(resolved) = resolved_nodes.get(node_id) else {
             continue;
@@ -224,11 +230,8 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
             peers_suffix_hash: peers_suffix_hash(dep_path),
             dependents: walk_dependents_of(opts, &reverse_map, &resolved_nodes, node_id),
             search_message: matched.message().map(str::to_string),
-            manifest: ManifestProjector {
-                fields: opts.manifest_fields,
-                resolved: &resolved_nodes,
-            }
-            .project(node_id),
+            manifest: ManifestProjector { fields: opts.manifest_fields, resolved: &resolved_nodes }
+                .project(node_id),
         });
     }
 
@@ -280,10 +283,7 @@ fn invert_graph(graph: &DependencyGraph) -> HashMap<TreeNodeId, Vec<ReverseEdge>
             reverse
                 .entry(target.clone())
                 .or_default()
-                .push(ReverseEdge {
-                    parent: parent_id.clone(),
-                    alias: edge.alias.clone(),
-                });
+                .push(ReverseEdge { parent: parent_id.clone(), alias: edge.alias.clone() });
         }
     }
     reverse
@@ -431,16 +431,3 @@ fn dep_field_for_alias(alias: &str, importer: &ProjectSnapshot) -> Option<DepFie
 mod selection;
 
 use selection::{has_snapshot, match_package};
-
-fn installed_dep_path<'node>(
-    lockfile: &pnpm_lockfile::Lockfile,
-    node_id: &'node TreeNodeId,
-) -> Option<&'node pnpm_lockfile::PkgNameVerPeer> {
-    let TreeNodeId::Package(dep_path) = node_id else {
-        return None;
-    };
-    lockfile.snapshots
-        .as_ref()
-        .filter(|snapshots| snapshots.contains_key(dep_path))
-        .map(|_| dep_path)
-}

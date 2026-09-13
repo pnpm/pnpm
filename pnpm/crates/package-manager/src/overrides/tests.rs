@@ -67,10 +67,7 @@ fn override_rewrites_optional_and_dev_dependencies() {
 
     assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("1.0.0"));
     assert_eq!(dep_spec(&manifest, "devDependencies", "bar"), Some("2.0.0"));
-    assert_eq!(
-        dep_spec(&manifest, "optionalDependencies", "baz"),
-        Some("3.0.0"),
-    );
+    assert_eq!(dep_spec(&manifest, "optionalDependencies", "baz"), Some("3.0.0"));
 }
 
 #[test]
@@ -184,11 +181,7 @@ fn parent_scoped_override_takes_precedence_over_generic() {
 
 #[test]
 fn link_protocol_override_absolute_path_written_verbatim() {
-    let abs = if cfg!(windows) {
-        r"C:\workspace\local-foo"
-    } else {
-        "/tmp/local-foo"
-    };
+    let abs = if cfg!(windows) { r"C:\workspace\local-foo" } else { "/tmp/local-foo" };
     let spec = format!("link:{abs}");
     let overrides = parsed(&[("foo", &spec)]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
@@ -206,11 +199,7 @@ fn link_protocol_override_absolute_path_written_verbatim() {
     // (matches upstream's `normalizePath`) but the absolute prefix is
     // host-specific.
     let stripped = rewritten.strip_prefix("link:").unwrap();
-    let normalized_abs = if cfg!(windows) {
-        abs.replace('\\', "/")
-    } else {
-        abs.to_string()
-    };
+    let normalized_abs = if cfg!(windows) { abs.replace('\\', "/") } else { abs.to_string() };
     assert_eq!(stripped, normalized_abs);
 }
 
@@ -299,10 +288,7 @@ fn override_with_valid_peer_range_rewrites_peer_dependencies() {
     }));
     overrider.apply(&mut manifest, Some(Path::new("/workspace")));
 
-    assert_eq!(
-        dep_spec(&manifest, "peerDependencies", "ajv"),
-        Some(">=8.18.0"),
-    );
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "ajv"), Some(">=8.18.0"));
     assert_eq!(dep_spec(&manifest, "dependencies", "ajv"), None);
 }
 
@@ -322,10 +308,7 @@ fn override_with_non_peer_range_lands_in_dependencies_and_keeps_the_peer() {
         dep_spec(&manifest, "dependencies", "istanbul-reports"),
         Some("npm:@zkochan/istanbul-reports"),
     );
-    assert_eq!(
-        dep_spec(&manifest, "peerDependencies", "istanbul-reports"),
-        Some("^3.0.0"),
-    );
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "istanbul-reports"), Some("^3.0.0"));
 }
 
 #[test]
@@ -340,14 +323,8 @@ fn dash_override_deletes_the_peer_dependency() {
     }));
     overrider.apply(&mut manifest, Some(Path::new("/workspace")));
 
-    assert_eq!(
-        dep_spec(&manifest, "peerDependencies", "unwanted-peer"),
-        None,
-    );
-    assert_eq!(
-        dep_spec(&manifest, "peerDependencies", "kept"),
-        Some("^2.0.0"),
-    );
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "unwanted-peer"), None);
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "kept"), Some("^2.0.0"));
 }
 
 #[test]
@@ -360,24 +337,15 @@ fn convergence_override_rewrites_only_edges_its_version_satisfies() {
         "optionalDependencies": { "other-form-data": "^3.0.0" },
     }));
     overrider.apply(&mut satisfied, Some(Path::new("/workspace")));
-    assert_eq!(
-        dep_spec(&satisfied, "dependencies", "form-data"),
-        Some("4.0.6"),
-    );
-    assert_eq!(
-        dep_spec(&satisfied, "optionalDependencies", "other-form-data"),
-        Some("^3.0.0"),
-    );
+    assert_eq!(dep_spec(&satisfied, "dependencies", "form-data"), Some("4.0.6"));
+    assert_eq!(dep_spec(&satisfied, "optionalDependencies", "other-form-data"), Some("^3.0.0"));
 
     // Incompatible with 4.0.6, so the edge keeps its own resolution.
     let mut incompatible = manifest_from_value(json!({
         "dependencies": { "form-data": "^3.0.0" },
     }));
     overrider.apply(&mut incompatible, Some(Path::new("/workspace")));
-    assert_eq!(
-        dep_spec(&incompatible, "dependencies", "form-data"),
-        Some("^3.0.0"),
-    );
+    assert_eq!(dep_spec(&incompatible, "dependencies", "form-data"), Some("^3.0.0"));
 }
 
 #[test]
@@ -392,18 +360,9 @@ fn convergence_override_skips_non_range_specifiers() {
     }));
     overrider.apply(&mut manifest, Some(Path::new("/workspace")));
 
-    assert_eq!(
-        dep_spec(&manifest, "dependencies", "foo"),
-        Some("github:org/foo"),
-    );
-    assert_eq!(
-        dep_spec(&manifest, "devDependencies", "foo"),
-        Some("workspace:^"),
-    );
-    assert_eq!(
-        dep_spec(&manifest, "optionalDependencies", "foo"),
-        Some("latest"),
-    );
+    assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("github:org/foo"));
+    assert_eq!(dep_spec(&manifest, "devDependencies", "foo"), Some("workspace:^"));
+    assert_eq!(dep_spec(&manifest, "optionalDependencies", "foo"), Some("latest"));
 }
 
 #[test]
@@ -436,10 +395,7 @@ fn convergence_override_rewrites_peer_dependencies_it_satisfies() {
     }));
     overrider.apply(&mut manifest, Some(Path::new("/workspace")));
 
-    assert_eq!(
-        dep_spec(&manifest, "peerDependencies", "foo"),
-        Some("4.0.6"),
-    );
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "foo"), Some("4.0.6"));
     assert_eq!(dep_spec(&manifest, "dependencies", "foo"), None);
 }
 
@@ -516,10 +472,7 @@ fn apply_to_arc_clones_when_only_a_peer_matches() {
     }));
     let updated = overrider.apply_to_arc(std::sync::Arc::clone(&original), None);
 
-    assert!(
-        !std::sync::Arc::ptr_eq(&original, &updated),
-        "peer-only match must clone",
-    );
+    assert!(!std::sync::Arc::ptr_eq(&original, &updated), "peer-only match must clone");
     assert_eq!(
         updated
             .get("peerDependencies")
@@ -534,14 +487,8 @@ fn override_for_undeclared_dependency_applies_generic_overrides() {
     let overrides = parsed(&[("react", "npm:react@19.2.0"), ("zoo@^1", "1.0.0")]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
 
-    assert_eq!(
-        undeclared(&overrider, "react", "^18.0.0").as_deref(),
-        Some("npm:react@19.2.0"),
-    );
-    assert_eq!(
-        undeclared(&overrider, "zoo", "^1.5.0").as_deref(),
-        Some("1.0.0"),
-    );
+    assert_eq!(undeclared(&overrider, "react", "^18.0.0").as_deref(), Some("npm:react@19.2.0"));
+    assert_eq!(undeclared(&overrider, "zoo", "^1.5.0").as_deref(), Some("1.0.0"));
     assert_eq!(undeclared(&overrider, "zoo", "^2.0.0"), None);
     assert_eq!(undeclared(&overrider, "qar", "^1.0.0"), None);
 }
@@ -551,10 +498,7 @@ fn override_for_undeclared_dependency_resolves_a_local_target_relative_to_the_pa
     let overrides = parsed(&[("qar", "link:../qar")]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
 
-    assert_eq!(
-        undeclared(&overrider, "qar", "^1.0.0").as_deref(),
-        Some("link:../../qar"),
-    );
+    assert_eq!(undeclared(&overrider, "qar", "^1.0.0").as_deref(), Some("link:../../qar"));
 }
 
 #[test]
@@ -570,10 +514,7 @@ fn override_for_undeclared_dependency_applies_converge_only_within_range() {
     let overrides = parsed(&[("react@", "18.3.1")]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
 
-    assert_eq!(
-        undeclared(&overrider, "react", "^18.0.0").as_deref(),
-        Some("18.3.1"),
-    );
+    assert_eq!(undeclared(&overrider, "react", "^18.0.0").as_deref(), Some("18.3.1"));
     assert_eq!(undeclared(&overrider, "react", "^19.0.0"), None);
     assert!(overrider.converge_declared_ranges().is_empty());
 }

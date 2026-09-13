@@ -77,10 +77,7 @@ fn spec_diff_display_lists_added_removed_modified() {
     diff.added.insert("lodash".to_string(), "^4.0.0".to_string());
     diff.added.insert("ramda".to_string(), "^0.30.0".to_string());
     diff.removed.insert("underscore".to_string(), "^1.0.0".to_string());
-    diff.modified.insert(
-        "react".to_string(),
-        ("^17.0.2".to_string(), "^18.0.0".to_string()),
-    );
+    diff.modified.insert("react".to_string(), ("^17.0.2".to_string(), "^18.0.0".to_string()));
     let rendered = diff.to_string();
     assert!(rendered.contains("2 dependencies were added: "));
     assert!(rendered.contains("1 dependency was removed: underscore@^1.0.0"));
@@ -126,28 +123,16 @@ fn spec_diff_display_lists_plural_removed_and_modified_with_separators() {
     let mut diff = super::super::SpecDiff::default();
     diff.removed.insert("alpha".to_string(), "^1.0.0".to_string());
     diff.removed.insert("beta".to_string(), "^2.0.0".to_string());
-    diff.modified.insert(
-        "gamma".to_string(),
-        ("^3.0.0".to_string(), "^4.0.0".to_string()),
-    );
-    diff.modified.insert(
-        "delta".to_string(),
-        ("^0.1.0".to_string(), "^0.2.0".to_string()),
-    );
+    diff.modified.insert("gamma".to_string(), ("^3.0.0".to_string(), "^4.0.0".to_string()));
+    diff.modified.insert("delta".to_string(), ("^0.1.0".to_string(), "^0.2.0".to_string()));
     let rendered = diff.to_string();
-    assert!(
-        rendered.contains("2 dependencies were removed: "),
-        "got: {rendered:?}",
-    );
+    assert!(rendered.contains("2 dependencies were removed: "), "got: {rendered:?}");
     assert!(
         rendered.contains("alpha@^1.0.0, beta@^2.0.0")
             || rendered.contains("beta@^2.0.0, alpha@^1.0.0"),
         "expected comma-joined removed entries, got: {rendered:?}",
     );
-    assert!(
-        rendered.contains("2 dependencies are mismatched:"),
-        "got: {rendered:?}",
-    );
+    assert!(rendered.contains("2 dependencies are mismatched:"), "got: {rendered:?}");
 }
 
 #[test]

@@ -15,10 +15,8 @@ use std::{
 fn layout_cache_fingerprint_tracks_every_derivation_input() {
     let key: PackageKey = "foo@1.0.0".parse().expect("parse key");
     let dep: PackageKey = "bar@2.0.0".parse().expect("parse key");
-    let snapshots = HashMap::from([
-        (key.clone(), depends_on("bar")),
-        (dep.clone(), SnapshotEntry::default()),
-    ]);
+    let snapshots =
+        HashMap::from([(key.clone(), depends_on("bar")), (dep.clone(), SnapshotEntry::default())]);
     let packages = HashMap::from([
         (key.clone(), registry_metadata("a")),
         (dep.clone(), registry_metadata("b")),
@@ -33,34 +31,17 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
         super::super::GvsHasher::new(snapshots, Some(packages), engine, policy, dir)
             .fingerprint(snapshots)
     };
-    let baseline = fingerprint(
-        &snapshots,
-        &packages,
-        Some("linux;x64;22"),
-        Some(&policy),
-        Some(&dir),
-    );
+    let baseline =
+        fingerprint(&snapshots, &packages, Some("linux;x64;22"), Some(&policy), Some(&dir));
 
     assert_eq!(
         baseline,
-        fingerprint(
-            &snapshots,
-            &packages,
-            Some("linux;x64;22"),
-            Some(&policy),
-            Some(&dir)
-        ),
+        fingerprint(&snapshots, &packages, Some("linux;x64;22"), Some(&policy), Some(&dir)),
         "the same inputs must fingerprint identically",
     );
     assert_ne!(
         baseline,
-        fingerprint(
-            &snapshots,
-            &packages,
-            Some("linux;x64;24"),
-            Some(&policy),
-            Some(&dir)
-        ),
+        fingerprint(&snapshots, &packages, Some("linux;x64;24"), Some(&policy), Some(&dir)),
         "a different node major must retire the entry",
     );
     assert_ne!(
@@ -75,13 +56,7 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
     );
     assert_ne!(
         baseline,
-        fingerprint(
-            &snapshots,
-            &packages,
-            Some("linux;x64;22"),
-            Some(&policy),
-            None
-        ),
+        fingerprint(&snapshots, &packages, Some("linux;x64;22"), Some(&policy), None),
         "the project scope enters every local directory snapshot's hash",
     );
 
@@ -89,13 +64,7 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
     rewired.insert(key.clone(), SnapshotEntry::default());
     assert_ne!(
         baseline,
-        fingerprint(
-            &rewired,
-            &packages,
-            Some("linux;x64;22"),
-            Some(&policy),
-            Some(&dir)
-        ),
+        fingerprint(&rewired, &packages, Some("linux;x64;22"), Some(&policy), Some(&dir)),
         "dropping a dependency edge must retire the entry",
     );
 
@@ -103,13 +72,7 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
     republished.insert(dep, registry_metadata("c"));
     assert_ne!(
         baseline,
-        fingerprint(
-            &snapshots,
-            &republished,
-            Some("linux;x64;22"),
-            Some(&policy),
-            Some(&dir)
-        ),
+        fingerprint(&snapshots, &republished, Some("linux;x64;22"), Some(&policy), Some(&dir)),
         "a changed integrity must retire the entry, even at the same version",
     );
 
@@ -119,13 +82,7 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
     revisioned.insert(key, metadata);
     assert_ne!(
         baseline,
-        fingerprint(
-            &snapshots,
-            &revisioned,
-            Some("linux;x64;22"),
-            Some(&policy),
-            Some(&dir)
-        ),
+        fingerprint(&snapshots, &revisioned, Some("linux;x64;22"), Some(&policy), Some(&dir)),
         "the version segment is part of the suffix, so it is part of the key",
     );
 
@@ -133,26 +90,14 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
         crate::AllowBuildPolicy::new(HashSet::from(["bar".to_string()]), HashSet::new(), false);
     assert_ne!(
         baseline,
-        fingerprint(
-            &snapshots,
-            &packages,
-            Some("linux;x64;22"),
-            Some(&builds),
-            Some(&dir)
-        ),
+        fingerprint(&snapshots, &packages, Some("linux;x64;22"), Some(&builds), Some(&dir)),
         "the allow-build policy decides which snapshots carry the engine",
     );
     // No policy turns the gating off, which puts the engine in every
     // snapshot's hash — the opposite of what an empty policy does.
     assert_ne!(
         baseline,
-        fingerprint(
-            &snapshots,
-            &packages,
-            Some("linux;x64;22"),
-            None,
-            Some(&dir)
-        ),
+        fingerprint(&snapshots, &packages, Some("linux;x64;22"), None, Some(&dir)),
         "an absent policy and one that allows nothing must not share an entry",
     );
 }
@@ -171,10 +116,8 @@ fn layout_cache_load_rejects_a_map_it_cannot_vouch_for() {
         (foo.clone(), SnapshotEntry::default()),
         (bar.clone(), SnapshotEntry::default()),
     ]);
-    let expected = super::super::gvs_layout_cache::Expected {
-        snapshots: &snapshots,
-        packages: None,
-    };
+    let expected =
+        super::super::gvs_layout_cache::Expected { snapshots: &snapshots, packages: None };
     let suffixes = HashMap::from([
         (foo.clone(), format!("@scope/foo/1.2.3/{DIGEST_A}")),
         (bar.clone(), format!("@/bar/4.5.6/{DIGEST_B}")),
@@ -216,10 +159,7 @@ fn layout_cache_load_rejects_a_map_it_cannot_vouch_for() {
             "@scope/foo@1.2.3".parse::<PackageKey>().expect("parse key"),
             "@scope/foo/1.2.3/../../../../../../tmp/evil".to_string(),
         ),
-        (
-            "bar@4.5.6".parse::<PackageKey>().expect("parse key"),
-            format!("@/bar/4.5.6/{DIGEST_B}"),
-        ),
+        ("bar@4.5.6".parse::<PackageKey>().expect("parse key"), format!("@/bar/4.5.6/{DIGEST_B}")),
     ]);
     super::super::gvs_layout_cache::store(file("fingerprint"), &traversing);
     assert_eq!(

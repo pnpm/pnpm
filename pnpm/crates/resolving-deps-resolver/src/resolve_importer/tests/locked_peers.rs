@@ -77,10 +77,7 @@ fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
 #[test]
 fn hashed_peer_suffix_uses_package_peer_metadata() {
     let lockfile = peer_context_lockfile(
-        Some((
-            "consumer@1.0.0",
-            peer_declaring_metadata(["peer", "missing"]),
-        )),
+        Some(("consumer@1.0.0", peer_declaring_metadata(["peer", "missing"]))),
         [(
             "consumer@1.0.0(0123456789abcdef0123456789abcdef)",
             snapshot_with_dependency("peer", plain_dependency("1.0.0")),
@@ -90,10 +87,7 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
     let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
-        HashMap::from_iter([(
-            "peer".to_string(),
-            HashSet::from_iter(["1.0.0".to_string()])
-        )]),
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
     );
 }
 
@@ -110,10 +104,7 @@ fn explicit_peer_suffix_uses_the_dependency_alias() {
     let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
-        HashMap::from_iter([(
-            "peer".to_string(),
-            HashSet::from_iter(["1.0.0".to_string()])
-        )]),
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
     );
 }
 
@@ -136,10 +127,7 @@ fn an_ordinary_alias_onto_a_peers_provider_does_not_rename_it() {
     let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
-        HashMap::from_iter([(
-            "peer".to_string(),
-            HashSet::from_iter(["1.0.0".to_string()])
-        )]),
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
     );
 }
 
@@ -162,10 +150,7 @@ fn a_declared_peer_alias_outranks_a_competing_ordinary_alias() {
     let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
-        HashMap::from_iter([(
-            "peer".to_string(),
-            HashSet::from_iter(["1.0.0".to_string()])
-        )]),
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
     );
 }
 
@@ -174,10 +159,7 @@ fn a_declared_peer_alias_outranks_a_competing_ordinary_alias() {
 #[test]
 fn declared_peers_sharing_a_provider_each_get_their_alias_back() {
     let lockfile = peer_context_lockfile(
-        Some((
-            "consumer@1.0.0",
-            peer_declaring_metadata(["first", "second"]),
-        )),
+        Some(("consumer@1.0.0", peer_declaring_metadata(["first", "second"]))),
         [(
             "consumer@1.0.0(alias-provider@1.0.0)(alias-provider@1.0.0)",
             snapshot_with_dependencies([
@@ -191,14 +173,8 @@ fn declared_peers_sharing_a_provider_each_get_their_alias_back() {
     assert_eq!(
         versions,
         HashMap::from_iter([
-            (
-                "first".to_string(),
-                HashSet::from_iter(["1.0.0".to_string()])
-            ),
-            (
-                "second".to_string(),
-                HashSet::from_iter(["1.0.0".to_string()])
-            ),
+            ("first".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
+            ("second".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
         ]),
     );
 }
@@ -223,14 +199,8 @@ fn a_declared_peer_does_not_consume_the_propagated_peers_segment() {
     assert_eq!(
         versions,
         HashMap::from_iter([
-            (
-                "provider".to_string(),
-                HashSet::from_iter(["1.0.0".to_string()])
-            ),
-            (
-                "child-peer".to_string(),
-                HashSet::from_iter(["1.0.0".to_string()])
-            ),
+            ("provider".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
+            ("child-peer".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
         ]),
     );
 }
@@ -253,10 +223,7 @@ fn a_linked_dependency_is_not_a_peer_provider() {
     let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
-        HashMap::from_iter([(
-            "peer".to_string(),
-            HashSet::from_iter(["1.0.0".to_string()])
-        )]),
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
     );
 }
 
@@ -292,10 +259,7 @@ fn explicit_peer_suffix_of_an_undeclared_peer_is_kept() {
     let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
-        HashMap::from_iter([(
-            "peer".to_string(),
-            HashSet::from_iter(["2.0.0".to_string()])
-        )]),
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["2.0.0".to_string()]))]),
     );
 }
 
@@ -318,36 +282,21 @@ async fn auto_installs_missing_required_peer() {
     // peer's wanted range — "^18.0.0".
     table.insert(
         ("react".to_string(), "^18.0.0".to_string()),
-        fake_result(
-            "react",
-            "18.2.0",
-            serde_json::json!({ "name": "react", "version": "18.2.0" }),
-        ),
+        fake_result("react", "18.2.0", serde_json::json!({ "name": "react", "version": "18.2.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "react-dom": "18.0.0" }));
 
-    let result = resolve_importer(
-        &resolver,
-        &manifest,
-        [DependencyGroup::Prod],
-        default_opts(),
-    )
-    .await
-    .unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
 
     let direct_aliases: Vec<&str> = result.peers_result
         .direct_dependencies_by_alias
         .keys()
         .map(String::as_str)
         .collect();
-    assert!(
-        direct_aliases.contains(&"react"),
-        "react should be hoisted: {direct_aliases:?}",
-    );
+    assert!(direct_aliases.contains(&"react"), "react should be hoisted: {direct_aliases:?}");
     assert!(direct_aliases.contains(&"react-dom"));
     assert!(
         !result.peers_result.peer_dependency_issues.missing.contains_key("react"),
@@ -394,20 +343,12 @@ async fn transitive_required_peer_is_hoisted() {
             serde_json::json!({ "name": "peer-pkg", "version": "1.2.3" }),
         ),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "outer": "1.0.0" }));
 
-    let result = resolve_importer(
-        &resolver,
-        &manifest,
-        [DependencyGroup::Prod],
-        default_opts(),
-    )
-    .await
-    .unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
 
     let direct: Vec<&str> = result.peers_result.direct_dependencies_by_alias
         .keys()
@@ -449,35 +390,20 @@ async fn auto_install_skips_optional_peers_without_preferred_versions() {
     );
     table.insert(
         ("peer-a".to_string(), "^1.0.0".to_string()),
-        fake_result(
-            "peer-a",
-            "1.0.0",
-            serde_json::json!({ "name": "peer-a", "version": "1.0.0" }),
-        ),
+        fake_result("peer-a", "1.0.0", serde_json::json!({ "name": "peer-a", "version": "1.0.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "abc": "1.0.0" }));
 
-    let result = resolve_importer(
-        &resolver,
-        &manifest,
-        [DependencyGroup::Prod],
-        default_opts(),
-    )
-    .await
-    .unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
 
     let direct: Vec<&str> = result.peers_result.direct_dependencies_by_alias
         .keys()
         .map(String::as_str)
         .collect();
-    assert!(
-        direct.contains(&"peer-a"),
-        "required peer should be hoisted: {direct:?}",
-    );
+    assert!(direct.contains(&"peer-a"), "required peer should be hoisted: {direct:?}");
     assert!(
         !direct.contains(&"peer-b"),
         "optional peer must stay missing without a preferred version",
@@ -520,11 +446,7 @@ async fn keeps_locked_optional_peer_over_lower_sibling_version() {
     );
     table.insert(
         ("peer-a".to_string(), "^1.0.0".to_string()),
-        fake_result(
-            "peer-a",
-            "1.0.0",
-            serde_json::json!({ "name": "peer-a", "version": "1.0.0" }),
-        ),
+        fake_result("peer-a", "1.0.0", serde_json::json!({ "name": "peer-a", "version": "1.0.0" })),
     );
     for version in ["1.0.0", "1.0.1"] {
         table.insert(
@@ -536,10 +458,7 @@ async fn keeps_locked_optional_peer_over_lower_sibling_version() {
             ),
         );
     }
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({ "abc": "1.0.0" }));
 
     let mut opts = default_opts();
@@ -572,10 +491,7 @@ async fn keeps_locked_optional_peer_over_lower_sibling_version() {
         .get("abc")
         .expect("abc resolved")
         .to_string();
-    assert!(
-        abc.contains("(peer-c@1.0.1)"),
-        "abc should keep the locked optional peer: {abc}",
-    );
+    assert!(abc.contains("(peer-c@1.0.1)"), "abc should keep the locked optional peer: {abc}");
     assert!(
         !abc.contains("(peer-c@1.0.0)"),
         "abc must not adopt the sibling's lower version: {abc}",
@@ -616,47 +532,28 @@ async fn auto_installed_peer_uses_the_intersection_of_compatible_ranges() {
     );
     table.insert(
         ("peer-c".to_string(), ">=2.2.0 <3.0.0-0".to_string()),
-        fake_result(
-            "peer-c",
-            "2.2.5",
-            serde_json::json!({ "name": "peer-c", "version": "2.2.5" }),
-        ),
+        fake_result("peer-c", "2.2.5", serde_json::json!({ "name": "peer-c", "version": "2.2.5" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "wants-peer-c-2": "1.0.0",
         "wants-peer-c-2.2": "1.0.0",
     }));
 
-    let result = resolve_importer(
-        &resolver,
-        &manifest,
-        [DependencyGroup::Prod],
-        default_opts(),
-    )
-    .await
-    .unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
 
     let direct: Vec<&str> = result.peers_result.direct_dependencies_by_alias
         .keys()
         .map(String::as_str)
         .collect();
-    assert!(
-        direct.contains(&"peer-c"),
-        "single intersected peer-c should be hoisted: {direct:?}",
-    );
+    assert!(direct.contains(&"peer-c"), "single intersected peer-c should be hoisted: {direct:?}");
     let peer_c_entries: Vec<&DepPath> = result.peers_result.graph
         .keys()
         .filter(|dp| dp.to_string().starts_with("peer-c@"))
         .collect();
-    assert_eq!(
-        peer_c_entries.len(),
-        1,
-        "expected one peer-c entry, got: {peer_c_entries:?}",
-    );
+    assert_eq!(peer_c_entries.len(), 1, "expected one peer-c entry, got: {peer_c_entries:?}");
     assert!(
         peer_c_entries[0].to_string().starts_with("peer-c@2.2.5"),
         "the provider must resolve through the intersected range: {peer_c_entries:?}",
@@ -674,10 +571,7 @@ async fn a_peer_reported_once_per_path_is_hoisted_through_one_intersection() {
     let react_range = "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc";
     let mut table = HashMap::default();
     for (name, deps) in [
-        (
-            "dialog",
-            vec!["dismissable-layer", "focus-scope", "portal", "primitive"],
-        ),
+        ("dialog", vec!["dismissable-layer", "focus-scope", "portal", "primitive"]),
         ("dismissable-layer", vec!["primitive"]),
         ("focus-scope", vec!["primitive"]),
         ("portal", vec!["primitive"]),
@@ -714,51 +608,29 @@ async fn a_peer_reported_once_per_path_is_hoisted_through_one_intersection() {
         ),
     );
     table.insert(
-        (
-            "react".to_string(),
-            ">=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0".to_string(),
-        ),
-        fake_result(
-            "react",
-            "19.0.0",
-            serde_json::json!({ "name": "react", "version": "19.0.0" }),
-        ),
+        ("react".to_string(), ">=18.0.0 <19.0.0-0||>=19.0.0 <20.0.0-0".to_string()),
+        fake_result("react", "19.0.0", serde_json::json!({ "name": "react", "version": "19.0.0" })),
     );
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "dialog": "1.0.0",
         "wants-react-18-or-19": "1.0.0",
     }));
 
-    let result = resolve_importer(
-        &resolver,
-        &manifest,
-        [DependencyGroup::Prod],
-        default_opts(),
-    )
-    .await
-    .unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
 
     let direct: Vec<&str> = result.peers_result.direct_dependencies_by_alias
         .keys()
         .map(String::as_str)
         .collect();
-    assert!(
-        direct.contains(&"react"),
-        "react should be hoisted: {direct:?}",
-    );
+    assert!(direct.contains(&"react"), "react should be hoisted: {direct:?}");
     let react_entries: Vec<&DepPath> = result.peers_result.graph
         .keys()
         .filter(|dep_path| dep_path.to_string().starts_with("react@"))
         .collect();
-    assert_eq!(
-        react_entries.len(),
-        1,
-        "expected one react entry, got: {react_entries:?}",
-    );
+    assert_eq!(react_entries.len(), 1, "expected one react entry, got: {react_entries:?}");
     assert!(
         react_entries[0].to_string().starts_with("react@19.0.0"),
         "react must resolve through the intersected range: {react_entries:?}",
@@ -807,40 +679,25 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
     for name in ["x", "y", "z"] {
         table.insert(
             (name.to_string(), "1.0.0".to_string()),
-            fake_result(
-                name,
-                "1.0.0",
-                serde_json::json!({ "name": name, "version": "1.0.0" }),
-            ),
+            fake_result(name, "1.0.0", serde_json::json!({ "name": name, "version": "1.0.0" })),
         );
     }
-    let resolver = StubResolver {
-        table,
-        calls: Mutex::new(Vec::new()),
-    };
+    let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
     let (_tmp, manifest) = fake_manifest(serde_json::json!({
         "xyz-parent": "1.0.0",
         "xyz-with-xyz": "1.0.0",
     }));
 
-    let result = resolve_importer(
-        &resolver,
-        &manifest,
-        [DependencyGroup::Prod],
-        default_opts(),
-    )
-    .await
-    .unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], default_opts())
+        .await
+        .unwrap();
 
     let direct: Vec<&str> = result.peers_result.direct_dependencies_by_alias
         .keys()
         .map(String::as_str)
         .collect();
     for name in ["x", "y", "z"] {
-        assert!(
-            direct.contains(&name),
-            "{name} should be hoisted to importer: {direct:?}",
-        );
+        assert!(direct.contains(&name), "{name} should be hoisted to importer: {direct:?}");
     }
     // The sibling already supplies x@1.0.0 / y@1.0.0 / z@1.0.0, so the
     // hoist-picker must reuse that exact version via preferred-versions

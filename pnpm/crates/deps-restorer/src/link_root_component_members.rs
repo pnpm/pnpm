@@ -125,13 +125,9 @@ fn collect_injected_members(
         .copied()
         .filter(|group| !matches!(group, DependencyGroup::Peer))
     {
-        let Some(deps) = importer.get_map_by_group(group) else {
-            continue;
-        };
+        let Some(deps) = importer.get_map_by_group(group) else { continue };
         for (name, spec) in deps {
-            let Some((dir_name, key)) = injected_member_key(name, spec) else {
-                continue;
-            };
+            let Some((dir_name, key)) = injected_member_key(name, spec) else { continue };
             // First-wins across groups, matching the symlink stage's
             // dedup so a member listed in more than one group is only
             // materialized once. A member the installability pass
@@ -142,12 +138,7 @@ fn collect_injected_members(
             }
             let slot_modules_dir = layout.slot_dir(&key).join("node_modules");
             let package_dir = slot_modules_dir.join(&dir_name);
-            members.push(Member {
-                name: dir_name,
-                key,
-                slot_modules_dir,
-                package_dir,
-            });
+            members.push(Member { name: dir_name, key, slot_modules_dir, package_dir });
         }
     }
     members
@@ -237,11 +228,7 @@ fn declared_siblings<'a>(
 ) -> Result<Vec<&'a Member>, LinkRootComponentMembersError> {
     if let Some(manifest) = host_manifest(host)? {
         return Ok(manifest
-            .dependencies([
-                DependencyGroup::Prod,
-                DependencyGroup::Optional,
-                DependencyGroup::Peer,
-            ])
+            .dependencies([DependencyGroup::Prod, DependencyGroup::Optional, DependencyGroup::Peer])
             // Only siblings that belong to this root; a member's own
             // package dir already lives in its slot.
             .filter_map(|(dep_name, _)| by_name.get(dep_name).copied())

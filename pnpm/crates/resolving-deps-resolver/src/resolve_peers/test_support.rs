@@ -58,13 +58,7 @@ pub(super) fn package_with_peer_dependencies(
     let peer_dependencies = peer_dependencies
         .iter()
         .map(|(name, version, optional)| {
-            (
-                (*name).to_string(),
-                PeerDep {
-                    version: (*version).to_string(),
-                    optional: *optional,
-                },
-            )
+            ((*name).to_string(), PeerDep { version: (*version).to_string(), optional: *optional })
         })
         .collect();
     ResolvedPackage {
@@ -92,9 +86,7 @@ pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedP
                 name_ver: None,
                 latest: None,
                 published_at: None,
-                manifest: Some(Arc::new(
-                    serde_json::json!({ "name": name, "version": "1.0.0" }),
-                )),
+                manifest: Some(Arc::new(serde_json::json!({ "name": name, "version": "1.0.0" }))),
             },
         }),
         peer_dependencies: BTreeMap::new(),

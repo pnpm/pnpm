@@ -115,12 +115,7 @@ fn keeps_only_what_the_selected_importer_reaches() {
 
     assert_eq!(
         snapshot_keys(&filtered),
-        vec![
-            "deep@1.0.0",
-            "dev-dep@1.0.0",
-            "opt-dep@1.0.0",
-            "prod-dep@1.0.0"
-        ],
+        vec!["deep@1.0.0", "dev-dep@1.0.0", "opt-dep@1.0.0", "prod-dep@1.0.0"],
     );
 }
 
@@ -161,10 +156,7 @@ fn an_excluded_group_is_emptied_and_its_edges_are_not_walked() {
         )
         .expect("filter lockfile");
 
-    assert_eq!(
-        snapshot_keys(&filtered),
-        vec!["deep@1.0.0", "prod-dep@1.0.0"],
-    );
+    assert_eq!(snapshot_keys(&filtered), vec!["deep@1.0.0", "prod-dep@1.0.0"]);
     let importer = &filtered.importers["packages/app"];
     assert!(
         importer.dev_dependencies
@@ -200,18 +192,12 @@ fn skipped_keys_and_what_only_they_reach_are_dropped() {
         .filter_by_importers(vec!["packages/app".to_string()], &opts)
         .expect("filter lockfile");
 
-    assert_eq!(
-        snapshot_keys(&filtered),
-        vec!["dev-dep@1.0.0", "opt-dep@1.0.0"],
-    );
+    assert_eq!(snapshot_keys(&filtered), vec!["dev-dep@1.0.0", "opt-dep@1.0.0"]);
 }
 
 #[test]
 fn a_missing_dependency_is_reported_only_when_asked_for() {
-    let source = LOCKFILE.replace(
-        "  prod-dep@1.0.0:\n    dependencies:\n      deep: 1.0.0\n",
-        "",
-    );
+    let source = LOCKFILE.replace("  prod-dep@1.0.0:\n    dependencies:\n      deep: 1.0.0\n", "");
     let lockfile = Lockfile::parse(&source, Path::new("pnpm-lock.yaml"))
         .expect("parse lockfile")
         .expect("lockfile is not empty");

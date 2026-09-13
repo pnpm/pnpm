@@ -18,10 +18,7 @@ fn failed_save_preserves_existing_file_contents() {
     std::fs::write(&path, &raw).unwrap();
 
     let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
-    assert!(matches!(
-        manifest.save(),
-        Err(PackageManifestError::InvalidAttribute(_))
-    ));
+    assert!(matches!(manifest.save(), Err(PackageManifestError::InvalidAttribute(_))));
     assert_eq!(read_to_string(path).unwrap(), raw);
 }
 

@@ -115,12 +115,7 @@ pub fn read_workspace_manifest(
     let text = match fs::read_to_string(&path) {
         Ok(text) => text,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(source) => {
-            return Err(ReadWorkspaceManifestError::ReadFile {
-                path,
-                source,
-            });
-        }
+        Err(source) => return Err(ReadWorkspaceManifestError::ReadFile { path, source }),
     };
 
     // An empty workspace manifest is valid and means "no settings, no

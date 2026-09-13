@@ -118,12 +118,8 @@ fn next_auto_tier(tier: u8) -> u8 {
 /// Advance the downgrade cache past `from`, unless another worker
 /// already has.
 fn downgrade_auto_tier(state: &AtomicU8, from: u8) {
-    let _ = state.compare_exchange(
-        from,
-        next_auto_tier(from),
-        Ordering::Relaxed,
-        Ordering::Relaxed,
-    );
+    let _ =
+        state.compare_exchange(from, next_auto_tier(from), Ordering::Relaxed, Ordering::Relaxed);
 }
 
 // One-shot "we picked this import method" log, matching pnpm's

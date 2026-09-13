@@ -182,16 +182,8 @@ fn field_map(
     include: IncludedDependencies,
 ) -> HashMap<String, DependenciesField> {
     let mut map = HashMap::new();
-    let groups: [(
-        bool,
-        Option<&pnpm_lockfile::ResolvedDependencyMap>,
-        DependenciesField,
-    ); 3] = [
-        (
-            include.dependencies,
-            importer.dependencies.as_ref(),
-            DependenciesField::Dependencies,
-        ),
+    let groups: [(bool, Option<&pnpm_lockfile::ResolvedDependencyMap>, DependenciesField); 3] = [
+        (include.dependencies, importer.dependencies.as_ref(), DependenciesField::Dependencies),
         (
             include.dev_dependencies,
             importer.dev_dependencies.as_ref(),
@@ -230,10 +222,7 @@ pub fn importer_id_for(lockfile_dir: &Path, project_dir: &Path) -> String {
 #[must_use]
 pub fn safe_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathBuf> {
     pnpm_deps_restorer::validate_importer_id(importer_id).ok()?;
-    Some(pnpm_deps_restorer::importer_root_dir(
-        lockfile_dir,
-        importer_id,
-    ))
+    Some(pnpm_deps_restorer::importer_root_dir(lockfile_dir, importer_id))
 }
 
 /// Scan the project's modules dir for packages absent from its
@@ -261,11 +250,8 @@ fn read_unsaved_dependencies(
 /// `getAllDirectDependencies`.
 fn saved_direct_dep_names(importer: &ProjectSnapshot) -> HashSet<String> {
     let mut names = HashSet::new();
-    let groups = [
-        &importer.dependencies,
-        &importer.dev_dependencies,
-        &importer.optional_dependencies,
-    ];
+    let groups =
+        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
     for group in groups.into_iter().flatten() {
         for name in group.keys() {
             names.insert(name.to_string());
@@ -318,15 +304,8 @@ fn collect_module_names(
 /// The entry's name when it can hold a package: dot-directories (`.bin`,
 /// `.pnpm`, ...) and plain files never do.
 fn package_dir_name(entry: &std::fs::DirEntry) -> Option<String> {
-    let name = entry
-        .file_name()
-        .to_str()?
-        .to_string();
-    if name.starts_with('.')
-        || entry
-            .file_type()
-            .is_ok_and(|file_type| file_type.is_file())
-    {
+    let name = entry.file_name().to_str()?.to_string();
+    if name.starts_with('.') || entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
         return None;
     }
     Some(name)

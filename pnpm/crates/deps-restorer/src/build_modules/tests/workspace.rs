@@ -94,10 +94,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
     .run::<SilentReporter>()
     .expect("rebuild runs");
 
-    assert!(
-        aaa_dir.join("built-marker").exists(),
-        "the selected package's script ran",
-    );
+    assert!(aaa_dir.join("built-marker").exists(), "the selected package's script ran");
     assert!(
         !zzz_dir.join("built-marker").exists(),
         "the non-selected package's script must not run",

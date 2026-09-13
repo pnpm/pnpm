@@ -6,10 +6,9 @@
 //! Runs immediately after the prefetch, whose results it consumes.
 
 use super::{
-    CreateVirtualStore, PackageManifests, RemoteSideEffectsQuarantineBySnapshot,
-    RequiresBuildBySnapshot, SideEffectsBySnapshot, SideEffectsMapsBySnapshot,
-    SnapshotWithCacheKey, StoreIndexKeysBySnapshot, WantedEntries,
-    publish_planned_canonical_fetches, snapshot_needs_build_marker, snapshot_plan,
+    PackageManifests, RemoteSideEffectsQuarantineBySnapshot, RequiresBuildBySnapshot,
+    SideEffectsBySnapshot, SideEffectsMapsBySnapshot, SnapshotWithCacheKey,
+    StoreIndexKeysBySnapshot, snapshot_needs_build_marker,
 };
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
@@ -138,9 +137,7 @@ impl IndexRows {
         marker_rebuilds: &HashSet<PackageKey>,
     ) {
         let snapshot_key = entry.0;
-        let Some(cache_key) = entry.2.as_deref() else {
-            return;
-        };
+        let Some(cache_key) = entry.2.as_deref() else { return };
         self.store_index_keys_by_snapshot.insert(snapshot_key.clone(), cache_key.to_string());
         if let Some(manifest) = prefetch.manifests.get(cache_key) {
             self.package_manifests
@@ -215,39 +212,5 @@ impl IndexRows {
             store_index_keys_by_snapshot: self.store_index_keys_by_snapshot,
             requires_build_by_snapshot: self.requires_build_by_snapshot,
         }
-    }
-}
-
-impl CreateVirtualStore<'_> {
-    pub(super) fn partition_plan<'p>(
-        &self,
-        wanted: WantedEntries<'_>,
-        plan: &'p snapshot_plan::SnapshotPlan<'p>,
-        prefetched: &'p PrefetchResult,
-    ) -> Partition<'p> {
-        let partition = partition_snapshots(
-            &plan.survivors,
-            &plan.skipped_entries,
-            prefetched,
-            &plan.marker_rebuilds,
-            self.ctx.linker.kind,
-        );
-
-        // Publish the cold-batch fetch plan for the concurrent
-        // verification fan-out: every cold registry-resolved snapshot
-        // with a pinned hash is downloaded from its canonical registry
-        // URL by this run (or fails the install / is dropped as an
-        // uninstallable optional), which is the existence evidence the
-        // npm verifier's age gate may substitute for a metadata body.
-        // First fill wins; entries outside the plan keep the
-        // metadata-backed path.
-        publish_planned_canonical_fetches(
-            self.fetching.planned_canonical_fetches,
-            &partition.cold,
-            wanted.packages,
-            self.fetching.custom_fetcher_session.is_some(),
-        );
-
-        partition
     }
 }

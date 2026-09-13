@@ -35,10 +35,7 @@ const OVERLAP_TIMEOUT: Duration = Duration::from_secs(15);
 
 impl LinkConcurrencyProbe {
     pub(crate) fn waiting_for_overlap() -> Self {
-        Self {
-            wait_for_overlap: true,
-            ..Self::default()
-        }
+        Self { wait_for_overlap: true, ..Self::default() }
     }
 
     pub(crate) fn max_concurrent(&self) -> usize {
@@ -73,9 +70,7 @@ impl LinkConcurrencyProbe {
                 .expect("wait for overlapping link");
         }
 
-        LinkConcurrencyGuard {
-            probe: self,
-        }
+        LinkConcurrencyGuard { probe: self }
     }
 }
 
@@ -112,31 +107,13 @@ impl Drop for LinkConcurrencyGuard<'_> {
 #[test]
 fn optimistic_wire_method_reports_each_platforms_ladder_head() {
     #[cfg(target_os = "linux")]
-    assert_eq!(
-        optimistic_wire_method(PackageImportMethod::Auto),
-        WireImportMethod::Hardlink,
-    );
+    assert_eq!(optimistic_wire_method(PackageImportMethod::Auto), WireImportMethod::Hardlink);
     #[cfg(not(target_os = "linux"))]
-    assert_eq!(
-        optimistic_wire_method(PackageImportMethod::Auto),
-        WireImportMethod::Clone,
-    );
-    assert_eq!(
-        optimistic_wire_method(PackageImportMethod::CloneOrCopy),
-        WireImportMethod::Clone,
-    );
-    assert_eq!(
-        optimistic_wire_method(PackageImportMethod::Clone),
-        WireImportMethod::Clone,
-    );
-    assert_eq!(
-        optimistic_wire_method(PackageImportMethod::Hardlink),
-        WireImportMethod::Hardlink,
-    );
-    assert_eq!(
-        optimistic_wire_method(PackageImportMethod::Copy),
-        WireImportMethod::Copy,
-    );
+    assert_eq!(optimistic_wire_method(PackageImportMethod::Auto), WireImportMethod::Clone);
+    assert_eq!(optimistic_wire_method(PackageImportMethod::CloneOrCopy), WireImportMethod::Clone);
+    assert_eq!(optimistic_wire_method(PackageImportMethod::Clone), WireImportMethod::Clone);
+    assert_eq!(optimistic_wire_method(PackageImportMethod::Hardlink), WireImportMethod::Hardlink);
+    assert_eq!(optimistic_wire_method(PackageImportMethod::Copy), WireImportMethod::Copy);
 }
 
 /// Driving with an empty `cas_paths` map exercises the success path
@@ -163,10 +140,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     let snapshot = SnapshotEntry::default();
     let package_key: PackageKey = "react@18.0.0".parse().expect("valid v9 snapshot key");
 
-    EVENTS
-        .lock()
-        .unwrap()
-        .clear();
+    EVENTS.lock().unwrap().clear();
 
     // `tokio::task::block_in_place` matches how the production
     // call-site (the `warm_work` closure in `CreateVirtualStore`)
@@ -194,11 +168,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
             logged_methods: &logged_methods,
             requester: "/proj",
         },
-        source: crate::SlotImportSource {
-            is_mutable: false,
-            force: false,
-            build_marker: None,
-        },
+        source: crate::SlotImportSource { is_mutable: false, force: false, build_marker: None },
         layout: &layout,
         cas_paths: &cas_paths,
 
@@ -214,12 +184,8 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
     let imported = captured
         .iter()
         .find_map(|event| {
-            let LogEvent::Progress(log) = event else {
-                return None;
-            };
-            let ProgressMessage::Imported { method, requester, to } =
-                &log.message
-            else {
+            let LogEvent::Progress(log) = event else { return None };
+            let ProgressMessage::Imported { method, requester, to } = &log.message else {
                 return None;
             };
             Some((*method, requester.clone(), to.clone()))
@@ -329,11 +295,7 @@ fn force_import_replaces_an_existing_package_at_the_same_snapshot_key() {
             logged_methods: &AtomicU8::new(0),
             requester: "/proj",
         },
-        source: crate::SlotImportSource {
-            is_mutable: false,
-            force: true,
-            build_marker: None,
-        },
+        source: crate::SlotImportSource { is_mutable: false, force: true, build_marker: None },
         layout: &layout,
         cas_paths: &HashMap::from([("index.js".to_string(), source)]),
 
@@ -384,11 +346,7 @@ fn run_rejects_traversal_package_name() {
             logged_methods: &logged_methods,
             requester: "/proj",
         },
-        source: crate::SlotImportSource {
-            is_mutable: false,
-            force: false,
-            build_marker: None,
-        },
+        source: crate::SlotImportSource { is_mutable: false, force: false, build_marker: None },
         layout: &layout,
         cas_paths: &cas_paths,
 
@@ -431,10 +389,8 @@ async fn run_removes_obsolete_child_links() {
     let logged_methods = AtomicU8::new(0);
     let snapshot = SnapshotEntry::default();
     let skipped = crate::SkippedSnapshots::default();
-    let removed_aliases = [
-        PkgName::parse("is-positive").unwrap(),
-        PkgName::parse("@scope/old").unwrap(),
-    ];
+    let removed_aliases =
+        [PkgName::parse("is-positive").unwrap(), PkgName::parse("@scope/old").unwrap()];
     CreateVirtualDirBySnapshot {
         dependencies: crate::SnapshotDependencyLinks {
             package_key: &package_key,
@@ -449,11 +405,7 @@ async fn run_removes_obsolete_child_links() {
             logged_methods: &logged_methods,
             requester: "/proj",
         },
-        source: crate::SlotImportSource {
-            is_mutable: false,
-            force: false,
-            build_marker: None,
-        },
+        source: crate::SlotImportSource { is_mutable: false, force: false, build_marker: None },
         layout: &layout,
         cas_paths: &cas_paths,
 
@@ -465,14 +417,8 @@ async fn run_removes_obsolete_child_links() {
     .run::<SilentReporter>()
     .expect("run should succeed");
 
-    assert!(
-        !node_modules.join("is-positive").exists(),
-        "obsolete child must be unlinked",
-    );
-    assert!(
-        !node_modules.join("@scope").exists(),
-        "now-empty scope directory must be removed",
-    );
+    assert!(!node_modules.join("is-positive").exists(), "obsolete child must be unlinked");
+    assert!(!node_modules.join("@scope").exists(), "now-empty scope directory must be removed");
     assert!(
         node_modules
             .join("keep-me")
@@ -493,17 +439,11 @@ fn remove_obsolete_child_skips_path_traversal() {
         .join("slot")
         .join("node_modules");
     std::fs::create_dir_all(&node_modules).expect("create node_modules");
-    let sibling = dir
-        .path()
-        .join("slot")
-        .join("sibling");
+    let sibling = dir.path().join("slot").join("sibling");
     std::fs::create_dir_all(&sibling).expect("create sibling dir");
 
     remove_obsolete_child(&node_modules, &PkgName::parse("..").unwrap())
         .expect("traversal alias is skipped, not an error");
 
-    assert!(
-        sibling.exists(),
-        "a `..` alias must not delete a sibling of node_modules",
-    );
+    assert!(sibling.exists(), "a `..` alias must not delete a sibling of node_modules");
 }

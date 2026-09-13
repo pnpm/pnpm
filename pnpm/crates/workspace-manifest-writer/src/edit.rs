@@ -235,10 +235,7 @@ fn replace_top_level_block(text: &str, span: &TopLevelSpan, rendered: &str) -> S
     let had_trailing_blank = text[span.key_line_start..span.block_end].ends_with("\n\n");
     let mut out = text.to_string();
     if had_trailing_blank {
-        out.replace_range(
-            span.key_line_start..span.block_end,
-            &format!("{rendered}\n"),
-        );
+        out.replace_range(span.key_line_start..span.block_end, &format!("{rendered}\n"));
     } else {
         out.replace_range(span.key_line_start..span.block_end, rendered);
     }
@@ -438,11 +435,7 @@ fn insert_top_level_block(manifest: &Manifest, new_key: &str, block_text: &str) 
     if position == 0 {
         // New key sorts to the front: prepend the block. Under blank-line
         // style the demoted original-first key gains a blank line before it.
-        let separator = if blank_style && !manifest.document.keys.is_empty() {
-            "\n"
-        } else {
-            ""
-        };
+        let separator = if blank_style && !manifest.document.keys.is_empty() { "\n" } else { "" };
         return format!("{block_text}{separator}{text}");
     }
 
@@ -454,11 +447,7 @@ fn insert_top_level_block(manifest: &Manifest, new_key: &str, block_text: &str) 
     // blank line (if any) becomes the blank before the new block, and
     // a trailing blank line is added when the document uses that style.
     let trailing = if blank_style { "\n" } else { "" };
-    splice(
-        text,
-        span.key_line_start,
-        &format!("{block_text}{trailing}"),
-    )
+    splice(text, span.key_line_start, &format!("{block_text}{trailing}"))
 }
 
 /// The new key sorts last: append its block at the end of the document.

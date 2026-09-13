@@ -50,10 +50,7 @@ fn build_overlay_maps_supported_install_options() {
     assert_eq!(overlay.engine_strict, Some(true));
     assert_eq!(overlay.node_version, Some("18.20.4".to_string()));
     assert_eq!(overlay.minimum_release_age, Some(60));
-    assert_eq!(
-        overlay.minimum_release_age_exclude,
-        Some(vec!["left-pad".to_string()]),
-    );
+    assert_eq!(overlay.minimum_release_age_exclude, Some(vec!["left-pad".to_string()]));
     assert_eq!(overlay.trust_lockfile, Some(false));
     assert_eq!(overlay.network_concurrency, Some(12));
     assert_eq!(overlay.max_sockets, Some(7));
@@ -70,20 +67,14 @@ fn build_overlay_maps_supported_install_options() {
     assert_eq!(proxy.https_proxy, Some("https://proxy.test".to_string()));
     assert_eq!(
         proxy.no_proxy,
-        Some(NoProxySetting::List(vec![
-            "localhost".to_string(),
-            "127.0.0.1".to_string()
-        ])),
+        Some(NoProxySetting::List(vec!["localhost".to_string(), "127.0.0.1".to_string()])),
     );
     let tls = overlay.tls.expect("tls");
     assert_eq!(tls.ca, vec!["cert-a".to_string(), "cert-b".to_string()]);
     assert_eq!(tls.cert, Some("client-cert".to_string()));
     assert_eq!(tls.key, Some("client-key".to_string()));
     assert_eq!(tls.strict_ssl, Some(false));
-    assert_eq!(
-        tls.local_address.map(|ip| ip.to_string()),
-        Some("127.0.0.1".to_string()),
-    );
+    assert_eq!(tls.local_address.map(|ip| ip.to_string()), Some("127.0.0.1".to_string()));
 }
 
 #[test]
@@ -108,15 +99,9 @@ fn newly_supported_install_options_are_accepted() {
     options.enable_modules_dir = Some(false);
     options.ignore_package_manifest = Some(true);
     options.pnpm_home_dir = Some("/home/user/.local/share/pnpm".to_string());
-    options.network_config = Some(NetworkConfigInput {
-        max_sockets: Some(20),
-        ..network_config()
-    });
+    options.network_config = Some(NetworkConfigInput { max_sockets: Some(20), ..network_config() });
     assert!(reject_unsupported_install_options(&options).is_ok());
-    assert_eq!(
-        build_overlay(&options, false).expect("overlay").max_sockets,
-        Some(20),
-    );
+    assert_eq!(build_overlay(&options, false).expect("overlay").max_sockets, Some(20));
 }
 
 /// An empty list and an uncomputed one are different answers. The first
@@ -127,16 +112,10 @@ fn newly_supported_install_options_are_accepted() {
 fn take_deps_requiring_build_distinguishes_an_empty_list_from_an_uncomputed_one() {
     let empty = DepsRequiringBuildSink::default();
     *empty.lock().expect("lock sink") = Some(BTreeSet::new());
-    assert_eq!(
-        take_deps_requiring_build(Some(&empty), Vec::new()),
-        Some(Vec::new()),
-    );
+    assert_eq!(take_deps_requiring_build(Some(&empty), Vec::new()), Some(Vec::new()));
 
     let uncomputed = DepsRequiringBuildSink::default();
-    assert_eq!(
-        take_deps_requiring_build(Some(&uncomputed), Vec::new()),
-        None,
-    );
+    assert_eq!(take_deps_requiring_build(Some(&uncomputed), Vec::new()), None);
 }
 
 /// Without the option the field carries the blocked builds, and stays
@@ -190,18 +169,12 @@ fn return_list_of_deps_requiring_build_is_uncomputed_without_a_fresh_materializa
     let seed = DepsRequiringBuildSink::default();
     run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&seed))))
         .expect("seed install");
-    let seeded = seed
-        .lock()
-        .expect("lock sink")
-        .clone();
+    let seeded = seed.lock().expect("lock sink").clone();
     dbg!(&seeded);
     assert!(seeded.is_some(), "the seed install computes the list");
 
     for (label, mutate) in [
-        (
-            "repeat install",
-            (|_: &mut InstallOptions| {}) as fn(&mut InstallOptions),
-        ),
+        ("repeat install", (|_: &mut InstallOptions| {}) as fn(&mut InstallOptions)),
         ("frozen lockfile", |options: &mut InstallOptions| {
             options.frozen_lockfile = Some(true);
         }),
@@ -239,17 +212,11 @@ fn return_list_of_deps_requiring_build_excludes_skipped_packages() {
         }),
     );
     let warmed = DepsRequiringBuildSink::default();
-    run_install_inner(
-        &warm_store,
-        None,
-        EngineMode::Install(Some(Arc::clone(&warmed))),
-    )
-    .expect("warm the store");
+    run_install_inner(&warm_store, None, EngineMode::Install(Some(Arc::clone(&warmed))))
+        .expect("warm the store");
     assert_eq!(
         take_deps_requiring_build(Some(&warmed), Vec::new()),
-        Some(vec![
-            "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0".to_string()
-        ]),
+        Some(vec!["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0".to_string()]),
         "the store must know this package requires a build, else the skip proves nothing",
     );
 
@@ -266,8 +233,5 @@ fn return_list_of_deps_requiring_build_excludes_skipped_packages() {
     run_install_inner(&options, None, EngineMode::Install(Some(Arc::clone(&sink))))
         .expect("install skipping the optional dependency");
 
-    assert_eq!(
-        take_deps_requiring_build(Some(&sink), Vec::new()),
-        Some(Vec::new()),
-    );
+    assert_eq!(take_deps_requiring_build(Some(&sink), Vec::new()), Some(Vec::new()));
 }

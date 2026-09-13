@@ -371,9 +371,7 @@ pub(super) struct FeatureFile {
 
 impl Default for FeatureFile {
     fn default() -> Self {
-        Self {
-            enabled: true,
-        }
+        Self { enabled: true }
     }
 }
 
@@ -412,9 +410,7 @@ pub(super) fn parse_config_file(raw: &str) -> Result<ConfigFile, RegistryError> 
         tracing::warn!(?unresolved, "config references unset environment variables");
     }
     let file: ConfigFile = serde_saphyr::from_str(&substituted)
-        .map_err(|err| RegistryError::InvalidConfig {
-            reason: err.to_string(),
-        })?;
+        .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
     if file.oci.max_blob_bytes == 0 || file.oci.max_manifest_bytes == 0 {
         return Err(RegistryError::InvalidConfig {
             reason: "oci size limits must be greater than zero".to_string(),

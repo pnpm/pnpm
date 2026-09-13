@@ -19,18 +19,10 @@ fn protocol_selector_keys_the_manifest_entry_by_the_name_inside_the_protocol() {
     for (input, expected_name, expected_spec) in [
         ("npm:foo@^1.0.0", "foo", Some("^1.0.0")),
         ("npm:@scope/foo", "@scope/foo", None),
-        (
-            "jsr:@scope/foo@^1.0.0",
-            "@scope/foo",
-            Some("jsr:@scope/foo@^1.0.0"),
-        ),
+        ("jsr:@scope/foo@^1.0.0", "@scope/foo", Some("jsr:@scope/foo@^1.0.0")),
         ("jsr:@scope/foo", "@scope/foo", Some("jsr:@scope/foo")),
         ("workspace:foo@*", "foo", Some("workspace:foo@*")),
-        (
-            "workspace:@scope/foo@^1.0.0",
-            "@scope/foo",
-            Some("workspace:@scope/foo@^1.0.0"),
-        ),
+        ("workspace:@scope/foo@^1.0.0", "@scope/foo", Some("workspace:@scope/foo@^1.0.0")),
     ] {
         let selector = ProtocolSelector::parse(input)
             .unwrap_or_else(|error| panic!("{input} should parse: {error}"))
@@ -64,10 +56,7 @@ fn selectors_that_name_no_package_are_left_to_the_registry_split() {
         let parsed = ProtocolSelector::parse(input)
             .unwrap_or_else(|error| panic!("{input} should parse: {error}"));
         let names_no_package = parsed.is_none();
-        assert!(
-            names_no_package,
-            "{input} should not be read as a protocol selector",
-        );
+        assert!(names_no_package, "{input} should not be read as a protocol selector");
     }
 }
 #[test]
@@ -85,17 +74,11 @@ fn protocol_selector_rejects_a_name_no_dependency_can_be_declared_under() {
 }
 #[tokio::test]
 async fn add_saves_a_jsr_selector_under_its_jsr_name_with_the_picked_version_pinned() {
-    assert_eq!(
-        add_jsr_selector("jsr:@pnpm-e2e/foo").await,
-        Some("jsr:^1.0.0".to_string()),
-    );
+    assert_eq!(add_jsr_selector("jsr:@pnpm-e2e/foo").await, Some("jsr:^1.0.0".to_string()));
 }
 #[tokio::test]
 async fn add_saves_an_npm_selector_without_a_version_at_the_default_pin() {
-    assert_eq!(
-        add_npm_selector("npm:foo").await,
-        Some("^1.0.0".to_string()),
-    );
+    assert_eq!(add_npm_selector("npm:foo").await, Some("^1.0.0".to_string()));
 }
 #[tokio::test]
 async fn add_reuses_shared_packument_state_for_every_selector_path() {
@@ -140,10 +123,7 @@ async fn add_reuses_shared_packument_state_for_every_selector_path() {
         .await;
 
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("pacquet-store")
-        .into();
+    config.store_dir = dir.path().join("pacquet-store").into();
     config.cache_dir = dir.path().join("cache");
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
@@ -209,10 +189,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
     // cannot push the fast path past the deadline.
     let packages = [("first", "a", 100), ("second", "b", 20_000)];
     let mut config = Config::new();
-    config.store_dir = dir
-        .path()
-        .join("pacquet-store")
-        .into();
+    config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir;
     config.virtual_store_dir = virtual_store_dir;
     config.minimum_release_age = None;
@@ -298,14 +275,8 @@ fn a_tarball_error_chain_drops_url_secrets() {
             format!("error sending request for url ({url}): tcp connect error"),
         ));
         eprintln!("RENDERED: {rendered}");
-        assert!(
-            !rendered.contains("SIGNEDSECRET"),
-            "query token must not survive: {rendered}",
-        );
-        assert!(
-            !rendered.contains("hunter2"),
-            "password must not survive: {rendered}",
-        );
+        assert!(!rendered.contains("SIGNEDSECRET"), "query token must not survive: {rendered}");
+        assert!(!rendered.contains("hunter2"), "password must not survive: {rendered}");
         assert!(
             rendered.contains("example") && rendered.contains("tcp connect error"),
             "the host and the reason must survive: {rendered}",
@@ -326,17 +297,8 @@ fn a_url_whose_userinfo_survives_the_scan_is_hidden_entirely() {
             format!("error sending request for url ({url}): tcp connect error"),
         ));
         eprintln!("RENDERED: {rendered}");
-        assert!(
-            !rendered.contains("hunter"),
-            "no part of the password may survive: {rendered}",
-        );
-        assert!(
-            rendered.contains("[hidden]"),
-            "the URL must fail closed: {rendered}",
-        );
-        assert!(
-            rendered.contains("tcp connect error"),
-            "the reason must survive: {rendered}",
-        );
+        assert!(!rendered.contains("hunter"), "no part of the password may survive: {rendered}");
+        assert!(rendered.contains("[hidden]"), "the URL must fail closed: {rendered}");
+        assert!(rendered.contains("tcp connect error"), "the reason must survive: {rendered}");
     }
 }

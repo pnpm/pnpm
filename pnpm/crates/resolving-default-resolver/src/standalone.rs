@@ -72,9 +72,7 @@ pub fn build_standalone_chain(
     // `preserveAbsolutePaths` isn't exposed by pacquet's `Config` yet, so
     // the local-resolver context defaults to `false` here — same as the
     // install path.
-    let local_ctx = LocalResolverContext {
-        preserve_absolute_paths: false,
-    };
+    let local_ctx = LocalResolverContext { preserve_absolute_paths: false };
 
     Ok(DefaultResolver::new(vec![
         Box::new(Arc::clone(&npm_resolver)),
@@ -82,24 +80,12 @@ pub fn build_standalone_chain(
             Arc::new(RealGitProbe::new(Arc::clone(http_client))),
             Arc::new(RealGitRunner::new()),
         )),
-        Box::new(TarballResolver {
-            http_client: Arc::clone(http_client),
-            fetch_context: None,
-        }),
+        Box::new(TarballResolver { http_client: Arc::clone(http_client), fetch_context: None }),
         Box::new(LocalSchemeResolver::new(local_ctx)),
         Box::new(build_node_resolver(config, http_client)),
-        Box::new(DenoResolver::new(
-            Arc::clone(http_client),
-            Arc::clone(&npm_resolver),
-        )),
-        Box::new(BunResolver::new(
-            Arc::clone(http_client),
-            Arc::clone(&npm_resolver),
-        )),
-        Box::new(YarnResolver::new(
-            Arc::clone(http_client),
-            config.tls.strict_ssl.unwrap_or(true),
-        )),
+        Box::new(DenoResolver::new(Arc::clone(http_client), Arc::clone(&npm_resolver))),
+        Box::new(BunResolver::new(Arc::clone(http_client), Arc::clone(&npm_resolver))),
+        Box::new(YarnResolver::new(Arc::clone(http_client), config.tls.strict_ssl.unwrap_or(true))),
         Box::new(build_named_registry_resolver(opts, retry_opts)?),
         Box::new(LocalPathResolver::new(local_ctx)),
     ]))
@@ -153,8 +139,7 @@ fn build_npm_resolver(
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             offline: config.offline,
             prefer_offline: config.prefer_offline,
-            ignore_missing_time_field: config
-                .minimum_release_age_ignore_missing_time,
+            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
     }
 }
@@ -211,8 +196,7 @@ fn build_named_registry_resolver(
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             offline: config.offline,
             prefer_offline: config.prefer_offline,
-            ignore_missing_time_field: config
-                .minimum_release_age_ignore_missing_time,
+            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
     })
 }

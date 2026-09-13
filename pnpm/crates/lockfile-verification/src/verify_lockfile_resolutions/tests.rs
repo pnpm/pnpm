@@ -79,11 +79,7 @@ struct AlwaysFail {
 
 impl AlwaysFail {
     fn new(code: &'static str, reason: &'static str) -> Arc<Self> {
-        Arc::new(Self {
-            code,
-            reason,
-            policy: serde_json::Map::new(),
-        })
+        Arc::new(Self { code, reason, policy: serde_json::Map::new() })
     }
 }
 
@@ -95,12 +91,7 @@ impl ResolutionVerifier for AlwaysFail {
     ) -> VerifyFuture<'a> {
         let code = self.code;
         let reason = self.reason.to_string();
-        Box::pin(async move {
-            ResolutionVerification::Err {
-                code,
-                reason,
-            }
-        })
+        Box::pin(async move { ResolutionVerification::Err { code, reason } })
     }
 
     fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
@@ -122,12 +113,7 @@ struct FailFor {
 
 impl FailFor {
     fn new(code: &'static str, reason: &'static str, names: Vec<&'static str>) -> Arc<Self> {
-        Arc::new(Self {
-            code,
-            reason,
-            names,
-            policy: serde_json::Map::new(),
-        })
+        Arc::new(Self { code, reason, names, policy: serde_json::Map::new() })
     }
 }
 
@@ -143,10 +129,7 @@ impl ResolutionVerifier for FailFor {
         let reason = self.reason.to_string();
         Box::pin(async move {
             if triggers {
-                ResolutionVerification::Err {
-                    code,
-                    reason,
-                }
+                ResolutionVerification::Err { code, reason }
             } else {
                 ResolutionVerification::Ok
             }
@@ -171,10 +154,7 @@ struct FetchFails {
 
 impl FetchFails {
     fn new(message: &'static str) -> Arc<Self> {
-        Arc::new(Self {
-            message,
-            policy: serde_json::Map::new(),
-        })
+        Arc::new(Self { message, policy: serde_json::Map::new() })
     }
 }
 
@@ -185,11 +165,7 @@ impl ResolutionVerifier for FetchFails {
         _ctx: VerifyCtx<'a>,
     ) -> VerifyFuture<'a> {
         let message = self.message.to_string();
-        Box::pin(async move {
-            ResolutionVerification::FetchFailed {
-                message,
-            }
-        })
+        Box::pin(async move { ResolutionVerification::FetchFailed { message } })
     }
 
     fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {

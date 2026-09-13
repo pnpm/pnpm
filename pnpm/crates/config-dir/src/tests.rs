@@ -12,13 +12,9 @@ fn no_home() -> Option<PathBuf> {
 #[test]
 fn prefers_xdg_config_home_on_every_os_without_consulting_home() {
     for os in ["linux", "macos", "windows"] {
-        let dir = config_dir(
-            "pnpm",
-            os,
-            Some("/srv/xdg"),
-            Some(r"C:\LocalAppData"),
-            || unreachable!("home must not be consulted when XDG_CONFIG_HOME is set"),
-        );
+        let dir = config_dir("pnpm", os, Some("/srv/xdg"), Some(r"C:\LocalAppData"), || {
+            unreachable!("home must not be consulted when XDG_CONFIG_HOME is set")
+        });
         assert_eq!(dir, Some(PathBuf::from("/srv/xdg").join("pnpm")), "{os}");
     }
 }
@@ -45,26 +41,15 @@ fn linux_uses_dot_config() {
 
 #[test]
 fn windows_uses_local_app_data() {
-    let dir = config_dir(
-        "pnpm",
-        "windows",
-        None,
-        Some(r"C:\Users\u\AppData\Local"),
-        home(r"C:\Users\u"),
-    );
-    assert_eq!(
-        dir,
-        Some(Path::new(r"C:\Users\u\AppData\Local").join("pnpm").join("config")),
-    );
+    let dir =
+        config_dir("pnpm", "windows", None, Some(r"C:\Users\u\AppData\Local"), home(r"C:\Users\u"));
+    assert_eq!(dir, Some(Path::new(r"C:\Users\u\AppData\Local").join("pnpm").join("config")));
 }
 
 #[test]
 fn windows_without_local_app_data_falls_back_to_dot_config() {
     let dir = config_dir("pnpm", "windows", None, None, home(r"C:\Users\u"));
-    assert_eq!(
-        dir,
-        Some(Path::new(r"C:\Users\u").join(".config").join("pnpm")),
-    );
+    assert_eq!(dir, Some(Path::new(r"C:\Users\u").join(".config").join("pnpm")));
 }
 
 #[test]

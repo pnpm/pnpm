@@ -56,9 +56,7 @@ pub fn otp_challenge_from_unauthorized_body(body: &[u8]) -> Option<OtpChallenge>
         });
     }
     if String::from_utf8_lossy(body).to_ascii_lowercase().contains("one-time pass") {
-        return Some(OtpChallenge {
-            body: None,
-        });
+        return Some(OtpChallenge { body: None });
     }
     None
 }
@@ -77,9 +75,7 @@ pub struct SyntheticOtpError {
 impl SyntheticOtpError {
     #[must_use]
     pub fn new(body: Option<OtpErrorBody>) -> Self {
-        SyntheticOtpError {
-            body,
-        }
+        SyntheticOtpError { body }
     }
 
     /// Build a challenge from an arbitrary JSON body, keeping only string
@@ -88,26 +84,17 @@ impl SyntheticOtpError {
     #[must_use]
     pub fn from_unknown_body<Reporter: self::Reporter>(body: Option<&Value>) -> Self {
         let Some(Value::Object(map)) = body else {
-            return SyntheticOtpError {
-                body: None,
-            };
+            return SyntheticOtpError { body: None };
         };
         let auth_url = extract_url_field::<Reporter>(map, "authUrl");
         let done_url = extract_url_field::<Reporter>(map, "doneUrl");
-        SyntheticOtpError {
-            body: Some(OtpErrorBody {
-                auth_url,
-                done_url,
-            }),
-        }
+        SyntheticOtpError { body: Some(OtpErrorBody { auth_url, done_url }) }
     }
 }
 
 impl OtpError for SyntheticOtpError {
     fn as_otp_challenge(&self) -> Option<OtpChallenge> {
-        Some(OtpChallenge {
-            body: self.body.clone(),
-        })
+        Some(OtpChallenge { body: self.body.clone() })
     }
 }
 
@@ -168,10 +155,7 @@ impl OtpNonInteractiveError {
                 auth_url: auth_url.as_deref().and_then(canonical_http_url),
                 done_url: done_url.as_deref().and_then(canonical_http_url),
             },
-            None => OtpNonInteractiveError {
-                auth_url: None,
-                done_url: None,
-            },
+            None => OtpNonInteractiveError { auth_url: None, done_url: None },
         }
     }
 }
@@ -250,10 +234,7 @@ pub struct OtpSession {
 impl OtpSession {
     #[must_use]
     pub fn new(fetch_options: WebAuthFetchOptions) -> Self {
-        OtpSession {
-            fetch_options,
-            otp: None,
-        }
+        OtpSession { fetch_options, otp: None }
     }
 
     /// Run `operation` with the one-time password this session holds,
@@ -325,9 +306,7 @@ where
     Error: Diagnostic + 'static,
 {
     if !Sys::stdin_is_tty() || !Sys::stdout_is_tty() {
-        return Err(WithOtpError::NonInteractive(OtpNonInteractiveError::new(
-            challenge.body,
-        )));
+        return Err(WithOtpError::NonInteractive(OtpNonInteractiveError::new(challenge.body)));
     }
 
     let web_auth_urls = match &challenge.body {
@@ -351,9 +330,7 @@ where
                 .map_err(WithOtpError::Timeout)
         }
         None => {
-            match Sys::input("This operation requires a one-time password.\nEnter OTP")
-                .await
-            {
+            match Sys::input("This operation requires a one-time password.\nEnter OTP").await {
                 Ok(value) => Ok(value.filter(|otp| !otp.is_empty())),
                 // The user aborted the prompt: leave the challenge unsatisfied.
                 Err(PromptError::Cancelled) => Ok(None),

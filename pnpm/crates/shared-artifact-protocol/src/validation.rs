@@ -1,11 +1,9 @@
-pub use super::manifest_path::validate_manifest_path;
-
 use super::{
     ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
     ArtifactPayload, ArtifactProtocolError, ArtifactSubject, BASE64, BTreeMap, BuilderProfile,
     HashSet, MAX_ARTIFACT_SIZE, MAX_ENCODED_FILE_SIZE, MAX_FILE_SIZE, MAX_MANIFEST_FILES,
     OwnerScope, PackageIdentity, PublishArtifactRequest, Sha512, ValidatedArtifactPublication,
-    manifest_path::invalid_path, validate_compatibility,
+    validate_compatibility,
 };
 use base64::Engine as _;
 use sha2::Digest as _;
@@ -18,19 +16,13 @@ fn decode_uploaded_blob(
 ) -> Result<Vec<u8>, ArtifactProtocolError> {
     let invalid = |reason: String| ArtifactProtocolError::InvalidBlobIntegrity(reason);
     if blob.data.len() > MAX_ENCODED_FILE_SIZE {
-        return Err(invalid(format!(
-            "blob {:?} exceeds the encoded size limit",
-            blob.integrity,
-        )));
+        return Err(invalid(format!("blob {:?} exceeds the encoded size limit", blob.integrity)));
     }
     let bytes = BASE64
         .decode(&blob.data)
         .map_err(|_| invalid(format!("blob {:?} is not valid base64", blob.integrity)))?;
     if BASE64.encode(&bytes) != blob.data {
-        return Err(invalid(format!(
-            "blob {:?} is not canonical base64",
-            blob.integrity,
-        )));
+        return Err(invalid(format!("blob {:?} is not canonical base64", blob.integrity)));
     }
     if bytes.len() as u64 != expected_size {
         return Err(invalid(format!(
@@ -71,6 +63,63 @@ fn validate_added_file<'a>(
         )));
     }
     Ok(())
+}
+
+pub fn validate_manifest_path(path: &str) -> Result<(), ArtifactProtocolError> {
+    if path.is_empty() || path.len() > 4_096 {
+        return Err(invalid_path(path, "path length is outside the allowed range"));
+    }
+    if path.starts_with('/') || path.starts_with('\\') {
+        return Err(invalid_path(path, "absolute paths are not allowed"));
+    }
+    if path.as_bytes().get(1) == Some(&b':') {
+        return Err(invalid_path(path, "Windows drive paths are not allowed"));
+    }
+    if path.contains('\\') {
+        return Err(invalid_path(path, "backslash separators are not allowed"));
+    }
+    if path.chars().any(char::is_control) {
+        return Err(invalid_path(path, "control characters are not allowed"));
+    }
+    if path
+        .split('/')
+        .any(|segment| {
+            segment.is_empty()
+                || segment == "."
+                || segment == ".."
+                || segment.contains(':')
+                || is_windows_reserved_name(segment)
+                || segment.ends_with('.')
+                || segment.ends_with(' ')
+        })
+    {
+        return Err(invalid_path(
+            path,
+            "empty, dot, parent, and Windows-normalized segments are not allowed",
+        ));
+    }
+    Ok(())
+}
+
+fn is_windows_reserved_name(segment: &str) -> bool {
+    let basename = segment
+        .split('.')
+        .next()
+        .unwrap_or(segment)
+        .to_ascii_lowercase();
+    matches!(basename.as_str(), "con" | "prn" | "aux" | "nul")
+        || ["com", "lpt"]
+            .iter()
+            .any(|prefix| {
+                basename
+                    .strip_prefix(prefix)
+                    .is_some_and(|suffix| {
+                        matches!(
+                            suffix,
+                            "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³",
+                        )
+                    })
+            })
 }
 
 pub fn blob_id(integrity: &str) -> Result<String, ArtifactProtocolError> {
@@ -171,25 +220,23 @@ fn insert_unique_path(
         return Err(invalid_path(path, "duplicate path"));
     }
     if !folded_paths.insert(path.to_lowercase()) {
-        return Err(invalid_path(
-            path,
-            "path collides on a case-insensitive filesystem",
-        ));
+        return Err(invalid_path(path, "path collides on a case-insensitive filesystem"));
     }
     Ok(())
+}
+
+fn invalid_path(path: &str, reason: &str) -> ArtifactProtocolError {
+    ArtifactProtocolError::InvalidManifest(format!("unsafe path {path:?}: {reason}"))
 }
 
 pub(super) fn hex(bytes: &[u8]) -> String {
     bytes
         .iter()
-        .fold(
-            String::with_capacity(bytes.len() * 2),
-            |mut output, byte| {
-                use std::fmt::Write as _;
-                write!(output, "{byte:02x}").expect("writing to a String cannot fail");
-                output
-            },
-        )
+        .fold(String::with_capacity(bytes.len() * 2), |mut output, byte| {
+            use std::fmt::Write as _;
+            write!(output, "{byte:02x}").expect("writing to a String cannot fail");
+            output
+        })
 }
 
 impl PublishArtifactRequest {
@@ -206,10 +253,7 @@ impl PublishArtifactRequest {
             .collect();
         let blobs = self.validate_uploaded_blobs(&required)?;
 
-        Ok(ValidatedArtifactPublication {
-            payload,
-            blobs,
-        })
+        Ok(ValidatedArtifactPublication { payload, blobs })
     }
 
     pub(super) fn validate_uploaded_blobs(
@@ -328,9 +372,7 @@ impl ArtifactBlobRequest {
 
 impl ArtifactManifest {
     pub fn validate(&self) -> Result<(), ArtifactProtocolError> {
-        let file_count = self.added
-            .len()
-            .saturating_add(self.deleted.len());
+        let file_count = self.added.len().saturating_add(self.deleted.len());
         if file_count > MAX_MANIFEST_FILES {
             return Err(ArtifactProtocolError::InvalidManifest(format!(
                 "manifest contains {file_count} paths; limit is {MAX_MANIFEST_FILES}",

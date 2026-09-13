@@ -232,34 +232,14 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
 fn url_bearing_errors_redact_inline_credentials() {
     let url = "https://alice:hunter2@example.com/pkg.tgz".to_string();
     let rendered = [
-        TarballError::HttpStatus(HttpStatusError {
-            url: url.clone(),
-            status: 404,
-        })
-        .to_string(),
-        TarballError::TarballTooLarge {
-            url: url.clone(),
-            advertised_size: u64::MAX,
-        }
-        .to_string(),
-        TarballError::SiblingFetchFailed {
-            url: url.clone(),
-        }
-        .to_string(),
-        TarballError::OffAllowlist {
-            url,
-        }
-        .to_string(),
+        TarballError::HttpStatus(HttpStatusError { url: url.clone(), status: 404 }).to_string(),
+        TarballError::TarballTooLarge { url: url.clone(), advertised_size: u64::MAX }.to_string(),
+        TarballError::SiblingFetchFailed { url: url.clone() }.to_string(),
+        TarballError::OffAllowlist { url }.to_string(),
     ];
     for message in rendered {
         eprintln!("MESSAGE: {message}");
-        assert!(
-            !message.contains("hunter2"),
-            "the password must not be rendered: {message}",
-        );
-        assert!(
-            message.contains("example.com/pkg.tgz"),
-            "the host must survive: {message}",
-        );
+        assert!(!message.contains("hunter2"), "the password must not be rendered: {message}");
+        assert!(message.contains("example.com/pkg.tgz"), "the host must survive: {message}");
     }
 }

@@ -121,13 +121,7 @@ async fn maximum_retry_budget_does_not_overflow_logging_counters() {
         &url,
         instant_retry_opts(u32::MAX),
         |(): &()| true,
-        || async {
-            if attempts.fetch_add(1, Ordering::Relaxed) == 0 {
-                Err(())
-            } else {
-                Ok(())
-            }
-        },
+        || async { if attempts.fetch_add(1, Ordering::Relaxed) == 0 { Err(()) } else { Ok(()) } },
     )
     .await
     .unwrap();
@@ -136,15 +130,8 @@ async fn maximum_retry_budget_does_not_overflow_logging_counters() {
 
 #[tokio::test]
 async fn authenticated_metadata_uses_the_shared_status_policy_and_preserves_final_response() {
-    for (status, attempts) in [
-        (408, 3),
-        (429, 3),
-        (503, 3),
-        (401, 1),
-        (403, 1),
-        (404, 1),
-        (200, 1),
-    ] {
+    for (status, attempts) in [(408, 3), (429, 3), (503, 3), (401, 1), (403, 1), (404, 1), (200, 1)]
+    {
         eprintln!("status={status}, attempts={attempts}");
         let mut registry = mockito::Server::new_async().await;
         let request = registry
@@ -198,10 +185,7 @@ async fn metadata_retry_restarts_redirects_without_forwarding_origin_credentials
         &ProxyConfig::default(),
         &TlsConfig::default(),
         &PerRegistryTls::default(),
-        &crate::NetworkSettings {
-            network_concurrency: 1,
-            ..Default::default()
-        },
+        &crate::NetworkSettings { network_concurrency: 1, ..Default::default() },
     )
     .unwrap();
     let response = get_secure_bytes(
@@ -314,10 +298,7 @@ async fn bounded_metadata_accepts_exact_limit_after_redirect() {
         .await
         .unwrap();
     assert_eq!(response.body, b"0123456789abcdef");
-    assert!(
-        !response.body_truncated,
-        "exact-limit response was rejected",
-    );
+    assert!(!response.body_truncated, "exact-limit response was rejected");
     assert_eq!(response.url, format!("{}/metadata", server.url()));
     initial.assert_async().await;
     request.assert_async().await;
@@ -331,18 +312,10 @@ fn delay_for_grows_exponentially_then_caps_at_max() {
         min_timeout: Duration::from_secs(1),
         max_timeout: Duration::from_mins(1),
     };
-    assert_eq!(
-        opts.delay_for(0),
-        Duration::from_secs(1),
-        "first wait is min_timeout",
-    );
+    assert_eq!(opts.delay_for(0), Duration::from_secs(1), "first wait is min_timeout");
     assert_eq!(opts.delay_for(1), Duration::from_secs(10), "min * factor^1");
     // min * factor^2 = 100_000 ms, capped to max_timeout.
-    assert_eq!(
-        opts.delay_for(2),
-        Duration::from_mins(1),
-        "capped at max_timeout",
-    );
+    assert_eq!(opts.delay_for(2), Duration::from_mins(1), "capped at max_timeout");
 }
 
 #[test]
@@ -382,22 +355,12 @@ async fn retry_async_retries_a_retryable_error_until_success() {
         |_error| true,
         || {
             let attempt = calls.fetch_add(1, Ordering::Relaxed);
-            async move {
-                if attempt < 2 {
-                    Err("error decoding response body")
-                } else {
-                    Ok("ok")
-                }
-            }
+            async move { if attempt < 2 { Err("error decoding response body") } else { Ok("ok") } }
         },
     )
     .await;
     assert_eq!(result, Ok("ok"));
-    assert_eq!(
-        calls.load(Ordering::Relaxed),
-        3,
-        "two failures then a success",
-    );
+    assert_eq!(calls.load(Ordering::Relaxed), 3, "two failures then a success");
 }
 
 #[tokio::test]
@@ -432,11 +395,7 @@ async fn retry_async_gives_up_after_the_retry_budget() {
     )
     .await;
     assert_eq!(result, Err("error decoding response body"));
-    assert_eq!(
-        calls.load(Ordering::Relaxed),
-        3,
-        "initial attempt plus `retries` retries",
-    );
+    assert_eq!(calls.load(Ordering::Relaxed), 3, "initial attempt plus `retries` retries");
 }
 
 async fn read_request_headers(socket: &mut TcpStream) {

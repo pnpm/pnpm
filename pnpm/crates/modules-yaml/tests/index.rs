@@ -73,10 +73,7 @@ fn read_legacy_shamefully_hoist_true_manifest() {
         .expect("read manifest")
         .expect("modules manifest exists");
 
-    assert_eq!(
-        manifest.public_hoist_pattern.as_deref(),
-        Some(&["*".to_string()][..]),
-    );
+    assert_eq!(manifest.public_hoist_pattern.as_deref(), Some(&["*".to_string()][..]));
     assert_eq!(
         manifest.hoisted_dependencies,
         IndexMap::from([
@@ -170,10 +167,7 @@ fn write_modules_manifest_preserves_hoisted_dependency_order() {
                     ("a-alias".to_string(), HoistKind::Private),
                 ]),
             ),
-            (
-                "a@1.0.0".to_string(),
-                IndexMap::from([("a".to_string(), HoistKind::Private)]),
-            ),
+            ("a@1.0.0".to_string(), IndexMap::from([("a".to_string(), HoistKind::Private)])),
         ]),
         virtual_store_dir: modules_dir
             .join(".pnpm")

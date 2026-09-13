@@ -43,11 +43,7 @@ fn install_shim(global_bin: &Path, name: &str, target: &[u8]) -> std::path::Path
     fs::hard_link(&executable, &shim)
         .or_else(|_| fs::copy(&executable, &shim).map(|_| ()))
         .unwrap();
-    fs::write(
-        global_bin.join(format!(".pnpm-shim-v1-{name}-target")),
-        target,
-    )
-    .unwrap();
+    fs::write(global_bin.join(format!(".pnpm-shim-v1-{name}-target")), target).unwrap();
     shim
 }
 
@@ -216,23 +212,14 @@ fn runtime_pin_downloads_node_on_demand() {
     let version = "24.0.0-rc.4";
     let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
 
-    let config_dir = root
-        .path()
-        .join("config")
-        .join("pnpm");
+    let config_dir = root.path().join("config").join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(
         config_dir.join("config.yaml"),
         format!(
             "storeDir: {}\ncacheDir: {}\nnodeDownloadMirrors:\n  rc: '{}/'\n",
-            root
-                .path()
-                .join("store")
-                .display(),
-            root
-                .path()
-                .join("cache")
-                .display(),
+            root.path().join("store").display(),
+            root.path().join("cache").display(),
             server.url(),
         ),
     )
@@ -246,17 +233,11 @@ fn runtime_pin_downloads_node_on_demand() {
         project.join("pnpm-workspace.yaml"),
         format!(
             "storeDir: {}\nnodeDownloadMirrors:\n  rc: 'http://127.0.0.1:1/'\n",
-            root
-                .path()
-                .join("evil-store")
-                .display(),
+            root.path().join("evil-store").display(),
         ),
     )
     .unwrap();
-    write_script(
-        &project.join("node_modules/.bin/node"),
-        "compromised-local-bin",
-    );
+    write_script(&project.join("node_modules/.bin/node"), "compromised-local-bin");
     fs::write(
         project.join("package.json"),
         serde_json::json!({
@@ -299,12 +280,7 @@ fn runtime_pin_downloads_node_on_demand() {
     let package_dir = fs::canonicalize(package_dir).unwrap();
     let global_store = fs::canonicalize(root.path().join("store/v11/links")).unwrap();
     assert!(package_dir.starts_with(global_store));
-    assert!(
-        !root
-            .path()
-            .join("cache/dlx")
-            .exists(),
-    );
+    assert!(!root.path().join("cache/dlx").exists());
 }
 
 /// A same-named bin provided by a *different* package must not shadow
@@ -330,10 +306,7 @@ fn lookalike_package_does_not_shadow_the_global_bin() {
 fn global_shims_setting_off_disables_dispatch() {
     let root = tempfile::tempdir().unwrap();
     let (project, global_target) = prepare_local_and_global(&root, "tool");
-    let config_dir = root
-        .path()
-        .join("config")
-        .join("pnpm");
+    let config_dir = root.path().join("config").join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(config_dir.join("config.yaml"), "globalShims: false\n").unwrap();
     let output = shim_command(&root, &project, "tool", global_target.to_str().unwrap())
@@ -351,11 +324,7 @@ fn global_home_setting_off_disables_dispatch() {
     let (project, global_target) = prepare_local_and_global(&root, "tool");
     let pnpm_home = root.path().join("pnpm-home");
     fs::create_dir_all(&pnpm_home).unwrap();
-    fs::write(
-        pnpm_home.join("pnpm-workspace.yaml"),
-        "globalShims: false\n",
-    )
-    .unwrap();
+    fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
     let output = shim_command(&root, &project, "tool", global_target.to_str().unwrap())
         .with_env(AUTO_TRUST_ENV, "1")
         .assert()
@@ -385,10 +354,7 @@ fn malformed_trusted_settings_disable_dispatch() {
     for source in ["global config", "pnpm home", "environment"] {
         let root = tempfile::tempdir().unwrap();
         let (project, global_target) = prepare_local_and_global(&root, "tool");
-        let config_dir = root
-            .path()
-            .join("config")
-            .join("pnpm");
+        let config_dir = root.path().join("config").join("pnpm");
         let pnpm_home = root.path().join("pnpm-home");
         fs::create_dir_all(&config_dir).unwrap();
         fs::create_dir_all(&pnpm_home).unwrap();
@@ -405,11 +371,7 @@ fn malformed_trusted_settings_disable_dispatch() {
                 command = command.with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#);
             }
             "environment" => {
-                fs::write(
-                    config_dir.join("config.yaml"),
-                    "globalShims: {tool: true}\n",
-                )
-                .unwrap();
+                fs::write(config_dir.join("config.yaml"), "globalShims: {tool: true}\n").unwrap();
                 command = command.with_env("PNPM_CONFIG_GLOBAL_SHIMS", "[");
             }
             _ => unreachable!(),
@@ -474,11 +436,7 @@ fn write_lockfile_verified_record(root: &TempDir, project: &Path) {
         .join("cache-home")
         .join("pnpm");
     fs::create_dir_all(&cache_dir).unwrap();
-    fs::write(
-        cache_dir.join("lockfile-verified.jsonl"),
-        format!("{record}\n"),
-    )
-    .unwrap();
+    fs::write(cache_dir.join("lockfile-verified.jsonl"), format!("{record}\n")).unwrap();
 }
 
 /// A `pnpm-workspace.yaml` in an ancestor of the pnpm home must not
@@ -491,11 +449,7 @@ fn ancestors_of_the_pnpm_home_cannot_set_the_mode() {
     // `PNPM_HOME` points at `<root>/pnpm-home`; its parent tries to
     // enable dispatch for `tool`. Without env or home-yaml entries the
     // defaults must apply, under which an ordinary tool never switches.
-    fs::write(
-        root.path().join("pnpm-workspace.yaml"),
-        "globalShims: {tool: true}\n",
-    )
-    .unwrap();
+    fs::write(root.path().join("pnpm-workspace.yaml"), "globalShims: {tool: true}\n").unwrap();
     fs::create_dir_all(root.path().join("pnpm-home")).unwrap();
     let output = shim_command(&root, &project, "tool", global_target.to_str().unwrap())
         .with_env(AUTO_TRUST_ENV, "1")
@@ -534,14 +488,8 @@ fn global_fallback_preserves_quoted_shebang_arguments() {
     fs::create_dir_all(target.parent().unwrap()).unwrap();
     fs::write(&interpreter, "#!/bin/sh\nprintf '<%s>\\n' \"$@\"\n").unwrap();
     fs::set_permissions(&interpreter, fs::Permissions::from_mode(0o755)).unwrap();
-    fs::write(
-        &target,
-        format!(
-            "#!{} --label \"value with spaces\"\n",
-            interpreter.display(),
-        ),
-    )
-    .unwrap();
+    fs::write(&target, format!("#!{} --label \"value with spaces\"\n", interpreter.display()))
+        .unwrap();
     let cwd = root.path().join("outside");
     fs::create_dir_all(&cwd).unwrap();
 
@@ -550,28 +498,15 @@ fn global_fallback_preserves_quoted_shebang_arguments() {
         .output()
         .unwrap();
 
-    assert!(
-        output.status.success(),
-        "stderr:\n{}",
-        String::from_utf8_lossy(&output.stderr),
-    );
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
     let lines: Vec<_> = String::from_utf8_lossy(&output.stdout)
         .lines()
         .map(str::to_string)
         .collect();
     assert_eq!(lines.first().map(String::as_str), Some("<--label>"));
-    assert_eq!(
-        lines.get(1).map(String::as_str),
-        Some("<value with spaces>"),
-    );
-    assert_eq!(
-        lines.get(2).map(String::as_str),
-        Some(format!("<{}>", target.display()).as_str()),
-    );
-    assert_eq!(
-        lines.last().map(String::as_str),
-        Some("<forwarded with spaces>"),
-    );
+    assert_eq!(lines.get(1).map(String::as_str), Some("<value with spaces>"));
+    assert_eq!(lines.get(2).map(String::as_str), Some(format!("<{}>", target.display()).as_str()));
+    assert_eq!(lines.last().map(String::as_str), Some("<forwarded with spaces>"));
 }
 
 /// A script target whose shebang names `node` runs on the bin dir's own
@@ -593,15 +528,8 @@ fn global_fallback_prefers_the_sibling_interpreter() {
         .output()
         .unwrap();
 
-    assert!(
-        output.status.success(),
-        "stderr:\n{}",
-        String::from_utf8_lossy(&output.stderr),
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout).trim(),
-        "sibling node",
-    );
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "sibling node");
 }
 
 /// A shim whose target is not recorded, or points back at the shim, must
@@ -613,11 +541,7 @@ fn a_shim_without_a_readable_target_fails() {
     let cwd = root.path().join("outside");
     fs::create_dir_all(&cwd).unwrap();
     let shim = shim_command(&root, &cwd, "tool", "placeholder").get_program().to_owned();
-    fs::write(
-        root.path().join("global-bin/.pnpm-shim-v1-tool-target"),
-        b"pkg:not a name",
-    )
-    .unwrap();
+    fs::write(root.path().join("global-bin/.pnpm-shim-v1-tool-target"), b"pkg:not a name").unwrap();
 
     let output = Command::new(&shim)
         .with_current_dir(&cwd)
@@ -686,11 +610,7 @@ fn pnpm_command(root: &TempDir, cwd: &Path) -> Command {
 }
 
 fn stdout_of(output: &std::process::Output) -> String {
-    assert!(
-        output.status.success(),
-        "stderr:\n{}",
-        String::from_utf8_lossy(&output.stderr),
-    );
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
 
@@ -764,10 +684,7 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let config_dir = root
-        .path()
-        .join("config")
-        .join("pnpm");
+    let config_dir = root.path().join("config").join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(config_dir.join("config.yaml"), "globalShims: false\n").unwrap();
 
@@ -779,10 +696,7 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
     assert!(!refused.status.success());
     let stderr = String::from_utf8_lossy(&refused.stderr);
     assert!(stderr.contains("ERR_PNPM_SHIMS_DISABLED"), "{stderr}");
-    assert_eq!(
-        fs::read_to_string(config_dir.join("config.yaml")).unwrap(),
-        "globalShims: false\n",
-    );
+    assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
     // Nothing was linked at all — not the bare shim, not a Windows
     // flavor, not the dispatcher beside them.
     let global_bin = root
@@ -803,15 +717,8 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
         .with_args(["shim", "rm", "yarn"])
         .output()
         .unwrap();
-    assert!(
-        removed.status.success(),
-        "{}",
-        String::from_utf8_lossy(&removed.stderr),
-    );
-    assert_eq!(
-        fs::read_to_string(config_dir.join("config.yaml")).unwrap(),
-        "globalShims: false\n",
-    );
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
+    assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
 }
 
 /// Removing a shim the record never held changes nothing, so it writes
@@ -833,17 +740,9 @@ fn removing_a_shim_that_was_never_recorded_leaves_the_config_alone() {
         .output()
         .unwrap();
 
-    assert!(
-        removed.status.success(),
-        "{}",
-        String::from_utf8_lossy(&removed.stderr),
-    );
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     assert!(stdout_of(&removed).contains("No shims for yarn"));
-    assert!(
-        !config.exists(),
-        "{}",
-        fs::read_to_string(&config).unwrap_or_default(),
-    );
+    assert!(!config.exists(), "{}", fs::read_to_string(&config).unwrap_or_default());
 }
 
 /// Switching a built-in shim off is done by recording it off, so
@@ -854,27 +753,16 @@ fn removing_a_disabled_shim_does_not_enable_it() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let config_dir = root
-        .path()
-        .join("config")
-        .join("pnpm");
+    let config_dir = root.path().join("config").join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
-    fs::write(
-        config_dir.join("config.yaml"),
-        "globalShims:\n  node: false\n",
-    )
-    .unwrap();
+    fs::write(config_dir.join("config.yaml"), "globalShims:\n  node: false\n").unwrap();
 
     let removed = pnpm_command(&root, &project)
         .with_args(["shim", "rm", "node"])
         .output()
         .unwrap();
 
-    assert!(
-        removed.status.success(),
-        "{}",
-        String::from_utf8_lossy(&removed.stderr),
-    );
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     assert_eq!(
         fs::read_to_string(config_dir.join("config.yaml")).unwrap(),
         "globalShims:\n  node: false\n",
@@ -889,27 +777,16 @@ fn removing_a_disabled_shim_clears_it_when_nothing_would_switch_on() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let config_dir = root
-        .path()
-        .join("config")
-        .join("pnpm");
+    let config_dir = root.path().join("config").join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
-    fs::write(
-        config_dir.join("config.yaml"),
-        "globalShims:\n  typescript: false\n",
-    )
-    .unwrap();
+    fs::write(config_dir.join("config.yaml"), "globalShims:\n  typescript: false\n").unwrap();
 
     let removed = pnpm_command(&root, &project)
         .with_args(["shim", "rm", "typescript"])
         .output()
         .unwrap();
 
-    assert!(
-        removed.status.success(),
-        "{}",
-        String::from_utf8_lossy(&removed.stderr),
-    );
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     let config = fs::read_to_string(config_dir.join("config.yaml")).unwrap();
     assert!(!config.contains("typescript"), "{config}");
 }
@@ -925,43 +802,26 @@ fn removing_a_shim_under_a_higher_precedence_disable_records_no_defaults() {
     fs::create_dir_all(&project).unwrap();
     let pnpm_home = root.path().join("pnpm-home");
     fs::create_dir_all(&pnpm_home).unwrap();
-    let config_dir = root
-        .path()
-        .join("config")
-        .join("pnpm");
+    let config_dir = root.path().join("config").join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
 
     // The record the user has, and a disable that outranks it.
-    fs::write(
-        config_dir.join("config.yaml"),
-        "globalShims:\n  yarn: auto\n  node: false\n",
-    )
-    .unwrap();
-    fs::write(
-        pnpm_home.join("pnpm-workspace.yaml"),
-        "globalShims: false\n",
-    )
-    .unwrap();
+    fs::write(config_dir.join("config.yaml"), "globalShims:\n  yarn: auto\n  node: false\n")
+        .unwrap();
+    fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
 
     let removed = pnpm_command(&root, &project)
         .with_args(["shim", "rm", "yarn"])
         .output()
         .unwrap();
 
-    assert!(
-        removed.status.success(),
-        "{}",
-        String::from_utf8_lossy(&removed.stderr),
-    );
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     let config = fs::read_to_string(config_dir.join("config.yaml")).unwrap();
     assert!(!config.contains("yarn"), "{config}");
     // The rest of the record stands, and nothing else was added to it.
     assert!(config.contains("node: false"), "{config}");
     for defaulted in ["deno", "bun"] {
-        assert!(
-            !config.contains(defaulted),
-            "{defaulted} was written into {config}",
-        );
+        assert!(!config.contains(defaulted), "{defaulted} was written into {config}");
     }
 }
 
@@ -979,11 +839,7 @@ fn adding_a_shim_under_a_higher_precedence_disable_is_refused() {
 
         let mut command = pnpm_command(&root, &project);
         if disable {
-            fs::write(
-                pnpm_home.join("pnpm-workspace.yaml"),
-                "globalShims: false\n",
-            )
-            .unwrap();
+            fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
         } else {
             command = command.with_env("PNPM_CONFIG_GLOBAL_SHIMS", "false");
         }
@@ -994,10 +850,7 @@ fn adding_a_shim_under_a_higher_precedence_disable_is_refused() {
 
         assert!(!refused.status.success(), "{label}");
         let stderr = String::from_utf8_lossy(&refused.stderr);
-        assert!(
-            stderr.contains("ERR_PNPM_SHIMS_DISABLED"),
-            "{label}: {stderr}",
-        );
+        assert!(stderr.contains("ERR_PNPM_SHIMS_DISABLED"), "{label}: {stderr}");
         // Nothing was linked: not the shim, not a Windows flavor of it,
         // not the dispatcher beside them.
         let linked: Vec<_> = fs::read_dir(pnpm_home.join("bin"))
@@ -1028,30 +881,18 @@ fn adding_a_shim_over_another_package_s_bin_is_refused() {
         .with_args(["shim", "add", "yarn"])
         .output()
         .unwrap();
-    assert!(
-        added.status.success(),
-        "{}",
-        String::from_utf8_lossy(&added.stderr),
-    );
+    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
     let readded = pnpm_command(&root, &project)
         .with_args(["shim", "add", "yarn"])
         .output()
         .unwrap();
-    assert!(
-        readded.status.success(),
-        "{}",
-        String::from_utf8_lossy(&readded.stderr),
-    );
+    assert!(readded.status.success(), "{}", String::from_utf8_lossy(&readded.stderr));
 
     let removed = pnpm_command(&root, &project)
         .with_args(["shim", "rm", "yarn"])
         .output()
         .unwrap();
-    assert!(
-        removed.status.success(),
-        "{}",
-        String::from_utf8_lossy(&removed.stderr),
-    );
+    assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     assert!(!global_bin.join("yarn").exists());
     let installed_globally = "#!/bin/sh\necho a global install\n";
     fs::write(global_bin.join("yarn"), installed_globally).unwrap();
@@ -1063,10 +904,7 @@ fn adding_a_shim_over_another_package_s_bin_is_refused() {
     assert!(!refused.status.success());
     let stderr = String::from_utf8_lossy(&refused.stderr);
     assert!(stderr.contains("ERR_PNPM_SHIM_BIN_CONFLICT"), "{stderr}");
-    assert_eq!(
-        fs::read_to_string(global_bin.join("yarn")).unwrap(),
-        installed_globally,
-    );
+    assert_eq!(fs::read_to_string(global_bin.join("yarn")).unwrap(), installed_globally);
 }
 
 /// Nothing installed the package behind the shim, so a project that
@@ -1078,21 +916,13 @@ fn a_shim_without_a_project_target_reports_it() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    fs::write(
-        project.join("package.json"),
-        r#"{"name":"project","version":"1.0.0"}"#,
-    )
-    .unwrap();
+    fs::write(project.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#).unwrap();
 
     let added = pnpm_command(&root, &project)
         .with_args(["shim", "add", "yarn"])
         .output()
         .unwrap();
-    assert!(
-        added.status.success(),
-        "{}",
-        String::from_utf8_lossy(&added.stderr),
-    );
+    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
     let output = Command::new(
         root
             .path()

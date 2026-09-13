@@ -105,9 +105,7 @@ impl<'a> HoistSymlinkPlan<'a> {
             if skipped.contains(node_id) {
                 continue;
             }
-            let Some(node) = graph.get(node_id) else {
-                continue;
-            };
+            let Some(node) = graph.get(node_id) else { continue };
             // `node.name` originates from the lockfile, so a
             // traversal-shaped name is guarded here before it becomes
             // the hoist symlink's `<slot>/node_modules/<name>` target.

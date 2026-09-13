@@ -32,9 +32,7 @@ pub(crate) fn virtual_store_dir_for_key(
     let key_str = bare_key.to_string();
     let name_version = key_str.strip_prefix('/').unwrap_or(&key_str);
 
-    let at_idx = name_version
-        .rfind('@')
-        .unwrap_or(name_version.len());
+    let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
     let name = &name_version[..at_idx];
 
     layout
@@ -242,9 +240,7 @@ pub(crate) fn bin_dirs_in_all_parent_dirs(pkg_root: &Path, lockfile_dir: &Path) 
     let mut bin_dirs: Vec<PathBuf> = Vec::new();
     let mut dir: PathBuf = pkg_root.to_path_buf();
     loop {
-        let parent = dir
-            .parent()
-            .unwrap_or_else(|| Path::new(""));
+        let parent = dir.parent().unwrap_or_else(|| Path::new(""));
         let parent_starts_with_at = parent
             .to_str()
             .and_then(|text| text.chars().next())

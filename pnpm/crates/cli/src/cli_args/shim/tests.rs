@@ -13,13 +13,8 @@ fn link_virtual_shims(package: &str, bins: &[&str], bin_dir: &Path) {
     fs::create_dir_all(bin_dir).unwrap();
     fs::write(&source, b"stand-in executable").unwrap();
     for bin in bins {
-        install_native_shim_from(
-            &source,
-            bin_dir,
-            bin,
-            &ShimTarget::Virtual(package.to_string()),
-        )
-        .expect("link the shim");
+        install_native_shim_from(&source, bin_dir, bin, &ShimTarget::Virtual(package.to_string()))
+            .expect("link the shim");
     }
 }
 
@@ -43,11 +38,8 @@ fn a_generated_shim_names_the_package_it_stands_for() {
 #[test]
 fn a_shim_with_a_real_target_is_not_reported() {
     let dir = tempdir().unwrap();
-    fs::write(
-        dir.path().join("tsc"),
-        "#!/bin/sh\n# cmd-shim-target=../typescript/bin/tsc\n",
-    )
-    .unwrap();
+    fs::write(dir.path().join("tsc"), "#!/bin/sh\n# cmd-shim-target=../typescript/bin/tsc\n")
+        .unwrap();
     link_virtual_shims("yarn", &["yarn"], dir.path());
 
     assert_eq!(installed_shims(dir.path(), "yarn"), ["yarn"]);
@@ -61,10 +53,7 @@ fn only_the_named_package_s_shims_are_reported() {
     link_virtual_shims("npm", &["npm", "npx"], dir.path());
 
     assert_eq!(installed_shims(dir.path(), "npm"), ["npm", "npx"]);
-    assert_eq!(
-        installed_shims(dir.path(), "typescript"),
-        Vec::<String>::new(),
-    );
+    assert_eq!(installed_shims(dir.path(), "typescript"), Vec::<String>::new());
 }
 
 #[test]
@@ -83,10 +72,7 @@ fn failed_publication_retains_intent_for_a_retry() {
     let config_dir = root.path().join("config");
     let bin_path = bin_dir.join("tool");
     fs::create_dir_all(&bin_path).unwrap();
-    let config = pnpm_config::Config {
-        config_dir: Some(config_dir.clone()),
-        ..Default::default()
-    };
+    let config = pnpm_config::Config { config_dir: Some(config_dir.clone()), ..Default::default() };
     let bins = vec!["tool".to_string()];
     let publication = || VirtualShimPublication {
         config: &config,
@@ -97,18 +83,12 @@ fn failed_publication_retains_intent_for_a_retry() {
 
     publish_virtual_shims(&publication()).expect_err("the occupied bin path should fail");
     assert!(bin_path.is_dir());
-    assert_eq!(
-        virtual_shim_bins_to_restore(&bin_dir, "tool").unwrap(),
-        bins,
-    );
+    assert_eq!(virtual_shim_bins_to_restore(&bin_dir, "tool").unwrap(), bins);
     assert!(fs::read_to_string(config_dir.join("config.yaml")).unwrap().contains("tool: auto"));
 
     fs::remove_dir(&bin_path).unwrap();
     publish_virtual_shims(&publication()).expect("retry publication");
-    assert_eq!(
-        virtual_shim_owner(&bin_path).unwrap().as_deref(),
-        Some("tool"),
-    );
+    assert_eq!(virtual_shim_owner(&bin_path).unwrap().as_deref(), Some("tool"));
 }
 
 /// A globally installed package manager opts into project-aware
@@ -119,18 +99,12 @@ fn installing_a_package_manager_globally_records_the_opt_in() {
     use pnpm_config::{Config, NamedShimPolicy, ShimPolicyValue};
 
     let dir = tempdir().unwrap();
-    let config = Config {
-        config_dir: Some(dir.path().to_path_buf()),
-        ..Config::default()
-    };
+    let config = Config { config_dir: Some(dir.path().to_path_buf()), ..Config::default() };
 
     let added = record_package_manager_shims(&config, ["yarn", "typescript"]).expect("record");
     assert_eq!(added.into_iter().collect::<Vec<_>>(), ["yarn"]);
     let entries = recorded_entries(dir.path()).expect("read back");
-    assert_eq!(
-        entries.get("yarn"),
-        Some(&ShimPolicyValue::Named(NamedShimPolicy::Auto)),
-    );
+    assert_eq!(entries.get("yarn"), Some(&ShimPolicyValue::Named(NamedShimPolicy::Auto)));
     // A package that is not a package manager is left to `pnpm shim add`.
     assert_eq!(entries.get("typescript"), None);
 
@@ -153,10 +127,7 @@ fn a_global_disable_is_not_undone_by_installing_a_package_manager() {
 
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("config.yaml"), "globalShims: false\n").unwrap();
-    let config = Config {
-        config_dir: Some(dir.path().to_path_buf()),
-        ..Config::default()
-    };
+    let config = Config { config_dir: Some(dir.path().to_path_buf()), ..Config::default() };
 
     let added = record_package_manager_shims(&config, ["yarn"]).expect("record");
 
@@ -185,10 +156,7 @@ fn restoration_state_round_trips_scoped_packages_and_bins() {
 
     record_virtual_shim_state(dir.path(), "@scope/tool", &bins).expect("record state");
 
-    assert_eq!(
-        virtual_shim_bins_to_restore(dir.path(), "@scope/tool").expect("read state"),
-        bins,
-    );
+    assert_eq!(virtual_shim_bins_to_restore(dir.path(), "@scope/tool").expect("read state"), bins);
     let state_path = virtual_shim_state_path(dir.path(), "@scope/tool");
     assert_eq!(state_path.parent(), Some(dir.path()));
 
@@ -216,10 +184,7 @@ fn restoration_state_rejects_unsafe_bin_names() {
 
     let error = virtual_shim_bins_to_restore(dir.path(), "tool").unwrap_err();
     let error = error.to_string();
-    assert!(
-        error.contains(r#"invalid bin name "../outside""#),
-        "{error}",
-    );
+    assert!(error.contains(r#"invalid bin name "../outside""#), "{error}");
 }
 
 #[test]

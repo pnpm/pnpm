@@ -117,13 +117,7 @@ pub(super) fn frozen_package_frames(
     let mut frames = Vec::new();
     for (package_key, snapshot) in packages {
         if let Some(line) = frozen_package_frame(
-            FrozenFrameInputs {
-                config,
-                router,
-                dist_stats,
-                package_key,
-                snapshot,
-            },
+            FrozenFrameInputs { config, router, dist_stats, package_key, snapshot },
             &mut seen_urls,
         ) {
             frames.push(line);
@@ -148,7 +142,19 @@ fn frozen_package_frame(
     inputs: FrozenFrameInputs<'_>,
     seen_urls: &mut std::collections::HashSet<String>,
 ) -> Option<Vec<u8>> {
-    let (tarball_url, integrity) = frozen_tarball(&inputs)?;
+    if !matches!(
+        inputs.snapshot.resolution,
+        LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
+    ) {
+        return None;
+    }
+    // The frame carries the integrity the client prefetches against;
+    // an entry that pins none has no frame to announce.
+    let Ok((tarball_url, Some(integrity))) =
+        tarball_url_and_integrity(&inputs.snapshot.resolution, inputs.package_key, inputs.config)
+    else {
+        return None;
+    };
     let name = inputs.package_key.name.to_string();
     let version = inputs.package_key.suffix.version().to_string();
     let upstream_tarball_url = tarball_url;
@@ -158,21 +164,16 @@ fn frozen_package_frame(
     }
     let id = format!("{name}@{version}");
     let integrity = integrity.to_string();
-    let revision = pnpr_served_revision(
-        &inputs.snapshot.resolution,
-        &tarball_url,
-        &upstream_tarball_url,
-    );
-    let stats = inputs.dist_stats
-        .get(&(name.clone(), version.clone()))
-        .map(|entry| *entry.value());
+    let revision =
+        pnpr_served_revision(&inputs.snapshot.resolution, &tarball_url, &upstream_tarball_url);
+    let (unpacked_size, file_count) = frozen_dist_stats(inputs.dist_stats, &name, &version);
     let frame = package_frame(
         inputs.router,
         &ResolvedPackageHint {
             integrity: &integrity,
             tarball_url: &tarball_url,
-            unpacked_size: stats.and_then(|stats| stats.unpacked_size),
-            file_count: stats.and_then(|stats| stats.file_count),
+            unpacked_size,
+            file_count,
             revision,
             // The URL is already routed (canonical → endpoint above), so
             // re-routing by registry would be redundant; route_url is a
@@ -186,6 +187,16 @@ fn frozen_package_frame(
         },
     );
     ndjson_line(&frame).ok()
+}
+
+fn frozen_dist_stats(
+    stats: &ObservedDistStats,
+    name: &str,
+    version: &str,
+) -> (Option<usize>, Option<usize>) {
+    stats
+        .get(&(name.to_string(), version.to_string()))
+        .map_or((None, None), |entry| (entry.unpacked_size, entry.file_count))
 }
 
 /// The tarball revision a frame announces. Only a URL still pointing at the
@@ -363,10 +374,7 @@ pub(super) fn tarball_url_version<'a>(url: &'a str, name: &str) -> Option<&'a st
         .next()
         .unwrap_or(last);
     let stem = strip_tarball_suffix(last)?;
-    let unscoped = name
-        .rsplit('/')
-        .next()
-        .unwrap_or(name);
+    let unscoped = name.rsplit('/').next().unwrap_or(name);
     let version = stem.strip_prefix(unscoped)?.strip_prefix('-')?;
     (!version.is_empty()).then_some(version)
 }
@@ -378,9 +386,7 @@ fn strip_tarball_suffix(name: &str) -> Option<&str> {
     [".tar.gz", ".tgz"]
         .into_iter()
         .find_map(|suffix| {
-            let head_len = name
-                .len()
-                .checked_sub(suffix.len())?;
+            let head_len = name.len().checked_sub(suffix.len())?;
             let (head, tail) = (name.get(..head_len)?, name.get(head_len..)?);
             tail.eq_ignore_ascii_case(suffix).then_some(head)
         })
@@ -469,25 +475,4 @@ pub(super) fn ndjson_stream_response(
         .header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
         .body(Body::from_stream(stream))
         .expect("streaming response is always valid")
-}
-
-fn frozen_tarball<'a>(
-    inputs: &FrozenFrameInputs<'a>,
-) -> Option<(std::borrow::Cow<'a, str>, &'a ssri::Integrity)> {
-    if !matches!(
-        inputs.snapshot.resolution,
-        LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
-    ) {
-        return None;
-    }
-    // The frame carries the integrity the client prefetches against;
-    // an entry that pins none has no frame to announce.
-    let Ok((tarball_url, Some(integrity))) = tarball_url_and_integrity(
-        &inputs.snapshot.resolution,
-        inputs.package_key,
-        inputs.config,
-    ) else {
-        return None;
-    };
-    Some((tarball_url, integrity))
 }

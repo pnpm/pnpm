@@ -57,9 +57,7 @@ fn parse_bun_version(stdout: &str) -> Option<String> {
 /// a version followed by terminal escapes — is rejected outright rather
 /// than reported as the installed version.
 fn accept_version(text: &str) -> Option<String> {
-    node_semver::Version::parse(text)
-        .ok()
-        .map(|_| text.to_string())
+    node_semver::Version::parse(text).ok().map(|_| text.to_string())
 }
 
 #[cfg(test)]

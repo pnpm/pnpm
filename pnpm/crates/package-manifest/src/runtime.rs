@@ -97,10 +97,9 @@ pub fn engines_runtime_dependencies(
 /// managed by the corresponding engines field. `download` re-runs the normal
 /// engine-to-dependency conversion.
 pub fn apply_runtime_on_fail_override(manifest: &mut Value, on_fail_override: &str) {
-    for (engines_field, deps_field) in [
-        ("devEngines", "devDependencies"),
-        ("engines", "dependencies"),
-    ] {
+    for (engines_field, deps_field) in
+        [("devEngines", "devDependencies"), ("engines", "dependencies")]
+    {
         let Some(runtime_entry) = manifest
             .get_mut(engines_field)
             .and_then(|engines| engines.get_mut("runtime"))
@@ -135,10 +134,7 @@ fn set_runtime_on_fail(runtime_entry: &mut Value, on_fail_override: &str) -> boo
             true
         }
         Value::Object(runtime) => {
-            runtime.insert(
-                "onFail".to_string(),
-                Value::String(on_fail_override.to_string()),
-            );
+            runtime.insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
             true
         }
         _ => false,
@@ -152,9 +148,7 @@ fn managed_runtimes(runtime_entry: &Value) -> Vec<&'static str> {
     RUNTIME_NAMES
         .into_iter()
         .filter(|runtime_name| match runtime_entry {
-            Value::Array(runtimes) => runtimes
-                .iter()
-                .any(|runtime| names(runtime, runtime_name)),
+            Value::Array(runtimes) => runtimes.iter().any(|runtime| names(runtime, runtime_name)),
             Value::Object(_) => names(runtime_entry, runtime_name),
             _ => false,
         })

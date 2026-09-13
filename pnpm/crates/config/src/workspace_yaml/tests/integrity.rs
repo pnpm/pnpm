@@ -14,10 +14,7 @@ fn parses_verify_store_integrity_from_yaml_and_applies() {
     assert_eq!(settings.verify_store_integrity, Some(false));
 
     let mut config = Config::new();
-    assert!(
-        config.verify_store_integrity,
-        "the default is `true` to match pnpm",
-    );
+    assert!(config.verify_store_integrity, "the default is `true` to match pnpm");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert!(!config.verify_store_integrity, "yaml override wins");
 }

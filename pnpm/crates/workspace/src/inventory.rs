@@ -98,7 +98,7 @@ fn find_workspace_inventory_with(
         .iter()
         .map(OsStr::new)
         .collect();
-    let canonical_root = canonicalize_workspace_root(workspace_root)?;
+    let canonical_root = canonical_workspace_root(workspace_root)?;
     let ignored = IgnoredDirectories {
         root: workspace_root,
         patterns: compile_excluded_directories(package_patterns)?,
@@ -132,9 +132,15 @@ fn find_workspace_inventory_with(
     for manifest_paths in manifests.values_mut() {
         manifest_paths.sort();
     }
-    Ok(WorkspaceInventory {
-        manifests,
-    })
+    Ok(WorkspaceInventory { manifests })
+}
+
+fn canonical_workspace_root(workspace_root: &Path) -> Result<PathBuf, FindWorkspaceInventoryError> {
+    fs::canonicalize(workspace_root)
+        .map_err(|source| FindWorkspaceInventoryError::ReadDirectory {
+            path: workspace_root.to_path_buf(),
+            source,
+        })
 }
 
 fn compile_excluded_directories(
@@ -172,10 +178,7 @@ fn ignored_paths_under(
             Ok(path) => path,
             Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
             Err(source) => {
-                return Err(FindWorkspaceInventoryError::InspectCandidate {
-                    path,
-                    source,
-                });
+                return Err(FindWorkspaceInventoryError::InspectCandidate { path, source });
             }
         };
         if let Ok(relative) = canonical.strip_prefix(canonical_root) {
@@ -204,21 +207,8 @@ impl IgnoredDirectories<'_> {
 }
 
 fn is_ignorable_discovery_error(error: &io::Error) -> bool {
-    matches!(
-        error.kind(),
-        io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied,
-    )
+    matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied)
 }
 
 #[cfg(test)]
 mod tests;
-
-fn canonicalize_workspace_root(
-    workspace_root: &Path,
-) -> Result<PathBuf, FindWorkspaceInventoryError> {
-    fs::canonicalize(workspace_root)
-        .map_err(|source| FindWorkspaceInventoryError::ReadDirectory {
-            path: workspace_root.to_path_buf(),
-            source,
-        })
-}

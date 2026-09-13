@@ -56,13 +56,7 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     // static shape.
     let nested: String = packages_block
         .lines()
-        .map(|line| {
-            if line.trim().is_empty() {
-                line.to_string()
-            } else {
-                format!("    {line}")
-            }
-        })
+        .map(|line| if line.trim().is_empty() { line.to_string() } else { format!("    {line}") })
         .collect::<Vec<_>>()
         .join("\n");
     let yaml = format!(
@@ -75,12 +69,8 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     );
     let config_path = dir.path().join("config.yaml");
     std::fs::write(&config_path, yaml).unwrap();
-    let mut config = Config::from_yaml(
-        &config_path,
-        listen,
-        Some("http://example.test".to_string()),
-    )
-    .unwrap();
+    let mut config =
+        Config::from_yaml(&config_path, listen, Some("http://example.test".to_string())).unwrap();
     config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     (config, storage)
 }

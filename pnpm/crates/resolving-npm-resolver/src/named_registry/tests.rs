@@ -70,10 +70,7 @@ fn build_prefixes_overrides_builtin_on_same_key() {
 fn build_prefixes_sorts_longest_first() {
     let mut named = HashMap::new();
     named.insert("a".to_string(), "https://npm.example/team-a".to_string());
-    named.insert(
-        "b".to_string(),
-        "https://npm.example/team-a/sub".to_string(),
-    );
+    named.insert("b".to_string(), "https://npm.example/team-a/sub".to_string());
     let prefixes = named_registry_tarball_prefixes(&merge_named_registries(&named).unwrap());
     assert!(
         prefixes[0].starts_with("https://npm.example/team-a/sub"),
@@ -158,33 +155,21 @@ fn unscoped_npm_alias_target_routes_to_default() {
 #[test]
 fn merge_includes_builtin_when_user_empty() {
     let merged = merge_named_registries(&HashMap::new()).unwrap();
-    assert_eq!(
-        merged.get("gh").map(String::as_str),
-        Some("https://npm.pkg.github.com/"),
-    );
+    assert_eq!(merged.get("gh").map(String::as_str), Some("https://npm.pkg.github.com/"));
 }
 
 #[test]
 fn merge_includes_builtin_npmjs() {
     let merged = merge_named_registries(&HashMap::new()).unwrap();
-    assert_eq!(
-        merged.get("npmjs").map(String::as_str),
-        Some("https://registry.npmjs.org/"),
-    );
+    assert_eq!(merged.get("npmjs").map(String::as_str), Some("https://registry.npmjs.org/"));
 }
 
 #[test]
 fn merge_user_overrides_builtin_npmjs() {
     let mut user = HashMap::new();
-    user.insert(
-        "npmjs".to_string(),
-        "https://npm.proxy.example/".to_string(),
-    );
+    user.insert("npmjs".to_string(), "https://npm.proxy.example/".to_string());
     let merged = merge_named_registries(&user).unwrap();
-    assert_eq!(
-        merged.get("npmjs").map(String::as_str),
-        Some("https://npm.proxy.example/"),
-    );
+    assert_eq!(merged.get("npmjs").map(String::as_str), Some("https://npm.proxy.example/"));
     let prefixes = named_registry_tarball_prefixes(&merge_named_registries(&user).unwrap());
     assert!(
         prefixes
@@ -201,15 +186,9 @@ fn merge_user_overrides_builtin_npmjs() {
 #[test]
 fn merge_user_overrides_builtin_gh() {
     let mut user = HashMap::new();
-    user.insert(
-        "gh".to_string(),
-        "https://npm.ghes.example.com/".to_string(),
-    );
+    user.insert("gh".to_string(), "https://npm.ghes.example.com/".to_string());
     let merged = merge_named_registries(&user).unwrap();
-    assert_eq!(
-        merged.get("gh").map(String::as_str),
-        Some("https://npm.ghes.example.com/"),
-    );
+    assert_eq!(merged.get("gh").map(String::as_str), Some("https://npm.ghes.example.com/"));
 }
 
 #[test]
@@ -217,19 +196,13 @@ fn merge_rejects_url_without_scheme() {
     let mut user = HashMap::new();
     user.insert("work".to_string(), "npm.work.example.com".to_string());
     let err = merge_named_registries(&user).expect_err("missing scheme must error");
-    assert!(
-        matches!(err, MergeNamedRegistriesError::InvalidUrl { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, MergeNamedRegistriesError::InvalidUrl { .. }), "got {err:?}");
 }
 
 #[test]
 fn merge_rejects_non_http_scheme() {
     let mut user = HashMap::new();
-    user.insert(
-        "work".to_string(),
-        "ftp://npm.work.example.com/".to_string(),
-    );
+    user.insert("work".to_string(), "ftp://npm.work.example.com/".to_string());
     let err = merge_named_registries(&user).expect_err("ftp scheme must error");
     let MergeNamedRegistriesError::InvalidUrl { alias, url } = err else {
         panic!("expected InvalidUrl, got {err:?}");
@@ -257,27 +230,15 @@ fn tarball_under_unrelated_prefix_does_not_match() {
 #[test]
 fn merge_rejects_reserved_alias() {
     let mut user = HashMap::new();
-    user.insert(
-        "file".to_string(),
-        "https://npm.work.example.com/".to_string(),
-    );
+    user.insert("file".to_string(), "https://npm.work.example.com/".to_string());
     let err = merge_named_registries(&user).expect_err("reserved alias must error");
-    assert!(
-        matches!(err, MergeNamedRegistriesError::ReservedAlias { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, MergeNamedRegistriesError::ReservedAlias { .. }), "got {err:?}");
 }
 
 #[test]
 fn merge_rejects_malformed_alias() {
     let mut user = HashMap::new();
-    user.insert(
-        "bad alias!".to_string(),
-        "https://npm.work.example.com/".to_string(),
-    );
+    user.insert("bad alias!".to_string(), "https://npm.work.example.com/".to_string());
     let err = merge_named_registries(&user).expect_err("malformed alias must error");
-    assert!(
-        matches!(err, MergeNamedRegistriesError::MalformedAlias { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, MergeNamedRegistriesError::MalformedAlias { .. }), "got {err:?}");
 }

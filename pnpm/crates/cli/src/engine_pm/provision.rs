@@ -68,12 +68,9 @@ pub(crate) async fn provision<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<ProvisionedEngine> {
     match pm.channel(version_spec) {
         Channel::Registry { package } => {
-            provision_from_registry::<Reporter>(config, pm, package, version_spec)
-                .await
+            provision_from_registry::<Reporter>(config, pm, package, version_spec).await
         }
-        Channel::Binary(binary) => {
-            provision_binary(config, binary, version_spec).await
-        }
+        Channel::Binary(binary) => provision_binary(config, binary, version_spec).await,
     }
 }
 
@@ -89,22 +86,15 @@ async fn provision_binary(
         BinaryChannel::Bun => "bun",
         BinaryChannel::Yarn => "yarn",
     };
-    let program = materialize_runtime(
-        &config.state_dir,
-        name.to_string(),
-        version_spec.to_string(),
-    )
-    .await?;
+    let program =
+        materialize_runtime(&config.state_dir, name.to_string(), version_spec.to_string()).await?;
     let bin_dir = program
         .parent()
         .ok_or_else(|| EngineError::MissingEngineBin {
             name,
             dir: program.display().to_string(),
         })?;
-    Ok(ProvisionedEngine {
-        bin_dirs: vec![bin_dir.to_path_buf()],
-        program,
-    })
+    Ok(ProvisionedEngine { bin_dirs: vec![bin_dir.to_path_buf()], program })
 }
 
 async fn provision_from_registry<Reporter: self::Reporter + 'static>(
@@ -143,10 +133,7 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
     if let Some(node_bin_dir) = node_bin_dir(config, packages).await? {
         bin_dirs.push(node_bin_dir);
     }
-    Ok(ProvisionedEngine {
-        program,
-        bin_dirs,
-    })
+    Ok(ProvisionedEngine { program, bin_dirs })
 }
 
 /// The directory holding a `node` for a JavaScript engine to run on, or
@@ -163,12 +150,9 @@ async fn node_bin_dir(
     if packages.links_native_binary || which::which("node").is_ok() {
         return Ok(None);
     }
-    let node = materialize_runtime(
-        &config.state_dir,
-        "node".to_string(),
-        MANAGED_NODE_SPEC.to_string(),
-    )
-    .await
-    .wrap_err("install a Node.js runtime to run the package manager with")?;
+    let node =
+        materialize_runtime(&config.state_dir, "node".to_string(), MANAGED_NODE_SPEC.to_string())
+            .await
+            .wrap_err("install a Node.js runtime to run the package manager with")?;
     Ok(node.parent().map(Path::to_path_buf))
 }

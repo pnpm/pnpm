@@ -82,11 +82,7 @@ fn run_waits_for_the_interrupted_script_to_shut_down() {
         workspace.join("shut-down.txt").exists(),
         "the script must have finished shutting down before pnpm exited",
     );
-    assert_eq!(
-        status.code(),
-        Some(0),
-        "the script exited 0, so pnpm does too",
-    );
+    assert_eq!(status.code(), Some(0), "the script exited 0, so pnpm does too");
 
     drop(root);
 }
@@ -104,11 +100,7 @@ fn run_ends_with_the_signal_that_killed_the_script() {
     interrupt(&process);
     let status = wait_for_shutdown(&mut process);
 
-    assert_eq!(
-        status.signal(),
-        Some(libc::SIGUSR2),
-        "pnpm should end the way the script did",
-    );
+    assert_eq!(status.signal(), Some(libc::SIGUSR2), "pnpm should end the way the script did");
 
     drop(root);
 }
@@ -212,11 +204,7 @@ fn a_later_script_still_gets_a_plain_first_interrupt() {
         workspace.join("shut-down.txt").exists(),
         "the main script should have handled an interrupt, not been terminated outright",
     );
-    assert_eq!(
-        status.code(),
-        Some(0),
-        "the script exited 0, so pnpm does too",
-    );
+    assert_eq!(status.code(), Some(0), "the script exited 0, so pnpm does too");
 
     drop(root);
 }
@@ -259,11 +247,7 @@ fn interruptible(mut command: Command) -> Child {
         command.pre_exec(|| {
             let mut unblocked: libc::sigset_t = std::mem::zeroed();
             libc::sigemptyset(&raw mut unblocked);
-            libc::sigprocmask(
-                libc::SIG_SETMASK,
-                &raw const unblocked,
-                std::ptr::null_mut(),
-            );
+            libc::sigprocmask(libc::SIG_SETMASK, &raw const unblocked, std::ptr::null_mut());
             for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
                 libc::signal(signal, libc::SIG_DFL);
             }

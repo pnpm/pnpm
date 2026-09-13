@@ -91,9 +91,7 @@ pub(super) fn run_selected_scripts(
     let run_script = |name: String| run_one_script(ctx, outcome, &name, args);
     if concurrency == 1 || tasks.len() == 1 {
         for name in tasks.keys() {
-            if !matches!(run_script(name.clone()), TaskCompletion::Passed)
-                && outcome.bail
-            {
+            if !matches!(run_script(name.clone()), TaskCompletion::Passed) && outcome.bail {
                 break;
             }
         }
@@ -120,9 +118,7 @@ fn run_one_script(
     let main = match resolve_main_script(ctx, name) {
         Ok(Some(main)) => main,
         Ok(None) => return TaskCompletion::Passed,
-        Err(error) => {
-            return outcome.abort(miette::Report::new(error));
-        }
+        Err(error) => return outcome.abort(miette::Report::new(error)),
     };
     if args.is_empty() && main == "npx only-allow pnpm" {
         return TaskCompletion::Passed;
@@ -292,12 +288,9 @@ pub(in super::super) fn run_stages(
     args: &[String],
 ) -> miette::Result<ScriptExit> {
     let mut main_status = None;
-    for (stage, script) in get_run_script_stages(
-        ctx.manifest,
-        name,
-        main_body,
-        ctx.config.enable_pre_post_scripts,
-    ) {
+    for (stage, script) in
+        get_run_script_stages(ctx.manifest, name, main_body, ctx.config.enable_pre_post_scripts)
+    {
         let is_main = stage == name;
         let Some(status) = run_stage(ctx, &stage, &script, if is_main { args } else { &[] })?
         else {
@@ -417,11 +410,7 @@ pub(in super::super) fn run_stage(
             shell: ctx.config.script_shell.as_deref().map(Path::new),
             shell_emulator: ctx.config.shell_emulator,
         },
-        invocation: pnpm_executor::ScriptInvocation {
-            stage,
-            script,
-            args,
-        },
+        invocation: pnpm_executor::ScriptInvocation { stage, script, args },
         manifest: ctx.manifest.value(),
 
         pkg_root: ctx.dir,

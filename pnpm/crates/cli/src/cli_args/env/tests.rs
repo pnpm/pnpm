@@ -6,10 +6,7 @@ use std::path::PathBuf;
 /// A config that looks like a standalone-script pnpm install: it has a
 /// global bin directory to link a runtime into.
 fn config_with_global_bin() -> Config {
-    Config {
-        global_bin: Some(PathBuf::from("/home/user/.local/share/pnpm")),
-        ..Config::default()
-    }
+    Config { global_bin: Some(PathBuf::from("/home/user/.local/share/pnpm")), ..Config::default() }
 }
 
 fn args(global: bool, params: &[&str]) -> EnvArgs {

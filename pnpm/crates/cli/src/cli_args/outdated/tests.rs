@@ -69,10 +69,7 @@ fn current_versions_omit_local_refs() {
         &[DependencyGroup::Dev],
     );
     dbg!(&versions);
-    assert_eq!(
-        versions,
-        HashMap::from([("is-positive".to_string(), v("1.0.0"))]),
-    );
+    assert_eq!(versions, HashMap::from([("is-positive".to_string(), v("1.0.0"))]));
 }
 
 #[test]
@@ -86,59 +83,33 @@ fn classify_detects_each_bump_kind() {
 
 #[test]
 fn include_default_covers_all_three_groups() {
-    let opts = OutdatedDependencyOptions {
-        prod: false,
-        dev: false,
-        no_optional: false,
-        optional: false,
-    };
+    let opts =
+        OutdatedDependencyOptions { prod: false, dev: false, no_optional: false, optional: false };
     assert_eq!(
         opts.include(true),
-        vec![
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional
-        ],
+        vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
     );
 }
 
 #[test]
 fn include_prod_keeps_dependencies_and_optional() {
-    let opts = OutdatedDependencyOptions {
-        prod: true,
-        dev: false,
-        no_optional: false,
-        optional: false,
-    };
-    assert_eq!(
-        opts.include(true),
-        vec![DependencyGroup::Prod, DependencyGroup::Optional],
-    );
+    let opts =
+        OutdatedDependencyOptions { prod: true, dev: false, no_optional: false, optional: false };
+    assert_eq!(opts.include(true), vec![DependencyGroup::Prod, DependencyGroup::Optional]);
 }
 
 #[test]
 fn include_dev_keeps_only_dev() {
-    let opts = OutdatedDependencyOptions {
-        prod: false,
-        dev: true,
-        no_optional: false,
-        optional: false,
-    };
+    let opts =
+        OutdatedDependencyOptions { prod: false, dev: true, no_optional: false, optional: false };
     assert_eq!(opts.include(true), vec![DependencyGroup::Dev]);
 }
 
 #[test]
 fn include_no_optional_drops_optional() {
-    let opts = OutdatedDependencyOptions {
-        prod: false,
-        dev: false,
-        no_optional: true,
-        optional: false,
-    };
-    assert_eq!(
-        opts.include(true),
-        vec![DependencyGroup::Prod, DependencyGroup::Dev],
-    );
+    let opts =
+        OutdatedDependencyOptions { prod: false, dev: false, no_optional: true, optional: false };
+    assert_eq!(opts.include(true), vec![DependencyGroup::Prod, DependencyGroup::Dev]);
 }
 
 #[test]
@@ -168,10 +139,7 @@ fn json_report_has_expected_shape() {
     assert_eq!(entry["wanted"], "1.0.0");
     assert_eq!(entry["isDeprecated"], false);
     assert_eq!(entry["dependencyType"], "devDependencies");
-    assert!(
-        entry.get("latestManifest").is_none(),
-        "latestManifest is --long only",
-    );
+    assert!(entry.get("latestManifest").is_none(), "latestManifest is --long only");
 }
 
 // Ports `deps/inspection/commands/test/outdated/renderLatest.test.ts`.
@@ -182,28 +150,16 @@ fn render_latest_outdated_and_deprecated() {
     let mut item = pkg("foo", "0.0.1", "1.0.0", DependencyGroup::Prod);
     item.metadata.deprecated = Some("This package is deprecated".to_string());
     let output = render_latest(&item);
-    assert!(
-        output.contains("1.0.0"),
-        "shows the latest version: {output}",
-    );
-    assert!(
-        output.contains("(deprecated)"),
-        "flags the deprecation: {output}",
-    );
+    assert!(output.contains("1.0.0"), "shows the latest version: {output}");
+    assert!(output.contains("(deprecated)"), "flags the deprecation: {output}");
 }
 
 #[test]
 fn render_latest_outdated_and_not_deprecated() {
     let item = pkg("foo", "0.0.1", "1.0.0", DependencyGroup::Prod);
     let output = render_latest(&item);
-    assert!(
-        output.contains("1.0.0"),
-        "shows the latest version: {output}",
-    );
-    assert!(
-        !output.contains("(deprecated)"),
-        "no deprecation marker: {output}",
-    );
+    assert!(output.contains("1.0.0"), "shows the latest version: {output}");
+    assert!(!output.contains("(deprecated)"), "no deprecation marker: {output}");
 }
 
 /// Visible column indices of the box-drawing characters that carry a
@@ -244,10 +200,7 @@ fn assert_borders_aligned(table: &str) {
         .next()
         .map(border_columns)
         .unwrap_or_default();
-    assert!(
-        !expected.is_empty(),
-        "expected box-drawing borders in:\n{table}",
-    );
+    assert!(!expected.is_empty(), "expected box-drawing borders in:\n{table}");
     for row in table.lines() {
         assert_eq!(
             border_columns(row),
@@ -357,20 +310,14 @@ fn recursive_table_wraps_the_dependents_column() {
     let cells = last_column_cells(&table);
     let (heading, wrapped) = cells.split_first().expect("a heading and one row");
     assert_eq!(*heading, "Dependents");
-    assert!(
-        wrapped.len() > 1,
-        "the dependents cell must wrap onto several lines",
-    );
+    assert!(wrapped.len() > 1, "the dependents cell must wrap onto several lines");
 
     let rejoined = wrapped.concat();
     for index in 1..=12 {
         let name = format!("example-workspace-package-{index:02}");
         assert!(rejoined.contains(&name), "wrapping must not drop {name}");
     }
-    assert!(
-        rejoined.contains(long_name),
-        "wrapping must not drop {long_name}",
-    );
+    assert!(rejoined.contains(long_name), "wrapping must not drop {long_name}");
 }
 
 fn last_column_cells(table: &str) -> Vec<&str> {
@@ -410,8 +357,5 @@ fn recursive_json_replaces_invalid_utf8_in_locations() {
 
     let value: serde_json::Value =
         serde_json::from_str(&render_recursive_json(&[entry], false)).expect("valid JSON");
-    assert_eq!(
-        value["foo"]["dependentPackages"][0]["location"],
-        "packages/�-app",
-    );
+    assert_eq!(value["foo"]["dependentPackages"][0]["location"], "packages/�-app");
 }

@@ -10,10 +10,7 @@ fn prints_progress_beginning_for_node_modules_outside_cwd() {
     let mut reporter = state(false);
     let frame = render(
         &mut reporter,
-        vec![
-            stage_at(requester, Stage::ResolutionStarted),
-            progress_at(requester, "resolved"),
-        ],
+        vec![stage_at(requester, Stage::ResolutionStarted), progress_at(requester, "resolved")],
     );
     assert_eq!(
         frame,
@@ -33,15 +30,9 @@ fn hides_progress_prefix_for_node_modules_outside_cwd() {
     });
     let frame = render(
         &mut reporter,
-        vec![
-            stage_at(requester, Stage::ResolutionStarted),
-            progress_at(requester, "resolved"),
-        ],
+        vec![stage_at(requester, Stage::ResolutionStarted), progress_at(requester, "resolved")],
     );
-    assert_eq!(
-        frame,
-        "Progress: resolved 1, reused 0, downloaded 0, added 0",
-    );
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
 }
 
 #[test]
@@ -81,12 +72,7 @@ fn summary_can_include_events_outside_current_prefix() {
     let frame = render(
         &mut reporter,
         vec![
-            added_root_at(
-                "/global/pnpm/packages/foo",
-                "foo",
-                "1.0.0",
-                DependencyType::Prod,
-            ),
+            added_root_at("/global/pnpm/packages/foo", "foo", "1.0.0", DependencyType::Prod),
             summary(),
         ],
     );

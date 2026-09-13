@@ -30,9 +30,7 @@
 //! than overwriting it), so replaying an old sealed transaction cannot erase
 //! what was published between the failed apply and the restart.
 
-mod apply;
 mod transaction_files;
-
 use transaction_files::{
     cleanup_lost_tmp_paths, revision_ref_owner, roll_back, sync_dir, txn_id, write_transaction,
 };
@@ -100,10 +98,7 @@ struct ManifestPackage {
 
 impl ManifestPackage {
     fn id(&self) -> PackageId {
-        PackageId {
-            ecosystem: self.ecosystem,
-            name: self.name.clone(),
-        }
+        PackageId { ecosystem: self.ecosystem, name: self.name.clone() }
     }
 }
 
@@ -228,9 +223,7 @@ struct SealedTxn {
 
 impl PublishJournal {
     pub(crate) fn new(root: PathBuf) -> Self {
-        Self {
-            root,
-        }
+        Self { root }
     }
 
     /// Seal `packages` and make them visible: one journaled transaction over
@@ -248,10 +241,7 @@ impl PublishJournal {
         let txn = match self.seal(packages).await {
             Ok(txn) => txn,
             Err(err) => {
-                for slot in packages
-                    .iter()
-                    .flat_map(|package| package.slots)
-                {
+                for slot in packages.iter().flat_map(|package| package.slots) {
                     let _ = fs::remove_file(&slot.tmp_path).await;
                 }
                 return Err(err);
@@ -268,9 +258,7 @@ impl PublishJournal {
         // once more so a running server does not leave the batch half-visible
         // until the next restart; a second failure keeps the sealed entry for
         // startup recovery and reports the failure that started it.
-        let Ok(txn) = SealedTxn::reopen(dir) else {
-            return Err(err);
-        };
+        let Ok(txn) = SealedTxn::reopen(dir) else { return Err(err) };
         let mut retry = ApplyProgress::default();
         if txn.apply(storage, documents, &mut retry).await.is_err() {
             return Err(err);
@@ -300,11 +288,7 @@ impl PublishJournal {
             .iter()
             .map(|package| package.base_version.cloned())
             .collect();
-        Ok(SealedTxn {
-            dir,
-            revision_ref_owner,
-            base_versions,
-        })
+        Ok(SealedTxn { dir, revision_ref_owner, base_versions })
     }
 }
 
@@ -346,6 +330,201 @@ impl PublishJournal {
     }
 }
 
+impl SealedTxn {
+    /// Reopen a sealed transaction from its journal directory, the way
+    /// startup recovery does: with no base versions, so every document is
+    /// merged into what the store holds rather than written over it.
+    fn reopen(dir: PathBuf) -> Result<Self> {
+        let revision_ref_owner = revision_ref_owner(&dir)?.to_string();
+        Ok(Self { dir, revision_ref_owner, base_versions: Vec::new() })
+    }
+
+    /// Run every step of the sealed transaction that has not run yet, then
+    /// remove the journal entry. Each step tolerates having already run
+    /// before a crash: a tmp file that is gone was already promoted, and the
+    /// document is merged into what the store holds rather than overwriting
+    /// it, so an interrupted apply just runs again — which is what startup
+    /// recovery does.
+    async fn apply(
+        self,
+        storage: &Storage,
+        documents: &dyn HostedDocuments,
+        progress: &mut ApplyProgress,
+    ) -> Result<()> {
+        let manifest: Manifest =
+            serde_json::from_slice(&fs::read(self.dir.join(MANIFEST_FILE)).await?)?;
+        let mut context = ApplyContext { documents, progress };
+        let mut lost_tmp_paths = Vec::new();
+        for (index, package) in manifest.packages.iter().enumerate() {
+            self.apply_package(index, package, storage, &mut context, &mut lost_tmp_paths).await?;
+        }
+        // Remove the journal before cleaning lost tmp files so an interruption
+        // cannot leave a retry that has lost the evidence needed to detect the
+        // conflict.
+        fs::remove_dir_all(&self.dir).await?;
+        // Only clean conflict evidence after the journal removal is durable.
+        let journal_removal_is_durable = match self.dir.parent() {
+            Some(parent) => sync_dir(parent).await.is_ok(),
+            None => false,
+        };
+        cleanup_lost_tmp_paths(&lost_tmp_paths, journal_removal_is_durable).await;
+        Ok(())
+    }
+
+    /// Promote one journaled package's blobs, references and document.
+    async fn apply_package<'a>(
+        &self,
+        index: usize,
+        package: &'a ManifestPackage,
+        storage: &Storage,
+        context: &mut ApplyContext<'_>,
+        lost_tmp_paths: &mut Vec<&'a std::path::Path>,
+    ) -> Result<()> {
+        let name = CanonicalPackageName::parse(&package.name, package.ecosystem)?;
+        // Promote into the package's hosted namespace (or the flat store
+        // when it has none), so the commit and a later startup recovery
+        // land in exactly the store the publish targeted.
+        let store = match &package.org {
+            Some(org) => storage.for_hosted(org),
+            None => storage.clone(),
+        };
+        let target = PackageTarget { store, name };
+        let mut lost_blobs = promote_blobs(&target, package, lost_tmp_paths).await?;
+        let claimed = self.claim_revision_refs(
+            &target,
+            package,
+            &mut lost_blobs,
+            &mut context.progress.outcome,
+        )
+        .await?;
+        self.write_package_document(&target, package, index, &lost_blobs, context).await?;
+        for revision_ref in claimed.into_values().flatten() {
+            target.store.commit_hosted_revision_ref(
+                &revision_ref.digest,
+                &revision_ref.ref_id,
+                &self.revision_ref_owner,
+            )
+            .await?;
+        }
+        context.progress.outcome.lost_blobs.extend(
+            lost_blobs
+                .into_iter()
+                .map(|filename| LostBlob { package: package.id(), filename }),
+        );
+        Ok(())
+    }
+
+    /// Claim a revision reference for every blob that landed, backing this
+    /// package's claims out again if the store's reference limit is reached.
+    async fn claim_revision_refs<'a>(
+        &self,
+        target: &PackageTarget,
+        package: &'a ManifestPackage,
+        lost_blobs: &mut HashSet<String>,
+        outcome: &mut CommitOutcome,
+    ) -> Result<HashMap<&'a str, Vec<&'a JournaledRevisionRef>>> {
+        let mut claimed: HashMap<&str, Vec<&JournaledRevisionRef>> = HashMap::new();
+        for revision_ref in &package.revision_refs {
+            if lost_blobs.contains(&revision_ref.filename) {
+                continue;
+            }
+            let write = target.store.write_hosted_revision_ref(
+                &revision_ref.digest,
+                &revision_ref.ref_id,
+                &self.revision_ref_owner,
+                &revision_ref.bytes,
+            )
+            .await;
+            match write {
+                Ok(HostedRevisionRefWrite::Claimed | HostedRevisionRefWrite::AlreadyClaimed) => {
+                    claimed
+                        .entry(&revision_ref.filename)
+                        .or_default()
+                        .push(revision_ref);
+                }
+                Ok(HostedRevisionRefWrite::Committed) => {}
+                Err(RegistryError::RevisionReferenceLimit { limit }) => {
+                    outcome.reference_limit = Some(limit);
+                    lost_blobs.insert(revision_ref.filename.clone());
+                    let backed_out = claimed.remove(revision_ref.filename.as_str());
+                    self.release_claims(target, backed_out).await?;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(claimed)
+    }
+
+    /// Drop the references already claimed for a blob the limit has cost us.
+    async fn release_claims(
+        &self,
+        target: &PackageTarget,
+        claimed: Option<Vec<&JournaledRevisionRef>>,
+    ) -> Result<()> {
+        for claimed_ref in claimed.into_iter().flatten() {
+            target.store.remove_hosted_revision_ref(
+                &claimed_ref.digest,
+                &claimed_ref.ref_id,
+                &self.revision_ref_owner,
+            )
+            .await?;
+        }
+        Ok(())
+    }
+
+    /// Write the journaled document.
+    ///
+    /// It was computed from `base_version` of the stored one, so while the
+    /// store is still there it is exactly what to write — no second read, no
+    /// merge. Recovery carries no base version and always merges.
+    async fn write_package_document(
+        &self,
+        target: &PackageTarget,
+        package: &ManifestPackage,
+        index: usize,
+        lost_blobs: &HashSet<String>,
+        context: &mut ApplyContext<'_>,
+    ) -> Result<()> {
+        let journaled = fs::read(self.dir.join(&package.document_file)).await?;
+        if lost_blobs.is_empty()
+            && let Some(base_version) = self.base_versions.get(index)
+        {
+            let write = target.store.write_hosted_document_if_current(
+                &target.name,
+                &journaled,
+                base_version.as_ref(),
+            )
+            .await?;
+            if matches!(write, DocumentWrite::Written) {
+                context.progress.wrote_documents.insert(package.id());
+                return Ok(());
+            }
+        }
+        let documents = context.documents;
+        let update = target.store.update_hosted_document_with_retry(
+            &target.name,
+            COMMIT_DOCUMENT_WRITE_RETRIES,
+            |existing| {
+                documents.merge(DocumentMerge {
+                    ecosystem: package.ecosystem,
+                    name: &target.name,
+                    existing,
+                    journaled: &journaled,
+                    lost_blobs,
+                })
+            },
+        )
+        .await?;
+        match update {
+            DocumentUpdate::Written => {
+                context.progress.wrote_documents.insert(package.id());
+            }
+            DocumentUpdate::NotFound => context.progress.outcome.unrecorded.push(package.id()),
+        }
+        Ok(())
+    }
+}
+
 /// The shared inputs of one journal apply.
 struct ApplyContext<'a> {
     documents: &'a dyn HostedDocuments,
@@ -376,11 +555,8 @@ async fn promote_blobs<'a>(
         if !fs::try_exists(&blob.tmp_path).await? {
             continue;
         }
-        let slot = BlobSlot::from_parts(
-            blob.tmp_path.clone(),
-            target.name.clone(),
-            blob.filename.clone(),
-        );
+        let slot =
+            BlobSlot::from_parts(blob.tmp_path.clone(), target.name.clone(), blob.filename.clone());
         match target.store.finalize_blob_slot(slot).await? {
             BlobFinalize::Written | BlobFinalize::AlreadyIdentical => {}
             // Another writer placed different bytes under this filename. Keep

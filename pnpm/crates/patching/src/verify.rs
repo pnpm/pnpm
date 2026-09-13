@@ -11,16 +11,8 @@ pub fn all_patch_keys(patched_dependencies: &PatchGroupRecord) -> impl Iterator<
             group.exact
                 .values()
                 .map(|info| info.key.as_str())
-                .chain(
-                    group.range
-                        .iter()
-                        .map(|item| item.patch.key.as_str()),
-                )
-                .chain(
-                    group.all
-                        .iter()
-                        .map(|info| info.key.as_str()),
-                )
+                .chain(group.range.iter().map(|item| item.patch.key.as_str()))
+                .chain(group.all.iter().map(|info| info.key.as_str()))
         })
 }
 
@@ -59,13 +51,9 @@ pub fn verify_patches(
         return Ok(None);
     }
     if allow_unused_patches {
-        return Ok(Some(UnusedPatches {
-            unused_patches: unused,
-        }));
+        return Ok(Some(UnusedPatches { unused_patches: unused }));
     }
-    Err(UnusedPatchError {
-        unused_patches: unused,
-    })
+    Err(UnusedPatchError { unused_patches: unused })
 }
 
 #[cfg(test)]

@@ -48,17 +48,11 @@ fn rewrites_childless_injected_dep_to_link() {
 
     let mut graph: DependenciesGraph = std::collections::HashMap::default();
     let file_path = DepPath::from("file:project-1".to_string());
-    graph.insert(
-        file_path.clone(),
-        make_node("file:project-1", BTreeMap::new()),
-    );
+    graph.insert(file_path.clone(), make_node("file:project-1", BTreeMap::new()));
 
     let mut direct: DirectByImporter = BTreeMap::new();
     direct.insert("project-1".to_string(), BTreeMap::new());
-    direct.insert(
-        "project-2".to_string(),
-        BTreeMap::from([("project-1".to_string(), file_path)]),
-    );
+    direct.insert("project-2".to_string(), BTreeMap::from([("project-1".to_string(), file_path)]));
 
     let mut roots = BTreeMap::new();
     roots.insert("project-1".to_string(), p1_root);
@@ -72,10 +66,7 @@ fn rewrites_childless_injected_dep_to_link() {
         .get("project-1")
         .unwrap();
     assert_eq!(after.as_str(), "link:../project-1");
-    assert!(
-        graph.is_empty(),
-        "unreachable file: snapshot should be pruned",
-    );
+    assert!(graph.is_empty(), "unreachable file: snapshot should be pruned");
 }
 
 // Regression test for pnpm/pnpm#13334: the resolver prefixes a `file:`
@@ -90,10 +81,7 @@ fn rewrites_scoped_injected_dep_to_link() {
 
     let mut graph: DependenciesGraph = std::collections::HashMap::default();
     let injected = DepPath::from("@test/pkg@file:fixtures/host/pkg".to_string());
-    graph.insert(
-        injected.clone(),
-        make_node("@test/pkg@file:fixtures/host/pkg", BTreeMap::new()),
-    );
+    graph.insert(injected.clone(), make_node("@test/pkg@file:fixtures/host/pkg", BTreeMap::new()));
 
     let mut direct: DirectByImporter = BTreeMap::new();
     direct.insert(
@@ -114,10 +102,7 @@ fn rewrites_scoped_injected_dep_to_link() {
         .get("@test/pkg")
         .unwrap();
     assert_eq!(after.as_str(), "link:pkg");
-    assert!(
-        graph.is_empty(),
-        "unreachable file: snapshot should be pruned",
-    );
+    assert!(graph.is_empty(), "unreachable file: snapshot should be pruned");
 }
 
 #[test]
@@ -135,21 +120,12 @@ fn leaves_injected_dep_when_children_differ() {
     let injected = DepPath::from("file:project-1".to_string());
     graph.insert(
         injected.clone(),
-        make_node(
-            "file:project-1",
-            BTreeMap::from([("lib".to_string(), lib_v2)]),
-        ),
+        make_node("file:project-1", BTreeMap::from([("lib".to_string(), lib_v2)])),
     );
 
     let mut direct: DirectByImporter = BTreeMap::new();
-    direct.insert(
-        "project-1".to_string(),
-        BTreeMap::from([("lib".to_string(), lib_v1)]),
-    );
-    direct.insert(
-        "project-2".to_string(),
-        BTreeMap::from([("project-1".to_string(), injected)]),
-    );
+    direct.insert("project-1".to_string(), BTreeMap::from([("lib".to_string(), lib_v1)]));
+    direct.insert("project-2".to_string(), BTreeMap::from([("project-1".to_string(), injected)]));
 
     let mut roots = BTreeMap::new();
     roots.insert("project-1".to_string(), p1_root);
@@ -178,17 +154,11 @@ fn rewrites_when_children_subset_of_target_direct_deps() {
     let injected = DepPath::from("file:project-1".to_string());
     graph.insert(
         injected.clone(),
-        make_node(
-            "file:project-1",
-            BTreeMap::from([("lib".to_string(), lib.clone())]),
-        ),
+        make_node("file:project-1", BTreeMap::from([("lib".to_string(), lib.clone())])),
     );
 
     let mut direct: DirectByImporter = BTreeMap::new();
-    direct.insert(
-        "project-1".to_string(),
-        BTreeMap::from([("lib".to_string(), lib.clone())]),
-    );
+    direct.insert("project-1".to_string(), BTreeMap::from([("lib".to_string(), lib.clone())]));
     direct.insert(
         "project-2".to_string(),
         BTreeMap::from([("project-1".to_string(), injected.clone())]),
@@ -225,10 +195,7 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
     let supports_color = DepPath::from("supports-color@8.1.1".to_string());
 
     let mut graph: DependenciesGraph = std::collections::HashMap::default();
-    graph.insert(
-        supports_color.clone(),
-        make_node("supports-color@8.1.1", BTreeMap::new()),
-    );
+    graph.insert(supports_color.clone(), make_node("supports-color@8.1.1", BTreeMap::new()));
     graph.insert(debug.clone(), make_node("debug@4.4.3", BTreeMap::new()));
     let mut debug_peer_node = make_node(
         "debug@4.4.3(supports-color@8.1.1)",
@@ -240,10 +207,7 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
     let injected = DepPath::from("file:project-1".to_string());
     graph.insert(
         injected.clone(),
-        make_node(
-            "file:project-1",
-            BTreeMap::from([("debug".to_string(), debug)]),
-        ),
+        make_node("file:project-1", BTreeMap::from([("debug".to_string(), debug)])),
     );
 
     let mut direct: DirectByImporter = BTreeMap::new();
@@ -268,10 +232,7 @@ fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {
         .get("project-1")
         .unwrap();
     assert_eq!(after.as_str(), "link:../project-1");
-    assert!(
-        !graph.contains_key(&injected),
-        "deduped file: snapshot should be pruned",
-    );
+    assert!(!graph.contains_key(&injected), "deduped file: snapshot should be pruned");
 }
 
 #[test]
@@ -279,16 +240,10 @@ fn ignores_non_workspace_file_deps() {
     let lockfile_dir = PathBuf::from("/ws");
     let mut graph: DependenciesGraph = std::collections::HashMap::default();
     let tarball = DepPath::from("file:vendor/some-tarball.tgz".to_string());
-    graph.insert(
-        tarball.clone(),
-        make_node("file:vendor/some-tarball.tgz", BTreeMap::new()),
-    );
+    graph.insert(tarball.clone(), make_node("file:vendor/some-tarball.tgz", BTreeMap::new()));
 
     let mut direct: DirectByImporter = BTreeMap::new();
-    direct.insert(
-        ".".to_string(),
-        BTreeMap::from([("some-tarball".to_string(), tarball)]),
-    );
+    direct.insert(".".to_string(), BTreeMap::from([("some-tarball".to_string(), tarball)]));
 
     let mut roots = BTreeMap::new();
     roots.insert(".".to_string(), lockfile_dir.clone());

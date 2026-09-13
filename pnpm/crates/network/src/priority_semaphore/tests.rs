@@ -22,10 +22,7 @@ async fn spawn_waiter(
         let order = Arc::clone(order);
         tokio::spawn(async move {
             let _permit = sem.acquire(priority).await;
-            order
-                .lock()
-                .unwrap()
-                .push(label);
+            order.lock().unwrap().push(label);
         })
     };
     while sem.queued_waiters() == queued_before {

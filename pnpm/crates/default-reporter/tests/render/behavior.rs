@@ -14,14 +14,9 @@ fn pretty_bytes_truncates_without_floating_point_drift() {
 #[test]
 fn importing_done_appends_done_suffix() {
     let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![progress("resolved"), progress("imported"), importing_done()],
-    );
-    assert_eq!(
-        frame,
-        "Progress: resolved 1, reused 0, downloaded 0, added 1, done",
-    );
+    let frame =
+        render(&mut reporter, vec![progress("resolved"), progress("imported"), importing_done()]);
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 1, done");
 }
 
 #[test]
@@ -32,24 +27,15 @@ fn stats_bar_is_colored_when_enabled() {
         vec![
             LogEvent::Stats(StatsLog {
                 level: LogLevel::Debug,
-                message: StatsMessage::Added {
-                    prefix: CWD.to_string(),
-                    added: 1,
-                },
+                message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
             }),
             LogEvent::Stats(StatsLog {
                 level: LogLevel::Debug,
-                message: StatsMessage::Removed {
-                    prefix: CWD.to_string(),
-                    removed: 0,
-                },
+                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
             }),
         ],
     );
-    assert_eq!(
-        frame,
-        "Packages: \u{1b}[32m+1\u{1b}[39m\n\u{1b}[32m+\u{1b}[39m",
-    );
+    assert_eq!(frame, "Packages: \u{1b}[32m+1\u{1b}[39m\n\u{1b}[32m+\u{1b}[39m");
 }
 
 #[test]
@@ -63,17 +49,11 @@ fn full_install_frame_orders_blocks_like_pnpm() {
             progress("imported"),
             LogEvent::Stats(StatsLog {
                 level: LogLevel::Debug,
-                message: StatsMessage::Added {
-                    prefix: CWD.to_string(),
-                    added: 1,
-                },
+                message: StatsMessage::Added { prefix: CWD.to_string(), added: 1 },
             }),
             LogEvent::Stats(StatsLog {
                 level: LogLevel::Debug,
-                message: StatsMessage::Removed {
-                    prefix: CWD.to_string(),
-                    removed: 0,
-                },
+                message: StatsMessage::Removed { prefix: CWD.to_string(), removed: 0 },
             }),
             added_root("foo", "1.0.0", DependencyType::Prod),
             summary(),
@@ -96,16 +76,10 @@ fn full_install_frame_orders_blocks_like_pnpm() {
 #[test]
 fn recursive_direct_deprecation_is_zoomed_and_omits_the_message() {
     let mut reporter = state_with_options(ReporterOptions {
-        scope: pnpm_default_reporter::state::ScopeOptions {
-            recursive: true,
-            ..Default::default()
-        },
+        scope: pnpm_default_reporter::state::ScopeOptions { recursive: true, ..Default::default() },
         ..ReporterOptions::default()
     });
-    let frame = render(
-        &mut reporter,
-        vec![deprecation("express", "0.14.1", 0, CWD)],
-    );
+    let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
     assert_eq!(
         frame,
         pnpm_default_reporter::format::zoom_out(CWD, CWD, "[WARN] deprecated express@0.14.1",),
@@ -117,10 +91,8 @@ fn recursive_direct_deprecation_is_zoomed_and_omits_the_message() {
 #[test]
 fn zoomed_direct_deprecation_omits_the_message() {
     let mut reporter = state(false);
-    let frame = render(
-        &mut reporter,
-        vec![deprecation("express", "0.14.1", 0, "/repo/packages/app")],
-    );
+    let frame =
+        render(&mut reporter, vec![deprecation("express", "0.14.1", 0, "/repo/packages/app")]);
     assert_eq!(
         frame,
         pnpm_default_reporter::format::zoom_out(
@@ -150,10 +122,7 @@ fn a_hide_linked_pattern_keeps_the_same_package_when_it_is_installed() {
 
     let frame = render(
         &mut reporter,
-        vec![
-            added_root("@acme/runtime", "1.0.0", DependencyType::Prod),
-            summary(),
-        ],
+        vec![added_root("@acme/runtime", "1.0.0", DependencyType::Prod), summary()],
     );
 
     assert!(frame.contains("@acme/runtime"), "frame: {frame}");

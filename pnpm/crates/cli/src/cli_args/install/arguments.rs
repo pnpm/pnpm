@@ -25,18 +25,12 @@ pub struct InstallLockfileArgs {
     pub directory: LockfileDirArg,
     /// Prefer the existing lockfile over re-resolving, even when the
     /// manifest may have changed.
-    #[clap(
-        long = "prefer-frozen-lockfile",
-        overrides_with = "no_prefer_frozen_lockfile"
-    )]
+    #[clap(long = "prefer-frozen-lockfile", overrides_with = "no_prefer_frozen_lockfile")]
     #[clap(id = "prefer_frozen_lockfile")]
     pub prefer_frozen: bool,
     /// Always re-resolve against the registry instead of preferring the
     /// existing lockfile.
-    #[clap(
-        long = "no-prefer-frozen-lockfile",
-        overrides_with = "prefer_frozen_lockfile"
-    )]
+    #[clap(long = "no-prefer-frozen-lockfile", overrides_with = "prefer_frozen_lockfile")]
     #[clap(id = "no_prefer_frozen_lockfile")]
     pub no_prefer_frozen: bool,
     /// Skip the check that `pnpm-lock.yaml` is up to date with

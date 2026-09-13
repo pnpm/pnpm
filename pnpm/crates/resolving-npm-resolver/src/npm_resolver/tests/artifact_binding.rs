@@ -38,10 +38,7 @@ async fn explicit_revision_selects_its_artifact_and_manifest() {
     };
     assert_eq!(resolution.revision.map(TarballRevision::get), Some(1));
     assert!(resolution.tarball.ends_with("sha512/Umd2iCLuYk1I_OFexcp5y9YCy39MIVelFlVpkfIu-Me173sY0f9BxZNw77CFhlHUSpNsEbexRMSP4E3zxqPo2g"));
-    assert_eq!(
-        result.normalized_bare_specifier.as_deref(),
-        Some("1.0.0+r1"),
-    );
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("1.0.0+r1"));
     let manifest = result.package.manifest.as_ref().expect("manifest");
     assert_eq!(manifest["name"], "acme");
     assert_eq!(manifest["version"], "1.0.0");
@@ -54,10 +51,7 @@ async fn explicit_revision_selects_its_artifact_and_manifest() {
 async fn revision_metadata_rejects_a_tarball_from_another_registry() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
-    let tarball = format!(
-        "https://attacker.example/-/tarballs/sha512/{}",
-        "A".repeat(86),
-    );
+    let tarball = format!("https://attacker.example/-/tarballs/sha512/{}", "A".repeat(86));
     server
         .mock("GET", "/acme")
         .with_status(200)
@@ -66,10 +60,8 @@ async fn revision_metadata_rejects_a_tarball_from_another_registry() {
         .await;
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    let wanted = WantedDependency {
-        alias: Some("acme".to_string()),
-        ..WantedDependency::default()
-    };
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
     let error = resolver
         .resolve(&wanted, &ResolveOptions::default())
         .await
@@ -84,18 +76,14 @@ async fn shasum_only_metadata_resolves_to_a_sha1_integrity() {
     let _mock = server
         .mock("GET", "/acme")
         .with_status(200)
-        .with_body(shasum_only_package_body(
-            "e21bf1d18b7ce29d1cd45f6d8e0e8bcd0a4ca8ba",
-        ))
+        .with_body(shasum_only_package_body("e21bf1d18b7ce29d1cd45f6d8e0e8bcd0a4ca8ba"))
         .create_async()
         .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    let wanted = WantedDependency {
-        alias: Some("acme".to_string()),
-        ..WantedDependency::default()
-    };
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
     let result = resolver
         .resolve(&wanted, &ResolveOptions::default())
         .await

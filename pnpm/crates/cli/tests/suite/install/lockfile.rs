@@ -70,11 +70,8 @@ fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
     {
         snapshot["transitivePeerDependencies"] = serde_json::json!("broken metadata");
     }
-    fs::write(
-        &lockfile_path,
-        serde_saphyr::to_string(&broken).expect("serialize broken lockfile"),
-    )
-    .expect("write broken lockfile");
+    fs::write(&lockfile_path, serde_saphyr::to_string(&broken).expect("serialize broken lockfile"))
+        .expect("write broken lockfile");
 
     let mut command = new_pacquet_command(&workspace);
     command.env("CI", "true");
@@ -139,11 +136,8 @@ fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write workspace manifest");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({ "name": "root", "private": true }).to_string(),
@@ -197,20 +191,11 @@ fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
     )
     .expect("parse original lockfile as YAML value");
     broken["settings"] = serde_json::json!("invalid");
-    fs::write(
-        &lockfile_path,
-        serde_saphyr::to_string(&broken).expect("serialize broken lockfile"),
-    )
-    .expect("write broken lockfile");
+    fs::write(&lockfile_path, serde_saphyr::to_string(&broken).expect("serialize broken lockfile"))
+        .expect("write broken lockfile");
 
     new_pacquet_command(&workspace)
-        .with_args([
-            "--filter",
-            "selected",
-            "install",
-            "--fix-lockfile",
-            "--lockfile-only",
-        ])
+        .with_args(["--filter", "selected", "install", "--fix-lockfile", "--lockfile-only"])
         .assert()
         .success();
 
@@ -221,11 +206,7 @@ fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
     assert!(
         optional_snapshot_keys
             .iter()
-            .all(|key| {
-                repaired_snapshots
-                    .get(key)
-                    .is_some_and(|snapshot| snapshot.optional)
-            }),
+            .all(|key| { repaired_snapshots.get(key).is_some_and(|snapshot| snapshot.optional) }),
     );
 
     drop((root, mock_instance));
@@ -391,10 +372,7 @@ fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
         .success();
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    assert!(
-        lockfile_path.exists(),
-        "first install must produce pnpm-lock.yaml",
-    );
+    assert!(lockfile_path.exists(), "first install must produce pnpm-lock.yaml");
 
     eprintln!("Removing pnpm-lock.yaml; node_modules/.pnpm/lock.yaml stays intact...");
     fs::remove_file(&lockfile_path).expect("remove pnpm-lock.yaml");
@@ -427,17 +405,9 @@ fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
         .lines()
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
         .find(|record| {
-            record
-                .get("name")
-                .and_then(|v| v.as_str())
-                == Some("pnpm")
-                && record
-                    .get("level")
-                    .and_then(|v| v.as_str())
-                    == Some("info")
-                && record
-                    .get("message")
-                    .and_then(|v| v.as_str())
+            record.get("name").and_then(|v| v.as_str()) == Some("pnpm")
+                && record.get("level").and_then(|v| v.as_str()) == Some("info")
+                && record.get("message").and_then(|v| v.as_str())
                     == Some("Lockfile is up to date, resolution step is skipped")
         });
     assert!(
@@ -505,17 +475,9 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
         .lines()
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
         .find(|record| {
-            record
-                .get("name")
-                .and_then(|v| v.as_str())
-                == Some("pnpm")
-                && record
-                    .get("level")
-                    .and_then(|v| v.as_str())
-                    == Some("info")
-                && record
-                    .get("message")
-                    .and_then(|v| v.as_str())
+            record.get("name").and_then(|v| v.as_str()) == Some("pnpm")
+                && record.get("level").and_then(|v| v.as_str()) == Some("info")
+                && record.get("message").and_then(|v| v.as_str())
                     == Some("Lockfile is up to date, resolution step is skipped")
         });
     assert!(
@@ -588,10 +550,7 @@ fn frozen_store_installs_against_a_read_only_global_virtual_store() {
     // The store root is `<store-dir>/v11` (the `STORE_VERSION` suffix), which
     // is where `index.db` and the CAFS shards live.
     let store_root = store_dir.join("v11");
-    assert!(
-        store_root.join("links").is_dir(),
-        "the priming install must populate the GVS",
-    );
+    assert!(store_root.join("links").is_dir(), "the priming install must populate the GVS");
 
     // Guard: prove the chmod actually took. A green result below would be a
     // false pass if the store dir were somehow still writable.
@@ -602,12 +561,7 @@ fn frozen_store_installs_against_a_read_only_global_virtual_store() {
 
     eprintln!("Running install --frozen-lockfile --frozen-store --offline...");
     let output = new_pacquet_command(&workspace)
-        .with_args([
-            "install",
-            "--frozen-lockfile",
-            "--frozen-store",
-            "--offline",
-        ])
+        .with_args(["install", "--frozen-lockfile", "--frozen-store", "--offline"])
         .output()
         .expect("run pacquet install --frozen-store");
     assert!(
@@ -671,12 +625,7 @@ fn frozen_store_with_a_pnpr_server_is_a_config_conflict() {
     fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
 
     let output = pacquet
-        .with_args([
-            "install",
-            "--frozen-store",
-            "--pnpr-server",
-            "http://127.0.0.1:0",
-        ])
+        .with_args(["install", "--frozen-store", "--pnpr-server", "http://127.0.0.1:0"])
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
@@ -734,10 +683,7 @@ fn frozen_lockfile_setting_drives_the_headless_install() {
         .with_args(["install", "--no-frozen-lockfile"])
         .assert()
         .success();
-    assert!(
-        workspace.join("pnpm-lock.yaml").is_file(),
-        "--no-frozen-lockfile must overrule",
-    );
+    assert!(workspace.join("pnpm-lock.yaml").is_file(), "--no-frozen-lockfile must overrule");
 
     drop((root, mock_instance));
 }

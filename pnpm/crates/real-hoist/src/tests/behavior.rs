@@ -11,10 +11,7 @@ fn deep_chain_flattens_in_one_pass() {
     root_deps.insert(pkg_name("a"), resolved_dep("1.0.0"));
     importers.insert(
         Lockfile::ROOT_IMPORTER_KEY.to_string(),
-        ProjectSnapshot {
-            dependencies: Some(root_deps),
-            ..ProjectSnapshot::default()
-        },
+        ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
     );
 
     let mut snapshots = HashMap::new();
@@ -26,24 +23,15 @@ fn deep_chain_flattens_in_one_pass() {
     c_deps.insert(pkg_name("d"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
     snapshots.insert(
         dep_key("a", "1.0.0"),
-        SnapshotEntry {
-            dependencies: Some(a_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(a_deps), ..SnapshotEntry::default() },
     );
     snapshots.insert(
         dep_key("b", "1.0.0"),
-        SnapshotEntry {
-            dependencies: Some(b_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(b_deps), ..SnapshotEntry::default() },
     );
     snapshots.insert(
         dep_key("c", "1.0.0"),
-        SnapshotEntry {
-            dependencies: Some(c_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(c_deps), ..SnapshotEntry::default() },
     );
     snapshots.insert(dep_key("d", "1.0.0"), SnapshotEntry::default());
 
@@ -70,17 +58,9 @@ fn deep_chain_flattens_in_one_pass() {
         .map(|dep| dep.0.name.as_str())
         .collect();
     names.sort_unstable();
-    assert_eq!(
-        names,
-        ["a", "b", "c", "d"],
-        "depth-4 chain flattens: {result:#?}",
-    );
+    assert_eq!(names, ["a", "b", "c", "d"], "depth-4 chain flattens: {result:#?}");
     for entry in root_children.iter() {
-        assert!(
-            entry.0.dependencies.borrow().is_empty(),
-            "{} has no nested deps",
-            entry.0.name,
-        );
+        assert!(entry.0.dependencies.borrow().is_empty(), "{} has no nested deps", entry.0.name);
     }
 }
 
@@ -91,24 +71,15 @@ fn transitive_npm_alias_resolves_target_snapshot() {
     root_deps.insert(pkg_name("host"), resolved_dep("1.0.0"));
     importers.insert(
         Lockfile::ROOT_IMPORTER_KEY.to_string(),
-        ProjectSnapshot {
-            dependencies: Some(root_deps),
-            ..ProjectSnapshot::default()
-        },
+        ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
     );
 
     let mut snapshots = HashMap::new();
     let mut host_deps = HashMap::new();
-    host_deps.insert(
-        pkg_name("aliased-name"),
-        SnapshotDepRef::Alias(dep_key("real-pkg", "2.0.0")),
-    );
+    host_deps.insert(pkg_name("aliased-name"), SnapshotDepRef::Alias(dep_key("real-pkg", "2.0.0")));
     snapshots.insert(
         dep_key("host", "1.0.0"),
-        SnapshotEntry {
-            dependencies: Some(host_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(host_deps), ..SnapshotEntry::default() },
     );
     snapshots.insert(dep_key("real-pkg", "2.0.0"), SnapshotEntry::default());
 
@@ -159,10 +130,7 @@ fn transitive_npm_alias_resolves_target_snapshot() {
             .unwrap()
             .0,
     );
-    assert!(
-        host.dependencies.borrow().is_empty(),
-        "host stripped of its aliased dep: {host:#?}",
-    );
+    assert!(host.dependencies.borrow().is_empty(), "host stripped of its aliased dep: {host:#?}");
 }
 
 /// A cycle inside a conflict-nested shared cluster must be cut by the
@@ -178,10 +146,7 @@ fn conflict_nested_shared_cycle_is_cut() {
     root_deps.insert(pkg_name("c2"), resolved_dep("1.0.0"));
     importers.insert(
         Lockfile::ROOT_IMPORTER_KEY.to_string(),
-        ProjectSnapshot {
-            dependencies: Some(root_deps),
-            ..ProjectSnapshot::default()
-        },
+        ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
     );
 
     let mut snapshots = HashMap::new();
@@ -190,29 +155,20 @@ fn conflict_nested_shared_cycle_is_cut() {
         parent_deps.insert(pkg_name("x"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
         snapshots.insert(
             dep_key(parent, "1.0.0"),
-            SnapshotEntry {
-                dependencies: Some(parent_deps),
-                ..SnapshotEntry::default()
-            },
+            SnapshotEntry { dependencies: Some(parent_deps), ..SnapshotEntry::default() },
         );
     }
     let mut x_two_deps = HashMap::new();
     x_two_deps.insert(pkg_name("y"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
     snapshots.insert(
         dep_key("x", "2.0.0"),
-        SnapshotEntry {
-            dependencies: Some(x_two_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(x_two_deps), ..SnapshotEntry::default() },
     );
     let mut y_two_deps = HashMap::new();
     y_two_deps.insert(pkg_name("x"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
     snapshots.insert(
         dep_key("y", "2.0.0"),
-        SnapshotEntry {
-            dependencies: Some(y_two_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(y_two_deps), ..SnapshotEntry::default() },
     );
     snapshots.insert(dep_key("x", "1.0.0"), SnapshotEntry::default());
     snapshots.insert(dep_key("y", "1.0.0"), SnapshotEntry::default());
@@ -281,10 +237,7 @@ fn self_alias_keeps_its_entry_and_only_the_alias_repeat_is_cut() {
     root_deps.insert(pkg_name("b"), resolved_dep("1.0.0"));
     importers.insert(
         Lockfile::ROOT_IMPORTER_KEY.to_string(),
-        ProjectSnapshot {
-            dependencies: Some(root_deps),
-            ..ProjectSnapshot::default()
-        },
+        ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
     );
 
     let mut snapshots = HashMap::new();
@@ -292,10 +245,7 @@ fn self_alias_keeps_its_entry_and_only_the_alias_repeat_is_cut() {
     b_deps.insert(pkg_name("c"), SnapshotDepRef::Alias(dep_key("b", "1.0.0")));
     snapshots.insert(
         dep_key("b", "1.0.0"),
-        SnapshotEntry {
-            dependencies: Some(b_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(b_deps), ..SnapshotEntry::default() },
     );
 
     let lockfile = Lockfile {
@@ -351,10 +301,7 @@ fn ancestor_conflict_blocks_dedup_against_the_root_copy() {
     root_deps.insert(pkg_name("b"), resolved_dep("2.0.0"));
     importers.insert(
         Lockfile::ROOT_IMPORTER_KEY.to_string(),
-        ProjectSnapshot {
-            dependencies: Some(root_deps),
-            ..ProjectSnapshot::default()
-        },
+        ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
     );
 
     let mut snapshots = HashMap::new();
@@ -363,29 +310,19 @@ fn ancestor_conflict_blocks_dedup_against_the_root_copy() {
     a_deps.insert(pkg_name("b"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
     snapshots.insert(
         dep_key("a", "1.0.0"),
-        SnapshotEntry {
-            dependencies: Some(a_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(a_deps), ..SnapshotEntry::default() },
     );
     let mut b_one_deps = HashMap::new();
     b_one_deps.insert(pkg_name("x"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
     snapshots.insert(
         dep_key("b", "1.0.0"),
-        SnapshotEntry {
-            dependencies: Some(b_one_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(b_one_deps), ..SnapshotEntry::default() },
     );
     snapshots.insert(dep_key("b", "2.0.0"), SnapshotEntry::default());
     snapshots.insert(dep_key("x", "1.0.0"), SnapshotEntry::default());
     snapshots.insert(dep_key("x", "2.0.0"), SnapshotEntry::default());
 
-    let lockfile = Lockfile {
-        importers,
-        snapshots: Some(snapshots),
-        ..empty_lockfile()
-    };
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
@@ -424,10 +361,7 @@ fn nested_root_does_not_shadow_names_its_subtree_uses_from_above() {
     root_deps.insert(pkg_name("d"), resolved_dep("2.0.0"));
     importers.insert(
         Lockfile::ROOT_IMPORTER_KEY.to_string(),
-        ProjectSnapshot {
-            dependencies: Some(root_deps),
-            ..ProjectSnapshot::default()
-        },
+        ProjectSnapshot { dependencies: Some(root_deps), ..ProjectSnapshot::default() },
     );
 
     let mut snapshots = HashMap::new();
@@ -436,43 +370,25 @@ fn nested_root_does_not_shadow_names_its_subtree_uses_from_above() {
     e_deps.insert(pkg_name("s"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
     snapshots.insert(
         dep_key("e", "1.0.0"),
-        SnapshotEntry {
-            dependencies: Some(e_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(e_deps), ..SnapshotEntry::default() },
     );
     let mut d_one_deps = HashMap::new();
     d_one_deps.insert(pkg_name("m"), SnapshotDepRef::Plain(ver_peer("1.0.0")));
     snapshots.insert(
         dep_key("d", "1.0.0"),
-        SnapshotEntry {
-            dependencies: Some(d_one_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(d_one_deps), ..SnapshotEntry::default() },
     );
     let mut s_one_deps = HashMap::new();
     s_one_deps.insert(pkg_name("m"), SnapshotDepRef::Plain(ver_peer("2.0.0")));
     snapshots.insert(
         dep_key("s", "1.0.0"),
-        SnapshotEntry {
-            dependencies: Some(s_one_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(s_one_deps), ..SnapshotEntry::default() },
     );
-    for leaf in [
-        ("m", "1.0.0"),
-        ("m", "2.0.0"),
-        ("s", "2.0.0"),
-        ("d", "2.0.0"),
-    ] {
+    for leaf in [("m", "1.0.0"), ("m", "2.0.0"), ("s", "2.0.0"), ("d", "2.0.0")] {
         snapshots.insert(dep_key(leaf.0, leaf.1), SnapshotEntry::default());
     }
 
-    let lockfile = Lockfile {
-        importers,
-        snapshots: Some(snapshots),
-        ..empty_lockfile()
-    };
+    let lockfile = Lockfile { importers, snapshots: Some(snapshots), ..empty_lockfile() };
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();

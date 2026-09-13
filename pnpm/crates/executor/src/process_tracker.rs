@@ -18,10 +18,7 @@ pub struct ProcessTracker {
 
 impl Default for ProcessTracker {
     fn default() -> Self {
-        Self {
-            state: Mutex::new(TrackerState::default()),
-            separate_process_groups: true,
-        }
+        Self { state: Mutex::new(TrackerState::default()), separate_process_groups: true }
     }
 }
 
@@ -34,10 +31,7 @@ struct TrackerState {
 
 #[derive(Clone)]
 enum RunningExecution {
-    Process {
-        pid: u32,
-        separate_process_group: bool,
-    },
+    Process { pid: u32, separate_process_group: bool },
     Emulated(watch::Sender<bool>),
 }
 
@@ -64,10 +58,7 @@ impl ProcessTracker {
     /// matches [`ProcessTracker::default`].
     #[must_use]
     pub fn foreground() -> Self {
-        Self {
-            state: Mutex::new(TrackerState::default()),
-            separate_process_groups: false,
-        }
+        Self { state: Mutex::new(TrackerState::default()), separate_process_groups: false }
     }
 
     /// Cancel every registered execution. Returns `true` only to the caller
@@ -104,10 +95,7 @@ impl ProcessTracker {
     pub(crate) fn track_emulated(&self) -> EmulatedCancellation<'_> {
         let (sender, receiver) = watch::channel(false);
         let registration = self.register(RunningExecution::Emulated(sender));
-        EmulatedCancellation {
-            receiver,
-            _registration: registration,
-        }
+        EmulatedCancellation { receiver, _registration: registration }
     }
 
     fn register(&self, execution: RunningExecution) -> Registration<'_> {
@@ -115,18 +103,12 @@ impl ProcessTracker {
         if state.cancelled {
             drop(state);
             execution.cancel();
-            return Registration {
-                tracker: self,
-                id: None,
-            };
+            return Registration { tracker: self, id: None };
         }
         let id = state.next_id;
         state.next_id += 1;
         state.executions.insert(id, execution);
-        Registration {
-            tracker: self,
-            id: Some(id),
-        }
+        Registration { tracker: self, id: Some(id) }
     }
 }
 
@@ -156,11 +138,7 @@ pub fn spawn_child<'tracker>(
             separate_process_group: tracker.separate_process_groups,
         })
     });
-    Ok(SpawnedChild {
-        child,
-        _registration: registration,
-        _relay: relay,
-    })
+    Ok(SpawnedChild { child, _registration: registration, _relay: relay })
 }
 
 pub struct SpawnedChild<'tracker> {
@@ -271,19 +249,14 @@ fn process_listing() -> Option<String> {
     let mut stdout = child.stdout.take()?;
     let output = std::thread::spawn(move || {
         let mut listing = String::new();
-        stdout
-            .read_to_string(&mut listing)
-            .map(|_| listing)
+        stdout.read_to_string(&mut listing).map(|_| listing)
     });
     let completed = wait_briefly(&mut child);
     if !completed {
         let _ = child.kill();
         let _ = child.wait();
     }
-    let listing = output
-        .join()
-        .ok()?
-        .ok()?;
+    let listing = output.join().ok()?.ok()?;
     completed.then_some(listing)
 }
 
@@ -324,9 +297,7 @@ fn parse_parent_child_pids(listing: &str) -> HashMap<u32, Vec<u32>> {
 fn terminate_process(pid: u32, _separate_process_group: bool) {
     use std::{os::windows::process::CommandExt, process::Stdio};
 
-    let Some(taskkill) = taskkill_path() else {
-        return;
-    };
+    let Some(taskkill) = taskkill_path() else { return };
     let _ = Command::new(taskkill)
         .args(["/pid", &pid.to_string(), "/T", "/F"])
         .stdin(Stdio::null())

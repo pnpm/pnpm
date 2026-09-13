@@ -39,10 +39,7 @@ fn task_execution_settings_have_a_stable_canonical_encoding() {
 fn a_changed_execution_setting_produces_a_different_invocation_identity() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey {
-        project: project.clone(),
-        task_name: "build".to_string(),
-    };
+    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
     let graph: TaskGraph = IndexMap::from([(
         key,
         TaskNode {
@@ -90,14 +87,8 @@ fn ignores_a_torn_trailing_record_and_removes_a_completed_journal() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let first = workspace.path().join("first");
     let second = workspace.path().join("second");
-    let first_key = TaskKey {
-        project: first.clone(),
-        task_name: "build".to_string(),
-    };
-    let second_key = TaskKey {
-        project: second.clone(),
-        task_name: "build".to_string(),
-    };
+    let first_key = TaskKey { project: first.clone(), task_name: "build".to_string() };
+    let second_key = TaskKey { project: second.clone(), task_name: "build".to_string() };
     let graph: TaskGraph = IndexMap::from([
         (
             first_key.clone(),
@@ -171,10 +162,7 @@ fn ignores_a_torn_trailing_record_and_removes_a_completed_journal() {
 fn rejects_a_malformed_complete_record() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey {
-        project: project.clone(),
-        task_name: "build".to_string(),
-    };
+    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
     let graph: TaskGraph = IndexMap::from([(
         key,
         TaskNode {
@@ -220,10 +208,7 @@ fn rejects_a_symlinked_state_directory() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let outside = tempfile::tempdir().expect("create outside directory");
     let project = workspace.path().join("project");
-    let key = TaskKey {
-        project: project.clone(),
-        task_name: "build".to_string(),
-    };
+    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
     let graph: TaskGraph = IndexMap::from([(
         key,
         TaskNode {
@@ -270,10 +255,7 @@ fn disables_state_when_node_modules_is_read_only() {
 
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey {
-        project: project.clone(),
-        task_name: "build".to_string(),
-    };
+    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
     let graph: TaskGraph = IndexMap::from([(
         key.clone(),
         TaskNode {
@@ -315,10 +297,7 @@ fn disables_state_when_node_modules_is_read_only() {
 fn finishing_an_older_invocation_preserves_the_newer_invocation_journal() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey {
-        project: project.clone(),
-        task_name: "build".to_string(),
-    };
+    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
     let graph: TaskGraph = IndexMap::from([(
         key.clone(),
         TaskNode {
@@ -368,10 +347,7 @@ fn a_finished_journal_is_not_resumable_when_cleanup_is_unavailable() {
 
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey {
-        project: project.clone(),
-        task_name: "build".to_string(),
-    };
+    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
     let graph: TaskGraph = IndexMap::from([(
         key.clone(),
         TaskNode {
@@ -414,10 +390,7 @@ fn a_finished_journal_is_not_resumable_when_cleanup_is_unavailable() {
 fn a_stale_pointer_does_not_hide_a_newer_published_invocation_journal() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey {
-        project: project.clone(),
-        task_name: "build".to_string(),
-    };
+    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
     let graph: TaskGraph = IndexMap::from([(
         key.clone(),
         TaskNode {
@@ -476,10 +449,7 @@ fn a_stale_pointer_does_not_hide_a_newer_published_invocation_journal() {
 fn a_stale_start_cannot_revive_state_after_a_newer_invocation_finishes() {
     let workspace = tempfile::tempdir().expect("create workspace");
     let project = workspace.path().join("project");
-    let key = TaskKey {
-        project: project.clone(),
-        task_name: "build".to_string(),
-    };
+    let key = TaskKey { project: project.clone(), task_name: "build".to_string() };
     let graph: TaskGraph = IndexMap::from([(
         key.clone(),
         TaskNode {

@@ -76,10 +76,7 @@ pub(super) fn partial_lte_upper_bound(version: &str) -> Option<String> {
 }
 
 pub(super) fn is_digits(value: &str) -> bool {
-    !value.is_empty()
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit())
+    !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 /// Check whether `version` satisfies `range` under node-semver's
@@ -88,12 +85,8 @@ pub(super) fn is_digits(value: &str) -> bool {
 /// so the picker can fall through to the next candidate instead of
 /// crashing.
 pub(super) fn semver_satisfies_loose(version: &str, range: &str) -> bool {
-    let Ok(parsed_version) = Version::parse(version) else {
-        return false;
-    };
-    let Some(parsed_range) = cached_range(range) else {
-        return false;
-    };
+    let Ok(parsed_version) = Version::parse(version) else { return false };
+    let Some(parsed_range) = cached_range(range) else { return false };
     parsed_version.satisfies(&parsed_range)
 }
 
@@ -101,9 +94,7 @@ pub(super) fn max_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> 
     let parsed_range = cached_range(range)?;
     let mut best: Option<(Version, String)> = None;
     for version in versions {
-        let Ok(parsed) = Version::parse(version.as_ref()) else {
-            continue;
-        };
+        let Ok(parsed) = Version::parse(version.as_ref()) else { continue };
         if !parsed.satisfies(&parsed_range) {
             continue;
         }
@@ -119,9 +110,7 @@ pub(super) fn min_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> 
     let parsed_range = cached_range(range)?;
     let mut best: Option<(Version, String)> = None;
     for version in versions {
-        let Ok(parsed) = Version::parse(version.as_ref()) else {
-            continue;
-        };
+        let Ok(parsed) = Version::parse(version.as_ref()) else { continue };
         if !parsed.satisfies(&parsed_range) {
             continue;
         }

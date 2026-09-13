@@ -139,10 +139,7 @@ fn is_transient_release_error(
 ) -> bool {
     #[cfg(windows)]
     {
-        matches!(
-            error.kind(),
-            io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy,
-        )
+        matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy)
     }
     #[cfg(not(windows))]
     {
@@ -184,10 +181,7 @@ fn claim(path: PathBuf) -> io::Result<DirLock> {
         let _ = fs::remove_dir_all(&path);
         return Err(error);
     }
-    Ok(DirLock {
-        path,
-        token,
-    })
+    Ok(DirLock { path, token })
 }
 
 /// A value no concurrent acquisition shares. The clock supplies
@@ -200,11 +194,7 @@ fn mint_token() -> String {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    format!(
-        "{}-{nanos}-{}",
-        std::process::id(),
-        COUNTER.fetch_add(1, Ordering::Relaxed),
-    )
+    format!("{}-{nanos}-{}", std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
 fn is_abandoned(path: &Path, abandoned_after: Duration) -> bool {

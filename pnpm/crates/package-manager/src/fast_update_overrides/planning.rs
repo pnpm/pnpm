@@ -45,10 +45,7 @@ pub(super) async fn resolve_override(
     }
     Some((
         override_entry.name.clone(),
-        ResolvedOverride {
-            manifest,
-            resolution: result.resolution,
-        },
+        ResolvedOverride { manifest, resolution: result.resolution },
     ))
 }
 pub(super) fn build_rewrite_plan(
@@ -75,13 +72,7 @@ pub(super) fn build_rewrite_plan(
             continue;
         }
         let parsed = parsed_by_selector.get(selector.as_str())?;
-        overrides.push(fast_override(
-            lockfile,
-            parsed_overrides,
-            parsed,
-            new_value,
-            old_value,
-        )?);
+        overrides.push(fast_override(lockfile, parsed_overrides, parsed, new_value, old_value)?);
     }
     if overrides.is_empty() {
         return None;
@@ -122,12 +113,7 @@ pub(super) fn fast_override(
         (false, Some(value)) => Some(Version::parse(value).ok()?),
         (false, None) => None,
     };
-    Some(FastOverride {
-        name,
-        new_version,
-        old_version,
-        parent: parsed.parent_pkg.clone(),
-    })
+    Some(FastOverride { name, new_version, old_version, parent: parsed.parent_pkg.clone() })
 }
 /// The version an override moves its target to.
 ///
@@ -167,7 +153,15 @@ pub(crate) fn build_replacement_plan(
     // Two entries naming one package would each claim its key, and only one
     // of them could win. Both callers reject that earlier for their own
     // reasons; this keeps the plan itself from expressing it.
-    if has_duplicate_override_names(&overrides) {
+    if overrides
+        .iter()
+        .enumerate()
+        .any(|(index, entry)| {
+            overrides[..index]
+                .iter()
+                .any(|other| other.name == entry.name)
+        })
+    {
         return None;
     }
     let peer_names = get_peer_names(lockfile);
@@ -186,9 +180,7 @@ pub(crate) fn build_replacement_plan(
         .collect();
     let mut replacements = HashMap::new();
     for (alias, key) in all_dependency_keys(lockfile) {
-        let Some(override_entry) = by_name.get(alias) else {
-            continue;
-        };
+        let Some(override_entry) = by_name.get(alias) else { continue };
         let key = key?;
         let replacement = override_replacement(lockfile, alias, &key, override_entry)?;
         replacements.insert(key, replacement);
@@ -198,11 +190,7 @@ pub(crate) fn build_replacement_plan(
             return None;
         }
     }
-    Some(RewritePlan {
-        overrides,
-        peer_names,
-        replacements,
-    })
+    Some(RewritePlan { overrides, peer_names, replacements })
 }
 /// The key one locked package is rewritten to, or `None` when the rewrite
 /// cannot express the move.
@@ -279,10 +267,7 @@ pub(super) fn get_peer_names(lockfile: &Lockfile) -> HashSet<PkgName> {
         .into_iter()
         .flat_map(|map| map.values())
     {
-        insert_parsed_names(
-            &mut result,
-            snapshot.transitive_peer_dependencies.iter().flatten(),
-        );
+        insert_parsed_names(&mut result, snapshot.transitive_peer_dependencies.iter().flatten());
     }
     result
 }
@@ -317,14 +302,11 @@ pub(super) fn all_dependency_keys(lockfile: &Lockfile) -> Vec<(&PkgName, Option<
         .into_iter()
         .flat_map(|map| map.values())
         .flat_map(|snapshot| {
-            [
-                snapshot.dependencies.as_ref(),
-                snapshot.optional_dependencies.as_ref(),
-            ]
-            .into_iter()
-            .flatten()
-            .flatten()
-            .map(|(alias, dep_ref)| (alias, dep_ref.resolve(alias)))
+            [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|(alias, dep_ref)| (alias, dep_ref.resolve(alias)))
         });
     importer_keys.chain(snapshot_keys).collect()
 }
@@ -414,15 +396,4 @@ pub(super) fn string_list(manifest: &Value, key: &str) -> Option<Vec<String>> {
         .map(ToString::to_string)
         .collect();
     (!values.is_empty()).then_some(values)
-}
-
-fn has_duplicate_override_names(overrides: &[FastOverride]) -> bool {
-    overrides
-        .iter()
-        .enumerate()
-        .any(|(index, entry)| {
-            overrides[..index]
-                .iter()
-                .any(|other| other.name == entry.name)
-        })
 }

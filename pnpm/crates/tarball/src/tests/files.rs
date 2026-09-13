@@ -40,12 +40,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     );
     files.insert(
         "bin/cli.js".to_string(),
-        CafsFileInfo {
-            digest: format!("{bin_hash:x}"),
-            mode: 0o755,
-            size: 39,
-            checked_at: None,
-        },
+        CafsFileInfo { digest: format!("{bin_hash:x}"), mode: 0o755, size: 39, checked_at: None },
     );
 
     let entry = PackageFilesIndex {
@@ -99,9 +94,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         ignore_file_pattern: None,
 
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     };
     let cas_paths = download
         .run_without_mem_cache::<SilentReporter>()
@@ -143,14 +136,8 @@ async fn reuses_prefetched_cas_paths_when_provided() {
     // resolve to anything on disk because no integrity check runs
     // on this path.
     let mut files: HashMap<String, PathBuf> = HashMap::new();
-    files.insert(
-        "package.json".to_string(),
-        PathBuf::from("/synthetic/package.json"),
-    );
-    files.insert(
-        "bin/cli.js".to_string(),
-        PathBuf::from("/synthetic/bin/cli.js"),
-    );
+    files.insert("package.json".to_string(), PathBuf::from("/synthetic/package.json"));
+    files.insert("bin/cli.js".to_string(), PathBuf::from("/synthetic/bin/cli.js"));
     let mut prefetched: PrefetchedCasPaths = HashMap::new();
     prefetched.insert(cache_key, Arc::new(files.clone()));
 
@@ -191,9 +178,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -422,28 +407,15 @@ async fn prefetch_cas_paths_deferred_check_drops_a_row_only_when_verified() {
     )
     .await;
 
-    assert!(
-        prefetched.cas_paths.contains_key(&gone_key),
-        "unchecked rows are returned",
-    );
+    assert!(prefetched.cas_paths.contains_key(&gone_key), "unchecked rows are returned");
     assert_eq!(prefetched.requires_build.get(&gone_key), Some(&false));
-    assert_eq!(
-        prefetched.pending_checks.len(),
-        2,
-        "both rows still owe their files check",
-    );
+    assert_eq!(prefetched.pending_checks.len(), 2, "both rows still owe their files check");
 
     let failed = prefetched.verify_rows([gone_key.as_str()], store_path, &verified_files_cache);
     assert_eq!(failed, 1);
-    assert!(
-        !prefetched.cas_paths.contains_key(&gone_key),
-        "a verified missing blob drops the row",
-    );
+    assert!(!prefetched.cas_paths.contains_key(&gone_key), "a verified missing blob drops the row");
     assert!(!prefetched.requires_build.contains_key(&gone_key));
-    assert!(
-        prefetched.cas_paths.contains_key(&unasked_key),
-        "rows nobody asked about stay",
-    );
+    assert!(prefetched.cas_paths.contains_key(&unasked_key), "rows nobody asked about stay");
     assert!(prefetched.pending_checks.contains_key(&unasked_key));
     assert!(!prefetched.pending_checks.contains_key(&gone_key));
     drop(store_dir);
@@ -471,12 +443,7 @@ async fn falls_through_when_cafs_file_missing() {
     // `run_without_mem_cache` proceed to the network fetch.
     files.insert(
         "package.json".to_string(),
-        CafsFileInfo {
-            digest: "0".repeat(128),
-            mode: 0o644,
-            size: 0,
-            checked_at: None,
-        },
+        CafsFileInfo { digest: "0".repeat(128), mode: 0o644, size: 0, checked_at: None },
     );
 
     let entry = PackageFilesIndex {
@@ -521,9 +488,7 @@ async fn falls_through_when_cafs_file_missing() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -558,12 +523,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
     let mut files = HashMap::new();
     files.insert(
         "package.json".to_string(),
-        CafsFileInfo {
-            digest,
-            mode: 0o644,
-            size: 0,
-            checked_at: None,
-        },
+        CafsFileInfo { digest, mode: 0o644, size: 0, checked_at: None },
     );
     let entry = PackageFilesIndex {
         manifest: None,
@@ -607,9 +567,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         ignore_file_pattern: None,
 
         progress_reported: None,
-        store_projection: ArchiveStoreProjection::Package {
-            append_manifest: None,
-        },
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -626,18 +584,15 @@ async fn falls_through_when_cafs_path_is_a_directory() {
 fn mem_cache_keys_include_every_file_set_discriminator() {
     let package_url = "https://example.test/artifact.tgz";
     let raw = ArchiveStoreProjection::RawArchive.mem_cache_key(package_url, false);
-    let first_manifest = ArchiveStoreProjection::Package {
-        append_manifest: Some(br#"{"name":"first"}"#),
-    }
-    .mem_cache_key(package_url, false);
-    let same_manifest = ArchiveStoreProjection::Package {
-        append_manifest: Some(br#"{"name":"first"}"#),
-    }
-    .mem_cache_key(package_url, false);
-    let second_manifest = ArchiveStoreProjection::Package {
-        append_manifest: Some(br#"{"name":"second"}"#),
-    }
-    .mem_cache_key(package_url, false);
+    let first_manifest =
+        ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"first"}"#) }
+            .mem_cache_key(package_url, false);
+    let same_manifest =
+        ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"first"}"#) }
+            .mem_cache_key(package_url, false);
+    let second_manifest =
+        ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"second"}"#) }
+            .mem_cache_key(package_url, false);
 
     assert_ne!(raw, package_url);
     assert_eq!(first_manifest, same_manifest);
@@ -722,19 +677,13 @@ async fn raw_archive_projection_ignores_legacy_package_rows() {
     .expect("a legacy npm-projected row must not satisfy a raw archive read");
 
     assert_eq!(cas_paths.keys().collect::<Vec<_>>(), ["README.md"]);
-    assert_eq!(
-        std::fs::read(&cas_paths["README.md"]).unwrap(),
-        b"fresh raw artifact",
-    );
+    assert_eq!(std::fs::read(&cas_paths["README.md"]).unwrap(), b"fresh raw artifact");
 
     drop(writer);
     writer_task.await.expect("writer task").expect("writer flushed");
-    let raw_key = store_index_cache_key(
-        Some(&integrity),
-        package_id,
-        ArchiveStoreProjection::RawArchive,
-    )
-    .unwrap();
+    let raw_key =
+        store_index_cache_key(Some(&integrity), package_id, ArchiveStoreProjection::RawArchive)
+            .unwrap();
     assert_ne!(raw_key, legacy_key);
 
     let index = StoreIndex::open_in(store_path).expect("open store index");

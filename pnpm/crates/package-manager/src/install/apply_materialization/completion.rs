@@ -72,9 +72,7 @@ pub(super) fn run_materialized_project_scripts<Reporter: self::Reporter>(
     if !projects_to_run.is_empty() {
         let project_graph = project_lifecycle_graph(
             &projects_to_run,
-            inputs.request.workspace.map(|selection| {
-                selection.project_dependencies
-            }),
+            inputs.request.workspace.map(|selection| selection.project_dependencies),
             inputs.workspace_root,
             inputs.materialized_current_lockfile,
         )?;
@@ -114,12 +112,9 @@ pub(super) fn materialized_script_projects<'a>(
             mutation: inputs.request.mutation,
             workspace_root: inputs.workspace_root,
             active_project_dir: inputs.request.manifest_dir,
-            selected_dirs: inputs.request.workspace.map(|selection| {
-                selection.selected_dirs
-            }),
+            selected_dirs: inputs.request.workspace.map(|selection| selection.selected_dirs),
             project_manifests: inputs.project_manifests,
-            materialized_project_manifests: inputs
-                .materialized_project_manifests,
+            materialized_project_manifests: inputs.materialized_project_manifests,
         })
     }
 }
@@ -195,9 +190,7 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
     // the package is still added/installed and the user approves the
     // builds and reinstalls.
     if inputs.workspace.config.strict_dep_builds && !inputs.ignored_builds.is_empty() {
-        return Err(InstallError::IgnoredBuilds {
-            package_names: inputs.ignored_builds,
-        });
+        return Err(InstallError::IgnoredBuilds { package_names: inputs.ignored_builds });
     }
 
     Ok(())
@@ -231,11 +224,7 @@ pub(in super::super) fn report_verified_file_integrity<Reporter: self::Reporter>
     let files = verified.files;
     let message = if verified.duration > VERIFIED_FILE_INTEGRITY_SLOW {
         let tenths = (verified.duration.as_millis() + 50) / 100;
-        format!(
-            "The integrity of {files} files was checked in {}.{}s.",
-            tenths / 10,
-            tenths % 10,
-        )
+        format!("The integrity of {files} files was checked in {}.{}s.", tenths / 10, tenths % 10)
     } else if files > VERIFIED_FILE_INTEGRITY_MANY {
         format!(
             "The integrity of {files} files was checked, because their timestamps changed since the store recorded them. A backup tool, an antivirus scan, or a copied store can cause this.",
@@ -243,8 +232,5 @@ pub(in super::super) fn report_verified_file_integrity<Reporter: self::Reporter>
     } else {
         return;
     };
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Info,
-        message,
-    }));
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Info, message }));
 }

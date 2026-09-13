@@ -260,11 +260,7 @@ fn remove_honors_the_bare_trust_lockfile_flag() {
         .with_args(["install", "--ignore-scripts"])
         .output()
         .expect("spawn pacquet install");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr),
-    );
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
 
     let output = pacquet_in(&workspace)

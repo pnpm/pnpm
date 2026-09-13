@@ -1,3 +1,7 @@
+pub(crate) use lockfile_guard::LockfileGuard;
+
+mod lockfile_guard;
+
 use crate::{
     State,
     cli_args::{
@@ -23,16 +27,13 @@ use pnpm_reporter::{
     DedupeCheckLog, LogEvent, LogLevel, PnpmErrorLog, ProgressLog, ProgressMessage, Reporter,
 };
 use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
-use render::{dedupe_check_issues_json, parse_snapshot, render_dedupe_check_error};
 use serde_json::{Map, Value, json};
 use std::{
     collections::{HashMap, HashSet},
-    io::Write,
     marker::PhantomData,
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
 };
-use tempfile::NamedTempFile;
 
 #[derive(Debug, Clone, Args)]
 pub struct DedupeArgs {
@@ -76,19 +77,14 @@ impl DedupeArgs {
                 DependencyGroup::Optional,
             ]);
             base_install.lockfile_policy.prefer_frozen = Some(false);
-            base_install.lockfile_policy.excludes = if self.check {
-                PolicyExcludes::Skip
-            } else {
-                PolicyExcludes::Persist
-            };
+            base_install.lockfile_policy.excludes =
+                if self.check { PolicyExcludes::Skip } else { PolicyExcludes::Persist };
             base_install.execution.skip_runtimes = false;
-            base_install.execution.lockfile_only =
-                self.lockfile_only || self.check;
+            base_install.execution.lockfile_only = self.lockfile_only || self.check;
             base_install.resolution.update_seed_policy =
                 pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll;
-            base_install.resolution.observer = Some(Arc::new(
-                DedupeResolutionReporter::<Reporter>::new(&state, lockfile_path)?,
-            ));
+            base_install.resolution.observer =
+                Some(Arc::new(DedupeResolutionReporter::<Reporter>::new(&state, lockfile_path)?));
             base_install.context.lockfile_path = Some(lockfile_path);
             base_install
         };
@@ -239,11 +235,9 @@ fn reusable_skipped_package_id(
     }) {
         return Ok(None);
     }
-    Ok(
-        package_metadata_is_installable(package_key, metadata, installability_host)
-            .into_diagnostic()?
-            .then(|| package_key.pkg_id()),
-    )
+    Ok(package_metadata_is_installable(package_key, metadata, installability_host)
+        .into_diagnostic()?
+        .then(|| package_key.pkg_id()))
 }
 
 fn emit_dedupe_check_error<Reporter: self::Reporter>(diff: &LockfileDiff) {
@@ -251,78 +245,152 @@ fn emit_dedupe_check_error<Reporter: self::Reporter>(diff: &LockfileDiff) {
     Reporter::emit(&LogEvent::DedupeCheck(DedupeCheckLog {
         level: LogLevel::Error,
         message: message.clone(),
-        err: PnpmErrorLog {
-            code: "ERR_PNPM_DEDUPE_CHECK_ISSUES".to_string(),
-            message,
-        },
+        err: PnpmErrorLog { code: "ERR_PNPM_DEDUPE_CHECK_ISSUES".to_string(), message },
         dedupe_check_issues: dedupe_check_issues_json(diff),
         rendered: render_dedupe_check_error(diff),
     }));
 }
 
-/// Atomically write `content` to `path` via temp-file + rename, so the write
-/// does not follow symlinks and cannot produce a torn file on crash.
-fn atomic_write(path: &Path, content: &[u8]) -> miette::Result<()> {
-    let dir = path
-        .parent()
-        .unwrap_or_else(|| Path::new("."));
-    let mut tmp = NamedTempFile::new_in(dir)
-        .into_diagnostic()
-        .wrap_err("creating temp file for atomic write")?;
-    tmp
-        .write_all(content)
-        .into_diagnostic()
-        .wrap_err("writing temp file")?;
-    tmp
-        .as_file()
-        .sync_all()
-        .into_diagnostic()
-        .wrap_err("syncing temp file")?;
-    tmp
-        .persist(path)
-        .into_diagnostic()
-        .wrap_err("renaming temp file into place")?;
-    Ok(())
+/// Parse one side of the `--check` diff. A snapshot that does not parse —
+/// an older lockfile format the dedupe install has just rewritten, say —
+/// yields no baseline rather than replacing the check's verdict with a
+/// parse error: the run already knows the lockfile would change, and only
+/// the detail of the report is lost.
+fn parse_snapshot(content: Option<&str>, lockfile_path: &Path) -> Option<Lockfile> {
+    content.and_then(|content| Lockfile::parse(content, lockfile_path).ok().flatten())
 }
 
-/// A drop guard for `--check` mode: restores the lockfile snapshot on drop
-/// unless [`disarm`](LockfileGuard::disarm) has been called. This way an
-/// unexpected error during deduplication still leaves the workspace in its
-/// original state.
-pub(crate) struct LockfileGuard {
-    existing: Option<String>,
-    lockfile_path: PathBuf,
-    disarmed: bool,
+/// Render what `pnpm dedupe` would rewrite, mirroring pnpm's
+/// `renderDedupeCheckIssues`: one tree per changed importer or package
+/// snapshot, plus the snapshots deduplication would add or drop.
+///
+/// The lockfile can also be rewritten without any resolution changing —
+/// recorded settings drift, a config dependency the run synced — so an
+/// empty diff still says why the check failed.
+fn render_dedupe_check_issues(diff: &LockfileDiff) -> String {
+    if diff.is_empty() {
+        return "The lockfile would be rewritten, but no dependency resolution would change."
+            .to_string();
+    }
+    [
+        render_section("Importers", &diff.importers, &[], &[]),
+        render_section(
+            "Packages",
+            &diff.updated_packages,
+            &diff.added_packages,
+            &diff.removed_packages,
+        ),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join("\n")
 }
 
-impl LockfileGuard {
-    pub(crate) fn new(existing: Option<String>, lockfile_path: &Path) -> Self {
-        Self {
-            existing,
-            lockfile_path: lockfile_path.to_path_buf(),
-            disarmed: false,
-        }
-    }
-
-    pub(crate) fn disarm(&mut self) {
-        self.disarmed = true;
-    }
+fn render_dedupe_check_error(diff: &LockfileDiff) -> String {
+    let issues = render_dedupe_check_issues(diff);
+    let recommendation_separator = if issues.ends_with("\n\n") {
+        ""
+    } else if issues.ends_with('\n') {
+        "\n"
+    } else {
+        "\n\n"
+    };
+    format!(
+        "[ERR_PNPM_DEDUPE_CHECK_ISSUES] Dedupe --check found changes to the lockfile\n\n{issues}{recommendation_separator}Run pnpm dedupe to apply the changes above.\n",
+    )
 }
 
-impl Drop for LockfileGuard {
-    fn drop(&mut self) {
-        if self.disarmed {
-            return;
-        }
-        match self.existing.take() {
-            Some(ref old) => {
-                let _ = atomic_write(&self.lockfile_path, old.as_bytes());
-            }
-            None => {
-                let _ = std::fs::remove_file(&self.lockfile_path);
-            }
-        }
+fn dedupe_check_issues_json(diff: &LockfileDiff) -> Value {
+    json!({
+        "importerIssuesByImporterId": snapshots_changes_json(&diff.importers, &[], &[]),
+        "packageIssuesByDepPath": snapshots_changes_json(
+            &diff.updated_packages,
+            &diff.added_packages,
+            &diff.removed_packages,
+        ),
+    })
+}
+
+fn snapshots_changes_json(updated: &[SnapshotDiff], added: &[String], removed: &[String]) -> Value {
+    let updated = updated
+        .iter()
+        .map(|snapshot| {
+            let changes = snapshot.added
+                .iter()
+                .map(|(alias, next)| (alias.clone(), json!({ "type": "added", "next": next })))
+                .chain(
+                    snapshot.removed
+                        .iter()
+                        .map(|(alias, prev)| {
+                            (alias.clone(), json!({ "type": "removed", "prev": prev }))
+                        }),
+                )
+                .chain(
+                    snapshot.updated
+                        .iter()
+                        .map(|(alias, prev, next)| {
+                            (
+                                alias.clone(),
+                                json!({ "type": "updated", "prev": prev, "next": next }),
+                            )
+                        }),
+                )
+                .collect::<Map<_, _>>();
+            (snapshot.id.clone(), Value::Object(changes))
+        })
+        .collect::<Map<_, _>>();
+    json!({
+        "added": added,
+        "removed": removed,
+        "updated": updated,
+    })
+}
+
+fn render_section(
+    title: &str,
+    updated: &[SnapshotDiff],
+    added: &[String],
+    removed: &[String],
+) -> Option<String> {
+    let mut lines: Vec<String> = updated
+        .iter()
+        .map(render_snapshot_diff)
+        .collect();
+    lines.extend(
+        added
+            .iter()
+            .map(|id| format!("{} {}", green("+"), plain(id))),
+    );
+    lines.extend(
+        removed
+            .iter()
+            .map(|id| format!("{} {}", red("-"), plain(id))),
+    );
+    if lines.is_empty() {
+        return None;
     }
+    Some(format!("{}\n{}\n", blue_bright_underline(title), lines.join("\n")))
+}
+
+fn render_snapshot_diff(diff: &SnapshotDiff) -> String {
+    let added = diff.added
+        .iter()
+        .map(|(alias, next)| format!("{} {} {}", green("+"), plain(alias), gray(next)));
+    let removed = diff.removed
+        .iter()
+        .map(|(alias, prev)| format!("{} {} {}", red("-"), plain(alias), gray(prev)));
+    let updated = diff.updated
+        .iter()
+        .map(|(alias, prev, next)| {
+            format!("{} {} {} {}", plain(alias), red(prev), gray("→"), green(next))
+        });
+    let nodes = added
+        .chain(removed)
+        .chain(updated)
+        .map(|label| TreeNode::with_children(label, Vec::new()))
+        .collect();
+    render_archy(&TreeNode::with_children(plain(&diff.id), nodes))
 }
 
 /// Read pnpm-lock.yaml into an `Option<String>` for snapshot comparisons.
@@ -337,5 +405,3 @@ pub(crate) fn read_lockfile_snapshot(lockfile_path: &Path) -> miette::Result<Opt
 
 #[cfg(test)]
 mod tests;
-
-mod render;

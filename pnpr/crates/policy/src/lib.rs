@@ -38,10 +38,7 @@ pub enum AccessToken {
     /// declared member set at config load (an undeclared team is a config
     /// error there). Matches an authenticated caller whose username is a
     /// member. `name` is kept for diagnostics only.
-    Team {
-        name: String,
-        members: BTreeSet<String>,
-    },
+    Team { name: String, members: BTreeSet<String> },
 }
 
 /// Only the `$`-sigiled spellings are built-ins; any other token is a
@@ -122,9 +119,7 @@ pub enum Identity {
 impl Identity {
     #[must_use]
     pub fn user(username: impl Into<String>) -> Self {
-        Self::User {
-            username: username.into(),
-        }
+        Self::User { username: username.into() }
     }
 
     #[must_use]
@@ -324,9 +319,7 @@ impl PackageRules {
     /// Whether any package carries an explicit access policy.
     #[must_use]
     pub fn refines_access(&self) -> bool {
-        self.rules
-            .iter()
-            .any(|rule| rule.access.is_some())
+        self.rules.iter().any(|rule| rule.access.is_some())
     }
 
     /// The effective permissions for `package`: the **most specific**
@@ -343,9 +336,7 @@ impl PackageRules {
         let explicit_access = winner.and_then(|rule| rule.access.as_ref());
         Effective {
             access: explicit_access.unwrap_or(&self.default_access),
-            publish: winner
-                .and_then(|rule| rule.publish.as_ref())
-                .unwrap_or(&self.default_publish),
+            publish: winner.and_then(|rule| rule.publish.as_ref()).unwrap_or(&self.default_publish),
             unpublish: winner
                 .and_then(|rule| rule.unpublish.as_ref())
                 .unwrap_or(&self.default_unpublish),

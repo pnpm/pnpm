@@ -9,7 +9,7 @@ use pnpm_network::{
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use reqwest::Response;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 const OWNER_BODY_LIMIT: usize = 1024 * 1024;
 const OWNER_ERROR_BODY_LIMIT: usize = 64 * 1024;
@@ -139,14 +139,33 @@ impl OwnerArgs {
         let redirect_guard = self.otp
             .as_ref()
             .map(|_| {
-                super::registry_client::registry_redirect_guard(
-                    registries.values().map(String::as_str),
-                )
+                let origins: Vec<(String, String, Option<u16>)> = registries
+                    .values()
+                    .filter_map(|registry| {
+                        let url = reqwest::Url::parse(registry).ok()?;
+                        Some((url.scheme().to_string(), url.host_str()?.to_string(), url.port()))
+                    })
+                    .collect();
+                let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
+                    origins
+                        .iter()
+                        .any(|(scheme, host, port)| {
+                            target.scheme() == scheme
+                                && target.host_str() == Some(host.as_str())
+                                && target.port() == *port
+                        })
+                });
+                guard
             });
         Ok(OwnerContext {
             config,
             http_client: build_http_client(config, redirect_guard.as_ref())?,
-            retry_opts: config.retry_opts(),
+            retry_opts: RetryOpts {
+                retries: config.fetch_retries,
+                factor: config.fetch_retry_factor,
+                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
+                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
+            },
             registries,
             otp: self.otp.clone(),
         })
@@ -157,32 +176,22 @@ async fn owner_ls(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
     let package_name = params.first().ok_or(OwnerError::LsPackageRequired)?;
     let endpoint = owners_endpoint(context, package_name);
 
-    let (_guard, response) = send_with_retry(
-        &context.http_client,
-        &endpoint.url,
-        context.retry_opts,
-        |client| {
+    let (_guard, response) =
+        send_with_retry(&context.http_client, &endpoint.url, context.retry_opts, |client| {
             let mut builder = client.get(&endpoint.url);
             if let Some(auth) = endpoint.auth_header.as_deref() {
                 builder = builder.header("authorization", auth);
             }
             builder
-        },
-    )
-    .await
-    .map_err(|source| registry_operation_error("fetching owners", source))?;
+        })
+        .await
+        .map_err(|source| registry_operation_error("fetching owners", source))?;
 
     if response.status() == reqwest::StatusCode::NOT_FOUND {
-        return Err(OwnerError::PackageNotFound {
-            package_name: package_name.clone(),
-        }
-        .into());
+        return Err(OwnerError::PackageNotFound { package_name: package_name.clone() }.into());
     }
     if !response.status().is_success() {
-        return Err(
-            write_error_from_response(response, "fetch owners of".to_string())
-                .await,
-        );
+        return Err(write_error_from_response(response, "fetch owners of".to_string()).await);
     }
 
     let body = read_limited_body(response, OWNER_BODY_LIMIT).await
@@ -207,11 +216,8 @@ async fn owner_add(context: &OwnerContext<'_>, params: &[String]) -> miette::Res
     let endpoint = owners_endpoint(context, package_name);
     let body = serde_json::json!({ "user": owner }).to_string();
 
-    let (_guard, response) = send_with_retry(
-        &context.http_client,
-        &endpoint.url,
-        context.retry_opts,
-        |client| {
+    let (_guard, response) =
+        send_with_retry(&context.http_client, &endpoint.url, context.retry_opts, |client| {
             let mut builder = client
                 .put(&endpoint.url)
                 .header("content-type", "application/json")
@@ -223,18 +229,14 @@ async fn owner_add(context: &OwnerContext<'_>, params: &[String]) -> miette::Res
                 builder = builder.header("npm-otp", otp.as_str());
             }
             builder
-        },
-    )
-    .await
-    .map_err(|source| registry_operation_error("adding owner", source))?;
+        })
+        .await
+        .map_err(|source| registry_operation_error("adding owner", source))?;
 
     if response.status().is_success() {
         return Ok(format!("+{owner}: {package_name}"));
     }
-    Err(
-        write_error_from_response(response, format!(r#"add owner "{owner}" to"#))
-            .await,
-    )
+    Err(write_error_from_response(response, format!(r#"add owner "{owner}" to"#)).await)
 }
 
 async fn owner_rm(context: &OwnerContext<'_>, params: &[String]) -> miette::Result<String> {
@@ -264,10 +266,7 @@ async fn owner_rm(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
     if response.status().is_success() {
         return Ok(format!("-{owner}: {package_name}"));
     }
-    Err(
-        write_error_from_response(response, format!(r#"remove owner "{owner}" from"#))
-            .await,
-    )
+    Err(write_error_from_response(response, format!(r#"remove owner "{owner}" from"#)).await)
 }
 
 /// The package's `owners` route on its registry, with the credential
@@ -282,10 +281,7 @@ fn owners_endpoint(context: &OwnerContext<'_>, package_name: &str) -> OwnersEndp
     let auth_header =
         context.config.auth_headers.for_url_with_package(&registry_url, Some(package_name));
     let escaped = encode_package_name(package_name);
-    OwnersEndpoint {
-        url: format!("{registry_url}-/package/{escaped}/owners"),
-        auth_header,
-    }
+    OwnersEndpoint { url: format!("{registry_url}-/package/{escaped}/owners"), auth_header }
 }
 
 fn build_http_client(
@@ -326,36 +322,16 @@ async fn write_error_from_response(response: Response, action: String) -> miette
     };
 
     match status {
-        reqwest::StatusCode::UNAUTHORIZED => OwnerError::Unauthorized {
-            action,
-            body,
-        }
-        .into(),
-        reqwest::StatusCode::FORBIDDEN => OwnerError::Forbidden {
-            action,
-            body,
-        }
-        .into(),
-        reqwest::StatusCode::NOT_FOUND => OwnerError::WritePackageNotFound {
-            body,
-        }
-        .into(),
-        _ => OwnerError::RegistryWriteFailed {
-            action,
-            status: status.as_u16(),
-            status_text,
-            body,
-        }
-        .into(),
+        reqwest::StatusCode::UNAUTHORIZED => OwnerError::Unauthorized { action, body }.into(),
+        reqwest::StatusCode::FORBIDDEN => OwnerError::Forbidden { action, body }.into(),
+        reqwest::StatusCode::NOT_FOUND => OwnerError::WritePackageNotFound { body }.into(),
+        _ => OwnerError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
+            .into(),
     }
 }
 
 fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') {
-        registry_url.to_string()
-    } else {
-        format!("{registry_url}/")
-    }
+    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
 }
 
 #[cfg(test)]

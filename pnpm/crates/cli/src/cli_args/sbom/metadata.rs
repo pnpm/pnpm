@@ -32,10 +32,7 @@ pub(super) fn extract_bugs_url(manifest: &serde_json::Value) -> Option<String> {
     let url = if let Some(s) = bugs.as_str() {
         s.to_string()
     } else {
-        bugs
-            .get("url")?
-            .as_str()?
-            .to_string()
+        bugs.get("url")?.as_str()?.to_string()
     };
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return None;
@@ -45,10 +42,7 @@ pub(super) fn extract_bugs_url(manifest: &serde_json::Value) -> Option<String> {
 
 fn registry_tarball_url(registry: &str, name: &str, version: &str) -> String {
     let registry = registry.trim_end_matches('/');
-    let basename = name
-        .rsplit('/')
-        .next()
-        .unwrap_or(name);
+    let basename = name.rsplit('/').next().unwrap_or(name);
     format!("{registry}/{name}/-/{basename}-{version}.tgz")
 }
 
@@ -71,11 +65,7 @@ pub(super) fn tarball_url_for_component(
 }
 
 pub(super) fn encode_purl_name(name: &str) -> String {
-    if let Some(rest) = name.strip_prefix('@') {
-        format!("%40{rest}")
-    } else {
-        name.to_string()
-    }
+    if let Some(rest) = name.strip_prefix('@') { format!("%40{rest}") } else { name.to_string() }
 }
 
 pub(super) fn build_purl(name: &str, version: &str) -> String {
@@ -262,11 +252,7 @@ pub(super) fn normalize_link_path(base_importer_id: &str, link_target: &str) -> 
             other => parts.push(other),
         }
     }
-    if parts.is_empty() {
-        Some(".".to_string())
-    } else {
-        Some(parts.join("/"))
-    }
+    if parts.is_empty() { Some(".".to_string()) } else { Some(parts.join("/")) }
 }
 
 pub(super) fn sanitize_package_name(name: &str) -> String {

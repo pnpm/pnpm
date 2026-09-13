@@ -124,8 +124,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     // progress emitted by resolve-time prefetches: `CreateVirtualStore`
     // still emits `resolved` later, but skips duplicate `fetched` /
     // `found_in_store` statuses for keys already reported here.
-    let stores = resolver_setup::open_store_index_handles(install.drivers.config, store_dir)
-        .await;
+    let stores = resolver_setup::open_store_index_handles(install.drivers.config, store_dir).await;
 
     let chain = build_fresh_resolver_chain::<Reporter>(
         install,
@@ -134,10 +133,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
         &registries,
         &policy,
         &shape,
-        ResolverAccess {
-            auth_headers,
-            observer: resolution_observer,
-        },
+        ResolverAccess { auth_headers, observer: resolution_observer },
     )
     .await?;
     Ok(ResolverSetup {
@@ -232,9 +228,7 @@ impl PnpmfileHooks {
             .and_then(|hook| hook.source_path())
             .map(Path::to_path_buf);
         let log = |name: &'static str| {
-            path
-                .as_ref()
-                .map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, name))
+            path.as_ref().map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, name))
         };
         PnpmfileHooks {
             read_package_log: log("readPackage"),
@@ -319,16 +313,11 @@ impl UpdateReuseScopes {
         wanted_lockfile: Option<&Lockfile>,
     ) -> Result<Self, InstallWithFreshLockfileError> {
         let (mut scope, mut by_importer) = update_reuse_scopes(update_seed_policy);
-        if custom_resolver_forces_resolve(custom_resolvers, wanted_lockfile)
-            .await?
-        {
+        if custom_resolver_forces_resolve(custom_resolvers, wanted_lockfile).await? {
             scope = pnpm_resolving_deps_resolver::UpdateReuseScope::None;
             by_importer.clear();
         }
-        Ok(Self {
-            scope,
-            by_importer,
-        })
+        Ok(Self { scope, by_importer })
     }
 }
 /// Runs between the resolvers being built and the resolve pass, in the
@@ -352,10 +341,8 @@ pub(super) async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
         install.manifests.deploy_hook,
     )?;
 
-    let fixed_wanted_lockfile = fix_lockfile_copy(
-        &owned.resolution.update_seed_policy,
-        install.lockfiles.wanted,
-    );
+    let fixed_wanted_lockfile =
+        fix_lockfile_copy(&owned.resolution.update_seed_policy, install.lockfiles.wanted);
     let wanted_lockfile = fixed_wanted_lockfile.as_ref().or(install.lockfiles.wanted);
     // The repair copy above replaced the document, so the loader's
     // handle no longer describes `wanted_lockfile`.
@@ -369,8 +356,7 @@ pub(super) async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
     // the `afterAllResolved` hook can transform the lockfile before it is
     // written.
     let hooks = PnpmfileHooks::load::<Reporter>(setup.chain.pnpmfile_hook.take(), lockfile_dir);
-    hooks.run_pre_resolution::<Reporter>(config, lockfile_dir, wanted_lockfile)
-        .await;
+    hooks.run_pre_resolution::<Reporter>(config, lockfile_dir, wanted_lockfile).await;
     let reuse = UpdateReuseScopes::settle(
         &owned.resolution.update_seed_policy,
         &setup.chain.custom_resolvers,
@@ -394,9 +380,7 @@ pub(super) async fn custom_resolver_forces_resolve(
     custom_resolvers_raw: &[Arc<dyn pnpm_hooks::CustomResolver>],
     wanted_lockfile: Option<&Lockfile>,
 ) -> Result<bool, InstallWithFreshLockfileError> {
-    let Some(lockfile) = wanted_lockfile else {
-        return Ok(false);
-    };
+    let Some(lockfile) = wanted_lockfile else { return Ok(false) };
     crate::check_custom_resolver_force_resolve::check_custom_resolver_force_resolve(
         custom_resolvers_raw,
         lockfile,

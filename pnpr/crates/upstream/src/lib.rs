@@ -5,10 +5,8 @@ pub use packument::{
 
 pub use oci::oci_download_allowed;
 
-mod discovery;
-
 mod http;
-use http::{UpstreamHttp, read_upstream_error_body};
+use http::{UpstreamHttp, read_upstream_error_body, same_origin};
 
 mod circuit_breaker;
 use circuit_breaker::CircuitBreaker;
@@ -42,7 +40,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-const UPSTREAM_ERROR_BODY_LIMIT: usize = 64 * 1024;
 const UPSTREAM_DISCOVERY_BODY_LIMIT: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Deserialize)]
@@ -129,19 +126,6 @@ pub struct FetchedDocument {
     pub url: String,
 }
 
-/// Whether two URLs share a scheme, host and port, so a credential meant for
-/// one may be sent to the other.
-fn same_origin(base: &str, url: &str) -> bool {
-    let (Ok(base), Ok(url)) = (reqwest::Url::parse(base), reqwest::Url::parse(url)) else {
-        return false;
-    };
-    base.scheme() == url.scheme()
-        && base
-            .host_str()
-            .is_some_and(|host| Some(host) == url.host_str())
-        && base.port_or_known_default() == url.port_or_known_default()
-}
-
 #[derive(Debug)]
 pub struct FetchedPackument {
     pub bytes: Vec<u8>,
@@ -184,9 +168,10 @@ impl Upstream {
     #[must_use]
     pub fn with_fetch_guard(mut self, guard: RedirectGuard) -> Self {
         let redirect_guard = Arc::clone(&guard);
-        self.http.client = Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(
-            move |url| redirect_guard(url),
-        ));
+        self.http.client =
+            Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+                redirect_guard(url)
+            }));
         self.http.fetch_guard = Some(guard);
         self
     }
@@ -233,8 +218,7 @@ impl Upstream {
             conditional_headers.insert(header::IF_MODIFIED_SINCE, value);
         }
         let sent_conditional = !conditional_headers.is_empty();
-        let (response, _guard) = self.get_with_scoped_headers(&url, &conditional_headers)
-            .await?;
+        let (response, _guard) = self.get_with_scoped_headers(&url, &conditional_headers).await?;
         if response.status() == StatusCode::NOT_FOUND {
             // A 404 is an authoritative answer, not an upstream failure.
             self.breaker.record_success();
@@ -255,15 +239,10 @@ impl Upstream {
             .await
             .map_err(|source| {
                 self.breaker.record_failure();
-                RegistryError::Upstream {
-                    url: url.clone(),
-                    source,
-                }
+                RegistryError::Upstream { url: url.clone(), source }
             })?;
         self.breaker.record_success();
-        Ok(PackumentFetch::Modified(FetchedPackument {
-            bytes: bytes.to_vec(),
-        }))
+        Ok(PackumentFetch::Modified(FetchedPackument { bytes: bytes.to_vec() }))
     }
 
     /// Send the tarball request and return a [`ThrottledResponse`]. Use its
@@ -280,14 +259,8 @@ impl Upstream {
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         let started = Instant::now();
         self.ensure_available()?;
-        let url = format!(
-            "{}/{}/-/{}",
-            self.base.trim_end_matches('/'),
-            name.as_str(),
-            filename,
-        );
-        let (response, guard) = self.get_with_scoped_headers(&url, &HeaderMap::new())
-            .await?;
+        let url = format!("{}/{}/-/{}", self.base.trim_end_matches('/'), name.as_str(), filename);
+        let (response, guard) = self.get_with_scoped_headers(&url, &HeaderMap::new()).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -328,8 +301,7 @@ impl Upstream {
         {
             headers.insert(header::ACCEPT, value);
         }
-        let (response, _guard) = self.get_with_scoped_headers(&url, &headers)
-            .await?;
+        let (response, _guard) = self.get_with_scoped_headers(&url, &headers).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -339,10 +311,7 @@ impl Upstream {
         let body = read_limited_body(response, limit).await
             .map_err(|err| {
                 self.breaker.record_failure();
-                RegistryError::UpstreamResponse {
-                    url: url.clone(),
-                    reason: err.to_string(),
-                }
+                RegistryError::UpstreamResponse { url: url.clone(), reason: err.to_string() }
             })?;
         if body.truncated {
             self.breaker.record_success();
@@ -352,10 +321,7 @@ impl Upstream {
             });
         }
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(FetchedDocument {
-            bytes: body.bytes,
-            url: final_url,
-        }))
+        Ok(FetchOutcome::Ok(FetchedDocument { bytes: body.bytes, url: final_url }))
     }
 
     /// Fetch an artifact from the absolute URL an upstream's metadata
@@ -373,8 +339,7 @@ impl Upstream {
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         let started = Instant::now();
         self.ensure_available()?;
-        let (response, guard) = self.get_with_scoped_headers(url, &HeaderMap::new())
-            .await?;
+        let (response, guard) = self.get_with_scoped_headers(url, &HeaderMap::new()).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -393,12 +358,9 @@ impl Upstream {
         digest: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
-        let url = format!(
-            "{}/-/tarballs/sha512/{digest}",
-            self.base.trim_end_matches('/'),
-        );
-        let client = self.http.client.acquire_for_url_without_redirects_with_priority(&url, 0)
-            .await;
+        let url = format!("{}/-/tarballs/sha512/{digest}", self.base.trim_end_matches('/'));
+        let client =
+            self.http.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
         let started = Instant::now();
         let request = client
             .get(&url)
@@ -417,6 +379,64 @@ impl Upstream {
         )))
     }
 
+    /// Query an upstream npm search endpoint with the caller's already-encoded
+    /// query string. The upstream client contributes only configured headers,
+    /// never headers supplied by the browser caller.
+    pub async fn fetch_search(&self, query_string: &str) -> Result<FetchOutcome<SearchResponse>> {
+        self.fetch_discovery_json(&format!("/-/v1/search?{query_string}")).await
+    }
+
+    /// Fetch the npm organization package map for one validated scope.
+    pub async fn fetch_org_packages(
+        &self,
+        scope: &str,
+    ) -> Result<FetchOutcome<Map<String, Value>>> {
+        self.fetch_discovery_json(&format!("/-/org/{scope}/package")).await
+    }
+
+    async fn fetch_discovery_json<Payload: DeserializeOwned>(
+        &self,
+        path_and_query: &str,
+    ) -> Result<FetchOutcome<Payload>> {
+        self.ensure_available()?;
+        let url = format!("{}{path_and_query}", self.base.trim_end_matches('/'));
+        let client =
+            self.http.client.acquire_for_url_without_redirects_with_priority(&url, UNPRIORITIZED)
+                .await;
+        let request = client
+            .get(&url)
+            .timeout(self.http.timeout)
+            .headers(self.request_headers(&url));
+        let response = self.run(request, &url).await?;
+        if response.status() == StatusCode::NOT_FOUND {
+            self.breaker.record_success();
+            return Ok(FetchOutcome::NotFound);
+        }
+        let response = self.checked(response, &url).await?;
+        let body = read_limited_body(response, UPSTREAM_DISCOVERY_BODY_LIMIT)
+            .await
+            .map_err(|err| {
+                self.breaker.record_failure();
+                RegistryError::UpstreamResponse { url: url.clone(), reason: err.to_string() }
+            })?;
+        if body.truncated {
+            self.breaker.record_failure();
+            return Err(RegistryError::UpstreamResponse {
+                url,
+                reason: format!(
+                    "response body exceeds the {UPSTREAM_DISCOVERY_BODY_LIMIT}-byte limit",
+                ),
+            });
+        }
+        let parsed = serde_json::from_slice(&body.bytes)
+            .map_err(|err| {
+                self.breaker.record_failure();
+                RegistryError::UpstreamResponse { url, reason: err.to_string() }
+            })?;
+        self.breaker.record_success();
+        Ok(FetchOutcome::Ok(parsed))
+    }
+
     fn request_headers(&self, url: &str) -> HeaderMap {
         if same_origin(&self.base, url) && is_url_secure_for_credentials(url) {
             return self.http.headers.clone();
@@ -431,9 +451,7 @@ impl Upstream {
         if self.breaker.try_acquire() {
             return Ok(());
         }
-        Err(RegistryError::UpstreamUnavailable {
-            upstream: self.name.clone(),
-        })
+        Err(RegistryError::UpstreamUnavailable { upstream: self.name.clone() })
     }
 
     /// Send a built request, mapping a transport error to
@@ -445,10 +463,7 @@ impl Upstream {
             .await
             .map_err(|source| {
                 self.breaker.record_failure();
-                RegistryError::Upstream {
-                    url: url.to_string(),
-                    source,
-                }
+                RegistryError::Upstream { url: url.to_string(), source }
             })
     }
 
@@ -469,10 +484,7 @@ impl Upstream {
             .await
             .map_err(|source| {
                 self.breaker.record_failure();
-                RegistryError::Upstream {
-                    url: url.to_string(),
-                    source,
-                }
+                RegistryError::Upstream { url: url.to_string(), source }
             })
     }
 
@@ -504,11 +516,7 @@ impl Upstream {
             self.breaker.record_failure();
         }
         let body = read_upstream_error_body(response).await;
-        Err(RegistryError::UpstreamStatus {
-            url: url.to_string(),
-            status: status.as_u16(),
-            body,
-        })
+        Err(RegistryError::UpstreamStatus { url: url.to_string(), status: status.as_u16(), body })
     }
 }
 

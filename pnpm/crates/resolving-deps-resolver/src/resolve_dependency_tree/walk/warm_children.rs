@@ -30,9 +30,7 @@ pub(in super::super) async fn warm_children_resolutions<Chain>(
     if ctx.workspace.hooks.manifests.pnpmfile_hook.is_some() {
         return;
     }
-    let NodeSeed::Pending(pending) = seed else {
-        return;
-    };
+    let NodeSeed::Pending(pending) = seed else { return };
     if pending.is_link || !claim_children_warmup(ctx, &pending.identity.id) {
         return;
     }
@@ -102,9 +100,7 @@ pub(super) fn warm_child_specs(
             .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
             .collect()
     };
-    let Some(catalogs) = catalogs_for_children(ctx, through_catalogs) else {
-        return Some(specs);
-    };
+    let Some(catalogs) = catalogs_for_children(ctx, through_catalogs) else { return Some(specs) };
     resolve_catalog_child_specs(specs, catalogs).ok()
 }
 
@@ -137,8 +133,7 @@ pub(super) async fn warm_child<Chain>(
         ctx.update_cache_scope(),
         is_update_target(ctx.update_scope(), &wanted, None, parent_depth + 1),
     ));
-    let Ok(child) = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key)
-        .await
+    let Ok(child) = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await
     else {
         return;
     };

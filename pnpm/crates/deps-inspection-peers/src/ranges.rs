@@ -167,11 +167,7 @@ pub(super) fn normalize_version_str(version_raw: &str) -> String {
         .collect();
     if !numeric
         .iter()
-        .all(|part| {
-            part
-                .chars()
-                .all(|character| character.is_ascii_digit())
-        })
+        .all(|part| part.chars().all(|character| character.is_ascii_digit()))
     {
         return version_raw.to_string();
     }
@@ -216,13 +212,7 @@ fn version_specificity(version_raw: &str) -> usize {
 }
 
 pub(super) fn at(major: u64, minor: u64, patch: u64) -> Version {
-    Version {
-        major,
-        minor,
-        patch,
-        build: Vec::new(),
-        pre_release: Vec::new(),
-    }
+    Version { major, minor, patch, build: Vec::new(), pre_release: Vec::new() }
 }
 
 /// An upper bound npm derived rather than the user writing it out:
@@ -231,10 +221,7 @@ pub(super) fn at(major: u64, minor: u64, patch: u64) -> Version {
 /// its plain form and does admit `2.0.0-rc.1`. The suffix is dropped
 /// again when the interval is rendered — see [`Interval`]'s `Display`.
 fn derived_upper(version: Version) -> Version {
-    Version {
-        pre_release: vec![node_semver::Identifier::Numeric(0)],
-        ..version
-    }
+    Version { pre_release: vec![node_semver::Identifier::Numeric(0)], ..version }
 }
 
 /// The exclusive upper bound of the level `specificity` leaves
@@ -252,10 +239,7 @@ fn next_unpinned(version: &Version, specificity: usize) -> Version {
 fn parse_comparator(comparator: &str) -> Option<Interval> {
     let comparator = comparator.trim();
     if comparator == "*" || comparator.is_empty() {
-        return Some(Interval {
-            lower: Bound::Unbounded,
-            upper: Bound::Unbounded,
-        });
+        return Some(Interval { lower: Bound::Unbounded, upper: Bound::Unbounded });
     }
 
     let (operator, version_str) = split_operator(comparator);
@@ -263,10 +247,7 @@ fn parse_comparator(comparator: &str) -> Option<Interval> {
     // Nothing is pinned (`x`, `~x`, `^*`): every comparator over it
     // admits every version.
     if specificity == 0 {
-        return Some(Interval {
-            lower: Bound::Unbounded,
-            upper: Bound::Unbounded,
-        });
+        return Some(Interval { lower: Bound::Unbounded, upper: Bound::Unbounded });
     }
     let version = Version::parse(normalize_version_str(version_str)).ok()?;
 
@@ -274,53 +255,56 @@ fn parse_comparator(comparator: &str) -> Option<Interval> {
 }
 
 fn comparator_interval(operator: &str, version: Version, specificity: usize) -> Option<Interval> {
-    let (lower, upper) = match operator {
-        "=" if specificity == 3 => (Bound::Inclusive(version.clone()), Bound::Inclusive(version)),
+    match operator {
+        "=" if specificity == 3 => Some(Interval {
+            lower: Bound::Inclusive(version.clone()),
+            upper: Bound::Inclusive(version),
+        }),
         // A partial bare version is npm's implicit range: `1.2` is
         // every 1.2.x, not the single version 1.2.0.
-        "=" | "~" => {
-            let upper = Bound::Exclusive(next_unpinned(&version, specificity));
-            (Bound::Inclusive(version), upper)
+        "=" | "~" => Some(Interval {
+            upper: Bound::Exclusive(next_unpinned(&version, specificity)),
+            lower: Bound::Inclusive(version),
+        }),
+        "=>" => Some(Interval { lower: Bound::Inclusive(version), upper: Bound::Unbounded }),
+        ">" if specificity == 3 => {
+            Some(Interval { lower: Bound::Exclusive(version), upper: Bound::Unbounded })
         }
-        "=>" => (Bound::Inclusive(version), Bound::Unbounded),
-        ">" if specificity == 3 => (Bound::Exclusive(version), Bound::Unbounded),
         // `>1.2` excludes all of 1.2.x, so it starts at 1.3.0.
-        ">" => (
-            Bound::Inclusive(next_unpinned(&version, specificity)),
-            Bound::Unbounded,
-        ),
-        "<=" if specificity == 3 => (Bound::Unbounded, Bound::Inclusive(version)),
-        // `<=1.2` admits all of 1.2.x.
-        "<=" => (
-            Bound::Unbounded,
-            Bound::Exclusive(next_unpinned(&version, specificity)),
-        ),
-        "<" if specificity == 3 => (Bound::Unbounded, Bound::Exclusive(version)),
-        // `<1.2` excludes all of 1.2.x, prereleases included.
-        "<" => (Bound::Unbounded, Bound::Exclusive(derived_upper(version))),
-        "^" => {
-            let upper = Bound::Exclusive(caret_upper(&version, specificity));
-            (Bound::Inclusive(version), upper)
+        ">" => Some(Interval {
+            lower: Bound::Inclusive(next_unpinned(&version, specificity)),
+            upper: Bound::Unbounded,
+        }),
+        "<=" if specificity == 3 => {
+            Some(Interval { lower: Bound::Unbounded, upper: Bound::Inclusive(version) })
         }
-        _ => return None,
-    };
-    Some(Interval {
-        lower,
-        upper,
-    })
+        // `<=1.2` admits all of 1.2.x.
+        "<=" => Some(Interval {
+            lower: Bound::Unbounded,
+            upper: Bound::Exclusive(next_unpinned(&version, specificity)),
+        }),
+        "<" if specificity == 3 => {
+            Some(Interval { lower: Bound::Unbounded, upper: Bound::Exclusive(version) })
+        }
+        // `<1.2` excludes all of 1.2.x, prereleases included.
+        "<" => Some(Interval {
+            lower: Bound::Unbounded,
+            upper: Bound::Exclusive(derived_upper(version)),
+        }),
+        "^" => Some(Interval {
+            upper: Bound::Exclusive(caret_upper(&version, specificity)),
+            lower: Bound::Inclusive(version),
+        }),
+        _ => None,
+    }
 }
 
 /// The comparator's operator and the version text after it. A version with
 /// no operator is npm's implicit `=`.
 fn split_operator(comparator: &str) -> (&str, &str) {
-    for (prefix, operator) in [
-        (">=", "=>"),
-        (">", ">"),
-        ("<=", "<="),
-        ("<", "<"),
-        ("^", "^"),
-        ("~", "~"),
-    ] {
+    for (prefix, operator) in
+        [(">=", "=>"), (">", ">"), ("<=", "<="), ("<", "<"), ("^", "^"), ("~", "~")]
+    {
         if let Some(rest) = comparator.strip_prefix(prefix) {
             return (operator, rest);
         }
@@ -366,21 +350,14 @@ pub(super) fn parse_range_to_intervals(range: &str) -> Option<Vec<Interval>> {
             intervals.push(part_interval);
         }
     }
-    if intervals.is_empty() {
-        None
-    } else {
-        Some(intervals)
-    }
+    if intervals.is_empty() { None } else { Some(intervals) }
 }
 
 /// Intersect the space-separated comparators of one `||` alternative. An
 /// empty intersection is reported as the empty interval, which the caller
 /// then drops.
 fn parse_comparator_set(part: &str) -> Option<Interval> {
-    let mut interval = Interval {
-        lower: Bound::Unbounded,
-        upper: Bound::Unbounded,
-    };
+    let mut interval = Interval { lower: Bound::Unbounded, upper: Bound::Unbounded };
     for comparator in part.split_whitespace() {
         let comparator_interval = parse_comparator(comparator)?;
         let lower = max_lower(&interval.lower, &comparator_interval.lower);
@@ -392,10 +369,7 @@ fn parse_comparator_set(part: &str) -> Option<Interval> {
                 upper: Bound::Exclusive(zero),
             });
         }
-        interval = Interval {
-            lower,
-            upper,
-        };
+        interval = Interval { lower, upper };
     }
     Some(interval)
 }
@@ -407,10 +381,7 @@ fn intersect_intervals(left_intervals: &[Interval], right_intervals: &[Interval]
             let lower = max_lower(&left_interval.lower, &right_interval.lower);
             let upper = min_upper(&left_interval.upper, &right_interval.upper);
             if is_valid_interval(&lower, &upper) {
-                result.push(Interval {
-                    lower,
-                    upper,
-                });
+                result.push(Interval { lower, upper });
             }
         }
     }

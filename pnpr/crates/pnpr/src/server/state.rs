@@ -98,10 +98,7 @@ impl ProxyState {
             .keys()
             .map(|name| (name.clone(), compute_upstream_cache_namespace(config, name)))
             .collect();
-        Self {
-            upstreams,
-            cache_namespaces: upstream_cache_namespaces,
-        }
+        Self { upstreams, cache_namespaces: upstream_cache_namespaces }
     }
 }
 
@@ -110,10 +107,7 @@ impl IdentityServices {
         super::oidc::validate_workloads(config)?;
         let oidc =
             pnpr_auth::oidc::OidcState::new(&config.identity.auth.oidc, &config.http.public_url)?;
-        Ok(Self {
-            auth,
-            oidc,
-        })
+        Ok(Self { auth, oidc })
     }
 }
 

@@ -17,10 +17,7 @@ fn dependent_propagation_follows_the_materialized_workspace_range() {
     assert_eq!(cli.version.bump, ReleaseBumpType::Patch);
     assert_eq!(
         cli.dependency_updates,
-        vec![DependencyUpdate {
-            name: "lib".to_string(),
-            new_version: "2.0.0".to_string()
-        }],
+        vec![DependencyUpdate { name: "lib".to_string(), new_version: "2.0.0".to_string() }],
     );
 }
 
@@ -49,10 +46,8 @@ fn a_minor_bump_propagates_through_workspace_caret_on_a_0x_dependency() {
 #[test]
 fn an_internal_dependency_without_the_workspace_protocol_fails_a_release_but_not_a_read_only_assemble()
  {
-    let projects = [
-        make_project("lib", "1.0.0", &[]),
-        make_project("cli", "1.0.0", &[("lib", "^1.0.0")]),
-    ];
+    let projects =
+        [make_project("lib", "1.0.0", &[]), make_project("cli", "1.0.0", &[("lib", "^1.0.0")])];
     // enforce_workspace_protocol off (the default, used by `pnpm change
     // status`): a read-only assemble never fails on an unmigrated dependency.
     let plan = assemble_release_plan(
@@ -78,10 +73,7 @@ fn an_internal_dependency_without_the_workspace_protocol_fails_a_release_but_not
         },
     )
     .expect_err("plan must fail");
-    assert!(
-        err.to_string().contains("workspace: protocol"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("workspace: protocol"), "unexpected error: {err}");
 }
 
 #[test]
@@ -109,25 +101,10 @@ fn non_ascii_workspace_aliases_do_not_panic() {
 
 #[test]
 fn materialize_workspace_range_mirrors_pack_time_materialization() {
-    assert_eq!(
-        materialize_workspace_range("workspace:*", "1.2.3").as_deref(),
-        Some("1.2.3"),
-    );
-    assert_eq!(
-        materialize_workspace_range("workspace:^", "1.2.3").as_deref(),
-        Some("^1.2.3"),
-    );
-    assert_eq!(
-        materialize_workspace_range("workspace:~", "1.2.3").as_deref(),
-        Some("~1.2.3"),
-    );
-    assert_eq!(
-        materialize_workspace_range("workspace:^1.0.0", "1.2.3").as_deref(),
-        Some("^1.0.0"),
-    );
-    assert_eq!(
-        materialize_workspace_range("workspace:lib@^", "1.2.3").as_deref(),
-        Some("^1.2.3"),
-    );
+    assert_eq!(materialize_workspace_range("workspace:*", "1.2.3").as_deref(), Some("1.2.3"));
+    assert_eq!(materialize_workspace_range("workspace:^", "1.2.3").as_deref(), Some("^1.2.3"));
+    assert_eq!(materialize_workspace_range("workspace:~", "1.2.3").as_deref(), Some("~1.2.3"));
+    assert_eq!(materialize_workspace_range("workspace:^1.0.0", "1.2.3").as_deref(), Some("^1.0.0"));
+    assert_eq!(materialize_workspace_range("workspace:lib@^", "1.2.3").as_deref(), Some("^1.2.3"));
     assert_eq!(materialize_workspace_range("^1.0.0", "1.2.3"), None);
 }

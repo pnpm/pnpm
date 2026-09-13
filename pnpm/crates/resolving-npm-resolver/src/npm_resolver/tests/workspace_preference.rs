@@ -188,10 +188,7 @@ async fn prefer_workspace_packages_still_consults_registry_for_several_local_cop
 
     let packages = build_workspace_packages_at(
         "acme",
-        &[
-            ("1.0.0", "/repo/packages/acme-1"),
-            ("1.1.0", "/repo/packages/acme-11"),
-        ],
+        &[("1.0.0", "/repo/packages/acme-1"), ("1.1.0", "/repo/packages/acme-11")],
     );
     let mut opts = workspace_resolve_options(packages);
     opts.project.prefer_workspace_packages = true;
@@ -441,10 +438,7 @@ async fn registry_404_propagates_when_package_not_in_workspace() {
         .await
         .expect_err("package absent from both registry and workspace must fail");
     let err_msg = err.to_string();
-    assert!(
-        err_msg.contains("404"),
-        "expected the 404 to propagate, got: {err_msg}",
-    );
+    assert!(err_msg.contains("404"), "expected the 404 to propagate, got: {err_msg}");
     assert!(
         !err_msg.contains("inside the workspace"),
         "workspace mismatch must not surface when the package is not in the workspace, got: {err_msg}",

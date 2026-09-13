@@ -4,14 +4,27 @@ use super::{
 };
 
 type Reset = fn(&mut Config, &Config);
+fn apply_named_reset(
+    config: &mut Config,
+    defaults: &Config,
+    selection: (&[(String, Reset)], &str),
+) -> bool {
+    let (resets, key) = selection;
+    let Some((_, reset)) = resets
+        .iter()
+        .find(|(name, _)| name == key)
+    else {
+        return false;
+    };
+    reset(config, defaults);
+    true
+}
 
 /// The paths anchored on the lockfile directory, re-anchored the way
 /// pinning it does, so a `modulesDir` still set keeps its shape and a
 /// pinned lockfile directory keeps its paths.
 fn reanchor_lockfile_paths(config: &mut Config, base_dir: &Path) {
-    let dir = config.lockfile_dir
-        .clone()
-        .unwrap_or_else(|| base_dir.to_path_buf());
+    let dir = config.lockfile_dir.clone().unwrap_or_else(|| base_dir.to_path_buf());
     config.anchor_lockfile_paths(&dir);
 }
 
@@ -37,11 +50,8 @@ fn reset_hoist_pattern(config: &mut Config, defaults: &Config) {
 /// `shamefullyHoist` overriding it as it does when the config is built,
 /// and a `virtualStoreOnly` install still in force keeping it empty.
 fn reset_public_hoist_pattern(config: &mut Config, defaults: &Config) {
-    config.public_hoist_pattern = explicit_or_default(
-        config,
-        "publicHoistPattern",
-        defaults.public_hoist_pattern.as_deref(),
-    );
+    config.public_hoist_pattern =
+        explicit_or_default(config, "publicHoistPattern", defaults.public_hoist_pattern.as_deref());
     config.apply_shamefully_hoist_derivation();
     config.apply_virtual_store_only_derivation();
 }
@@ -129,7 +139,7 @@ impl WorkspaceSettings {
         if Self::reset_derived_setting_to_default::<Sys>(config, defaults, key, base_dir) {
             return true;
         }
-        apply_named_reset(config, defaults, key, &resets)
+        apply_named_reset(config, defaults, (&resets, key))
     }
 
     /// [`Self::reset_setting_to_default`] for the settings another setting
@@ -198,12 +208,13 @@ impl WorkspaceSettings {
                 config.workspace_package_patterns.clone_from(&defaults.workspace_package_patterns);
             }
             "gitBranchLockfile" => {
-                config.use_git_branch_lockfile = defaults
-                    .use_git_branch_lockfile;
+                config.use_git_branch_lockfile = defaults.use_git_branch_lockfile;
                 config.git_branch_lockfile_name = None;
             }
             "sideEffectsCache" => {
-                reset_side_effects_cache(config, defaults);
+                config.side_effects_cache_read_setting = defaults.side_effects_cache_read_setting;
+                config.side_effects_cache_write_setting = defaults.side_effects_cache_write_setting;
+                config.remote_side_effects_cache.clone_from(&defaults.remote_side_effects_cache);
             }
             "httpsProxy" | "httpProxy" | "proxy" | "noProxy" | "noproxy" => {
                 reset_proxy_setting(config, defaults, key);
@@ -214,12 +225,9 @@ impl WorkspaceSettings {
                 config.audit_ignore_prune = defaults.audit_ignore_prune;
             }
             "update" | "updateConfig" => config.update_config.clone_from(&defaults.update_config),
-            "cleanupUnusedCatalogs" => {
-                config.catalog_prune = defaults.catalog_prune;
-            }
+            "cleanupUnusedCatalogs" => config.catalog_prune = defaults.catalog_prune,
             "virtualStoreType" => {
-                config.enable_global_virtual_store = defaults
-                    .enable_global_virtual_store;
+                config.enable_global_virtual_store = defaults.enable_global_virtual_store;
             }
             "maxsockets" => config.max_sockets = defaults.max_sockets,
             // Shapes only a file has, whose resolved form lives under the
@@ -235,28 +243,4 @@ impl WorkspaceSettings {
         }
         true
     }
-}
-
-fn apply_named_reset(
-    config: &mut Config,
-    defaults: &Config,
-    key: &str,
-    resets: &[(String, Reset)],
-) -> bool {
-    let Some((_, reset)) = resets
-        .iter()
-        .find(|(name, _)| name == key)
-    else {
-        return false;
-    };
-    reset(config, defaults);
-    true
-}
-
-fn reset_side_effects_cache(config: &mut Config, defaults: &Config) {
-    config.side_effects_cache_read_setting = defaults
-        .side_effects_cache_read_setting;
-    config.side_effects_cache_write_setting = defaults
-        .side_effects_cache_write_setting;
-    config.remote_side_effects_cache.clone_from(&defaults.remote_side_effects_cache);
 }

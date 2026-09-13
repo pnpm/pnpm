@@ -116,9 +116,7 @@ impl SignProvenance for Host {
         timeout: Option<Duration>,
     ) -> Result<SignedProvenance, ProvenanceGenError> {
         let token = IdentityToken::from_jwt(jwt)
-            .map_err(|source| ProvenanceGenError::IdentityToken {
-                source: source.to_string(),
-            })?;
+            .map_err(|source| ProvenanceGenError::IdentityToken { source: source.to_string() })?;
         let context = SigningContext::production();
         let deadline = timeout.unwrap_or(DEFAULT_SIGN_TIMEOUT);
         sign_with_retry(SIGN_RETRY_OPTS, || {
@@ -127,14 +125,9 @@ impl SignProvenance for Host {
                     .signer(token.clone())
                     .sign_raw_statement(statement)
                     .await
-                    .map_err(|source| ProvenanceGenError::Sign {
-                        source: source.to_string(),
-                    })?;
+                    .map_err(|source| ProvenanceGenError::Sign { source: source.to_string() })?;
                 let data = serde_json::to_string(&bundle).expect("serialize sigstore bundle");
-                Ok(SignedProvenance {
-                    media_type: bundle.media_type,
-                    data,
-                })
+                Ok(SignedProvenance { media_type: bundle.media_type, data })
             })
         })
         .await
@@ -376,9 +369,7 @@ impl From<GitHubRequestTokenError> for ProvenanceGenError {
             GitHubRequestTokenError::NotOk | GitHubRequestTokenError::MissingValue => {
                 ProvenanceGenError::GitHubInvalidResponse
             }
-            GitHubRequestTokenError::JsonParse(source) => ProvenanceGenError::TokenJson {
-                source,
-            },
+            GitHubRequestTokenError::JsonParse(source) => ProvenanceGenError::TokenJson { source },
         }
     }
 }

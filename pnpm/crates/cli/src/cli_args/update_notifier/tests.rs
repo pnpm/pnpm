@@ -34,10 +34,7 @@ fn a_check_older_than_a_day_is_due_again() {
 fn an_unusable_timestamp_reads_as_never_checked() {
     let now = Utc.with_ymd_and_hms(2026, 8, 23, 12, 0, 0).unwrap();
     assert!(!checked_recently(&Map::new(), now));
-    assert!(!checked_recently(
-        &state_with_last_check(&json!("not a date")),
-        now
-    ));
+    assert!(!checked_recently(&state_with_last_check(&json!("not a date")), now));
     assert!(!checked_recently(&state_with_last_check(&json!(42)), now));
 }
 
@@ -54,11 +51,8 @@ fn a_timestamp_in_the_future_reads_as_never_checked() {
 fn recording_a_check_keeps_the_other_state_keys() {
     let dir = tempdir().unwrap();
     let state_file = dir.path().join("pnpm-state.json");
-    std::fs::write(
-        &state_file,
-        r#"{"lastUpdateCheck":"Sun, 01 Feb 2026 00:00:00 GMT","x":1}"#,
-    )
-    .unwrap();
+    std::fs::write(&state_file, r#"{"lastUpdateCheck":"Sun, 01 Feb 2026 00:00:00 GMT","x":1}"#)
+        .unwrap();
 
     let now = Utc.with_ymd_and_hms(2026, 8, 23, 12, 0, 0).unwrap();
     let state = read_state(&state_file);

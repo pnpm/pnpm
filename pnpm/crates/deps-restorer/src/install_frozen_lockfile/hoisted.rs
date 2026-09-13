@@ -113,10 +113,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     // the build set is its keys. Sorted because a `HashMap` hands them
     // over in no particular order and `pendingBuilds` is written from
     // this list.
-    let mut build_snapshots: Vec<PackageKey> = pkg_roots
-        .keys()
-        .cloned()
-        .collect();
+    let mut build_snapshots: Vec<PackageKey> = pkg_roots.keys().cloned().collect();
     build_snapshots.sort_by_cached_key(ToString::to_string);
     Ok(HoistedLinkerOutput {
         hoisted_pkg_roots_by_key: Some(pkg_roots),
@@ -138,10 +135,7 @@ fn included_lockfile<'l>(inputs: &HoistedLinkerInputs<'l>) -> std::borrow::Cow<'
             &DependencyGroup::Optional,
         ),
     };
-    if included.dependencies
-        && included.dev_dependencies
-        && included.optional_dependencies
-    {
+    if included.dependencies && included.dev_dependencies && included.optional_dependencies {
         std::borrow::Cow::Borrowed(inputs.graph.lockfile)
     } else {
         std::borrow::Cow::Owned(exclude_importer_groups(inputs.graph.lockfile, included))
@@ -383,9 +377,8 @@ pub(crate) fn link_selected_hoisted_direct_dependencies(
     project_manifests: &[(PathBuf, &pnpm_package_manifest::PackageManifest)],
     direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
 ) -> Result<(), HoistedLinkerError> {
-    let modules_dir_name = config.modules_dir
-        .file_name()
-        .unwrap_or_else(|| OsStr::new("node_modules"));
+    let modules_dir_name =
+        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
     let root_modules_dir = pnpm_fs::lexical_normalize(&lockfile_dir.join(modules_dir_name));
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
     for (project_dir, _) in project_manifests {

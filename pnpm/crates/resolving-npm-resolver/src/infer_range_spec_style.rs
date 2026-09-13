@@ -124,15 +124,7 @@ fn try_comparator(bytes: &[u8], at: usize) -> Option<(Comparator, usize)> {
     let (has_patch, idx) = match_dotted(bytes, idx);
     let idx = skip_prerelease_tail(bytes, idx);
 
-    Some((
-        Comparator {
-            operator,
-            has_major: true,
-            has_minor,
-            has_patch,
-        },
-        idx,
-    ))
+    Some((Comparator { operator, has_major: true, has_minor, has_patch }, idx))
 }
 
 /// The comparator's leading operator, `(~?[<>]?|^?)=?`, and the offset just

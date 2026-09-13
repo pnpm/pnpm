@@ -143,13 +143,8 @@ fn warns_when_the_newer_version_is_mature_under_the_cutoff() {
         },
         ..update_opts()
     };
-    let preferred = held_back_preferred(
-        &opts,
-        &range_spec(),
-        Some(&selectors),
-        &make_package(),
-        "2.1.3",
-    );
+    let preferred =
+        held_back_preferred(&opts, &range_spec(), Some(&selectors), &make_package(), "2.1.3");
     assert_eq!(preferred, Some("2.1.4".to_string()));
 }
 

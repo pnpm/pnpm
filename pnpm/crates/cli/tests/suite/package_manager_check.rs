@@ -17,10 +17,7 @@ use std::{
 #[test]
 fn install_fails_when_the_project_pins_another_package_manager() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "packageManager": "yarn@4.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "yarn@4.0.0" }));
 
     let output = run(pacquet, root.path(), &["install"]);
 
@@ -36,37 +33,20 @@ fn install_fails_when_the_project_pins_another_package_manager() {
 #[test]
 fn pm_on_fail_warn_downgrades_the_other_package_manager_failure_to_a_warning() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "packageManager": "yarn@4.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "yarn@4.0.0" }));
 
-    let output = run(
-        pacquet,
-        root.path(),
-        &["install", "--config.pm-on-fail=warn"],
-    );
+    let output = run(pacquet, root.path(), &["install", "--config.pm-on-fail=warn"]);
 
     assert_success(&output);
-    assert_contains(
-        &output_text(&output),
-        "This project is configured to use yarn",
-    );
+    assert_contains(&output_text(&output), "This project is configured to use yarn");
 }
 
 #[test]
 fn pm_on_fail_error_reports_a_package_manager_version_mismatch() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "packageManager": "pnpm@0.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "pnpm@0.0.0" }));
 
-    let output = run(
-        pacquet,
-        root.path(),
-        &["install", "--config.pm-on-fail=error"],
-    );
+    let output = run(pacquet, root.path(), &["install", "--config.pm-on-fail=error"]);
 
     assert_failure(&output);
     assert_contains(
@@ -78,22 +58,12 @@ fn pm_on_fail_error_reports_a_package_manager_version_mismatch() {
 #[test]
 fn pm_on_fail_ignore_bypasses_the_package_manager_version_mismatch() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "packageManager": "pnpm@0.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "pnpm@0.0.0" }));
 
-    let output = run(
-        pacquet,
-        root.path(),
-        &["install", "--config.pm-on-fail=ignore"],
-    );
+    let output = run(pacquet, root.path(), &["install", "--config.pm-on-fail=ignore"]);
 
     assert_success(&output);
-    assert!(
-        !output_text(&output).contains("0.0.0"),
-        "unexpected mention of the pinned version",
-    );
+    assert!(!output_text(&output).contains("0.0.0"), "unexpected mention of the pinned version");
 }
 
 #[test]
@@ -131,29 +101,20 @@ fn a_package_manager_field_holding_a_url_is_not_checked() {
 #[test]
 fn control_characters_in_a_package_manager_name_are_stripped_from_the_output() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "packageManager": "ya\u{1b}[2Jrn@4.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "ya\u{1b}[2Jrn@4.0.0" }));
 
     let output = run(pacquet, root.path(), &["install"]);
 
     assert_failure(&output);
     let stderr = stderr(&output);
-    assert!(
-        !stderr.contains('\u{1b}'),
-        "escape sequence reached the terminal:\n{stderr}",
-    );
+    assert!(!stderr.contains('\u{1b}'), "escape sequence reached the terminal:\n{stderr}");
     assert_contains(&stderr, "This project is configured to use ya[2Jrn");
 }
 
 #[test]
 fn commands_that_do_not_belong_to_the_project_skip_the_check() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "packageManager": "yarn@3.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "yarn@3.0.0" }));
 
     let output = run(pacquet, root.path(), &["store", "path"]);
 
@@ -168,10 +129,7 @@ fn dev_engines_package_manager_with_on_fail_error_reports_a_version_mismatch() {
     let output = run(pacquet, root.path(), &["install"]);
 
     assert_failure(&output);
-    assert_contains(
-        &stderr(&output),
-        "This project is configured to use 0.0.1 of pnpm",
-    );
+    assert_contains(&stderr(&output), "This project is configured to use 0.0.1 of pnpm");
 }
 
 #[test]
@@ -182,10 +140,7 @@ fn dev_engines_package_manager_with_on_fail_warn_warns_about_a_version_mismatch(
     let output = run(pacquet, root.path(), &["install"]);
 
     assert_success(&output);
-    assert_contains(
-        &output_text(&output),
-        "This project is configured to use 0.0.1 of pnpm",
-    );
+    assert_contains(&output_text(&output), "This project is configured to use 0.0.1 of pnpm");
 }
 
 #[test]
@@ -196,10 +151,7 @@ fn dev_engines_package_manager_with_on_fail_ignore_is_not_checked() {
     let output = run(pacquet, root.path(), &["install"]);
 
     assert_success(&output);
-    assert!(
-        !output_text(&output).contains("0.0.1"),
-        "unexpected mention of the pinned version",
-    );
+    assert!(!output_text(&output).contains("0.0.1"), "unexpected mention of the pinned version");
 }
 
 #[test]
@@ -231,10 +183,7 @@ fn dev_engines_package_manager_array_selects_the_pnpm_entry() {
     let output = run(pacquet, root.path(), &["install"]);
 
     assert_failure(&output);
-    assert_contains(
-        &stderr(&output),
-        "This project is configured to use 0.0.1 of pnpm",
-    );
+    assert_contains(&stderr(&output), "This project is configured to use 0.0.1 of pnpm");
 }
 
 #[test]
@@ -331,10 +280,7 @@ fn the_pm_on_fail_hint_can_be_followed_as_a_bare_flag() {
     let output = run(pacquet, root.path(), &["install", "--pm-on-fail=ignore"]);
 
     assert_success(&output);
-    assert!(
-        !output_text(&output).contains("0.0.1"),
-        "unexpected mention of the pinned version",
-    );
+    assert!(!output_text(&output).contains("0.0.1"), "unexpected mention of the pinned version");
 }
 
 #[test]
@@ -361,10 +307,7 @@ fn the_runtime_on_fail_hint_can_be_followed_as_a_bare_flag() {
     );
 
     assert_success(&output);
-    assert!(
-        !output_text(&output).contains("99999.0.0"),
-        "unexpected mention of the pinned range",
-    );
+    assert!(!output_text(&output).contains("99999.0.0"), "unexpected mention of the pinned range");
 }
 
 #[test]
@@ -372,17 +315,11 @@ fn pm_on_fail_ignore_from_the_env_bypasses_the_check() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_dev_engines_package_manager(&workspace, "pnpm", "0.0.1", Some("error"));
 
-    let output = run(
-        pacquet.with_env("pnpm_config_pm_on_fail", "ignore"),
-        root.path(),
-        &["install"],
-    );
+    let output =
+        run(pacquet.with_env("pnpm_config_pm_on_fail", "ignore"), root.path(), &["install"]);
 
     assert_success(&output);
-    assert!(
-        !output_text(&output).contains("0.0.1"),
-        "unexpected mention of the pinned version",
-    );
+    assert!(!output_text(&output).contains("0.0.1"), "unexpected mention of the pinned version");
 }
 
 #[test]
@@ -395,10 +332,7 @@ fn pm_on_fail_ignore_from_the_workspace_manifest_bypasses_the_check() {
     let output = run(pacquet, root.path(), &["install"]);
 
     assert_success(&output);
-    assert!(
-        !output_text(&output).contains("0.0.1"),
-        "unexpected mention of the pinned version",
-    );
+    assert!(!output_text(&output).contains("0.0.1"), "unexpected mention of the pinned version");
 }
 
 #[test]
@@ -406,11 +340,8 @@ fn the_check_still_runs_under_corepack_and_explains_why_no_switch_happened() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_dev_engines_package_manager(&workspace, "pnpm", "0.0.1", Some("warn"));
 
-    let output = run(
-        pacquet.with_env("COREPACK_ROOT", "/fake/corepack"),
-        root.path(),
-        &["install"],
-    );
+    let output =
+        run(pacquet.with_env("COREPACK_ROOT", "/fake/corepack"), root.path(), &["install"]);
 
     assert_success(&output);
     let text = output_text(&output);
@@ -423,29 +354,20 @@ fn on_fail_download_under_corepack_fails_instead_of_switching_versions() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_dev_engines_package_manager(&workspace, "pnpm", "0.0.1", Some("download"));
 
-    let output = run(
-        pacquet.with_env("COREPACK_ROOT", "/fake/corepack"),
-        root.path(),
-        &["install"],
-    );
+    let output =
+        run(pacquet.with_env("COREPACK_ROOT", "/fake/corepack"), root.path(), &["install"]);
 
     assert_failure(&output);
     let stderr = stderr(&output);
     assert_contains(&stderr, "This project is configured to use 0.0.1 of pnpm");
-    assert_contains(
-        &stderr,
-        "does not switch versions when running under corepack",
-    );
+    assert_contains(&stderr, "does not switch versions when running under corepack");
     assert_contains(&stderr, "invoke pnpm directly");
 }
 
 #[test]
 fn turning_off_version_management_accepts_a_mismatched_pnpm_pin() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "packageManager": "pnpm@0.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "pnpm@0.0.0" }));
 
     let output = run(
         pacquet.with_env("PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS", "false"),
@@ -454,10 +376,7 @@ fn turning_off_version_management_accepts_a_mismatched_pnpm_pin() {
     );
 
     assert_success(&output);
-    assert!(
-        !output_text(&output).contains("0.0.0"),
-        "unexpected mention of the pinned version",
-    );
+    assert!(!output_text(&output).contains("0.0.0"), "unexpected mention of the pinned version");
 }
 
 /// Turning version management off hands the user which pnpm runs, not which
@@ -544,11 +463,8 @@ fn a_pinned_package_manager_is_recorded_in_the_lockfile_directory() {
         Some("download"),
     );
 
-    let output = run(
-        pacquet.with_env("PNPM_CONFIG_REGISTRY", mock_instance.url()),
-        root.path(),
-        &["list"],
-    );
+    let output =
+        run(pacquet.with_env("PNPM_CONFIG_REGISTRY", mock_instance.url()), root.path(), &["list"]);
 
     assert_success(&output);
     assert!(
@@ -607,10 +523,7 @@ fn a_pinned_package_manager_writes_no_lockfile_when_the_lockfile_is_turned_off()
 #[test]
 fn a_global_command_warns_instead_of_failing_the_package_manager_check() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "packageManager": "yarn@4.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "yarn@4.0.0" }));
 
     let output = run(pacquet, root.path(), &["list", "--global"]);
 
@@ -621,238 +534,10 @@ fn a_global_command_warns_instead_of_failing_the_package_manager_check() {
     );
 }
 
-#[test]
-fn dev_engines_runtime_with_on_fail_error_reports_a_node_version_mismatch() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "version": "99999.0.0", "onFail": "error",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    assert_contains(&stderr(&output), "This project requires Node.js 99999.0.0");
-}
-
-#[test]
-fn dev_engines_runtime_with_on_fail_warn_warns_about_a_node_version_mismatch() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "version": "99999.0.0", "onFail": "warn",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_success(&output);
-    assert_contains(
-        &output_text(&output),
-        "This project requires Node.js 99999.0.0",
-    );
-}
-
-#[test]
-fn dev_engines_runtime_with_on_fail_ignore_is_not_checked() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "version": "99999.0.0", "onFail": "ignore",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_success(&output);
-    assert!(
-        !output_text(&output).contains("99999.0.0"),
-        "unexpected mention of the pinned range",
-    );
-}
-
-#[test]
-fn engines_runtime_is_checked_too() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "engines",
-        &serde_json::json!({
-            "name": "node", "version": "99999.0.0", "onFail": "error",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    assert_contains(&stderr(&output), "This project requires Node.js 99999.0.0");
-}
-
-#[test]
-fn an_invalid_node_version_range_fails_with_the_runtime_on_fail_hint() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "version": "invalid range", "onFail": "error",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    let stderr = stderr(&output);
-    assert_contains(
-        &stderr,
-        "This project requires an invalid Node.js version range: invalid range",
-    );
-    assert_contains(&stderr, "--runtime-on-fail=ignore");
-}
-
-#[test]
-fn an_invalid_deno_version_range_names_deno() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "deno", "version": "invalid range", "onFail": "error",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    assert_contains(
-        &stderr(&output),
-        "This project requires an invalid Deno version range: invalid range",
-    );
-}
-
-#[test]
-fn an_invalid_bun_version_range_names_bun() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "bun", "version": "invalid range", "onFail": "error",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    assert_contains(
-        &stderr(&output),
-        "This project requires an invalid Bun version range: invalid range",
-    );
-}
-
-#[test]
-fn a_runtime_without_a_version_range_fails() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "onFail": "error",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    assert_contains(
-        &stderr(&output),
-        "This project requires a Node.js runtime but does not specify a version range",
-    );
-}
-
-#[test]
-fn runtime_array_entries_are_checked_beyond_the_first_one() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!([
-            { "name": "node", "version": "*", "onFail": "error" },
-            { "name": "deno", "version": "invalid range", "onFail": "error" },
-        ]),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    assert_contains(
-        &stderr(&output),
-        "This project requires an invalid Deno version range: invalid range",
-    );
-}
-
-#[test]
-fn runtime_on_fail_ignore_bypasses_the_manifest_on_fail() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "version": "99999.0.0", "onFail": "error",
-        }),
-    );
-
-    let output = run(
-        pacquet,
-        root.path(),
-        &[
-            "--config.verify-deps-before-run=false",
-            "--config.runtime-on-fail=ignore",
-            "exec",
-            "node",
-            "--version",
-        ],
-    );
-
-    assert_success(&output);
-    assert!(
-        !output_text(&output).contains("99999.0.0"),
-        "unexpected mention of the pinned range",
-    );
-}
-
-#[test]
-fn a_failing_runtime_check_does_not_block_the_version_output() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "version": "99999.0.0", "onFail": "error",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &["--version"]);
-
-    assert_success(&output);
-    assert_eq!(stdout(&output).trim(), pnpm_config::PNPM_VERSION);
-}
-
 /// `exec` is the cheapest command that still goes through the pre-command
 /// checks; the dependency verification it would otherwise run is unrelated.
-const EXEC_NODE_VERSION: [&str; 4] = [
-    "--config.verify-deps-before-run=false",
-    "exec",
-    "node",
-    "--version",
-];
+const EXEC_NODE_VERSION: [&str; 4] =
+    ["--config.verify-deps-before-run=false", "exec", "node", "--version"];
 
 /// A second command for a test that runs pacquet twice; the first one
 /// [`CommandTempCwd::init`] hands out is consumed by [`run`].
@@ -917,10 +602,7 @@ fn write_dev_engines_package_manager(
 }
 
 fn write_runtime(workspace: &Path, engines_field: &str, runtime: &serde_json::Value) {
-    write_manifest(
-        workspace,
-        &serde_json::json!({ engines_field: { "runtime": runtime } }),
-    );
+    write_manifest(workspace, &serde_json::json!({ engines_field: { "runtime": runtime } }));
 }
 
 fn assert_success(output: &Output) {
@@ -960,10 +642,7 @@ fn stderr(output: &Output) -> String {
 #[test]
 fn a_project_pinned_to_another_package_manager_can_still_be_repinned() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "packageManager": "yarn@4.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "yarn@4.0.0" }));
 
     let output = run(pacquet, root.path(), &["add", "npm@11"]);
 
@@ -997,12 +676,7 @@ fn a_mixed_add_writes_the_declaration_with_the_dependency() {
     let output = run(
         pacquet,
         root.path(),
-        &[
-            "add",
-            "yarn@1",
-            "@pnpm.e2e/dep-of-pkg-with-1-dep",
-            "--lockfile-only",
-        ],
+        &["add", "yarn@1", "@pnpm.e2e/dep-of-pkg-with-1-dep", "--lockfile-only"],
     );
 
     assert_success(&output);
@@ -1014,10 +688,7 @@ fn a_mixed_add_writes_the_declaration_with_the_dependency() {
             .is_some_and(|pin| pin.starts_with("yarn@1.")),
         "{manifest}",
     );
-    assert!(
-        manifest["dependencies"]["@pnpm.e2e/dep-of-pkg-with-1-dep"].is_string(),
-        "{manifest}",
-    );
+    assert!(manifest["dependencies"]["@pnpm.e2e/dep-of-pkg-with-1-dep"].is_string(), "{manifest}");
     drop((root, npmrc_info));
 }
 
@@ -1040,12 +711,7 @@ fn a_failed_add_leaves_the_declaration_unwritten() {
     let output = run(
         pacquet,
         root.path(),
-        &[
-            "add",
-            "yarn@1",
-            "@pnpm.e2e/this-package-does-not-exist",
-            "--lockfile-only",
-        ],
+        &["add", "yarn@1", "@pnpm.e2e/this-package-does-not-exist", "--lockfile-only"],
     );
 
     assert_failure(&output);
@@ -1061,15 +727,8 @@ fn a_failed_add_leaves_the_declaration_unwritten() {
 #[test]
 fn declaring_a_package_manager_for_a_filtered_selection_is_refused() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "name": "root", "version": "1.0.0" }),
-    );
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .unwrap();
+    write_manifest(&workspace, &serde_json::json!({ "name": "root", "version": "1.0.0" }));
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
     let project = workspace.join("packages").join("app");
     fs::create_dir_all(&project).unwrap();
     fs::write(
@@ -1130,13 +789,12 @@ fn a_yarn_pin_is_recorded_as_the_exact_version_corepack_requires() {
 #[test]
 fn a_project_pinned_to_another_package_manager_still_refuses_an_ordinary_add() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "packageManager": "yarn@4.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "packageManager": "yarn@4.0.0" }));
 
     let output = run(pacquet, root.path(), &["add", "lodash"]);
 
     assert_failure(&output);
     assert_contains(&stderr(&output), "This project is configured to use yarn");
 }
+
+mod runtime;

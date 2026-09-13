@@ -12,11 +12,7 @@ pub enum PublishBodyError {
     #[display(
         "publish body declares a {field} of {declared} bytes, more than the {remaining} left"
     )]
-    LengthOverrun {
-        field: &'static str,
-        declared: usize,
-        remaining: usize,
-    },
+    LengthOverrun { field: &'static str, declared: usize, remaining: usize },
     #[display("publish body has {trailing} trailing bytes after the crate archive")]
     TrailingBytes { trailing: usize },
     #[display("publish metadata is not valid JSON: {_0}")]
@@ -196,9 +192,7 @@ pub fn parse_publish_body(body: &[u8]) -> Result<(PublishMetadata, &[u8]), Publi
     let (metadata, rest) = take_length_prefixed(body, "metadata")?;
     let (archive, rest) = take_length_prefixed(rest, "crate archive")?;
     if !rest.is_empty() {
-        return Err(PublishBodyError::TrailingBytes {
-            trailing: rest.len(),
-        });
+        return Err(PublishBodyError::TrailingBytes { trailing: rest.len() });
     }
     let metadata = serde_json::from_slice(metadata).map_err(PublishBodyError::Metadata)?;
     Ok((metadata, archive))
@@ -209,17 +203,11 @@ pub(super) fn take_length_prefixed<'body>(
     field: &'static str,
 ) -> Result<(&'body [u8], &'body [u8]), PublishBodyError> {
     let Some((length, rest)) = body.split_first_chunk::<4>() else {
-        return Err(PublishBodyError::Truncated {
-            expected: 4 - body.len(),
-        });
+        return Err(PublishBodyError::Truncated { expected: 4 - body.len() });
     };
     let declared = u32::from_le_bytes(*length) as usize;
     if declared > rest.len() {
-        return Err(PublishBodyError::LengthOverrun {
-            field,
-            declared,
-            remaining: rest.len(),
-        });
+        return Err(PublishBodyError::LengthOverrun { field, declared, remaining: rest.len() });
     }
     Ok(rest.split_at(declared))
 }
@@ -269,12 +257,7 @@ pub(super) fn validate_crate_archive_with_limit(
         let Some(inner) = crate_entry_path(&entry, &expected)? else {
             continue;
         };
-        if inner == "Cargo.toml"
-            && entry
-                .header()
-                .entry_type()
-                .is_file()
-        {
+        if inner == "Cargo.toml" && entry.header().entry_type().is_file() {
             validate_crate_manifest(&mut entry, name, version)?;
             found_manifest = true;
         }
@@ -284,9 +267,7 @@ pub(super) fn validate_crate_archive_with_limit(
         return Err(CrateArchiveError::TooLarge);
     }
     if !found_manifest {
-        return Err(CrateArchiveError::MissingManifest {
-            expected,
-        });
+        return Err(CrateArchiveError::MissingManifest { expected });
     }
     Ok(())
 }
@@ -322,9 +303,7 @@ pub(super) fn crate_entry_path<Reader: io::Read>(
         return Err(outside());
     }
     if !entry_type.is_file() && !entry_type.is_dir() {
-        return Err(CrateArchiveError::UnsupportedEntry {
-            path,
-        });
+        return Err(CrateArchiveError::UnsupportedEntry { path });
     }
     Ok(Some(inner.to_string()))
 }
@@ -351,10 +330,7 @@ pub(super) fn validate_crate_manifest<Reader: io::Read>(
     if matches {
         return Ok(());
     }
-    Err(CrateArchiveError::InvalidManifest {
-        name: name.to_string(),
-        version: version.to_string(),
-    })
+    Err(CrateArchiveError::InvalidManifest { name: name.to_string(), version: version.to_string() })
 }
 
 impl PublishDependency {

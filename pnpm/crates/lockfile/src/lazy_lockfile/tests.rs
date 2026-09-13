@@ -79,17 +79,11 @@ fn disabled_never_touches_the_filesystem() {
 #[test]
 fn deferred_loads_from_the_given_dir_not_the_process_cwd() {
     let dir = tempfile::tempdir().expect("tempdir");
-    fs::write(
-        dir.path().join(Lockfile::FILE_NAME),
-        "lockfileVersion: '9.0'\n",
-    )
-    .expect("write pnpm-lock.yaml");
+    fs::write(dir.path().join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
+        .expect("write pnpm-lock.yaml");
 
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
-    assert!(
-        lazy.is_loaded_or_on_disk(),
-        "probe must find the dir-addressed lockfile",
-    );
+    assert!(lazy.is_loaded_or_on_disk(), "probe must find the dir-addressed lockfile");
     assert!(
         lazy
             .get()
@@ -98,10 +92,8 @@ fn deferred_loads_from_the_given_dir_not_the_process_cwd() {
     );
 
     let empty = tempfile::tempdir().expect("tempdir");
-    let lazy = LazyLockfile::deferred(
-        empty.path().to_path_buf(),
-        WantedLockfileSelection::default(),
-    );
+    let lazy =
+        LazyLockfile::deferred(empty.path().to_path_buf(), WantedLockfileSelection::default());
     assert!(!lazy.is_loaded_or_on_disk());
     assert!(
         lazy
@@ -109,10 +101,7 @@ fn deferred_loads_from_the_given_dir_not_the_process_cwd() {
             .expect("absent repair load succeeds")
             .is_none(),
     );
-    assert!(
-        !lazy.is_loaded_or_on_disk(),
-        "the empty repair cache must report no lockfile",
-    );
+    assert!(!lazy.is_loaded_or_on_disk(), "the empty repair cache must report no lockfile");
     assert!(
         lazy
             .get()
@@ -199,10 +188,7 @@ fn repair_merge_preserves_valid_metadata_when_strict_parsing_fails() {
     .expect("write pnpm-lock.yaml");
 
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
-    assert!(
-        lazy.get().is_err(),
-        "strict parsing must reject the malformed settings",
-    );
+    assert!(lazy.get().is_err(), "strict parsing must reject the malformed settings");
 
     let package_key = "pkg@1.0.0".parse().expect("package key");
     let repaired = lazy
@@ -393,17 +379,11 @@ fn empty_and_env_only_files_count_as_absent() {
 
     fs::write(&path, "").expect("write empty lockfile");
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
-    assert!(
-        !lazy.is_loaded_or_on_disk(),
-        "an empty file must count as absent",
-    );
+    assert!(!lazy.is_loaded_or_on_disk(), "an empty file must count as absent");
 
     fs::write(&path, "---\nenvDependencies:\n  node: '22.0.0'\n").expect("write env-only lockfile");
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
-    assert!(
-        !lazy.is_loaded_or_on_disk(),
-        "an env-only document must count as absent",
-    );
+    assert!(!lazy.is_loaded_or_on_disk(), "an env-only document must count as absent");
     assert!(
         lazy
             .get()
@@ -425,10 +405,7 @@ fn unreadable_lockfile_counts_as_present() {
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
     let present = lazy.is_loaded_or_on_disk();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("restore permissions");
-    assert!(
-        present,
-        "an unreadable lockfile must not be mistaken for a missing one",
-    );
+    assert!(present, "an unreadable lockfile must not be mistaken for a missing one");
 }
 
 #[test]
@@ -455,11 +432,8 @@ fn loaded_variant_passes_through() {
 #[test]
 fn prefetch_hands_get_the_background_parse() {
     let dir = tempfile::tempdir().expect("tempdir");
-    fs::write(
-        dir.path().join(Lockfile::FILE_NAME),
-        "lockfileVersion: '9.0'\n",
-    )
-    .expect("write pnpm-lock.yaml");
+    fs::write(dir.path().join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
+        .expect("write pnpm-lock.yaml");
 
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
     lazy.prefetch();
@@ -480,10 +454,7 @@ fn prefetch_hands_get_the_background_parse() {
         if finished {
             break;
         }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "background load never finished",
-        );
+        assert!(std::time::Instant::now() < deadline, "background load never finished");
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
     fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).expect("remove pnpm-lock.yaml");
@@ -516,22 +487,16 @@ fn prefetch_on_a_disabled_lockfile_is_a_noop() {
 #[test]
 fn a_failed_prefetch_is_surfaced_and_then_retried() {
     let dir = tempfile::tempdir().expect("tempdir");
-    fs::write(
-        dir.path().join(Lockfile::FILE_NAME),
-        "lockfileVersion: [broken\n",
-    )
-    .expect("write broken pnpm-lock.yaml");
+    fs::write(dir.path().join(Lockfile::FILE_NAME), "lockfileVersion: [broken\n")
+        .expect("write broken pnpm-lock.yaml");
 
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
     lazy.prefetch();
     lazy.get().expect_err("the background parse failure must surface");
 
     // The error is not cached: a repaired file loads on the next call.
-    fs::write(
-        dir.path().join(Lockfile::FILE_NAME),
-        "lockfileVersion: '9.0'\n",
-    )
-    .expect("repair pnpm-lock.yaml");
+    fs::write(dir.path().join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
+        .expect("repair pnpm-lock.yaml");
     assert!(
         lazy
             .get()

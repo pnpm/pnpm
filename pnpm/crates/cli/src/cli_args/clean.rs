@@ -40,12 +40,8 @@ struct ScriptOverrideInWorkspaceRoot {
 /// The pnpm hidden entries inside `node_modules` that `clean` removes
 /// alongside the regular package directories. Any other dotfile (e.g.
 /// `.cache`) is left in place.
-const PNPM_HIDDEN_ENTRIES: &[&str] = &[
-    ".bin",
-    ".modules.yaml",
-    ".pnpm",
-    ".pnpm-workspace-state-v1.json",
-];
+const PNPM_HIDDEN_ENTRIES: &[&str] =
+    &[".bin", ".modules.yaml", ".pnpm", ".pnpm-workspace-state-v1.json"];
 
 impl CleanArgs {
     pub(super) fn run(self, ctx: &RunCtx<'_>, command_name: &str) -> miette::Result<()> {
@@ -55,10 +51,9 @@ impl CleanArgs {
         }
         // A `<command_name>` script in the current project's `package.json`
         // replaces the built-in command.
-        if let Some(script) = script_of(
-            read_project_manifest_only(ctx.locations.dir).ok(),
-            command_name,
-        ) && !script.is_empty()
+        if let Some(script) =
+            script_of(read_project_manifest_only(ctx.locations.dir).ok(), command_name)
+            && !script.is_empty()
         {
             return RunArgs {
                 script: RunArgs::script(command_name, []),
@@ -86,10 +81,7 @@ impl CleanArgs {
                 script_of(read_project_manifest_only(workspace_dir).ok(), command_name)
             && !script.is_empty()
         {
-            return Err(ScriptOverrideInWorkspaceRoot {
-                command: command_name.to_string(),
-            }
-            .into());
+            return Err(ScriptOverrideInWorkspaceRoot { command: command_name.to_string() }.into());
         }
         clean_builtin(ctx, config, self.lockfile)
     }
@@ -161,13 +153,11 @@ fn remove_workspace_lockfile(cwd: &Path, root_dir: &Path) -> miette::Result<()> 
     print_removing(cwd, &lockfile_path);
     // A concurrent remover is not an error: the file is gone either way.
     std::fs::remove_file(&lockfile_path)
-        .or_else(|error| {
-            if error.kind() == std::io::ErrorKind::NotFound {
-                Ok(())
-            } else {
-                Err(error)
-            }
-        })
+        .or_else(
+            |error| {
+                if error.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(error) }
+            },
+        )
         .into_diagnostic()
         .wrap_err_with(|| format!("removing {}", lockfile_path.display()))
 }
@@ -225,13 +215,11 @@ fn remove_modules_dir_contents(modules_dir: &Path) -> miette::Result<()> {
 
 fn remove_path(path: &Path) -> miette::Result<()> {
     remove_dirent(path)
-        .or_else(|error| {
-            if error.kind() == std::io::ErrorKind::NotFound {
-                Ok(())
-            } else {
-                Err(error)
-            }
-        })
+        .or_else(
+            |error| {
+                if error.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(error) }
+            },
+        )
         .into_diagnostic()
         .wrap_err_with(|| format!("removing {}", path.display()))
 }
@@ -245,10 +233,7 @@ fn is_pnpm_entry(name: &str) -> bool {
 /// formatting. An empty relative path renders as `.`.
 fn print_removing(base: &Path, path: &Path) {
     let relative = relative_path(base, path);
-    let owned: PathBuf = if relative.as_os_str().is_empty() {
-        PathBuf::from(".")
-    } else {
-        relative
-    };
+    let owned: PathBuf =
+        if relative.as_os_str().is_empty() { PathBuf::from(".") } else { relative };
     println!("Removing {}", owned.display());
 }

@@ -32,10 +32,7 @@ fn switch_target_uses_global_env_when_lockfile_is_disabled() {
         locked_version: None,
     } = target.source
     else {
-        panic!(
-            "expected resolve target into the global env, got {:?}",
-            target.source,
-        );
+        panic!("expected resolve target into the global env, got {:?}", target.source);
     };
     assert_eq!(env_root, global_pkg_dir);
 }
@@ -203,10 +200,7 @@ fn switch_target_uses_global_env_for_legacy_package_manager_field() {
     write_manifest(root.path(), r#"{"packageManager":"pnpm@9.3.0"}"#);
 
     let target = switch_target(
-        &Config {
-            global_pkg_dir: Some(global_pkg_dir.clone()),
-            ..Config::default()
-        },
+        &Config { global_pkg_dir: Some(global_pkg_dir.clone()), ..Config::default() },
         &pin_roots(root.path()),
         false,
     )
@@ -282,10 +276,7 @@ fn switch_target_leaves_the_global_env_writable_under_frozen_lockfile() {
     write_manifest(root.path(), r#"{"packageManager":"pnpm@9.3.0"}"#);
 
     let target = switch_target(
-        &Config {
-            global_pkg_dir: Some(global_pkg_dir.clone()),
-            ..Config::default()
-        },
+        &Config { global_pkg_dir: Some(global_pkg_dir.clone()), ..Config::default() },
         &pin_roots(root.path()),
         true,
     )
@@ -299,10 +290,7 @@ fn switch_target_leaves_the_global_env_writable_under_frozen_lockfile() {
         locked_version: None,
     } = target.source
     else {
-        panic!(
-            "expected an unfrozen resolve target, got {:?}",
-            target.source,
-        );
+        panic!("expected an unfrozen resolve target, got {:?}", target.source);
     };
     assert_eq!(env_root, global_pkg_dir);
 }

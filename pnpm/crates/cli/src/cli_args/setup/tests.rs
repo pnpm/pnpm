@@ -12,10 +12,7 @@ use std::path::PathBuf;
 
 fn report(change_type: ConfigFileChangeType, old: &str, new: &str) -> PathExtenderReport {
     PathExtenderReport {
-        config_file: Some(ConfigReport {
-            path: PathBuf::from("/home/user/.bashrc"),
-            change_type,
-        }),
+        config_file: Some(ConfigReport { path: PathBuf::from("/home/user/.bashrc"), change_type }),
         old_settings: old.to_string(),
         new_settings: new.to_string(),
     }
@@ -73,10 +70,7 @@ fn alias_scripts_are_written_and_executable() {
     create_alias_scripts(&bin_dir).expect("write alias scripts");
 
     let pn = bin_dir.join("pn");
-    assert_eq!(
-        std::fs::read_to_string(&pn).expect("read pn"),
-        "#!/bin/sh\nexec pnpm \"$@\"\n",
-    );
+    assert_eq!(std::fs::read_to_string(&pn).expect("read pn"), "#!/bin/sh\nexec pnpm \"$@\"\n");
     assert_eq!(
         std::fs::read_to_string(bin_dir.join("pnpx")).expect("read pnpx"),
         "#!/bin/sh\nexec pnpm dlx \"$@\"\n",
@@ -110,13 +104,7 @@ fn remove_legacy_homedir_shims_unlinks_all_v10_names() {
     remove_legacy_homedir_shims(dir.path());
 
     for name in LEGACY_HOME_DIR_SHIM_NAMES {
-        assert!(
-            !dir
-                .path()
-                .join(name)
-                .exists(),
-            "{name} should have been removed",
-        );
+        assert!(!dir.path().join(name).exists(), "{name} should have been removed");
     }
 }
 

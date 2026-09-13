@@ -112,14 +112,16 @@ pub(crate) fn decide_catalog_outcome(
     // A `runtime:` specifier round-trips to `devEngines.runtime` through
     // the manifest writer; promoting it into a catalog would strand it in
     // `devDependencies`. Skip it, matching pnpm.
-    if dep.bare_specifier.starts_with("runtime:")
-        || is_project_relative_path(dep.bare_specifier)
-        || (catalog_mode == CatalogMode::Manual && save_catalog_name.is_none())
-    {
-        return Ok(CatalogDecisionOutcome {
-            decision: CatalogDecision::KeepDirect,
-            warning: None,
-        });
+    if dep.bare_specifier.starts_with("runtime:") {
+        return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
+    }
+
+    if is_project_relative_path(dep.bare_specifier) {
+        return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
+    }
+
+    if catalog_mode == CatalogMode::Manual && save_catalog_name.is_none() {
+        return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
     }
 
     let catalog_name = per_dep_catalog_name(dep.prev_specifier, save_catalog_name);
@@ -139,14 +141,7 @@ pub(crate) fn decide_catalog_outcome(
         });
     }
 
-    decide_catalog_entry(
-        catalog_mode,
-        catalogs,
-        dep,
-        prefix,
-        catalog_name,
-        catalog_specifier,
-    )
+    decide_catalog_entry(catalog_mode, catalogs, dep, prefix, catalog_name, catalog_specifier)
 }
 
 fn decide_catalog_entry(
@@ -212,10 +207,9 @@ fn catalog_mismatch(
                 prefix: prefix.to_string(),
             })),
         }),
-        CatalogMode::Manual => Ok(CatalogDecisionOutcome {
-            decision: CatalogDecision::KeepDirect,
-            warning: None,
-        }),
+        CatalogMode::Manual => {
+            Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None })
+        }
     }
 }
 

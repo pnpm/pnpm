@@ -85,11 +85,7 @@ pub enum GitFetcherError {
     /// from the child so the failure surfaces in the install log.
     #[display("`git {operation}` failed ({status}): {stderr}")]
     #[diagnostic(code(ERR_PNPM_GIT_FETCHER_GIT_EXEC_FAILED))]
-    GitExec {
-        operation: &'static str,
-        stderr: String,
-        status: std::process::ExitStatus,
-    },
+    GitExec { operation: &'static str, stderr: String, status: std::process::ExitStatus },
 
     /// The clone (or shallow fetch) of a git dependency failed. Carries
     /// the package the resolution belongs to, which [`Self::GitExec`]
@@ -97,11 +93,7 @@ pub enum GitFetcherError {
     /// work out which of their dependencies it came from.
     #[display("Failed to fetch {package:?} from the git repository {repo:?}: {stderr}")]
     #[diagnostic(code(ERR_PNPM_GIT_FETCH_FAILED))]
-    Fetch {
-        package: String,
-        repo: String,
-        stderr: String,
-    },
+    Fetch { package: String, repo: String, stderr: String },
 
     /// [`Self::Fetch`] for a repository the lockfile pins to an SSH
     /// remote. Split into its own variant purely so the derived
@@ -126,12 +118,7 @@ If its specifier does not ask for SSH (for example "github:owner/repo"), the loc
 "pnpm install --force" and "pnpm install --resolution-only" do not re-resolve git dependencies, so neither clears it."#,
         )
     )]
-    FetchOverSsh {
-        package: String,
-        repo: String,
-        host: String,
-        stderr: String,
-    },
+    FetchOverSsh { package: String, repo: String, host: String, stderr: String },
 
     /// `git rev-parse HEAD` did not return the pinned commit, rejected
     /// with the `ERR_PNPM_GIT_CHECKOUT_FAILED` code.

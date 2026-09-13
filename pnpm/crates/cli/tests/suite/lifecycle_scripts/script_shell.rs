@@ -96,10 +96,7 @@ fn runs_dependency_build_scripts_under_it() {
     });
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
-    allow_builds(
-        &workspace,
-        &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)],
-    );
+    allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
     let log = install_probe_shell(&workspace);
 
     pacquet

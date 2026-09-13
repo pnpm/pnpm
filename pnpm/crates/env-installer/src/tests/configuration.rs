@@ -23,10 +23,7 @@ async fn resolves_and_installs_config_dep_when_no_env_lockfile_exists() {
     .unwrap();
 
     let installed = root.path().join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json");
-    assert!(
-        installed.exists(),
-        "config dep must be linked into .pnpm-config",
-    );
+    assert!(installed.exists(), "config dep must be linked into .pnpm-config");
 
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
     let importer = &env.importers[EnvLockfile::ROOT_IMPORTER_KEY];
@@ -98,10 +95,7 @@ async fn rejects_config_dep_with_path_traversal_name() {
         .remove("@pnpm.e2e/foo")
         .unwrap();
     let malicious_name = "../../PWNED_CFGDEP".to_string();
-    env
-        .root_importer_mut()
-        .config_dependencies
-        .insert(malicious_name.clone(), spec.clone());
+    env.root_importer_mut().config_dependencies.insert(malicious_name.clone(), spec.clone());
     let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
     let pkg = env.packages[&legit_key].clone();
     let malicious_key: PackageKey = format!("{malicious_name}@{}", spec.version).parse().unwrap();
@@ -116,10 +110,7 @@ async fn rejects_config_dep_with_path_traversal_name() {
     );
 
     assert!(!contains_entry_named(root.path(), "PWNED_CFGDEP"));
-    assert!(!contains_entry_named(
-        &harness.store_dir.links(),
-        "PWNED_CFGDEP"
-    ));
+    assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED_CFGDEP"));
 }
 
 /// `__proto__` is an invalid npm name (leading `_`); Rust's string-keyed maps
@@ -147,10 +138,7 @@ async fn rejects_config_dep_named_dunder_proto() {
         .remove("@pnpm.e2e/foo")
         .unwrap();
     let malicious_name = "__proto__".to_string();
-    env
-        .root_importer_mut()
-        .config_dependencies
-        .insert(malicious_name.clone(), spec.clone());
+    env.root_importer_mut().config_dependencies.insert(malicious_name.clone(), spec.clone());
     let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
     let pkg = env.packages[&legit_key].clone();
     let malicious_key: PackageKey = format!("{malicious_name}@{}", spec.version).parse().unwrap();
@@ -326,14 +314,10 @@ async fn re_resolves_when_config_dep_version_changes() {
     .unwrap();
 
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
-    let entry =
-        &env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["@pnpm.e2e/foo"];
+    let entry = &env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["@pnpm.e2e/foo"];
     assert_eq!(entry.version, "100.1.0", "version bump is reflected");
     let old_key = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
-    assert!(
-        !env.packages.contains_key(&old_key),
-        "stale version pruned from lockfile",
-    );
+    assert!(!env.packages.contains_key(&old_key), "stale version pruned from lockfile");
 }
 
 #[tokio::test]
@@ -384,10 +368,7 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     let first = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
     assert_eq!(
         config_dep_statuses(&first),
-        vec![
-            InstallingConfigDepsStatus::Started,
-            InstallingConfigDepsStatus::Done
-        ],
+        vec![InstallingConfigDepsStatus::Started, InstallingConfigDepsStatus::Done],
         "first install emits exactly started then done",
     );
 
@@ -399,10 +380,7 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     .await
     .unwrap();
     let second = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
-    assert!(
-        config_dep_statuses(&second).is_empty(),
-        "a no-op install emits nothing: {second:?}",
-    );
+    assert!(config_dep_statuses(&second).is_empty(), "a no-op install emits nothing: {second:?}");
 }
 
 #[tokio::test]

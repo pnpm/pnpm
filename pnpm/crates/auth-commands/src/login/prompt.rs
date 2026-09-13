@@ -46,9 +46,7 @@ pub(super) async fn prompt_line<Sys: PromptInput + PromptPassword + 'static>(
         Masking::Masked => Sys::prompt_password(&message),
     })
     .await
-    .map_err(|join_error| PromptError::Other {
-        reason: join_error.to_string(),
-    })?
+    .map_err(|join_error| PromptError::Other { reason: join_error.to_string() })?
     .map_err(map_dialoguer_error)
 }
 
@@ -57,8 +55,6 @@ fn map_dialoguer_error(error: dialoguer::Error) -> PromptError {
         dialoguer::Error::IO(io) if io.kind() == io::ErrorKind::Interrupted => {
             PromptError::Cancelled
         }
-        dialoguer::Error::IO(io) => PromptError::Other {
-            reason: io.to_string(),
-        },
+        dialoguer::Error::IO(io) => PromptError::Other { reason: io.to_string() },
     }
 }

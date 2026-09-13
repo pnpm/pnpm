@@ -81,9 +81,7 @@ impl AncestorIds {
 
     /// The ids peer discovery appended after the base, in order.
     pub fn appended_ids(&self) -> impl Iterator<Item = &str> {
-        self.appended
-            .iter()
-            .map(|id| &**id)
+        self.appended.iter().map(|id| &**id)
     }
 
     #[must_use]
@@ -91,19 +89,13 @@ impl AncestorIds {
         let mut appended = Vec::with_capacity(self.appended.len() + 1);
         appended.extend(self.appended.iter().cloned());
         appended.push(Arc::from(id));
-        Self {
-            base: Arc::clone(&self.base),
-            appended: Arc::new(appended),
-        }
+        Self { base: Arc::clone(&self.base), appended: Arc::new(appended) }
     }
 }
 
 impl From<Arc<Vec<String>>> for AncestorIds {
     fn from(base: Arc<Vec<String>>) -> Self {
-        Self {
-            base,
-            appended: Arc::new(Vec::new()),
-        }
+        Self { base, appended: Arc::new(Vec::new()) }
     }
 }
 
@@ -252,13 +244,7 @@ impl DependenciesTreeNode {
         depth: i32,
         installable: bool,
     ) -> Self {
-        DependenciesTreeNode {
-            resolved_package_id,
-            children,
-            depth,
-            installable,
-            locked: None,
-        }
+        DependenciesTreeNode { resolved_package_id, children, depth, installable, locked: None }
     }
 
     /// Wanted-lockfile `DepPath` for this occurrence, if it carried one.
@@ -283,9 +269,7 @@ impl DependenciesTreeNode {
     /// precondition.
     #[must_use]
     pub fn has_no_locked_peer_context(&self) -> bool {
-        self.locked
-            .as_ref()
-            .is_none_or(|locked| locked.locked_peer_context.is_none())
+        self.locked.as_ref().is_none_or(|locked| locked.locked_peer_context.is_none())
     }
 
     /// The carry-over slot, allocated on first write.

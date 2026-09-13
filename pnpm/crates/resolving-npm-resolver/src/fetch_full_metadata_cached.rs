@@ -99,13 +99,8 @@ pub async fn fetch_full_metadata_cached(
         // dead end.
         cache_bypass: AtomicBool::new(false),
     };
-    retry_async(
-        &url,
-        opts.http.retry_opts,
-        FetchMetadataError::is_body_retryable,
-        || attempt.run(),
-    )
-    .await
+    retry_async(&url, opts.http.retry_opts, FetchMetadataError::is_body_retryable, || attempt.run())
+        .await
 }
 
 /// One conditional metadata fetch, re-entered from the top by each body
@@ -200,8 +195,7 @@ impl FetchAttempt<'_> {
             mirror_path: self.mirror_path.map(Path::to_path_buf),
             etag,
             normalize_to_abbreviated,
-            should_filter_metadata: self.opts.full_metadata
-                && self.opts.filter_metadata,
+            should_filter_metadata: self.opts.full_metadata && self.opts.filter_metadata,
             started_at,
         }
     }
@@ -211,15 +205,9 @@ impl FetchAttempt<'_> {
         MetadataRequestOptions {
             pkg_name: self.pkg_name,
             url: self.url,
-            accept: if opts.full_metadata {
-                ACCEPT_FULL_DOC
-            } else {
-                ACCEPT_ABBREVIATED_DOC
-            },
+            accept: if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC },
             priority: opts.priority,
-            etag: self.cache_headers
-                .as_ref()
-                .and_then(|headers| headers.etag.as_deref()),
+            etag: self.cache_headers.as_ref().and_then(|headers| headers.etag.as_deref()),
             modified: self.cache_headers
                 .as_ref()
                 .and_then(|headers| headers.modified.as_deref()),
@@ -246,11 +234,7 @@ fn mirror_path_for(
     url: &str,
 ) -> Option<PathBuf> {
     let base_meta_dir = if opts.full_metadata {
-        if opts.filter_metadata {
-            FULL_FILTERED_META_DIR
-        } else {
-            FULL_META_DIR
-        }
+        if opts.filter_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
     } else {
         ABBREVIATED_META_DIR
     };

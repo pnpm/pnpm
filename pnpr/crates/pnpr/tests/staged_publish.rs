@@ -46,12 +46,7 @@ fn request(method: &str, path: &str, body: Body, token: Option<&str>) -> Request
 }
 
 fn json_request(method: &str, path: &str, body: &Value, token: Option<&str>) -> Request<Body> {
-    request(
-        method,
-        path,
-        Body::from(serde_json::to_vec(body).unwrap()),
-        token,
-    )
+    request(method, path, Body::from(serde_json::to_vec(body).unwrap()), token)
 }
 
 async fn add_user_and_get_token(app: axum::Router, username: &str, password: &str) -> String {
@@ -121,20 +116,12 @@ async fn staged_publish_is_held_back_until_approved() {
         .await
         .unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
-    assert!(
-        !storage.join("staged-pkg").exists(),
-        "no package dir before approval",
-    );
+    assert!(!storage.join("staged-pkg").exists(), "no package dir before approval");
 
     // Listed, viewable, and its tarball downloadable.
     let list = app
         .clone()
-        .oneshot(request(
-            "GET",
-            "/-/stage?page=0&perPage=100",
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("GET", "/-/stage?page=0&perPage=100", Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(list.status(), StatusCode::OK);
@@ -146,23 +133,12 @@ async fn staged_publish_is_held_back_until_approved() {
     assert_eq!(listed["items"][0]["tag"], "latest");
     assert_eq!(listed["items"][0]["actor"], "alice");
     assert_eq!(listed["items"][0]["actorType"], "user");
-    assert_eq!(
-        listed["items"][0]["shasum"],
-        Value::String(sha1_hex(tarball)),
-    );
-    assert!(
-        listed["items"][0].get("registry").is_none(),
-        "routing state must not be served",
-    );
+    assert_eq!(listed["items"][0]["shasum"], Value::String(sha1_hex(tarball)));
+    assert!(listed["items"][0].get("registry").is_none(), "routing state must not be served");
 
     let view = app
         .clone()
-        .oneshot(request(
-            "GET",
-            &format!("/-/stage/{stage_id}"),
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("GET", &format!("/-/stage/{stage_id}"), Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(view.status(), StatusCode::OK);
@@ -213,17 +189,9 @@ async fn staged_publish_is_held_back_until_approved() {
         .await
         .unwrap();
     let listed = body_json(list.into_body()).await;
-    assert_eq!(
-        listed["total"], 0,
-        "an approved stage leaves no record behind",
-    );
+    assert_eq!(listed["total"], 0, "an approved stage leaves no record behind");
     let view = app
-        .oneshot(request(
-            "GET",
-            &format!("/-/stage/{stage_id}"),
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("GET", &format!("/-/stage/{stage_id}"), Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(view.status(), StatusCode::NOT_FOUND);
@@ -237,29 +205,18 @@ async fn rejecting_a_staged_publish_deletes_it_without_publishing() {
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
     let doc = publish_doc("rejected-pkg", "1.0.0", b"bytes");
-    let stage_id = stage_package(app.clone(), "rejected-pkg", &doc, &token)
-        .await;
+    let stage_id = stage_package(app.clone(), "rejected-pkg", &doc, &token).await;
 
     let reject = app
         .clone()
-        .oneshot(request(
-            "DELETE",
-            &format!("/-/stage/{stage_id}"),
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("DELETE", &format!("/-/stage/{stage_id}"), Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(reject.status(), StatusCode::NO_CONTENT);
 
     let view = app
         .clone()
-        .oneshot(request(
-            "GET",
-            &format!("/-/stage/{stage_id}"),
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("GET", &format!("/-/stage/{stage_id}"), Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(view.status(), StatusCode::NOT_FOUND);
@@ -268,10 +225,7 @@ async fn rejecting_a_staged_publish_deletes_it_without_publishing() {
         .await
         .unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
-    assert!(
-        !storage.join("rejected-pkg").exists(),
-        "a rejected stage publishes nothing",
-    );
+    assert!(!storage.join("rejected-pkg").exists(), "a rejected stage publishes nothing");
 }
 
 #[tokio::test]
@@ -283,17 +237,11 @@ async fn staging_supports_scoped_packages() {
 
     let tarball = b"scoped-bytes";
     let doc = publish_doc("@scope/staged", "2.0.0", tarball);
-    let stage_id = stage_package(app.clone(), "@scope/staged", &doc, &token)
-        .await;
+    let stage_id = stage_package(app.clone(), "@scope/staged", &doc, &token).await;
 
     let list = app
         .clone()
-        .oneshot(request(
-            "GET",
-            "/-/stage?package=%40scope%2Fstaged",
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("GET", "/-/stage?package=%40scope%2Fstaged", Body::empty(), Some(&token)))
         .await
         .unwrap();
     let listed = body_json(list.into_body()).await;
@@ -322,29 +270,12 @@ async fn the_package_filter_narrows_the_listing() {
     let app = router(static_config(tmp.path().to_path_buf()));
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
-    stage_package(
-        app.clone(),
-        "filter-a",
-        &publish_doc("filter-a", "1.0.0", b"a"),
-        &token,
-    )
-    .await;
-    stage_package(
-        app.clone(),
-        "filter-b",
-        &publish_doc("filter-b", "1.0.0", b"b"),
-        &token,
-    )
-    .await;
+    stage_package(app.clone(), "filter-a", &publish_doc("filter-a", "1.0.0", b"a"), &token).await;
+    stage_package(app.clone(), "filter-b", &publish_doc("filter-b", "1.0.0", b"b"), &token).await;
 
     let list = app
         .clone()
-        .oneshot(request(
-            "GET",
-            "/-/stage?package=filter-a",
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("GET", "/-/stage?package=filter-a", Body::empty(), Some(&token)))
         .await
         .unwrap();
     let listed = body_json(list.into_body()).await;
@@ -367,23 +298,12 @@ async fn pagination_slices_the_listing() {
 
     for index in 0..3 {
         let name = format!("paged-{index}");
-        stage_package(
-            app.clone(),
-            &name,
-            &publish_doc(&name, "1.0.0", b"x"),
-            &token,
-        )
-        .await;
+        stage_package(app.clone(), &name, &publish_doc(&name, "1.0.0", b"x"), &token).await;
     }
 
     let page = app
         .clone()
-        .oneshot(request(
-            "GET",
-            "/-/stage?page=0&perPage=2",
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("GET", "/-/stage?page=0&perPage=2", Body::empty(), Some(&token)))
         .await
         .unwrap();
     let first = body_json(page.into_body()).await;
@@ -392,12 +312,7 @@ async fn pagination_slices_the_listing() {
     assert_eq!(first["items"].as_array().map(Vec::len), Some(2));
 
     let page = app
-        .oneshot(request(
-            "GET",
-            "/-/stage?page=1&perPage=2",
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("GET", "/-/stage?page=1&perPage=2", Body::empty(), Some(&token)))
         .await
         .unwrap();
     let second = body_json(page.into_body()).await;
@@ -412,12 +327,7 @@ async fn staging_requires_the_publish_right() {
 
     let doc = publish_doc("anon-staged", "1.0.0", b"bytes");
     let response = app
-        .oneshot(json_request(
-            "POST",
-            "/-/stage/package/anon-staged",
-            &doc,
-            None,
-        ))
+        .oneshot(json_request("POST", "/-/stage/package/anon-staged", &doc, None))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -434,23 +344,13 @@ async fn approving_requires_the_publish_right() {
 
     let approve = app
         .clone()
-        .oneshot(request(
-            "POST",
-            &format!("/-/stage/{stage_id}/approve"),
-            Body::empty(),
-            None,
-        ))
+        .oneshot(request("POST", &format!("/-/stage/{stage_id}/approve"), Body::empty(), None))
         .await
         .unwrap();
     assert_eq!(approve.status(), StatusCode::UNAUTHORIZED);
     let reject = app
         .clone()
-        .oneshot(request(
-            "DELETE",
-            &format!("/-/stage/{stage_id}"),
-            Body::empty(),
-            None,
-        ))
+        .oneshot(request("DELETE", &format!("/-/stage/{stage_id}"), Body::empty(), None))
         .await
         .unwrap();
     assert_eq!(reject.status(), StatusCode::UNAUTHORIZED);
@@ -472,19 +372,13 @@ async fn approving_a_version_published_in_the_meantime_conflicts() {
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
     let doc = publish_doc("conflicted-pkg", "1.0.0", b"staged-bytes");
-    let stage_id = stage_package(app.clone(), "conflicted-pkg", &doc, &token)
-        .await;
+    let stage_id = stage_package(app.clone(), "conflicted-pkg", &doc, &token).await;
 
     // The same version lands through a direct publish before approval.
     let direct = publish_doc("conflicted-pkg", "1.0.0", b"direct-bytes");
     let response = app
         .clone()
-        .oneshot(json_request(
-            "PUT",
-            "/conflicted-pkg",
-            &direct,
-            Some(&token),
-        ))
+        .oneshot(json_request("PUT", "/conflicted-pkg", &direct, Some(&token)))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -503,12 +397,7 @@ async fn approving_a_version_published_in_the_meantime_conflicts() {
 
     // The record survives a failed approval; it can still be rejected.
     let reject = app
-        .oneshot(request(
-            "DELETE",
-            &format!("/-/stage/{stage_id}"),
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("DELETE", &format!("/-/stage/{stage_id}"), Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(reject.status(), StatusCode::NO_CONTENT);
@@ -523,24 +412,14 @@ async fn a_bogus_stage_id_is_not_found_or_rejected() {
     let unknown = "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f";
     let view = app
         .clone()
-        .oneshot(request(
-            "GET",
-            &format!("/-/stage/{unknown}"),
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("GET", &format!("/-/stage/{unknown}"), Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(view.status(), StatusCode::NOT_FOUND);
 
     // A path-traversal-shaped id is rejected before it can reach storage.
     let hostile = app
-        .oneshot(request(
-            "GET",
-            "/-/stage/%2e%2e%2fescape",
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("GET", "/-/stage/%2e%2e%2fescape", Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(hostile.status(), StatusCode::BAD_REQUEST);
@@ -558,10 +437,8 @@ async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
     let tmp = TempDir::new().unwrap();
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let mut config = static_config(tmp.path().to_path_buf());
-    config.storage.hosted_backend = HostedStoreConfig::ObjectStore {
-        store: Arc::clone(&store),
-        prefix: String::new(),
-    };
+    config.storage.hosted_backend =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&store), prefix: String::new() };
     let app = router(config);
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
     let doc = publish_doc("staged-pkg", "1.0.0", b"the losing tarball");
@@ -588,19 +465,10 @@ async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
     assert_eq!(approve.status(), StatusCode::CONFLICT);
 
     let list = app
-        .oneshot(request(
-            "GET",
-            "/-/stage?page=0&perPage=100",
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("GET", "/-/stage?page=0&perPage=100", Body::empty(), Some(&token)))
         .await
         .unwrap();
-    assert_eq!(
-        body_json(list.into_body()).await["total"],
-        0,
-        "the approved stage is spent",
-    );
+    assert_eq!(body_json(list.into_body()).await["total"], 0, "the approved stage is spent");
 }
 
 /// Rewrite the stored record of `stage_id` as if another replica had claimed
@@ -697,36 +565,20 @@ async fn an_approval_is_refused_while_another_holds_the_record() {
         .unwrap();
     assert_eq!(approve.status(), StatusCode::CONFLICT);
     let message = String::from_utf8(body_bytes(approve.into_body()).await).unwrap();
-    assert!(
-        message.contains("already being approved"),
-        "unexpected message: {message}",
-    );
+    assert!(message.contains("already being approved"), "unexpected message: {message}");
 
     let packument = app
         .clone()
         .oneshot(request("GET", "/staged-pkg", Body::empty(), None))
         .await
         .unwrap();
-    assert_eq!(
-        packument.status(),
-        StatusCode::NOT_FOUND,
-        "the held publish stays held",
-    );
+    assert_eq!(packument.status(), StatusCode::NOT_FOUND, "the held publish stays held");
 
     let list = app
-        .oneshot(request(
-            "GET",
-            "/-/stage?page=0&perPage=100",
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("GET", "/-/stage?page=0&perPage=100", Body::empty(), Some(&token)))
         .await
         .unwrap();
-    assert_eq!(
-        body_json(list.into_body()).await["total"],
-        1,
-        "the stage is still approvable",
-    );
+    assert_eq!(body_json(list.into_body()).await["total"], 1, "the stage is still approvable");
 }
 
 /// A replica that dies mid-approval leaves its claim behind. The claim is a

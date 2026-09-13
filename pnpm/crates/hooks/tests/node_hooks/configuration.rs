@@ -25,21 +25,12 @@ async fn update_config_applies_cjs_and_mjs_hook_results() {
 
         let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
         let updated = hooks
-            .update_config(
-                serde_json::json!({ "registry": "https://r/" }),
-                noop_context(),
-            )
+            .update_config(serde_json::json!({ "registry": "https://r/" }), noop_context())
             .await
             .expect("updateConfig should succeed");
 
-        assert_eq!(
-            updated["registry"], "https://r/",
-            "untouched keys are preserved",
-        );
-        assert_eq!(
-            updated["catalogs"]["default"]["foo"], "1.0.0",
-            "hook-set key is applied",
-        );
+        assert_eq!(updated["registry"], "https://r/", "untouched keys are preserved");
+        assert_eq!(updated["catalogs"]["default"]["foo"], "1.0.0", "hook-set key is applied");
     }
 }
 
@@ -57,8 +48,5 @@ async fn update_config_without_hook_returns_config_unchanged() {
         .expect("ok");
 
     assert!(!hooks.has_filter_log().await);
-    assert_eq!(
-        updated, config,
-        "a pnpmfile without updateConfig leaves config unchanged",
-    );
+    assert_eq!(updated, config, "a pnpmfile without updateConfig leaves config unchanged");
 }

@@ -163,14 +163,8 @@ impl ThrottledClient {
         // bundle per call would re-read and re-parse it N times.
         let extra_ca_certs = load_node_extra_ca_certs();
 
-        let inputs = ClientBuildInputs {
-            settings,
-            https,
-            http,
-            no_proxy,
-            extra_ca_certs,
-            redirect_guard,
-        };
+        let inputs =
+            ClientBuildInputs { settings, https, http, no_proxy, extra_ca_certs, redirect_guard };
         let build_client = |effective_tls: &TlsConfig, forbid_redirects: bool| {
             build_client_with_root_fallback(&inputs, effective_tls, forbid_redirects)
         };
@@ -192,11 +186,7 @@ impl ThrottledClient {
             })
         })?;
 
-        Ok(Self::from_client_pairs(
-            default_clients,
-            per_registry,
-            settings,
-        ))
+        Ok(Self::from_client_pairs(default_clients, per_registry, settings))
     }
 
     /// Assemble the client around its built pairs and the settings every

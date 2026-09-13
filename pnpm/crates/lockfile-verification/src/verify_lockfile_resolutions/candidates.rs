@@ -37,7 +37,12 @@ pub(super) fn collect_candidates(
         // contributes its bare semver as the candidate version and the
         // alias separately, so the verifier can route by registry while
         // still checking the version against that registry's metadata.
-        let (registry_name, version) = candidate_version(key);
+        let registry_name =
+            key.suffix.registry_qualified().map(|(registry_name, _)| registry_name.to_string());
+        let version = match key.suffix.registry_qualified() {
+            Some((_, version)) => version.to_string(),
+            None => key.suffix.version().to_string(),
+        };
         // A registry-style dep path (`name@semver`, no `runtime:`-style
         // prefix) must be backed by a registry-shaped resolution: the
         // allowBuilds policy derives a trusted package identity from
@@ -158,9 +163,7 @@ fn candidate_verifiers(
                 version: &candidate.version,
                 registry_name: candidate.registry_name.as_deref(),
             };
-            verifier
-                .might_verify(&candidate.resolution, ctx)
-                .then(|| Arc::clone(verifier))
+            verifier.might_verify(&candidate.resolution, ctx).then(|| Arc::clone(verifier))
         })
         .collect()
 }
@@ -214,11 +217,4 @@ pub(super) fn build_verification_error(
         })
         .collect();
     VerifyError::from_rendered(&rendered)
-}
-
-fn candidate_version(key: &pnpm_lockfile::PackageKey) -> (Option<String>, String) {
-    match key.suffix.registry_qualified() {
-        Some((registry_name, version)) => (Some(registry_name.to_string()), version.to_string()),
-        None => (None, key.suffix.version().to_string()),
-    }
 }

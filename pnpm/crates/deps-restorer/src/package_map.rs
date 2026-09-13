@@ -3,9 +3,6 @@ pub use node_options::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
 };
 
-mod paths;
-use paths::{graph_package_id, link_target_id, normalize_path, to_relative_url};
-
 mod dependencies;
 use dependencies::{
     LinkReference, LinkTarget, PhysicalPackageIndex, add_importer_dependencies,
@@ -25,6 +22,7 @@ use pnpm_package_manifest::PackageManifest;
 use serde::Serialize;
 use std::{
     collections::BTreeMap,
+    fmt::Write as _,
     path::{Path, PathBuf},
 };
 
@@ -108,12 +106,8 @@ pub fn write_package_map(
     // Hardened atomic write (temp file + rename): never follows a symlink an
     // attacker (or a crashed prior install) may have pre-seeded at the target,
     // and never leaves a torn file a concurrent reader could observe.
-    pnpm_fs::ensure_file(
-        &opts.modules_dir.join(PACKAGE_MAP_FILENAME),
-        &contents,
-        None,
-    )
-    .map_err(WritePackageMapError::Write)
+    pnpm_fs::ensure_file(&opts.modules_dir.join(PACKAGE_MAP_FILENAME), &contents, None)
+        .map_err(WritePackageMapError::Write)
 }
 
 pub fn write_hoisted_package_map(
@@ -129,12 +123,8 @@ pub fn write_hoisted_package_map(
     // Hardened atomic write (temp file + rename): never follows a symlink an
     // attacker (or a crashed prior install) may have pre-seeded at the target,
     // and never leaves a torn file a concurrent reader could observe.
-    pnpm_fs::ensure_file(
-        &opts.modules_dir.join(PACKAGE_MAP_FILENAME),
-        &contents,
-        None,
-    )
-    .map_err(WritePackageMapError::Write)
+    pnpm_fs::ensure_file(&opts.modules_dir.join(PACKAGE_MAP_FILENAME), &contents, None)
+        .map_err(WritePackageMapError::Write)
 }
 
 pub fn lockfile_to_package_map(lockfile: &Lockfile, opts: &PackageMapOptions<'_>) -> PackageMap {
@@ -177,9 +167,7 @@ pub fn lockfile_to_package_map(lockfile: &Lockfile, opts: &PackageMapOptions<'_>
         accum.loose_index.as_ref(),
     );
 
-    PackageMap {
-        packages: accum.packages,
-    }
+    PackageMap { packages: accum.packages }
 }
 
 /// The maps a package-map build accumulates. `package_dirs` and
@@ -205,14 +193,7 @@ fn add_importer_package(
     if let Some(name) = importer_name {
         dependencies.insert(name.clone(), importer_id.clone());
     }
-    add_importer_dependencies(
-        packages,
-        &mut dependencies,
-        lockfile,
-        opts,
-        importer_id,
-        importer,
-    );
+    add_importer_dependencies(packages, &mut dependencies, lockfile, opts, importer_id, importer);
     let importer_dir = lexical_normalize(&opts.lockfile_dir.join(importer_id));
     add_package(
         packages,
@@ -222,10 +203,24 @@ fn add_importer_package(
         dependencies,
         opts.modules_dir,
     );
-    let Some(loose_index) = loose_index.as_mut() else {
-        return;
-    };
-    index_importer_dependencies(loose_index, packages, lockfile, opts, importer_id, importer);
+    let Some(loose_index) = loose_index.as_mut() else { return };
+    let importer_modules_dir =
+        lexical_normalize(&opts.lockfile_dir.join(importer_id).join("node_modules"));
+    for group in [
+        importer.dependencies.as_ref(),
+        importer.optional_dependencies.as_ref(),
+        importer.dev_dependencies.as_ref(),
+    ] {
+        add_physical_importer_dependencies(
+            loose_index,
+            packages,
+            lockfile,
+            opts,
+            &importer_modules_dir,
+            group,
+            Some(importer_id),
+        );
+    }
 }
 
 fn add_snapshot_package(
@@ -235,29 +230,33 @@ fn add_snapshot_package(
     key: &PackageKey,
     snapshot: &pnpm_lockfile::SnapshotEntry,
 ) {
-    let PackageMapAccum { packages, package_dirs, .. } = accum;
+    let PackageMapAccum { packages, package_dirs, loose_index } = accum;
     let id = key.to_string();
     let mut dependencies = BTreeMap::new();
     dependencies.insert(key.name.to_string(), id.clone());
-    for group in [
-        snapshot.dependencies.as_ref(),
-        snapshot.optional_dependencies.as_ref(),
-    ] {
+    for group in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()] {
         add_snapshot_dependencies(packages, &mut dependencies, lockfile, opts, group);
     }
     let package_dir = opts.layout
         .slot_dir(key)
         .join("node_modules")
         .join(key.name.to_string());
-    add_package(
-        packages,
-        id,
-        package_dirs,
-        &package_dir,
-        dependencies,
-        opts.modules_dir,
-    );
-    index_snapshot_dependencies(accum, lockfile, opts, key, snapshot, &package_dir);
+    add_package(packages, id, package_dirs, &package_dir, dependencies, opts.modules_dir);
+    let Some(loose_index) = loose_index.as_mut() else { return };
+    if let Some(modules_dir) = get_node_modules_path(&package_dir) {
+        loose_index.add(&modules_dir, key.name.to_string(), key.to_string());
+    }
+    let package_modules_dir = package_dir.join("node_modules");
+    for group in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()] {
+        add_physical_snapshot_dependencies(
+            loose_index,
+            packages,
+            lockfile,
+            opts,
+            &package_modules_dir,
+            group,
+        );
+    }
 }
 
 fn add_metadata_only_package(
@@ -309,10 +308,7 @@ fn add_package(
     }
     packages.insert(
         id,
-        PackageMapPackage {
-            url: to_relative_url(modules_dir, package_dir),
-            dependencies,
-        },
+        PackageMapPackage { url: to_relative_url(modules_dir, package_dir), dependencies },
     );
 }
 
@@ -353,63 +349,73 @@ fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String
         .map(ToString::to_string)
 }
 
+fn to_relative_url(from: &Path, to: &Path) -> String {
+    let Some(relative) = pathdiff::diff_paths(to, from) else {
+        return absolute_package_url(to);
+    };
+    let relative = normalize_path(&relative);
+    let relative = if relative.is_empty() { ".".to_string() } else { relative };
+    if relative == "."
+        || relative == ".."
+        || relative.starts_with("./")
+        || relative.starts_with("../")
+    {
+        relative
+    } else {
+        format!("./{relative}")
+    }
+}
+
+fn link_target_id(relative: Option<PathBuf>, dir: &Path) -> String {
+    let Some(relative) = relative else {
+        return format!("link:{}", normalize_path(dir));
+    };
+    let relative_id = normalize_path(&relative);
+    if relative_id == ".." || relative_id.starts_with("../") {
+        format!("link:{}", normalize_path(dir))
+    } else if relative_id.is_empty() {
+        ".".to_string()
+    } else {
+        relative_id
+    }
+}
+
+fn graph_package_id(package_dir: &Path, modules_dir: &Path) -> String {
+    let package_dir = lexical_normalize(package_dir);
+    let Some(relative) = pathdiff::diff_paths(&package_dir, modules_dir) else {
+        return format!("link:{}", normalize_path(&package_dir));
+    };
+    let relative = normalize_path(&relative);
+    if relative == ".." || relative.is_empty() { ".".to_string() } else { relative }
+}
+
+fn absolute_package_url(path: &Path) -> String {
+    let normalized = normalize_path(path);
+    if cfg!(windows) && normalized.starts_with("//") {
+        format!("file:{}", encode_url_path(&normalized))
+    } else if cfg!(windows) && !normalized.starts_with('/') {
+        format!("file:///{}", encode_url_path(&normalized))
+    } else {
+        format!("file://{}", encode_url_path(&normalized))
+    }
+}
+
+fn encode_url_path(path: &str) -> String {
+    let mut encoded = String::with_capacity(path.len());
+    for byte in path.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' | b':' => {
+                encoded.push(byte as char);
+            }
+            _ => write!(encoded, "%{byte:02X}").expect("writing to a string cannot fail"),
+        }
+    }
+    encoded
+}
+
+fn normalize_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
 #[cfg(test)]
 mod tests;
-
-fn index_importer_dependencies(
-    loose_index: &mut PhysicalPackageIndex,
-    packages: &mut BTreeMap<String, PackageMapPackage>,
-    lockfile: &Lockfile,
-    opts: &PackageMapOptions<'_>,
-    importer_id: &str,
-    importer: &pnpm_lockfile::ProjectSnapshot,
-) {
-    let importer_modules_dir =
-        lexical_normalize(&opts.lockfile_dir.join(importer_id).join("node_modules"));
-    for group in [
-        importer.dependencies.as_ref(),
-        importer.optional_dependencies.as_ref(),
-        importer.dev_dependencies.as_ref(),
-    ] {
-        add_physical_importer_dependencies(
-            loose_index,
-            packages,
-            lockfile,
-            opts,
-            &importer_modules_dir,
-            group,
-            Some(importer_id),
-        );
-    }
-}
-
-fn index_snapshot_dependencies(
-    accum: &mut PackageMapAccum,
-    lockfile: &Lockfile,
-    opts: &PackageMapOptions<'_>,
-    key: &PackageKey,
-    snapshot: &pnpm_lockfile::SnapshotEntry,
-    package_dir: &Path,
-) {
-    let Some(loose_index) = accum.loose_index.as_mut() else {
-        return;
-    };
-    let packages = &mut accum.packages;
-    if let Some(modules_dir) = get_node_modules_path(package_dir) {
-        loose_index.add(&modules_dir, key.name.to_string(), key.to_string());
-    }
-    let package_modules_dir = package_dir.join("node_modules");
-    for group in [
-        snapshot.dependencies.as_ref(),
-        snapshot.optional_dependencies.as_ref(),
-    ] {
-        add_physical_snapshot_dependencies(
-            loose_index,
-            packages,
-            lockfile,
-            opts,
-            &package_modules_dir,
-            group,
-        );
-    }
-}

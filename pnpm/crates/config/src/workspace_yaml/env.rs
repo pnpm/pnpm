@@ -124,9 +124,7 @@ impl WorkspaceSettings {
     /// Call this after environment substitution and before
     /// [`Self::apply_to`], which copies the value verbatim.
     pub fn resolve_script_shell(&mut self, workspace_dir: &Path) {
-        let Some(Some(script_shell)) = self.script_shell.as_mut() else {
-            return;
-        };
+        let Some(Some(script_shell)) = self.script_shell.as_mut() else { return };
         // `has_root` rather than `is_absolute`: Node's win32 `isAbsolute`
         // accepts a rooted path without a drive (`\tools\bash.exe`), which
         // Rust's `is_absolute` rejects. On POSIX the two agree.

@@ -34,12 +34,7 @@ fn optional_child_probe_propagates_io_errors() {
         &SkippedSnapshots::default(),
         true,
         true,
-        |_, _| {
-            Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "fixture denial",
-            ))
-        },
+        |_, _| Err(io::Error::new(io::ErrorKind::PermissionDenied, "fixture denial")),
     )
     .expect_err("permission errors must abort the warm-slot probe");
 
@@ -165,11 +160,7 @@ impl PlanFixture {
             None,
             None,
         );
-        PlanFixture {
-            snapshots,
-            packages,
-            layout,
-        }
+        PlanFixture { snapshots, packages, layout }
     }
 
     fn snapshot_key(&self) -> &PackageKey {
@@ -307,11 +298,7 @@ fn gvs_slot_missing_a_regular_child_link_survives() {
         None,
         None,
     );
-    let fixture = PlanFixture {
-        snapshots,
-        packages,
-        layout,
-    };
+    let fixture = PlanFixture { snapshots, packages, layout };
     let parent_dir = fixture.layout
         .slot_dir(&parent_key)
         .join("node_modules")
@@ -367,11 +354,7 @@ fn gvs_missing_slot_survives_without_a_current_lockfile() {
 
     let plan = fixture.plan(false);
 
-    assert_eq!(
-        plan.survivors.len(),
-        1,
-        "a missing slot must be materialized",
-    );
+    assert_eq!(plan.survivors.len(), 1, "a missing slot must be materialized");
     assert!(plan.skipped_entries.is_empty());
 }
 
@@ -383,11 +366,7 @@ fn force_defeats_the_gvs_existing_slot_skip() {
 
     let plan = fixture.plan(true);
 
-    assert_eq!(
-        plan.survivors.len(),
-        1,
-        "--force must re-materialize an existing slot",
-    );
+    assert_eq!(plan.survivors.len(), 1, "--force must re-materialize an existing slot");
 }
 
 #[test]

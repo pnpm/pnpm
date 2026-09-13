@@ -40,10 +40,7 @@ async fn config_json_points_downloads_and_the_api_back_at_the_registry() {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{registry}");
-        assert_eq!(
-            response.headers()[header::CACHE_CONTROL],
-            "private, no-store",
-        );
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
         let config: Value =
             serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
         assert_eq!(config["api"], format!("http://pnpr.test/cargo/~{registry}"));
@@ -73,19 +70,12 @@ async fn config_json_points_downloads_and_the_api_back_at_the_registry() {
 
 #[tokio::test]
 async fn search_hides_a_private_registry_from_an_anonymous_caller() {
-    for url in [
-        "/cargo/api/v1/crates?q=demo",
-        "/cargo/api/v1/crates?browse=true",
-    ] {
+    for url in ["/cargo/api/v1/crates?q=demo", "/cargo/api/v1/crates?browse=true"] {
         let tmp = TempDir::new().unwrap();
         let auth = AuthState::in_memory();
         let token = auth.tokens.issue("alice").await.unwrap();
         let app = router_with_auth(
-            cargo_config(
-                tmp.path().to_path_buf(),
-                "http://upstream.invalid/",
-                "$authenticated",
-            ),
+            cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$authenticated"),
             auth,
         );
         let response = app
@@ -158,13 +148,7 @@ async fn crate_names_are_case_insensitive_in_the_index_path() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    let line: Value = serde_json::from_str(
-        index
-            .lines()
-            .next()
-            .unwrap(),
-    )
-    .unwrap();
+    let line: Value = serde_json::from_str(index.lines().next().unwrap()).unwrap();
     assert_eq!(line["name"], "Inflector");
 
     for name in ["Inflector", "inflector", "INFLECTOR"] {
@@ -188,11 +172,7 @@ async fn private_hosted_registry_advertises_auth_required_and_masks_anonymous_re
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(
-        cargo_config(
-            tmp.path().to_path_buf(),
-            "http://upstream.invalid/",
-            "$authenticated",
-        ),
+        cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$authenticated"),
         auth,
     );
     let response = app
@@ -240,10 +220,7 @@ async fn private_hosted_registry_advertises_auth_required_and_masks_anonymous_re
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     // With the raw token `cargo` sends once `auth-required` is set, both serve.
-    for path in [
-        "/cargo/index/de/mo/demo",
-        "/cargo/api/v1/crates/demo/0.1.0/download",
-    ] {
+    for path in ["/cargo/index/de/mo/demo", "/cargo/api/v1/crates/demo/0.1.0/download"] {
         let response = app
             .clone()
             .oneshot(
@@ -331,10 +308,7 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
     index_mock.assert_async().await;
     download_mock.assert_async().await;
     let cache = tmp.path().join(".pnpr-cache");
-    assert!(
-        find_file(&cache, "serde-1.0.0.crate").is_some(),
-        "download is cached",
-    );
+    assert!(find_file(&cache, "serde-1.0.0.crate").is_some(), "download is cached");
 
     // An unknown crate is a definitive 404, and the cache holds nothing for it.
     let missing = upstream
@@ -437,10 +411,7 @@ async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloadin
         cargo_config(tmp.path().to_path_buf(), &upstream.url(), "$all"),
         AuthState::in_memory(),
     );
-    for path in [
-        "/cargo/index/se/rd/serde",
-        "/cargo/api/v1/crates/serde/1.0.0/download",
-    ] {
+    for path in ["/cargo/index/se/rd/serde", "/cargo/api/v1/crates/serde/1.0.0/download"] {
         let response = app
             .clone()
             .oneshot(
@@ -470,10 +441,7 @@ async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloadin
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(
-        body_bytes(response.into_body()).await,
-        valid_index.as_bytes(),
-    );
+    assert_eq!(body_bytes(response.into_body()).await, valid_index.as_bytes());
     let cached_index = find_file(&tmp.path().join(".pnpr-cache"), "package.json").unwrap();
     tokio::fs::write(cached_index, [0xff]).await.unwrap();
     let response = app

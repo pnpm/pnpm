@@ -19,31 +19,17 @@ pub fn unscoped_inline_pem_escapes_expand_like_the_url_scoped_spelling() {
 
     let scoped =
         config.tls_by_uri.get("//trusted.example.com/").expect("cert/key pinned to trusted");
-    assert_eq!(
-        scoped.cert.as_deref(),
-        Some(cert.replace(r"\n", "\n").as_str()),
-    );
-    assert_eq!(
-        scoped.key.as_deref(),
-        Some(key.replace(r"\n", "\n").as_str()),
-    );
+    assert_eq!(scoped.cert.as_deref(), Some(cert.replace(r"\n", "\n").as_str()));
+    assert_eq!(scoped.key.as_deref(), Some(key.replace(r"\n", "\n").as_str()));
 }
 
 #[test]
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "preferSymlinkedExecutables is inert on Windows"
-)]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
 pub fn prefer_symlinked_executables_exports_the_virtual_store_node_path() {
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "preferSymlinkedExecutables: true\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "preferSymlinkedExecutables: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(
         config.extra_env.get("NODE_PATH"),
         Some(
@@ -57,10 +43,7 @@ pub fn prefer_symlinked_executables_exports_the_virtual_store_node_path() {
 }
 
 #[test]
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "preferSymlinkedExecutables is inert on Windows"
-)]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
 pub fn prefer_symlinked_executables_respects_an_explicit_virtual_store_dir() {
     let tmp = tempdir().unwrap();
     let virtual_store_dir = tmp.path().join("foo/bar");
@@ -72,9 +55,7 @@ pub fn prefer_symlinked_executables_respects_an_explicit_virtual_store_dir() {
         ),
     )
     .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(
         config.extra_env.get("NODE_PATH"),
         Some(

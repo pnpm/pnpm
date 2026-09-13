@@ -240,7 +240,13 @@ impl SbomArgs {
                 virtual_store_dirs.as_deref(),
             );
         }
-        let filter_ids = narrowed_importer_ids(state.config, &importer_ids, all_count);
+        let filter_ids: Option<Vec<&str>> =
+            (selectors_narrow_the_run(state.config) || importer_ids.len() < all_count).then(|| {
+                importer_ids
+                    .iter()
+                    .map(String::as_str)
+                    .collect()
+            });
         let result = collect_components(
             &state,
             &include,
@@ -456,16 +462,3 @@ mod walk;
 mod metadata;
 
 mod collection;
-
-fn narrowed_importer_ids<'a>(
-    config: &pnpm_config::Config,
-    importer_ids: &'a [String],
-    all_count: usize,
-) -> Option<Vec<&'a str>> {
-    (selectors_narrow_the_run(config) || importer_ids.len() < all_count).then(|| {
-        importer_ids
-            .iter()
-            .map(String::as_str)
-            .collect()
-    })
-}

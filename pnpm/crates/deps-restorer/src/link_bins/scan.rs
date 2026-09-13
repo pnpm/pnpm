@@ -172,10 +172,7 @@ pub(super) fn read_modules_entries<Sys: FsReadDir>(
     match Sys::read_dir(dir) {
         Ok(entries) => Ok(Some(entries)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(LinkBinsError::ReadModulesDir {
-            dir: dir.to_path_buf(),
-            error,
-        }),
+        Err(error) => Err(LinkBinsError::ReadModulesDir { dir: dir.to_path_buf(), error }),
     }
 }
 pub(super) fn push_scope_bin_sources<Sys: FsReadDir + FsReadFile>(
@@ -211,22 +208,11 @@ pub(super) fn read_package<Sys: FsReadFile>(
     let bytes = match Sys::read_file(&manifest_path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            return Err(LinkBinsError::ReadManifest {
-                path: manifest_path,
-                error,
-            });
-        }
+        Err(error) => return Err(LinkBinsError::ReadManifest { path: manifest_path, error }),
     };
     let manifest: serde_json::Value = parse_manifest_bytes(&bytes)
-        .map_err(|error| LinkBinsError::ParseManifest {
-            path: manifest_path,
-            error,
-        })?;
-    Ok(Some(PackageBinSource::new(
-        location.to_path_buf(),
-        Arc::new(manifest),
-    )))
+        .map_err(|error| LinkBinsError::ParseManifest { path: manifest_path, error })?;
+    Ok(Some(PackageBinSource::new(location.to_path_buf(), Arc::new(manifest))))
 }
 pub(super) fn paths_eq(lhs: &Path, rhs: &Path) -> bool {
     // Lexical comparison is enough; both paths come from the same

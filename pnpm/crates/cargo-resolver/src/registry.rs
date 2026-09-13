@@ -31,30 +31,18 @@ pub fn sparse_source(index_url: &str) -> String {
 /// by its sparse index.
 #[must_use]
 pub fn registry_source(index_url: &str) -> String {
-    if is_crates_io(index_url) {
-        CRATES_IO_SOURCE.to_string()
-    } else {
-        sparse_source(index_url)
-    }
+    if is_crates_io(index_url) { CRATES_IO_SOURCE.to_string() } else { sparse_source(index_url) }
 }
 
 #[must_use]
 pub fn download_url(template: &str, name: &str, version: &str, checksum: &str) -> String {
-    const MARKERS: [&str; 5] = [
-        "{crate}",
-        "{version}",
-        "{prefix}",
-        "{lowerprefix}",
-        "{sha256-checksum}",
-    ];
+    const MARKERS: [&str; 5] =
+        ["{crate}", "{version}", "{prefix}", "{lowerprefix}", "{sha256-checksum}"];
     if !MARKERS
         .iter()
         .any(|marker| template.contains(marker))
     {
-        return format!(
-            "{}/{name}/{version}/download",
-            template.trim_end_matches('/'),
-        );
+        return format!("{}/{name}/{version}/download", template.trim_end_matches('/'));
     }
     template
         .replace("{crate}", name)
@@ -75,10 +63,7 @@ impl Registry {
         for (name, contents) in index_files {
             packages.insert(normalize_name(name), parse_index_file(name, contents)?);
         }
-        Ok(Self {
-            packages,
-            source: source.to_string(),
-        })
+        Ok(Self { packages, source: source.to_string() })
     }
 
     /// Reject a dependency that names a registry other than the one being
@@ -86,9 +71,7 @@ impl Registry {
     /// a registry that mirrors crates.io keeps the upstream spelling in the
     /// entries it copies.
     pub(crate) fn validate_dependency_source(&self, registry: Option<&str>) -> Result<()> {
-        let Some(registry) = registry else {
-            return Ok(());
-        };
+        let Some(registry) = registry else { return Ok(()) };
         if is_crates_io_source(registry) || same_registry(registry, &self.source) {
             return Ok(());
         }
@@ -151,9 +134,7 @@ fn registry_version_from_index(package: IndexPackage<'_>) -> Result<Option<Regis
         .map(registry_dependency_from_index)
         .collect::<Result<Vec<_>>>()?;
     let mut features: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for (name, values) in package.features
-        .into_iter()
-        .chain(package.features2.unwrap_or_default())
+    for (name, values) in package.features.into_iter().chain(package.features2.unwrap_or_default())
     {
         features
             .entry(name.into_owned())
@@ -200,10 +181,7 @@ pub(crate) fn matching_versions<'a>(
 }
 
 fn is_crates_io_source(registry: &str) -> bool {
-    matches!(
-        registry,
-        CRATES_IO_SOURCE | CRATES_IO_INDEX | CRATES_IO_SPARSE_SOURCE,
-    )
+    matches!(registry, CRATES_IO_SOURCE | CRATES_IO_INDEX | CRATES_IO_SPARSE_SOURCE)
 }
 
 fn same_registry(left: &str, right: &str) -> bool {

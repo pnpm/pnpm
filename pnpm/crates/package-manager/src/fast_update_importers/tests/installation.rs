@@ -77,14 +77,8 @@ fn moves_a_dependency_between_prod_and_dev_without_touching_snapshots() {
             .is_some_and(|deps| !deps.contains_key(&alias)),
     );
     let moved = &importer.dev_dependencies.as_ref().expect("devDependencies")[&alias];
-    assert_eq!(
-        (moved.specifier.as_str(), moved.version.to_string().as_str()),
-        ("^2.0.0", "2.0.0"),
-    );
-    assert_eq!(
-        updated.snapshots,
-        parsed_lockfile(WITH_REMOVABLE_DEP).snapshots,
-    );
+    assert_eq!((moved.specifier.as_str(), moved.version.to_string().as_str()), ("^2.0.0", "2.0.0"));
+    assert_eq!(updated.snapshots, parsed_lockfile(WITH_REMOVABLE_DEP).snapshots);
 }
 #[test]
 fn marks_the_subtree_optional_on_a_move_into_optional_dependencies() {
@@ -145,10 +139,7 @@ fn clears_the_subtree_flags_on_a_move_out_of_optional_dependencies() {
             .is_some_and(|deps| deps.contains_key(&alias)),
     );
     assert!(!snapshot_optional(&updated, "bar@2.0.0"));
-    assert!(
-        !snapshot_optional(&updated, "child@3.0.0"),
-        "bar reaches child non-optionally again",
-    );
+    assert!(!snapshot_optional(&updated, "child@3.0.0"), "bar reaches child non-optionally again");
     assert!(snapshot_optional(&updated, "opt@5.0.0"));
 }
 #[test]
@@ -163,10 +154,7 @@ fn stands_aside_when_every_dependency_is_in_its_recorded_group() {
         &[(".".to_string(), &manifest)],
     );
 
-    assert!(
-        updated.is_none(),
-        "nothing changed, so the handler stands aside",
-    );
+    assert!(updated.is_none(), "nothing changed, so the handler stands aside");
 }
 #[test]
 fn keeps_a_child_another_prod_dependency_reaches_non_optional() {
@@ -262,18 +250,9 @@ fn moves_several_dependencies_between_groups_in_one_pass() {
             })
             .unwrap_or_default()
     };
-    assert_eq!(
-        recorded_aliases(&importer.dependencies),
-        vec!["qux".to_string()],
-    );
-    assert_eq!(
-        recorded_aliases(&importer.dev_dependencies),
-        vec!["foo".to_string()],
-    );
-    assert_eq!(
-        recorded_aliases(&importer.optional_dependencies),
-        vec!["bar".to_string()],
-    );
+    assert_eq!(recorded_aliases(&importer.dependencies), vec!["qux".to_string()]);
+    assert_eq!(recorded_aliases(&importer.dev_dependencies), vec!["foo".to_string()]);
+    assert_eq!(recorded_aliases(&importer.optional_dependencies), vec!["bar".to_string()]);
     assert!(snapshot_optional(&updated, "bar@2.0.0"));
     assert!(snapshot_optional(&updated, "child@3.0.0"));
     assert!(!snapshot_optional(&updated, "foo@1.1.0"));
@@ -381,10 +360,7 @@ fn adding_a_dependency_clears_the_optional_flag_of_what_it_reaches() {
     let updated = try_fast_update_importers(&subject, &[(".".to_string(), &manifest)])
         .expect("the added dependency is already locked");
 
-    assert!(
-        !snapshot_optional(&updated, "child@3.0.0"),
-        "a prod path now reaches child",
-    );
+    assert!(!snapshot_optional(&updated, "child@3.0.0"), "a prod path now reaches child");
 }
 #[test]
 fn adding_an_optional_dependency_leaves_the_flags_alone() {
@@ -427,10 +403,7 @@ fn rejects_adding_a_dependency_several_locked_versions_satisfy_when_resolution_p
     let manifest = manifest_from(
         json!({ "dependencies": { "bar": "^2.0.0", "opt": "^5.0.0", "child": "^3.0.0" } }),
     );
-    let config = pnpm_config::Config {
-        resolution_mode: LOWEST_DIRECT,
-        ..Default::default()
-    };
+    let config = pnpm_config::Config { resolution_mode: LOWEST_DIRECT, ..Default::default() };
 
     assert!(
         crate::fast_update_compose::try_compose_fast_updates(

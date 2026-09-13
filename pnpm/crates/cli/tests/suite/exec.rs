@@ -172,10 +172,7 @@ fn exec_runs_binary_from_node_modules_bin() {
         .with_arg("say-hi")
         .assert()
         .success();
-    assert!(
-        marker_path.exists(),
-        "the binary in node_modules/.bin should have run",
-    );
+    assert!(marker_path.exists(), "the binary in node_modules/.bin should have run");
 
     drop(root);
 }
@@ -225,10 +222,7 @@ fn exec_passes_arguments_to_the_command() {
     let marker_path = workspace.join("args.txt");
     write_executable(
         &bin_dir.join("write-arg"),
-        &format!(
-            "#!/bin/sh\nprintf %s \"$1\" > \"{}\"\n",
-            marker_path.display(),
-        ),
+        &format!("#!/bin/sh\nprintf %s \"$1\" > \"{}\"\n", marker_path.display()),
     );
 
     pacquet
@@ -324,14 +318,8 @@ fn exec_shell_mode_preserves_embedded_quotes() {
         .output()
         .expect("spawn pacquet exec");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        output.status.success(),
-        "shell-mode command must exit 0, got: {output:?}",
-    );
-    assert!(
-        stdout.contains("shell-quote-ok"),
-        "embedded quotes must survive; stdout: {stdout:?}",
-    );
+    assert!(output.status.success(), "shell-mode command must exit 0, got: {output:?}");
+    assert!(stdout.contains("shell-quote-ok"), "embedded quotes must survive; stdout: {stdout:?}");
 
     drop(root);
 }
@@ -351,10 +339,7 @@ fn exec_preserves_a_detached_process_after_success() {
 
     let marker_exists = wait_for_file(&marker_path);
     eprintln!("DETACHED MARKER EXISTS: {marker_exists}");
-    assert!(
-        marker_exists,
-        "the detached process should survive a successful pnpm exec",
-    );
+    assert!(marker_exists, "the detached process should survive a successful pnpm exec");
 
     drop(root);
 }
@@ -408,11 +393,7 @@ fn exec_cleans_up_a_detached_process_after_failure() {
 
     let connection = accept_detached_connection(&listener, &mut pacquet_process);
     let status = pacquet_process.wait().expect("wait for pacquet exec");
-    assert_eq!(
-        status.code(),
-        Some(1),
-        "the fixture must reach its intentional failure",
-    );
+    assert_eq!(status.code(), Some(1), "the fixture must reach its intentional failure");
     assert_connection_closes(connection);
 
     drop(root);
@@ -457,11 +438,7 @@ fn exec_cleans_up_a_detached_process_after_failure_when_node_launches_pnpm() {
 
     fs::write(&release_path, "").expect("release node");
     let status = node_process.wait().expect("wait for node launching pacquet exec");
-    assert_eq!(
-        status.code(),
-        Some(1),
-        "node must forward the fixture's intentional failure",
-    );
+    assert_eq!(status.code(), Some(1), "node must forward the fixture's intentional failure");
 
     drop(root);
 }
@@ -486,11 +463,7 @@ fn exec_propagates_nonzero_exit_code() {
         .with_arg("exit 3")
         .output()
         .expect("spawn pacquet exec");
-    assert_eq!(
-        output.status.code(),
-        Some(3),
-        "the child's exit code must propagate",
-    );
+    assert_eq!(output.status.code(), Some(3), "the child's exit code must propagate");
 
     drop(root);
 }
@@ -515,10 +488,7 @@ fn exec_stamps_pnpm_package_name_from_manifest() {
         .with_arg("exec")
         .with_arg("sh")
         .with_arg("-c")
-        .with_arg(format!(
-            r#"printf %s "$PNPM_PACKAGE_NAME" > "{}""#,
-            marker.display(),
-        ))
+        .with_arg(format!(r#"printf %s "$PNPM_PACKAGE_NAME" > "{}""#, marker.display()))
         .assert()
         .success();
 

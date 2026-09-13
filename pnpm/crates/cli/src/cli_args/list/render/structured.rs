@@ -49,11 +49,7 @@ fn render_parseable_for_project(
     if !root_already_seen {
         lines.push(parseable_project_line(project, opts.long));
     }
-    lines.extend(
-        flattened
-            .into_iter()
-            .map(|node| parseable_node_line(node, opts.long)),
-    );
+    lines.extend(flattened.into_iter().map(|node| parseable_node_line(node, opts.long)));
     lines.join("\n")
 }
 
@@ -61,10 +57,7 @@ fn render_parseable_for_project(
 /// name, version and privacy the manifest declares.
 fn parseable_project_line(project: &ProjectHierarchy, long: bool) -> String {
     let mut line = plain(&project.path);
-    let Some(name) = project.name
-        .as_ref()
-        .filter(|_| long)
-    else {
+    let Some(name) = project.name.as_ref().filter(|_| long) else {
         return line;
     };
     line.push(':');
@@ -128,7 +121,29 @@ pub(super) fn flatten<'a>(
 pub(crate) fn render_json(projects: &[ProjectHierarchy], long: bool) -> String {
     let arr: Vec<Value> = projects
         .iter()
-        .map(|project| project_json(project, long))
+        .map(|project| {
+            let mut obj = Map::new();
+            if let Some(name) = &project.name {
+                obj.insert("name".to_string(), json!(name));
+            }
+            if let Some(version) = &project.version {
+                obj.insert("version".to_string(), json!(version));
+            }
+            obj.insert("path".to_string(), json!(project.path));
+            obj.insert("private".to_string(), json!(project.private));
+            let fields: [(&str, &Vec<DependencyNode>); 4] = [
+                ("dependencies", &project.hierarchy.dependencies),
+                ("devDependencies", &project.hierarchy.dev_dependencies),
+                ("optionalDependencies", &project.hierarchy.optional_dependencies),
+                ("unsavedDependencies", &project.hierarchy.unsaved_dependencies),
+            ];
+            for (field, nodes) in fields {
+                if !nodes.is_empty() {
+                    obj.insert(field.to_string(), Value::Object(to_json_result(nodes, long)));
+                }
+            }
+            Value::Object(obj)
+        })
         .collect();
     serde_json::to_string_pretty(&arr).expect("serialize list JSON")
 }
@@ -185,37 +200,4 @@ fn insert_long_pkg_info(dep: &mut Map<String, Value>, info: &LongPkgInfo) {
     if let Some(repository) = &info.repository {
         dep.insert("repository".to_string(), json!(repository));
     }
-}
-
-fn project_json(project: &ProjectHierarchy, long: bool) -> Value {
-    let mut obj = Map::new();
-    if let Some(name) = &project.name {
-        obj.insert("name".to_string(), json!(name));
-    }
-    if let Some(version) = &project.version {
-        obj.insert("version".to_string(), json!(version));
-    }
-    obj.insert("path".to_string(), json!(project.path));
-    obj.insert("private".to_string(), json!(project.private));
-    let fields: [(&str, &Vec<DependencyNode>); 4] = [
-        ("dependencies", &project.hierarchy.dependencies),
-        ("devDependencies", &project.hierarchy.dev_dependencies),
-        (
-            "optionalDependencies",
-            &project.hierarchy.optional_dependencies,
-        ),
-        (
-            "unsavedDependencies",
-            &project.hierarchy.unsaved_dependencies,
-        ),
-    ];
-    for (field, nodes) in fields {
-        if !nodes.is_empty() {
-            obj.insert(
-                field.to_string(),
-                Value::Object(to_json_result(nodes, long)),
-            );
-        }
-    }
-    Value::Object(obj)
 }

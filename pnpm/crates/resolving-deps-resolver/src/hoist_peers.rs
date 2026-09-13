@@ -118,11 +118,8 @@ fn preferred_version_specifier(
     let (versions, non_versions) = split_version_selectors(selectors);
     let range_for_match = get_peer_version_range(range);
     let is_semver_range = range_for_match.parse::<Range>().is_ok();
-    let satisfying_version = if is_semver_range {
-        max_satisfying(&versions, &range_for_match)
-    } else {
-        None
-    };
+    let satisfying_version =
+        if is_semver_range { max_satisfying(&versions, &range_for_match) } else { None };
     if let Some(satisfying) = satisfying_version {
         let mut parts: Vec<&str> = vec![satisfying];
         parts.extend(non_versions.iter().copied());
@@ -194,9 +191,7 @@ pub(crate) fn get_hoistable_optional_peers_with_locked_versions(
 ) -> BTreeMap<String, String> {
     let mut optional_dependencies = BTreeMap::new();
     for (peer_name, ranges) in all_missing_optional_peers {
-        let Some(selectors) = all_preferred_versions.get(peer_name) else {
-            continue;
-        };
+        let Some(selectors) = all_preferred_versions.get(peer_name) else { continue };
         let version = max_hoistable_optional_version(
             selectors,
             ranges,
@@ -309,11 +304,8 @@ fn find_workspace_root_dep<'a>(
     workspace_root_deps: &'a [WorkspaceRootDep],
     peer_name: &str,
 ) -> Option<&'a WorkspaceRootDep> {
-    let candidates = || {
-        workspace_root_deps
-            .iter()
-            .filter(|dep| dep.normalized_bare_specifier.is_some())
-    };
+    let candidates =
+        || workspace_root_deps.iter().filter(|dep| dep.normalized_bare_specifier.is_some());
     candidates()
         .find(|root_dep| root_dep.alias == peer_name)
         .or_else(|| {
@@ -330,9 +322,7 @@ fn max_satisfying<'a>(versions: &'a [&'a str], range: &str) -> Option<&'a str> {
     let parsed_range = IncludePrereleaseRange::parse(range);
     let mut best: Option<(&str, Version)> = None;
     for spec in versions {
-        let Ok(parsed_version) = spec.parse::<Version>() else {
-            continue;
-        };
+        let Ok(parsed_version) = spec.parse::<Version>() else { continue };
         if !parsed_range.satisfies(&parsed_version) {
             continue;
         }
@@ -351,9 +341,7 @@ fn max_satisfying<'a>(versions: &'a [&'a str], range: &str) -> Option<&'a str> {
 fn max_satisfying_any<'a>(versions: &'a [&'a str]) -> Option<&'a str> {
     let mut best: Option<(&str, Version)> = None;
     for spec in versions {
-        let Ok(v) = spec.parse::<Version>() else {
-            continue;
-        };
+        let Ok(v) = spec.parse::<Version>() else { continue };
         if best
             .as_ref()
             .is_none_or(|(_, cur)| v > *cur)

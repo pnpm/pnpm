@@ -33,11 +33,8 @@ fn explicit_npm_specifier_is_not_rewritten_as_a_workspace_dependency() {
 #[tokio::test]
 async fn selected_add_prepares_and_persists_only_selected_projects() {
     let dir = tempdir().expect("create tempdir");
-    std::fs::write(
-        dir.path().join("pnpm-workspace.yaml"),
-        "packages:\n  - '*'\n",
-    )
-    .expect("write workspace manifest");
+    std::fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - '*'\n")
+        .expect("write workspace manifest");
     let mut projects = ["a", "b", "c"]
         .into_iter()
         .map(|name| empty_project(dir.path(), name))
@@ -59,14 +56,8 @@ async fn selected_add_prepares_and_persists_only_selected_projects() {
     persist_selected_manifests::<SilentReporter>(&mut projects, &indices)
         .expect("persist selected manifests");
 
-    assert_eq!(
-        dependency_specifier(&projects[0].manifest, "foo"),
-        Some("workspace:*"),
-    );
-    assert_eq!(
-        dependency_specifier(&projects[1].manifest, "foo"),
-        Some("workspace:*"),
-    );
+    assert_eq!(dependency_specifier(&projects[0].manifest, "foo"), Some("workspace:*"));
+    assert_eq!(dependency_specifier(&projects[1].manifest, "foo"), Some("workspace:*"));
     assert_eq!(dependency_specifier(&projects[2].manifest, "foo"), None);
     assert_eq!(
         saved_dependency_specifier(&projects[0].manifest, "foo"),
@@ -76,8 +67,5 @@ async fn selected_add_prepares_and_persists_only_selected_projects() {
         saved_dependency_specifier(&projects[1].manifest, "foo"),
         Some("workspace:*".to_string()),
     );
-    assert_eq!(
-        saved_dependency_specifier(&projects[2].manifest, "foo"),
-        None,
-    );
+    assert_eq!(saved_dependency_specifier(&projects[2].manifest, "foo"), None);
 }

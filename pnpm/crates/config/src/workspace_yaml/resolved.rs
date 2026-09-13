@@ -60,14 +60,7 @@ impl WorkspaceSettings {
             global_pnpmfile: opt_path(config.global_pnpmfile.as_deref()),
             pnpmfile: config.pnpmfile
                 .as_ref()
-                .map(|paths| {
-                    PnpmfileSetting::Multiple(
-                        paths
-                            .iter()
-                            .map(|p| path(p))
-                            .collect(),
-                    )
-                }),
+                .map(|paths| PnpmfileSetting::Multiple(paths.iter().map(|p| path(p)).collect())),
 
             // The path settings `apply_to` anchors against the file's
             // directory report as the user wrote them, relative form

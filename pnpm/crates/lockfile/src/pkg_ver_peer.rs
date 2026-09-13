@@ -178,11 +178,7 @@ impl PkgVerPeer {
     /// re-parse as a [`PkgVerPeer`].
     #[must_use]
     pub fn without_peer(&self) -> PkgVerPeer {
-        PkgVerPeer {
-            prefix: self.prefix,
-            version: self.version.clone(),
-            peer: String::new(),
-        }
+        PkgVerPeer { prefix: self.prefix, version: self.version.clone(), peer: String::new() }
     }
 }
 
@@ -247,30 +243,19 @@ impl FromStr for PkgVerPeer {
         }
 
         if !body.ends_with(')') {
-            if body
-                .find(['(', ')'])
-                .is_some()
-            {
+            if body.find(['(', ')']).is_some() {
                 return Err(ParsePkgVerPeerError::MismatchParenthesis);
             }
 
             let version = parse_version_part(body)?;
-            return Ok(PkgVerPeer {
-                prefix,
-                version,
-                peer: String::new(),
-            });
+            return Ok(PkgVerPeer { prefix, version, peer: String::new() });
         }
 
         let opening_parenthesis =
             body.find('(').ok_or(ParsePkgVerPeerError::MismatchParenthesis)?;
         let version = parse_version_part(&body[..opening_parenthesis])?;
         let peer = body[opening_parenthesis..].to_string();
-        Ok(PkgVerPeer {
-            prefix,
-            version,
-            peer,
-        })
+        Ok(PkgVerPeer { prefix, version, peer })
     }
 }
 

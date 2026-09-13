@@ -62,14 +62,8 @@ fn restart_fails_when_stop_script_fails() {
         .with_arg("restart")
         .output()
         .expect("spawn pacquet restart");
-    assert!(
-        !output.status.success(),
-        "restart should fail when stop fails",
-    );
-    assert!(
-        !restart_marker.exists(),
-        "restart script should NOT have run after stop failure",
-    );
+    assert!(!output.status.success(), "restart should fail when stop fails");
+    assert!(!restart_marker.exists(), "restart script should NOT have run after stop failure");
 
     drop(root);
 }
@@ -97,14 +91,8 @@ fn restart_fails_when_restart_script_fails() {
         .with_arg("restart")
         .output()
         .expect("spawn pacquet restart");
-    assert!(
-        !output.status.success(),
-        "restart should fail when restart script fails",
-    );
-    assert!(
-        !start_marker.exists(),
-        "start script should NOT have run after restart failure",
-    );
+    assert!(!output.status.success(), "restart should fail when restart script fails");
+    assert!(!start_marker.exists(), "start script should NOT have run after restart failure");
 
     drop(root);
 }
@@ -175,14 +163,7 @@ fn restart_passes_args_to_scripts() {
         .map(str::trim)
         .filter(|line| !line.is_empty())
         .collect();
-    assert_eq!(
-        lines,
-        vec![
-            "stop hello-world",
-            "restart hello-world",
-            "start hello-world"
-        ],
-    );
+    assert_eq!(lines, vec!["stop hello-world", "restart hello-world", "start hello-world"]);
 
     drop(root);
 }
@@ -207,10 +188,7 @@ fn stop_runs_declared_script() {
         .with_arg("stop")
         .assert()
         .success();
-    assert!(
-        marker.exists(),
-        "stop script should have created the marker",
-    );
+    assert!(marker.exists(), "stop script should have created the marker");
 
     drop(root);
 }
@@ -303,10 +281,7 @@ fn start_runs_declared_script() {
         .with_arg("start")
         .assert()
         .success();
-    assert!(
-        marker.exists(),
-        "start script should have created the marker",
-    );
+    assert!(marker.exists(), "start script should have created the marker");
 
     drop(root);
 }

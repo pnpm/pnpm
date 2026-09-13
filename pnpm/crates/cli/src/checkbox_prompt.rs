@@ -101,11 +101,7 @@ impl<Value> CheckboxPrompt<Value> {
             required: false,
             theme: CheckboxTheme::default(),
             error: None,
-            viewport: PromptViewport {
-                active,
-                top: 0,
-                page_size: 0,
-            },
+            viewport: PromptViewport { active, top: 0, page_size: 0 },
         }
     }
 
@@ -178,11 +174,7 @@ impl<Value> CheckboxPrompt<Value> {
         }
         match key {
             Key::Enter => {
-                if self.required
-                    && !self.checked
-                        .iter()
-                        .any(|&checked| checked)
-                {
+                if self.required && !self.checked.iter().any(|&checked| checked) {
                     self.error = Some("At least one choice must be selected");
                     return KeyOutcome::Redraw;
                 }
@@ -192,8 +184,7 @@ impl<Value> CheckboxPrompt<Value> {
             Key::ArrowUp | Key::Char('k') => self.move_active(-1),
             Key::ArrowDown | Key::Char('j') => self.move_active(1),
             Key::Char(' ') => {
-                self.checked[self.viewport.active] =
-                    !self.checked[self.viewport.active];
+                self.checked[self.viewport.active] = !self.checked[self.viewport.active];
             }
             Key::Char('a') => {
                 let select_all = self.items
@@ -257,11 +248,8 @@ impl<Value> CheckboxPrompt<Value> {
         }
         if self.viewport.active < self.viewport.top {
             self.viewport.top = self.viewport.active;
-        } else if self.viewport.active
-            >= self.viewport.top + self.viewport.page_size
-        {
-            self.viewport.top =
-                self.viewport.active + 1 - self.viewport.page_size;
+        } else if self.viewport.active >= self.viewport.top + self.viewport.page_size {
+            self.viewport.top = self.viewport.active + 1 - self.viewport.page_size;
         }
         while self.viewport.top > 0
             && !is_choice(&self.items[self.viewport.top - 1])
@@ -285,10 +273,7 @@ impl<Value> CheckboxPrompt<Value> {
             lines.push(stdout_styled(&error, |text| text.red().to_string()));
         }
         lines.push(render_help_line());
-        lines
-            .join("\n")
-            .trim_end()
-            .to_string()
+        lines.join("\n").trim_end().to_string()
     }
 
     fn render_page(&self) -> Vec<String> {
@@ -312,11 +297,8 @@ impl<Value> CheckboxPrompt<Value> {
     fn render_choice(&self, index: usize, choice: &CheckboxChoice<Value>) -> String {
         let active = index == self.viewport.active;
         let cursor = if active { "❯" } else { " " };
-        let checkbox = if self.checked[index] {
-            &self.theme.checked
-        } else {
-            &self.theme.unchecked
-        };
+        let checkbox =
+            if self.checked[index] { &self.theme.checked } else { &self.theme.unchecked };
         let line = format!("{cursor}{checkbox} {}", choice.name);
         if active && self.theme.highlight_active {
             stdout_styled(&line, |text| text.cyan().to_string())
@@ -368,21 +350,15 @@ fn is_choice<Value>(item: &CheckboxItem<Value>) -> bool {
 /// `↑↓ navigate • space select • a all • i invert • ⏎ submit`, with the
 /// keys in bold and the rest dimmed.
 fn render_help_line() -> String {
-    [
-        ("↑↓", "navigate"),
-        ("space", "select"),
-        ("a", "all"),
-        ("i", "invert"),
-        ("⏎", "submit"),
-    ]
-    .into_iter()
-    .map(|(key, action)| {
-        let key = stdout_styled(key, |text| text.bold().to_string());
-        let action = stdout_styled(action, |text| text.dimmed().to_string());
-        format!("{key} {action}")
-    })
-    .collect::<Vec<_>>()
-    .join(&stdout_styled(" • ", |text| text.dimmed().to_string()))
+    [("↑↓", "navigate"), ("space", "select"), ("a", "all"), ("i", "invert"), ("⏎", "submit")]
+        .into_iter()
+        .map(|(key, action)| {
+            let key = stdout_styled(key, |text| text.bold().to_string());
+            let action = stdout_styled(action, |text| text.dimmed().to_string());
+            format!("{key} {action}")
+        })
+        .collect::<Vec<_>>()
+        .join(&stdout_styled(" • ", |text| text.dimmed().to_string()))
 }
 
 /// pnpm's `interactivePromptPageSize()`: the terminal height less the
@@ -410,9 +386,7 @@ fn terminal_rows(frame: &str, columns: usize) -> usize {
 }
 
 fn stdout_styled(text: &str, style: impl Fn(&str) -> String) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |text| style(text))
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |text| style(text)).to_string()
 }
 
 #[cfg(test)]

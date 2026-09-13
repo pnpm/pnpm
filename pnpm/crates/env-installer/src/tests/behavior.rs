@@ -48,10 +48,7 @@ async fn force_resync_overwrites_recorded_package_manager_entries() {
     .unwrap();
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
     let key: PackageKey = "pnpm@12.0.0".parse().unwrap();
-    assert!(matches!(
-        &env.packages[&key].resolution,
-        LockfileResolution::Registry(_)
-    ));
+    assert!(matches!(&env.packages[&key].resolution, LockfileResolution::Registry(_)));
 }
 
 #[test]
@@ -99,17 +96,11 @@ fn prune_drops_orphan_packages_and_snapshots() {
     );
     env.snapshots.insert(
         parent.clone(),
-        SnapshotEntry {
-            optional_dependencies: Some(optionals),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { optional_dependencies: Some(optionals), ..SnapshotEntry::default() },
     );
     env.snapshots.insert(
         subdep.clone(),
-        SnapshotEntry {
-            optional: true,
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { optional: true, ..SnapshotEntry::default() },
     );
 
     // An orphan left over from a previous resolution: no importer (and no
@@ -120,17 +111,8 @@ fn prune_drops_orphan_packages_and_snapshots() {
 
     prune_env_lockfile(&mut env);
 
-    assert!(
-        env.packages.contains_key(&parent),
-        "reachable config dep kept",
-    );
-    assert!(
-        env.packages.contains_key(&subdep),
-        "reachable optional subdep kept",
-    );
+    assert!(env.packages.contains_key(&parent), "reachable config dep kept");
+    assert!(env.packages.contains_key(&subdep), "reachable optional subdep kept");
     assert!(!env.packages.contains_key(&orphan), "orphan package pruned");
-    assert!(
-        !env.snapshots.contains_key(&orphan),
-        "orphan snapshot pruned",
-    );
+    assert!(!env.snapshots.contains_key(&orphan), "orphan snapshot pruned");
 }

@@ -291,9 +291,7 @@ fn root_dedupe_targets(
         link_only,
     );
     for (alias, target) in public_hoist_targets.into_iter().flatten() {
-        targets
-            .entry(alias.clone())
-            .or_insert_with(|| target.clone());
+        targets.entry(alias.clone()).or_insert_with(|| target.clone());
     }
     targets
 }
@@ -435,21 +433,17 @@ where
                 .flatten()
         })
         .filter(|(name, _)| seen.insert(*name))
-        .filter(|(name, spec)| {
-            match spec.version.resolved_key(name) {
-                Some(resolved) => !skipped.contains(&resolved),
-                // `link:` deps have no virtual-store slot and so cannot be
-                // in `skipped` — keep them.
-                None => true,
-            }
+        .filter(|(name, spec)| match spec.version.resolved_key(name) {
+            Some(resolved) => !skipped.contains(&resolved),
+            // `link:` deps have no virtual-store slot and so cannot be
+            // in `skipped` — keep them.
+            None => true,
         })
-        .filter(|(_, spec)| {
-            if link_only {
-                matches!(spec.version, ImporterDepVersion::Link(_))
-            } else {
-                true
-            }
-        })
+        .filter(
+            |(_, spec)| {
+                if link_only { matches!(spec.version, ImporterDepVersion::Link(_)) } else { true }
+            },
+        )
         .map(|(name, _)| name.to_string())
         .collect()
 }
@@ -575,34 +569,13 @@ fn link_one_importer<Reporter: self::Reporter>(
             )
         })?;
 
-    link_importer_bins(&entries, modules_dir, symlink, bin_lookup, link_options)?;
-
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests;
-
-fn link_importer_bins(
-    entries: &[ResolvedEntry<'_>],
-    modules_dir: &Path,
-    symlink: bool,
-    bin_lookup: &crate::PrefetchedBinLookup<'_>,
-    link_options: &LinkBinsOptions,
-) -> Result<(), SymlinkDirectDependenciesError> {
     // After the symlinks exist, walk them to discover each
     // direct dep's `package.json` and link declared bins into
     // `<modules_dir>/.bin`. Each entry's `target` is the symlink's
     // destination, so the bin pass gets the resolved location for
     // free.
     if symlink {
-        let deps: Vec<crate::PrefetchedDepBin> = entries
-            .iter()
-            .map(|entry| {
-                let snapshot_key = entry.spec.version.resolved_key(entry.name);
-                (entry.name_str.clone(), entry.target.clone(), snapshot_key)
-            })
-            .collect();
+        let deps = resolved_entry_bins(&entries);
         crate::link_direct_dep_bins_prefetched(modules_dir, &deps, bin_lookup, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     } else {
@@ -613,5 +586,19 @@ fn link_importer_bins(
         crate::link_direct_dep_bins_from_locations(modules_dir, &locations, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     }
+
     Ok(())
 }
+
+fn resolved_entry_bins(entries: &[ResolvedEntry<'_>]) -> Vec<crate::PrefetchedDepBin> {
+    entries
+        .iter()
+        .map(|entry| {
+            let snapshot_key = entry.spec.version.resolved_key(entry.name);
+            (entry.name_str.clone(), entry.target.clone(), snapshot_key)
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests;

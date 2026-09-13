@@ -51,10 +51,7 @@ async fn jsr_specifier_routes_through_jsr_registry() {
         .await;
     let jsr_registry = format!("{}/", server.url());
     let mut registries = HashMap::new();
-    registries.insert(
-        "default".to_string(),
-        "https://registry.npmjs.org/".to_string(),
-    );
+    registries.insert("default".to_string(), "https://registry.npmjs.org/".to_string());
     registries.insert("@jsr".to_string(), jsr_registry);
     let (resolver, _tempdir) = build_resolver_with_registries(registries);
 
@@ -88,10 +85,7 @@ async fn jsr_calculated_specifier_keeps_the_operator_the_previous_specifier_decl
         .await;
     let jsr_registry = format!("{}/", server.url());
     let mut registries = HashMap::new();
-    registries.insert(
-        "default".to_string(),
-        "https://registry.npmjs.org/".to_string(),
-    );
+    registries.insert("default".to_string(), "https://registry.npmjs.org/".to_string());
     registries.insert("@jsr".to_string(), jsr_registry);
     let (resolver, _tempdir) = build_resolver_with_registries(registries);
 
@@ -113,10 +107,7 @@ async fn jsr_calculated_specifier_keeps_the_operator_the_previous_specifier_decl
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(
-        result.normalized_bare_specifier.as_deref(),
-        Some("jsr:~1.1.0"),
-    );
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("jsr:~1.1.0"));
 }
 
 /// `optionalDependencies` and `peerDependenciesMeta` round-trip from the
@@ -183,10 +174,7 @@ async fn resolved_manifest_carries_optional_dependencies_and_peer_dependencies_m
         .get("optionalDependencies")
         .and_then(serde_json::Value::as_object)
         .expect("optionalDependencies present");
-    assert_eq!(
-        optional.get("sharp").and_then(serde_json::Value::as_str),
-        Some("^0.34.0"),
-    );
+    assert_eq!(optional.get("sharp").and_then(serde_json::Value::as_str), Some("^0.34.0"));
 
     let peer_meta = manifest
         .get("peerDependenciesMeta")
@@ -228,10 +216,7 @@ async fn jsr_specifier_with_invalid_scope_propagates_parser_error() {
     // `ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE` contract; the resolver seam
     // returns the parser error as a boxed `dyn Error` so we can't
     // downcast to the variant directly.
-    assert_eq!(
-        msg, "Package names from JSR must have a scope",
-        "unexpected error message: {msg}",
-    );
+    assert_eq!(msg, "Package names from JSR must have a scope", "unexpected error message: {msg}");
 }
 
 #[tokio::test]
@@ -344,10 +329,8 @@ async fn current_revision_requires_a_matching_history_entry() {
         .create_async()
         .await;
     let (resolver, _tempdir) = build_resolver(&registry);
-    let wanted = WantedDependency {
-        alias: Some("acme".to_string()),
-        ..WantedDependency::default()
-    };
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
 
     let error = resolver
         .resolve(&wanted, &ResolveOptions::default())
@@ -369,10 +352,8 @@ async fn unparsable_shasum_fails_the_resolve() {
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    let wanted = WantedDependency {
-        alias: Some("acme".to_string()),
-        ..WantedDependency::default()
-    };
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
     let error = resolver
         .resolve(&wanted, &ResolveOptions::default())
         .await

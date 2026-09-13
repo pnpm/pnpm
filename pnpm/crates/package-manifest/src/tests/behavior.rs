@@ -87,28 +87,16 @@ fn safe_read_surfaces_non_not_found_io_errors() {
 
     let err = safe_read_package_json_from_dir(dir.path())
         .expect_err("read_to_string on a directory should fail");
-    assert!(
-        matches!(err, PackageManifestError::Io(_)),
-        "expected Io error, got {err:?}",
-    );
+    assert!(matches!(err, PackageManifestError::Io(_)), "expected Io error, got {err:?}");
 }
 
 #[test]
 fn from_value_coerces_non_object_input_to_an_empty_object() {
     // A non-object manifest supplied across the FFI boundary must not later
     // panic when a dependency is inserted; `from_value` normalizes it to `{}`.
-    for value in [
-        json!([1, 2, 3]),
-        json!("oops"),
-        json!(42),
-        json!(true),
-        json!(null),
-    ] {
+    for value in [json!([1, 2, 3]), json!("oops"), json!(42), json!(true), json!(null)] {
         let mut manifest = PackageManifest::from_value("/x/package.json".into(), value.clone());
-        assert!(
-            manifest.value().is_object(),
-            "input {value} should normalize to an object",
-        );
+        assert!(manifest.value().is_object(), "input {value} should normalize to an object");
         manifest
             .add_dependency("is-odd", "3.0.1", DependencyGroup::Prod)
             .expect("adding a dependency to a normalized manifest must not fail");
@@ -124,11 +112,7 @@ fn save_preserves_the_source_indentation() {
 
     let cases = [
         ("tabs.json", "{\n\t\"name\": \"foo\"\n}\n", "\t\"name\""),
-        (
-            "wide.json",
-            "{\n    \"name\": \"foo\"\n}\n",
-            r#"    "name""#,
-        ),
+        ("wide.json", "{\n    \"name\": \"foo\"\n}\n", r#"    "name""#),
     ];
     for (file_name, source, expected_fragment) in cases {
         let path = dir.path().join(file_name);
@@ -175,19 +159,11 @@ fn save_caps_the_indentation_unit_at_ten_characters() {
 /// a manifest that carries an empty one is build-free in both stacks.
 #[test]
 fn a_script_without_a_value_is_not_build_work() {
-    assert!(manifest_requires_build(
-        &json!({ "scripts": { "postinstall": "node x.js" } })
-    ));
-    assert!(!manifest_requires_build(
-        &json!({ "scripts": { "postinstall": "" } })
-    ));
+    assert!(manifest_requires_build(&json!({ "scripts": { "postinstall": "node x.js" } })));
+    assert!(!manifest_requires_build(&json!({ "scripts": { "postinstall": "" } })));
     assert!(!manifest_requires_build(
         &json!({ "scripts": { "install": serde_json::Value::Null } })
     ));
-    assert!(!manifest_requires_build(
-        &json!({ "scripts": { "preinstall": false } })
-    ));
-    assert!(!manifest_requires_build(
-        &json!({ "scripts": { "test": "node x.js" } })
-    ));
+    assert!(!manifest_requires_build(&json!({ "scripts": { "preinstall": false } })));
+    assert!(!manifest_requires_build(&json!({ "scripts": { "test": "node x.js" } })));
 }

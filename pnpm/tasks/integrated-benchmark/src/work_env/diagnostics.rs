@@ -18,10 +18,7 @@ impl WorkEnv {
     /// `pnpr@<rev>` row a duplicate of its `pacquet@<rev>` row. Better to
     /// abort than to publish meaningless pnpr-vs-direct numbers.
     pub(super) fn verify_pnpr_targets_were_routed(&self) {
-        for id in self
-            .target_ids()
-            .filter(|id| id.is_pnpr())
-        {
+        for id in self.target_ids().filter(|id| id.is_pnpr()) {
             let storage = self.bench_dir(id).join("pnpr-storage");
             assert!(
                 dir_contains_file(&storage),
@@ -133,9 +130,7 @@ impl WorkEnv {
         }
     }
     pub(super) fn verify_pnpr_direct_ratios(&self, diagnostics: &BenchmarkDiagnostics) {
-        let Some(scenario) = self.options.selection.scenario else {
-            return;
-        };
+        let Some(scenario) = self.options.selection.scenario else { return };
         if !scenario.expects_pnpr_not_slower_than_direct() {
             return;
         }

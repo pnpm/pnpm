@@ -68,11 +68,7 @@ impl LatencyProxy {
     /// direction. Returns the local address callers should connect to
     /// instead of `upstream`.
     pub fn spawn(upstream: SocketAddr, profile: LinkProfile) -> std::io::Result<LatencyProxy> {
-        Self::spawn_on(
-            SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
-            upstream,
-            profile,
-        )
+        Self::spawn_on(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)), upstream, profile)
     }
 
     /// Front `upstream` with a proxy bound to `listen`.
@@ -100,11 +96,7 @@ impl LatencyProxy {
         let accept_thread =
             thread::spawn(move || accept_loop(&listener, upstream, profile, &accept_stop));
 
-        Ok(LatencyProxy {
-            addr,
-            stop,
-            accept_thread: Some(accept_thread),
-        })
+        Ok(LatencyProxy { addr, stop, accept_thread: Some(accept_thread) })
     }
 }
 
@@ -162,9 +154,7 @@ fn handle_connection(inbound: TcpStream, upstream: SocketAddr, profile: LinkProf
     if inbound.set_nonblocking(false).is_err() {
         return;
     }
-    let Ok(outbound) = TcpStream::connect(upstream) else {
-        return;
-    };
+    let Ok(outbound) = TcpStream::connect(upstream) else { return };
     let _ = inbound.set_nodelay(true);
     let _ = outbound.set_nodelay(true);
 
@@ -202,9 +192,7 @@ fn pump(mut src: TcpStream, mut dst: TcpStream, profile: LinkProfile) {
         if let Some(rate) = profile.rate_limit {
             let effective = slow_start
                 .as_mut()
-                .map_or(rate as f64, |ramp| {
-                    ramp.effective_rate(rate as f64, bytes.len())
-                });
+                .map_or(rate as f64, |ramp| ramp.effective_rate(rate as f64, bytes.len()));
             link_free_at = send_at + Duration::from_secs_f64(bytes.len() as f64 / effective);
         }
         if dst.write_all(&bytes).is_err() {
@@ -268,11 +256,7 @@ impl SlowStart {
     fn for_profile(profile: &LinkProfile) -> Option<SlowStart> {
         let rtt_secs = profile.one_way.as_secs_f64() * 2.0;
         (profile.slow_start && rtt_secs > 0.0 && profile.rate_limit.is_some()).then_some(
-            SlowStart {
-                cwnd: INITIAL_CWND_BYTES,
-                rtt_secs,
-                bytes_in_round: 0.0,
-            },
+            SlowStart { cwnd: INITIAL_CWND_BYTES, rtt_secs, bytes_in_round: 0.0 },
         )
     }
 

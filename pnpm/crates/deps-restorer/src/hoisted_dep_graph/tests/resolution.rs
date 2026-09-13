@@ -34,10 +34,7 @@ fn walker_resolves_peered_reference_via_peerless_packages_key() {
     let mut snapshots = HashMap::new();
     snapshots.insert(
         dep_key("b", "1.0.0(peer@2.0.0)"),
-        SnapshotEntry {
-            dependencies: Some(b_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(b_deps), ..SnapshotEntry::default() },
     );
     snapshots.insert(dep_key("peer", "2.0.0"), SnapshotEntry::default());
 
@@ -87,38 +84,23 @@ fn walker_wires_edges_declared_against_a_collapsed_peer_variant() {
     let mut snapshots = HashMap::new();
     for peer_version in ["2.0.0", "3.0.0"] {
         let mut b_deps = HashMap::new();
-        b_deps.insert(
-            pkg_name("peer"),
-            SnapshotDepRef::Plain(ver_peer(peer_version)),
-        );
+        b_deps.insert(pkg_name("peer"), SnapshotDepRef::Plain(ver_peer(peer_version)));
         snapshots.insert(
             dep_key("b", &format!("1.0.0(peer@{peer_version})")),
-            SnapshotEntry {
-                dependencies: Some(b_deps),
-                ..SnapshotEntry::default()
-            },
+            SnapshotEntry { dependencies: Some(b_deps), ..SnapshotEntry::default() },
         );
         snapshots.insert(dep_key("peer", peer_version), SnapshotEntry::default());
     }
     // `c` depends on the variant the root importer does not declare.
     let mut c_deps = HashMap::new();
-    c_deps.insert(
-        pkg_name("b"),
-        SnapshotDepRef::Plain(ver_peer("1.0.0(peer@3.0.0)")),
-    );
+    c_deps.insert(pkg_name("b"), SnapshotDepRef::Plain(ver_peer("1.0.0(peer@3.0.0)")));
     snapshots.insert(
         dep_key("c", "1.0.0"),
-        SnapshotEntry {
-            dependencies: Some(c_deps),
-            ..SnapshotEntry::default()
-        },
+        SnapshotEntry { dependencies: Some(c_deps), ..SnapshotEntry::default() },
     );
 
     let lockfile = workspace_lockfile(
-        vec![
-            (Lockfile::ROOT_IMPORTER_KEY, root_deps),
-            ("packages/foo", foo_deps),
-        ],
+        vec![(Lockfile::ROOT_IMPORTER_KEY, root_deps), ("packages/foo", foo_deps)],
         packages,
         snapshots,
     );
@@ -169,10 +151,7 @@ fn walker_keeps_file_dep_peer_variants_apart() {
     let mut packages = HashMap::new();
     packages.insert(
         dep_key("comp", "file:comp"),
-        PackageMetadata {
-            resolution: directory_resolution("comp"),
-            ..metadata_stub()
-        },
+        PackageMetadata { resolution: directory_resolution("comp"), ..metadata_stub() },
     );
     packages.insert(dep_key("peer", "1.0.0"), metadata_stub());
     packages.insert(dep_key("peer", "2.0.0"), metadata_stub());
@@ -180,16 +159,10 @@ fn walker_keeps_file_dep_peer_variants_apart() {
     let mut snapshots = HashMap::new();
     for peer_version in ["1.0.0", "2.0.0"] {
         let mut comp_deps = HashMap::new();
-        comp_deps.insert(
-            pkg_name("peer"),
-            SnapshotDepRef::Plain(ver_peer(peer_version)),
-        );
+        comp_deps.insert(pkg_name("peer"), SnapshotDepRef::Plain(ver_peer(peer_version)));
         snapshots.insert(
             dep_key("comp", &format!("file:comp(peer@{peer_version})")),
-            SnapshotEntry {
-                dependencies: Some(comp_deps),
-                ..SnapshotEntry::default()
-            },
+            SnapshotEntry { dependencies: Some(comp_deps), ..SnapshotEntry::default() },
         );
         snapshots.insert(dep_key("peer", peer_version), SnapshotEntry::default());
     }

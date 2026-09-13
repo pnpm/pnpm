@@ -21,24 +21,14 @@ pub(super) fn early_repeat_verdict(
     lockfile_modified: bool,
 ) -> Option<Decision> {
     match current_lockfile_unusable_with_non_empty_wanted(check) {
-        Ok(true) => {
-            return Some(Decision::Skipped {
-                reason: "current lockfile missing",
-            });
-        }
+        Ok(true) => return Some(Decision::Skipped { reason: "current lockfile missing" }),
         Ok(false) => {}
-        Err(reason) => {
-            return Some(Decision::Skipped {
-                reason,
-            });
-        }
+        Err(reason) => return Some(Decision::Skipped { reason }),
     }
     if modified.is_empty() && !lockfile_modified {
         return Some(match regenerate_wanted_lockfile_if_missing(check, None) {
             Ok(()) => Decision::UpToDate,
-            Err(reason) => Decision::Skipped {
-                reason,
-            },
+            Err(reason) => Decision::Skipped { reason },
         });
     }
     None
@@ -182,9 +172,8 @@ pub(super) fn current_lockfile_unusable_with_non_empty_wanted(
     if current_lockfile_file_has_content(&check.config.virtual_store_dir) {
         return Ok(false);
     }
-    let Some(wanted) = check.lockfile
-        .get()
-        .map_err(|_| "the wanted lockfile cannot be read or parsed")?
+    let Some(wanted) =
+        check.lockfile.get().map_err(|_| "the wanted lockfile cannot be read or parsed")?
     else {
         return Ok(false);
     };
@@ -268,7 +257,5 @@ pub(super) fn first_project_missing_modules_dir(
 /// shape but it matches how the install path itself derives
 /// `config.modules_dir`.
 pub(super) fn workspace_dir_of(config: &Config, fallback: &Path) -> PathBuf {
-    config.modules_dir
-        .parent()
-        .map_or_else(|| fallback.to_path_buf(), Path::to_path_buf)
+    config.modules_dir.parent().map_or_else(|| fallback.to_path_buf(), Path::to_path_buf)
 }

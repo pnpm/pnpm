@@ -22,21 +22,15 @@ fn write_project(workspace: &Path, relative_dir: &str, name: &str) {
 
 fn filtered_rebuild_only_runs_selected_project(shared_workspace_lockfile: bool) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let dedicated_setting = if shared_workspace_lockfile {
-        ""
-    } else {
-        "sharedWorkspaceLockfile: false\n"
-    };
+    let dedicated_setting =
+        if shared_workspace_lockfile { "" } else { "sharedWorkspaceLockfile: false\n" };
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!("packages:\n  - packages/*\n{dedicated_setting}"),
     )
     .expect("write workspace manifest");
-    fs::write(
-        workspace.join("package.json"),
-        r#"{ "name": "root", "version": "1.0.0" }"#,
-    )
-    .expect("write root manifest");
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
+        .expect("write root manifest");
     write_project(&workspace, "packages/app-a", "app-a");
     write_project(&workspace, "packages/app-b", "app-b");
 
@@ -52,24 +46,12 @@ fn filtered_rebuild_only_runs_selected_project(shared_workspace_lockfile: bool) 
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
-        .with_args([
-            "--filter",
-            "app-a",
-            "rebuild",
-            "--pending",
-            "--reporter=silent",
-        ])
+        .with_args(["--filter", "app-a", "rebuild", "--pending", "--reporter=silent"])
         .assert()
         .success();
 
-    assert!(
-        selected_marker.exists(),
-        "selected project install script should run",
-    );
-    assert!(
-        !unselected_marker.exists(),
-        "unselected project install script should not run",
-    );
+    assert!(selected_marker.exists(), "selected project install script should run");
+    assert!(!unselected_marker.exists(), "unselected project install script should not run");
 
     drop(root);
 }
@@ -92,11 +74,8 @@ fn dedicated_recursive_rebuild_no_bail_runs_dependents_after_failures() {
         "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
     )
     .expect("write workspace manifest");
-    fs::write(
-        workspace.join("package.json"),
-        r#"{ "name": "root", "version": "1.0.0" }"#,
-    )
-    .expect("write root manifest");
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
+        .expect("write root manifest");
     let app_a = workspace.join("packages/app-a");
     let app_b = workspace.join("packages/app-b");
     fs::create_dir_all(&app_a).expect("create app-a");
@@ -132,20 +111,11 @@ fn dedicated_recursive_rebuild_no_bail_runs_dependents_after_failures() {
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
-        .with_args([
-            "-r",
-            "--no-bail",
-            "rebuild",
-            "--pending",
-            "--reporter=silent",
-        ])
+        .with_args(["-r", "--no-bail", "rebuild", "--pending", "--reporter=silent"])
         .output()
         .expect("run recursive rebuild");
 
-    assert!(
-        !output.status.success(),
-        "the failed project should fail the command",
-    );
+    assert!(!output.status.success(), "the failed project should fail the command");
     assert!(
         app_b.join("rebuilt.txt").exists(),
         "--no-bail should continue to the dependent project after its dependency fails: {output:?}",

@@ -32,10 +32,8 @@ pub use footprint::{
     upstream_cache_digest,
 };
 
-mod public_routes;
-
 mod url_credentials;
-use url_credentials::scheme_of;
+use url_credentials::{addressed_registry_segment, contains_dot_segment, nerf_prefix, scheme_of};
 
 mod route_hook;
 
@@ -51,7 +49,7 @@ use indexmap::IndexMap;
 use pnpm_network::{MetadataCacheScope, UpstreamRouteHook, nerf_dart};
 use reqwest::header::{AUTHORIZATION, HeaderMap};
 use sha2::{Digest, Sha256};
-use wax::Glob;
+use wax::{Glob, Program};
 
 use pnpr_config::{Config, PublicRoute, UpstreamConfig};
 use pnpr_policy::{AccessList, Identity, PackageRules};
@@ -72,10 +70,7 @@ pub enum RouteClass {
     /// alias the caller is authorized to use. [`credential_digest`] is a hash
     /// of the upstream's `Authorization`, so rotating the credential changes it
     /// (see [`credential_digest`]).
-    Proxied {
-        alias: String,
-        credential_digest: String,
-    },
+    Proxied { alias: String, credential_digest: String },
 }
 
 /// Everything [`RouteContext::classify`] needs, resolved once from the server
@@ -244,10 +239,7 @@ impl RouteContext {
     /// the common footprint one descriptor per alias.
     fn alias_package_qualifier(&self, alias: &str, package: Option<&str>) -> Option<String> {
         let (package, rules) = (package?, self.upstream_rules.get(alias)?);
-        rules
-            .for_package(package)
-            .access_is_explicit
-            .then(|| package.to_string())
+        rules.for_package(package).access_is_explicit.then(|| package.to_string())
     }
 
     /// Classify a single fetch to `url` for `package` (`None` for a
@@ -475,9 +467,7 @@ impl RouteContext {
             return RouteClass::Public;
         }
         if access.allows(identity) {
-            RouteClass::Hosted {
-                policy_id: hosted_policy_id(registry, package),
-            }
+            RouteClass::Hosted { policy_id: hosted_policy_id(registry, package) }
         } else {
             // The caller can't read this hosted package: classify it as an
             // anonymous public fetch with no managed credential, which the
@@ -578,26 +568,84 @@ const NPMJS_ORIGIN: &str = "//registry.npmjs.org/";
 /// registry pnpm's built-in `@jsr` scope route points at.
 const JSR_ORIGIN: &str = "//npm.jsr.io/";
 
-impl ResolvedAlias {
-    /// Build a proxied-route alias from a `upstreams:` entry. An upstream
-    /// participates in route classification only when it declares both an
-    /// `access:` policy and a resolved `Authorization` credential; routing is
-    /// by registry origin, so no package glob is attached.
-    fn from_upstream(name: &str, upstream: &UpstreamConfig) -> Option<Self> {
-        let access = upstream.access.clone()?;
-        let authorization = upstream.headers
-            .get(AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())?
-            .to_string();
-        Some(Self {
-            name: name.to_string(),
-            credential_digest: credential_digest(&authorization),
-            registry: upstream.url.clone(),
-            origin: nerf_prefix(&upstream.url)?,
-            scheme: scheme_of(&upstream.url)?.to_string(),
-            authorization,
-            access,
-        })
+impl RouteMatcher {
+    /// The built-in public route: the official npm registry, host-level (no
+    /// package glob, so scoped and unscoped packages alike are public). An
+    /// anonymous fetch returns only public content — a private scoped package
+    /// `404`s — so a successfully-resolved npmjs route is public and globally
+    /// shareable. Prepended to the operator-declared routes in
+    /// [`RouteContext::from_config`], so it is allowlisted and public without
+    /// any config, and ahead of any upstream credential for the same origin.
+    fn npmjs() -> Self {
+        Self { origin: Some(NPMJS_ORIGIN.to_string()), package: None, https_only: true }
+    }
+
+    /// The other built-in public route: JSR, which every pnpm client routes
+    /// the `@jsr` scope to without configuring anything, so a graph holding a
+    /// JSR dependency resolves through a default server. It hosts no private
+    /// content, so the reasoning in [`Self::npmjs`] applies unchanged.
+    fn jsr() -> Self {
+        Self { origin: Some(JSR_ORIGIN.to_string()), package: None, https_only: true }
+    }
+
+    /// Build a matcher from an operator-declared public route, failing
+    /// closed. An *omitted* `registry`/`package` field means "match any" —
+    /// the intended wildcard — but a field that is *present yet unparsable*
+    /// (a typo'd registry URL or glob) drops the whole rule (`None`) rather
+    /// than collapsing to a `None` field that [`Self::matches`] would read as
+    /// match-any. A typo must narrow matching, never widen a scoped public
+    /// route into a match-all that leaks private metadata onto the public
+    /// path.
+    fn from_public_route(route: &PublicRoute) -> Option<Self> {
+        let origin = match route.registry.as_deref() {
+            None => None,
+            Some(registry) => Some(
+                nerf_prefix(registry)
+                    .or_else(|| {
+                        tracing::warn!(
+                            registry,
+                            "ignoring public route with an unparsable registry URL",
+                        );
+                        None
+                    })?,
+            ),
+        };
+        let package = match route.package.as_deref() {
+            None => None,
+            Some(pattern) => Some(
+                compile_glob(pattern)
+                    .or_else(|| {
+                        tracing::warn!(
+                            pattern,
+                            "ignoring public route with an invalid package glob",
+                        );
+                        None
+                    })?,
+            ),
+        };
+        Some(Self { origin, package, https_only: false })
+    }
+
+    /// Whether this route puts `fetch` (nerf-darted, so scheme-less) on the
+    /// allowlist when reached over `scheme`. A package-scoped route with no
+    /// registry allowlists nothing: it narrows an origin another rule already
+    /// admits.
+    fn allowlists(&self, fetch: &str, scheme: Option<&str>) -> bool {
+        self.origin
+            .as_deref()
+            .is_some_and(|origin| fetch.starts_with(origin))
+            && (!self.https_only
+                || scheme.is_some_and(|scheme| scheme.eq_ignore_ascii_case("https")))
+    }
+
+    fn matches(&self, fetch: &str, package: Option<&str>) -> bool {
+        let origin_ok = self.origin
+            .as_deref()
+            .is_none_or(|origin| fetch.starts_with(origin));
+        let package_ok = self.package
+            .as_ref()
+            .is_none_or(|glob| package.is_some_and(|name| glob.is_match(name)));
+        origin_ok && package_ok
     }
 }
 
@@ -607,44 +655,6 @@ impl ResolvedAlias {
 /// narrows matching instead of opening a private route up.
 fn compile_glob(pattern: &str) -> Option<Glob<'static>> {
     Glob::new(pattern).ok().map(Glob::into_owned)
-}
-
-/// Nerf-dart a registry URL down to its host-only origin
-/// (`//host[:port]/`), the prefix every fetch under it shares. `None`
-/// for an unparsable URL.
-/// The nerf-darted registry prefix used to match fetches to a hosted, public,
-/// or proxied-upstream route. Path-preserving (`//host/base/`), unlike a bare
-/// host: a pnpr served under a path prefix (`https://host/pnpr/`) still
-/// recognizes its own `/pnpr/~<name>/` endpoints, and a public/upstream route
-/// declared for `https://host/base/` does not also match a sibling
-/// `https://host/other/` path on the same host.
-fn nerf_prefix(url: &str) -> Option<String> {
-    let nerfed = nerf_dart(url);
-    if nerfed.is_empty() {
-        None
-    } else {
-        Some(nerfed)
-    }
-}
-
-/// The URL scheme (`https`, `http`, ...), i.e. the segment before `://`. `None`
-/// for a value with no scheme.
-/// The registry a `/~<name>/` endpoint path addresses, if it names one.
-fn addressed_registry_segment<'a>(fetch: &'a str, npm_endpoint: &str) -> Option<&'a str> {
-    let rest = fetch.strip_prefix(npm_endpoint)?;
-    let registry = rest
-        .strip_prefix('~')?
-        .split('/')
-        .next()?;
-    (!registry.is_empty()).then_some(registry)
-}
-
-/// Whether a nerf-darted key (`//host/path/`) has a `.` or `..` path segment,
-/// which could escape a path-scoped prefix match in [`RouteContext::allows_registry`].
-fn contains_dot_segment(nerfed: &str) -> bool {
-    nerfed
-        .split('/')
-        .any(|segment| segment == "." || segment == "..")
 }
 
 #[cfg(test)]

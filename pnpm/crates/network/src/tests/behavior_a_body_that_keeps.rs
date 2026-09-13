@@ -65,10 +65,8 @@ fn for_installs_falls_back_on_unencodable_user_agent() {
     // A user-agent containing a control character cannot be encoded as
     // an HTTP header value; the client must still build (falling back
     // to the default UA) rather than erroring.
-    let settings = NetworkSettings {
-        user_agent: "bad\nua".to_string(),
-        ..NetworkSettings::default()
-    };
+    let settings =
+        NetworkSettings { user_agent: "bad\nua".to_string(), ..NetworkSettings::default() };
     ThrottledClient::for_installs(
         &ProxyConfig::default(),
         &TlsConfig::default(),
@@ -113,10 +111,7 @@ async fn redirect_guard_blocks_off_allowlist_redirect_target() {
         .await;
 
     redirect.assert_async().await;
-    assert!(
-        result.is_err(),
-        "a redirect to an off-allowlist host must be blocked",
-    );
+    assert!(result.is_err(), "a redirect to an off-allowlist host must be blocked");
 }
 
 /// A redirect whose target the guard allows is followed normally, so an
@@ -173,10 +168,7 @@ async fn max_sockets_caps_concurrent_sockets_per_origin() {
         client.acquire_for_url("https://registry.example.com/b"),
     )
     .await;
-    assert!(
-        blocked.is_err(),
-        "second socket to the same origin should block under maxSockets=1",
-    );
+    assert!(blocked.is_err(), "second socket to the same origin should block under maxSockets=1");
 
     // A different origin has its own budget and is not blocked.
     tokio::time::timeout(
@@ -228,22 +220,10 @@ async fn stalled_consumers_release_permits_on_deadline_or_cancellation() {
     let initial_permits = client.semaphore.available_permits();
     for cancel in [false, true] {
         let guard = client.acquire_for_url(&url).await;
-        let response = guard
-            .get(&url)
-            .send()
-            .await
-            .unwrap();
-        let budget = if cancel {
-            Duration::from_secs(30)
-        } else {
-            Duration::from_millis(100)
-        };
+        let response = guard.get(&url).send().await.unwrap();
+        let budget = if cancel { Duration::from_secs(30) } else { Duration::from_millis(100) };
         let mut stream = Box::pin(guard.retain_for_body(response, budget).bytes_stream());
-        stream
-            .next()
-            .await
-            .unwrap()
-            .unwrap();
+        stream.next().await.unwrap().unwrap();
         assert!(
             tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(&url))
                 .await

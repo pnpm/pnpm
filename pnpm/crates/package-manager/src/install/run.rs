@@ -112,12 +112,10 @@ where
                 http_client_arc: self.fetching.http_client_arc,
                 projects: super::InstallProjects {
                     dependency_groups: self.projects.dependency_groups.into_iter().collect(),
-                    supported_architectures: self.projects
-                        .supported_architectures,
+                    supported_architectures: self.projects.supported_architectures,
                     catalogs_override: self.projects.catalogs_override,
                     pnpmfile_hook_override: self.projects.pnpmfile_hook_override,
-                    workspace_projects_override: self.projects
-                        .workspace_projects_override,
+                    workspace_projects_override: self.projects.workspace_projects_override,
                 },
                 resolution: self.resolution,
             },
@@ -337,11 +335,7 @@ impl Verification {
         let resolution_verifiers = install_resolution_verifiers(
             install.context.config,
             install.lockfile_policy.trust,
-            (
-                &owned.http_client_arc,
-                &meta_cache,
-                owned.resolution.auth_override.as_ref(),
-            ),
+            (&owned.http_client_arc, &meta_cache, owned.resolution.auth_override.as_ref()),
             &planned_canonical_fetches,
         )?;
         Ok(Self {
@@ -427,9 +421,7 @@ fn effective_lockfile_only(
     rebuild: Option<&crate::RebuildOptions>,
 ) -> bool {
     lockfile_only
-        || (rebuild.is_none()
-            && !config.enable_modules_dir
-            && !config.enable_global_virtual_store)
+        || (rebuild.is_none() && !config.enable_modules_dir && !config.enable_global_virtual_store)
 }
 
 fn reject_conflicting_store_config(config: &Config) -> Result<(), InstallError> {

@@ -70,8 +70,7 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
         .collect::<Result<Vec<_>>>();
     drop(store);
     drop(store_index_writer);
-    StoreIndexWriter::drain(writer_task, "; some Cargo rows may not be persisted")
-        .await;
+    StoreIndexWriter::drain(writer_task, "; some Cargo rows may not be persisted").await;
     slots
 }
 
@@ -154,12 +153,9 @@ pub(super) fn add_cargo_checksum(
                 .map(|checksum| (path.clone(), checksum))
         })
         .collect::<Result<BTreeMap<_, _>>>()?;
-    let checksum = serde_json::to_vec(&CargoChecksum {
-        files,
-        package: package_checksum,
-    })
-    .into_diagnostic()
-    .wrap_err("serialize .cargo-checksum.json")?;
+    let checksum = serde_json::to_vec(&CargoChecksum { files, package: package_checksum })
+        .into_diagnostic()
+        .wrap_err("serialize .cargo-checksum.json")?;
     let (cas_path, hash) = store_dir
         .write_cas_file(&checksum, false)
         .into_diagnostic()

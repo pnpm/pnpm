@@ -78,9 +78,7 @@ pub fn workspace_unscoped_creds_pin_to_workspace_registry() {
         &project.path().join(".npmrc"),
         "registry=https://workspace.example.com/\n_authToken=workspace-token\n",
     );
-    let config = Config::default()
-        .current::<HostNoHome>(project.path())
-        .expect("load config");
+    let config = Config::default().current::<HostNoHome>(project.path()).expect("load config");
     assert_eq!(
         config.auth_headers.for_url("https://workspace.example.com/pkg").as_deref(),
         Some("Bearer workspace-token"),
@@ -106,13 +104,7 @@ pub fn workspace_yaml_proxy_is_not_trusted_for_package_manager_bootstrap() {
     )
     .expect("write global config.yaml");
 
-    set_fake_env(&[(
-        "XDG_CONFIG_HOME",
-        xdg
-            .path()
-            .to_str()
-            .unwrap(),
-    )]);
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
     let config = load_with_fake_env(project.path());
 
     assert_eq!(
@@ -178,34 +170,22 @@ pub fn workspace_yaml_proxy_false_disables_an_environment_proxy() {
 pub fn workspace_yaml_proxy_false_yields_to_an_npmrc_https_proxy() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
-    write_file(
-        &project.path().join(".npmrc"),
-        "https-proxy=http://npmrc-proxy.example.com:8443\n",
-    );
+    write_file(&project.path().join(".npmrc"), "https-proxy=http://npmrc-proxy.example.com:8443\n");
     fs::write(project.path().join("pnpm-workspace.yaml"), "proxy: false\n")
         .expect("write pnpm-workspace.yaml");
     set_fake_env(&[]);
 
     let config = load_with_fake_env(project.path());
 
-    assert_eq!(
-        config.proxy.https_proxy.as_deref(),
-        Some("http://npmrc-proxy.example.com:8443"),
-    );
-    assert_eq!(
-        config.proxy.http_proxy.as_deref(),
-        Some("http://npmrc-proxy.example.com:8443"),
-    );
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://npmrc-proxy.example.com:8443"));
 }
 
 #[test]
 pub fn workspace_yaml_proxy_false_overrides_an_npmrc_legacy_proxy() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
-    write_file(
-        &project.path().join(".npmrc"),
-        "proxy=http://npmrc-legacy.example.com:8443\n",
-    );
+    write_file(&project.path().join(".npmrc"), "proxy=http://npmrc-legacy.example.com:8443\n");
     fs::write(project.path().join("pnpm-workspace.yaml"), "proxy: false\n")
         .expect("write pnpm-workspace.yaml");
     set_fake_env(&[]);
@@ -237,9 +217,7 @@ pub fn workspace_yaml_scheme_proxy_keys_set_to_false_mask_the_project_npmrc() {
     assert_eq!(config.proxy.http_proxy, None);
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pnpm_network::NoProxySetting::List(vec![
-            "env.example".to_string()
-        ])),
+        Some(pnpm_network::NoProxySetting::List(vec!["env.example".to_string()])),
         "a masked key still falls through to the environment",
     );
 }
@@ -259,9 +237,7 @@ pub fn empty_workspace_yaml_no_proxy_falls_through_to_its_alias() {
 
     assert_eq!(
         config.proxy.no_proxy,
-        Some(pnpm_network::NoProxySetting::List(vec![
-            "alias.example".to_string()
-        ])),
+        Some(pnpm_network::NoProxySetting::List(vec!["alias.example".to_string()])),
     );
 }
 
@@ -271,19 +247,11 @@ pub fn pnpm_workspace_yaml_registry_overrides_npmrc_registry() {
     // .npmrc. When both files define it, the yaml wins, matching
     // pnpm itself.
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join(".npmrc"),
-        "registry=https://from-npmrc.test",
-    )
-    .expect("write to .npmrc");
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "registry: https://from-yaml.test\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    fs::write(tmp.path().join(".npmrc"), "registry=https://from-npmrc.test")
+        .expect("write to .npmrc");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "registry: https://from-yaml.test\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(config.registry, "https://from-yaml.test/");
 }
 
@@ -292,19 +260,11 @@ pub fn pnpm_workspace_yaml_registry_overrides_npmrc_registry() {
 #[test]
 pub fn pnpm_workspace_yaml_cannot_supply_the_login_scope() {
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "scope: '@from-yaml'\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "scope: '@from-yaml'\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(config.scope, None);
-    assert_eq!(
-        config.workspace_key_issues.refused,
-        vec!["scope".to_owned()],
-    );
+    assert_eq!(config.workspace_key_issues.refused, vec!["scope".to_owned()]);
 }
 
 #[test]
@@ -313,25 +273,13 @@ pub fn global_config_yaml_supplies_the_login_scope_over_workspace_yaml() {
     let xdg = tempdir().expect("xdg tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
-    fs::write(
-        config_dir.join("config.yaml"),
-        "scope: '@from-global-config'\n",
-    )
-    .expect("write global config.yaml");
+    fs::write(config_dir.join("config.yaml"), "scope: '@from-global-config'\n")
+        .expect("write global config.yaml");
 
     let project = tempdir().expect("project tempdir");
-    fs::write(
-        project.path().join("pnpm-workspace.yaml"),
-        "scope: '@from-yaml'\n",
-    )
-    .expect("write pnpm-workspace.yaml");
-    set_fake_env(&[(
-        "XDG_CONFIG_HOME",
-        xdg
-            .path()
-            .to_str()
-            .unwrap(),
-    )]);
+    fs::write(project.path().join("pnpm-workspace.yaml"), "scope: '@from-yaml'\n")
+        .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
 
     let config = load_with_fake_env(project.path());
 
@@ -342,11 +290,8 @@ pub fn global_config_yaml_supplies_the_login_scope_over_workspace_yaml() {
 pub fn pnpm_config_scope_env_var_overrides_the_login_scope_in_workspace_yaml() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
-    fs::write(
-        project.path().join("pnpm-workspace.yaml"),
-        "scope: '@from-yaml'\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "scope: '@from-yaml'\n")
+        .expect("write pnpm-workspace.yaml");
     set_fake_env(&[("PNPM_CONFIG_SCOPE", "@from-env")]);
 
     let config = load_with_fake_env(project.path());
@@ -370,16 +315,10 @@ pub fn workspace_subdir_reads_workspace_root_npmrc() {
     let tmp = tempdir().unwrap();
     let nested = tmp.path().join("packages/web");
     fs::create_dir_all(&nested).unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-    fs::write(
-        tmp.path().join(".npmrc"),
-        "registry=https://workspace-npmrc.example/\n",
-    )
-    .expect("write to .npmrc");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write to pnpm-workspace.yaml");
+    fs::write(tmp.path().join(".npmrc"), "registry=https://workspace-npmrc.example/\n")
+        .expect("write to .npmrc");
 
     let config = Config::new().current::<HostNoHome>(&nested).expect("config loads");
 
@@ -389,14 +328,9 @@ pub fn workspace_subdir_reads_workspace_root_npmrc() {
 #[test]
 pub fn gvs_enabled_exposes_hoisted_dependencies_through_node_path_and_the_esm_loader() {
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "enableGlobalVirtualStore: true\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: true\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     let path_delimiter = if cfg!(windows) { ";" } else { ":" };
     assert_eq!(
         config.extra_env.get("NODE_PATH"),
@@ -422,10 +356,7 @@ pub fn gvs_enabled_exposes_hoisted_dependencies_through_node_path_and_the_esm_lo
 /// workspace root's virtual store — the one that exists — not at the
 /// package directory's (pnpm/pnpm#13912).
 #[test]
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "preferSymlinkedExecutables is inert on Windows"
-)]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
 pub fn prefer_symlinked_executables_node_path_anchors_at_the_workspace_root() {
     let tmp = tempdir().unwrap();
     fs::write(
@@ -455,14 +386,9 @@ pub fn prefer_symlinked_executables_node_path_anchors_at_the_workspace_root() {
 #[test]
 pub fn hoisted_node_linker_defaults_prefer_symlinked_executables_on() {
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "nodeLinker: hoisted\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(config.prefer_symlinked_executables, Some(true));
     assert_eq!(config.extra_env.get("NODE_PATH"), None);
 
@@ -472,9 +398,7 @@ pub fn hoisted_node_linker_defaults_prefer_symlinked_executables_on() {
         "nodeLinker: hoisted\npreferSymlinkedExecutables: false\n",
     )
     .expect("write to pnpm-workspace.yaml");
-    let config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(config.prefer_symlinked_executables, Some(false));
     assert_eq!(config.extra_env.get("NODE_PATH"), None);
 }
@@ -487,14 +411,9 @@ pub fn hoisted_node_linker_defaults_prefer_symlinked_executables_on() {
 #[test]
 pub fn rederiving_prefer_symlinked_executables_follows_a_node_linker_override() {
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "nodeLinker: hoisted\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
-    let mut config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write to pnpm-workspace.yaml");
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     assert_eq!(config.prefer_symlinked_executables, Some(true));
     config.node_linker = crate::NodeLinker::Isolated;
     config.apply_prefer_symlinked_executables_derivation();
@@ -506,9 +425,7 @@ pub fn rederiving_prefer_symlinked_executables_follows_a_node_linker_override() 
         "nodeLinker: hoisted\npreferSymlinkedExecutables: true\n",
     )
     .expect("write to pnpm-workspace.yaml");
-    let mut config = Config::new()
-        .current::<HostNoHome>(tmp.path())
-        .expect("yaml is valid");
+    let mut config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
     config.node_linker = crate::NodeLinker::Isolated;
     config.apply_prefer_symlinked_executables_derivation();
     assert_eq!(config.prefer_symlinked_executables, Some(true));
@@ -546,11 +463,8 @@ pub fn workspace_subdir_anchors_modules_at_workspace_root() {
     let workspace_root = tmp.path();
     let subdir = workspace_root.join("packages/web");
     fs::create_dir_all(&subdir).expect("create subdir");
-    fs::write(
-        workspace_root.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
+    fs::write(workspace_root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write to pnpm-workspace.yaml");
 
     let config = Config::new().current::<HostNoHome>(&subdir).expect("config loads");
 
@@ -614,9 +528,8 @@ pub fn npm_config_workspace_dir_re_anchors_modules() {
     inert_link_probe!(HostWithEnvWorkspaceDir);
     host_current_dir!(HostWithEnvWorkspaceDir);
 
-    let config = Config::new()
-        .current::<HostWithEnvWorkspaceDir>(cwd_dir.path())
-        .expect("config loads");
+    let config =
+        Config::new().current::<HostWithEnvWorkspaceDir>(cwd_dir.path()).expect("config loads");
     assert_eq!(
         config.modules_dir,
         env_workspace.path().join("node_modules"),
@@ -648,11 +561,9 @@ pub fn empty_npm_config_workspace_dir_falls_through() {
     }
     impl EnvVarOs for HostWithEmptyEnvWorkspaceDir {
         fn var_os(name: &str) -> Option<OsString> {
-            matches!(
-                name,
-                "NPM_CONFIG_WORKSPACE_DIR" | "npm_config_workspace_dir",
+            matches!(name, "NPM_CONFIG_WORKSPACE_DIR" | "npm_config_workspace_dir").then(
+                OsString::new,
             )
-            .then(OsString::new)
         }
     }
     impl GetHomeDir for HostWithEmptyEnvWorkspaceDir {
@@ -663,29 +574,20 @@ pub fn empty_npm_config_workspace_dir_falls_through() {
     inert_link_probe!(HostWithEmptyEnvWorkspaceDir);
     host_current_dir!(HostWithEmptyEnvWorkspaceDir);
     let tmp = tempdir().unwrap();
-    let config = Config::new()
-        .current::<HostWithEmptyEnvWorkspaceDir>(tmp.path())
-        .expect("config loads");
+    let config =
+        Config::new().current::<HostWithEmptyEnvWorkspaceDir>(tmp.path()).expect("config loads");
     // No yaml in tmp → no re-anchor → cwd-anchored defaults.
     assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
-    assert_eq!(
-        config.virtual_store_dir,
-        tmp.path().join("node_modules/.pnpm"),
-    );
+    assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules/.pnpm"));
 }
 
 #[test]
 pub fn workspace_script_shell_accepts_backslash_path_like_values() {
     let workspace = tempdir().expect("workspace tempdir");
-    fs::write(
-        workspace.path().join("pnpm-workspace.yaml"),
-        "scriptShell: 'scripts\\shell.cmd'\n",
-    )
-    .expect("write workspace yaml");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "scriptShell: 'scripts\\shell.cmd'\n")
+        .expect("write workspace yaml");
 
-    let config = Config::new()
-        .current::<HostNoHome>(workspace.path())
-        .expect("config loads");
+    let config = Config::new().current::<HostNoHome>(workspace.path()).expect("config loads");
     let expected = pnpm_fs::lexical_normalize(&workspace.path().join(r"scripts\shell.cmd"))
         .to_string_lossy()
         .into_owned();
@@ -696,21 +598,16 @@ pub fn workspace_script_shell_accepts_backslash_path_like_values() {
 #[test]
 pub fn workspace_script_shell_preserves_windows_absolute_and_unc_paths() {
     let workspace = tempdir().expect("workspace tempdir");
-    for script_shell in [
-        r"C:\tools\bash.exe",
-        r"\\server\share\bash.exe",
-        r"\tools\bash.exe",
-        r"/tools/bash.exe",
-    ] {
+    for script_shell in
+        [r"C:\tools\bash.exe", r"\\server\share\bash.exe", r"\tools\bash.exe", r"/tools/bash.exe"]
+    {
         fs::write(
             workspace.path().join("pnpm-workspace.yaml"),
             format!("scriptShell: '{script_shell}'\n"),
         )
         .expect("write workspace yaml");
 
-        let config = Config::new()
-            .current::<HostNoHome>(workspace.path())
-            .expect("config loads");
+        let config = Config::new().current::<HostNoHome>(workspace.path()).expect("config loads");
         assert_eq!(config.script_shell.as_deref(), Some(script_shell));
     }
 }
@@ -720,18 +617,12 @@ pub fn pnpm_workspace_yaml_overrides_global_config_yaml() {
     let xdg = tempdir().unwrap();
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
-    fs::write(
-        config_dir.join("config.yaml"),
-        "enableGlobalVirtualStore: true\n",
-    )
-    .expect("write to global config.yaml");
+    fs::write(config_dir.join("config.yaml"), "enableGlobalVirtualStore: true\n")
+        .expect("write to global config.yaml");
 
     let project = tempdir().unwrap();
-    fs::write(
-        project.path().join("pnpm-workspace.yaml"),
-        "enableGlobalVirtualStore: false\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
+        .expect("write to pnpm-workspace.yaml");
 
     static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
     XDG_CONFIG_HOME_PATH
@@ -762,9 +653,8 @@ pub fn pnpm_workspace_yaml_overrides_global_config_yaml() {
     inert_link_probe!(HostWithXdgConfigHome);
     host_current_dir!(HostWithXdgConfigHome);
 
-    let config = Config::new()
-        .current::<HostWithXdgConfigHome>(project.path())
-        .expect("config loads");
+    let config =
+        Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
     assert!(
         !config.enable_global_virtual_store,
         "pnpm-workspace.yaml must win over global config.yaml",
@@ -786,21 +676,15 @@ pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
     let global_path = xdg.path().join("shared-virtual-store");
     fs::write(
         config_dir.join("config.yaml"),
-        format!(
-            "enableGlobalVirtualStore: true\nvirtualStoreDir: {}\n",
-            global_path.display(),
-        ),
+        format!("enableGlobalVirtualStore: true\nvirtualStoreDir: {}\n", global_path.display()),
     )
     .expect("write global config.yaml");
 
     let project = tempdir().unwrap();
     // Empty workspace yaml — present so the workspace block fires,
     // but it doesn't redeclare `virtualStoreDir`.
-    fs::write(
-        project.path().join("pnpm-workspace.yaml"),
-        "packages:\n  - .\n",
-    )
-    .expect("write workspace yaml");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - .\n")
+        .expect("write workspace yaml");
 
     static XDG_CONFIG_HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
     XDG_CONFIG_HOME_PATH
@@ -831,9 +715,8 @@ pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
     inert_link_probe!(HostWithXdgConfigHome);
     host_current_dir!(HostWithXdgConfigHome);
 
-    let config = Config::new()
-        .current::<HostWithXdgConfigHome>(project.path())
-        .expect("config loads");
+    let config =
+        Config::new().current::<HostWithXdgConfigHome>(project.path()).expect("config loads");
     assert_eq!(
         config.virtual_store_dir, global_path,
         "virtualStoreDir from global config.yaml must survive the workspace-root re-anchor",
@@ -889,9 +772,7 @@ pub fn global_config_yaml_workspace_only_keys_are_ignored() {
 
     let tmp = tempdir().unwrap();
     let defaults = Config::new();
-    let config = Config::new()
-        .current::<HostWithXdgConfigHome>(tmp.path())
-        .expect("config loads");
+    let config = Config::new().current::<HostWithXdgConfigHome>(tmp.path()).expect("config loads");
     assert_eq!(config.node_linker, defaults.node_linker);
     assert_eq!(config.hoist, defaults.hoist);
     assert_eq!(config.symlink, defaults.symlink);
@@ -906,11 +787,8 @@ pub fn global_config_yaml_workspace_only_keys_are_ignored() {
 #[test]
 pub fn pnpm_config_env_var_overrides_workspace_yaml() {
     let tmp = tempdir().unwrap();
-    fs::write(
-        tmp.path().join("pnpm-workspace.yaml"),
-        "enableGlobalVirtualStore: false\n",
-    )
-    .expect("write to pnpm-workspace.yaml");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "enableGlobalVirtualStore: false\n")
+        .expect("write to pnpm-workspace.yaml");
 
     struct HostWithPnpmConfigEnv;
     impl EnvVar for HostWithPnpmConfigEnv {
@@ -934,9 +812,7 @@ pub fn pnpm_config_env_var_overrides_workspace_yaml() {
     inert_link_probe!(HostWithPnpmConfigEnv);
     host_current_dir!(HostWithPnpmConfigEnv);
 
-    let config = Config::new()
-        .current::<HostWithPnpmConfigEnv>(tmp.path())
-        .expect("loads");
+    let config = Config::new().current::<HostWithPnpmConfigEnv>(tmp.path()).expect("loads");
     assert!(
         config.enable_global_virtual_store,
         "PNPM_CONFIG_* env var must win over pnpm-workspace.yaml",

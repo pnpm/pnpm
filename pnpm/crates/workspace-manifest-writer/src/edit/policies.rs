@@ -93,16 +93,10 @@ fn remove_block_list_key(manifest: &mut Manifest, block: &str, key: &str) {
         return;
     }
     let keys = mapping_keys(text, &[block]);
-    if !keys
-        .iter()
-        .any(|k| k == key)
-    {
+    if !keys.iter().any(|k| k == key) {
         return;
     }
-    if keys
-        .iter()
-        .all(|k| k == key)
-    {
+    if keys.iter().all(|k| k == key) {
         let new_text = remove_top_level_block(text, block);
         manifest.document.set_text(new_text);
         manifest.document.keys.retain(|k| k != block);
@@ -188,9 +182,25 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
         return true;
     }
 
-    replace_exclude_block(manifest, block, items);
+    replace_exclude_sequence(manifest, block, items);
     *decoded(manifest) = Some(items.to_vec());
     true
+}
+
+fn replace_exclude_sequence(manifest: &mut Manifest, block: &str, items: &[String]) {
+    let rendered = render_top_level_sequence(block, items);
+    if let Some(span) = top_level_span(manifest.document.text(), block) {
+        manifest.document.set_text(replace_top_level_block(
+            manifest.document.text(),
+            &span,
+            &rendered,
+        ));
+    } else {
+        let new_text = insert_top_level_block(manifest, block, &rendered);
+        manifest.document.set_text(new_text);
+        manifest.document.keys =
+            render::target_order(&manifest.document.keys, &[block.to_string()]);
+    }
 }
 
 fn remove_exclude_list(manifest: &mut Manifest, list: ExcludeList) -> bool {
@@ -257,17 +267,4 @@ fn render_audit_config_block(ghsas: &[String]) -> String {
         block.push('\n');
     }
     block
-}
-
-fn replace_exclude_block(manifest: &mut Manifest, block: &str, items: &[String]) {
-    let text = manifest.document.text();
-    let rendered = render_top_level_sequence(block, items);
-    if let Some(span) = top_level_span(text, block) {
-        manifest.document.set_text(replace_top_level_block(text, &span, &rendered));
-    } else {
-        let new_text = insert_top_level_block(manifest, block, &rendered);
-        manifest.document.set_text(new_text);
-        manifest.document.keys =
-            render::target_order(&manifest.document.keys, &[block.to_string()]);
-    }
 }

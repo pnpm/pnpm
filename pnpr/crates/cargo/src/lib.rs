@@ -169,11 +169,7 @@ pub fn parse_index(text: &str) -> Result<Vec<IndexEntry>, IndexParseError> {
         .enumerate()
         .filter(|(_, line)| !line.trim().is_empty())
         .map(|(index, line)| {
-            serde_json::from_str(line)
-                .map_err(|source| IndexParseError {
-                    line: index + 1,
-                    source,
-                })
+            serde_json::from_str(line).map_err(|source| IndexParseError { line: index + 1, source })
         })
         .collect()
 }
@@ -205,11 +201,7 @@ pub struct CrateDocument {
 impl CrateDocument {
     #[must_use]
     pub fn new(name: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            versions: Vec::new(),
-            description: None,
-        }
+        Self { name: name.to_string(), versions: Vec::new(), description: None }
     }
 
     /// The version the crates API reports as `max_version`: the highest
@@ -224,9 +216,7 @@ impl CrateDocument {
                 .filter_map(|entry| semver::Version::parse(&entry.vers).ok())
                 .max()
         };
-        highest(false)
-            .or_else(|| highest(true))
-            .map(|version| version.to_string())
+        highest(false).or_else(|| highest(true)).map(|version| version.to_string())
     }
 
     /// This crate as one row of a search response.
@@ -319,11 +309,7 @@ pub struct IndexConfig {
     pub api: Option<String>,
     /// When set, `cargo` sends its token on index and download requests as
     /// well as on API calls.
-    #[serde(
-        rename = "auth-required",
-        default,
-        skip_serializing_if = "std::ops::Not::not"
-    )]
+    #[serde(rename = "auth-required", default, skip_serializing_if = "std::ops::Not::not")]
     pub auth_required: bool,
 }
 
@@ -332,11 +318,7 @@ impl IndexConfig {
     /// slash) advertises: downloads and the API both point back at it.
     #[must_use]
     pub fn for_registry(base: &str, auth_required: bool) -> Self {
-        Self {
-            dl: format!("{base}/{API_PATH}"),
-            api: Some(base.to_string()),
-            auth_required,
-        }
+        Self { dl: format!("{base}/{API_PATH}"), api: Some(base.to_string()), auth_required }
     }
 
     pub fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {

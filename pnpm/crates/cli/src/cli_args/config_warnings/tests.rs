@@ -28,10 +28,7 @@ fn config_with(registries: &[(&str, &str)], registry_options_by_url: &[&str]) ->
 #[test]
 fn no_warning_when_every_entry_matches_a_configured_registry() {
     let config = config_with(
-        &[
-            ("default", "https://npm.example.com/"),
-            ("@acme", "https://acme.example.com/"),
-        ],
+        &[("default", "https://npm.example.com/"), ("@acme", "https://acme.example.com/")],
         &["https://npm.example.com/", "https://acme.example.com/"],
     );
     assert_eq!(unmatched_registry_options_warning(&config), None);
@@ -47,10 +44,8 @@ fn no_warning_without_any_registry_options() {
 /// declared it, so an entry for it must not be reported as unmatched.
 #[test]
 fn no_warning_for_a_builtin_named_registry() {
-    let config = config_with(
-        &[("default", "https://npm.example.com/")],
-        &["https://npm.pkg.github.com/"],
-    );
+    let config =
+        config_with(&[("default", "https://npm.example.com/")], &["https://npm.pkg.github.com/"]);
     assert_eq!(unmatched_registry_options_warning(&config), None);
 }
 
@@ -80,18 +75,9 @@ fn redacts_credentials_in_the_warning() {
         &["https://typo.example.com/"],
     );
     let received = unmatched_registry_options_warning(&config).expect("a warning");
-    assert!(
-        !received.contains("hunter2"),
-        "the password must not be echoed: {received}",
-    );
-    assert!(
-        !received.contains("ci-user-6e42"),
-        "the username must not be echoed: {received}",
-    );
-    assert!(
-        received.contains("npm.example.com"),
-        "the host is still named: {received}",
-    );
+    assert!(!received.contains("hunter2"), "the password must not be echoed: {received}");
+    assert!(!received.contains("ci-user-6e42"), "the username must not be echoed: {received}");
+    assert!(received.contains("npm.example.com"), "the host is still named: {received}");
 }
 
 mod workspace_key_issues {
@@ -160,10 +146,7 @@ fn config_with_package_configs(shared_workspace_lockfile: bool) -> Config {
 
 #[test]
 fn no_warning_when_each_project_has_its_own_lockfile() {
-    assert_eq!(
-        unapplied_package_configs_warning(&config_with_package_configs(false)),
-        None,
-    );
+    assert_eq!(unapplied_package_configs_warning(&config_with_package_configs(false)), None);
 }
 
 #[test]
@@ -192,10 +175,7 @@ fn sanitizes_the_project_name() {
     config.shared_workspace_lockfile = true;
     config.package_configs = Some(IndexMap::from([(
         "a\u{1b}[2Kb".to_string(),
-        ProjectConfig {
-            save_exact: Some(true),
-            ..ProjectConfig::default()
-        },
+        ProjectConfig { save_exact: Some(true), ..ProjectConfig::default() },
     )]));
     let received = unapplied_package_configs_warning(&config).expect("a warning");
     println!("{received}");

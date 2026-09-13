@@ -11,21 +11,14 @@ mod normalization;
 fn make_project(root: &std::path::Path, rel: &str, name: &str) {
     let dir = root.join(rel);
     fs::create_dir_all(&dir).unwrap();
-    fs::write(
-        dir.join("package.json"),
-        format!(r#"{{"name": "{name}", "version": "0.0.1"}}"#),
-    )
-    .unwrap();
+    fs::write(dir.join("package.json"), format!(r#"{{"name": "{name}", "version": "0.0.1"}}"#))
+        .unwrap();
 }
 
 fn make_yaml_project(root: &std::path::Path, rel: &str, name: &str) {
     let dir = root.join(rel);
     fs::create_dir_all(&dir).unwrap();
-    fs::write(
-        dir.join("package.yaml"),
-        format!("name: {name}\nversion: 0.0.1\n"),
-    )
-    .unwrap();
+    fs::write(dir.join("package.yaml"), format!("name: {name}\nversion: 0.0.1\n")).unwrap();
 }
 
 fn find_project_names(root: &Path, patterns: &[&str]) -> Vec<String> {
@@ -64,10 +57,7 @@ fn recognizes_specialized_workspace_patterns() {
         specialized_pattern("packages/alpha/"),
         Some(SpecializedPattern::Literal("packages/alpha")),
     );
-    assert_eq!(
-        specialized_pattern("packages/*"),
-        Some(SpecializedPattern::ChildrenOf("packages")),
-    );
+    assert_eq!(specialized_pattern("packages/*"), Some(SpecializedPattern::ChildrenOf("packages")));
     assert_eq!(
         specialized_pattern("packages/*/"),
         Some(SpecializedPattern::ChildrenOf("packages")),
@@ -109,9 +99,7 @@ fn expands_packages_glob() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["packages/*".to_string()]),
-        },
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
     )
     .unwrap();
 
@@ -127,10 +115,7 @@ fn expands_packages_glob() {
                 .to_string()
         })
         .collect();
-    assert_eq!(
-        names,
-        vec!["root".to_string(), "alpha".to_string(), "beta".to_string()],
-    );
+    assert_eq!(names, vec!["root".to_string(), "alpha".to_string(), "beta".to_string()]);
 }
 
 #[test]
@@ -232,11 +217,7 @@ fn terminal_star_does_not_follow_symlinked_child_directories() {
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "linked-target", "linked");
     fs::create_dir_all(tmp.path().join("packages")).unwrap();
-    symlink(
-        tmp.path().join("linked-target"),
-        tmp.path().join("packages/linked"),
-    )
-    .unwrap();
+    symlink(tmp.path().join("linked-target"), tmp.path().join("packages/linked")).unwrap();
 
     let names = find_project_names(tmp.path(), &["packages/*"]);
     assert_eq!(names, vec!["root".to_string()]);
@@ -272,9 +253,7 @@ fn expands_packages_glob_to_package_yaml() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["packages/*".to_string()]),
-        },
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
     )
     .unwrap();
 
@@ -301,10 +280,7 @@ fn direct_package_patterns_support_both_manifest_formats() {
     make_yaml_project(tmp.path(), "packages/beta", "beta");
 
     let names = find_project_names(tmp.path(), &["packages/alpha", "packages/beta"]);
-    assert_eq!(
-        names,
-        vec!["root".to_string(), "alpha".to_string(), "beta".to_string()],
-    );
+    assert_eq!(names, vec!["root".to_string(), "alpha".to_string(), "beta".to_string()]);
 }
 
 #[test]
@@ -335,11 +311,7 @@ fn direct_package_pattern_follows_symlinked_directory() {
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "linked-target", "linked");
     fs::create_dir_all(tmp.path().join("packages")).unwrap();
-    symlink(
-        tmp.path().join("linked-target"),
-        tmp.path().join("packages/linked"),
-    )
-    .unwrap();
+    symlink(tmp.path().join("linked-target"), tmp.path().join("packages/linked")).unwrap();
 
     let names = find_project_names(tmp.path(), &["packages/linked"]);
     assert_eq!(names, vec!["root".to_string(), "linked".to_string()]);
@@ -354,9 +326,7 @@ fn package_json_wins_when_both_manifest_files_exist() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["packages/*".to_string()]),
-        },
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
     )
     .unwrap();
 
@@ -385,9 +355,7 @@ fn always_includes_workspace_root() {
     // surfaces it (https://github.com/pnpm/pnpm/issues/1986).
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["apps/*".to_string()]),
-        },
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["apps/*".to_string()]) },
     )
     .unwrap();
 
@@ -415,9 +383,7 @@ fn filters_node_modules() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["**".to_string()]),
-        },
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["**".to_string()]) },
     )
     .unwrap();
 
@@ -478,13 +444,8 @@ fn default_patterns_when_packages_omitted() {
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "apps/web", "web");
 
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: None,
-        },
-    )
-    .unwrap();
+    let projects =
+        find_workspace_projects(tmp.path(), &FindWorkspaceProjectsOpts { patterns: None }).unwrap();
 
     let names: Vec<String> = projects
         .iter()
@@ -587,9 +548,7 @@ fn empty_patterns_array_enumerates_root_only() {
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(Vec::new()),
-        },
+        &FindWorkspaceProjectsOpts { patterns: Some(Vec::new()) },
     )
     .unwrap();
 
@@ -655,9 +614,7 @@ fn non_notfound_walk_failure_still_errors() {
 
     let result = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["packages/*".to_string()]),
-        },
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
     );
 
     // `expect_err` would need `Project: Debug`, which it deliberately is not.
@@ -682,9 +639,7 @@ fn non_notfound_walk_failure_still_errors_on_the_generic_path() {
     // the filesystem through their own enumeration.
     let result = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["packages/*/lib".to_string()]),
-        },
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*/lib".to_string()]) },
     );
 
     let Err(FindWorkspaceProjectsError::Walk { source, .. }) = result else {
@@ -753,10 +708,7 @@ fn negation_pattern_excludes_a_project_above_the_workspace_root() {
     let projects = find_workspace_projects(
         &tmp.path().join("workspace"),
         &FindWorkspaceProjectsOpts {
-            patterns: Some(vec![
-                "../shared/*".to_string(),
-                "!../shared/drop".to_string(),
-            ]),
+            patterns: Some(vec!["../shared/*".to_string(), "!../shared/drop".to_string()]),
         },
     )
     .unwrap();
@@ -836,17 +788,12 @@ fn discovers_a_project_whose_manifest_starts_with_a_utf8_bom() {
     make_project(tmp.path(), ".", "root");
     let dir = tmp.path().join("packages/utf8-bom-package");
     fs::create_dir_all(&dir).unwrap();
-    fs::write(
-        dir.join("package.json"),
-        "\u{feff}{\"name\": \"bom\", \"version\": \"1.0.0\"}\n",
-    )
-    .unwrap();
+    fs::write(dir.join("package.json"), "\u{feff}{\"name\": \"bom\", \"version\": \"1.0.0\"}\n")
+        .unwrap();
 
     let projects = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["packages/*".to_string()]),
-        },
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
     )
     .unwrap();
 
@@ -916,18 +863,13 @@ fn a_malformed_manifest_fails_discovery_deterministically() {
         .join("broken");
     fs::create_dir_all(&broken).unwrap();
     fs::write(broken.join("package.json"), "{ not json").unwrap();
-    let broken_late = tmp
-        .path()
-        .join("packages")
-        .join("zeta");
+    let broken_late = tmp.path().join("packages").join("zeta");
     fs::create_dir_all(&broken_late).unwrap();
     fs::write(broken_late.join("package.json"), "{ not json either").unwrap();
 
     let result = find_workspace_projects(
         tmp.path(),
-        &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["packages/*".to_string()]),
-        },
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
     );
 
     // `expect_err` would need `Project: Debug`, which it deliberately is not.
@@ -961,10 +903,7 @@ fn an_invalid_glob_pattern_fails_before_any_walk() {
     let result = find_workspace_projects(
         tmp.path(),
         &FindWorkspaceProjectsOpts {
-            patterns: Some(vec![
-                "packages/*/lib".to_string(),
-                "nodes/[invalid".to_string(),
-            ]),
+            patterns: Some(vec!["packages/*/lib".to_string(), "nodes/[invalid".to_string()]),
         },
     );
 

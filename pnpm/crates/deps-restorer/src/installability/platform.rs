@@ -78,10 +78,7 @@ impl InstallabilityHost {
                 supported_architectures: None,
                 engine_strict,
             },
-            None => Self {
-                engine_strict,
-                ..Self::detect()
-            },
+            None => Self { engine_strict, ..Self::detect() },
         }
     }
 }

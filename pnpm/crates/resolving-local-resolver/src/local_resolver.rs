@@ -173,15 +173,11 @@ pub async fn resolve_from_local_scheme(
 ) -> Result<Option<LocalResolveResult>, ResolveLocalError> {
     let project_dir = opts.project_dir.as_path();
     let lockfile_dir = opts.lockfile_dir.as_deref().unwrap_or(project_dir);
-    let parse_opts = ParseOptions {
-        preserve_absolute_paths: ctx.preserve_absolute_paths,
-    };
+    let parse_opts = ParseOptions { preserve_absolute_paths: ctx.preserve_absolute_paths };
     let spec = match parse_local_scheme(wanted_dependency, project_dir, lockfile_dir, parse_opts) {
         Ok(maybe) => maybe,
         Err(err) => {
-            return Err(ResolveLocalError::Spec(
-                LocalSpecError::PathProtocolNotSupported(err),
-            ));
+            return Err(ResolveLocalError::Spec(LocalSpecError::PathProtocolNotSupported(err)));
         }
     };
     resolve_spec(spec, opts).await
@@ -195,9 +191,7 @@ pub async fn resolve_from_local_path(
 ) -> Result<Option<LocalResolveResult>, ResolveLocalError> {
     let project_dir = opts.project_dir.as_path();
     let lockfile_dir = opts.lockfile_dir.as_deref().unwrap_or(project_dir);
-    let parse_opts = ParseOptions {
-        preserve_absolute_paths: ctx.preserve_absolute_paths,
-    };
+    let parse_opts = ParseOptions { preserve_absolute_paths: ctx.preserve_absolute_paths };
     let spec = parse_local_path(wanted_dependency, project_dir, lockfile_dir, parse_opts);
     resolve_spec(spec, opts).await
 }
@@ -305,9 +299,7 @@ fn check_bundled_package_name(
     specifier: &str,
 ) -> Result<(), ResolveLocalError> {
     let Some(name) = bundled_package_name(manifest) else {
-        return Err(ResolveLocalError::MissingPackageName {
-            specifier: specifier.to_string(),
-        });
+        return Err(ResolveLocalError::MissingPackageName { specifier: specifier.to_string() });
     };
     if is_valid_old_npm_package_name(name) {
         return Ok(());

@@ -102,8 +102,7 @@ impl SelectedUpdatePreparation {
             self.catalogs_override = Some(complete_catalogs);
         }
         if self.workspace_dir_for_catalogs.is_none() {
-            self.workspace_dir_for_catalogs = prepared
-                .workspace_dir_for_catalogs;
+            self.workspace_dir_for_catalogs = prepared.workspace_dir_for_catalogs;
         }
     }
 }
@@ -139,10 +138,7 @@ pub(super) async fn apply_read_package_hook_to_update_manifest(
     hook: &Arc<dyn pnpm_hooks::PnpmfileHooks>,
     log: &pnpm_hooks::LogFn,
 ) -> Result<(), UpdateError> {
-    let ctx = pnpm_hooks::HookContext {
-        log: Arc::clone(log),
-        dir: None,
-    };
+    let ctx = pnpm_hooks::HookContext { log: Arc::clone(log), dir: None };
     let value = hook
         .read_package(manifest.value().clone(), ctx)
         .await
@@ -159,8 +155,7 @@ pub(super) async fn prepare_manifest<Reporter: self::Reporter>(
     latest_chain: &mut Option<LatestResolverChain>,
 ) -> Result<Option<UpdatePreparation>, UpdateError> {
     let Some(decision) =
-        decide_update::<Reporter>(manifest, update, owned, catalogs_seed, latest_chain)
-            .await?
+        decide_update::<Reporter>(manifest, update, owned, catalogs_seed, latest_chain).await?
     else {
         return Ok(None);
     };
@@ -208,21 +203,13 @@ pub(super) async fn decide_update<Reporter: self::Reporter>(
         },
         latest_chain,
         &mut catalog_ctx,
-        (
-            update.selection.workspace_packages,
-            workspace_targets(update, &selectors, &direct)?,
-        ),
+        (update.selection.workspace_packages, workspace_targets(update, &selectors, &direct)?),
     )
     .await?
     else {
         return Ok(None);
     };
-    Ok(Some(UpdateDecision {
-        plan,
-        seed_policy,
-        direct,
-        catalog_ctx,
-    }))
+    Ok(Some(UpdateDecision { plan, seed_policy, direct, catalog_ctx }))
 }
 pub(super) fn update_scope<'a>(
     update: UpdateOptions<'a>,
@@ -316,9 +303,7 @@ pub(super) fn merged_catalogs_override(
     updated_catalogs: &Catalogs,
 ) -> Option<Catalogs> {
     (!updated_catalogs.is_empty()).then(|| {
-        let mut merged = catalog_ctx
-            .map(|ctx| ctx.catalogs.clone())
-            .unwrap_or_default();
+        let mut merged = catalog_ctx.map(|ctx| ctx.catalogs.clone()).unwrap_or_default();
         merge_catalogs(&mut merged, updated_catalogs);
         merged
     })

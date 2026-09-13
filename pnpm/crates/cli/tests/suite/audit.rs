@@ -18,9 +18,7 @@ fn audit_json_posts_bulk_request_and_exits_on_vulnerability() {
     let mut registry = mockito::Server::new();
     let mock = registry
         .mock("POST", "/-/npm/v1/security/advisories/bulk")
-        .match_body(mockito::Matcher::PartialJsonString(
-            r#"{"vulnerable":["1.0.0"]}"#.to_string(),
-        ))
+        .match_body(mockito::Matcher::PartialJsonString(r#"{"vulnerable":["1.0.0"]}"#.to_string()))
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(
@@ -47,23 +45,13 @@ fn audit_json_posts_bulk_request_and_exits_on_vulnerability() {
         .output()
         .expect("run pacquet audit");
 
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "vulnerability should produce exit code 1",
-    );
+    assert_eq!(output.status.code(), Some(1), "vulnerability should produce exit code 1");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.ends_with('\n'),
-        "JSON report should end with a newline:\n{stdout}",
-    );
+    assert!(stdout.ends_with('\n'), "JSON report should end with a newline:\n{stdout}");
     let report: serde_json::Value = serde_json::from_str(&stdout).expect("audit JSON output");
     assert_eq!(report["advisories"]["123"]["title"], "test vulnerability");
     assert_eq!(report["advisories"]["123"]["module_name"], "vulnerable");
-    assert_eq!(
-        report["advisories"]["123"]["findings"][0]["paths"][0],
-        ".>vulnerable",
-    );
+    assert_eq!(report["advisories"]["123"]["findings"][0]["paths"][0], ".>vulnerable");
     assert_eq!(report["metadata"]["vulnerabilities"]["high"], 1);
     mock.assert();
 }
@@ -95,9 +83,7 @@ fn audit_dev_reports_only_dev_dependencies() {
     let mut registry = mockito::Server::new();
     let mock = registry
         .mock("POST", "/-/npm/v1/security/advisories/bulk")
-        .match_body(Matcher::PartialJsonString(
-            r#"{"dev-vulnerable":["1.0.0"]}"#.to_string(),
-        ))
+        .match_body(Matcher::PartialJsonString(r#"{"dev-vulnerable":["1.0.0"]}"#.to_string()))
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(advisory_response(
@@ -122,10 +108,7 @@ fn audit_dev_reports_only_dev_dependencies() {
     let report: serde_json::Value = serde_json::from_str(&stdout(&output)).unwrap();
     assert_eq!(report["advisories"]["124"]["module_name"], "dev-vulnerable");
     assert_eq!(report["advisories"]["124"]["findings"][0]["dev"], true);
-    assert_eq!(
-        report["advisories"]["124"]["findings"][0]["paths"][0],
-        ".>dev-vulnerable",
-    );
+    assert_eq!(report["advisories"]["124"]["findings"][0]["paths"][0], ".>dev-vulnerable");
     mock.assert();
 }
 
@@ -157,10 +140,7 @@ fn audit_exits_zero_when_every_vulnerability_is_below_audit_level() {
         .expect("run pacquet audit");
 
     assert_success(&output);
-    assert_eq!(
-        stdout(&output),
-        "1 vulnerabilities found\nSeverity: 1 moderate\n",
-    );
+    assert_eq!(stdout(&output), "1 vulnerabilities found\nSeverity: 1 moderate\n");
     mock.assert();
 }
 
@@ -305,11 +285,7 @@ fn audit_sends_auth_token() {
         .create();
     write_audit_workspace_with_npmrc(
         &workspace,
-        &format!(
-            "registry={}/\n{}/:_authToken=123\n",
-            registry.url(),
-            nerf(&registry.url()),
-        ),
+        &format!("registry={}/\n{}/:_authToken=123\n", registry.url(), nerf(&registry.url())),
         "",
     );
 
@@ -560,14 +536,7 @@ fn audit_level_info_includes_info_advisories() {
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
-        &advisory_response(
-            "info-pkg",
-            501,
-            "info",
-            "*",
-            "just some info",
-            "GHSA-info-info-info",
-        ),
+        &advisory_response("info-pkg", 501, "info", "*", "just some info", "GHSA-info-info-info"),
     )
     .create();
     write_audit_workspace(&workspace, &registry.url(), "");
@@ -594,14 +563,7 @@ fn audit_reports_the_lowest_non_deprecated_published_patch() {
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
-        &advisory_response(
-            "vulnerable",
-            123,
-            "high",
-            "<2.0.0",
-            "test",
-            "GHSA-test-1111-2222",
-        ),
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
     )
     .create();
     // 2.0.0 is deprecated, so the inferred >=2.0.0 patch resolves to 2.0.1.
@@ -638,14 +600,7 @@ fn audit_reports_no_patched_version_when_none_was_published() {
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
-        &advisory_response(
-            "vulnerable",
-            123,
-            "high",
-            "<2.0.0",
-            "test",
-            "GHSA-test-1111-2222",
-        ),
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
     )
     .create();
     let packument_mock = registry
@@ -683,14 +638,7 @@ fn audit_defaults_to_low_and_ignores_info_for_exit_code() {
     let mut registry = mockito::Server::new();
     let mock = audit_mock(
         &mut registry,
-        &advisory_response(
-            "info-pkg",
-            502,
-            "info",
-            "*",
-            "just some info",
-            "GHSA-info-info-info",
-        ),
+        &advisory_response("info-pkg", 502, "info", "*", "just some info", "GHSA-info-info-info"),
     )
     .create();
     write_audit_workspace(&workspace, &registry.url(), "");
@@ -701,10 +649,7 @@ fn audit_defaults_to_low_and_ignores_info_for_exit_code() {
         .expect("run pacquet audit");
 
     assert_success(&output);
-    assert_eq!(
-        stdout(&output),
-        "1 vulnerabilities found\nSeverity: 1 info\n",
-    );
+    assert_eq!(stdout(&output), "1 vulnerabilities found\nSeverity: 1 info\n");
     mock.assert();
 }
 
@@ -811,11 +756,8 @@ fn write_audit_workspace(workspace: &Path, registry_url: &str, workspace_yaml: &
 
 fn write_audit_workspace_with_npmrc(workspace: &Path, npmrc: &str, workspace_yaml: &str) {
     fs::write(workspace.join(".npmrc"), npmrc).expect("write .npmrc");
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        format!("fetchRetries: 0\n{workspace_yaml}"),
-    )
-    .expect("write workspace manifest");
+    fs::write(workspace.join("pnpm-workspace.yaml"), format!("fetchRetries: 0\n{workspace_yaml}"))
+        .expect("write workspace manifest");
     fs::write(
         workspace.join("package.json"),
         r#"{"name":"audit-test","version":"1.0.0","dependencies":{"vulnerable":"1.0.0","moderate-pkg":"1.0.0","info-pkg":"1.0.0"},"devDependencies":{"dev-vulnerable":"1.0.0"},"optionalDependencies":{"optional-vulnerable":"1.0.0"}}"#,
@@ -865,90 +807,8 @@ snapshots:
 }
 
 fn write_minimal_manifest(workspace: &Path) {
-    fs::write(
-        workspace.join("package.json"),
-        r#"{"name":"audit-test","version":"1.0.0"}"#,
-    )
-    .expect("write package.json");
-}
-
-const SIGNATURE_KEYID: &str = "SHA256:test";
-
-fn signing_key() -> p256::ecdsa::SigningKey {
-    p256::ecdsa::SigningKey::from_slice(&[0x42; 32]).expect("valid P-256 scalar")
-}
-
-fn public_key_b64(key: &p256::ecdsa::SigningKey) -> String {
-    use base64::Engine as _;
-    use p256::pkcs8::EncodePublicKey;
-    let der = key
-        .verifying_key()
-        .to_public_key_der()
-        .expect("encode SPKI");
-    base64::engine::general_purpose::STANDARD.encode(der.as_bytes())
-}
-
-fn sign_b64(key: &p256::ecdsa::SigningKey, message: &str) -> String {
-    use base64::Engine as _;
-    use p256::ecdsa::{Signature, signature::Signer};
-    let signature: Signature = key.sign(message.as_bytes());
-    base64::engine::general_purpose::STANDARD.encode(signature.to_der().as_bytes())
-}
-
-fn keys_mock(registry: &mut mockito::Server, public_key_b64: &str) -> mockito::Mock {
-    registry
-        .mock("GET", "/-/npm/v1/keys")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(format!(
-            r#"{{"keys":[{{"expires":null,"keyid":"{SIGNATURE_KEYID}","keytype":"ecdsa-sha2-nistp256","scheme":"ecdsa-sha2-nistp256","key":"{public_key_b64}"}}]}}"#,
-        ))
-}
-
-fn signatures_json(signature_b64: &str) -> String {
-    format!(r#"[{{"keyid":"{SIGNATURE_KEYID}","sig":"{signature_b64}"}}]"#)
-}
-
-fn packument_body(name: &str, version: &str, integrity: &str, signatures_json: &str) -> String {
-    format!(
-        r#"{{"name":"{name}","versions":{{"{version}":{{"name":"{name}","version":"{version}","dist":{{"integrity":"{integrity}","tarball":"https://example.com/{name}-{version}.tgz","signatures":{signatures_json}}}}}}},"time":{{"{version}":"2020-01-01T00:00:00.000Z"}}}}"#,
-    )
-}
-
-fn write_signatures_workspace(workspace: &Path, registry_url: &str, name: &str) {
-    fs::write(
-        workspace.join(".npmrc"),
-        format!("registry={registry_url}/\n"),
-    )
-    .expect("write .npmrc");
-    fs::write(workspace.join("pnpm-workspace.yaml"), "fetchRetries: 0\n")
-        .expect("write workspace manifest");
-    fs::write(
-        workspace.join("package.json"),
-        format!(r#"{{"name":"sig-test","version":"1.0.0","dependencies":{{"{name}":"1.0.0"}}}}"#),
-    )
-    .expect("write package.json");
-    fs::write(
-        workspace.join("pnpm-lock.yaml"),
-        format!(
-            "
-lockfileVersion: '9.0'
-
-importers:
-
-  .:
-    dependencies:
-      {name}:
-        specifier: '1.0.0'
-        version: '1.0.0'
-
-snapshots:
-
-  {name}@1.0.0: {{}}
-",
-        ),
-    )
-    .expect("write lockfile");
+    fs::write(workspace.join("package.json"), r#"{"name":"audit-test","version":"1.0.0"}"#)
+        .expect("write package.json");
 }
 
 fn nerf(registry_url: &str) -> &str {

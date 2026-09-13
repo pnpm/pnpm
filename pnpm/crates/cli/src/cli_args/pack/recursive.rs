@@ -85,15 +85,10 @@ fn serialize_shared_outputs(
             .pointer("/publishConfig/name")
             .and_then(serde_json::Value::as_str)
             .unwrap_or(name);
-        let predecessor = pack_output_path(
-            &project.root_dir,
-            out,
-            pack_destination,
-            published_name,
-            version,
-        )
-        .ok()
-        .and_then(|output| previous_by_output.insert(output, root.clone()));
+        let predecessor =
+            pack_output_path(&project.root_dir, out, pack_destination, published_name, version)
+                .ok()
+                .and_then(|output| previous_by_output.insert(output, root.clone()));
         if let Some(predecessor) = predecessor {
             let dependencies = project_dependencies
                 .get_mut(root)

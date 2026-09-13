@@ -96,10 +96,7 @@ enum DeployError {
 
     #[display("Refusing to deploy to unsafe target {}: {reason}", deploy_dir.display())]
     #[diagnostic(code(ERR_PNPM_INVALID_DEPLOY_TARGET))]
-    UnsafeDeployTarget {
-        deploy_dir: PathBuf,
-        reason: &'static str,
-    },
+    UnsafeDeployTarget { deploy_dir: PathBuf, reason: &'static str },
 
     #[display(
         r#"Workspace package '{package}' declares a peer dependency on '{peer}', which resolves to more than one version ({versions}) in the deployed graph. Without "injectWorkspacePackages" there is no snapshot to bind it to."#
@@ -110,11 +107,7 @@ enum DeployError {
             r#"Pin '{peer}' to a single version with an "overrides" entry, set "injectWorkspacePackages" to true, or run "pnpm deploy" with the "--legacy" flag."#
         )
     )]
-    AmbiguousPeer {
-        package: String,
-        peer: String,
-        versions: String,
-    },
+    AmbiguousPeer { package: String, peer: String, versions: String },
 
     #[display("The selected project is missing from pnpm-lock.yaml: {project_id}")]
     #[diagnostic(code(ERR_PNPM_CANNOT_DEPLOY))]
@@ -126,10 +119,7 @@ enum DeployError {
         workspace_dir.display()
     )]
     #[diagnostic(code(ERR_PNPM_CANNOT_DEPLOY))]
-    UnsafeLockfilePath {
-        path: PathBuf,
-        workspace_dir: PathBuf,
-    },
+    UnsafeLockfilePath { path: PathBuf, workspace_dir: PathBuf },
 }
 
 #[derive(Clone)]
@@ -154,9 +144,7 @@ struct DeployWorkspaceConfig {
 
 enum DeployInstallMode {
     Legacy,
-    Shared {
-        workspace_config: DeployWorkspaceConfig,
-    },
+    Shared { workspace_config: DeployWorkspaceConfig },
 }
 
 impl DeployArgs {
@@ -165,9 +153,8 @@ impl DeployArgs {
         config: &'static Config,
         dir: &Path,
     ) -> miette::Result<()> {
-        let workspace_dir = config.workspace_dir
-            .as_deref()
-            .ok_or_else(|| cannot_deploy_error(dir))?;
+        let workspace_dir =
+            config.workspace_dir.as_deref().ok_or_else(|| cannot_deploy_error(dir))?;
         let selected = select_project(config, workspace_dir, dir)?;
         if self.target_dirs.len() != 1 {
             return Err(DeployError::InvalidDeployTarget.into());
@@ -202,8 +189,7 @@ impl DeployArgs {
             );
         }
 
-        self.run_legacy_deploy::<ReporterT>(config, &selected, &deploy_dir, source_hooks)
-            .await
+        self.run_legacy_deploy::<ReporterT>(config, &selected, &deploy_dir, source_hooks).await
     }
 
     async fn run_legacy_deploy<ReporterT: Reporter + 'static>(
@@ -295,9 +281,7 @@ impl DeployArgs {
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
             config,
             deploy_dir,
-            DeployInstallMode::Shared {
-                workspace_config: deploy_files.workspace_config,
-            },
+            DeployInstallMode::Shared { workspace_config: deploy_files.workspace_config },
             true,
             source_hooks,
             None,
@@ -347,10 +331,7 @@ fn select_project(
         .into_iter()
         .find(|project| lexical_normalize(&project.root_dir) == selected_root)
         .ok_or(DeployError::NothingToDeploy)?;
-    Ok(SelectedProject {
-        project,
-        projects_by_path,
-    })
+    Ok(SelectedProject { project, projects_by_path })
 }
 
 /// Index the workspace projects by [`ProjectPathKey`]. When two roots compare

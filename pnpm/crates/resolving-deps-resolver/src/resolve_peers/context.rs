@@ -85,16 +85,11 @@ impl<Element> Default for SharedChain<Element> {
 
 impl<Element> SharedChain<Element> {
     pub(crate) fn pushed(&self, value: Element) -> Self {
-        SharedChain(Some(Arc::new(SharedChainLink {
-            value,
-            parent: self.0.clone(),
-        })))
+        SharedChain(Some(Arc::new(SharedChainLink { value, parent: self.0.clone() })))
     }
 
     pub(crate) fn iter(&self) -> SharedChainIter<'_, Element> {
-        SharedChainIter {
-            next: self.0.as_deref(),
-        }
+        SharedChainIter { next: self.0.as_deref() }
     }
 }
 
@@ -127,9 +122,7 @@ pub(super) struct ChainSuffixMemo<Element> {
 
 impl<Element> Default for ChainSuffixMemo<Element> {
     fn default() -> Self {
-        ChainSuffixMemo {
-            answers: HashMap::default(),
-        }
+        ChainSuffixMemo { answers: HashMap::default() }
     }
 }
 
@@ -173,10 +166,7 @@ fn link_key<Element>(link: &Arc<SharedChainLink<Element>>) -> usize {
 
 impl<Element: Clone> SharedChain<Element> {
     pub(crate) fn to_root_vec(&self) -> Vec<Element> {
-        let mut values: Vec<Element> = self
-            .iter()
-            .cloned()
-            .collect();
+        let mut values: Vec<Element> = self.iter().cloned().collect();
         values.reverse();
         values
     }
@@ -225,9 +215,7 @@ impl Walker<'_> {
                 .as_ref()
                 .and_then(|nid| self.tree.dependencies_tree.get(nid))
                 .map(|tn| std::sync::Arc::<str>::clone(&tn.resolved_package_id));
-            let version = pkg_id
-                .is_none()
-                .then(|| parent_ref.version.clone());
+            let version = pkg_id.is_none().then(|| parent_ref.version.clone());
             out.insert(
                 name.clone(),
                 ParentPkgInfo {
@@ -271,10 +259,9 @@ impl Walker<'_> {
         own_child_parent_pkg: &ParentRef,
         node_id: &NodeId,
     ) -> bool {
-        let (Some(inherited_node_id), Some(own_child_node_id)) = (
-            inherited_parent_pkg.node_id.as_ref(),
-            own_child_parent_pkg.node_id.as_ref(),
-        ) else {
+        let (Some(inherited_node_id), Some(own_child_node_id)) =
+            (inherited_parent_pkg.node_id.as_ref(), own_child_parent_pkg.node_id.as_ref())
+        else {
             return false;
         };
         if inherited_node_id == own_child_node_id {
@@ -312,12 +299,8 @@ impl Walker<'_> {
             if !self.tree.all_peer_dep_names.contains(peer_name) {
                 continue;
             }
-            let Some(inherited_peer) = inherited_context.get(peer_name) else {
-                continue;
-            };
-            let Some(current_peer) = parent_refs.get(peer_name) else {
-                continue;
-            };
+            let Some(inherited_peer) = inherited_context.get(peer_name) else { continue };
+            let Some(current_peer) = parent_refs.get(peer_name) else { continue };
             if self.parent_peer_differs(current_peer, inherited_peer) {
                 conflicting_peers.insert(peer_name.clone());
             }
@@ -334,13 +317,9 @@ impl Walker<'_> {
         parent_pkg_name: &str,
         conflicting_peers: &HashSet<String>,
     ) -> bool {
-        let Some(node) = self.tree.dependencies_tree.get(node_id) else {
-            return false;
-        };
+        let Some(node) = self.tree.dependencies_tree.get(node_id) else { return false };
         for child_pkg_id in self.child_pkg_ids_of(node) {
-            let Some(child_pkg) = self.tree.packages.get(child_pkg_id) else {
-                continue;
-            };
+            let Some(child_pkg) = self.tree.packages.get(child_pkg_id) else { continue };
             if !child_pkg.peer_dependencies.contains_key(parent_pkg_name) {
                 continue;
             }

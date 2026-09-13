@@ -19,12 +19,7 @@ fn drops_invalid_upstream_revision_history_entries() {
     });
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
 
-    rewrite_upstream_tarball_urls(
-        &mut doc,
-        &name,
-        "https://upstream.test/",
-        "http://pnpr.test/",
-    );
+    rewrite_upstream_tarball_urls(&mut doc, &name, "https://upstream.test/", "http://pnpr.test/");
 
     assert_eq!(doc["dist"]["revisions"], json!([]));
 }

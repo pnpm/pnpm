@@ -32,18 +32,10 @@ fn architecture_flags_do_not_consume_the_trailing_command() {
     ])
     .expect("parse dlx args");
 
-    assert_eq!(
-        parsed.dlx.cpu,
-        ["arm64", "x64"],
-        "comma-separated --cpu values are split",
-    );
+    assert_eq!(parsed.dlx.cpu, ["arm64", "x64"], "comma-separated --cpu values are split");
     assert_eq!(parsed.dlx.os, ["linux"]);
     assert_eq!(parsed.dlx.libc, ["musl"]);
-    assert_eq!(
-        parsed.dlx.command,
-        ["cowsay", "hello"],
-        "the command must survive after the flags",
-    );
+    assert_eq!(parsed.dlx.command, ["cowsay", "hello"], "the command must survive after the flags");
 }
 
 #[test]
@@ -66,28 +58,14 @@ fn regs(default: &str) -> BTreeMap<String, String> {
 #[test]
 fn create_cache_key_is_order_independent_and_deterministic() {
     let registry = "https://registry.npmjs.org/";
-    let key_forward = create_cache_key(
-        &["a".to_string(), "b".to_string()],
-        &regs(registry),
-        &[],
-        None,
-    );
-    let key_reversed = create_cache_key(
-        &["b".to_string(), "a".to_string()],
-        &regs(registry),
-        &[],
-        None,
-    );
-    assert_eq!(
-        key_forward, key_reversed,
-        "the key must not depend on spec order",
-    );
+    let key_forward =
+        create_cache_key(&["a".to_string(), "b".to_string()], &regs(registry), &[], None);
+    let key_reversed =
+        create_cache_key(&["b".to_string(), "a".to_string()], &regs(registry), &[], None);
+    assert_eq!(key_forward, key_reversed, "the key must not depend on spec order");
 
     let key_versioned = create_cache_key(&["a@1".to_string()], &regs(registry), &[], None);
-    assert_ne!(
-        key_forward, key_versioned,
-        "different specs must produce different keys",
-    );
+    assert_ne!(key_forward, key_versioned, "different specs must produce different keys");
 }
 
 #[test]
@@ -95,10 +73,7 @@ fn create_cache_key_depends_on_registry() {
     let pkgs = ["cowsay".to_string()];
     let key_default = create_cache_key(&pkgs, &regs("https://registry.npmjs.org/"), &[], None);
     let key_custom = create_cache_key(&pkgs, &regs("https://example.test/"), &[], None);
-    assert_ne!(
-        key_default, key_custom,
-        "a different registry must produce a different key",
-    );
+    assert_ne!(key_default, key_custom, "a different registry must produce a different key");
 }
 
 #[test]
@@ -107,32 +82,18 @@ fn create_cache_key_changes_with_allow_build() {
     let registry = "https://registry.npmjs.org/";
     let key_no_allow = create_cache_key(&pkgs, &regs(registry), &[], None);
     let key_with_allow = create_cache_key(&pkgs, &regs(registry), &["cowsay".to_string()], None);
-    assert_ne!(
-        key_no_allow, key_with_allow,
-        "allow_build must change the key",
-    );
+    assert_ne!(key_no_allow, key_with_allow, "allow_build must change the key");
 }
 
 #[test]
 fn create_cache_key_allow_build_is_order_independent() {
     let pkgs = ["cowsay".to_string()];
     let registry = "https://registry.npmjs.org/";
-    let key_forward = create_cache_key(
-        &pkgs,
-        &regs(registry),
-        &["a".to_string(), "b".to_string()],
-        None,
-    );
-    let key_reversed = create_cache_key(
-        &pkgs,
-        &regs(registry),
-        &["b".to_string(), "a".to_string()],
-        None,
-    );
-    assert_eq!(
-        key_forward, key_reversed,
-        "allow_build order must not affect the key",
-    );
+    let key_forward =
+        create_cache_key(&pkgs, &regs(registry), &["a".to_string(), "b".to_string()], None);
+    let key_reversed =
+        create_cache_key(&pkgs, &regs(registry), &["b".to_string(), "a".to_string()], None);
+    assert_eq!(key_forward, key_reversed, "allow_build order must not affect the key");
 }
 
 #[test]
@@ -141,25 +102,13 @@ fn create_cache_key_changes_with_supported_architectures() {
     let registry = "https://registry.npmjs.org/";
     let base = create_cache_key(&pkgs, &regs(registry), &[], None);
 
-    let arm = SupportedArchitectures {
-        cpu: Some(vec!["arm64".to_string()]),
-        ..Default::default()
-    };
-    let x64 = SupportedArchitectures {
-        cpu: Some(vec!["x64".to_string()]),
-        ..Default::default()
-    };
+    let arm = SupportedArchitectures { cpu: Some(vec!["arm64".to_string()]), ..Default::default() };
+    let x64 = SupportedArchitectures { cpu: Some(vec!["x64".to_string()]), ..Default::default() };
     let key_arm = create_cache_key(&pkgs, &regs(registry), &[], Some(&arm));
     let key_x64 = create_cache_key(&pkgs, &regs(registry), &[], Some(&x64));
 
-    assert_ne!(
-        base, key_arm,
-        "an architecture override must change the key",
-    );
-    assert_ne!(
-        key_arm, key_x64,
-        "different --cpu values must produce different keys",
-    );
+    assert_ne!(base, key_arm, "an architecture override must change the key");
+    assert_ne!(key_arm, key_x64, "different --cpu values must produce different keys");
 
     let arm_dup = SupportedArchitectures {
         cpu: Some(vec!["arm64".to_string(), "arm64".to_string()]),
@@ -223,10 +172,7 @@ fn get_valid_cache_dir_honors_max_age() {
     );
 
     let past = mtime + Duration::from_mins(1441);
-    assert!(
-        get_valid_cache_dir(&link, 1440, past).is_none(),
-        "an expired link must be rejected",
-    );
+    assert!(get_valid_cache_dir(&link, 1440, past).is_none(), "an expired link must be rejected");
 }
 
 #[expect(
@@ -288,11 +234,8 @@ fn get_bin_name_uses_installed_manifest_name_not_alias() {
 #[test]
 fn get_bin_name_errors_when_no_dependency() {
     let dir = tempdir().expect("temp dir");
-    fs::write(
-        dir.path().join("package.json"),
-        serde_json::json!({}).to_string(),
-    )
-    .expect("write manifest");
+    fs::write(dir.path().join("package.json"), serde_json::json!({}).to_string())
+        .expect("write manifest");
     assert!(matches!(get_bin_name(dir.path()), Err(DlxError::NoDep)));
 }
 
@@ -306,10 +249,7 @@ fn get_bin_name_errors_on_ambiguous_bins() {
             "bin": { "one": "one.js", "two": "two.js" },
         }),
     );
-    assert!(matches!(
-        get_bin_name(dir.path()),
-        Err(DlxError::MultipleBins { .. })
-    ));
+    assert!(matches!(get_bin_name(dir.path()), Err(DlxError::MultipleBins { .. })));
 }
 
 /// A dlx-installed runtime (`pnpm dlx node@runtime:<version>`) is recorded
@@ -348,14 +288,8 @@ fn only_managed_tools_are_provisioned_by_name() {
     use super::provision::{parse_package_manager_spec, parse_runtime_spec};
     use crate::engine_pm::channel::PackageManager;
 
-    assert_eq!(
-        parse_package_manager_spec("yarn@4"),
-        Some((PackageManager::Yarn, "4")),
-    );
-    assert_eq!(
-        parse_package_manager_spec("npm"),
-        Some((PackageManager::Npm, "latest")),
-    );
+    assert_eq!(parse_package_manager_spec("yarn@4"), Some((PackageManager::Yarn, "4")));
+    assert_eq!(parse_package_manager_spec("npm"), Some((PackageManager::Npm, "latest")));
     assert_eq!(parse_package_manager_spec("typescript@5"), None);
     // A scoped package's leading `@` is not a version separator.
     assert_eq!(parse_package_manager_spec("@yarnpkg/cli-dist@4.9.2"), None);
@@ -367,10 +301,7 @@ fn only_managed_tools_are_provisioned_by_name() {
 
     // A specifier that locates a package names what to install, whether it
     // spells out a protocol or uses the GitHub shorthand.
-    assert_eq!(
-        parse_package_manager_spec("yarn@npm:@yarnpkg/cli-dist@4.9.2"),
-        None,
-    );
+    assert_eq!(parse_package_manager_spec("yarn@npm:@yarnpkg/cli-dist@4.9.2"), None);
     assert_eq!(parse_package_manager_spec("yarn@yarnpkg/berry"), None);
     assert_eq!(parse_package_manager_spec("yarn@yarnpkg/berry#main"), None);
     assert_eq!(parse_runtime_spec("node@github:nodejs/node"), None);

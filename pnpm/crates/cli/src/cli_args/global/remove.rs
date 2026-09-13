@@ -19,7 +19,7 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
     let _global_bin_lock = acquire_global_bin_lock(&global_bin_dir)?;
 
     let groups = requested_global_groups(&global_pkg_dir, params)?;
-    let protected = protected_group_bins(&global_pkg_dir, &groups)?;
+    let protected = protected_bins_for_removal(&global_pkg_dir, &groups)?;
     let shims_to_restore = virtual_shims_to_restore(
         &groups,
         &global_bin_dir,
@@ -54,6 +54,20 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
     removed_global_install_result(cleanup_removed_global_install_dirs(&groups, &cleanup))
 }
 
+fn protected_bins_for_removal(
+    global_pkg_dir: &Path,
+    groups: &[GlobalPackageBinSnapshot],
+) -> miette::Result<HashSet<String>> {
+    bin_names_of_other_groups(
+        global_pkg_dir,
+        &groups
+            .iter()
+            .map(|pkg| pkg.info.hash.clone())
+            .collect::<HashSet<_>>(),
+    )
+    .wrap_err("scan global package bin ownership")
+}
+
 /// The groups holding the requested packages, each with the bins it owns.
 /// Bins shared with (and owned by) groups that survive the removal must not
 /// be unlinked, or another global package's bin would be deleted.
@@ -68,10 +82,7 @@ fn requested_global_groups(
             .into_diagnostic()
             .wrap_err("scan global packages")?
         else {
-            return Err(GlobalError::PkgNotFound {
-                param: param.clone(),
-            }
-            .into());
+            return Err(GlobalError::PkgNotFound { param: param.clone() }.into());
         };
         if seen.insert(pkg.hash.clone()) {
             groups.push(pkg);
@@ -103,10 +114,7 @@ pub(super) fn snapshot_global_package(
     info: GlobalPackageInfo,
 ) -> miette::Result<GlobalPackageBinSnapshot> {
     let bin_names = get_installed_bin_names(&info).map_err(miette::Report::new)?;
-    Ok(GlobalPackageBinSnapshot {
-        info,
-        bin_names,
-    })
+    Ok(GlobalPackageBinSnapshot { info, bin_names })
 }
 
 pub(super) fn collect_existing_global_installs(
@@ -133,10 +141,7 @@ pub(super) fn collect_existing_global_installs(
         .map(|pkg| pkg.info.hash.clone())
         .collect();
     let protected_bins = bin_names_of_other_groups(global_pkg_dir, &exclude)?;
-    Ok(ExistingGlobalInstalls {
-        groups_to_replace,
-        protected_bins,
-    })
+    Ok(ExistingGlobalInstalls { groups_to_replace, protected_bins })
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -163,10 +168,9 @@ pub(super) struct GlobalRemovalTransaction<'a> {
 
 pub(super) trait FsGlobalRemoval: FsRename {
     fn remove_bin_slot(path: &Path) -> io::Result<()> {
-        if let (Some(bin_dir), Some(name)) = (
-            path.parent(),
-            path.file_name().and_then(std::ffi::OsStr::to_str),
-        ) {
+        if let (Some(bin_dir), Some(name)) =
+            (path.parent(), path.file_name().and_then(std::ffi::OsStr::to_str))
+        {
             remove_native_shim(bin_dir, name)?;
         }
         remove_cmd_shim(path)
@@ -304,10 +308,7 @@ fn removed_global_install_result(
     if cleanup_reports.len() == 1 {
         return Err(miette::Report::new(cleanup_reports.remove(0)));
     }
-    Err(RemovedGlobalInstallCleanupError {
-        cleanup_reports,
-    }
-    .into())
+    Err(RemovedGlobalInstallCleanupError { cleanup_reports }.into())
 }
 
 fn cleanup_global_bin_names<Sys: FsGlobalRemoval>(
@@ -381,18 +382,4 @@ fn cleanup_global_install_dir(
         }
     }
     None
-}
-
-fn protected_group_bins(
-    global_pkg_dir: &Path,
-    groups: &[GlobalPackageBinSnapshot],
-) -> miette::Result<HashSet<String>> {
-    bin_names_of_other_groups(
-        global_pkg_dir,
-        &groups
-            .iter()
-            .map(|pkg| pkg.info.hash.clone())
-            .collect::<HashSet<_>>(),
-    )
-    .wrap_err("scan global package bin ownership")
 }

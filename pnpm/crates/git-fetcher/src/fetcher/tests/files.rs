@@ -50,14 +50,8 @@ async fn fetcher_packs_subfolder_when_path_set() {
         .keys()
         .map(String::as_str)
         .collect();
-    assert!(
-        keys.contains(&"package.json"),
-        "sub-dir manifest must be included: {keys:?}",
-    );
-    assert!(
-        keys.contains(&"index.js"),
-        "sub-dir main must be included: {keys:?}",
-    );
+    assert!(keys.contains(&"package.json"), "sub-dir manifest must be included: {keys:?}");
+    assert!(keys.contains(&"index.js"), "sub-dir main must be included: {keys:?}");
     assert!(
         !keys
             .iter()
@@ -75,11 +69,7 @@ async fn fetcher_skips_build_when_ignore_scripts() {
     let bare = tmp.path().join("repo.git");
     fs::create_dir_all(&work).unwrap();
     exec_git(&["init", "-q", "-b", "main"], Some(&work)).unwrap();
-    exec_git(
-        &["config", "user.email", "test@example.invalid"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["config", "user.email", "test@example.invalid"], Some(&work)).unwrap();
     exec_git(&["config", "user.name", "Test"], Some(&work)).unwrap();
     fs::write(
         work.join("package.json"),
@@ -88,26 +78,13 @@ async fn fetcher_skips_build_when_ignore_scripts() {
     .unwrap();
     fs::write(work.join("index.js"), "module.exports = 1;\n").unwrap();
     exec_git(&["add", "-A"], Some(&work)).unwrap();
-    exec_git(
-        &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"],
-        Some(&work),
-    )
-    .unwrap();
+    exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
     let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
         .unwrap()
         .trim()
         .to_string();
-    exec_git(
-        &[
-            "clone",
-            "--bare",
-            "-q",
-            &work.to_string_lossy(),
-            &bare.to_string_lossy(),
-        ],
-        None,
-    )
-    .unwrap();
+    exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
+        .unwrap();
 
     let store_root = tempdir().unwrap();
     let store_dir = StoreDir::from(store_root.path().to_path_buf());

@@ -86,10 +86,7 @@ fn assert_side_effects_materialized(hoisted: bool) {
 
     eprintln!("Frozen install (builds, writes the side-effects cache)...");
     run_frozen_install(&workspace);
-    assert!(
-        postinstall_artifact.exists(),
-        "postinstall must run on the first frozen install",
-    );
+    assert!(postinstall_artifact.exists(), "postinstall must run on the first frozen install");
 
     eprintln!("Wiping node_modules (keep store + lockfile, like a fresh CI checkout)...");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");

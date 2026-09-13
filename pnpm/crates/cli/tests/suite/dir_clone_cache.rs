@@ -30,11 +30,7 @@ fn canonical_pkg_dir(store_dir: &Path, name: &str, version: &str) -> PathBuf {
         .unwrap_or_else(|err| panic!("read hash dirs under {version_dir:?}: {err}"))
         .map(|entry| entry.expect("read hash dir entry").path())
         .collect();
-    assert_eq!(
-        hashes.len(),
-        1,
-        "expected one hash dir under {version_dir:?}, got {hashes:?}",
-    );
+    assert_eq!(hashes.len(), 1, "expected one hash dir under {version_dir:?}, got {hashes:?}");
     hashes[0].join("node_modules").join(name)
 }
 
@@ -76,10 +72,7 @@ fn warm_reinstall_is_served_from_the_canonical_slot() {
     );
     let canonical_manifest =
         canonical_pkg_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0").join("package.json");
-    assert!(
-        canonical_manifest.exists(),
-        "the install must populate the canonical slot",
-    );
+    assert!(canonical_manifest.exists(), "the install must populate the canonical slot");
 
     // Unlink-then-write so the plant never reaches a store file the
     // slot might share an inode with.

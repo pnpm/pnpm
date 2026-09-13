@@ -24,7 +24,5 @@ pub(crate) fn workspace_link_root(
     if !requested {
         return Ok(None);
     }
-    workspace_root
-        .ok_or_else(|| WorkspaceOptionError::OutsideWorkspace.into())
-        .map(Some)
+    workspace_root.ok_or_else(|| WorkspaceOptionError::OutsideWorkspace.into()).map(Some)
 }

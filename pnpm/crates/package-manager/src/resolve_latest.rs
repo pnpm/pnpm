@@ -51,11 +51,7 @@ pub enum ResolveLatestError {
         "the registry served a manifest for {name}@{version} that pnpm could not read, so the version was skipped: {error}"
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNDECODABLE_LATEST_MANIFEST))]
-    UndecodableLatestManifest {
-        name: String,
-        version: String,
-        error: String,
-    },
+    UndecodableLatestManifest { name: String, version: String, error: String },
 }
 
 /// Maturity-aware picker for `latest` dist-tags (see the module docs for

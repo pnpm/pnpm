@@ -25,10 +25,7 @@ impl GetHomeDir for NoCredentialAccess {
 
 fn configured() -> Arc<AuthHeaders> {
     Arc::new(AuthHeaders::from_creds_map([
-        (
-            "//index.crates.io/".to_string(),
-            "Bearer pnpm-token".to_string(),
-        ),
+        ("//index.crates.io/".to_string(), "Bearer pnpm-token".to_string()),
         ("//npm.example/".to_string(), "Bearer npm-token".to_string()),
     ]))
 }
@@ -59,11 +56,8 @@ fn offline_mode_does_not_read_cargo_credentials() {
 #[test]
 fn credentials_token_is_bare_and_preserves_other_routes() {
     let cargo_home = tempfile::tempdir().unwrap();
-    fs::write(
-        cargo_home.path().join("credentials.toml"),
-        "[registry]\ntoken = 'cargo-token'\n",
-    )
-    .unwrap();
+    fs::write(cargo_home.path().join("credentials.toml"), "[registry]\ntoken = 'cargo-token'\n")
+        .unwrap();
 
     let resolved = crates_io_from_sources(&configured(), None, Some(cargo_home.path())).unwrap();
 
@@ -71,10 +65,7 @@ fn credentials_token_is_bare_and_preserves_other_routes() {
         resolved.for_url("https://index.crates.io/se/rd/serde"),
         Some("cargo-token".to_string()),
     );
-    assert_eq!(
-        resolved.for_url("https://static.crates.io/crates/serde/serde-1.0.0.crate"),
-        None,
-    );
+    assert_eq!(resolved.for_url("https://static.crates.io/crates/serde/serde-1.0.0.crate"), None);
     assert_eq!(
         resolved.for_url("https://npm.example/package"),
         Some("Bearer npm-token".to_string()),
@@ -84,11 +75,7 @@ fn credentials_token_is_bare_and_preserves_other_routes() {
 #[test]
 fn environment_token_overrides_the_credentials_file() {
     let cargo_home = tempfile::tempdir().unwrap();
-    fs::write(
-        cargo_home.path().join("credentials.toml"),
-        "not valid TOML = [",
-    )
-    .unwrap();
+    fs::write(cargo_home.path().join("credentials.toml"), "not valid TOML = [").unwrap();
 
     let resolved = crates_io_from_sources(
         &configured(),
@@ -106,23 +93,12 @@ fn environment_token_overrides_the_credentials_file() {
 #[test]
 fn legacy_credentials_file_wins_when_both_exist() {
     let cargo_home = tempfile::tempdir().unwrap();
-    fs::write(
-        cargo_home.path().join("credentials"),
-        "[registry]\ntoken = 'legacy'\n",
-    )
-    .unwrap();
-    fs::write(
-        cargo_home.path().join("credentials.toml"),
-        "[registry]\ntoken = 'toml'\n",
-    )
-    .unwrap();
+    fs::write(cargo_home.path().join("credentials"), "[registry]\ntoken = 'legacy'\n").unwrap();
+    fs::write(cargo_home.path().join("credentials.toml"), "[registry]\ntoken = 'toml'\n").unwrap();
 
     let resolved = crates_io_from_sources(&configured(), None, Some(cargo_home.path())).unwrap();
 
-    assert_eq!(
-        resolved.for_url("https://index.crates.io/config.json"),
-        Some("legacy".to_string()),
-    );
+    assert_eq!(resolved.for_url("https://index.crates.io/config.json"), Some("legacy".to_string()));
 }
 
 #[test]

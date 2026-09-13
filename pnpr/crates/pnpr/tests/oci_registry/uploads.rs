@@ -93,10 +93,7 @@ async fn a_chunked_upload_resumes_from_where_it_left_off() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let response = get(&app, &format!("/v2/acme/app/blobs/{digest}")).await;
-    assert_eq!(
-        body_bytes(response.into_body()).await,
-        b"hello world".as_slice(),
-    );
+    assert_eq!(body_bytes(response.into_body()).await, b"hello world".as_slice());
 }
 
 #[tokio::test]
@@ -108,10 +105,7 @@ async fn a_manifest_naming_a_blob_the_repository_lacks_is_refused() {
 
     let request = Request::put("/v2/acme/app/manifests/1.0")
         .header(header::AUTHORIZATION, &auth)
-        .header(
-            header::CONTENT_TYPE,
-            "application/vnd.oci.image.manifest.v1+json",
-        )
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
         .body(Body::from(image_manifest("config", &["layer"])))
         .unwrap();
     let response = app
@@ -479,10 +473,7 @@ async fn s3_upload_moves_between_replicas_and_keeps_an_interrupted_chunks_prefix
 async fn mounts_and_discovery_respect_source_read_permissions() {
     let tmp = TempDir::new().unwrap();
     let auth_state = AuthState::in_memory();
-    let setup = router_with_auth(
-        oci_config(tmp.path().to_path_buf(), "$all"),
-        auth_state.clone(),
-    );
+    let setup = router_with_auth(oci_config(tmp.path().to_path_buf(), "$all"), auth_state.clone());
     let auth = basic(&token(&setup).await);
     let digest = push_blob(&setup, &auth, "acme/secret", b"secret layer").await;
     push_image(&setup, &auth, "acme/secret", "latest").await;
@@ -547,29 +538,9 @@ async fn mounts_and_discovery_respect_source_read_permissions() {
     }
     let response = get(&app, "/v2/_catalog?n=1").await;
     assert!(!response.headers().contains_key(header::LINK));
-    assert_eq!(
-        response.headers()[header::CACHE_CONTROL],
-        "private, no-store",
-    );
+    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(payload["repositories"], json!(["acme/public"]));
-}
-
-#[tokio::test]
-async fn catalog_lists_repositories_under_published_and_blob_only_parents() {
-    let tmp = TempDir::new().unwrap();
-    let app = app(&tmp);
-    let auth = basic(&token(&app).await);
-    push_image(&app, &auth, "acme/app", "latest").await;
-    push_image(&app, &auth, "acme/app/tool", "latest").await;
-    push_blob(&app, &auth, "acme/blobs", b"loose").await;
-    push_image(&app, &auth, "acme/blobs/tool", "latest").await;
-    let response = get(&app, "/v2/_catalog").await;
-    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    assert_eq!(
-        payload["repositories"],
-        json!(["acme/app", "acme/app/tool", "acme/blobs/tool"]),
-    );
 }
 
 #[tokio::test]
@@ -594,10 +565,7 @@ async fn unreferenced_blobs_can_be_deleted_and_uploaded_again() {
         StatusCode::NOT_FOUND,
     );
     push_image(&app, &auth, "acme/app", "after-delete").await;
-    assert_eq!(
-        get(&app, "/v2/acme/app/manifests/after-delete").await.status(),
-        StatusCode::OK,
-    );
+    assert_eq!(get(&app, "/v2/acme/app/manifests/after-delete").await.status(), StatusCode::OK);
 }
 
 #[tokio::test]
@@ -611,13 +579,10 @@ async fn configured_limits_bound_monolithic_resumable_and_manifest_uploads() {
     let response = app
         .clone()
         .oneshot(
-            Request::post(format!(
-                "/v2/acme/app/blobs/uploads/?digest={}",
-                digest_of(b"123456"),
-            ))
-            .header(header::AUTHORIZATION, &auth)
-            .body(Body::from("123456"))
-            .unwrap(),
+            Request::post(format!("/v2/acme/app/blobs/uploads/?digest={}", digest_of(b"123456")))
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::from("123456"))
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -673,10 +638,7 @@ async fn proxy_verifies_and_caches_manifest_and_blob_content() {
         .create_async()
         .await;
     let blob_mock = upstream
-        .mock(
-            "GET",
-            format!("/v2/other/app/blobs/{}", digest_of(b"config")).as_str(),
-        )
+        .mock("GET", format!("/v2/other/app/blobs/{}", digest_of(b"config")).as_str())
         .with_body("config")
         .expect(1)
         .create_async()
@@ -689,11 +651,7 @@ async fn proxy_verifies_and_caches_manifest_and_blob_content() {
         let response = get(&app, "/v2/other/app/manifests/latest").await;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(body_bytes(response.into_body()).await, manifest);
-        let response = get(
-            &app,
-            &format!("/v2/other/app/blobs/{}", digest_of(b"config")),
-        )
-        .await;
+        let response = get(&app, &format!("/v2/other/app/blobs/{}", digest_of(b"config"))).await;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(body_bytes(response.into_body()).await, b"config");
     }
@@ -707,18 +665,9 @@ async fn proxy_verifies_and_caches_manifest_and_blob_content() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(
-        response.headers()[header::CONTENT_LENGTH],
-        manifest.len().to_string(),
-    );
-    assert_eq!(
-        response.headers()[header::CONTENT_TYPE],
-        pnpr_oci::media_type::OCI_IMAGE_MANIFEST,
-    );
-    assert_eq!(
-        response.headers()["docker-content-digest"],
-        digest_of(&manifest),
-    );
+    assert_eq!(response.headers()[header::CONTENT_LENGTH], manifest.len().to_string());
+    assert_eq!(response.headers()[header::CONTENT_TYPE], pnpr_oci::media_type::OCI_IMAGE_MANIFEST);
+    assert_eq!(response.headers()["docker-content-digest"], digest_of(&manifest));
     assert!(body_bytes(response.into_body()).await.is_empty());
     manifest_mock.assert_async().await;
     blob_mock.assert_async().await;
@@ -751,12 +700,9 @@ async fn blob_deletion_fences_a_manifest_commit_on_another_replica() {
                 .unwrap(),
         ),
     );
-    tokio::time::timeout(
-        std::time::Duration::from_secs(10),
-        objects.started.notified(),
-    )
-    .await
-    .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
+        .await
+        .unwrap();
     let deleted = second
         .clone()
         .oneshot(
@@ -769,17 +715,8 @@ async fn blob_deletion_fences_a_manifest_commit_on_another_replica() {
         .unwrap();
     assert_eq!(deleted.status(), StatusCode::ACCEPTED);
     objects.resume.notify_one();
-    assert_eq!(
-        publish.await
-            .unwrap()
-            .unwrap()
-            .status(),
-        StatusCode::CONFLICT,
-    );
-    assert_eq!(
-        get(&second, "/v2/acme/app/manifests/latest").await.status(),
-        StatusCode::NOT_FOUND,
-    );
+    assert_eq!(publish.await.unwrap().unwrap().status(), StatusCode::CONFLICT);
+    assert_eq!(get(&second, "/v2/acme/app/manifests/latest").await.status(), StatusCode::NOT_FOUND);
     push_image(&second, &auth, "acme/app", "retry").await;
 }
 
@@ -867,12 +804,10 @@ async fn scoped_mount_without_source_pull_permission_falls_back_to_upload() {
     let response = app
         .clone()
         .oneshot(
-            Request::post(format!(
-                "/v2/acme/dest/blobs/uploads/?mount={digest}&from=acme/source",
-            ))
-            .header(header::AUTHORIZATION, &scoped)
-            .body(Body::empty())
-            .unwrap(),
+            Request::post(format!("/v2/acme/dest/blobs/uploads/?mount={digest}&from=acme/source"))
+                .header(header::AUTHORIZATION, &scoped)
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();

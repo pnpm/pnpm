@@ -196,19 +196,13 @@ impl NativeRenderer {
             }),
         };
         let state = ReporterState::new_with_options(
-            options.cwd
-                .clone()
-                .unwrap_or_else(|| dir.to_string()),
+            options.cwd.clone().unwrap_or_else(|| dir.to_string()),
             width,
             colors,
             renderer_state_options(options, append_only),
         );
         let throttle = options.throttle_progress.map_or(
-            if append_only {
-                Duration::from_secs(1)
-            } else {
-                Duration::from_millis(200)
-            },
+            if append_only { Duration::from_secs(1) } else { Duration::from_millis(200) },
             |ms| Duration::from_millis(u64::from(ms)),
         );
         NativeRenderer {
@@ -278,6 +272,24 @@ impl NativeRenderer {
 }
 
 /// Match pnpm's outputMaxWidth, floored at one column for narrow terminals.
+fn renderer_state_options(options: &ReporterOptions, append_only: bool) -> StateOptions {
+    StateOptions {
+        append_only,
+        ignored_builds_instruction_text: options.ignored_builds_instruction_text.clone(),
+        hide_linked_pkgs_diff: options.hide_linked_pkgs_diff.clone().unwrap_or_default(),
+        max_log_level: parse_log_level(options.log_level.as_deref()),
+        lifecycle: pnpm_default_reporter::state::LifecycleOptions {
+            hide_output: options.hide_lifecycle_output.unwrap_or(false),
+            ..Default::default()
+        },
+        progress: pnpm_default_reporter::state::ProgressOptions {
+            hide_added_pkgs: options.hide_added_pkgs_progress.unwrap_or(false),
+            hide_prefix: options.hide_progress_prefix.unwrap_or(false),
+        },
+        ..StateOptions::default()
+    }
+}
+
 fn renderer_width(
     options: &ReporterOptions,
     destination: &Destination,
@@ -354,21 +366,3 @@ fn terminal_columns(_stream: StreamFd) -> Option<usize> {
 
 #[cfg(test)]
 mod tests;
-
-fn renderer_state_options(options: &ReporterOptions, append_only: bool) -> StateOptions {
-    StateOptions {
-        append_only,
-        ignored_builds_instruction_text: options.ignored_builds_instruction_text.clone(),
-        hide_linked_pkgs_diff: options.hide_linked_pkgs_diff.clone().unwrap_or_default(),
-        max_log_level: parse_log_level(options.log_level.as_deref()),
-        lifecycle: pnpm_default_reporter::state::LifecycleOptions {
-            hide_output: options.hide_lifecycle_output.unwrap_or(false),
-            ..Default::default()
-        },
-        progress: pnpm_default_reporter::state::ProgressOptions {
-            hide_added_pkgs: options.hide_added_pkgs_progress.unwrap_or(false),
-            hide_prefix: options.hide_progress_prefix.unwrap_or(false),
-        },
-        ..StateOptions::default()
-    }
-}

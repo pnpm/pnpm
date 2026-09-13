@@ -48,9 +48,7 @@ pub fn find_global_install_dirs(
         .collect();
     let mut install_dirs: Vec<PathBuf> = Vec::new();
     for pkg in packages {
-        let matched = pkg.dependencies
-            .iter()
-            .any(|(alias, _)| matches_params(&patterns, alias));
+        let matched = pkg.dependencies.iter().any(|(alias, _)| matches_params(&patterns, alias));
         if matched && !install_dirs.contains(&pkg.install_dir) {
             install_dirs.push(pkg.install_dir);
         }
@@ -109,13 +107,7 @@ fn listed_dep(pkg: &GlobalPackageInfo, installed: InstalledGlobalPackage) -> Lis
         .to_string();
     let location = pkg.install_dir.join("node_modules").join(&installed.alias);
     let path = location.to_string_lossy().into_owned();
-    ListedDep {
-        alias: installed.alias,
-        name,
-        version: installed.version,
-        location,
-        path,
-    }
+    ListedDep { alias: installed.alias, name, version: installed.version, location, path }
 }
 
 fn render_empty(global_dir: &str, params: &[String], report_as: ListReportAs) -> String {
@@ -192,10 +184,7 @@ fn parseable_long_line(dep: &ListedDep) -> String {
         if dep.version.contains('@') {
             return format!("{}:{} {}", dep.path, dep.alias, dep.version);
         }
-        return format!(
-            "{}:{} npm:{}@{}",
-            dep.path, dep.alias, dep.name, dep.version,
-        );
+        return format!("{}:{} npm:{}@{}", dep.path, dep.alias, dep.name, dep.version);
     }
     if dep.version.contains('@') {
         return format!("{}:{}", dep.path, dep.version);
@@ -231,18 +220,12 @@ fn render_tree(global_dir: &str, deps: &[ListedDep], long: bool) -> String {
                 label.push_str(&value);
             }
         }
-        leaves.push(TreeNode {
-            label,
-            groups: Vec::new(),
-        });
+        leaves.push(TreeNode { label, groups: Vec::new() });
     }
 
     let root = TreeNode {
         label: root_label,
-        groups: vec![Group {
-            group: cyan_bright("dependencies:"),
-            nodes: leaves,
-        }],
+        groups: vec![Group { group: cyan_bright("dependencies:"), nodes: leaves }],
     };
     let mut out = String::new();
     render_node(&root, "", "", &mut out);
@@ -255,11 +238,7 @@ fn leaf_label(dep: &ListedDep) -> String {
     if dep.alias != dep.name {
         // npm-aliased dependency.
         if !dep.version.contains('@') {
-            return format!(
-                "{}{}",
-                dep.alias,
-                gray(&format!("@npm:{}@{}", dep.name, dep.version)),
-            );
+            return format!("{}{}", dep.alias, gray(&format!("@npm:{}@{}", dep.name, dep.version)));
         }
         return format!("{}{}", dep.alias, gray(&format!("@{}", dep.version)));
     }
@@ -342,11 +321,7 @@ fn push_group_header(group: &str, prefix: &str, out: &mut String) {
 fn child_frames(prefix: &str, last: bool, parent: bool) -> (String, String) {
     let branch = if last { "\u{2514}" } else { "\u{251c}" };
     let stem = if parent { "\u{252c}" } else { "\u{2500}" };
-    let child_prefix = if last {
-        format!("{prefix}  ")
-    } else {
-        format!("{prefix}\u{2502} ")
-    };
+    let child_prefix = if last { format!("{prefix}  ") } else { format!("{prefix}\u{2502} ") };
     (format!("{prefix}{branch}\u{2500}{stem} "), child_prefix)
 }
 
@@ -375,27 +350,19 @@ fn matches_params(patterns: &[WildcardMatcher], alias: &str) -> bool {
 }
 
 fn dim(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.dimmed())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
 }
 
 fn bold(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.bold())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
 }
 
 fn cyan_bright(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.bright_cyan())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.bright_cyan()).to_string()
 }
 
 fn gray(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.bright_black())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.bright_black()).to_string()
 }
 
 #[cfg(test)]

@@ -91,11 +91,7 @@ fn cyclic_alias_peer_tree(direct_aliases: [&str; 3]) -> ResolvedTree {
                 "vite-plus" => (&vite_plus, "vite-plus@1.0.0"),
                 _ => unreachable!("unknown direct dependency alias {alias}"),
             };
-            DirectDep {
-                alias: alias.to_string(),
-                node_id: node_id.clone(),
-                id: id.to_string(),
-            }
+            DirectDep { alias: alias.to_string(), node_id: node_id.clone(), id: id.to_string() }
         })
         .collect();
 
@@ -115,22 +111,13 @@ fn cyclic_alias_peer_tree(direct_aliases: [&str; 3]) -> ResolvedTree {
                 Arc::from("@vitejs/devtools@1.0.0".to_string()),
                 package("@vitejs/devtools", "1.0.0", &[("vite", "*")], false),
             ),
-            (
-                "vite-plus@1.0.0".into(),
-                package("vite-plus", "1.0.0", &[], false),
-            ),
+            ("vite-plus@1.0.0".into(), package("vite-plus", "1.0.0", &[], false)),
         ]),
         dependencies_tree: HashMap::from_iter([
             (core_direct, tree_node("core@1.0.0", BTreeMap::new(), 0)),
             (core_nested, tree_node("core@1.0.0", BTreeMap::new(), 1)),
-            (
-                devtools,
-                tree_node("@vitejs/devtools@1.0.0", BTreeMap::new(), 0),
-            ),
-            (
-                vite_plus,
-                tree_node("vite-plus@1.0.0", vite_plus_children, 0),
-            ),
+            (devtools, tree_node("@vitejs/devtools@1.0.0", BTreeMap::new(), 0)),
+            (vite_plus, tree_node("vite-plus@1.0.0", vite_plus_children, 0)),
         ]),
         all_peer_dep_names: HashSet::from_iter([
             "@vitejs/devtools".to_string(),
@@ -150,10 +137,7 @@ fn assert_cyclic_alias_peer_graph_is_closed(result: &ResolvePeersResult) {
     let nested_core = &result.graph[vite_plus_path].edges.children["core"];
 
     assert_eq!(nested_core, vite_core);
-    assert_eq!(
-        vite_core,
-        &DepPath::from("core@1.0.0(@vitejs/devtools@1.0.0)"),
-    );
+    assert_eq!(vite_core, &DepPath::from("core@1.0.0(@vitejs/devtools@1.0.0)"));
     assert_eq!(
         result.direct_dependencies_by_alias["@vitejs/devtools"],
         DepPath::from("@vitejs/devtools@1.0.0(core@1.0.0)"),
@@ -208,10 +192,8 @@ mod locked_peer_provider_preferences {
         let mut retained_peer_node = tree_node("peer@2.0.0", BTreeMap::new(), 1);
         retained_peer_node.locked_mut().previous_dep_path = Some(DepPath::from("peer@2.0.0"));
         let mut consumer_node = tree_node("consumer@1.0.0", BTreeMap::new(), 1);
-        consumer_node.locked_mut().locked_peer_context = Some(BTreeMap::from([(
-            "peer".to_string(),
-            DepPath::from("peer@2.0.0"),
-        )]));
+        consumer_node.locked_mut().locked_peer_context =
+            Some(BTreeMap::from([("peer".to_string(), DepPath::from("peer@2.0.0"))]));
         ResolvedTree {
             direct: vec![
                 DirectDep {
@@ -233,14 +215,8 @@ mod locked_peer_provider_preferences {
             packages: HashMap::from_iter([
                 ("peer@1.0.0".into(), package("peer", "1.0.0", &[], true)),
                 ("peer@2.0.0".into(), package("peer", "2.0.0", &[], true)),
-                (
-                    "retainer@1.0.0".into(),
-                    package("retainer", "1.0.0", &[], false),
-                ),
-                (
-                    "wrapper@1.0.0".into(),
-                    package("wrapper", "1.0.0", &[], false),
-                ),
+                ("retainer@1.0.0".into(), package("retainer", "1.0.0", &[], false)),
+                ("wrapper@1.0.0".into(), package("wrapper", "1.0.0", &[], false)),
                 (
                     Arc::from("consumer@1.0.0".to_string()),
                     package_with_peer_dependencies(
@@ -427,17 +403,10 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: &PeerCycleShape) -
     let mut packages = HashMap::default();
     let mut children_by_id: HashMap<Arc<str>, Arc<Vec<crate::resolved_tree::ChildEdge>>> =
         HashMap::default();
-    let ring_peers: &[(&str, &str)] = if shape.rings_peer_on_p {
-        &[("p", "*")]
-    } else {
-        &[]
-    };
+    let ring_peers: &[(&str, &str)] = if shape.rings_peer_on_p { &[("p", "*")] } else { &[] };
     for index in 0..shape.ring_len {
         let name = format!("ring{index:02}");
-        packages.insert(
-            Arc::from(ring_id(index)),
-            package(&name, "1.0.0", ring_peers, false),
-        );
+        packages.insert(Arc::from(ring_id(index)), package(&name, "1.0.0", ring_peers, false));
         let edges = ring_member_edges(index, shape, &mut packages, &mut children_by_id);
         children_by_id.insert(Arc::from(ring_id(index)), Arc::new(edges));
     }
@@ -465,11 +434,7 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: &PeerCycleShape) -
                 true,
             ),
         );
-        direct.push(DirectDep {
-            alias: alias.to_string(),
-            node_id,
-            id: id.to_string(),
-        });
+        direct.push(DirectDep { alias: alias.to_string(), node_id, id: id.to_string() });
     };
     add_direct("p@1.0.0", "p", &mut dependencies_tree, &mut direct);
     if let Some(w_version) = shape.importer_w_version {
@@ -489,10 +454,7 @@ fn peer_cycle_fixture(entries: &[(&str, usize, &str)], shape: &PeerCycleShape) -
         packages.insert(Arc::from(&*entry_pkg), package(alias, "1.0.0", &[], false));
         children_by_id.insert(
             Arc::from(&*entry_pkg),
-            Arc::new(vec![
-                ring_edge("ring", &ring_id(*ring_index)),
-                ring_edge("w", &w_pkg),
-            ]),
+            Arc::new(vec![ring_edge("ring", &ring_id(*ring_index)), ring_edge("w", &w_pkg)]),
         );
         add_direct(&entry_pkg, alias, &mut dependencies_tree, &mut direct);
     }
@@ -564,12 +526,7 @@ fn push_ring_fanout_edges(
         let fan_pkg = format!("fan{index:02}x{fan:02}@1.0.0");
         packages.insert(
             Arc::from(&*fan_pkg),
-            package(
-                &format!("fan{index:02}x{fan:02}"),
-                "1.0.0",
-                &[("p", "*")],
-                false,
-            ),
+            package(&format!("fan{index:02}x{fan:02}"), "1.0.0", &[("p", "*")], false),
         );
         children_by_id.insert(Arc::from(&*fan_pkg), Arc::new(Vec::new()));
         edges.push(ring_edge(&format!("fan{fan:02}"), &fan_pkg));
@@ -592,9 +549,5 @@ fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], shape: &PeerCycleShape
 /// The [`fn@peer_cycle_graph_keys`] shape shared by the walk-order
 /// tests: one `wc` member, `w` provided per entry.
 fn order_test_shape(rings_peer_on_p: bool) -> PeerCycleShape {
-    PeerCycleShape {
-        wc_members: vec![1],
-        rings_peer_on_p,
-        ..Default::default()
-    }
+    PeerCycleShape { wc_members: vec![1], rings_peer_on_p, ..Default::default() }
 }

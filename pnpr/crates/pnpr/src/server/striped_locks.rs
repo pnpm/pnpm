@@ -18,9 +18,7 @@ impl StripedLocks {
         let stripes = (0..Self::STRIPES)
             .map(|_| tokio::sync::Mutex::new(()))
             .collect();
-        Self {
-            stripes,
-        }
+        Self { stripes }
     }
 
     /// Lock the stripe owning `name`, held until the returned guard is dropped.

@@ -53,9 +53,7 @@ pub(super) fn tarball_url_violation(
 pub(super) fn current_revision_number(
     artifact: &RegistryArtifactHistory,
 ) -> Result<u64, ResolutionVerification> {
-    let Some(raw_revision) = artifact.current.revision.as_ref() else {
-        return Ok(0);
-    };
+    let Some(raw_revision) = artifact.current.revision.as_ref() else { return Ok(0) };
     let revision = raw_revision
         .as_u64()
         .and_then(|revision| TarballRevision::try_from(revision).ok())
@@ -131,11 +129,7 @@ pub(super) fn select_revision<'a>(
     }
     let historical = historical.first().copied();
     let current_matches = current_revision == requested;
-    let selected = if current_matches {
-        Some(&artifact.current)
-    } else {
-        historical
-    };
+    let selected = if current_matches { Some(&artifact.current) } else { historical };
     selected
         .filter(|selected| {
             selected.integrity.as_ref() == Some(integrity)

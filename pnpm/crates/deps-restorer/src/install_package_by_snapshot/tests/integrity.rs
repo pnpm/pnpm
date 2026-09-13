@@ -64,10 +64,7 @@ fn empty_integrity_is_refused_like_a_missing_one() {
         let err = tarball_url_and_integrity(&resolution, &package_key, &config)
             .expect_err("an empty integrity is not fetchable");
         assert!(
-            matches!(
-                &err,
-                InstallPackageBySnapshotError::MissingTarballIntegrity { .. }
-            ),
+            matches!(&err, InstallPackageBySnapshotError::MissingTarballIntegrity { .. }),
             "expected MissingTarballIntegrity for `{package_key}`, got {err:?}",
         );
     }

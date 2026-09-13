@@ -42,9 +42,7 @@ pub(crate) fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<se
     ];
     const LIFECYCLE_SCRIPTS: &[&str] = &["preinstall", "install", "postinstall"];
 
-    let serde_json::Value::Object(map) = value else {
-        return None;
-    };
+    let serde_json::Value::Object(map) = value else { return None };
     let mut picked = serde_json::Map::new();
 
     // pnpm emits `version` first regardless of whether it was first
@@ -67,11 +65,7 @@ pub(crate) fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<se
         }
     }
 
-    if picked.is_empty() {
-        None
-    } else {
-        Some(serde_json::Value::Object(picked))
-    }
+    if picked.is_empty() { None } else { Some(serde_json::Value::Object(picked)) }
 }
 
 /// Copy the named fields that `source` actually carries, in the order given.
@@ -137,12 +131,7 @@ pub(crate) fn apply_placeholder_manifest(
     cas_paths: &mut HashMap<String, PathBuf>,
     pkg_files_idx: &mut PackageFilesIndex,
 ) -> Result<(), TarballError> {
-    write_synthesized_package_json(
-        store_dir,
-        PLACEHOLDER_PACKAGE_JSON,
-        cas_paths,
-        pkg_files_idx,
-    )?;
+    write_synthesized_package_json(store_dir, PLACEHOLDER_PACKAGE_JSON, cas_paths, pkg_files_idx)?;
     Ok(())
 }
 
@@ -210,10 +199,7 @@ pub(crate) fn write_synthesized_package_json(
 /// downstream code can fall back to disk reads.
 pub(super) fn capture_bundled_manifest(entry_data: &[u8]) -> (bool, Option<serde_json::Value>) {
     match parse_manifest_bytes(entry_data) {
-        Ok(parsed) => (
-            manifest_requires_build(&parsed),
-            normalize_bundled_manifest(&parsed),
-        ),
+        Ok(parsed) => (manifest_requires_build(&parsed), normalize_bundled_manifest(&parsed)),
         Err(error) => {
             tracing::debug!(
                 ?error,

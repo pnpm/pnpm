@@ -213,9 +213,7 @@ impl Drop for LockfileVerificationGate {
 /// derive it identically or the pre-spawned host would disagree with
 /// the one the install would have detected.
 fn effective_node_version(config: &Config, manifest: &PackageManifest) -> Option<String> {
-    config.node_version
-        .clone()
-        .or_else(|| node_version_from_engines_runtime(manifest.value()))
+    config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()))
 }
 
 /// Shared out-map for [`ResolutionInputs::peer_issues_sink`]: importer id →
@@ -311,10 +309,7 @@ impl ProjectMutation {
     /// `mutation: 'install'`) rather than a partial one.
     #[must_use]
     pub fn is_full_install(self) -> bool {
-        matches!(
-            self,
-            ProjectMutation::InstallWorkspace | ProjectMutation::InstallSelected,
-        )
+        matches!(self, ProjectMutation::InstallWorkspace | ProjectMutation::InstallSelected)
     }
 
     /// Whether the run may absorb its manifest drift by rewriting the
@@ -326,10 +321,7 @@ impl ProjectMutation {
     #[must_use]
     pub fn may_fast_update_lockfile(self) -> bool {
         self.is_full_install()
-            || matches!(
-                self,
-                ProjectMutation::UninstallSome | ProjectMutation::InstallSome,
-            )
+            || matches!(self, ProjectMutation::UninstallSome | ProjectMutation::InstallSome)
     }
 }
 
@@ -348,20 +340,11 @@ pub(crate) fn selected_project_indices(
         .iter()
         .filter(|dir| selected_dirs.contains(*dir))
         .map(|dir| {
-            assert!(
-                seen_dirs.insert(dir.as_path()),
-                "selected project must be ordered once",
-            );
-            *project_indices
-                .get(dir.as_path())
-                .expect("every selected project must be discovered")
+            assert!(seen_dirs.insert(dir.as_path()), "selected project must be ordered once");
+            *project_indices.get(dir.as_path()).expect("every selected project must be discovered")
         })
         .collect::<Vec<_>>();
-    assert_eq!(
-        seen_dirs.len(),
-        selected_dirs.len(),
-        "every selected project must be ordered",
-    );
+    assert_eq!(seen_dirs.len(), selected_dirs.len(), "every selected project must be ordered");
     indices
 }
 

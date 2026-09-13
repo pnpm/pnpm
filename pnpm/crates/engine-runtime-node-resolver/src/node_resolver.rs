@@ -171,9 +171,7 @@ impl NodeResolver {
             &version,
             wanted_dependency.prev_specifier.as_deref(),
         );
-        let resolution = LockfileResolution::Variations(VariationsResolution {
-            variants,
-        });
+        let resolution = LockfileResolution::Variations(VariationsResolution { variants });
         let manifest = serde_json::json!({
             "name": "node",
             "version": version,
@@ -202,8 +200,7 @@ impl NodeResolver {
         picked: &PickedNodeVersion,
         version_spec: &str,
     ) -> Result<Vec<PlatformAssetResolution>, ResolveError> {
-        match self.read_node_assets(&picked.mirror, &picked.version, &picked.release_channel)
-            .await
+        match self.read_node_assets(&picked.mirror, &picked.version, &picked.release_channel).await
         {
             Ok(variants) => Ok(variants),
             Err(error) if picked.resolved_without_index => {
@@ -215,9 +212,9 @@ impl NodeResolver {
                 )
                 .await
                 {
-                    Ok(None) => NodeResolverError::VersionNotFound {
-                        spec: version_spec.to_string(),
-                    },
+                    Ok(None) => {
+                        NodeResolverError::VersionNotFound { spec: version_spec.to_string() }
+                    }
                     _ => error,
                 };
                 Err(Box::new(error))
@@ -260,9 +257,7 @@ impl NodeResolver {
         )
         .await
         .map_err(NodeResolverError::FetchReleaseIndex)?
-        .ok_or_else(|| NodeResolverError::VersionNotFound {
-            spec: version_spec.to_string(),
-        })?;
+        .ok_or_else(|| NodeResolverError::VersionNotFound { spec: version_spec.to_string() })?;
         Ok(PickedNodeVersion {
             version,
             mirror,
@@ -433,9 +428,7 @@ fn normalize_node_runtime_version_specifier(
     let source = prev_specifier
         .and_then(|specifier| specifier.strip_prefix(BARE_SPEC_PREFIX))
         .unwrap_or(version_spec);
-    let spec = source
-        .split_once('/')
-        .map_or(source, |(_, spec)| spec);
+    let spec = source.split_once('/').map_or(source, |(_, spec)| spec);
     let prefix = if spec.starts_with('^') {
         "^"
     } else if spec.starts_with('~') {

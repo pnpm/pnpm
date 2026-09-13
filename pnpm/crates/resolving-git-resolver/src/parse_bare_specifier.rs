@@ -59,16 +59,8 @@ impl PartialSpec {
     }
 }
 
-const GIT_PROTOCOLS: &[&str] = &[
-    "git",
-    "git+http",
-    "git+https",
-    "git+rsync",
-    "git+ftp",
-    "git+file",
-    "git+ssh",
-    "ssh",
-];
+const GIT_PROTOCOLS: &[&str] =
+    &["git", "git+http", "git+https", "git+rsync", "git+ftp", "git+file", "git+ssh", "ssh"];
 
 /// Sync prefilter. Returns `None` when the input isn't a git-shaped
 /// specifier — the resolver chain treats this as "no claim" and falls
@@ -128,11 +120,7 @@ fn url_to_fetch_spec(parsed: &reqwest::Url) -> String {
 /// SCP-style `ssh://user@host:path` shape into a standard
 /// `ssh://user@host/path` so `Url::parse` will accept it.
 fn correct_url(input: &str) -> String {
-    let prefix = if input.starts_with("git+") {
-        "git+"
-    } else {
-        ""
-    };
+    let prefix = if input.starts_with("git+") { "git+" } else { "" };
     let url = input.strip_prefix("git+").unwrap_or(input);
     let Some(body) = url.strip_prefix("ssh://") else {
         return format!("{prefix}{url}");
@@ -164,9 +152,7 @@ fn correct_url(input: &str) -> String {
 /// cannot consume: after the `@`, the host portion may carry a colon that is
 /// not the separator of a numeric port.
 fn has_scp_colon(auth: &str) -> bool {
-    let host = auth
-        .rsplit_once('@')
-        .map_or(auth, |(_, host)| host);
+    let host = auth.rsplit_once('@').map_or(auth, |(_, host)| host);
     // The colons of a bracketed IPv6 literal belong to the address.
     let after_host = if host.starts_with('[') {
         host
@@ -179,10 +165,7 @@ fn has_scp_colon(auth: &str) -> bool {
         return false;
     };
     let port = &after_host[colon + 1..];
-    port.is_empty()
-        || !port
-            .chars()
-            .all(|ch| ch.is_ascii_digit())
+    port.is_empty() || !port.chars().all(|ch| ch.is_ascii_digit())
 }
 
 #[derive(Debug, Default)]
@@ -196,9 +179,7 @@ struct GitParsedParams {
 /// or a bare committish) carried in a git specifier's fragment.
 fn parse_git_params(committish: Option<&str>) -> GitParsedParams {
     let mut out = GitParsedParams::default();
-    let Some(committish) = committish else {
-        return out;
-    };
+    let Some(committish) = committish else { return out };
     if committish.is_empty() {
         return out;
     }
@@ -256,10 +237,8 @@ fn percent_decode_str(input: &str) -> String {
     while idx < bytes.len() {
         if bytes[idx] == b'%'
             && idx + 2 < bytes.len()
-            && let (Some(hi), Some(lo)) = (
-                (bytes[idx + 1] as char).to_digit(16),
-                (bytes[idx + 2] as char).to_digit(16),
-            )
+            && let (Some(hi), Some(lo)) =
+                ((bytes[idx + 1] as char).to_digit(16), (bytes[idx + 2] as char).to_digit(16))
         {
             buf.push((hi * 16 + lo) as u8);
             idx += 3;

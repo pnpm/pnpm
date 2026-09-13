@@ -122,10 +122,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
         .and_then(|d| d.as_object())
         .expect("resolver B manifest carries dependencies");
 
-    assert!(
-        deps_a.contains_key("left-pad"),
-        "resolver A keeps its own manifest: {deps_a:?}",
-    );
+    assert!(deps_a.contains_key("left-pad"), "resolver A keeps its own manifest: {deps_a:?}");
     assert!(
         deps_b.contains_key("right-pad"),
         "resolver B got its own manifest, not resolver A's: {deps_b:?}",
@@ -149,10 +146,8 @@ async fn revision_metadata_is_validated_and_preserved() {
         .await;
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    let wanted = WantedDependency {
-        alias: Some("acme".to_string()),
-        ..WantedDependency::default()
-    };
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
     let result = resolver
         .resolve(&wanted, &ResolveOptions::default())
         .await
@@ -169,14 +164,9 @@ async fn revision_metadata_is_validated_and_preserved() {
 
 #[tokio::test]
 async fn malformed_revision_metadata_has_the_malformed_metadata_error() {
-    for revision in [
-        json!(0),
-        json!(-1),
-        json!(1.5),
-        json!(9_007_199_254_740_992_u64),
-        json!("1"),
-        json!("01"),
-    ] {
+    for revision in
+        [json!(0), json!(-1), json!(1.5), json!(9_007_199_254_740_992_u64), json!("1"), json!("01")]
+    {
         let mut server = mockito::Server::new_async().await;
         let registry = format!("{}/", server.url());
         let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
@@ -188,15 +178,12 @@ async fn malformed_revision_metadata_has_the_malformed_metadata_error() {
             .await;
         let (resolver, _tempdir) = build_resolver(&registry);
 
-        let wanted = WantedDependency {
-            alias: Some("acme".to_string()),
-            ..WantedDependency::default()
+        let wanted =
+            WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+        let error = match resolver.resolve(&wanted, &ResolveOptions::default()).await {
+            Ok(result) => panic!("revision {revision} must fail the resolve; got {result:?}"),
+            Err(error) => error,
         };
-        let error =
-            match resolver.resolve(&wanted, &ResolveOptions::default()).await {
-                Ok(result) => panic!("revision {revision} must fail the resolve; got {result:?}"),
-                Err(error) => error,
-            };
 
         let error =
             error.downcast_ref::<MalformedRevisionHistoryError>().expect("revision history error");
@@ -233,20 +220,15 @@ async fn invalid_shasum_error_redacts_registry_metadata() {
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
-    let wanted = WantedDependency {
-        alias: Some("acme".to_string()),
-        ..WantedDependency::default()
-    };
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
     let error = resolver
         .resolve(&wanted, &ResolveOptions::default())
         .await
         .expect_err("an unusable shasum must fail the resolve")
         .to_string();
 
-    assert!(
-        !error.contains("hunter2"),
-        "inline credentials must not reach the message: {error}",
-    );
+    assert!(!error.contains("hunter2"), "inline credentials must not reach the message: {error}");
     assert!(
         !error.chars().any(char::is_control),
         "control characters must not reach the message: {error:?}",

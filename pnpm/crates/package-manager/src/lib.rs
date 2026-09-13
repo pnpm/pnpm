@@ -109,15 +109,13 @@ pub(crate) fn package_manifest_prefix(manifest: &pnpm_package_manifest::PackageM
 pub(crate) fn emit_initial_package_manifest<Reporter: pnpm_reporter::Reporter>(
     manifest: &pnpm_package_manifest::PackageManifest,
 ) {
-    Reporter::emit(&pnpm_reporter::LogEvent::PackageManifest(
-        pnpm_reporter::PackageManifestLog {
-            level: pnpm_reporter::LogLevel::Debug,
-            message: pnpm_reporter::PackageManifestMessage::Initial {
-                prefix: package_manifest_prefix(manifest),
-                initial: manifest.value().clone(),
-            },
+    Reporter::emit(&pnpm_reporter::LogEvent::PackageManifest(pnpm_reporter::PackageManifestLog {
+        level: pnpm_reporter::LogLevel::Debug,
+        message: pnpm_reporter::PackageManifestMessage::Initial {
+            prefix: package_manifest_prefix(manifest),
+            initial: manifest.value().clone(),
         },
-    ));
+    }));
 }
 
 #[cfg(test)]

@@ -30,11 +30,7 @@ pub(super) fn provider_of_target(target: &Path) -> Option<Provider> {
         .get("name")
         .and_then(Value::as_str)?
         .to_string();
-    Some(Provider {
-        name,
-        package_dir,
-        manifest_hash: create_hex_hash_bytes(&manifest),
-    })
+    Some(Provider { name, package_dir, manifest_hash: create_hex_hash_bytes(&manifest) })
 }
 
 pub(super) fn package_dir_of_target(target: &Path) -> Option<PathBuf> {
@@ -55,11 +51,7 @@ pub(super) fn local_bin_identity(bin: &Path, name: &str) -> Option<LocalBinIdent
     } else {
         shim_target_and_hash(bin, name)?
     };
-    let resolved = if target.is_absolute() {
-        target
-    } else {
-        bin.parent()?.join(target)
-    };
+    let resolved = if target.is_absolute() { target } else { bin.parent()?.join(target) };
     let provider = provider_of_target(&resolved)?;
     let target = dunce::canonicalize(resolved).ok()?;
     let target_stat = file_identity(&target)?;
@@ -72,10 +64,7 @@ pub(super) fn local_bin_identity(bin: &Path, name: &str) -> Option<LocalBinIdent
         target.display(),
         target_stat,
     ));
-    Some(LocalBinIdentity {
-        provider,
-        fingerprint,
-    })
+    Some(LocalBinIdentity { provider, fingerprint })
 }
 
 /// The target a shim script names, and the fingerprint of the script. The
@@ -92,10 +81,7 @@ fn shim_target_and_hash(bin: &Path, name: &str) -> Option<(PathBuf, String)> {
         let executed_len = std::fs::metadata(bin).ok()?.len();
         small_file_hash(bin, executed_len)?
     };
-    Some((
-        target,
-        create_hex_hash(&format!("script\0{content}\0{executed_hash}")),
-    ))
+    Some((target, create_hex_hash(&format!("script\0{content}\0{executed_hash}"))))
 }
 
 pub(super) fn project_lockfile_hash(path: &Path) -> String {
@@ -122,10 +108,7 @@ pub(super) fn file_identity(path: &Path) -> Option<String> {
     #[cfg(not(any(unix, windows)))]
     let platform_identity = "0";
     let content_hash = small_file_hash(path, metadata.len()).unwrap_or_else(|| "large".to_string());
-    Some(format!(
-        "{}:{modified_ns}:{platform_identity}:{content_hash}",
-        metadata.len(),
-    ))
+    Some(format!("{}:{modified_ns}:{platform_identity}:{content_hash}", metadata.len()))
 }
 
 pub(super) fn small_file_hash(path: &Path, expected_len: u64) -> Option<String> {
@@ -159,10 +142,7 @@ pub(super) fn windows_file_identity(path: &Path) -> Option<String> {
     }
     // SAFETY: a successful `GetFileInformationByHandle` initializes `info`.
     let info = unsafe { info.assume_init() };
-    Some(format!(
-        "{}:{}:{}",
-        info.dwVolumeSerialNumber, info.nFileIndexHigh, info.nFileIndexLow,
-    ))
+    Some(format!("{}:{}:{}", info.dwVolumeSerialNumber, info.nFileIndexHigh, info.nFileIndexLow))
 }
 
 pub(super) fn read_shim_target_from_content(content: &str) -> Option<PathBuf> {

@@ -174,6 +174,16 @@ impl InstallPackageFromRegistry<'_> {
         }
     }
 
+    fn report_resolved<Reporter: self::Reporter>(&self, package_id: &str) {
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
+            level: LogLevel::Debug,
+            message: ProgressMessage::Resolved {
+                package_id: package_id.to_owned(),
+                requester: self.requester.to_owned(),
+            },
+        }));
+    }
+
     async fn ingest_and_import<Reporter: self::Reporter>(
         &self,
         package_id: &str,
@@ -186,13 +196,7 @@ impl InstallPackageFromRegistry<'_> {
         );
         let (tarball_url, integrity) = extract_tarball(&self.resolution.resolution)?;
 
-        Reporter::emit(&LogEvent::Progress(ProgressLog {
-            level: LogLevel::Debug,
-            message: ProgressMessage::Resolved {
-                package_id: package_id.to_owned(),
-                requester: self.requester.to_owned(),
-            },
-        }));
+        self.report_resolved::<Reporter>(package_id);
 
         let download = self.tarball_download(package_id, tarball_url, &integrity);
         let cas_paths = if revision_addressed {
@@ -201,8 +205,7 @@ impl InstallPackageFromRegistry<'_> {
             )
             .await
         } else {
-            download.run_with_mem_cache::<Reporter>(self.fetching.tarball_mem_cache)
-                .await
+            download.run_with_mem_cache::<Reporter>(self.fetching.tarball_mem_cache).await
         }
         .map_err(InstallPackageFromRegistryError::IngestTarballToStore)?;
 
@@ -217,7 +220,19 @@ impl InstallPackageFromRegistry<'_> {
         )
         .map_err(InstallPackageFromRegistryError::ImportIndexedDir)?;
 
-        crate::report_imported::<Reporter>(config.package_import_method, self.requester, save_path);
+        // `pnpm:progress imported` — see the matching emit in
+        // `create_virtual_dir_by_snapshot::run` for the rationale
+        // on the optimistic `method` value. `to` is the per-
+        // package virtual-store directory the symlink under
+        // `node_modules/{alias}` resolves to.
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
+            level: LogLevel::Debug,
+            message: ProgressMessage::Imported {
+                method: crate::optimistic_wire_method(config.package_import_method),
+                requester: self.requester.to_owned(),
+                to: save_path.to_string_lossy().into_owned(),
+            },
+        }));
         Ok(())
     }
 }

@@ -47,11 +47,7 @@ pub(crate) type PendingUpdateCheck = Option<JoinHandle<()>>;
 /// `--offline` and `--prefer-offline` are among the things that call the
 /// check off.
 pub(crate) fn spawn(config: &Config, emit: fn(&LogEvent)) -> PendingUpdateCheck {
-    if !config.update_notifier
-        || config.ci
-        || config.offline
-        || config.prefer_offline
-    {
+    if !config.update_notifier || config.ci || config.offline || config.prefer_offline {
         return None;
     }
     let state_file = config.state_dir.join(STATE_FILE_NAME);
@@ -119,10 +115,7 @@ async fn latest_pnpm_version(config: &Config) -> miette::Result<Option<String>> 
 }
 
 fn read_state(state_file: &Path) -> Map<String, Value> {
-    match std::fs::read_to_string(state_file)
-        .ok()
-        .map(|text| serde_json::from_str(&text))
-    {
+    match std::fs::read_to_string(state_file).ok().map(|text| serde_json::from_str(&text)) {
         Some(Ok(Value::Object(fields))) => fields,
         _ => Map::new(),
     }
@@ -150,10 +143,7 @@ fn checked_recently(state: &Map<String, Value>, now: DateTime<Utc>) -> bool {
 /// for the next run to read, and the rename replaces a symlinked state file
 /// rather than following it somewhere the user never pointed pnpm.
 fn write_state(state_file: &Path, mut state: Map<String, Value>, now: DateTime<Utc>) {
-    state.insert(
-        LAST_UPDATE_CHECK_KEY.to_string(),
-        Value::String(to_utc_string(now)),
-    );
+    state.insert(LAST_UPDATE_CHECK_KEY.to_string(), Value::String(to_utc_string(now)));
     let Ok(contents) = serde_json::to_string(&Value::Object(state)) else {
         return;
     };

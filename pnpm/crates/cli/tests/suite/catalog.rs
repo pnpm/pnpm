@@ -117,10 +117,7 @@ fn workspace_catalog_switches_between_local_project_and_registry_package() {
         serde_json::from_str(&fs::read_to_string(&installed_manifest).expect("read local package"))
             .expect("parse local package");
     assert_eq!(installed["version"], "9.0.0");
-    assert_eq!(
-        importer_dep_version(&workspace, "packages/app", FOO),
-        "link:../local-foo",
-    );
+    assert_eq!(importer_dep_version(&workspace, "packages/app", FOO), "link:../local-foo");
 
     fs::remove_dir_all(&local_dependency).expect("remove the local dependency project");
     let workspace_yaml = read(&workspace, "pnpm-workspace.yaml")
@@ -135,10 +132,7 @@ fn workspace_catalog_switches_between_local_project_and_registry_package() {
     )
     .expect("parse registry package");
     assert_eq!(installed["version"], "1.0.0");
-    assert_eq!(
-        importer_dep_version(&workspace, "packages/app", FOO),
-        "1.0.0",
-    );
+    assert_eq!(importer_dep_version(&workspace, "packages/app", FOO), "1.0.0");
     assert_eq!(dep_spec(&app, FOO).as_deref(), Some("catalog:"));
 
     drop((root, anchor));
@@ -153,10 +147,7 @@ fn add_strict_catalogs_a_new_dependency() {
     write_manifest(&workspace, "{}");
     append_workspace_yaml(&workspace, "catalogMode: strict\n");
 
-    run_ok(
-        &workspace,
-        &["add", "--lockfile-only", &format!("{FOO}@1.0.0")],
-    );
+    run_ok(&workspace, &["add", "--lockfile-only", &format!("{FOO}@1.0.0")]);
 
     assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
 
@@ -167,10 +158,7 @@ fn add_strict_catalogs_a_new_dependency() {
     );
 
     let lockfile = read(&workspace, "pnpm-lock.yaml");
-    assert!(
-        lockfile.contains("catalogs:"),
-        "lockfile missing catalogs:\n{lockfile}",
-    );
+    assert!(lockfile.contains("catalogs:"), "lockfile missing catalogs:\n{lockfile}");
     assert!(
         lockfile.contains("specifier: 1.0.0") && lockfile.contains("version: 1.0.0"),
         "lockfile missing the resolved catalog entry:\n{lockfile}",
@@ -190,10 +178,7 @@ fn add_prefer_catalogs_a_new_dependency() {
     write_manifest(&workspace, "{}");
     append_workspace_yaml(&workspace, "catalogMode: prefer\n");
 
-    run_ok(
-        &workspace,
-        &["add", "--lockfile-only", &format!("{FOO}@1.0.0")],
-    );
+    run_ok(&workspace, &["add", "--lockfile-only", &format!("{FOO}@1.0.0")]);
 
     assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
     assert!(read(&workspace, "pnpm-workspace.yaml").contains(&format!("'{FOO}': 1.0.0")));
@@ -236,16 +221,10 @@ fn add_mismatched_version_strict_errors() {
         &format!("catalogMode: strict\ncatalog:\n  '{FOO}': 1.0.0\n"),
     );
 
-    let output = pacquet(
-        &workspace,
-        ["add", "--lockfile-only", &format!("{FOO}@2.0.0")],
-    )
-    .output()
-    .expect("run pacquet add");
-    assert!(
-        !output.status.success(),
-        "a strict catalog mismatch must fail the add",
-    );
+    let output = pacquet(&workspace, ["add", "--lockfile-only", &format!("{FOO}@2.0.0")])
+        .output()
+        .expect("run pacquet add");
+    assert!(!output.status.success(), "a strict catalog mismatch must fail the add");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("ERR_PNPM_CATALOG_VERSION_MISMATCH"),
@@ -260,22 +239,11 @@ fn save_catalog_flag_writes_the_default_catalog() {
     let (root, workspace, anchor) = setup();
     write_manifest(&workspace, "{}");
 
-    run_ok(
-        &workspace,
-        &[
-            "add",
-            "--lockfile-only",
-            "--save-catalog",
-            &format!("{FOO}@1.0.0"),
-        ],
-    );
+    run_ok(&workspace, &["add", "--lockfile-only", "--save-catalog", &format!("{FOO}@1.0.0")]);
 
     assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
     assert!(read(&workspace, "pnpm-workspace.yaml").contains(&format!("'{FOO}': 1.0.0")));
-    assert_eq!(
-        catalog_snapshot(&workspace, FOO),
-        ("1.0.0".to_string(), "1.0.0".to_string()),
-    );
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("1.0.0".to_string(), "1.0.0".to_string()));
 
     drop((root, anchor));
 }
@@ -320,34 +288,21 @@ fn save_catalog_name_preserves_the_dependency_group() {
 fn a_catalog_name_with_a_control_character_is_refused() {
     let (root, workspace, anchor) = setup();
     write_manifest(&workspace, "{}");
-    append_workspace_yaml(
-        &workspace,
-        "saveCatalogName: \"tools\\n  injected: oops\"\n",
-    );
+    append_workspace_yaml(&workspace, "saveCatalogName: \"tools\\n  injected: oops\"\n");
     let before = read(&workspace, "pnpm-workspace.yaml");
 
-    let output = pacquet(
-        &workspace,
-        ["add", "--lockfile-only", &format!("{FOO}@1.0.0")],
-    )
-    .output()
-    .expect("run pacquet");
+    let output = pacquet(&workspace, ["add", "--lockfile-only", &format!("{FOO}@1.0.0")])
+        .output()
+        .expect("run pacquet");
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("STDERR:\n{stderr}");
-    assert!(
-        !output.status.success(),
-        "the control character must be refused",
-    );
+    assert!(!output.status.success(), "the control character must be refused");
     assert!(
         stderr.contains("ERR_PNPM_WORKSPACE_MANIFEST_WRITER_INVALID_CONTROL_CHARACTER"),
         "expected the control-character diagnostic; got:\n{stderr}",
     );
-    assert_eq!(
-        read(&workspace, "pnpm-workspace.yaml"),
-        before,
-        "the manifest must be untouched",
-    );
+    assert_eq!(read(&workspace, "pnpm-workspace.yaml"), before, "the manifest must be untouched");
 
     drop((root, anchor));
 }
@@ -361,10 +316,7 @@ fn install_with_catalog_reference_writes_catalog_snapshot() {
     run_ok(&workspace, &["install", "--lockfile-only"]);
 
     assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
-    assert_eq!(
-        catalog_snapshot(&workspace, FOO),
-        ("1.0.0".to_string(), "1.0.0".to_string()),
-    );
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("1.0.0".to_string(), "1.0.0".to_string()));
 
     drop((root, anchor));
 }
@@ -453,10 +405,7 @@ fn update_latest_keeps_catalog_referencing_override_in_sync() {
     run_ok(&workspace, &["update", "--latest", "--lockfile-only", FOO]);
 
     let (bumped_spec, _) = catalog_snapshot(&workspace, FOO);
-    assert_ne!(
-        bumped_spec, initial_spec,
-        "update --latest should bump the catalog entry",
-    );
+    assert_ne!(bumped_spec, initial_spec, "update --latest should bump the catalog entry");
     assert_eq!(
         lockfile_override(&workspace, &override_selector).as_deref(),
         Some(bumped_spec.as_str()),
@@ -484,10 +433,7 @@ fn update_latest_no_save_leaves_the_catalog_untouched() {
     );
 
     run_ok(&workspace, &["install", "--lockfile-only"]);
-    run_ok(
-        &workspace,
-        &["update", "--latest", "--no-save", "--lockfile-only", FOO],
-    );
+    run_ok(&workspace, &["update", "--latest", "--no-save", "--lockfile-only", FOO]);
 
     let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
     assert!(
@@ -505,10 +451,7 @@ fn install_reruns_when_catalog_entry_changes() {
     append_workspace_yaml(&workspace, &format!("catalog:\n  '{FOO}': 1.0.0\n"));
 
     run_ok(&workspace, &["install"]);
-    assert_eq!(
-        catalog_snapshot(&workspace, FOO),
-        ("1.0.0".to_string(), "1.0.0".to_string()),
-    );
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("1.0.0".to_string(), "1.0.0".to_string()));
 
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let workspace_yaml =
@@ -520,10 +463,7 @@ fn install_reruns_when_catalog_entry_changes() {
     .expect("rewrite pnpm-workspace.yaml catalog entry");
 
     run_ok(&workspace, &["install", "--no-frozen-lockfile"]);
-    assert_eq!(
-        catalog_snapshot(&workspace, FOO),
-        ("2.0.0".to_string(), "2.0.0".to_string()),
-    );
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("2.0.0".to_string(), "2.0.0".to_string()));
 
     drop((root, anchor));
 }
@@ -741,21 +681,12 @@ fn add_moves_a_catalog_locked_on_another_version() {
     let widened = read(&workspace, "pnpm-workspace.yaml").replace("': 1.0.0", "': ^1.0.0");
     std::fs::write(workspace.join("pnpm-workspace.yaml"), widened).expect("widen the catalog");
     run_ok(&workspace, &["install", "--lockfile-only"]);
-    assert_eq!(
-        catalog_snapshot(&workspace, FOO),
-        ("^1.0.0".to_string(), "1.0.0".to_string()),
-    );
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("^1.0.0".to_string(), "1.0.0".to_string()));
 
-    run_ok(
-        &workspace,
-        &["add", "--lockfile-only", &format!("{FOO}@1.1.0")],
-    );
+    run_ok(&workspace, &["add", "--lockfile-only", &format!("{FOO}@1.1.0")]);
 
     assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
-    assert_eq!(
-        catalog_snapshot(&workspace, FOO),
-        ("^1.0.0".to_string(), "1.1.0".to_string()),
-    );
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("^1.0.0".to_string(), "1.1.0".to_string()));
 
     drop((root, anchor));
 }
@@ -770,15 +701,9 @@ fn update_moves_a_catalog_to_an_older_in_range_version() {
     );
     run_ok(&workspace, &["install", "--lockfile-only"]);
     let (_, resolved) = catalog_snapshot(&workspace, FOO);
-    assert_ne!(
-        resolved, "1.0.0",
-        "the entry has to start on a newer version than the request",
-    );
+    assert_ne!(resolved, "1.0.0", "the entry has to start on a newer version than the request");
 
-    run_ok(
-        &workspace,
-        &["update", "--lockfile-only", &format!("{FOO}@1.0.0")],
-    );
+    run_ok(&workspace, &["update", "--lockfile-only", &format!("{FOO}@1.0.0")]);
 
     assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("catalog:"));
     assert_eq!(catalog_snapshot(&workspace, FOO).1, "1.0.0");
@@ -817,21 +742,9 @@ fn add_moving_a_catalog_leaves_an_untargeted_project_alone() {
     run_ok(&workspace, &["install", "--lockfile-only"]);
     let untargeted_before = importer_dep_version(&workspace, "packages/b", FOO);
 
-    run_ok(
-        &workspace,
-        &[
-            "--dir",
-            "packages/a",
-            "add",
-            "--lockfile-only",
-            &format!("{FOO}@1.1.0"),
-        ],
-    );
+    run_ok(&workspace, &["--dir", "packages/a", "add", "--lockfile-only", &format!("{FOO}@1.1.0")]);
 
-    assert_eq!(
-        catalog_snapshot(&workspace, FOO),
-        ("^1.0.0".to_string(), "1.1.0".to_string()),
-    );
+    assert_eq!(catalog_snapshot(&workspace, FOO), ("^1.0.0".to_string(), "1.1.0".to_string()));
     assert_eq!(importer_dep_version(&workspace, "packages/a", FOO), "1.1.0");
     assert_eq!(
         importer_dep_version(&workspace, "packages/b", FOO),
@@ -882,36 +795,15 @@ fn add_moves_a_catalog_with_a_per_project_lockfile() {
         .to_string(),
     )
     .expect("write the package manifest");
-    run_ok(
-        &workspace,
-        &["--dir", "packages/a", "install", "--lockfile-only"],
-    );
+    run_ok(&workspace, &["--dir", "packages/a", "install", "--lockfile-only"]);
     let widened = read(&workspace, "pnpm-workspace.yaml").replace("': 1.0.0", "': ^1.0.0");
     std::fs::write(workspace.join("pnpm-workspace.yaml"), widened).expect("widen the catalog");
-    run_ok(
-        &workspace,
-        &["--dir", "packages/a", "install", "--lockfile-only"],
-    );
-    assert_eq!(
-        catalog_snapshot(&project, FOO),
-        ("^1.0.0".to_string(), "1.0.0".to_string()),
-    );
+    run_ok(&workspace, &["--dir", "packages/a", "install", "--lockfile-only"]);
+    assert_eq!(catalog_snapshot(&project, FOO), ("^1.0.0".to_string(), "1.0.0".to_string()));
 
-    run_ok(
-        &workspace,
-        &[
-            "--dir",
-            "packages/a",
-            "add",
-            "--lockfile-only",
-            &format!("{FOO}@1.1.0"),
-        ],
-    );
+    run_ok(&workspace, &["--dir", "packages/a", "add", "--lockfile-only", &format!("{FOO}@1.1.0")]);
 
-    assert_eq!(
-        catalog_snapshot(&project, FOO),
-        ("^1.0.0".to_string(), "1.1.0".to_string()),
-    );
+    assert_eq!(catalog_snapshot(&project, FOO), ("^1.0.0".to_string(), "1.1.0".to_string()));
 
     drop((root, anchor));
 }

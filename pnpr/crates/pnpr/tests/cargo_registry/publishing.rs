@@ -17,10 +17,7 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
 
     let response = app
         .clone()
-        .oneshot(publish_request(
-            Some(&token),
-            publish_body(&metadata("demo", "0.1.0"), &archive),
-        ))
+        .oneshot(publish_request(Some(&token), publish_body(&metadata("demo", "0.1.0"), &archive)))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -92,11 +89,7 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     );
 
     // The crate is reachable at its one sparse-index path only.
-    for wrong in [
-        "/cargo/index/3/d/demo",
-        "/cargo/index/de/mo/Demo",
-        "/cargo/index/DE/MO/demo",
-    ] {
+    for wrong in ["/cargo/index/3/d/demo", "/cargo/index/de/mo/Demo", "/cargo/index/DE/MO/demo"] {
         let response = app
             .clone()
             .oneshot(
@@ -119,10 +112,7 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(
-        response.headers()[header::CACHE_CONTROL],
-        "private, no-store",
-    );
+    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
     // npm-shaped paths mean nothing on the Cargo surface.
     let response = app
         .clone()
@@ -207,10 +197,7 @@ async fn publish_requires_a_token_and_refuses_duplicates_and_bad_archives() {
 
     // A name the hosted registry does not claim routes to the upstream, where
     // nothing can be published.
-    let unclaimed = publish_body(
-        &metadata("serde", "1.0.0"),
-        &crate_archive("serde", "1.0.0"),
-    );
+    let unclaimed = publish_body(&metadata("serde", "1.0.0"), &crate_archive("serde", "1.0.0"));
     let response = app
         .clone()
         .oneshot(publish_request(Some(&token), unclaimed))
@@ -263,13 +250,7 @@ async fn yank_and_unyank_flip_the_index_entry() {
             .await
             .unwrap();
         let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-        let line: Value = serde_json::from_str(
-            index
-                .lines()
-                .next()
-                .unwrap(),
-        )
-        .unwrap();
+        let line: Value = serde_json::from_str(index.lines().next().unwrap()).unwrap();
         line["yanked"].as_bool().unwrap()
     };
 
@@ -433,10 +414,7 @@ async fn a_crashed_publish_is_completed_on_startup() {
 
     recover_publish_journal(&config).await.unwrap();
 
-    assert!(
-        !tmp_path.exists(),
-        "the staged archive should be promoted away",
-    );
+    assert!(!tmp_path.exists(), "the staged archive should be promoted away");
     assert!(
         std::fs::read_dir(storage.join(".pnpr-journal"))
             .unwrap()
@@ -455,13 +433,7 @@ async fn a_crashed_publish_is_completed_on_startup() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    let entry: Value = serde_json::from_str(
-        index
-            .lines()
-            .next()
-            .unwrap(),
-    )
-    .unwrap();
+    let entry: Value = serde_json::from_str(index.lines().next().unwrap()).unwrap();
     assert_eq!(entry["vers"], "0.1.0");
     assert_eq!(entry["cksum"], sha256_hex(&archive));
     let response = app
@@ -488,10 +460,7 @@ async fn a_crashed_publish_keeps_what_was_published_while_it_was_down() {
     let app = router_with_auth(config.clone(), auth);
     let archive = crate_archive("demo", "0.2.0");
     let response = app
-        .oneshot(publish_request(
-            Some(&token),
-            publish_body(&metadata("demo", "0.2.0"), &archive),
-        ))
+        .oneshot(publish_request(Some(&token), publish_body(&metadata("demo", "0.2.0"), &archive)))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -525,10 +494,7 @@ async fn grouped_cargo_publish_stays_out_of_same_named_npm_registry() {
     let archive = crate_archive("demo", "0.1.0");
     let request = Request::put("/cargo/~internal/api/v1/crates/new")
         .header(header::AUTHORIZATION, format!("Bearer {token}"))
-        .body(Body::from(publish_body(
-            &metadata("demo", "0.1.0"),
-            &archive,
-        )))
+        .body(Body::from(publish_body(&metadata("demo", "0.1.0"), &archive)))
         .unwrap();
     let response = app
         .clone()
@@ -561,12 +527,9 @@ async fn grouped_cargo_publish_stays_out_of_same_named_npm_registry() {
         assert_eq!(response.status(), StatusCode::OK, "{base}");
         assert_eq!(body_bytes(response.into_body()).await, archive);
     }
-    for path in [
-        "/npm/~internal/demo",
-        "/npm/~main/demo",
-        "/npm/demo",
-        "/pypi/~internal/simple/demo/",
-    ] {
+    for path in
+        ["/npm/~internal/demo", "/npm/~main/demo", "/npm/demo", "/pypi/~internal/simple/demo/"]
+    {
         let response = app
             .clone()
             .oneshot(

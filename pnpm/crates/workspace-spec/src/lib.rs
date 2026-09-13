@@ -36,10 +36,7 @@ impl WorkspaceSpec {
     /// Construct a [`WorkspaceSpec`] directly from a version and an
     /// optional alias.
     pub fn new(version: impl Into<String>, alias: Option<impl Into<String>>) -> Self {
-        Self {
-            alias: alias.map(Into::into),
-            version: version.into(),
-        }
+        Self { alias: alias.map(Into::into), version: version.into() }
     }
 
     /// Parse a bare specifier. Returns `None` when the input does not
@@ -52,10 +49,7 @@ impl WorkspaceSpec {
     pub fn parse(bare_specifier: &str) -> Option<Self> {
         let suffix = bare_specifier.strip_prefix("workspace:")?;
         let (alias, version) = split_alias_version(suffix);
-        Some(Self {
-            alias: alias.map(str::to_string),
-            version: version.to_string(),
-        })
+        Some(Self { alias: alias.map(str::to_string), version: version.to_string() })
     }
 }
 

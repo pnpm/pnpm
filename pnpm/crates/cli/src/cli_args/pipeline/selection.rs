@@ -18,11 +18,7 @@ pub(super) fn workspace_identity(workspace_root: &Path) -> String {
         .collect();
     let slug = pnpm_crypto_hash::create_short_hash(&workspace_root.to_string_lossy());
     let basename = basename.trim_start_matches('.');
-    if basename.is_empty() {
-        slug
-    } else {
-        format!("{basename}-{slug}")
-    }
+    if basename.is_empty() { slug } else { format!("{basename}-{slug}") }
 }
 
 pub(super) fn build_full_graph<'a>(
@@ -38,9 +34,7 @@ pub(super) fn build_full_graph<'a>(
     create_projects_graph(
         projects
             .iter()
-            .map(|project| GraphPkg {
-                project,
-            })
+            .map(|project| GraphPkg { project })
             .collect(),
         &graph_options,
     )
@@ -89,8 +83,7 @@ pub(super) fn select_affected_projects(
     let all_dirs: Vec<PathBuf> = options.graph
         .keys()
         .filter(|dir| {
-            options.config.include_workspace_root
-                || dir.as_path() != options.workspace_root
+            options.config.include_workspace_root || dir.as_path() != options.workspace_root
         })
         .cloned()
         .collect();
@@ -156,10 +149,7 @@ fn with_transitive_dependencies(
     config: &Config,
 ) -> HashSet<PathBuf> {
     let mut selected = affected.clone();
-    let mut stack: Vec<PathBuf> = affected
-        .iter()
-        .cloned()
-        .collect();
+    let mut stack: Vec<PathBuf> = affected.iter().cloned().collect();
     while let Some(dir) = stack.pop() {
         let dependencies = graph
             .get(&dir)
@@ -208,11 +198,7 @@ pub(super) fn git_stdout(cwd: &Path, args: &[&str]) -> Option<String> {
     }
     let stdout = String::from_utf8(output.stdout).ok()?;
     let trimmed = stdout.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
+    if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
 }
 
 fn select_changed_projects(
@@ -221,16 +207,12 @@ fn select_changed_projects(
     merge_base: String,
 ) -> miette::Result<Selection> {
     let changed = get_changed_projects(
-        options.graph
-            .keys()
-            .cloned()
-            .collect(),
+        options.graph.keys().cloned().collect(),
         &merge_base,
         &GetChangedProjectsOptions {
             workspace_dir: options.workspace_root,
             test_pattern: &options.config.test_pattern,
-            changed_files_ignore_pattern: &options.config
-                .changed_files_ignore_pattern,
+            changed_files_ignore_pattern: &options.config.changed_files_ignore_pattern,
         },
     )
     .map_err(miette::Report::new)?;
@@ -256,12 +238,7 @@ fn select_changed_projects(
         return Ok(full_selection(all_dirs, Some(merge_base), changed_count));
     }
 
-    Ok(affected_selection(
-        options,
-        &changed,
-        merge_base,
-        changed_count,
-    ))
+    Ok(affected_selection(options, &changed, merge_base, changed_count))
 }
 
 fn full_selection(
@@ -271,10 +248,7 @@ fn full_selection(
 ) -> Selection {
     Selection {
         requested: all_dirs.to_vec(),
-        selected: all_dirs
-            .iter()
-            .cloned()
-            .collect(),
+        selected: all_dirs.iter().cloned().collect(),
         mode: SelectionMode::Full,
         merge_base,
         changed_count,

@@ -28,10 +28,7 @@ fn id_token(payload: &Payload) -> String {
 
 /// A payload declaring the given repository visibility (the GitHub-Actions field).
 fn repository_visibility(value: &'static str) -> Payload {
-    Payload {
-        repository_visibility: Some(value),
-        project_visibility: None,
-    }
+    Payload { repository_visibility: Some(value), project_visibility: None }
 }
 
 macro_rules! github_sys {
@@ -56,15 +53,8 @@ macro_rules! github_sys {
 #[tokio::test]
 async fn public_github_package_enables_provenance() {
     github_sys!(Sys, |request: OidcRequest<'_>| {
-        assert_eq!(
-            request.url,
-            "https://registry.npmjs.org/-/package/@scope%2fpkg/visibility"
-        );
-        Ok(OidcResponse {
-            ok: true,
-            status: 200,
-            body: r#"{"public":true}"#.to_owned(),
-        })
+        assert_eq!(request.url, "https://registry.npmjs.org/-/package/@scope%2fpkg/visibility");
+        Ok(OidcResponse { ok: true, status: 200, body: r#"{"public":true}"#.to_owned() })
     });
 
     let token = id_token(&repository_visibility("public"));
@@ -98,9 +88,7 @@ async fn private_visibility_yields_no_provenance() {
 
 #[tokio::test]
 async fn malformed_id_token_is_skippable() {
-    github_sys!(Sys, |_: OidcRequest<'_>| unreachable!(
-        "no request for a malformed token"
-    ));
+    github_sys!(Sys, |_: OidcRequest<'_>| unreachable!("no request for a malformed token"));
 
     let err = determine_provenance::<Sys>(
         "auth",
@@ -111,10 +99,7 @@ async fn malformed_id_token_is_skippable() {
     )
     .await
     .unwrap_err();
-    assert!(matches!(
-        err,
-        DetermineProvenanceError::Provenance(ProvenanceError::MalformedIdToken)
-    ));
+    assert!(matches!(err, DetermineProvenanceError::Provenance(ProvenanceError::MalformedIdToken)));
 }
 
 #[tokio::test]
@@ -162,9 +147,7 @@ async fn visibility_failure_carries_code_and_message() {
 
 #[tokio::test]
 async fn fetch_rejection_is_a_hard_error() {
-    github_sys!(Sys, |_: OidcRequest<'_>| Err(OidcFetchError {
-        reason: "timeout".to_owned()
-    }));
+    github_sys!(Sys, |_: OidcRequest<'_>| Err(OidcFetchError { reason: "timeout".to_owned() }));
 
     let token = id_token(&repository_visibility("public"));
     let err =

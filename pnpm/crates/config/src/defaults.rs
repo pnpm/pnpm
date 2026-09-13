@@ -142,10 +142,7 @@ where
     Some(match env::consts::OS {
         "macos" => home_dir.join("Library/pnpm"),
         "windows" => Sys::var("LOCALAPPDATA")
-            .map_or_else(
-                || home_dir.join(".pnpm"),
-                |local| PathBuf::from(local).join("pnpm"),
-            ),
+            .map_or_else(|| home_dir.join(".pnpm"), |local| PathBuf::from(local).join("pnpm")),
         // pnpm treats every non-Windows platform as Unix here.
         _ => home_dir.join(".local/share/pnpm"),
     })
@@ -206,9 +203,7 @@ pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) 
     if configured.is_absolute() {
         return configured.to_path_buf();
     }
-    let Some(state_root) = default_state_dir
-        .parent()
-        .filter(|state_root| state_root.is_absolute())
+    let Some(state_root) = default_state_dir.parent().filter(|state_root| state_root.is_absolute())
     else {
         return PathBuf::new();
     };
@@ -223,11 +218,7 @@ pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) 
     let Ok(resolved) = pnpm_fs::realpath_missing(&resolved) else {
         return PathBuf::new();
     };
-    if resolved.starts_with(&state_root) {
-        resolved
-    } else {
-        PathBuf::new()
-    }
+    if resolved.starts_with(&state_root) { resolved } else { PathBuf::new() }
 }
 
 /// Resolve the default packument-cache directory.
@@ -299,10 +290,8 @@ pub const DEFAULT_JSR_REGISTRY: &str = "https://npm.jsr.io/";
 /// against, so an org that proxies
 /// npmjs should point `npmjs` at their proxy to keep verification
 /// going there rather than to the public host.
-pub const BUILTIN_REGISTRIES_BY_PREFIX: &[(&str, &str)] = &[
-    ("gh", "https://npm.pkg.github.com/"),
-    ("npmjs", "https://registry.npmjs.org/"),
-];
+pub const BUILTIN_REGISTRIES_BY_PREFIX: &[(&str, &str)] =
+    &[("gh", "https://npm.pkg.github.com/"), ("npmjs", "https://registry.npmjs.org/")];
 
 pub fn default_modules_cache_max_age() -> u64 {
     10080
@@ -456,9 +445,7 @@ pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, paralleli
         // panics in debug builds on `n == i32::MIN` (negation
         // overflow); the former returns `i32::MAX as u32 + 1`
         // safely.
-        Some(n) => parallelism
-            .saturating_sub(n.unsigned_abs())
-            .max(1),
+        Some(n) => parallelism.saturating_sub(n.unsigned_abs()).max(1),
     }
 }
 

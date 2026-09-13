@@ -53,10 +53,7 @@ impl Buffer {
             self.lines.clear();
             return;
         }
-        self.lines.push(CapturedLine {
-            stdio: stdio_name(stdio),
-            line: line.to_string(),
-        });
+        self.lines.push(CapturedLine { stdio: stdio_name(stdio), line: line.to_string() });
     }
 }
 
@@ -96,11 +93,7 @@ pub fn drain_task(
     enable_pre_post_scripts: bool,
 ) -> Option<Vec<CapturedScript>> {
     let stages: Vec<String> = if enable_pre_post_scripts {
-        vec![
-            format!("pre{script}"),
-            script.to_string(),
-            format!("post{script}"),
-        ]
+        vec![format!("pre{script}"), script.to_string(), format!("post{script}")]
     } else {
         vec![script.to_string()]
     };
@@ -179,11 +172,7 @@ fn stdio_name(stdio: LifecycleStdio) -> String {
 }
 
 fn stdio_from_name(name: &str) -> LifecycleStdio {
-    if name == "stderr" {
-        LifecycleStdio::Stderr
-    } else {
-        LifecycleStdio::Stdout
-    }
+    if name == "stderr" { LifecycleStdio::Stderr } else { LifecycleStdio::Stdout }
 }
 
 #[cfg(test)]

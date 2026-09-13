@@ -58,10 +58,8 @@ async fn package_version_guard_repopulates_latest_tag() {
         },
         ..ResolveOptions::default()
     };
-    let wanted = WantedDependency {
-        alias: Some("acme".to_string()),
-        ..WantedDependency::default()
-    };
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
 
     let result = resolver
         .resolve(&wanted, &opts)
@@ -110,10 +108,7 @@ async fn package_version_guard_blocking_every_version_errors() {
     let err = resolver.resolve(&wanted, &opts).await.expect_err("expected a guard error");
     let message = err.to_string();
     assert!(message.contains("acme"), "{message}");
-    assert!(
-        message.contains("rejected by the resolver guard"),
-        "{message}",
-    );
+    assert!(message.contains("rejected by the resolver guard"), "{message}");
 }
 
 #[tokio::test]

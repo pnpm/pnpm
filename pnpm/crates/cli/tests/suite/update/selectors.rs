@@ -12,10 +12,7 @@ use assert_cmd::assert::OutputAssertExt;
 fn update_with_selector_only_rewrites_the_matched_dependency() {
     let (root, workspace, anchor) = setup();
 
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
 
     pacquet(&workspace, ["update", DEP]).assert().success();
@@ -44,27 +41,15 @@ fn update_transitive_mixed_with_direct_selector() {
         &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#),
     );
     pacquet(&workspace, ["install"]).assert().success();
-    eprintln!(
-        "virtual store contents: {:?}",
-        list_virtual_store(&workspace),
-    );
-    assert!(virtual_store_has(
-        &workspace,
-        "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"
-    ));
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
 
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0" }}"#));
 
     // DEP is a transitive selector; FOO is a direct dependency selector.
     pacquet(&workspace, ["update", DEP, FOO]).assert().success();
 
-    eprintln!(
-        "virtual store contents: {:?}",
-        list_virtual_store(&workspace),
-    );
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(
         virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
         "the transitive selector should bump even alongside a direct selector",
@@ -89,28 +74,16 @@ fn update_transitive_glob_mixed_with_direct_selector() {
         &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#),
     );
     pacquet(&workspace, ["install"]).assert().success();
-    eprintln!(
-        "virtual store contents: {:?}",
-        list_virtual_store(&workspace),
-    );
-    assert!(virtual_store_has(
-        &workspace,
-        "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"
-    ));
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
 
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0" }}"#));
 
     // "@pnpm.e2e/dep-of-*" matches the transitive dep-of-pkg-with-1-dep
     // only; FOO is a direct dependency selector.
     pacquet(&workspace, ["update", "@pnpm.e2e/dep-of-*", FOO]).assert().success();
 
-    eprintln!(
-        "virtual store contents: {:?}",
-        list_virtual_store(&workspace),
-    );
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(
         virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
         "the transitive glob selector should bump even alongside a direct selector",
@@ -131,19 +104,10 @@ fn update_transitive_rejects_a_requested_version() {
 
     // Pin the transitive dep-of-pkg-with-1-dep at 100.0.0 (via a direct
     // exact entry), then drop it to a pure transitive of pkg-with-1-dep.
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
-    eprintln!(
-        "virtual store contents: {:?}",
-        list_virtual_store(&workspace),
-    );
-    assert!(virtual_store_has(
-        &workspace,
-        "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"
-    ));
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
 
     write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
 
@@ -157,19 +121,13 @@ fn update_transitive_rejects_a_requested_version() {
     );
     eprintln!("STATUS: {}\nOUTPUT:\n{rendered}", output.status);
 
-    assert!(
-        !output.status.success(),
-        "a version that cannot be recorded should fail",
-    );
+    assert!(!output.status.success(), "a version that cannot be recorded should fail");
     assert!(
         rendered.contains("ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP"),
         "the failure must carry the UPDATE_VERSION_ON_INDIRECT_DEP code",
     );
 
-    eprintln!(
-        "virtual store contents: {:?}",
-        list_virtual_store(&workspace),
-    );
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(
         !virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
         "a rejected update must not have resolved anything",
@@ -184,10 +142,7 @@ fn update_transitive_rejects_a_requested_version() {
 fn update_latest_with_selector_is_scoped() {
     let (root, workspace, anchor) = setup();
 
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
 
     pacquet(&workspace, ["update", "--latest", FOO]).assert().success();
@@ -205,10 +160,7 @@ fn update_latest_with_selector_is_scoped() {
 fn update_latest_with_negation_selector() {
     let (root, workspace, anchor) = setup();
 
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
 
     // Update everything except dep-of-pkg-with-1-dep.
@@ -229,16 +181,10 @@ fn update_depth_zero_unknown_package_errors() {
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
 
-    let output = pacquet(
-        &workspace,
-        ["update", "--depth", "0", "@pnpm.e2e/not-a-dependency"],
-    )
-    .output()
-    .expect("run pacquet update");
-    assert!(
-        !output.status.success(),
-        "depth-0 update of a non-dependency should fail",
-    );
+    let output = pacquet(&workspace, ["update", "--depth", "0", "@pnpm.e2e/not-a-dependency"])
+        .output()
+        .expect("run pacquet update");
+    assert!(!output.status.success(), "depth-0 update of a non-dependency should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("None of the specified packages were found in the dependencies"),
@@ -259,19 +205,13 @@ fn update_depth_zero_leaves_transitive_dependencies_locked() {
     // direct exact entry, then drop it to a pure transitive of
     // pkg-with-1-dep, whose ^100.0.0 range a fresh resolve answers with
     // 100.1.0.
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
     write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
 
     pacquet(&workspace, ["update", "--depth", "0"]).assert().success();
 
-    eprintln!(
-        "virtual store contents: {:?}",
-        list_virtual_store(&workspace),
-    );
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(
         !virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
         "a depth-0 update should not reach a transitive dependency",
@@ -279,10 +219,7 @@ fn update_depth_zero_leaves_transitive_dependencies_locked() {
 
     pacquet(&workspace, ["update"]).assert().success();
 
-    eprintln!(
-        "virtual store contents: {:?}",
-        list_virtual_store(&workspace),
-    );
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(
         virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
         "the default unlimited depth should reach the transitive dependency",
@@ -299,10 +236,7 @@ fn update_latest_honors_ignore_dependencies() {
     let (root, workspace, anchor) = setup();
     set_ignore_dependencies(&workspace, &[DEP]);
 
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
 
     pacquet(&workspace, ["update", "--latest"]).assert().success();
@@ -323,27 +257,15 @@ fn update_compatible_honors_ignore_dependencies() {
 
     // Pin both exactly, then widen the ranges. A plain `update` would
     // bump both to the highest in range; ignoring foo must keep it pinned.
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{DEP}": "100.0.0", "{FOO}": "1.0.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0", "{FOO}": "1.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
 
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^1.0.0" }}"#));
     pacquet(&workspace, ["update"]).assert().success();
 
     // dep re-resolved to the highest in range; foo kept its old pin.
-    eprintln!(
-        "virtual store contents: {:?}",
-        list_virtual_store(&workspace),
-    );
-    assert!(virtual_store_has(
-        &workspace,
-        "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"
-    ));
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
     assert!(virtual_store_has(&workspace, "@pnpm.e2e+foo@1.0.0"));
     assert!(!virtual_store_has(&workspace, "@pnpm.e2e+foo@1.3.0"));
 
@@ -390,36 +312,18 @@ fn update_latest_all_direct_ignored_does_not_touch_indirect() {
 
     // Pin the transitive dep-of-pkg-with-1-dep at 100.0.0 (via a direct
     // exact entry), then drop it to a pure transitive of pkg-with-1-dep.
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
-    eprintln!(
-        "virtual store contents: {:?}",
-        list_virtual_store(&workspace),
-    );
-    assert!(virtual_store_has(
-        &workspace,
-        "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"
-    ));
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
 
     write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
     pacquet(&workspace, ["update", "--latest"]).assert().success();
 
     // No-op: the indirect dep stays pinned at 100.0.0.
-    eprintln!(
-        "virtual store contents: {:?}",
-        list_virtual_store(&workspace),
-    );
-    assert!(virtual_store_has(
-        &workspace,
-        "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"
-    ));
-    assert!(!virtual_store_has(
-        &workspace,
-        "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"
-    ));
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
+    assert!(!virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
 
     drop((root, anchor));
 }
@@ -434,24 +338,15 @@ fn update_compatible_all_direct_ignored_still_updates_indirect() {
     let (root, workspace, anchor) = setup();
     set_ignore_dependencies(&workspace, &[PARENT]);
 
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
 
     write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0" }}"#));
     pacquet(&workspace, ["update"]).assert().success();
 
     // The indirect dep bumps within range (100.0.0 -> 100.1.0).
-    eprintln!(
-        "virtual store contents: {:?}",
-        list_virtual_store(&workspace),
-    );
-    assert!(virtual_store_has(
-        &workspace,
-        "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"
-    ));
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"));
 
     drop((root, anchor));
 }
@@ -512,26 +407,12 @@ fn update_npm_alias_selector_targets_the_aliased_package() {
         &format!(r#"{{ "dep-alias": "npm:{DEP}@^100.0.0", "{DEP}": "100.0.0" }}"#),
     );
     pacquet(&workspace, ["install"]).assert().success();
-    assert!(virtual_store_has(
-        &workspace,
-        "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"
-    ));
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "dep-alias": "npm:{DEP}@^100.0.0" }}"#),
-    );
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
+    write_manifest(&workspace, &format!(r#"{{ "dep-alias": "npm:{DEP}@^100.0.0" }}"#));
 
-    pacquet(
-        &workspace,
-        ["update", &format!("dep-alias@npm:{DEP}@^100.0.0")],
-    )
-    .assert()
-    .success();
+    pacquet(&workspace, ["update", &format!("dep-alias@npm:{DEP}@^100.0.0")]).assert().success();
 
-    eprintln!(
-        "virtual store contents: {:?}",
-        list_virtual_store(&workspace),
-    );
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
     assert!(
         virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
         "the selector should have withheld the aliased package's pin",
@@ -559,10 +440,7 @@ fn update_preserves_unrelated_transitives_without_peer_dedupe() {
     let (root, workspace, anchor) = setup();
     disable_dedupe_peer_dependents(&workspace);
 
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{PARENT}": "100.0.0", "{FOO}": "100.1.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{PARENT}": "100.0.0", "{FOO}": "100.1.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
 
     let lockfile_before =
@@ -598,12 +476,7 @@ fn update_latest_unmatched_noop_ignores_invalid_minimum_release_age_exclude() {
         format!(r#"["{BRAVO_DEP}@^1.0.0"]"#),
     );
 
-    pacquet(
-        &workspace,
-        ["update", "--latest", "@pnpm.e2e/does-not-exist"],
-    )
-    .assert()
-    .success();
+    pacquet(&workspace, ["update", "--latest", "@pnpm.e2e/does-not-exist"]).assert().success();
 
     drop((root, anchor));
 }
@@ -625,14 +498,8 @@ fn update_latest_with_glob_selector_is_scoped() {
     pacquet(&workspace, ["update", "--latest", "@pnpm.e2e/peer-*"]).assert().success();
 
     let packages = lockfile_package_keys(&workspace);
-    assert!(
-        packages.contains(&format!("{PEER_A}@1.0.1")),
-        "{packages:?}",
-    );
-    assert!(
-        packages.contains(&format!("{PEER_C}@2.0.0")),
-        "{packages:?}",
-    );
+    assert!(packages.contains(&format!("{PEER_A}@1.0.1")), "{packages:?}");
+    assert!(packages.contains(&format!("{PEER_C}@2.0.0")), "{packages:?}");
     assert!(packages.contains(&format!("{FOO}@1.0.0")), "{packages:?}");
 
     drop((root, anchor));
@@ -661,14 +528,8 @@ fn update_latest_star_selector_updates_an_empty_specifier() {
     pacquet(&workspace, ["update", "--latest", "*"]).assert().success();
 
     let packages = lockfile_package_keys(&workspace);
-    assert!(
-        packages.contains(&format!("{PEER_A}@1.0.1")),
-        "{packages:?}",
-    );
-    assert!(
-        packages.contains(&format!("{PEER_C}@2.0.0")),
-        "{packages:?}",
-    );
+    assert!(packages.contains(&format!("{PEER_A}@1.0.1")), "{packages:?}");
+    assert!(packages.contains(&format!("{PEER_C}@2.0.0")), "{packages:?}");
     assert!(packages.contains(&format!("{FOO}@2.0.0")), "{packages:?}");
 
     drop((root, anchor));

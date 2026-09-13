@@ -7,12 +7,10 @@
 //! directory, its native binary linked, its registry signature verified,
 //! and its bins linked into the global bin directory.
 
-pub(crate) mod install_pnpm;
-pub(crate) mod verify_engine;
-
-use errors::SelfUpdateError;
 // `pub(crate)` so `pnpm with` can reuse the engine installer and the
 // engine-identity verifier; both commands install the same pnpm engine.
+pub(crate) mod install_pnpm;
+pub(crate) mod verify_engine;
 
 use crate::config_deps::{self, EnginePolicyViolation};
 use clap::Args;
@@ -43,6 +41,82 @@ fn major_upgrade_hint(target_major: u64) -> Option<&'static str> {
         ),
         _ => None,
     }
+}
+
+/// Errors specific to `self-update`. The codes carry the shared
+/// `ERR_PNPM_` prefix, so a code already starting with `PNPM_` becomes
+/// `ERR_PNPM_PNPM_...`.
+#[derive(Debug, Display, Error, Diagnostic)]
+pub(crate) enum SelfUpdateError {
+    #[display("pnpm cannot update itself when it is executed by Corepack")]
+    #[diagnostic(
+        code(ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK),
+        help("Install pnpm with the standalone script instead: {install_command}")
+    )]
+    CantSelfUpdateInCorepack { install_command: &'static str },
+
+    #[display(r#"Cannot find "{specifier}" version of pnpm"#)]
+    #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_PNPM))]
+    CannotResolvePnpm { specifier: String },
+
+    #[display(
+        "Refusing to switch to pnpm v{version}: it violates the configured minimumReleaseAge / trustPolicy"
+    )]
+    #[diagnostic(code(ERR_PNPM_PNPM_RELEASE_POLICY_VIOLATION))]
+    ReleasePolicyViolation { version: String },
+
+    #[display("pnpm@{version} {reason}.")]
+    #[diagnostic(
+        code(ERR_PNPM_NO_MATURE_MATCHING_VERSION),
+        help(
+            "Wait for the release to mature past the cutoff, or set PNPM_CONFIG_MINIMUM_RELEASE_AGE=0 to update anyway."
+        )
+    )]
+    NoMatureMatchingVersion { version: String, reason: String },
+
+    #[display("Aborted: the immature pnpm version was not approved")]
+    #[diagnostic(code(ERR_PNPM_MINIMUM_RELEASE_AGE_DENIED))]
+    MinimumReleaseAgeDenied,
+
+    #[diagnostic(code(ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE))]
+    EngineIdentityUnverifiable { message: String },
+
+    #[diagnostic(code(ERR_PNPM_PNPM_ENGINE_IDENTITY_MISMATCH))]
+    EngineIdentityMismatch { message: String },
+
+    #[display("Cannot run {label} on this host: it ships no native binary for {target}.")]
+    #[diagnostic(
+        code(ERR_PNPM_PNPM_ENGINE_NO_NATIVE_BINARY),
+        help("Set `pmOnFail` to `ignore` to skip the version switch.")
+    )]
+    EngineNoNativeBinary { label: String, target: String },
+
+    #[display("Unable to find the global bin directory")]
+    #[diagnostic(
+        code(ERR_PNPM_NO_GLOBAL_BIN_DIR),
+        help(
+            r#"Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH."#
+        )
+    )]
+    NoGlobalDir,
+
+    #[display("The pnpm v{version} that was just installed cannot run: {reason}")]
+    #[diagnostic(
+        code(ERR_PNPM_BROKEN_PNPM_INSTALL),
+        help(
+            r#"The installation at "{executable}" was discarded and the currently active pnpm was left in place, so pnpm still works. A release that installs but cannot run is a packaging fault — please report it at https://github.com/pnpm/pnpm/issues. To move to a different version meanwhile, pass one to "pnpm self-update"."#
+        )
+    )]
+    BrokenPnpmInstall { version: String, reason: String, executable: String },
+
+    #[display("pnpm v{version} is a broken release and cannot be installed")]
+    #[diagnostic(
+        code(ERR_PNPM_BROKEN_PNPM_RELEASE),
+        help(
+            r#"Its "@pnpm/exe" build shipped without a binary and does not run. Even where it does run, pinning it would break everyone on the project who uses "@pnpm/exe", because the pin is shared. Choose another version, or run "pnpm self-update latest"."#
+        )
+    )]
+    BrokenPnpmRelease { version: String },
 }
 
 #[derive(Debug, Args)]
@@ -76,10 +150,7 @@ fn enforce_resolution_policy(
     violation: &EnginePolicyViolation,
 ) -> miette::Result<()> {
     if violation.code != MINIMUM_RELEASE_AGE_VIOLATION_CODE {
-        return Err(SelfUpdateError::ReleasePolicyViolation {
-            version: version.to_string(),
-        }
-        .into());
+        return Err(SelfUpdateError::ReleasePolicyViolation { version: version.to_string() }.into());
     }
     if config.resolved_minimum_release_age().is_none()
         || !config.resolved_minimum_release_age_strict()
@@ -93,10 +164,7 @@ fn enforce_resolution_policy(
         }
         .into());
     }
-    let prompt = format!(
-        "pnpm@{version} {reason}.\nUpdate anyway?",
-        reason = violation.reason,
-    );
+    let prompt = format!("pnpm@{version} {reason}.\nUpdate anyway?", reason = violation.reason);
     // An interrupted prompt (Esc / Ctrl-C) counts as a refusal.
     match dialoguer::Confirm::new()
         .with_prompt(prompt)
@@ -127,8 +195,8 @@ impl SelfUpdateArgs {
         config: &'static Config,
         dir: &Path,
     ) -> miette::Result<()> {
-        if let Some(message) = Box::pin(handler::<Reporter>(self.version.as_deref(), config, dir))
-            .await?
+        if let Some(message) =
+            Box::pin(handler::<Reporter>(self.version.as_deref(), config, dir)).await?
         {
             println!("{message}");
         }
@@ -152,7 +220,19 @@ async fn handler<Reporter: self::Reporter + 'static>(
     let is_implicit_latest = params.is_none();
     let bare_specifier = params.unwrap_or("latest");
 
-    let target_version = resolve_target_version(config, bare_specifier).await?;
+    let resolved = Box::pin(config_deps::resolve_engine_version(config, "pnpm", bare_specifier))
+        .await?
+        .ok_or_else(|| SelfUpdateError::CannotResolvePnpm {
+            specifier: bare_specifier.to_string(),
+        })?;
+    let target_version = resolved.version;
+    // Before the pin below is written, not just before the install: the pin is
+    // shared, so a release this wrapper survives can still break a teammate's.
+    install_pnpm::assert_release_is_installable(&target_version)?;
+
+    if let Some(violation) = resolved.policy_violation {
+        enforce_resolution_policy(config, &target_version, &violation)?;
+    }
 
     let manifest_value = super::package_manager::read_manifest_json(&dir.join("package.json"))?;
     let wanted = manifest_value.as_ref().and_then(super::package_manager::wanted_package_manager);
@@ -166,14 +246,8 @@ async fn handler<Reporter: self::Reporter + 'static>(
     if let Some(pm) = &wanted
         && pm.name == "pnpm"
     {
-        return Box::pin(update_project_pin(
-            config,
-            dir,
-            pm,
-            &target_version,
-            is_implicit_latest,
-        ))
-        .await;
+        return Box::pin(update_project_pin(config, dir, pm, &target_version, is_implicit_latest))
+            .await;
     }
 
     if let Some(message) =
@@ -182,8 +256,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
         return Ok(Some(message));
     }
 
-    switch_global_pnpm::<Reporter>(config, &target_version, &prefix, bare_specifier)
-        .await
+    switch_global_pnpm::<Reporter>(config, &target_version, &prefix, bare_specifier).await
 }
 
 /// Resolve the target engine's integrities into the env lockfile and verify
@@ -225,8 +298,8 @@ async fn verify_target_engine<Reporter: self::Reporter + 'static>(
             verify_engine::PlatformBinaries::None
         },
     };
-    if let Some(warning) = Box::pin(verify_engine::verify_engine_identity(&env, &engine, config))
-        .await?
+    if let Some(warning) =
+        Box::pin(verify_engine::verify_engine_identity(&env, &engine, config)).await?
     {
         warn::<Reporter>(prefix, &warning);
     }
@@ -377,26 +450,20 @@ fn is_executed_by_corepack() -> bool {
 }
 
 fn coerce_major(version: &str) -> Option<u64> {
-    node_semver::Version::parse(version)
-        .ok()
-        .map(|version| version.major)
+    node_semver::Version::parse(version).ok().map(|version| version.major)
 }
 
 pub(super) fn version_lt(left: &str, right: &str) -> bool {
-    match (
-        node_semver::Version::parse(left),
-        node_semver::Version::parse(right),
-    ) {
+    match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
         (Ok(left), Ok(right)) => left < right,
         _ => false,
     }
 }
 
 fn range_satisfies(range: &str, version: &str) -> bool {
-    let (Ok(range), Ok(parsed)) = (
-        node_semver::Range::parse(range),
-        node_semver::Version::parse(version),
-    ) else {
+    let (Ok(range), Ok(parsed)) =
+        (node_semver::Range::parse(range), node_semver::Version::parse(version))
+    else {
         return false;
     };
     if range.satisfies(&parsed) {
@@ -459,33 +526,7 @@ async fn switch_global_pnpm<Reporter: self::Reporter + 'static>(
             result.install_dir.display(),
         )));
     }
-    Ok(Some(format!(
-        "Successfully updated pnpm to v{target_version}",
-    )))
+    Ok(Some(format!("Successfully updated pnpm to v{target_version}")))
 }
 
 mod project_pin;
-
-mod errors;
-
-async fn resolve_target_version(config: &Config, bare_specifier: &str) -> miette::Result<String> {
-    let resolved = Box::pin(config_deps::resolve_engine_version(
-        config,
-        "pnpm",
-        bare_specifier,
-    ))
-    .await?
-    .ok_or_else(|| SelfUpdateError::CannotResolvePnpm {
-        specifier: bare_specifier.to_string(),
-    })?;
-    let target_version = resolved.version;
-    // Before the pin below is written, not just before the install: the pin is
-    // shared, so a release this wrapper survives can still break a teammate's.
-    install_pnpm::assert_release_is_installable(&target_version)?;
-
-    if let Some(violation) = resolved.policy_violation {
-        enforce_resolution_policy(config, &target_version, &violation)?;
-    }
-
-    Ok(target_version)
-}

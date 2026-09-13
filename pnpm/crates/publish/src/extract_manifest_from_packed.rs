@@ -46,11 +46,9 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
             });
     }
 
-    Err(ExtractManifestError::MissingManifest(
-        PublishArchiveMissingManifestError {
-            tarball_path: tarball_path.to_owned(),
-        },
-    ))
+    Err(ExtractManifestError::MissingManifest(PublishArchiveMissingManifestError {
+        tarball_path: tarball_path.to_owned(),
+    }))
 }
 
 /// Read the publish manifest from a pre-built tarball, filling in its `readme`

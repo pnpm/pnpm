@@ -74,19 +74,16 @@ pub fn prepare_package<Reporter: self::Reporter>(
         safe_read_package_json_from_dir(&pkg_dir).map_err(PreparePackageError::ReadManifest)?;
 
     let Some(manifest) = manifest else {
-        return Ok(PreparedPackage::without_build(pkg_dir));
+        return Ok(PreparedPackage { pkg_dir, should_be_built: false });
     };
     let scripts = manifest.get("scripts").and_then(Value::as_object);
     if scripts.is_none_or(serde_json::Map::is_empty)
         || !package_should_be_built(&manifest, &pkg_dir)
     {
-        return Ok(PreparedPackage::without_build(pkg_dir));
+        return Ok(PreparedPackage { pkg_dir, should_be_built: false });
     }
     if opts.scripts.ignore {
-        return Ok(PreparedPackage {
-            pkg_dir,
-            should_be_built: true,
-        });
+        return Ok(PreparedPackage { pkg_dir, should_be_built: true });
     }
 
     assert_package_build_allowed(opts.allow_build.as_ref(), opts.pkg_resolution_id, &manifest)?;
@@ -109,10 +106,7 @@ pub fn prepare_package<Reporter: self::Reporter>(
     run_install_and_prepublish::<Reporter>(pm, &run_opts, &manifest)?;
     remove_install_node_modules(&pkg_dir)?;
 
-    Ok(PreparedPackage {
-        pkg_dir,
-        should_be_built: true,
-    })
+    Ok(PreparedPackage { pkg_dir, should_be_built: true })
 }
 
 impl PreparePackageOptions<'_> {
@@ -441,26 +435,16 @@ pub(crate) fn safe_join_path(
     let sub = sub
         .unwrap_or("")
         .trim_start_matches(['/', '\\']);
-    let joined = if sub.is_empty() {
-        root.to_path_buf()
-    } else {
-        root.join(sub)
-    };
+    let joined = if sub.is_empty() { root.to_path_buf() } else { root.join(sub) };
     let canonical_root = root.canonicalize().map_err(PreparePackageError::Io)?;
     let Ok(canonical_joined) = joined.canonicalize() else {
-        return Err(PreparePackageError::InvalidPath {
-            path: sub.to_string(),
-        });
+        return Err(PreparePackageError::InvalidPath { path: sub.to_string() });
     };
     if !canonical_joined.starts_with(&canonical_root) {
-        return Err(PreparePackageError::InvalidPath {
-            path: sub.to_string(),
-        });
+        return Err(PreparePackageError::InvalidPath { path: sub.to_string() });
     }
     if !canonical_joined.is_dir() {
-        return Err(PreparePackageError::InvalidPath {
-            path: sub.to_string(),
-        });
+        return Err(PreparePackageError::InvalidPath { path: sub.to_string() });
     }
     Ok(joined)
 }
@@ -475,19 +459,8 @@ fn inject_script(manifest: &mut Value, stage: &str, script: &str) {
 }
 
 fn map_lifecycle_err(source: LifecycleScriptError) -> PreparePackageError {
-    PreparePackageError::LifecycleFailed {
-        source,
-    }
+    PreparePackageError::LifecycleFailed { source }
 }
 
 #[cfg(test)]
 mod tests;
-
-impl PreparedPackage {
-    fn without_build(pkg_dir: PathBuf) -> Self {
-        Self {
-            pkg_dir,
-            should_be_built: false,
-        }
-    }
-}

@@ -84,14 +84,8 @@ async fn latest_is_suppressed_when_published_by_holds_back_raw_latest() {
             .to_string(),
         "1.0.0",
     );
-    assert!(
-        result.package.latest.is_none(),
-        "immature dist-tags.latest suppresses the hint",
-    );
-    assert!(
-        result.policy_violation.is_none(),
-        "1.0.0 is mature, no violation",
-    );
+    assert!(result.package.latest.is_none(), "immature dist-tags.latest suppresses the hint");
+    assert!(result.policy_violation.is_none(), "1.0.0 is mature, no violation");
 }
 
 #[tokio::test]
@@ -213,10 +207,7 @@ async fn latest_is_raw_registry_tag_when_published_by_exclude_matches_package() 
         "1.1.0",
     );
     assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
-    assert!(
-        result.policy_violation.is_none(),
-        "excluded package has no violation",
-    );
+    assert!(result.policy_violation.is_none(), "excluded package has no violation");
 }
 
 #[tokio::test]

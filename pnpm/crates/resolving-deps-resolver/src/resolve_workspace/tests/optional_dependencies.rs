@@ -70,42 +70,27 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
             }),
         ),
     );
-    let resolver = RecordingResolver {
-        table,
-        seen: Mutex::new(HashMap::default()),
-    };
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
     let (tmp_root, root_manifest) = fake_manifest(
         serde_json::json!({ "shared": "1.0.0", "opt": "18.0.0", "carrier": "1.0.0" }),
     );
     let (tmp_a, a_manifest) = fake_manifest(serde_json::json!({ "shared": "1.0.0" }));
     let importers = [
-        WorkspaceImporter {
-            id: ".".to_string(),
-            manifest: &root_manifest,
-        },
-        WorkspaceImporter {
-            id: "pkg-a".to_string(),
-            manifest: &a_manifest,
-        },
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
     ];
     let dirs = [tmp_root.path(), tmp_a.path()];
 
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
     let mut next = 0;
-    let result = resolve_workspace(
-        &resolver,
-        &importers,
-        &[DependencyGroup::Prod],
-        opts,
-        |_| {
-            let dir = dirs[next].to_path_buf();
-            next += 1;
-            let mut opts = importer_opts(dir, None);
-            opts.peers.auto_install_peers = true;
-            opts
-        },
-    )
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        let mut opts = importer_opts(dir, None);
+        opts.peers.auto_install_peers = true;
+        opts
+    })
     .await
     .unwrap();
 
@@ -127,14 +112,8 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
     );
     let (tmp_a, a_manifest) = fake_manifest(serde_json::json!({ "shared": "1.0.0" }));
     let importers = [
-        WorkspaceImporter {
-            id: ".".to_string(),
-            manifest: &root_manifest,
-        },
-        WorkspaceImporter {
-            id: "pkg-a".to_string(),
-            manifest: &a_manifest,
-        },
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "pkg-a".to_string(), manifest: &a_manifest },
     ];
     let dirs = [tmp_root.path(), tmp_a.path()];
     let mut opts = workspace_opts(false, false);
@@ -161,19 +140,13 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
         extra: pnpm_lockfile::LockfileExtra::default(),
     }));
     let mut next = 0;
-    let result = resolve_workspace(
-        &resolver,
-        &importers,
-        &[DependencyGroup::Prod],
-        opts,
-        |_| {
-            let dir = dirs[next].to_path_buf();
-            next += 1;
-            let mut opts = importer_opts(dir, None);
-            opts.peers.auto_install_peers = true;
-            opts
-        },
-    )
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        let mut opts = importer_opts(dir, None);
+        opts.peers.auto_install_peers = true;
+        opts
+    })
     .await
     .unwrap();
 
@@ -269,33 +242,21 @@ async fn shared_subtree_owner_context_is_available_before_optional_hoisting() {
     let (tmp_owner, owner_manifest) =
         fake_manifest(serde_json::json!({ "shared": "1.0.0", "opt": "18.0.0" }));
     let importers = [
-        WorkspaceImporter {
-            id: "nested".to_string(),
-            manifest: &nested_manifest,
-        },
-        WorkspaceImporter {
-            id: "owner".to_string(),
-            manifest: &owner_manifest,
-        },
+        WorkspaceImporter { id: "nested".to_string(), manifest: &nested_manifest },
+        WorkspaceImporter { id: "owner".to_string(), manifest: &owner_manifest },
     ];
     let dirs = [tmp_nested.path(), tmp_owner.path()];
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
     let mut next = 0;
 
-    let result = resolve_workspace(
-        &resolver,
-        &importers,
-        &[DependencyGroup::Prod],
-        opts,
-        |_| {
-            let dir = dirs[next].to_path_buf();
-            next += 1;
-            let mut opts = importer_opts(dir, None);
-            opts.peers.auto_install_peers = true;
-            opts
-        },
-    )
+    let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        let dir = dirs[next].to_path_buf();
+        next += 1;
+        let mut opts = importer_opts(dir, None);
+        opts.peers.auto_install_peers = true;
+        opts
+    })
     .await
     .unwrap();
 
@@ -315,24 +276,14 @@ async fn shared_subtree_owner_context_is_available_before_optional_hoisting() {
 /// instead of failing the install.
 #[tokio::test]
 async fn skips_an_optional_dependency_for_every_coded_resolver_failure() {
-    for failure in [
-        FailureShape::NoMatchingVersion,
-        FailureShape::RegistryResponse,
-    ] {
+    for failure in [FailureShape::NoMatchingVersion, FailureShape::RegistryResponse] {
         let (_tmp, manifest, resolver) = optional_failure_fixture(failure);
-        let importers = [WorkspaceImporter {
-            id: ".".to_string(),
-            manifest: &manifest,
-        }];
+        let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
         let skipped = std::sync::Arc::new(Mutex::new(Vec::new()));
         let mut opts = workspace_opts(false, false);
         let sink = std::sync::Arc::clone(&skipped);
-        opts.hooks.skipped_optional_log = Some(std::sync::Arc::new(move |notification| {
-            sink
-                .lock()
-                .unwrap()
-                .push(notification);
-        }));
+        opts.hooks.skipped_optional_log =
+            Some(std::sync::Arc::new(move |notification| sink.lock().unwrap().push(notification)));
         let result = resolve_workspace(
             &resolver,
             &importers,
@@ -344,14 +295,8 @@ async fn skips_an_optional_dependency_for_every_coded_resolver_failure() {
         .expect("a coded resolution failure of an optional dependency is skipped");
 
         let direct = &result.peers.direct_dependencies_by_importer["."];
-        assert!(
-            direct.contains_key("kept"),
-            "the regular dep resolves: {direct:?}",
-        );
-        assert!(
-            !direct.contains_key("broken"),
-            "the failing optional edge is dropped: {direct:?}",
-        );
+        assert!(direct.contains_key("kept"), "the regular dep resolves: {direct:?}");
+        assert!(!direct.contains_key("broken"), "the failing optional edge is dropped: {direct:?}");
         let skipped = skipped.lock().unwrap();
         assert_eq!(skipped.len(), 1);
         assert_eq!(skipped[0].name.as_deref(), Some("broken"));

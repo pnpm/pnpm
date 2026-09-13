@@ -1,6 +1,6 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, fs, generate_lockfile, is_symlink_or_junction,
-    pacquet_in, write_manifest, write_workspace_yaml,
+    AddMockedRegistry, CommandExtra, CommandTempCwd, fs, generate_lockfile, hoisted_dependencies,
+    is_symlink_or_junction, pacquet_in, write_manifest, write_workspace_yaml,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -223,10 +223,7 @@ fn private_hoist_pattern_filters_aliases() {
         serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
     );
     generate_lockfile(pnpm);
-    write_workspace_yaml(
-        &workspace,
-        "hoistPattern:\n  - '@pnpm.e2e/*'\npublicHoistPattern: []\n",
-    );
+    write_workspace_yaml(&workspace, "hoistPattern:\n  - '@pnpm.e2e/*'\npublicHoistPattern: []\n");
 
     pacquet
         .with_args(["install", "--frozen-lockfile"])
@@ -404,6 +401,73 @@ fn combined_public_and_private_hoist_patterns_split_targets() {
             "{name} must not be publicly hoisted",
         );
     }
+
+    drop((root, mock_instance));
+}
+
+/// TS: `hoist by alias` (`hoist.ts:233`): an npm-aliased transitive is
+/// hoisted under its alias, not its real name, and `.modules.yaml`
+/// records the alias.
+#[test]
+fn hoist_by_alias() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet
+        .with_args(["add", "@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0"])
+        .assert()
+        .success();
+
+    assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-1-aliased-dep").exists());
+    assert!(workspace.join("node_modules/.pnpm/node_modules/dep").exists());
+    assert!(
+        fs::symlink_metadata(workspace.join(
+            "node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep"
+        ),)
+        .is_err(),
+        "the aliased dep must be hoisted under its alias only",
+    );
+    assert_eq!(
+        hoisted_dependencies(&workspace),
+        serde_json::json!({ "@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0": { "dep": "private" } }),
+    );
+
+    drop((root, mock_instance));
+}
+
+/// TS: `should remove aliased hoisted dependencies` (`hoist.ts:249`).
+#[test]
+fn should_remove_aliased_hoisted_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet
+        .with_args(["add", "@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0"])
+        .assert()
+        .success();
+    pacquet_in(&workspace)
+        .with_args(["remove", "@pnpm.e2e/pkg-with-1-aliased-dep"])
+        .assert()
+        .success();
+
+    assert!(!workspace.join("node_modules/@pnpm.e2e/pkg-with-1-aliased-dep").exists());
+    assert!(
+        fs::symlink_metadata(workspace.join("node_modules/.pnpm/node_modules/dep")).is_err(),
+        "the aliased hoist link must be removed with its owner",
+    );
+    assert_eq!(hoisted_dependencies(&workspace), serde_json::json!({}));
 
     drop((root, mock_instance));
 }

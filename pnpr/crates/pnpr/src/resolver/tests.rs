@@ -119,9 +119,7 @@ fn private_alias_footprint(alias: &str) -> Footprint {
 fn private_hosted_footprint(registry: &str, package: &str) -> Footprint {
     let mut footprint = Footprint::default();
     // Registry-qualified, matching `hosted_policy_id` in the route module.
-    footprint.add(PrivateAccessDescriptor::Hosted {
-        policy_id: format!("{registry}\0{package}"),
-    });
+    footprint.add(PrivateAccessDescriptor::Hosted { policy_id: format!("{registry}\0{package}") });
     footprint
 }
 

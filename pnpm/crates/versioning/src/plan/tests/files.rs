@@ -10,10 +10,8 @@ fn ignored_packages_neither_release_nor_propagate() {
         make_project("frozen", "1.0.0", &[("lib", "workspace:*")]),
     ];
     let intents = [make_intent("one", &[("lib", "major")])];
-    let versioning = VersioningSettings {
-        ignore: vec!["frozen".to_string()],
-        ..VersioningSettings::default()
-    };
+    let versioning =
+        VersioningSettings { ignore: vec!["frozen".to_string()], ..VersioningSettings::default() };
     let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
     assert_eq!(release_names(&plan), ["lib"]);
 }
@@ -30,10 +28,7 @@ fn a_name_shared_by_two_projects_is_ambiguous_and_must_be_referenced_by_director
         &AssembleReleasePlanOptions::default(),
     )
     .expect_err("plan must fail");
-    assert!(
-        err.to_string().contains("matches multiple workspace projects"),
-        "unexpected: {err}",
-    );
+    assert!(err.to_string().contains("matches multiple workspace projects"), "unexpected: {err}");
 
     let intents = [make_intent("one", &[("./pnpm/npm/pnpm", "patch")])];
     let plan = assemble(&twins(), &intents, &Ledger::new(), None);
@@ -44,10 +39,7 @@ fn a_name_shared_by_two_projects_is_ambiguous_and_must_be_referenced_by_director
 
 #[test]
 fn ledger_consumption_attributes_by_directory_when_names_collide() {
-    let intents = [make_intent(
-        "one",
-        &[("./pnpm11/pnpm", "patch"), ("./pnpm/npm/pnpm", "patch")],
-    )];
+    let intents = [make_intent("one", &[("./pnpm11/pnpm", "patch"), ("./pnpm/npm/pnpm", "patch")])];
     let mut consumed = Ledger::new();
     consumed.insert(
         "pnpm@12.0.1".to_string(),
@@ -65,10 +57,7 @@ fn ledger_consumption_attributes_by_directory_when_names_collide() {
 
 #[test]
 fn lanes_keyed_by_directory_path_apply_to_the_right_twin() {
-    let intents = [make_intent(
-        "one",
-        &[("./pnpm11/pnpm", "patch"), ("./pnpm/npm/pnpm", "minor")],
-    )];
+    let intents = [make_intent("one", &[("./pnpm11/pnpm", "patch"), ("./pnpm/npm/pnpm", "minor")])];
     let versioning = VersioningSettings {
         lanes: IndexMap::from([("./pnpm/npm/pnpm".to_string(), "alpha".to_string())]),
         ..VersioningSettings::default()

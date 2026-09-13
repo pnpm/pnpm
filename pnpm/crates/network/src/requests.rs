@@ -12,8 +12,7 @@ impl ThrottledClient {
         url: &str,
         auth_headers: &AuthHeaders,
     ) -> Result<SecureAuthResponse, reqwest::Error> {
-        self.get_bytes_with_secure_auth_and_accept(url, auth_headers, None)
-            .await
+        self.get_bytes_with_secure_auth_and_accept(url, auth_headers, None).await
     }
 
     /// Retry a complete authenticated GET, including redirects and body reads.
@@ -46,8 +45,7 @@ impl ThrottledClient {
         retry_opts: RetryOpts,
         body_limit: usize,
     ) -> Result<SecureAuthResponse, reqwest::Error> {
-        retry::get_secure_bytes(self, url, auth_headers, accept, retry_opts, body_limit)
-            .await
+        retry::get_secure_bytes(self, url, auth_headers, accept, retry_opts, body_limit).await
     }
 
     /// Negotiate an ecosystem's metadata representation while retaining the
@@ -82,12 +80,7 @@ impl ThrottledClient {
         let status = response.status();
         let url = response.url().to_string();
         let body = read_limited_body(response, body_limit).await?;
-        Ok(SecureAuthResponse {
-            status,
-            body: body.bytes,
-            body_truncated: body.truncated,
-            url,
-        })
+        Ok(SecureAuthResponse { status, body: body.bytes, body_truncated: body.truncated, url })
     }
 
     /// Follow a GET's redirects, rebuilding its headers for each destination.
@@ -109,12 +102,7 @@ impl ThrottledClient {
                 .headers()
                 .get(reqwest::header::LOCATION)
                 .and_then(|location| location.to_str().ok())
-                .and_then(|location| {
-                    response
-                        .url()
-                        .join(location)
-                        .ok()
-                });
+                .and_then(|location| response.url().join(location).ok());
             if is_redirect_status(response.status())
                 && redirect_count < MAX_REDIRECT_HOPS
                 && let Some(target) = target
@@ -144,10 +132,6 @@ impl ThrottledClient {
         let permit = self.semaphore.acquire(priority).await;
         let clients = self.per_registry.pick_value_for_url(url).unwrap_or(&self.default_clients);
         let client = clients.select(follow_redirects);
-        ThrottledClientGuard {
-            permit,
-            host_permit,
-            client,
-        }
+        ThrottledClientGuard { permit, host_permit, client }
     }
 }

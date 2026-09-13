@@ -38,8 +38,8 @@ async fn scoped_packument_is_served() {
 async fn every_address_of_one_scoped_package_reaches_it() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"scoped-address-bytes";
-    let _packument_mock = mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes)
-        .await;
+    let _packument_mock =
+        mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes).await;
     let _tarball_mock = upstream
         .mock("GET", "/@types/node/-/node-20.0.0.tgz")
         .with_status(200)
@@ -64,19 +64,10 @@ async fn every_address_of_one_scoped_package_reaches_it() {
         }
     };
 
-    for path in [
-        "/@types/node",
-        "/@types%2Fnode",
-        "/~npmjs/@types/node",
-        "/~npmjs/@types%2Fnode",
-    ] {
+    for path in ["/@types/node", "/@types%2Fnode", "/~npmjs/@types/node", "/~npmjs/@types%2Fnode"] {
         let response = get(path).await;
         assert_eq!(response.status(), StatusCode::OK, "GET {path}");
-        assert_eq!(
-            body_json(response.into_body()).await["name"],
-            "@types/node",
-            "GET {path}",
-        );
+        assert_eq!(body_json(response.into_body()).await["name"], "@types/node", "GET {path}");
     }
 
     for path in [
@@ -87,11 +78,7 @@ async fn every_address_of_one_scoped_package_reaches_it() {
     ] {
         let response = get(path).await;
         assert_eq!(response.status(), StatusCode::OK, "GET {path}");
-        assert_eq!(
-            body_json(response.into_body()).await["version"],
-            "20.0.0",
-            "GET {path}",
-        );
+        assert_eq!(body_json(response.into_body()).await["version"], "20.0.0", "GET {path}");
     }
 
     for path in [
@@ -206,12 +193,7 @@ async fn router_not_found_does_not_fall_through_to_public() {
                 patterns: vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).unwrap()],
             },
         ),
-        (
-            "main".to_string(),
-            Registry::Router {
-                sources: vec!["corp".to_string()],
-            },
-        ),
+        ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
     config.routing.registries =
         Registries::new(graph.into_iter().collect(), Some("main".to_string()));
@@ -276,12 +258,7 @@ async fn router_unavailable_source_errors_not_404() {
                 patterns: vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).unwrap()],
             },
         ),
-        (
-            "main".to_string(),
-            Registry::Router {
-                sources: vec!["corp".to_string()],
-            },
-        ),
+        ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
     config.routing.registries =
         Registries::new(graph.into_iter().collect(), Some("main".to_string()));
@@ -296,11 +273,7 @@ async fn router_unavailable_source_errors_not_404() {
         .await
         .unwrap();
     assert_ne!(response.status(), StatusCode::NOT_FOUND);
-    assert!(
-        response.status().is_server_error(),
-        "expected 5xx, got {}",
-        response.status(),
-    );
+    assert!(response.status().is_server_error(), "expected 5xx, got {}", response.status());
 }
 
 /// A programmatically-built registry graph gets the same fail-closed
@@ -311,14 +284,9 @@ async fn building_the_server_rejects_an_invalid_programmatic_registry_graph() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.registries = Registries::new(
-        vec![(
-            "main".to_string(),
-            Registry::Router {
-                sources: vec!["ghost".to_string()],
-            },
-        )]
-        .into_iter()
-        .collect(),
+        vec![("main".to_string(), Registry::Router { sources: vec!["ghost".to_string()] })]
+            .into_iter()
+            .collect(),
         None,
     );
     let err =
@@ -336,40 +304,24 @@ async fn building_the_server_rejects_a_concrete_registry_without_serving_config(
     // A hosted graph entry with no hosted-table row.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.registries = Registries::new(
-        vec![(
-            "ghost-org".to_string(),
-            Registry::Hosted {
-                patterns: vec![],
-            },
-        )]
-        .into_iter()
-        .collect(),
+        vec![("ghost-org".to_string(), Registry::Hosted { patterns: vec![] })]
+            .into_iter()
+            .collect(),
         None,
     );
     let err = pnpr::try_router(config).expect_err("a backing-less hosted registry must fail");
-    assert!(
-        err.to_string().contains("ghost-org"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("ghost-org"), "unexpected error: {err}");
 
     // An upstream graph entry with no upstream serving config.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.registries = Registries::new(
-        vec![(
-            "phantom".to_string(),
-            Registry::Upstream {
-                patterns: vec![],
-            },
-        )]
-        .into_iter()
-        .collect(),
+        vec![("phantom".to_string(), Registry::Upstream { patterns: vec![] })]
+            .into_iter()
+            .collect(),
         None,
     );
     let err = pnpr::try_router(config).expect_err("a backing-less upstream registry must fail");
-    assert!(
-        err.to_string().contains("phantom"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("phantom"), "unexpected error: {err}");
 }
 
 /// One name cannot identify two different origins: serving config left under
@@ -382,41 +334,23 @@ async fn building_the_server_rejects_a_name_shared_by_two_registry_kinds() {
     // Upstream serving config under a name the graph declares as hosted.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.registries = Registries::new(
-        vec![(
-            "npmjs".to_string(),
-            Registry::Hosted {
-                patterns: vec![],
-            },
-        )]
-        .into_iter()
-        .collect(),
+        vec![("npmjs".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
     let err = pnpr::try_router(config).expect_err("an upstream/hosted name collision must fail");
-    assert!(
-        err.to_string().contains("collides"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("collides"), "unexpected error: {err}");
 
     // A hosted serving row under a name the graph declares as a router.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("corp".to_string(), hosted_with_access("corp", "$all"));
     config.routing.registries = Registries::new(
-        vec![(
-            "corp".to_string(),
-            Registry::Router {
-                sources: vec!["npmjs".to_string()],
-            },
-        )]
-        .into_iter()
-        .collect(),
+        vec![("corp".to_string(), Registry::Router { sources: vec!["npmjs".to_string()] })]
+            .into_iter()
+            .collect(),
         None,
     );
     let err = pnpr::try_router(config).expect_err("a hosted/router name collision must fail");
-    assert!(
-        err.to_string().contains("collides"),
-        "unexpected error: {err}",
-    );
+    assert!(err.to_string().contains("collides"), "unexpected error: {err}");
 }
 
 /// The identity endpoints — adduser/login, whoami, profile, token list,
@@ -461,11 +395,7 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
         .to_string();
 
     // whoami, profile, and token list answer under the same prefix.
-    for path in [
-        "/~corp/-/whoami",
-        "/~corp/-/npm/v1/user",
-        "/~corp/-/npm/v1/tokens",
-    ] {
+    for path in ["/~corp/-/whoami", "/~corp/-/npm/v1/user", "/~corp/-/npm/v1/tokens"] {
         let response = app
             .clone()
             .oneshot(
@@ -504,11 +434,7 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
         )
         .await
         .unwrap();
-    assert!(
-        revoke.status().is_success(),
-        "token revoke got {}",
-        revoke.status(),
-    );
+    assert!(revoke.status().is_success(), "token revoke got {}", revoke.status());
 
     // Log back in and out (`npm logout` sends the raw token in the URL);
     // afterwards the token no longer authenticates.
@@ -532,11 +458,7 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
         )
         .await
         .unwrap();
-    assert!(
-        logout.status().is_success(),
-        "logout got {}",
-        logout.status(),
-    );
+    assert!(logout.status().is_success(), "logout got {}", logout.status());
     let stale = app
         .clone()
         .oneshot(
@@ -622,10 +544,7 @@ async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
         ("PUT", "/notascope/widget"),
         ("PUT", "/~npmjs/notascope/widget"),
         ("DELETE", "/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
-        (
-            "DELETE",
-            "/~npmjs/notascope/widget/-/widget-1.0.0.tgz/-rev/1",
-        ),
+        ("DELETE", "/~npmjs/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
     ] {
         let response = app
             .clone()
@@ -669,11 +588,7 @@ async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
             )
             .await
             .unwrap();
-        assert_eq!(
-            response.status(),
-            StatusCode::METHOD_NOT_ALLOWED,
-            "{method} {path}",
-        );
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED, "{method} {path}");
     }
 }
 
@@ -735,8 +650,7 @@ async fn url_delimiters_in_a_package_name_are_rejected() {
 async fn a_single_npm_ecosystem_answers_at_the_root() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"npm-tarball-bytes";
-    let _packument = mock_packument_for_tarball(&mut upstream, "npm", "10.0.0", bytes)
-        .await;
+    let _packument = mock_packument_for_tarball(&mut upstream, "npm", "10.0.0", bytes).await;
     let tarball = upstream
         .mock("GET", "/npm/-/npm-10.0.0.tgz")
         .with_status(200)
@@ -786,8 +700,7 @@ async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
     for authenticated in [false, true] {
-        let directory = read_registry_directory(&app, authenticated.then_some(&token))
-            .await;
+        let directory = read_registry_directory(&app, authenticated.then_some(&token)).await;
         for ecosystem in Ecosystem::all() {
             assert_grouped_ecosystem(
                 &directory,
@@ -818,11 +731,7 @@ async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
             .unwrap();
         assert_eq!(
             response.status(),
-            if path.ends_with("/v2/") {
-                StatusCode::UNAUTHORIZED
-            } else {
-                StatusCode::OK
-            },
+            if path.ends_with("/v2/") { StatusCode::UNAUTHORIZED } else { StatusCode::OK },
             "{path}",
         );
     }

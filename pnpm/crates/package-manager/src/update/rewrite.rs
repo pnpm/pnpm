@@ -59,17 +59,17 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
     declared: (&String, DependencyGroup, &String),
 ) -> Result<MatchedRewrite, UpdateError> {
     let (name, _, previous) = declared;
+    // The two sources are exclusive: `--latest` rejects versioned selectors.
     if scope.version.latest {
-        return latest_direct_rewrite(scope, inputs, declared).await;
+        return latest_direct_rewrite(scope, inputs, (name, previous)).await;
     }
-    let requested = requested_selector_version(scope.selectors, name);
+    let MatchedRewriteInputs { rewrite_ctx, latest_chain, .. } = inputs;
+    let requested = scope.selectors
+        .iter()
+        .find(|selector| matcher_one(&selector.pattern).matches(name))
+        .and_then(|selector| selector.version.clone());
     if let Some(version) = requested.as_deref() {
-        seed_requested_version(
-            &mut plan.preferred_versions_override,
-            name,
-            previous,
-            version,
-        );
+        seed_requested_version(&mut plan.preferred_versions_override, name, previous, version);
     }
     if !scope.version.save {
         // An update that doesn't save keeps the manifest's specifier, and
@@ -78,20 +78,15 @@ pub(super) async fn matched_direct_rewrite<Reporter: self::Reporter>(
         let Some(requested) = requested.as_deref() else {
             return Ok(MatchedRewrite::Target(None));
         };
-        return Ok(kept_range_rewrite::<Reporter>(
-            inputs.rewrite_ctx,
-            name,
-            requested,
-            previous,
-        ));
+        return Ok(kept_range_rewrite::<Reporter>(rewrite_ctx, name, requested, previous));
     }
     let tag = requested
         .as_deref()
         .filter(|specifier| get_version_selector_type(specifier) == Some(VersionSelectorType::Tag));
     if let Some(tag) = tag {
         let rewritten = tag_rewrite(
-            inputs.rewrite_ctx,
-            inputs.latest_chain,
+            rewrite_ctx,
+            latest_chain,
             &mut plan.preferred_versions_override,
             scope.range_spec_style(),
             (name, previous, tag),
@@ -262,42 +257,28 @@ pub(super) enum KeptRangeVerdict {
 ///
 /// [`Undecided`]: KeptRangeVerdict::Undecided
 pub(super) fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRangeVerdict {
-    let (Ok(requested), Ok(kept)) = (
-        node_semver::Version::parse(requested),
-        node_semver::Range::parse(kept),
-    ) else {
+    let (Ok(requested), Ok(kept)) =
+        (node_semver::Version::parse(requested), node_semver::Range::parse(kept))
+    else {
         return KeptRangeVerdict::Undecided;
     };
-    if requested.satisfies(&kept) {
-        KeptRangeVerdict::Admitted
-    } else {
-        KeptRangeVerdict::Excluded
-    }
+    if requested.satisfies(&kept) { KeptRangeVerdict::Admitted } else { KeptRangeVerdict::Excluded }
 }
-
 async fn latest_direct_rewrite(
     scope: &UpdateScope<'_>,
     inputs: MatchedRewriteInputs<'_, '_, '_>,
-    declared: (&String, DependencyGroup, &String),
+    declared: (&str, &str),
 ) -> Result<MatchedRewrite, UpdateError> {
+    let (name, previous) = declared;
+    let MatchedRewriteInputs {
+        rewrite_ctx,
+        latest_chain,
+        catalog_ctx,
+        ..
+    } = inputs;
     if !scope.version.save {
         return Ok(MatchedRewrite::Target(None));
     }
-    let (name, _, previous) = declared;
-    let specifier = latest_specifier(
-        inputs.rewrite_ctx,
-        inputs.latest_chain,
-        inputs.catalog_ctx,
-        name,
-        previous,
-    )
-    .await?;
+    let specifier = latest_specifier(rewrite_ctx, latest_chain, catalog_ctx, name, previous).await?;
     Ok(MatchedRewrite::Target(specifier))
-}
-
-fn requested_selector_version(selectors: &[ParsedSelector], name: &str) -> Option<String> {
-    selectors
-        .iter()
-        .find(|selector| matcher_one(&selector.pattern).matches(name))
-        .and_then(|selector| selector.version.clone())
 }

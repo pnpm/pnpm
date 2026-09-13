@@ -30,19 +30,13 @@ fn name_at_exact_version_expands_to_one_literal() {
 
 #[test]
 fn scoped_name_at_exact_version_expands_to_one_literal() {
-    assert_eq!(
-        expand(&["@scope/foo@1.2.3"]),
-        vec!["@scope/foo@1.2.3".to_string()],
-    );
+    assert_eq!(expand(&["@scope/foo@1.2.3"]), vec!["@scope/foo@1.2.3".to_string()]);
 }
 
 #[test]
 fn version_union_expands_into_separate_literals() {
     let result = expand(&["qar@1.0.0 || 2.0.0"]);
-    assert_eq!(
-        result,
-        vec!["qar@1.0.0".to_string(), "qar@2.0.0".to_string()],
-    );
+    assert_eq!(result, vec!["qar@1.0.0".to_string(), "qar@2.0.0".to_string()]);
 }
 
 #[test]
@@ -50,10 +44,7 @@ fn version_union_trims_whitespace_around_each_version() {
     // Extra whitespace around `||` and around each version. Mirrors
     // semver-js's `valid()` which trims internally before parsing.
     let result = expand(&["foo@  1.0.0   ||  2.0.0  "]);
-    assert_eq!(
-        result,
-        vec!["foo@1.0.0".to_string(), "foo@2.0.0".to_string()],
-    );
+    assert_eq!(result, vec!["foo@1.0.0".to_string(), "foo@2.0.0".to_string()]);
 }
 
 #[test]
@@ -64,29 +55,20 @@ fn name_with_wildcard_alone_is_kept_verbatim() {
 #[test]
 fn wildcard_name_with_version_errors() {
     let err = expand_package_version_specs(["foo*@1.0.0"]).expect_err("must reject");
-    assert!(
-        matches!(err, VersionPolicyError::NamePatternInVersionUnion { .. }),
-        "got: {err:?}",
-    );
+    assert!(matches!(err, VersionPolicyError::NamePatternInVersionUnion { .. }), "got: {err:?}");
 }
 
 #[test]
 fn non_semver_version_in_union_errors() {
     let err = expand_package_version_specs(["foo@not-a-version"]).expect_err("must reject");
-    assert!(
-        matches!(err, VersionPolicyError::InvalidVersionUnion { .. }),
-        "got: {err:?}",
-    );
+    assert!(matches!(err, VersionPolicyError::InvalidVersionUnion { .. }), "got: {err:?}");
 }
 
 #[test]
 fn mixed_valid_invalid_union_errors() {
     let err =
         expand_package_version_specs(["foo@1.0.0 || not-a-version"]).expect_err("must reject");
-    assert!(
-        matches!(err, VersionPolicyError::InvalidVersionUnion { .. }),
-        "got: {err:?}",
-    );
+    assert!(matches!(err, VersionPolicyError::InvalidVersionUnion { .. }), "got: {err:?}");
 }
 
 #[test]
@@ -106,10 +88,7 @@ fn duplicate_specs_collapse_in_set() {
 #[test]
 fn create_policy_exact_version_match_returns_versions() {
     let policy = create_package_version_policy(["axios@1.12.2"]).unwrap();
-    assert_eq!(
-        policy.matches("axios"),
-        PolicyMatch::ExactVersions(vec!["1.12.2".to_string()]),
-    );
+    assert_eq!(policy.matches("axios"), PolicyMatch::ExactVersions(vec!["1.12.2".to_string()]));
     assert_eq!(policy.matches("is-odd"), PolicyMatch::No);
 }
 
@@ -139,14 +118,8 @@ fn create_policy_scoped_bare_name_returns_any_version() {
 #[test]
 fn create_policy_distinct_name_rules() {
     let policy = create_package_version_policy(["axios@1.12.2", "lodash@4.17.21", "is-*"]).unwrap();
-    assert_eq!(
-        policy.matches("axios"),
-        PolicyMatch::ExactVersions(vec!["1.12.2".to_string()]),
-    );
-    assert_eq!(
-        policy.matches("lodash"),
-        PolicyMatch::ExactVersions(vec!["4.17.21".to_string()]),
-    );
+    assert_eq!(policy.matches("axios"), PolicyMatch::ExactVersions(vec!["1.12.2".to_string()]));
+    assert_eq!(policy.matches("lodash"), PolicyMatch::ExactVersions(vec!["4.17.21".to_string()]));
     assert_eq!(policy.matches("is-odd"), PolicyMatch::AnyVersion);
 }
 
@@ -176,10 +149,7 @@ fn create_policy_merges_exact_versions_and_unions_for_same_name() {
 #[test]
 fn create_policy_deduplicates_repeated_versions_across_rules() {
     let policy = create_package_version_policy(["form-data@4.0.6", "form-data@4.0.6"]).unwrap();
-    assert_eq!(
-        policy.matches("form-data"),
-        PolicyMatch::ExactVersions(vec!["4.0.6".to_string()]),
-    );
+    assert_eq!(policy.matches("form-data"), PolicyMatch::ExactVersions(vec!["4.0.6".to_string()]));
 }
 
 #[test]
@@ -209,31 +179,19 @@ fn create_policy_wildcard_listed_first_wins_over_later_exact() {
 #[test]
 fn create_policy_range_specifier_in_version_errors() {
     let err = create_package_version_policy(["lodash@^4.17.0"]).expect_err("must reject");
-    assert!(
-        matches!(err, VersionPolicyError::InvalidVersionUnion { .. }),
-        "got: {err:?}",
-    );
+    assert!(matches!(err, VersionPolicyError::InvalidVersionUnion { .. }), "got: {err:?}");
 
     let err = create_package_version_policy(["lodash@~4.17.0"]).expect_err("must reject");
-    assert!(
-        matches!(err, VersionPolicyError::InvalidVersionUnion { .. }),
-        "got: {err:?}",
-    );
+    assert!(matches!(err, VersionPolicyError::InvalidVersionUnion { .. }), "got: {err:?}");
 
     let err = create_package_version_policy(["react@>=18.0.0"]).expect_err("must reject");
-    assert!(
-        matches!(err, VersionPolicyError::InvalidVersionUnion { .. }),
-        "got: {err:?}",
-    );
+    assert!(matches!(err, VersionPolicyError::InvalidVersionUnion { .. }), "got: {err:?}");
 }
 
 #[test]
 fn create_policy_wildcard_with_version_errors() {
     let err = create_package_version_policy(["is-*@1.0.0"]).expect_err("must reject");
-    assert!(
-        matches!(err, VersionPolicyError::NamePatternInVersionUnion { .. }),
-        "got: {err:?}",
-    );
+    assert!(matches!(err, VersionPolicyError::NamePatternInVersionUnion { .. }), "got: {err:?}");
 }
 
 #[test]
@@ -282,10 +240,7 @@ fn merge_deduplicates_repeated_versions() {
 #[test]
 fn merge_keeps_different_packages_in_first_seen_order() {
     let merged = merge_package_version_specs(["zoo@1.0.0", "abc@2.0.0"]).unwrap();
-    assert_eq!(
-        merged,
-        vec!["zoo@1.0.0".to_string(), "abc@2.0.0".to_string()],
-    );
+    assert_eq!(merged, vec!["zoo@1.0.0".to_string(), "abc@2.0.0".to_string()]);
 }
 
 #[test]

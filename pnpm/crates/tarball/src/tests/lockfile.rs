@@ -13,14 +13,8 @@ async fn fetch_for_resolution_writes_no_index_row_for_a_subdirectory_package() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
     let archive = gzipped_archive(&[
-        (
-            "package.json",
-            r#"{"name":"the-monorepo","version":"0.0.0"}"#,
-        ),
-        (
-            "packages/foo/package.json",
-            r#"{"name":"foo","version":"1.2.3"}"#,
-        ),
+        ("package.json", r#"{"name":"the-monorepo","version":"0.0.0"}"#),
+        ("packages/foo/package.json", r#"{"name":"foo","version":"1.2.3"}"#),
     ]);
     let _mock = server
         .mock("GET", "/repo.tgz")
@@ -56,9 +50,6 @@ async fn fetch_for_resolution_writes_no_index_row_for_a_subdirectory_package() {
     let rows = index
         .get_many(std::slice::from_ref(&key))
         .expect("read index");
-    assert!(
-        rows.is_empty(),
-        "a subpackage key must not carry the whole repo's index: {rows:?}",
-    );
+    assert!(rows.is_empty(), "a subpackage key must not carry the whole repo's index: {rows:?}");
     drop(store_dir_keep);
 }

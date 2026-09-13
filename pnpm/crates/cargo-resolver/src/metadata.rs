@@ -17,16 +17,8 @@ const PACKAGE_KEYS: [&str; 3] = ["name", "version", "features"];
 /// The keys of a package's dependency that resolution reads. Mirrors
 /// [`crate::model::MetadataDependency`], so a field read there is listed
 /// here too.
-const DEPENDENCY_KEYS: [&str; 8] = [
-    "name",
-    "source",
-    "req",
-    "kind",
-    "rename",
-    "optional",
-    "uses_default_features",
-    "features",
-];
+const DEPENDENCY_KEYS: [&str; 8] =
+    ["name", "source", "req", "kind", "rename", "optional", "uses_default_features", "features"];
 
 /// Reduce a `cargo metadata` document to what resolution reads, replacing
 /// each package id with its position.
@@ -54,7 +46,20 @@ pub fn resolve_inputs(metadata: &str) -> Result<String> {
         .iter()
         .map(|package| reduce_package(package, &ids))
         .collect::<Vec<_>>();
-    let workspace_members = reduced_workspace_members(&document, &ids);
+    let workspace_members = document
+        .get("workspace_members")
+        .and_then(serde_json::Value::as_array)
+        .map(|members| {
+            members
+                .iter()
+                .filter_map(|member| {
+                    ids
+                        .get(member.as_str()?)
+                        .map(String::as_str)
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     serde_json::to_string(&serde_json::json!({
         "packages": packages,
         "workspace_members": workspace_members,
@@ -118,9 +123,7 @@ pub(crate) fn active_metadata_dependencies(
     let dependencies = package.dependencies
         .iter()
         .map(|dependency| RegistryDependency {
-            alias: dependency.rename
-                .clone()
-                .unwrap_or_else(|| dependency.name.clone()),
+            alias: dependency.rename.clone().unwrap_or_else(|| dependency.name.clone()),
             name: dependency.name.clone(),
             requirement: dependency.req.clone(),
             kind: dependency.kind,
@@ -145,24 +148,4 @@ pub(crate) fn active_metadata_dependencies(
         },
         true,
     )
-}
-
-fn reduced_workspace_members<'ids>(
-    document: &serde_json::Value,
-    ids: &'ids BTreeMap<&str, String>,
-) -> Vec<&'ids str> {
-    document
-        .get("workspace_members")
-        .and_then(serde_json::Value::as_array)
-        .map(|members| {
-            members
-                .iter()
-                .filter_map(|member| {
-                    ids
-                        .get(member.as_str()?)
-                        .map(String::as_str)
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default()
 }

@@ -9,14 +9,9 @@ use futures_util::StreamExt as _;
 
 #[test]
 fn resolve_budget_bounds_combined_scanned_and_serialized_bytes() {
-    let empty_response_size = serde_json::to_vec(&ResolveArtifactsResponse {
-        artifacts: Vec::new(),
-    })
-    .unwrap()
-    .len();
-    let mut scan_budget = ResolveBudget {
-        used_bytes: 0,
-    };
+    let empty_response_size =
+        serde_json::to_vec(&ResolveArtifactsResponse { artifacts: Vec::new() }).unwrap().len();
+    let mut scan_budget = ResolveBudget { used_bytes: 0 };
     scan_budget
         .add_scan(MAX_RESOLVE_RESPONSE_SIZE as u64)
         .unwrap();
@@ -33,14 +28,10 @@ fn resolve_budget_bounds_combined_scanned_and_serialized_bytes() {
             },
         }],
     };
-    let mut response_budget = ResolveBudget {
-        used_bytes: MAX_RESOLVE_RESPONSE_SIZE,
-    };
+    let mut response_budget = ResolveBudget { used_bytes: MAX_RESOLVE_RESPONSE_SIZE };
     assert!(response_budget.add_response(&artifact, false).is_err());
 
-    let mut combined_budget = ResolveBudget {
-        used_bytes: empty_response_size,
-    };
+    let mut combined_budget = ResolveBudget { used_bytes: empty_response_size };
     combined_budget
         .add_scan((MAX_RESOLVE_RESPONSE_SIZE - empty_response_size) as u64)
         .unwrap();
@@ -50,10 +41,8 @@ fn resolve_budget_bounds_combined_scanned_and_serialized_bytes() {
 #[tokio::test]
 async fn concurrent_duplicate_publications_are_charged_once() {
     let backend: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let config = HostedStoreConfig::ObjectStore {
-        store: Arc::clone(&backend),
-        prefix: String::new(),
-    };
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
     let first = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let second = SharedArtifactStore::new(&config, scratch.path()).unwrap();
@@ -62,10 +51,7 @@ async fn concurrent_duplicate_publications_are_charged_once() {
     // recognises it rather than writing a second.
     let expected = b"shared addon".len() as u64
         + serde_json::to_vec(&request.envelope).unwrap().len() as u64
-        + request.envelope
-            .digest()
-            .unwrap()
-            .len() as u64;
+        + request.envelope.digest().unwrap().len() as u64;
 
     let first_publish = first.publish("acme", request.clone());
     let second_publish = second.publish("acme", request);
@@ -104,10 +90,8 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
             usage_writes: None,
         },
     });
-    let config = HostedStoreConfig::ObjectStore {
-        store: Arc::clone(&backend),
-        prefix: String::new(),
-    };
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let request =
@@ -147,10 +131,8 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
 #[tokio::test]
 async fn reclamation_waits_for_publications_on_other_replicas() {
     let backend: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let config = HostedStoreConfig::ObjectStore {
-        store: Arc::clone(&backend),
-        prefix: String::new(),
-    };
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
     let first = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let second = SharedArtifactStore::new(&config, scratch.path()).unwrap();
@@ -173,10 +155,7 @@ async fn reclamation_waits_for_publications_on_other_replicas() {
 
     second.finish_publication(&second_publication, false).await.unwrap();
     second.try_reclaim_unreferenced_blobs().await.unwrap();
-    assert!(matches!(
-        backend.head(&orphan).await,
-        Err(object_store::Error::NotFound { .. })
-    ));
+    assert!(matches!(backend.head(&orphan).await, Err(object_store::Error::NotFound { .. })));
     let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
     let usage: ArtifactUsage = serde_json::from_slice(
         &backend
@@ -197,10 +176,8 @@ async fn reclamation_waits_for_publications_on_other_replicas() {
 #[tokio::test]
 async fn reclamation_preserves_blobs_referenced_by_committed_envelopes() {
     let backend: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let config = HostedStoreConfig::ObjectStore {
-        store: Arc::clone(&backend),
-        prefix: String::new(),
-    };
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let request = publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/referenced");
@@ -219,10 +196,7 @@ async fn reclamation_preserves_blobs_referenced_by_committed_envelopes() {
     store.finish_publication(&publication, true).await.unwrap();
     store.try_reclaim_unreferenced_blobs().await.unwrap();
 
-    assert!(matches!(
-        backend.head(&orphan).await,
-        Err(object_store::Error::NotFound { .. })
-    ));
+    assert!(matches!(backend.head(&orphan).await, Err(object_store::Error::NotFound { .. })));
     let blob = store
         .read_blob(
             "acme",
@@ -268,10 +242,7 @@ async fn an_entry_crowded_with_overlapping_artifacts_refuses_publication() {
 
     // Each holds the scope it reaches, so only looking at its own would report
     // both as already published.
-    for republished in [
-        publication("ci/universal"),
-        publication_tagged("ci/tagged", &tags),
-    ] {
+    for republished in [publication("ci/universal"), publication_tagged("ci/tagged", &tags)] {
         let error = store.publish("acme", republished).await.unwrap_err();
         assert!(
             matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
@@ -330,10 +301,7 @@ async fn a_publication_that_never_finished_stops_holding_reclamation_shut() {
     };
     let owner = super::super::owner_key("acme", &OwnerScope::organization("acme")).unwrap();
     let marker = format!("{owner}/entries/{entry}/scopes/linux-x64-node22");
-    store
-        .create_object(&marker, b"an artifact nobody stored".to_vec())
-        .await
-        .unwrap();
+    store.create_object(&marker, b"an artifact nobody stored".to_vec()).await.unwrap();
     store
         .create_object(
             ".locks/usage.json",
@@ -392,10 +360,7 @@ async fn publications_that_never_finished_stop_filling_the_limit() {
 
     assert!(
         store
-            .publish(
-                "acme",
-                publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"])
-            )
+            .publish("acme", publication_tagged("ci/ours", &["pnpm:v1:linux-x64-node22-glibc2.17"]))
             .await
             .unwrap(),
         "a full set of registrations nobody will remove does not refuse a publication",
@@ -449,10 +414,8 @@ async fn a_publication_that_cannot_register_again_does_not_leave_its_artifact() 
             usage_writes: None,
         },
     });
-    let config = HostedStoreConfig::ObjectStore {
-        store: Arc::clone(&backend),
-        prefix: String::new(),
-    };
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let prepared = super::super::PreparedPublication {
@@ -463,12 +426,7 @@ async fn a_publication_that_cannot_register_again_does_not_leave_its_artifact() 
     let mut created = Vec::new();
 
     let error = store
-        .publish_reserving(
-            prepared,
-            "a-publication",
-            &mut reclamation_needed,
-            &mut created,
-        )
+        .publish_reserving(prepared, "a-publication", &mut reclamation_needed, &mut created)
         .await
         .unwrap_err();
 

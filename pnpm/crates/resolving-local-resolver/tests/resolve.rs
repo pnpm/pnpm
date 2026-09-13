@@ -45,10 +45,7 @@ fn ctx_default() -> LocalResolverContext {
 #[tokio::test]
 async fn resolve_directory() {
     let (_tmp, project_dir) = fixture();
-    let wd = WantedLocalDependency {
-        bare_specifier: "..".to_string(),
-        injected: false,
-    };
+    let wd = WantedLocalDependency { bare_specifier: "..".to_string(), injected: false };
 
     let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&project_dir))
         .await
@@ -59,9 +56,7 @@ async fn resolve_directory() {
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("link:.."));
     let manifest = result.manifest.as_ref().expect("manifest");
     assert_eq!(
-        manifest
-            .get("name")
-            .and_then(|value| value.as_str()),
+        manifest.get("name").and_then(|value| value.as_str()),
         Some("@pnpm/resolving.local-resolver"),
     );
     let LockfileResolution::Directory(dir) = &result.resolution else {
@@ -113,9 +108,7 @@ async fn resolve_directory_specified_using_absolute_path_with_preserve_absolute_
         bare_specifier: format!("link:{}", linked_dir.display()),
         injected: false,
     };
-    let ctx = LocalResolverContext {
-        preserve_absolute_paths: true,
-    };
+    let ctx = LocalResolverContext { preserve_absolute_paths: true };
     let result = resolve_from_local_scheme(&ctx, &wd, &opts(&project_dir)).await
         .expect("resolve")
         .expect("claims");
@@ -138,9 +131,7 @@ async fn resolve_directory_specified_using_absolute_path_with_preserve_absolute_
         bare_specifier: format!("file:{}", linked_dir.display()),
         injected: false,
     };
-    let ctx = LocalResolverContext {
-        preserve_absolute_paths: true,
-    };
+    let ctx = LocalResolverContext { preserve_absolute_paths: true };
     let result = resolve_from_local_scheme(&ctx, &wd, &opts(&project_dir)).await
         .expect("resolve")
         .expect("claims");
@@ -155,10 +146,7 @@ async fn resolve_directory_specified_using_absolute_path_with_preserve_absolute_
 #[tokio::test]
 async fn resolve_injected_directory() {
     let (_tmp, project_dir) = fixture();
-    let wd = WantedLocalDependency {
-        bare_specifier: "..".to_string(),
-        injected: true,
-    };
+    let wd = WantedLocalDependency { bare_specifier: "..".to_string(), injected: true };
 
     let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&project_dir))
         .await
@@ -176,10 +164,7 @@ async fn resolve_injected_directory() {
 #[tokio::test]
 async fn resolve_workspace_directory() {
     let (_tmp, project_dir) = fixture();
-    let wd = WantedLocalDependency {
-        bare_specifier: "workspace:..".to_string(),
-        injected: false,
-    };
+    let wd = WantedLocalDependency { bare_specifier: "workspace:..".to_string(), injected: false };
 
     let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&project_dir))
         .await
@@ -193,10 +178,7 @@ async fn resolve_workspace_directory() {
 #[tokio::test]
 async fn resolve_directory_specified_using_the_file_protocol() {
     let (_tmp, project_dir) = fixture();
-    let wd = WantedLocalDependency {
-        bare_specifier: "file:..".to_string(),
-        injected: false,
-    };
+    let wd = WantedLocalDependency { bare_specifier: "file:..".to_string(), injected: false };
 
     let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&project_dir))
         .await
@@ -214,10 +196,7 @@ async fn resolve_directory_specified_using_the_file_protocol() {
 #[tokio::test]
 async fn resolve_directory_specified_using_the_link_protocol() {
     let (_tmp, project_dir) = fixture();
-    let wd = WantedLocalDependency {
-        bare_specifier: "link:..".to_string(),
-        injected: false,
-    };
+    let wd = WantedLocalDependency { bare_specifier: "link:..".to_string(), injected: false };
 
     let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&project_dir))
         .await
@@ -281,13 +260,7 @@ async fn fail_when_a_tarball_manifest_names_no_package() {
 /// the unrelated package `evil` and links a dangling symlink.
 #[tokio::test]
 async fn fail_when_a_tarball_manifest_name_is_not_a_valid_npm_name() {
-    for name in [
-        "evil@name",
-        " lead-space",
-        "../escape",
-        ".hidden",
-        "node_modules",
-    ] {
+    for name in ["evil@name", " lead-space", "../escape", ".hidden", "node_modules"] {
         let tmp = TempDir::new().expect("tempdir");
         let test_dir = tmp.path().join("tgz");
         fs::create_dir_all(&test_dir).expect("create tgz dir");
@@ -305,9 +278,7 @@ async fn fail_when_a_tarball_manifest_name_is_not_a_valid_npm_name() {
         };
         let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir))
             .await
-            .expect_err(&format!(
-                "an invalid package name must be refused: {name:?}",
-            ));
+            .expect_err(&format!("an invalid package name must be refused: {name:?}"));
         match err {
             ResolveLocalError::InvalidPackageName { specifier, name: got } => {
                 assert_eq!(specifier, "file:bad-1.0.0.tgz");
@@ -388,10 +359,7 @@ async fn resolve_file() {
         manifest.get("name").and_then(serde_json::Value::as_str),
         Some("pnpm-local-resolver"),
     );
-    assert_eq!(
-        manifest.get("version").and_then(serde_json::Value::as_str),
-        Some("0.1.1"),
-    );
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("0.1.1"));
 }
 
 #[tokio::test]
@@ -418,9 +386,7 @@ async fn resolve_file_when_lockfile_directory_differs_from_the_packages_dir() {
         result.normalized_bare_specifier.as_deref(),
         Some("file:pnpm-local-resolver-0.1.1.tgz"),
     );
-    let LockfileResolution::Tarball(TarballResolution { tarball, .. }) =
-        &result.resolution
-    else {
+    let LockfileResolution::Tarball(TarballResolution { tarball, .. }) = &result.resolution else {
         panic!("expected tarball resolution");
     };
     assert_eq!(tarball, "file:tgz/pnpm-local-resolver-0.1.1.tgz");
@@ -482,8 +448,7 @@ async fn resolve_file_with_different_integrity_force_fetch() {
         .expect("resolve")
         .expect("claims");
 
-    let LockfileResolution::Tarball(TarballResolution { integrity, .. }) =
-        &result.resolution
+    let LockfileResolution::Tarball(TarballResolution { integrity, .. }) = &result.resolution
     else {
         panic!("expected tarball resolution");
     };
@@ -511,10 +476,7 @@ async fn fail_when_resolving_tarball_specified_with_the_link_protocol() {
     let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir))
         .await
         .expect_err("expected NOT_PACKAGE_DIRECTORY");
-    assert!(
-        matches!(err, ResolveLocalError::NotPackageDirectory { .. }),
-        "got {err:?}",
-    );
+    assert!(matches!(err, ResolveLocalError::NotPackageDirectory { .. }), "got {err:?}");
 }
 
 #[tokio::test]
@@ -549,10 +511,8 @@ async fn fail_when_resolving_missing_tarball_with_file_protocol() {
     let tmp = TempDir::new().expect("tempdir");
     let project_dir = tmp.path();
 
-    let wd = WantedLocalDependency {
-        bare_specifier: "file:./missing.tgz".to_string(),
-        injected: false,
-    };
+    let wd =
+        WantedLocalDependency { bare_specifier: "file:./missing.tgz".to_string(), injected: false };
     let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
         .await
         .expect_err("expected LINKED_PKG_DIR_NOT_FOUND");
@@ -591,18 +551,8 @@ async fn do_not_fail_when_resolving_from_not_existing_directory() {
         .expect("resolve")
         .expect("claims");
     let manifest = result.manifest.as_ref().expect("manifest");
-    assert_eq!(
-        manifest
-            .get("name")
-            .and_then(|value| value.as_str()),
-        Some("dir-does-not-exist"),
-    );
-    assert_eq!(
-        manifest
-            .get("version")
-            .and_then(|value| value.as_str()),
-        Some("0.0.0"),
-    );
+    assert_eq!(manifest.get("name").and_then(|value| value.as_str()), Some("dir-does-not-exist"));
+    assert_eq!(manifest.get("version").and_then(|value| value.as_str()), Some("0.0.0"));
 }
 
 #[tokio::test]
@@ -610,10 +560,7 @@ async fn throw_error_when_the_path_protocol_is_used() {
     let tmp = TempDir::new().expect("tempdir");
     let project_dir = tmp.path();
 
-    let wd = WantedLocalDependency {
-        bare_specifier: "path:..".to_string(),
-        injected: false,
-    };
+    let wd = WantedLocalDependency { bare_specifier: "path:..".to_string(), injected: false };
     let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
         .await
         .expect_err("expected PATH_IS_UNSUPPORTED_PROTOCOL");
@@ -634,20 +581,14 @@ async fn resolve_from_local_path_ignores_explicit_local_schemes() {
     let project_dir = tmp.path();
 
     for bare in ["foo"] {
-        let wd = WantedLocalDependency {
-            bare_specifier: bare.to_string(),
-            injected: false,
-        };
+        let wd = WantedLocalDependency { bare_specifier: bare.to_string(), injected: false };
         let outcome = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
             .await
             .expect("resolve_from_local_scheme should not fail on bare specifier");
         assert!(outcome.is_none(), "scheme parser should defer on '{bare}'");
     }
     for bare in ["link:..", "workspace:..", "file:..", "path:.."] {
-        let wd = WantedLocalDependency {
-            bare_specifier: bare.to_string(),
-            injected: false,
-        };
+        let wd = WantedLocalDependency { bare_specifier: bare.to_string(), injected: false };
         let outcome = resolve_from_local_path(&ctx_default(), &wd, &opts(project_dir))
             .await
             .expect("resolve_from_local_path should not fail on scheme prefix");
@@ -683,11 +624,7 @@ impl LexicalNormalize for PathBuf {
 }
 
 fn forward_slashes(input: String) -> String {
-    if input.contains('\\') {
-        input.replace('\\', "/")
-    } else {
-        input
-    }
+    if input.contains('\\') { input.replace('\\', "/") } else { input }
 }
 
 /// The narrowed shape test [`is_local_filesystem_specifier`] answers,
@@ -708,10 +645,7 @@ fn recognizes_only_unambiguous_local_specifiers() {
         "pkg-1.0.0.tgz",
         "deps/pkg-1.0.0.tar.gz",
     ] {
-        assert!(
-            is_local_filesystem_specifier(specifier),
-            "{specifier:?} names a local path",
-        );
+        assert!(is_local_filesystem_specifier(specifier), "{specifier:?} names a local path");
     }
     for specifier in [
         "is-positive",
@@ -723,9 +657,6 @@ fn recognizes_only_unambiguous_local_specifiers() {
         "https://example.com/pkg.tgz",
         "workspace:*",
     ] {
-        assert!(
-            !is_local_filesystem_specifier(specifier),
-            "{specifier:?} is not a local path",
-        );
+        assert!(!is_local_filesystem_specifier(specifier), "{specifier:?} is not a local path");
     }
 }

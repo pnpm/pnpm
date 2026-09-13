@@ -125,13 +125,7 @@ impl From<ProjectConfigMultiMatch> for ProjectConfig {
             save_exact,
             save_prefix,
         } = entry;
-        ProjectConfig {
-            hoist,
-            modules_dir,
-            overrides,
-            save_exact,
-            save_prefix,
-        }
+        ProjectConfig { hoist, modules_dir, overrides, save_exact, save_prefix }
     }
 }
 

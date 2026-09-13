@@ -37,11 +37,7 @@ pub(super) fn validate_destination(raw: &str) -> Result<()> {
         Some(Host::Domain(_)) => return Ok(()),
         None => return Err(blocked()),
     };
-    if is_public_address(address) {
-        Ok(())
-    } else {
-        Err(blocked())
-    }
+    if is_public_address(address) { Ok(()) } else { Err(blocked()) }
 }
 
 fn is_public_address(address: IpAddr) -> bool {

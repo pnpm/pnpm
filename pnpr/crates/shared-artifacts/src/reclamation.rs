@@ -57,9 +57,7 @@ impl SharedArtifactStore {
         let mut listing = self.list_objects(None);
         while let Some(entry) = listing.next().await {
             let entry = entry?;
-            let Some(relative) = self.relative_path(&entry.location) else {
-                continue;
-            };
+            let Some(relative) = self.relative_path(&entry.location) else { continue };
             if is_blob_path(relative) && !artifacts.referenced_blobs.contains(relative) {
                 self.store.delete(&entry.location).await?;
                 continue;
@@ -68,8 +66,7 @@ impl SharedArtifactStore {
             // the same, and dropping the scopes it holds would let an artifact
             // reaching the same machines be published beside it.
             if artifacts.every_variant_read
-                && self.scope_is_abandoned(&entry.location, &artifacts.digests)
-                    .await?
+                && self.scope_is_abandoned(&entry.location, &artifacts.digests).await?
             {
                 self.store.delete(&entry.location).await?;
             }
@@ -89,17 +86,14 @@ impl SharedArtifactStore {
         location: &ObjectPath,
         stored_artifacts: &HashSet<String>,
     ) -> Result<bool> {
-        let Some(scope) = scope_name(location) else {
-            return Ok(false);
-        };
+        let Some(scope) = scope_name(location) else { return Ok(false) };
         if scope == BACKFILLED_SCOPE {
             return Ok(false);
         }
         let Some(relative) = self.relative_path(location).map(str::to_string) else {
             return Ok(false);
         };
-        let Some(holder) = self.read_object_bounded(&relative, MAX_SCOPE_MARKER_BYTES)
-            .await?
+        let Some(holder) = self.read_object_bounded(&relative, MAX_SCOPE_MARKER_BYTES).await?
         else {
             return Ok(false);
         };
@@ -118,12 +112,8 @@ impl SharedArtifactStore {
         let mut listing = self.list_objects(None);
         while let Some(entry) = listing.next().await {
             let entry = entry?;
-            let Some(relative) = self.relative_path(&entry.location) else {
-                continue;
-            };
-            let Some(owner) = entry_owner(relative).map(str::to_string) else {
-                continue;
-            };
+            let Some(relative) = self.relative_path(&entry.location) else { continue };
+            let Some(owner) = entry_owner(relative).map(str::to_string) else { continue };
             self.read_stored_artifact(&entry, &owner, &mut artifacts).await?;
         }
         Ok(artifacts)
@@ -169,9 +159,7 @@ impl SharedArtifactStore {
             }
         }
         for file in payload.manifest.added {
-            let Ok(id) = blob_id(&file.integrity) else {
-                continue;
-            };
+            let Ok(id) = blob_id(&file.integrity) else { continue };
             artifacts.referenced_blobs.insert(format!("{owner}/blobs/{id}"));
         }
         Ok(())

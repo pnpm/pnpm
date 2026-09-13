@@ -14,11 +14,8 @@ pub(crate) fn render_json_report(
         .filter(|(_, advisory)| severity_number(advisory.severity) >= severity_number(audit_level))
         .map(|(id, advisory)| (id.clone(), advisory.clone()))
         .collect();
-    serde_json::to_string_pretty(&AuditReport {
-        advisories,
-        metadata: report.metadata.clone(),
-    })
-    .into_diagnostic()
+    serde_json::to_string_pretty(&AuditReport { advisories, metadata: report.metadata.clone() })
+        .into_diagnostic()
 }
 
 pub(crate) fn render_text_report(
@@ -82,10 +79,7 @@ pub(crate) fn report_summary(
 ) -> String {
     let total_ignored_count = ignored.total();
     let ignored_summary = if total_ignored_count > 0 {
-        format!(
-            "\n{total_ignored_count} ignored: {}",
-            list_severity_counts(&ignored.entries()),
-        )
+        format!("\n{total_ignored_count} ignored: {}", list_severity_counts(&ignored.entries()))
     } else {
         String::new()
     };
@@ -115,25 +109,19 @@ fn list_severity_counts(severities: &[(ConfigAuditLevel, usize)]) -> String {
 }
 
 pub(crate) fn bold(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.bold())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
 }
 
 pub(crate) fn red(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.red())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.red()).to_string()
 }
 
 pub(crate) fn color_severity(level: ConfigAuditLevel, text: &str) -> String {
     match level {
-        ConfigAuditLevel::Info => text
-            .if_supports_color(Stream::Stdout, |t| t.dimmed())
-            .to_string(),
-        ConfigAuditLevel::Low => text
-            .if_supports_color(Stream::Stdout, |t| t.bold())
-            .to_string(),
+        ConfigAuditLevel::Info => {
+            text.if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
+        }
+        ConfigAuditLevel::Low => text.if_supports_color(Stream::Stdout, |t| t.bold()).to_string(),
         ConfigAuditLevel::Moderate => {
             let style = owo_colors::Style::new().yellow().bold();
             text
@@ -150,15 +138,11 @@ pub(crate) fn color_severity(level: ConfigAuditLevel, text: &str) -> String {
 }
 
 pub(crate) fn green(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.green())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.green()).to_string()
 }
 
 pub(crate) fn blue(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |t| t.blue())
-        .to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.blue()).to_string()
 }
 
 fn render_advisory_paths(advisory: &AuditAdvisory) -> String {

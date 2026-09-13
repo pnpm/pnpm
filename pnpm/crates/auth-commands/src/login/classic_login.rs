@@ -48,25 +48,16 @@ where
         return Err(LoginError::NonInteractive);
     }
 
-    let username = read_credential(prompt_line::<Sys>("Username:", Masking::Visible))
-        .await?;
-    let password = read_credential(prompt_line::<Sys>("Password:", Masking::Masked))
-        .await?;
-    let email = read_credential(prompt_line::<Sys>(
-        "Email (this IS public):",
-        Masking::Visible,
-    ))
-    .await?;
+    let username = read_credential(prompt_line::<Sys>("Username:", Masking::Visible)).await?;
+    let password = read_credential(prompt_line::<Sys>("Password:", Masking::Masked)).await?;
+    let email =
+        read_credential(prompt_line::<Sys>("Email (this IS public):", Masking::Visible)).await?;
 
     if username.is_empty() || password.is_empty() || email.is_empty() {
         return Err(LoginError::MissingCredentials);
     }
 
-    let credentials = Credentials {
-        username: &username,
-        password: &password,
-        email: &email,
-    };
+    let credentials = Credentials { username: &username, password: &password, email: &email };
     let token = with_otp_handling::<Sys, Reporter, String, ClassicLoginOpError, _, _>(
         fetch_options,
         // A plain `FnMut` returning an `async move` block: the future is a
@@ -94,9 +85,7 @@ async fn read_credential(
     match prompt.await {
         Ok(value) => Ok(value),
         Err(PromptError::Cancelled) => Err(LoginError::Canceled),
-        Err(error) => Err(LoginError::Prompt {
-            reason: error.to_string(),
-        }),
+        Err(error) => Err(LoginError::Prompt { reason: error.to_string() }),
     }
 }
 
@@ -120,14 +109,9 @@ async fn add_user(
 ) -> Result<String, AddUserError> {
     let url = registry_join(
         registry,
-        &format!(
-            "-/user/org.couchdb.user:{}",
-            encode_uri_component(credentials.username),
-        ),
+        &format!("-/user/org.couchdb.user:{}", encode_uri_component(credentials.username)),
     )
-    .map_err(|error| AddUserError::Transport {
-        reason: error.to_string(),
-    })?;
+    .map_err(|error| AddUserError::Transport { reason: error.to_string() })?;
 
     let guard = http_client.acquire_for_url(&url).await;
     let mut request = guard
@@ -143,24 +127,14 @@ async fn add_user(
     let response = request
         .send()
         .await
-        .map_err(|error| AddUserError::Transport {
-            reason: error.to_string(),
-        })?;
-    read_add_user_response(response).await
-}
-
-async fn read_add_user_response(response: reqwest::Response) -> Result<String, AddUserError> {
+        .map_err(|error| AddUserError::Transport { reason: error.to_string() })?;
     let ok = response.status().is_success();
     let status = response.status().as_u16();
     let www_authenticate = joined_www_authenticate(&response);
     let text = response.text().await.unwrap_or_default();
 
     if !ok {
-        return Err(AddUserError::Http {
-            status,
-            text,
-            www_authenticate,
-        });
+        return Err(AddUserError::Http { status, text, www_authenticate });
     }
 
     token_from_response(&text)
@@ -218,18 +192,13 @@ fn add_user_error_to_op<Reporter: self::Reporter>(error: AddUserError) -> Classi
             let challenge = SyntheticOtpError::from_unknown_body::<Reporter>(json.as_ref())
                 .as_otp_challenge()
                 .expect("SyntheticOtpError is always an OTP challenge");
-            ClassicLoginOpError::Otp {
-                challenge,
-            }
+            ClassicLoginOpError::Otp { challenge }
         }
-        AddUserError::Http { status, text, .. } => ClassicLoginOpError::Failed {
-            status,
-            text: redact_and_sanitize(&text),
-        },
+        AddUserError::Http { status, text, .. } => {
+            ClassicLoginOpError::Failed { status, text: redact_and_sanitize(&text) }
+        }
         AddUserError::NoToken => ClassicLoginOpError::NoToken,
-        AddUserError::Transport { reason } => ClassicLoginOpError::Transport {
-            reason,
-        },
+        AddUserError::Transport { reason } => ClassicLoginOpError::Transport { reason },
     }
 }
 
@@ -237,11 +206,7 @@ fn add_user_error_to_op<Reporter: self::Reporter>(error: AddUserError) -> Classi
 /// [`ClassicLoginOpError`] for [`with_otp_handling`].
 enum AddUserError {
     /// The registry returned a non-success status.
-    Http {
-        status: u16,
-        text: String,
-        www_authenticate: Option<String>,
-    },
+    Http { status: u16, text: String, www_authenticate: Option<String> },
     /// The registry accepted the request but returned no token.
     NoToken,
     /// The request never produced a response.

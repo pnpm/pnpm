@@ -150,10 +150,7 @@ fn injected_members_link_declared_siblings() {
     let mut importers = HashMap::new();
     importers.insert(
         importer_id.clone(),
-        ProjectSnapshot {
-            dependencies: Some(deps),
-            ..ProjectSnapshot::default()
-        },
+        ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
     );
 
     link_root_component_members(
@@ -182,10 +179,7 @@ fn injected_members_link_declared_siblings() {
         is_symlink_or_junction(&a_slot.join("@scope/b")).unwrap(),
         "a must link declared sibling b",
     );
-    assert!(
-        !a_slot.join("@scope/c").exists(),
-        "a must not link c — not directly declared",
-    );
+    assert!(!a_slot.join("@scope/c").exists(), "a must not link c — not directly declared");
     assert_eq!(
         fs::canonicalize(a_slot.join("@scope/b")).unwrap(),
         fs::canonicalize(b_slot.join("@scope/b")).unwrap(),
@@ -197,10 +191,7 @@ fn injected_members_link_declared_siblings() {
         is_symlink_or_junction(&b_slot.join("@scope/c")).unwrap(),
         "b must link declared sibling c",
     );
-    assert!(
-        !b_slot.join("@scope/a").exists(),
-        "b must not link a — not declared",
-    );
+    assert!(!b_slot.join("@scope/a").exists(), "b must not link a — not declared");
     assert_eq!(
         fs::canonicalize(b_slot.join("@scope/c")).unwrap(),
         fs::canonicalize(c_slot.join("@scope/c")).unwrap(),
@@ -254,10 +245,7 @@ fn member_without_manifest_or_snapshot_links_all_root_siblings() {
     let mut importers = HashMap::new();
     importers.insert(
         importer_id.clone(),
-        ProjectSnapshot {
-            dependencies: Some(deps),
-            ..ProjectSnapshot::default()
-        },
+        ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
     );
 
     link_root_component_members(
@@ -286,10 +274,7 @@ fn member_without_manifest_or_snapshot_links_all_root_siblings() {
 
     // `b` (has a manifest) keeps declared-only: links c, not a.
     assert!(is_symlink_or_junction(&b_slot.join("@scope/c")).unwrap());
-    assert!(
-        !b_slot.join("@scope/a").exists(),
-        "declared-only member must not gain the clique",
-    );
+    assert!(!b_slot.join("@scope/a").exists(), "declared-only member must not gain the clique");
 
     // `c` declares no siblings and gains none.
     assert!(!c_slot.join("@scope/a").exists());
@@ -331,10 +316,7 @@ fn member_without_manifest_links_snapshot_declared_siblings() {
     let mut importers = HashMap::new();
     importers.insert(
         importer_id.clone(),
-        ProjectSnapshot {
-            dependencies: Some(deps),
-            ..ProjectSnapshot::default()
-        },
+        ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
     );
 
     let snapshot_key = |name: &str, payload: &str| {
@@ -435,10 +417,7 @@ fn malformed_member_manifest_still_errors() {
     let mut importers = HashMap::new();
     importers.insert(
         importer_id.clone(),
-        ProjectSnapshot {
-            dependencies: Some(deps),
-            ..ProjectSnapshot::default()
-        },
+        ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
     );
 
     let result = link_root_component_members(
@@ -482,10 +461,7 @@ fn non_root_component_importer_is_untouched() {
     let mut importers = HashMap::new();
     importers.insert(
         "packages/app".to_string(),
-        ProjectSnapshot {
-            dependencies: Some(deps),
-            ..ProjectSnapshot::default()
-        },
+        ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
     );
 
     // The flagged set is empty → the importer above is not a root
@@ -500,14 +476,8 @@ fn non_root_component_importer_is_untouched() {
     )
     .expect("no-op should succeed");
 
-    assert!(
-        !a_slot.join("@scope/b").exists(),
-        "non-root importer must not gain sibling links",
-    );
-    assert!(
-        !b_slot.join("@scope/a").exists(),
-        "non-root importer must not gain sibling links",
-    );
+    assert!(!a_slot.join("@scope/b").exists(), "non-root importer must not gain sibling links");
+    assert!(!b_slot.join("@scope/a").exists(), "non-root importer must not gain sibling links");
 
     drop(dir);
 }
@@ -544,10 +514,7 @@ fn existing_member_dependency_is_not_clobbered() {
     let mut importers = HashMap::new();
     importers.insert(
         importer_id.clone(),
-        ProjectSnapshot {
-            dependencies: Some(deps),
-            ..ProjectSnapshot::default()
-        },
+        ProjectSnapshot { dependencies: Some(deps), ..ProjectSnapshot::default() },
     );
 
     link_root_component_members(

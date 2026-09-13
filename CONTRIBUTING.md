@@ -82,11 +82,15 @@ node pnpm/scripts/rustfmt.mjs --all
 node pnpm/scripts/rustfmt.mjs --all -- --check
 ```
 
-The wrapper uses the [pnpm rustfmt fork](https://github.com/pnpm/rustfmt), pinned by full commit SHA in [`pnpm/scripts/rustfmt.json`](./pnpm/scripts/rustfmt.json). Its `chain_complexity_layout` rule keeps a single method call attached to a simple receiver, even when its arguments are complex or span multiple lines. After a function-call receiver, a method moves to its own line if keeping it attached would split its arguments. Two method calls stay inline when their arguments are simple and the expression fits, such as `packages.iter().count()` or `values.get(&key).is_some()`. Two calls with complex or multiline arguments, and chains of three or more calls, put each method call on its own line. This applies in conditions too.
+The wrapper uses the [pnpm rustfmt fork](https://github.com/pnpm/rustfmt), pinned by full commit SHA in [`pnpm/scripts/rustfmt.json`](./pnpm/scripts/rustfmt.json). `use_small_heuristics = "Max"` keeps ordinary calls and short struct literals compact within the 100-column line limit.
 
-Leading field accesses stay with their receiver while the prefix fits within `chain_head_width = 80` columns, including indentation and preceding code such as `let value =`. An access that exceeds that limit starts a new line. Fields after a vertically wrapped method each start a new line. `.await` follows the same layout rules as ordinary fields. `?` stays attached to the preceding expression.
+With `chain_complexity_layout = true`, a chain of at most `chain_width = 40` columns of expression text stays inline when it fits the available line and head-width limits. Beyond that allowance, up to two method calls with simple arguments can stay inline if the expression fits the line. Zero-argument methods on simple receivers and short expression closures count as simple arguments. Longer chains and chains with complex arguments wrap vertically. These rules also apply in conditions.
 
-Struct construction uses `struct_lit_width = 0`, while destructuring uses `struct_pattern_width = 35`. This keeps short patterns such as `EnvSubcommand::Use { package_name }` inline without compacting struct literals.
+A single method stays attached to a simple receiver, including when its arguments span multiple lines. After a function-call receiver, the method moves to its own line if attaching it would split its arguments.
+
+Leading field accesses stay with their receiver while the prefix fits within `chain_head_width = 80` columns, including indentation and preceding code such as `let value =`. An intermediate access that exceeds that limit starts a new line. A final access uses the normal 100-column limit. Fields after a vertically wrapped method each start a new line. `.await` follows the same layout rules as ordinary fields. `?` stays attached to the preceding expression.
+
+Destructuring uses `struct_pattern_width = 35`, keeping short patterns such as `EnvSubcommand::Use { package_name }` inline.
 
 Ordinary `cargo fmt` uses the toolchain's upstream formatter and does not apply this rule. The task runner, CI, and git hook all use the wrapper.
 

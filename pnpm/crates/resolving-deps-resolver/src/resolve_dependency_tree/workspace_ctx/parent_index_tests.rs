@@ -5,11 +5,7 @@ use super::children_ownership::update_parent_index;
 use crate::resolved_tree::ChildEdge;
 
 fn edge(pkg_id: &str) -> ChildEdge {
-    ChildEdge {
-        alias: pkg_id.to_string(),
-        pkg_id: Arc::from(pkg_id),
-        optional: false,
-    }
+    ChildEdge { alias: pkg_id.to_string(), pkg_id: Arc::from(pkg_id), optional: false }
 }
 
 fn parents_of<'index>(

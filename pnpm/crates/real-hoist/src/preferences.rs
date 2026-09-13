@@ -82,10 +82,7 @@ fn append_preferred_idents(
     root: &Rc<HoisterResult>,
     preference: &IndexMap<(String, String), PreferenceEntry>,
 ) {
-    let mut keys: Vec<(String, String)> = preference
-        .keys()
-        .cloned()
-        .collect();
+    let mut keys: Vec<(String, String)> = preference.keys().cloned().collect();
     // `hoist_priority` is always 0 in pacquet, so the sort reduces to
     // usage (descending). `sort_by` is stable, so equal-usage keys
     // keep preference-map insertion order (depth-first discovery) —

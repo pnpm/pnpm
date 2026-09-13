@@ -47,9 +47,7 @@ where
             .iter()
             .position(|&byte| byte == b'\n')
         {
-            let line: Vec<u8> = buf
-                .drain(..=newline)
-                .collect();
+            let line: Vec<u8> = buf.drain(..=newline).collect();
             let line = &line[..line.len() - 1];
             if line.is_empty() {
                 continue;
@@ -110,12 +108,14 @@ fn handle_resolve_frame(
             Ok(None)
         }
         Frame::Done { lockfile, stats } => {
-            finish_resolve_frame(lockfile, stats, permitted_importers, opts)
+            assert_requested_importers(&lockfile, permitted_importers)?;
+            assert_transform_metadata(&lockfile, opts)?;
+            Ok(Some(ResolveOutcome { lockfile: *lockfile, stats }))
         }
         Frame::Error { message } => Err(PnprClientError::Server(message)),
-        Frame::Violations { violations } => Err(PnprClientError::Verification(build_verify_error(
-            violations,
-        ))),
+        Frame::Violations { violations } => {
+            Err(PnprClientError::Verification(build_verify_error(violations)))
+        }
     }
 }
 
@@ -307,12 +307,7 @@ impl PnprClient {
         // reqwest's `gzip` feature transparently inflates the byte stream if a
         // proxy compressed it, so the frames arrive as plain JSON lines.
         let outcome = read_ndjson_frames(response, |line| {
-            handle_resolve_frame(
-                parse_frame(line)?,
-                &mut on_package,
-                &permitted_importers,
-                &opts,
-            )
+            handle_resolve_frame(parse_frame(line)?, &mut on_package, &permitted_importers, &opts)
         })
         .await?;
         outcome.ok_or_else(|| {
@@ -321,18 +316,4 @@ impl PnprClient {
             )
         })
     }
-}
-
-fn finish_resolve_frame(
-    lockfile: Box<Lockfile>,
-    stats: Stats,
-    permitted_importers: &HashSet<String>,
-    opts: &ResolveProjectsOptions,
-) -> Result<Option<ResolveOutcome>, PnprClientError> {
-    assert_requested_importers(&lockfile, permitted_importers)?;
-    assert_transform_metadata(&lockfile, opts)?;
-    Ok(Some(ResolveOutcome {
-        lockfile: *lockfile,
-        stats,
-    }))
 }

@@ -27,14 +27,8 @@ fn run_from_a_plain_subdir_runs_the_projects_script() {
         .with_args(["run", "touch-marker"])
         .assert()
         .success();
-    assert!(
-        workspace.join("marker.txt").exists(),
-        "the script should have run in the project",
-    );
-    assert!(
-        !subdir.join("marker.txt").exists(),
-        "the script should not have run in the subdir",
-    );
+    assert!(workspace.join("marker.txt").exists(), "the script should have run in the project");
+    assert!(!subdir.join("marker.txt").exists(), "the script should not have run in the subdir");
 
     drop(root);
 }
@@ -49,14 +43,8 @@ fn run_from_a_plain_subdir_runs_the_projects_script() {
 #[test]
 fn run_from_an_ecosystem_subdir_runs_the_npm_projects_script() {
     for (manifest_name, contents) in [
-        (
-            "Cargo.toml",
-            "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
-        ),
-        (
-            "pyproject.toml",
-            "[project]\nname = 'member'\nversion = '1.0'\n",
-        ),
+        ("Cargo.toml", "[package]\nname = \"member\"\nversion = \"0.1.0\"\n"),
+        ("pyproject.toml", "[project]\nname = 'member'\nversion = '1.0'\n"),
     ] {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
         let manifest = json!({
@@ -152,10 +140,7 @@ fn run_finds_local_bin_on_path() {
         .with_arg("hi")
         .assert()
         .success();
-    assert!(
-        marker.exists(),
-        "the local bin should be resolved via node_modules/.bin",
-    );
+    assert!(marker.exists(), "the local bin should be resolved via node_modules/.bin");
 
     drop(root);
 }
@@ -168,17 +153,11 @@ fn run_finds_local_bin_on_path() {
 #[test]
 fn run_finds_workspace_root_bin_on_path() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - project\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - project\n")
+        .expect("write pnpm-workspace.yaml");
     let bin_dir = workspace.join("node_modules").join(".bin");
     fs::create_dir_all(&bin_dir).expect("create workspace-root node_modules/.bin");
-    write_executable(
-        &bin_dir.join("root-tool"),
-        "#!/bin/sh\ntouch root-tool-ran.txt\n",
-    );
+    write_executable(&bin_dir.join("root-tool"), "#!/bin/sh\ntouch root-tool-ran.txt\n");
     let project = workspace.join("project");
     fs::create_dir_all(&project).expect("create project dir");
     let manifest = json!({
@@ -243,10 +222,7 @@ fn top_level_fallback_runs_local_bin_when_script_is_missing() {
     let marker = workspace.join("args.txt");
     write_executable(
         &bin_dir.join("commitlint"),
-        &format!(
-            "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n",
-            marker.display(),
-        ),
+        &format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n", marker.display()),
     );
     let manifest = json!({
         "name": "test",
@@ -277,20 +253,14 @@ fn top_level_fallback_runs_local_bin_without_package_json() {
     let marker = workspace.join("args.txt");
     write_executable(
         &bin_dir.join("commitlint"),
-        &format!(
-            "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n",
-            marker.display(),
-        ),
+        &format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n", marker.display()),
     );
 
     pacquet
         .with_args(["commitlint", "--edit", "COMMIT_EDITMSG"])
         .assert()
         .success();
-    assert_eq!(
-        fs::read_to_string(&marker).expect("read marker"),
-        "--edit\nCOMMIT_EDITMSG\n",
-    );
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--edit\nCOMMIT_EDITMSG\n");
 
     drop(root);
 }
@@ -304,20 +274,14 @@ fn top_level_fallback_forwards_dotted_config_args_to_local_bin() {
     let marker = workspace.join("args.txt");
     write_executable(
         &bin_dir.join("commitlint"),
-        &format!(
-            "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n",
-            marker.display(),
-        ),
+        &format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{}\"\n", marker.display()),
     );
 
     pacquet
         .with_args(["commitlint", "--config.foo=bar"])
         .assert()
         .success();
-    assert_eq!(
-        fs::read_to_string(&marker).expect("read marker"),
-        "--config.foo=bar\n",
-    );
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "--config.foo=bar\n");
 
     drop(root);
 }
@@ -327,10 +291,7 @@ fn top_level_fallback_forwards_dotted_config_args_to_local_bin() {
 /// the virtual store's hidden `node_modules` — pnpm's
 /// `pnpm run with preferSymlinkedExecutables true` test.
 #[test]
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "preferSymlinkedExecutables is inert on Windows"
-)]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
 fn run_exports_node_path_when_prefer_symlinked_executables() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let marker_path = workspace.join("node-path.txt");
@@ -343,11 +304,8 @@ fn run_exports_node_path_when_prefer_symlinked_executables() {
     })
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "preferSymlinkedExecutables: true\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "preferSymlinkedExecutables: true\n")
+        .expect("write pnpm-workspace.yaml");
 
     pacquet
         .with_args(["run", "build"])
@@ -366,10 +324,7 @@ fn run_exports_node_path_when_prefer_symlinked_executables() {
 /// pnpm's `pnpm run with preferSymlinkedExecutables and custom
 /// virtualStoreDir` test.
 #[test]
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "preferSymlinkedExecutables is inert on Windows"
-)]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
 fn run_exports_node_path_from_a_custom_virtual_store_dir() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let marker_path = workspace.join("node-path.txt");

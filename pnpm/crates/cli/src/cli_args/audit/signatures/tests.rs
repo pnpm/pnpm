@@ -44,10 +44,7 @@ fn ecdsa_key(key: &SigningKey, keyid: &str, expires: Option<&str>) -> RegistryKe
 }
 
 fn signature(keyid: &str, sig: &str) -> PackageSignature {
-    PackageSignature {
-        keyid: keyid.to_string(),
-        sig: sig.to_string(),
-    }
+    PackageSignature { keyid: keyid.to_string(), sig: sig.to_string() }
 }
 
 #[test]
@@ -57,11 +54,7 @@ fn verify_one_accepts_only_the_signed_message() {
     let message = "foo@1.0.0:sha512-abc";
 
     assert!(verify_one(&public, message, &sign_b64(&key, message)));
-    assert!(!verify_one(
-        &public,
-        message,
-        &sign_b64(&key, "foo@1.0.0:other")
-    ));
+    assert!(!verify_one(&public, message, &sign_b64(&key, "foo@1.0.0:other")));
     assert!(!verify_one("not base64 ~~~", message, "also not base64"));
 }
 

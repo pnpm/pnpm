@@ -8,10 +8,7 @@ use pretty_assertions::assert_eq;
 use crate::TarballResolver;
 
 fn build_resolver() -> TarballResolver {
-    TarballResolver {
-        http_client: Arc::new(ThrottledClient::default()),
-        fetch_context: None,
-    }
+    TarballResolver { http_client: Arc::new(ThrottledClient::default()), fetch_context: None }
 }
 
 fn tarball_url(resolution: &LockfileResolution) -> &str {
@@ -39,10 +36,7 @@ async fn non_http_bare_specifier_returns_none_so_the_chain_falls_through() {
 #[tokio::test]
 async fn missing_bare_specifier_returns_none() {
     let resolver = build_resolver();
-    let wanted = WantedDependency {
-        alias: Some("foo".to_string()),
-        ..WantedDependency::default()
-    };
+    let wanted = WantedDependency { alias: Some("foo".to_string()), ..WantedDependency::default() };
     let result = resolver
         .resolve(&wanted, &ResolveOptions::default())
         .await
@@ -73,10 +67,7 @@ async fn mutable_response_stores_normalized_request_url() {
         .expect("claim");
 
     assert_eq!(result.id.to_string(), url);
-    assert_eq!(
-        result.normalized_bare_specifier.as_deref(),
-        Some(url.as_str()),
-    );
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some(url.as_str()));
     assert_eq!(tarball_url(&result.resolution), url);
     assert_eq!(result.resolved_via, "url");
 }
@@ -139,10 +130,7 @@ async fn immutable_response_after_redirect_records_the_final_url() {
         .expect("claim");
 
     assert_eq!(result.id.to_string(), requested_url);
-    assert_eq!(
-        result.normalized_bare_specifier.as_deref(),
-        Some(requested_url.as_str()),
-    );
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some(requested_url.as_str()));
     assert_eq!(tarball_url(&result.resolution), final_url);
 }
 

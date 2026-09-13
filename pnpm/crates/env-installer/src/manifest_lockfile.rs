@@ -122,14 +122,7 @@ fn read_peer_dependencies_meta(
                 .get("optional")?
                 .as_bool()
                 .filter(|optional| *optional)
-                .map(|_| {
-                    (
-                        name.clone(),
-                        PeerDependencyMeta {
-                            optional: true,
-                        },
-                    )
-                })
+                .map(|_| (name.clone(), PeerDependencyMeta { optional: true }))
         })
         .collect();
     (!out.is_empty()).then_some(out)

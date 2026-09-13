@@ -91,11 +91,8 @@ pub fn set_dist_tag(storage: &Path, package: &str, version: &str, tag: &str) {
     );
     insert_object_entry(packument_object, "dist-tags", tag, json!(version));
     insert_object_entry(packument_object, "time", "modified", json!(now_iso()));
-    fs::write(
-        &path,
-        serde_json::to_vec(&packument).expect("serialize fixture packument"),
-    )
-    .expect("write fixture packument");
+    fs::write(&path, serde_json::to_vec(&packument).expect("serialize fixture packument"))
+        .expect("write fixture packument");
 }
 
 fn insert_object_entry(parent: &mut Map<String, Value>, field: &str, key: &str, value: Value) {
@@ -204,11 +201,7 @@ fn try_publish_storage(temp: &Path, storage: &Path) -> io::Result<()> {
 /// A scratch directory name no other publisher — in this process or any
 /// concurrent one — can collide with.
 fn scratch_name(prefix: &str) -> String {
-    format!(
-        "{prefix}.{}.{}",
-        std::process::id(),
-        TEMP_COUNTER.fetch_add(1, Ordering::Relaxed),
-    )
+    format!("{prefix}.{}.{}", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
 fn fixture_fingerprint(root: &Path) -> String {
@@ -234,10 +227,7 @@ fn build_storage(fixtures_root: &Path, storage_root: &Path, substitutions: &[(&s
             .versions
             .insert(version.version.clone(), version);
     }
-    assert!(
-        !packages.is_empty(),
-        "no registry package fixtures found under {fixtures_root:?}",
-    );
+    assert!(!packages.is_empty(), "no registry package fixtures found under {fixtures_root:?}");
     for package in packages.values_mut() {
         package.latest =
             latest_version(package.versions.keys()).expect("package has at least one version");
@@ -253,11 +243,7 @@ struct Package {
 
 impl Package {
     fn new(name: String) -> Self {
-        Self {
-            name,
-            latest: String::new(),
-            versions: BTreeMap::new(),
-        }
+        Self { name, latest: String::new(), versions: BTreeMap::new() }
     }
 
     fn write(&self, storage_root: &Path) {
@@ -292,10 +278,7 @@ impl Package {
         times.insert("created".to_string(), json!(DEFAULT_PUBLISH_TIME));
         times.insert("modified".to_string(), json!(DEFAULT_PUBLISH_TIME));
         for version in self.versions.keys() {
-            times.insert(
-                version.clone(),
-                json!(version_publish_time(&self.name, version)),
-            );
+            times.insert(version.clone(), json!(version_publish_time(&self.name, version)));
         }
         Value::Object(times)
     }
@@ -336,20 +319,12 @@ impl PackageVersion {
         let name = manifest_string(&manifest, "name");
         let version = manifest_string(&manifest, "version");
         let tarball = build_tarball(root, package_dir, &manifest, &manifest_text);
-        let integrity = format!(
-            "sha512-{}",
-            general_purpose::STANDARD.encode(Sha512::digest(&tarball)),
-        );
+        let integrity =
+            format!("sha512-{}", general_purpose::STANDARD.encode(Sha512::digest(&tarball)));
         let tarball_name = format!("{}-{version}.tgz", tarball_basename(&name));
         let tarball_url = format!("http://example.test/{name}/-/{tarball_name}");
         let packument_manifest = with_dist(manifest, &tarball_url, &integrity);
-        Self {
-            name,
-            version,
-            packument_manifest,
-            tarball_name,
-            tarball,
-        }
+        Self { name, version, packument_manifest, tarball_name, tarball }
     }
 }
 

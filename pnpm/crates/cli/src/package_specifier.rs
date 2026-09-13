@@ -41,10 +41,7 @@ impl PackageSpecifierPlan {
                 node_packages.push(package_name.clone());
             }
         }
-        Ok(Self {
-            node_packages,
-            ecosystem_packages,
-        })
+        Ok(Self { node_packages, ecosystem_packages })
     }
 
     pub(crate) fn has_cargo(&self) -> bool {
@@ -68,15 +65,9 @@ fn parse_python_specifier(specifier: &str) -> Result<String> {
         return Ok(pnpm_python_resolver::parse_requirement(specifier)?.to_string());
     };
     if version.is_empty() {
-        return Err(miette::miette!(
-            "missing version after `@` in pypi:{specifier}"
-        ));
+        return Err(miette::miette!("missing version after `@` in pypi:{specifier}"));
     }
-    let operator = if version.starts_with(['<', '>', '=', '!', '~']) {
-        ""
-    } else {
-        "=="
-    };
+    let operator = if version.starts_with(['<', '>', '=', '!', '~']) { "" } else { "==" };
     let requirement =
         pnpm_python_resolver::parse_requirement(&format!("{name}{operator}{version}"))?;
     Ok(requirement.to_string())
@@ -94,14 +85,10 @@ fn parse_registry_specifier(
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
     {
-        return Err(miette::miette!(
-            "invalid {protocol} package name in {protocol}{specifier}"
-        ));
+        return Err(miette::miette!("invalid {protocol} package name in {protocol}{specifier}"));
     }
     if version_spec == Some("") {
-        return Err(miette::miette!(
-            "missing version after `@` in {protocol}{specifier}"
-        ));
+        return Err(miette::miette!("missing version after `@` in {protocol}{specifier}"));
     }
     if let Some(version) = version_spec {
         if version.contains(':') {

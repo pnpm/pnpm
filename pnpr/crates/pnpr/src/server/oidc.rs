@@ -20,10 +20,8 @@ pub(super) async fn login(State(state): State<AppState>, Path(provider): Path<St
                     response.headers_mut().insert(header::SET_COOKIE, cookie);
                     response
                 }
-                Err(_) => RegistryError::Internal {
-                    reason: "invalid OIDC cookie".to_string(),
-                }
-                .into_response(),
+                Err(_) => RegistryError::Internal { reason: "invalid OIDC cookie".to_string() }
+                    .into_response(),
             }
         }
         Err(err) => err.into_response(),
@@ -43,12 +41,14 @@ pub(super) async fn callback(
     Query(query): Query<Callback>,
     headers: HeaderMap,
 ) -> Response {
-    if !valid_callback_state(&query.state) {
+    if query.state.len() > 128
+        || query.state.is_empty()
+        || !query.state
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+    {
         return protect(
-            RegistryError::BadRequest {
-                reason: "invalid OIDC state".to_string(),
-            }
-            .into_response(),
+            RegistryError::BadRequest { reason: "invalid OIDC state".to_string() }.into_response(),
         );
     }
     let cookie_name = format!("__Host-pnpr-oidc-{}", query.state);
@@ -72,15 +72,9 @@ pub(super) async fn callback(
             Err(err) => err.into_response(),
         }
     } else {
-        RegistryError::Unauthenticated {
-            resource: "OIDC browser session".to_string(),
-        }
-        .into_response()
+        RegistryError::Unauthenticated { resource: "OIDC browser session".to_string() }
+            .into_response()
     };
-    clear_login_cookie(response, &cookie_name)
-}
-
-fn clear_login_cookie(response: Response, cookie_name: &str) -> Response {
     let mut response = protect(response);
     let cookie = format!("{cookie_name}=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0");
     if let Ok(cookie) = HeaderValue::from_str(&cookie) {
@@ -98,9 +92,7 @@ fn browser_secret<'h>(headers: &'h HeaderMap, cookie_name: &str) -> Option<&'h s
         .flat_map(|value| value.split(';'))
         .filter_map(|cookie| cookie.trim().split_once('='))
         .filter(|(name, _)| *name == cookie_name);
-    let secret = cookies
-        .next()
-        .map(|(_, value)| value)?;
+    let secret = cookies.next().map(|(_, value)| value)?;
     cookies
         .next()
         .is_none()
@@ -111,10 +103,7 @@ fn protect(response: Response) -> Response {
     let mut response = private_no_cache(response);
     response
         .headers_mut()
-        .insert(
-            header::REFERRER_POLICY,
-            HeaderValue::from_static("no-referrer"),
-        );
+        .insert(header::REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
     response
         .headers_mut()
         .insert(
@@ -123,18 +112,12 @@ fn protect(response: Response) -> Response {
         );
     response
         .headers_mut()
-        .insert(
-            header::X_CONTENT_TYPE_OPTIONS,
-            HeaderValue::from_static("nosniff"),
-        );
+        .insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
     response
 }
 
 pub(super) fn validate_workloads(config: &pnpr_config::Config) -> Result<(), RegistryError> {
-    for workload in config.identity.auth.oidc
-        .iter()
-        .flat_map(|provider| &provider.workloads)
-    {
+    for workload in config.identity.auth.oidc.iter().flat_map(|provider| &provider.workloads) {
         if !matches!(
             config.routing.registries.get(&workload.registry),
             Some(pnpr_registry::Registry::Hosted { .. }),
@@ -185,11 +168,3 @@ pub(super) fn check_workload_request(
 
 #[cfg(test)]
 mod tests;
-
-fn valid_callback_state(state: &str) -> bool {
-    !(state.len() > 128
-        || state.is_empty()
-        || !state
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'))
-}

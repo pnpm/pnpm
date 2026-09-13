@@ -43,10 +43,7 @@ fn why_fails_without_package_name() {
         stderr.contains("requires the package name or --find-by=<finder-name>"),
         "should show error about missing package name: {stderr}",
     );
-    assert!(
-        stderr.contains("ERR_PNPM_MISSING_PACKAGE_NAME"),
-        "stderr: {stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_MISSING_PACKAGE_NAME"), "stderr: {stderr}");
 }
 
 #[test]
@@ -71,10 +68,7 @@ fn recursive_why_uses_the_active_dedicated_lockfile() {
 
     let output = pacquet(&app, ["-r", "why", PKG]).output().expect("run recursive pacquet why");
 
-    assert!(
-        output.status.success(),
-        "recursive why should succeed: {output:?}",
-    );
+    assert!(output.status.success(), "recursive why should succeed: {output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         stdout.contains(PKG) && stdout.contains("app@1.0.0"),
@@ -93,14 +87,8 @@ fn why_shows_reverse_tree_for_direct_dep() {
     assert!(output.status.success(), "why should succeed");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains(PKG), "should mention the package: {stdout}");
-    assert!(
-        stdout.contains("100.0.0"),
-        "should show the version: {stdout}",
-    );
-    assert!(
-        stdout.contains("test-why"),
-        "should show the project as a dependent: {stdout}",
-    );
+    assert!(stdout.contains("100.0.0"), "should show the version: {stdout}");
+    assert!(stdout.contains("test-why"), "should show the project as a dependent: {stdout}");
 }
 
 #[test]
@@ -114,37 +102,22 @@ fn why_shows_reverse_tree_for_transitive_dep() {
     assert!(output.status.success(), "why should succeed");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains(DEP), "should mention the package: {stdout}");
-    assert!(
-        stdout.contains(PKG),
-        "should show PKG as a dependent: {stdout}",
-    );
-    assert!(
-        stdout.contains("test-why"),
-        "should show the project as a dependent: {stdout}",
-    );
+    assert!(stdout.contains(PKG), "should show PKG as a dependent: {stdout}");
+    assert!(stdout.contains("test-why"), "should show the project as a dependent: {stdout}");
 }
 
 #[test]
 fn why_with_glob_pattern() {
     let (_root, workspace, _anchor) = setup();
 
-    write_manifest(
-        &workspace,
-        &format!(r#"{{ "{PKG}": "100.0.0", "{DEP}": "100.0.0" }}"#),
-    );
+    write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0", "{DEP}": "100.0.0" }}"#));
     pacquet(&workspace, ["install"]).assert().success();
 
     let output = pacquet(&workspace, ["why", "@pnpm.e2e/*"]).output().expect("run pacquet why");
     assert!(output.status.success(), "why with glob should succeed");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains(PKG),
-        "should mention pkg-with-1-dep: {stdout}",
-    );
-    assert!(
-        stdout.contains(DEP),
-        "should mention dep-of-pkg-with-1-dep: {stdout}",
-    );
+    assert!(stdout.contains(PKG), "should mention pkg-with-1-dep: {stdout}");
+    assert!(stdout.contains(DEP), "should mention dep-of-pkg-with-1-dep: {stdout}");
 }
 
 #[test]
@@ -154,15 +127,9 @@ fn why_without_lockfile_returns_empty() {
     write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0" }}"#));
 
     let output = pacquet(&workspace, ["why", PKG]).output().expect("run pacquet why");
-    assert!(
-        output.status.success(),
-        "why without lockfile should succeed like pnpm: {output:?}",
-    );
+    assert!(output.status.success(), "why without lockfile should succeed like pnpm: {output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.is_empty(),
-        "should produce no output without lockfile: {stdout}",
-    );
+    assert!(stdout.is_empty(), "should produce no output without lockfile: {stdout}");
 }
 
 #[test]
@@ -180,18 +147,9 @@ fn why_depth_limits_output() {
 
     let full_stdout = String::from_utf8_lossy(&output_full.stdout);
     let depth1_stdout = String::from_utf8_lossy(&output_depth1.stdout);
-    assert!(
-        full_stdout.contains("test-why"),
-        "full output shows project: {full_stdout}",
-    );
-    assert!(
-        depth1_stdout.contains(DEP),
-        "depth=1 output still shows the target: {depth1_stdout}",
-    );
-    assert!(
-        depth1_stdout.contains(PKG),
-        "depth=1 output shows direct parent: {depth1_stdout}",
-    );
+    assert!(full_stdout.contains("test-why"), "full output shows project: {full_stdout}");
+    assert!(depth1_stdout.contains(DEP), "depth=1 output still shows the target: {depth1_stdout}");
+    assert!(depth1_stdout.contains(PKG), "depth=1 output shows direct parent: {depth1_stdout}");
 }
 
 /// `why` is recursive by default inside a workspace, so from a member it
@@ -202,11 +160,8 @@ fn why_depth_limits_output() {
 #[test]
 fn why_from_a_workspace_member_covers_the_workspace_until_recursive_install_is_off() {
     let (_root, workspace, _anchor) = setup();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write workspace manifest");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
     write_manifest(&workspace, "{}");
 
     let app = workspace.join("packages/app");
@@ -237,10 +192,7 @@ fn why_from_a_workspace_member_covers_the_workspace_until_recursive_install_is_o
     pacquet(&workspace, ["install"]).assert().success();
 
     let sibling_output = pacquet(&app, ["why", HELLO]).output().expect("query sibling dependency");
-    assert!(
-        sibling_output.status.success(),
-        "why should succeed: {sibling_output:?}",
-    );
+    assert!(sibling_output.status.success(), "why should succeed: {sibling_output:?}");
     let sibling_stdout = String::from_utf8_lossy(&sibling_output.stdout);
     assert!(
         sibling_stdout.contains("sibling@1.0.0"),
@@ -248,15 +200,9 @@ fn why_from_a_workspace_member_covers_the_workspace_until_recursive_install_is_o
     );
 
     let linked_output = pacquet(&app, ["why", PKG]).output().expect("query linked dependency");
-    assert!(
-        linked_output.status.success(),
-        "why should succeed: {linked_output:?}",
-    );
+    assert!(linked_output.status.success(), "why should succeed: {linked_output:?}");
     let linked_stdout = String::from_utf8_lossy(&linked_output.stdout);
-    assert!(
-        linked_stdout.contains(PKG),
-        "linked dependency should be reported: {linked_stdout}",
-    );
+    assert!(linked_stdout.contains(PKG), "linked dependency should be reported: {linked_stdout}");
     assert!(
         linked_stdout.contains("linked@1.0.0"),
         "the forward workspace-link closure should be retained: {linked_stdout}",
@@ -270,10 +216,7 @@ fn why_from_a_workspace_member_covers_the_workspace_until_recursive_install_is_o
 
     let scoped_sibling =
         pacquet(&app, ["why", HELLO]).output().expect("query sibling dependency when scoped");
-    assert!(
-        scoped_sibling.status.success(),
-        "why should succeed: {scoped_sibling:?}",
-    );
+    assert!(scoped_sibling.status.success(), "why should succeed: {scoped_sibling:?}");
     let scoped_sibling_stdout = String::from_utf8_lossy(&scoped_sibling.stdout);
     assert!(
         scoped_sibling_stdout.is_empty(),
@@ -282,10 +225,7 @@ fn why_from_a_workspace_member_covers_the_workspace_until_recursive_install_is_o
 
     let scoped_linked =
         pacquet(&app, ["why", PKG]).output().expect("query linked dependency when scoped");
-    assert!(
-        scoped_linked.status.success(),
-        "why should succeed: {scoped_linked:?}",
-    );
+    assert!(scoped_linked.status.success(), "why should succeed: {scoped_linked:?}");
     let scoped_linked_stdout = String::from_utf8_lossy(&scoped_linked.stdout);
     assert!(
         scoped_linked_stdout.contains("linked@1.0.0"),
@@ -296,11 +236,8 @@ fn why_from_a_workspace_member_covers_the_workspace_until_recursive_install_is_o
 #[test]
 fn filtered_why_excludes_unselected_workspace_siblings() {
     let (_root, workspace, _anchor) = setup();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write workspace manifest");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
     write_manifest(&workspace, "{}");
 
     let app = workspace.join("packages/app");
@@ -326,10 +263,7 @@ fn filtered_why_excludes_unselected_workspace_siblings() {
     let excluded = pacquet(&workspace, ["--filter", "app", "why", HELLO])
         .output()
         .expect("query unselected sibling dependency");
-    assert!(
-        excluded.status.success(),
-        "filtered why should succeed: {excluded:?}",
-    );
+    assert!(excluded.status.success(), "filtered why should succeed: {excluded:?}");
     assert!(
         String::from_utf8_lossy(&excluded.stdout).is_empty(),
         "a dependency reachable only from an unselected sibling must not be reported: {}",
@@ -339,10 +273,7 @@ fn filtered_why_excludes_unselected_workspace_siblings() {
     let included = pacquet(&workspace, ["--filter", "app", "why", PKG])
         .output()
         .expect("query selected dependency");
-    assert!(
-        included.status.success(),
-        "filtered why should succeed: {included:?}",
-    );
+    assert!(included.status.success(), "filtered why should succeed: {included:?}");
     assert!(
         String::from_utf8_lossy(&included.stdout).contains(PKG),
         "a selected dependency should be reported: {}",
@@ -353,11 +284,8 @@ fn filtered_why_excludes_unselected_workspace_siblings() {
 #[test]
 fn why_is_recursive_by_default_inside_a_workspace() {
     let (_root, workspace, _anchor) = setup();
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\n",
-    )
-    .expect("write workspace manifest");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
     write_manifest(&workspace, "{}");
     let sibling = workspace.join("packages/sibling");
     fs::create_dir_all(&sibling).expect("create workspace project");
@@ -374,15 +302,9 @@ fn why_is_recursive_by_default_inside_a_workspace() {
         .output()
         .expect("query default-recursive workspace dependency");
 
-    assert!(
-        output.status.success(),
-        "recursive why should succeed: {output:?}",
-    );
+    assert!(output.status.success(), "recursive why should succeed: {output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains(HELLO),
-        "recursive why should include sibling dependencies: {stdout}",
-    );
+    assert!(stdout.contains(HELLO), "recursive why should include sibling dependencies: {stdout}");
     assert!(
         stdout.contains("sibling@1.0.0"),
         "recursive why should include the sibling importer: {stdout}",
@@ -411,11 +333,7 @@ fn why_shows_reverse_dependency_tree_for_a_non_direct_dependency() {
     assert!(output.status.success(), "why should succeed: {output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.lines().collect();
-    assert_eq!(
-        lines[0],
-        format!("{DEP}@100.0.0"),
-        "root is the searched package: {stdout}",
-    );
+    assert_eq!(lines[0], format!("{DEP}@100.0.0"), "root is the searched package: {stdout}");
     assert!(
         lines
             .iter()
@@ -448,11 +366,7 @@ fn why_finds_packages_by_alias_name_when_using_npm_protocol() {
     assert!(output.status.success(), "why should succeed: {output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.lines().collect();
-    assert_eq!(
-        lines[0],
-        format!("{PKG}@100.0.0"),
-        "root shows the canonical name: {stdout}",
-    );
+    assert_eq!(lines[0], format!("{PKG}@100.0.0"), "root shows the canonical name: {stdout}");
     assert!(
         lines
             .iter()
@@ -479,11 +393,7 @@ fn why_finds_packages_by_actual_name_when_using_npm_protocol() {
     assert!(output.status.success(), "why should succeed: {output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.lines().collect();
-    assert_eq!(
-        lines[0],
-        format!("{PKG}@100.0.0"),
-        "root shows the canonical name: {stdout}",
-    );
+    assert_eq!(lines[0], format!("{PKG}@100.0.0"), "root shows the canonical name: {stdout}");
     assert!(
         lines
             .iter()
@@ -596,10 +506,7 @@ module.exports = {{ finders: {{ 'manifest-reader': (ctx) => {{
         .find(|result| result["name"] == PKG)
         .expect("the finder-matched package is present");
     let message = matched["searchMessage"].as_str().expect("searchMessage string");
-    assert!(
-        message.starts_with("description: "),
-        "searchMessage: {message}",
-    );
+    assert!(message.starts_with("description: "), "searchMessage: {message}");
 }
 
 /// Port of upstream's `"why" should find file: protocol local packages`.
@@ -608,11 +515,8 @@ fn why_finds_file_protocol_local_packages() {
     let (_root, workspace, _anchor) = setup();
     let local_pkg = workspace.join("local-pkg");
     fs::create_dir_all(&local_pkg).expect("create local-pkg");
-    fs::write(
-        local_pkg.join("package.json"),
-        r#"{ "name": "my-local-pkg", "version": "1.0.0" }"#,
-    )
-    .expect("write local-pkg package.json");
+    fs::write(local_pkg.join("package.json"), r#"{ "name": "my-local-pkg", "version": "1.0.0" }"#)
+        .expect("write local-pkg package.json");
     fs::write(
         workspace.join("package.json"),
         r#"{ "name": "project", "version": "0.0.0", "dependencies": { "my-alias": "file:./local-pkg" } }"#,
@@ -625,10 +529,7 @@ fn why_finds_file_protocol_local_packages() {
     assert!(output.status.success(), "why should succeed: {output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.lines().collect();
-    assert!(
-        lines[0].contains("my-local-pkg"),
-        "finds the local package: {stdout}",
-    );
+    assert!(lines[0].contains("my-local-pkg"), "finds the local package: {stdout}");
     assert!(
         lines
             .iter()
@@ -675,10 +576,7 @@ fn why_styles_the_tree_without_corrupting_it() {
     let colored = with_colors(pacquet(&workspace, ["why", PKG]))
         .output()
         .expect("run pacquet why with colors");
-    assert!(
-        colored.status.success(),
-        "colored why should succeed: {colored:?}",
-    );
+    assert!(colored.status.success(), "colored why should succeed: {colored:?}");
 
     let plain_stdout = String::from_utf8_lossy(&plain.stdout);
     let colored_stdout = String::from_utf8_lossy(&colored.stdout);
@@ -696,19 +594,13 @@ fn color_modes_override_terminal_environment_hints() {
     let always = without_colors(pacquet(&workspace, ["--color=always", "why", PKG]))
         .output()
         .expect("run color=always");
-    assert!(
-        always.status.success(),
-        "color=always should succeed: {always:?}",
-    );
+    assert!(always.status.success(), "color=always should succeed: {always:?}");
     assert!(String::from_utf8_lossy(&always.stdout).contains('\u{1b}'));
 
     let never = with_colors(pacquet(&workspace, ["--color=never", "why", PKG]))
         .output()
         .expect("run color=never");
-    assert!(
-        never.status.success(),
-        "color=never should succeed: {never:?}",
-    );
+    assert!(never.status.success(), "color=never should succeed: {never:?}");
     assert!(!String::from_utf8_lossy(&never.stdout).contains('\u{1b}'));
 }
 

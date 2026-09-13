@@ -47,18 +47,9 @@ ignoredBuiltDependencies: [core-js]
             .map(String::as_str),
         Some("^17.0.0"),
     );
-    assert_eq!(
-        settings.only_built_dependencies.as_deref(),
-        Some(&["esbuild".to_owned()][..]),
-    );
-    assert_eq!(
-        settings.never_built_dependencies.as_deref(),
-        Some(&["fsevents".to_owned()][..]),
-    );
-    assert_eq!(
-        settings.ignored_built_dependencies.as_deref(),
-        Some(&["core-js".to_owned()][..]),
-    );
+    assert_eq!(settings.only_built_dependencies.as_deref(), Some(&["esbuild".to_owned()][..]));
+    assert_eq!(settings.never_built_dependencies.as_deref(), Some(&["fsevents".to_owned()][..]));
+    assert_eq!(settings.ignored_built_dependencies.as_deref(), Some(&["core-js".to_owned()][..]));
 
     settings.clear_workspace_only_fields();
     assert_eq!(settings, WorkspaceSettings::default());
@@ -178,17 +169,11 @@ scriptShell: ./ünicode-shell
     settings.resolve_script_shell(base);
     settings.apply_to(&mut config, base);
 
-    assert_eq!(
-        config.store_dir,
-        StoreDir::from(base.join("store-dir/café")),
-    );
+    assert_eq!(config.store_dir, StoreDir::from(base.join("store-dir/café")));
     assert_eq!(config.cache_dir, base.join("日本語/cache-dir"));
     let expected_script_shell =
         pnpm_fs::lexical_normalize(&base.join("./ünicode-shell")).to_string_lossy().into_owned();
-    assert_eq!(
-        config.script_shell.as_deref(),
-        Some(expected_script_shell.as_str()),
-    );
+    assert_eq!(config.script_shell.as_deref(), Some(expected_script_shell.as_str()));
 }
 
 /// `includeWorkspaceRoot` keeps the workspace root in a recursive
@@ -200,10 +185,7 @@ fn parses_include_workspace_root_from_yaml_and_applies() {
     assert_eq!(settings.include_workspace_root, Some(true));
 
     let mut config = Config::new();
-    assert!(
-        !config.include_workspace_root,
-        "the default is `false` to match pnpm",
-    );
+    assert!(!config.include_workspace_root, "the default is `false` to match pnpm");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert!(config.include_workspace_root, "yaml override wins");
 }
@@ -219,14 +201,8 @@ fn parses_the_workspace_cycle_settings_from_yaml_and_applies() {
     assert_eq!(settings.disallow_workspace_cycles, Some(true));
 
     let mut config = Config::new();
-    assert!(
-        !config.ignore_workspace_cycles,
-        "the default is `false` to match pnpm",
-    );
-    assert!(
-        !config.disallow_workspace_cycles,
-        "the default is `false` to match pnpm",
-    );
+    assert!(!config.ignore_workspace_cycles, "the default is `false` to match pnpm");
+    assert!(!config.disallow_workspace_cycles, "the default is `false` to match pnpm");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert!(config.ignore_workspace_cycles, "yaml override wins");
     assert!(config.disallow_workspace_cycles, "yaml override wins");
@@ -249,10 +225,7 @@ patchedDependencies:
 
     assert_eq!(config.workspace_dir.as_deref(), Some(base));
     let map = config.patched_dependencies.expect("present");
-    assert_eq!(
-        map.get("lodash@4.17.21").map(String::as_str),
-        Some("patches/lodash@4.17.21.patch"),
-    );
+    assert_eq!(map.get("lodash@4.17.21").map(String::as_str), Some("patches/lodash@4.17.21.patch"));
 }
 
 #[test]
@@ -324,26 +297,16 @@ cargo:
   indexUrl: https://registry.example.test/index/
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.cargo.as_ref().map(|cargo| cargo.enabled), Some(true));
     assert_eq!(
-        settings.cargo
-            .as_ref()
-            .map(|cargo| cargo.enabled),
-        Some(true),
-    );
-    assert_eq!(
-        settings.cargo
-            .as_ref()
-            .map(|cargo| cargo.index_url.as_str()),
+        settings.cargo.as_ref().map(|cargo| cargo.index_url.as_str()),
         Some("https://registry.example.test/index/"),
     );
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/workspace"));
 
     assert!(config.cargo.enabled);
-    assert_eq!(
-        config.cargo.index_url,
-        "https://registry.example.test/index/",
-    );
+    assert_eq!(config.cargo.index_url, "https://registry.example.test/index/");
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.clear_workspace_only_fields();
     assert!(settings.cargo.is_none());
@@ -372,10 +335,7 @@ fn python_settings_parse_apply_and_remain_workspace_only() {
 #[test]
 fn rejects_workspace_controlled_trust_material_under_the_canonical_spelling() {
     for (trust_material, field) in [
-        (
-            "trustedKeys:\n      acme-2026: repository-controlled-key",
-            "trustedKeys",
-        ),
+        ("trustedKeys:\n      acme-2026: repository-controlled-key", "trustedKeys"),
         ("privateKey: repository-controlled-key", "privateKey"),
         ("publish: true", "publish"),
         ("keyId: acme-2026", "keyId"),
@@ -392,10 +352,7 @@ fn rejects_workspace_controlled_trust_material_under_the_canonical_spelling() {
         .unwrap();
 
         let error = WorkspaceSettings::load_at(dir.path()).unwrap_err().to_string();
-        assert!(
-            error.contains(&format!("sideEffectsCache.remote.{field}")),
-            "{error}",
-        );
+        assert!(error.contains(&format!("sideEffectsCache.remote.{field}")), "{error}");
     }
 }
 
@@ -405,10 +362,7 @@ fn rejects_workspace_controlled_trust_material_under_the_canonical_spelling() {
 #[test]
 fn rejects_workspace_controlled_shared_side_effects_trust_material() {
     for (trust_material, field) in [
-        (
-            "trustedKeys:\n    acme-2026: repository-controlled-key",
-            "trustedKeys",
-        ),
+        ("trustedKeys:\n    acme-2026: repository-controlled-key", "trustedKeys"),
         ("privateKey: repository-controlled-key", "privateKey"),
         ("publish: true", "publish"),
         ("keyId: acme-2026", "keyId"),
@@ -468,37 +422,25 @@ remoteSideEffectsCache:
 fn parses_link_workspace_packages_true_from_yaml() {
     let yaml = "linkWorkspacePackages: true\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(
-        settings.link_workspace_packages,
-        Some(LinkWorkspacePackages::DirectOnly),
-    );
+    assert_eq!(settings.link_workspace_packages, Some(LinkWorkspacePackages::DirectOnly));
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(
-        config.link_workspace_packages,
-        LinkWorkspacePackages::DirectOnly,
-    );
+    assert_eq!(config.link_workspace_packages, LinkWorkspacePackages::DirectOnly);
 }
 
 #[test]
 fn parses_link_workspace_packages_false_from_yaml() {
     let yaml = "linkWorkspacePackages: false\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(
-        settings.link_workspace_packages,
-        Some(LinkWorkspacePackages::Off),
-    );
+    assert_eq!(settings.link_workspace_packages, Some(LinkWorkspacePackages::Off));
 }
 
 #[test]
 fn parses_link_workspace_packages_deep_from_yaml() {
     let yaml = "linkWorkspacePackages: deep\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(
-        settings.link_workspace_packages,
-        Some(LinkWorkspacePackages::Deep),
-    );
+    assert_eq!(settings.link_workspace_packages, Some(LinkWorkspacePackages::Deep));
 }
 
 #[test]
@@ -569,10 +511,7 @@ fn parses_negative_workspace_concurrency_from_yaml_and_resolves() {
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     let parallelism = crate::available_parallelism();
     assert!(config.workspace_concurrency >= 1, "must floor at 1");
-    assert!(
-        config.workspace_concurrency <= parallelism,
-        "must not exceed available parallelism",
-    );
+    assert!(config.workspace_concurrency <= parallelism, "must not exceed available parallelism");
 }
 
 /// `workspaceConcurrency` and `childConcurrency` are independent
@@ -588,10 +527,7 @@ fn workspace_and_child_concurrency_are_independent() {
     let child_default = config.child_concurrency;
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.workspace_concurrency, 7);
-    assert_eq!(
-        config.child_concurrency, child_default,
-        "childConcurrency stays at its default",
-    );
+    assert_eq!(config.child_concurrency, child_default, "childConcurrency stays at its default");
 }
 
 /// `hoistPattern` and `publicHoistPattern` are tri-state via
@@ -606,18 +542,9 @@ fn hoist_patterns_tri_state_round_trip() {
     assert_eq!(settings.hoist_pattern, None);
     assert_eq!(settings.public_hoist_pattern, None);
     let mut config = Config::default();
-    let defaults = (
-        config.hoist_pattern.clone(),
-        config.public_hoist_pattern.clone(),
-    );
+    let defaults = (config.hoist_pattern.clone(), config.public_hoist_pattern.clone());
     settings.apply_to(&mut config, Path::new("/anywhere"));
-    assert_eq!(
-        (
-            config.hoist_pattern.clone(),
-            config.public_hoist_pattern.clone()
-        ),
-        defaults,
-    );
+    assert_eq!((config.hoist_pattern.clone(), config.public_hoist_pattern.clone()), defaults);
 
     let yaml = "hoistPattern: null\npublicHoistPattern: null\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
@@ -652,10 +579,7 @@ fn hoist_false_disables_private_hoist_pattern() {
     let original_public = config.public_hoist_pattern.clone();
     settings.apply_to(&mut config, Path::new("/anywhere"));
     assert_eq!(config.hoist, false);
-    assert_eq!(
-        config.hoist_pattern, None,
-        "hoist:false must drop hoist_pattern",
-    );
+    assert_eq!(config.hoist_pattern, None, "hoist:false must drop hoist_pattern");
     assert_eq!(
         config.public_hoist_pattern, original_public,
         "hoist:false must NOT touch public_hoist_pattern",
@@ -665,10 +589,7 @@ fn hoist_false_disables_private_hoist_pattern() {
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/anywhere"));
-    assert_eq!(
-        config.hoist_pattern, None,
-        "hoist:false must override an explicit hoistPattern",
-    );
+    assert_eq!(config.hoist_pattern, None, "hoist:false must override an explicit hoistPattern");
 }
 
 /// `hoistingLimits` deserializes as one of the `none` / `workspaces`
@@ -684,11 +605,7 @@ fn parses_hoisting_limits_from_yaml_and_applies() {
     assert_eq!(settings.hoisting_limits, Some(HoistingLimits::Dependencies));
 
     let mut config = Config::new();
-    assert_eq!(
-        config.hoisting_limits,
-        HoistingLimits::None,
-        "default is None",
-    );
+    assert_eq!(config.hoisting_limits, HoistingLimits::None, "default is None");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.hoisting_limits, HoistingLimits::Dependencies);
 }
@@ -740,11 +657,7 @@ fn catalog_mode_yaml_values_round_trip() {
 #[test]
 fn resolves_relative_script_shell_against_workspace_root() {
     let base = Path::new("/workspace/root");
-    for script_shell in [
-        "./scripts/shell.sh",
-        "../scripts/shell.sh",
-        "scripts/shell.sh",
-    ] {
+    for script_shell in ["./scripts/shell.sh", "../scripts/shell.sh", "scripts/shell.sh"] {
         let mut settings: WorkspaceSettings =
             serde_saphyr::from_str(&format!("scriptShell: {script_shell}")).unwrap();
         settings.resolve_script_shell(base);
@@ -766,10 +679,7 @@ fn resolves_drive_relative_script_shell_against_workspace_base() {
     settings.resolve_script_shell(Path::new(r"C:\workspace\root"));
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new(r"C:\workspace\root"));
-    assert_eq!(
-        config.script_shell.as_deref(),
-        Some(r"C:\workspace\root\C:tools\shell.cmd"),
-    );
+    assert_eq!(config.script_shell.as_deref(), Some(r"C:\workspace\root\C:tools\shell.cmd"));
 }
 
 /// A declared `serverType` is workspace-only: it decides which tarball URLs
@@ -795,10 +705,7 @@ registries:
         panic!("expected a declaration: {entries:?}")
     };
     assert_eq!(declaration.server_type, None);
-    assert_eq!(
-        declaration.scopes.as_deref(),
-        Some(["@acme".to_owned()].as_slice()),
-    );
+    assert_eq!(declaration.scopes.as_deref(), Some(["@acme".to_owned()].as_slice()));
 }
 
 /// A `virtualStoreOnly` install keeps both hoist patterns empty whatever
@@ -809,11 +716,7 @@ registries:
 fn reset_setting_to_default_keeps_virtual_store_only_hoisting_empty() {
     let defaults = Config::default();
     let base_dir = Path::new("/tmp/project");
-    let mut config = Config {
-        virtual_store_only: true,
-        hoist: false,
-        ..Config::default()
-    };
+    let mut config = Config { virtual_store_only: true, hoist: false, ..Config::default() };
     config.apply_virtual_store_only_derivation();
 
     WorkspaceSettings::reset_setting_to_default::<crate::Host>(

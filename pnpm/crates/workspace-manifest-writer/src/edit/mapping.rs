@@ -56,13 +56,7 @@ pub(super) fn upsert(
 
     match existing_target {
         Some(target) => upsert_existing(manifest, &target, dep, specifier),
-        None => Ok(create_target(
-            manifest,
-            is_default,
-            catalog_name,
-            dep,
-            specifier,
-        )),
+        None => Ok(create_target(manifest, is_default, catalog_name, dep, specifier)),
     }
 }
 
@@ -213,10 +207,7 @@ fn replace_scalar_at(
         .chain(std::iter::once(dep))
         .map(|key| Component::Key(key.into()))
         .collect();
-    let patch = Patch {
-        route: Route::from(components),
-        operation: Op::Replace(value),
-    };
+    let patch = Patch { route: Route::from(components), operation: Op::Replace(value) };
     let patched = yamlpatch::apply_yaml_patches(&document, &[patch]).map_err(Box::new)?;
     Ok(patched.source().to_string())
 }

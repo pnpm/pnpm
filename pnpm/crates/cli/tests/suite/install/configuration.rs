@@ -307,10 +307,7 @@ fn install_resolves_env_var_in_user_npmrc_registry() {
     let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
     let installed = is_symlink_or_junction(&symlink_path).unwrap();
     eprintln!("symlink_path={symlink_path:?} installed={installed}");
-    assert!(
-        installed,
-        "expected installed symlink/junction at {symlink_path:?}",
-    );
+    assert!(installed, "expected installed symlink/junction at {symlink_path:?}");
 
     drop((root, mock_instance));
 }
@@ -337,11 +334,8 @@ fn install_ignores_env_var_in_project_npmrc_registry() {
     fs::write(&npmrc_path, &patched).expect("rewrite .npmrc");
 
     let user_npmrc_path = root.path().join("trusted-user.npmrc");
-    fs::write(
-        &user_npmrc_path,
-        format!("registry={mocked_registry_url}\n"),
-    )
-    .expect("write user .npmrc");
+    fs::write(&user_npmrc_path, format!("registry={mocked_registry_url}\n"))
+        .expect("write user .npmrc");
 
     eprintln!("Creating package.json...");
     let manifest_path = workspace.join("package.json");
@@ -363,10 +357,7 @@ fn install_ignores_env_var_in_project_npmrc_registry() {
 
     let symlink_path = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent");
     let installed = is_symlink_or_junction(&symlink_path).unwrap();
-    assert!(
-        installed,
-        "expected installed symlink/junction at {symlink_path:?}",
-    );
+    assert!(installed, "expected installed symlink/junction at {symlink_path:?}");
 
     drop((root, mock_instance));
 }

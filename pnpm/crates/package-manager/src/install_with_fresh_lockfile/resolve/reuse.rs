@@ -34,10 +34,7 @@ pub(in super::super) fn preferred_versions_seeds(
     wanted_lockfile: Option<&Lockfile>,
     importer_manifests: &BTreeMap<String, &PackageManifest>,
     overrides: Option<&PreferredVersions>,
-) -> (
-    Arc<PreferredVersions>,
-    BTreeMap<String, Arc<PreferredVersions>>,
-) {
+) -> (Arc<PreferredVersions>, BTreeMap<String, Arc<PreferredVersions>>) {
     use pnpm_lockfile_preferred_versions::{
         get_preferred_versions_from_lockfile_and_manifests as from_lockfile,
         get_preferred_versions_from_lockfile_and_manifests_excluding as from_lockfile_excluding,
@@ -168,8 +165,7 @@ pub(in super::super) struct ReuseSeedInputs<'a> {
 }
 impl ReuseSeedInputs<'_> {
     fn package_settings_match(&self, lockfile: &Lockfile) -> bool {
-        lockfile.package_extensions_checksum.as_deref()
-            == self.lockfile.extensions_checksum
+        lockfile.package_extensions_checksum.as_deref() == self.lockfile.extensions_checksum
             && super::super::ignored_optional_dependencies_match(
                 lockfile.ignored_optional_dependencies.as_deref(),
                 self.config.ignored_optional_dependencies.as_deref(),
@@ -188,8 +184,7 @@ impl ReuseSeedInputs<'_> {
             manifest_hook,
             registries: self.registries,
             registry_options_by_url: &self.config.registry_options_by_url,
-            lockfile_include_tarball_url: self.config
-                .lockfile_include_tarball_url,
+            lockfile_include_tarball_url: self.config.lockfile_include_tarball_url,
         }
     }
 }
@@ -207,8 +202,17 @@ impl ReuseSeedInputs<'_> {
 pub(in super::super) async fn lockfile_reuse_seed(
     inputs: ReuseSeedInputs<'_>,
 ) -> Option<Arc<Lockfile>> {
+    use crate::fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs};
+
     let overrides_use_catalogs = overrides_use_catalogs(inputs.config);
-    let (catalogs_match, fast_catalog_seed) = fast_catalog_reuse(&inputs, overrides_use_catalogs);
+    let (catalogs_match, fast_catalog_seed) =
+        match inputs.lockfile.wanted.map_or(FastCatalogUpdate::Unchanged, |lockfile| {
+            try_fast_update_catalogs(lockfile, inputs.catalogs, overrides_use_catalogs)
+        }) {
+            FastCatalogUpdate::Unchanged => (true, None),
+            FastCatalogUpdate::Updated(lockfile) => (false, Some(*lockfile)),
+            FastCatalogUpdate::Unsupported => (false, None),
+        };
 
     let lockfile =
         inputs.lockfile.wanted.filter(|lockfile| inputs.package_settings_match(lockfile))?;
@@ -231,11 +235,7 @@ pub(in super::super) async fn lockfile_reuse_seed(
     let can_rewrite_catalogs = inputs.fast_override_eligible && !overrides_use_catalogs;
 
     let catalog_rewrite = match rewritten_catalogs(
-        CatalogRewriteInputs {
-            catalogs_match,
-            fast_catalog_seed,
-            can_rewrite_catalogs,
-        },
+        CatalogRewriteInputs { catalogs_match, fast_catalog_seed, can_rewrite_catalogs },
         inputs.rewrite_context(lockfile, rewrite_manifest_hook.as_ref()),
         inputs.catalogs,
     )
@@ -333,20 +333,5 @@ pub(super) async fn rewritten_catalogs(
     {
         Some(seed) => CatalogRewrite::Rewritten(Box::new(seed)),
         None => CatalogRewrite::Unsupported,
-    }
-}
-
-fn fast_catalog_reuse(
-    inputs: &ReuseSeedInputs<'_>,
-    overrides_use_catalogs: bool,
-) -> (bool, Option<Lockfile>) {
-    use crate::fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs};
-
-    match inputs.lockfile.wanted.map_or(FastCatalogUpdate::Unchanged, |lockfile| {
-        try_fast_update_catalogs(lockfile, inputs.catalogs, overrides_use_catalogs)
-    }) {
-        FastCatalogUpdate::Unchanged => (true, None),
-        FastCatalogUpdate::Updated(lockfile) => (false, Some(*lockfile)),
-        FastCatalogUpdate::Unsupported => (false, None),
     }
 }

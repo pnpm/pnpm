@@ -98,14 +98,8 @@ fn distinguishes_action_selectors_from_package_selectors() {
 
 #[test]
 fn normalizes_ref_qualified_action_selectors() {
-    assert_eq!(
-        normalize_selector("actions/checkout@v4"),
-        "actions/checkout",
-    );
-    assert_eq!(
-        normalize_selector("!actions/checkout@v4"),
-        "!actions/checkout",
-    );
+    assert_eq!(normalize_selector("actions/checkout@v4"), "actions/checkout");
+    assert_eq!(normalize_selector("!actions/checkout@v4"), "!actions/checkout");
     assert_eq!(normalize_selector("@scope/package"), "@scope/package");
     assert!(
         selector_matcher(&["actions/checkout@v4".to_string()])
@@ -117,10 +111,7 @@ fn normalizes_ref_qualified_action_selectors() {
 #[test]
 fn parses_annotated_semver_tags() {
     let versions = versions_from_refs(&refs(&[
-        (
-            "refs/tags/v4.2.0",
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        ),
+        ("refs/tags/v4.2.0", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
         ("refs/tags/v4.2.0^{}", SHA_V4_2_0),
         ("refs/tags/latest", "not-a-version"),
     ]));
@@ -131,9 +122,7 @@ fn parses_annotated_semver_tags() {
 
 #[test]
 fn preserves_quoting_and_updates_sha_comment() {
-    let action = action(&format!(
-        "'actions/checkout@{SHA_V4_1_0}' # v4.1.0 keep pinned",
-    ));
+    let action = action(&format!("'actions/checkout@{SHA_V4_1_0}' # v4.1.0 keep pinned"));
     let target = &repo_versions()[1];
     assert_eq!(
         render_target_value(&action, target),
@@ -154,14 +143,8 @@ fn floating_major_resolves_to_an_exact_commit() {
 #[test]
 fn resolves_prerelease_tags_containing_dots() {
     let versions = versions_from_refs(&refs(&[
-        (
-            "refs/tags/v5.0.0-alpha.1",
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        ),
-        (
-            "refs/tags/v5.0.0-alpha.2",
-            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-        ),
+        ("refs/tags/v5.0.0-alpha.1", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        ("refs/tags/v5.0.0-alpha.2", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
     ]));
     let current = find_current(&action("actions/checkout@v5.0.0-alpha.1"), &versions)
         .expect("prerelease version");
@@ -275,11 +258,8 @@ async fn keeps_pre_one_updates_caret_compatible_unless_latest_is_requested() {
     let workflows = root.path().join(".github/workflows");
     fs::create_dir_all(&workflows).expect("workflow directory");
     let workflow = workflows.join("ci.yml");
-    fs::write(
-        &workflow,
-        "jobs:\n  test:\n    steps:\n      - uses: owner/tool@v0.5.7\n",
-    )
-    .expect("workflow");
+    fs::write(&workflow, "jobs:\n  test:\n    steps:\n      - uses: owner/tool@v0.5.7\n")
+        .expect("workflow");
 
     let compatible = find_outdated_with_runner::<SilentReporter, _>(
         root.path(),
@@ -348,10 +328,7 @@ async fn rejects_workflow_symlinks_outside_the_project() {
     };
 
     assert!(error.to_string().contains("outside the project root"));
-    assert_eq!(
-        fs::read_to_string(outside.path().join("ci.yml")).unwrap(),
-        original,
-    );
+    assert_eq!(fs::read_to_string(outside.path().join("ci.yml")).unwrap(), original);
 }
 
 #[cfg(unix)]
@@ -364,11 +341,8 @@ async fn reports_local_action_lookup_errors() {
     let action_dir = root.path().join(".github/actions/setup");
     fs::create_dir_all(workflow.parent().unwrap()).expect("workflow directory");
     fs::create_dir_all(&action_dir).expect("action directory");
-    fs::write(
-        &workflow,
-        "jobs:\n  test:\n    steps:\n      - uses: ./.github/actions/setup\n",
-    )
-    .expect("workflow");
+    fs::write(&workflow, "jobs:\n  test:\n    steps:\n      - uses: ./.github/actions/setup\n")
+        .expect("workflow");
     symlink("action.yml", action_dir.join("action.yml")).expect("symlink loop");
 
     let Err(error) = find_outdated_with_runner::<SilentReporter, _>(
@@ -430,9 +404,7 @@ impl GitCommandRunner for ServerBoundGitRunner {
     ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
         Box::pin(async move {
             if !repo.starts_with(self.server_url) {
-                return Err(GitRunError {
-                    message: format!("unexpected repository URL {repo}"),
-                });
+                return Err(GitRunError { message: format!("unexpected repository URL {repo}") });
             }
             Ok(format!(
                 "{SHA_V4_1_0}\trefs/tags/v4.1.0\n{SHA_V4_2_0}\trefs/tags/v4.2.0\n{SHA_V5_0_0}\trefs/tags/v5.0.0\n",
@@ -451,9 +423,7 @@ async fn reads_refs_from_the_configured_server_and_uses_it_in_homepages() {
         "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4.1.0\n",
     )
     .expect("workflow");
-    let runner = ServerBoundGitRunner {
-        server_url: "https://github.example.com/",
-    };
+    let runner = ServerBoundGitRunner { server_url: "https://github.example.com/" };
 
     let outdated = find_outdated_with_runner::<SilentReporter, _>(
         root.path(),
@@ -466,19 +436,13 @@ async fn reads_refs_from_the_configured_server_and_uses_it_in_homepages() {
     .expect("outdated actions");
 
     assert_eq!(outdated.len(), 1);
-    assert_eq!(
-        outdated[0].homepage,
-        "https://github.example.com/actions/checkout",
-    );
+    assert_eq!(outdated[0].homepage, "https://github.example.com/actions/checkout");
 }
 
 #[tokio::test]
 async fn skips_repositories_whose_refs_cannot_be_read_and_warns() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
-    EVENTS
-        .lock()
-        .expect("lock")
-        .clear();
+    EVENTS.lock().expect("lock").clear();
 
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
@@ -506,9 +470,7 @@ async fn skips_repositories_whose_refs_cannot_be_read_and_warns() {
                             .to_string(),
                     });
                 }
-                Ok(format!(
-                    "{SHA_V4_1_0}\trefs/tags/v4.1.0\n{SHA_V4_2_0}\trefs/tags/v4.2.0\n",
-                ))
+                Ok(format!("{SHA_V4_1_0}\trefs/tags/v4.1.0\n{SHA_V4_2_0}\trefs/tags/v4.2.0\n"))
             })
         }
     }

@@ -141,9 +141,7 @@ async fn main() -> miette::Result<()> {
     // enforced that at least one surface stays enabled.
     init_logging(&config.logs);
     log_config_source(&source);
-    if let Some(Command::OciGc { registry, dry_run, min_age_secs }) = args
-        .command
-    {
+    if let Some(Command::OciGc { registry, dry_run, min_age_secs }) = args.command {
         pnpr::recover_publish_journal(&config).await.map_err(|err| redacted_report(&err))?;
         let (blobs, bytes) = pnpr::oci_maintenance::collect_oci_blobs(
             &config,

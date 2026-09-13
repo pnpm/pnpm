@@ -39,11 +39,8 @@ pub(super) async fn write_atomic_with_replace(
         return Err(err.into());
     }
     drop(file);
-    let committed = if replace {
-        fs::rename(&tmp, path).await
-    } else {
-        fs::hard_link(&tmp, path).await
-    };
+    let committed =
+        if replace { fs::rename(&tmp, path).await } else { fs::hard_link(&tmp, path).await };
     if let Err(err) = committed {
         let _ = fs::remove_file(&tmp).await;
         return Err(err.into());
@@ -68,10 +65,7 @@ pub async fn remove_atomic_write_temps(path: &Path) -> Result<()> {
     };
     while let Some(entry) = entries.next_entry().await? {
         let name = entry.file_name();
-        let Some(suffix) = name
-            .as_encoded_bytes()
-            .strip_prefix(prefix.as_encoded_bytes())
-        else {
+        let Some(suffix) = name.as_encoded_bytes().strip_prefix(prefix.as_encoded_bytes()) else {
             continue;
         };
         if !is_atomic_write_temp_suffix(suffix) {

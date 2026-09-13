@@ -36,10 +36,7 @@ fn reuses_prod_only_when_only_dependencies_were_installed() {
             "optionalDependencies": false,
         })),
     );
-    assert_eq!(
-        rebuild_dependency_groups(&config).unwrap(),
-        vec![DependencyGroup::Prod],
-    );
+    assert_eq!(rebuild_dependency_groups(&config).unwrap(), vec![DependencyGroup::Prod]);
 }
 
 #[test]
@@ -72,11 +69,7 @@ fn reuses_all_groups_when_all_were_installed() {
     );
     assert_eq!(
         rebuild_dependency_groups(&config).unwrap(),
-        vec![
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional
-        ],
+        vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
     );
 }
 
@@ -86,11 +79,7 @@ fn defaults_to_all_groups_without_a_modules_manifest() {
     let config = config_with_included(dir.path(), None);
     assert_eq!(
         rebuild_dependency_groups(&config).unwrap(),
-        vec![
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional
-        ],
+        vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
     );
 }
 
@@ -109,10 +98,6 @@ fn falls_back_to_all_groups_when_included_is_empty() {
     );
     assert_eq!(
         rebuild_dependency_groups(&config).unwrap(),
-        vec![
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional
-        ],
+        vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
     );
 }

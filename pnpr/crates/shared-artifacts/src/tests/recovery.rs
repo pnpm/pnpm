@@ -29,10 +29,8 @@ async fn failed_reclamation_releases_its_gate_for_later_retries() {
             usage_writes: None,
         },
     });
-    let config = HostedStoreConfig::ObjectStore {
-        store: Arc::clone(&backend),
-        prefix: String::new(),
-    };
+    let config =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     let publication = artifact_operation_id().unwrap();
@@ -97,10 +95,7 @@ async fn a_renewal_waiting_for_the_lock_does_not_stop_the_publication() {
 async fn recovery_that_loses_gives_back_what_it_had_retaken() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
-    let tags = [
-        "pnpm:v1:linux-arm64-node22-glibc2.17",
-        "pnpm:v1:linux-x64-node22-glibc2.17",
-    ];
+    let tags = ["pnpm:v1:linux-arm64-node22-glibc2.17", "pnpm:v1:linux-x64-node22-glibc2.17"];
     let ours = publication_tagged("ci/ours", &tags);
     let (payload, _) = ours.envelope.decode_payload().unwrap();
     let owner = super::super::owner_key("acme", &payload.owner).unwrap();
@@ -122,22 +117,13 @@ async fn recovery_that_loses_gives_back_what_it_had_retaken() {
         .unwrap();
 
     store
-        .recover_after_expiry(
-            &owner,
-            &entry,
-            &variant,
-            &payload,
-            &ours.envelope.digest().unwrap(),
-        )
+        .recover_after_expiry(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
         .await
         .unwrap_err();
 
     assert!(
         store
-            .read_object_bounded(
-                &format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"),
-                128
-            )
+            .read_object_bounded(&format!("{owner}/entries/{entry}/scopes/linux-arm64-node22"), 128)
             .await
             .unwrap()
             .is_none(),
@@ -166,13 +152,7 @@ async fn recovery_refuses_an_artifact_whose_blobs_were_collected() {
         .unwrap();
 
     let error = store
-        .recover_after_expiry(
-            &owner,
-            &entry,
-            &variant,
-            &payload,
-            &ours.envelope.digest().unwrap(),
-        )
+        .recover_after_expiry(&owner, &entry, &variant, &payload, &ours.envelope.digest().unwrap())
         .await
         .unwrap_err();
 

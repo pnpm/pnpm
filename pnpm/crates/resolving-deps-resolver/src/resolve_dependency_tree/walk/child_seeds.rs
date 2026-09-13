@@ -34,13 +34,7 @@ where
     let grandchild_overlay =
         PreferredVersionsOverlay::layer(node.children_overlay.clone(), level_versions(ctx, &seeds));
     let grandchild_pkg_aliases = node.children_pkg_aliases.extend(level_aliases(&seeds));
-    Ok(SeededNode {
-        node,
-        child_specs,
-        seeds,
-        grandchild_overlay,
-        grandchild_pkg_aliases,
-    })
+    Ok(SeededNode { node, child_specs, seeds, grandchild_overlay, grandchild_pkg_aliases })
 }
 
 /// The occurrence's child specs: its manifest's dependencies less the
@@ -79,17 +73,15 @@ pub(super) fn child_specs_of(
             .collect::<Vec<ChildSpec>>()
             .pipe(Arc::new)
     };
-    Ok(
-        match catalogs_for_children(ctx, pending.resolves_children_through_catalogs) {
-            Some(catalogs) => child_specs
-                .iter()
-                .cloned()
-                .collect::<Vec<ChildSpec>>()
-                .pipe(|specs| resolve_catalog_child_specs(specs, catalogs))?
-                .pipe(Arc::new),
-            None => child_specs,
-        },
-    )
+    Ok(match catalogs_for_children(ctx, pending.resolves_children_through_catalogs) {
+        Some(catalogs) => child_specs
+            .iter()
+            .cloned()
+            .collect::<Vec<ChildSpec>>()
+            .pipe(|specs| resolve_catalog_child_specs(specs, catalogs))?
+            .pipe(Arc::new),
+        None => child_specs,
+    })
 }
 
 /// What every child edge of one occurrence resolves against.
@@ -154,9 +146,7 @@ where
             ancestor_ids: &node.pending.ancestry.next_ancestors,
             depth: node.pending.ancestry.depth + 1,
             parent_optional: node.pending.ancestry.current_is_optional,
-            reuse: ReuseSource::Transitive {
-                key: prior,
-            },
+            reuse: ReuseSource::Transitive { key: prior },
             pick_overlay: node.children_overlay.clone(),
             parent_dir: scope.declaring_dir.as_deref(),
             parent_pkg_aliases: &node.children_pkg_aliases,

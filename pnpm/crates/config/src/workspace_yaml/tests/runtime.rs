@@ -7,10 +7,7 @@ use super::{
 fn global_shims_defaults_enable_the_managed_runtimes() {
     let shims = Config::default().global_shims;
     for name in ["node", "deno", "bun"] {
-        assert!(
-            shims.is_enabled(name),
-            "{name} should be enabled by default",
-        );
+        assert!(shims.is_enabled(name), "{name} should be enabled by default");
     }
     assert!(!shims.is_enabled("typescript"));
     assert!(!shims.dispatches_nothing());
@@ -20,20 +17,11 @@ fn global_shims_defaults_enable_the_managed_runtimes() {
 fn global_shims_record_merges_over_the_defaults() {
     let settings: WorkspaceSettings =
         serde_saphyr::from_str("globalShims: {bun: false, typescript: true}\n").unwrap();
-    assert!(matches!(
-        settings.global_shims,
-        Some(GlobalShimsSetting::Entries(_))
-    ));
+    assert!(matches!(settings.global_shims, Some(GlobalShimsSetting::Entries(_))));
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert!(
-        config.global_shims.is_enabled("node"),
-        "untouched defaults must survive",
-    );
-    assert!(
-        !config.global_shims.is_enabled("bun"),
-        "one default can be switched off",
-    );
+    assert!(config.global_shims.is_enabled("node"), "untouched defaults must survive");
+    assert!(!config.global_shims.is_enabled("bun"), "one default can be switched off");
     assert!(config.global_shims.is_enabled("typescript"));
 }
 
@@ -58,11 +46,7 @@ fn global_shims_named_policies_parse() {
     let shims = config.global_shims;
     assert_eq!(shims.policy("node"), ShimPolicy::Prompt);
     assert_eq!(shims.policy("deno"), ShimPolicy::Always);
-    assert_eq!(
-        shims.policy("bun"),
-        ShimPolicy::Auto,
-        "explicit auto equals the true shorthand",
-    );
+    assert_eq!(shims.policy("bun"), ShimPolicy::Auto, "explicit auto equals the true shorthand");
     assert_eq!(shims.policy("typescript"), ShimPolicy::Off);
     assert!(shims.is_enabled("node"), "prompt still counts as enabled");
 }
@@ -86,42 +70,26 @@ fn global_shims_later_layers_win_per_key() {
 fn parses_scripts_prepend_node_path_true_from_yaml() {
     let yaml = "scriptsPrependNodePath: true\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(
-        settings.scripts_prepend_node_path,
-        Some(ScriptsPrependNodePath::Always),
-    );
+    assert_eq!(settings.scripts_prepend_node_path, Some(ScriptsPrependNodePath::Always));
 
     let mut config = Config::new();
-    assert_eq!(
-        config.scripts_prepend_node_path,
-        ScriptsPrependNodePath::Never,
-        "default Never",
-    );
+    assert_eq!(config.scripts_prepend_node_path, ScriptsPrependNodePath::Never, "default Never");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(
-        config.scripts_prepend_node_path,
-        ScriptsPrependNodePath::Always,
-    );
+    assert_eq!(config.scripts_prepend_node_path, ScriptsPrependNodePath::Always);
 }
 
 #[test]
 fn parses_scripts_prepend_node_path_false_from_yaml() {
     let yaml = "scriptsPrependNodePath: false\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(
-        settings.scripts_prepend_node_path,
-        Some(ScriptsPrependNodePath::Never),
-    );
+    assert_eq!(settings.scripts_prepend_node_path, Some(ScriptsPrependNodePath::Never));
 }
 
 #[test]
 fn parses_scripts_prepend_node_path_warn_only_from_yaml() {
     let yaml = "scriptsPrependNodePath: warn-only\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(
-        settings.scripts_prepend_node_path,
-        Some(ScriptsPrependNodePath::WarnOnly),
-    );
+    assert_eq!(settings.scripts_prepend_node_path, Some(ScriptsPrependNodePath::WarnOnly));
 }
 
 #[test]
@@ -137,20 +105,11 @@ scriptShell: /usr/bin/bash
 nodeOptions: --max-old-space-size=4096
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(
-        settings.script_shell,
-        Some(Some("/usr/bin/bash".to_string())),
-    );
-    assert_eq!(
-        settings.node_options,
-        Some(Some("--max-old-space-size=4096".to_string())),
-    );
+    assert_eq!(settings.script_shell, Some(Some("/usr/bin/bash".to_string())));
+    assert_eq!(settings.node_options, Some(Some("--max-old-space-size=4096".to_string())));
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.script_shell.as_deref(), Some("/usr/bin/bash"));
-    assert_eq!(
-        config.node_options.as_deref(),
-        Some("--max-old-space-size=4096"),
-    );
+    assert_eq!(config.node_options.as_deref(), Some("--max-old-space-size=4096"));
 }

@@ -44,10 +44,17 @@ pub(crate) async fn resolve_finders(
             .map_err(|err| miette::miette!("loading finders from a pnpmfile: {err}"))?;
         for name in names {
             if let Some(first) = finders_by_name.get(&name) {
-                return Err(duplicate_finder_error(
-                    &name,
-                    first.as_ref(),
-                    hooks.as_ref(),
+                let first = first
+                    .source_path()
+                    .expect("loaded pnpmfile has a source path")
+                    .display();
+                let second = hooks
+                    .source_path()
+                    .expect("loaded pnpmfile has a source path")
+                    .display();
+                return Err(miette::miette!(
+                    code = "ERR_PNPM_DUPLICATE_FINDER",
+                    r#"Finder "{name}" defined in both {first} and {second}"#,
                 ));
             }
             finders_by_name.insert(name, Arc::clone(&hooks));
@@ -56,10 +63,7 @@ pub(crate) async fn resolve_finders(
     find_by
         .iter()
         .map(|name| match finders_by_name.get(name) {
-            Some(hooks) => Ok(FinderHandle {
-                name: name.clone(),
-                hooks: Arc::clone(hooks),
-            }),
+            Some(hooks) => Ok(FinderHandle { name: name.clone(), hooks: Arc::clone(hooks) }),
             None => Err(miette::miette!(
                 code = "ERR_PNPM_FINDER_NOT_FOUND",
                 "No finder with name {name} is found"
@@ -181,9 +185,7 @@ pub(crate) async fn evaluate_finders(
             "manifest": manifest,
         });
         let (messages, found) = finder_verdicts(finders, &ctx).await?;
-        let Some(verdict) = search_verdict(&messages, found) else {
-            continue;
-        };
+        let Some(verdict) = search_verdict(&messages, found) else { continue };
         results.insert((alias, node_id), verdict);
     }
     Ok(results)
@@ -268,23 +270,4 @@ fn read_manifest_from_cafs(
     std::fs::read(manifest_path)
         .ok()
         .and_then(|bytes| parse_manifest_bytes(&bytes).ok())
-}
-
-fn duplicate_finder_error(
-    name: &str,
-    first: &dyn PnpmfileHooks,
-    hooks: &dyn PnpmfileHooks,
-) -> miette::Report {
-    let first = first
-        .source_path()
-        .expect("loaded pnpmfile has a source path")
-        .display();
-    let second = hooks
-        .source_path()
-        .expect("loaded pnpmfile has a source path")
-        .display();
-    miette::miette!(
-        code = "ERR_PNPM_DUPLICATE_FINDER",
-        r#"Finder "{name}" defined in both {first} and {second}"#,
-    )
 }

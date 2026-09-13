@@ -18,11 +18,8 @@ use std::{collections::HashMap, path::Path};
 /// The dependency groups a `$dep-name` reference may point at, in
 /// merge order: a name declared in more than one of them resolves to
 /// the last group's specifier. `peerDependencies` is not referenceable.
-const REFERENCEABLE_GROUPS: [DependencyGroup; 3] = [
-    DependencyGroup::Dev,
-    DependencyGroup::Prod,
-    DependencyGroup::Optional,
-];
+const REFERENCEABLE_GROUPS: [DependencyGroup; 3] =
+    [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional];
 
 /// Replace every `$dep-name` value in `overrides` with the specifier
 /// the manifest at `root_dir` declares for that dependency.
@@ -45,9 +42,7 @@ pub(crate) fn resolve_version_references(
         Ok(manifest) => Some(manifest),
         Err(PackageManifestError::NoImporterManifestFound(_)) => None,
         Err(source) => {
-            return Err(LoadWorkspaceYamlError::ReadRootManifest {
-                source: Box::new(source),
-            });
+            return Err(LoadWorkspaceYamlError::ReadRootManifest { source: Box::new(source) });
         }
     };
     let direct_dependencies: HashMap<&str, &str> = root_manifest
@@ -55,9 +50,7 @@ pub(crate) fn resolve_version_references(
         .map(|manifest| manifest.dependencies(REFERENCEABLE_GROUPS).collect())
         .unwrap_or_default();
     for spec in overrides.values_mut() {
-        let Some(dependency_name) = spec.strip_prefix('$') else {
-            continue;
-        };
+        let Some(dependency_name) = spec.strip_prefix('$') else { continue };
         let Some(resolved) = direct_dependencies.get(dependency_name) else {
             return Err(LoadWorkspaceYamlError::CannotResolveOverrideVersion {
                 spec: spec.clone(),

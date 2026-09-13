@@ -47,10 +47,7 @@ async fn should_throw_when_web_login_returns_invalid_response() {
             .as_deref(),
         Some("ERR_PNPM_LOGIN_INVALID_RESPONSE"),
     );
-    assert_eq!(
-        err.to_string(),
-        "The registry returned an invalid response for web-based login",
-    );
+    assert_eq!(err.to_string(), "The registry returned an invalid response for web-based login");
 }
 
 #[tokio::test]
@@ -60,9 +57,7 @@ async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
     reset();
     reset_login();
     set_fetch(Box::new(|| Ok(ok_token("tok"))));
-    set_ini_read(Box::new(|_| {
-        Err(io::Error::new(io::ErrorKind::PermissionDenied, "EACCES"))
-    }));
+    set_ini_read(Box::new(|_| Err(io::Error::new(io::ErrorKind::PermissionDenied, "EACCES"))));
 
     let mut server = mockito::Server::new_async().await;
     server
@@ -84,15 +79,8 @@ async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
     assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
     // The web-login messages are surfaced before the read is attempted.
     let messages = infos();
-    assert_eq!(
-        messages.len(),
-        2,
-        "expected the auth-URL and Press-ENTER lines: {messages:?}",
-    );
-    assert!(
-        messages[0].contains("https://example.org/auth/login"),
-        "got {messages:?}",
-    );
+    assert_eq!(messages.len(), 2, "expected the auth-URL and Press-ENTER lines: {messages:?}");
+    assert!(messages[0].contains("https://example.org/auth/login"), "got {messages:?}");
     assert_eq!(messages[1], "Press ENTER to open the URL in your browser.");
 }
 
@@ -121,16 +109,7 @@ async fn should_surface_a_non_404_web_login_http_error_as_web_login_failed() {
         .unwrap_err();
 
     login_mock.assert_async().await;
-    assert!(
-        matches!(
-            err,
-            LoginError::WebLoginFailed {
-                status: 500,
-                ..
-            }
-        ),
-        "got {err:?}",
-    );
+    assert!(matches!(err, LoginError::WebLoginFailed { status: 500, .. }), "got {err:?}");
     assert_eq!(
         err
             .pipe_ref(miette::Diagnostic::code)
@@ -138,10 +117,7 @@ async fn should_surface_a_non_404_web_login_http_error_as_web_login_failed() {
             .as_deref(),
         Some("ERR_PNPM_WEB_LOGIN_FAILED"),
     );
-    assert_eq!(
-        err.to_string(),
-        "Web-based login failed (HTTP 500): Internal Server Error",
-    );
+    assert_eq!(err.to_string(), "Web-based login failed (HTTP 500): Internal Server Error");
 }
 
 /// A web-login probe that never reaches the registry surfaces as a transport
@@ -184,10 +160,7 @@ async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
             .as_deref(),
         Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_REQUEST_FAILED"),
     );
-    assert!(
-        err.to_string().starts_with("The login request failed:"),
-        "unexpected message: {err}",
-    );
+    assert!(err.to_string().starts_with("The login request failed:"), "unexpected message: {err}");
 }
 
 #[tokio::test]
@@ -229,10 +202,7 @@ async fn should_fall_back_to_url_only_display_when_the_login_url_exceeds_qr_capa
         .into_iter()
         .find(|message| message.contains(&long_login_url))
         .expect("the auth URL should be surfaced");
-    assert_eq!(
-        auth_message,
-        format!("Authenticate your account at:\n{long_login_url}"),
-    );
+    assert_eq!(auth_message, format!("Authenticate your account at:\n{long_login_url}"));
 }
 
 /// When the web-auth poll never sees a token before its budget elapses, the
@@ -270,10 +240,7 @@ async fn should_time_out_when_the_web_auth_poll_never_completes() {
             .as_deref(),
         Some("ERR_PNPM_WEBAUTH_TIMEOUT"),
     );
-    assert_eq!(
-        err.to_string(),
-        "Web-based authentication timed out before it could be completed",
-    );
+    assert_eq!(err.to_string(), "Web-based authentication timed out before it could be completed");
 }
 
 /// A non-string `loginUrl` is rejected as an invalid response by the same
@@ -411,10 +378,7 @@ async fn should_refuse_a_registry_the_config_reader_would_reject() {
     reset();
     reset_login();
 
-    let mut options = opts(
-        "https://user:secret@registry.example/",
-        Path::new("/mock/config"),
-    );
+    let mut options = opts("https://user:secret@registry.example/", Path::new("/mock/config"));
     options.scope = Some("@acme");
 
     let err = login::<FakeHost, RecordingReporter>(&client(), options).await.unwrap_err();
@@ -422,14 +386,8 @@ async fn should_refuse_a_registry_the_config_reader_would_reject() {
     let LoginError::UnrecordableLogin { reason } = &err else {
         panic!("expected UnrecordableLogin, got {err:?}");
     };
-    assert!(
-        !reason.contains("secret"),
-        "the message must not echo credentials: {reason}",
-    );
-    assert!(
-        login_writes().is_empty(),
-        "nothing may be written for a refused registry",
-    );
+    assert!(!reason.contains("secret"), "the message must not echo credentials: {reason}");
+    assert!(login_writes().is_empty(), "nothing may be written for a refused registry");
 }
 
 /// The same guard for a scope: `_auth` keys it, and one that is not a package
@@ -450,8 +408,5 @@ async fn should_refuse_a_scope_the_config_reader_would_reject() {
         matches!(err, LoginError::UnrecordableLogin { .. }),
         "a slashed scope must be refused, got {err:?}",
     );
-    assert!(
-        login_writes().is_empty(),
-        "nothing may be written for a refused scope",
-    );
+    assert!(login_writes().is_empty(), "nothing may be written for a refused scope");
 }

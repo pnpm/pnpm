@@ -8,9 +8,7 @@ pub(super) fn check_unsafe_key_in_path(key: &str) -> Result<(), PkgError> {
         if let Segment::Key(k) = segment
             && UNSAFE_KEYS.contains(&k.as_str())
         {
-            return Err(PkgError::UnsafeKey {
-                key: k.clone(),
-            });
+            return Err(PkgError::UnsafeKey { key: k.clone() });
         }
     }
     Ok(())
@@ -20,25 +18,17 @@ pub(crate) const MAX_ARRAY_INDEX: usize = 1 << 20;
 
 fn validate_index(idx: f64) -> Result<usize, PkgError> {
     if idx.fract() != 0.0 || idx.is_sign_negative() || !idx.is_finite() {
-        return Err(PkgError::SetPathError {
-            path: idx.to_string(),
-        });
+        return Err(PkgError::SetPathError { path: idx.to_string() });
     }
     let index = idx as usize;
     if index > MAX_ARRAY_INDEX {
-        return Err(PkgError::SetPathError {
-            path: idx.to_string(),
-        });
+        return Err(PkgError::SetPathError { path: idx.to_string() });
     }
     Ok(index)
 }
 
 fn idx_to_string(idx: f64) -> String {
-    if idx.fract() == 0.0 && idx.is_finite() {
-        format!("{}", idx as i64)
-    } else {
-        idx.to_string()
-    }
+    if idx.fract() == 0.0 && idx.is_finite() { format!("{}", idx as i64) } else { idx.to_string() }
 }
 
 pub(super) fn set_object_value_by_property_path(
@@ -108,10 +98,7 @@ fn descend_object<'a>(current: &'a mut Value, key: &str, needs_array: bool) -> &
         *current = Value::Object(Map::new());
     }
     let obj = current.as_object_mut().expect("current was just made an object");
-    if !obj
-        .get(key)
-        .is_some_and(|entry| container_matches(entry, needs_array))
-    {
+    if !obj.get(key).is_some_and(|entry| container_matches(entry, needs_array)) {
         obj.insert(key.to_owned(), empty_container(needs_array));
     }
     obj.get_mut(key).expect("the entry was just inserted")
@@ -154,19 +141,11 @@ fn place_at_index(current: &mut Value, index: usize, value: Value) {
 }
 
 fn container_matches(value: &Value, needs_array: bool) -> bool {
-    if needs_array {
-        value.is_array()
-    } else {
-        value.is_object()
-    }
+    if needs_array { value.is_array() } else { value.is_object() }
 }
 
 fn empty_container(needs_array: bool) -> Value {
-    if needs_array {
-        Value::Array(Vec::new())
-    } else {
-        Value::Object(Map::new())
-    }
+    if needs_array { Value::Array(Vec::new()) } else { Value::Object(Map::new()) }
 }
 
 /// The container an index segment builds when the document has
@@ -223,9 +202,7 @@ fn descend_for_delete<'a>(
             idx_to_string(*idx)
         }
     };
-    let Some(obj) = current.as_object_mut() else {
-        return Ok(None);
-    };
+    let Some(obj) = current.as_object_mut() else { return Ok(None) };
     Ok(obj.get_mut(&key))
 }
 
@@ -250,8 +227,6 @@ fn remove_value(current: &mut Value, last: &Segment) -> miette::Result<bool> {
             idx_to_string(*idx)
         }
     };
-    let Some(obj) = current.as_object_mut() else {
-        return Ok(false);
-    };
+    let Some(obj) = current.as_object_mut() else { return Ok(false) };
     Ok(obj.remove(&key).is_some())
 }

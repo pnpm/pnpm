@@ -76,8 +76,7 @@ impl ImporterHoistState {
     where
         Chain: Resolver + ?Sized,
     {
-        self.complete_required_round(resolver, Some(round), peer_discovery)
-            .await
+        self.complete_required_round(resolver, Some(round), peer_discovery).await
     }
 
     pub(super) fn begin_required_round(&mut self) {
@@ -97,11 +96,7 @@ impl ImporterHoistState {
         let children_rewrites = self.ctx.workspace().tree.children_rewrites();
         let walk_was_full = self.progress.walked_direct_len == 0
             || children_rewrites != self.progress.walked_children_rewrites;
-        let walk_from = if walk_was_full {
-            0
-        } else {
-            self.progress.walked_direct_len
-        };
+        let walk_from = if walk_was_full { 0 } else { self.progress.walked_direct_len };
         let discovery = {
             let mut opts = self.peers_opts();
             opts.scope.hoist_missing_scope = hoist_missing_scope;
@@ -125,11 +120,7 @@ impl ImporterHoistState {
                 &self.importer_id,
                 &index_missing_names(&discovery.missing_summaries),
             );
-        RequiredRound {
-            provider_pkg_ids,
-            discovery,
-            walk_was_full,
-        }
+        RequiredRound { provider_pkg_ids, discovery, walk_was_full }
     }
 
     pub(super) async fn complete_required_round<Chain>(
@@ -192,9 +183,7 @@ impl ImporterHoistState {
             .collect();
         let hoist_preferred = self.ctx.preferred_versions_for_names(
             &self.selection.preferred_versions,
-            missing_as_pairs
-                .iter()
-                .map(|(name, _)| name.as_str()),
+            missing_as_pairs.iter().map(|(name, _)| name.as_str()),
         );
         let hoisted = hoist_peers(
             &HoistPeersOptions {
@@ -210,7 +199,9 @@ impl ImporterHoistState {
             return Ok(false);
         }
 
-        self.dependencies.parent_pkg_aliases.extend(hoisted.keys().cloned());
+        for name in hoisted.keys() {
+            self.dependencies.parent_pkg_aliases.insert(name.clone());
+        }
 
         // Hoisted required peers are installed at the importer
         // level as non-optional direct deps — they exist precisely

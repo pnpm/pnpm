@@ -72,8 +72,7 @@ fn snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
 }
 
 fn snapshot_optional(lockfile: &Lockfile, key: &str) -> bool {
-    lockfile.snapshots.as_ref().expect("snapshots")[&key.parse().expect("snapshot key")]
-        .optional
+    lockfile.snapshots.as_ref().expect("snapshots")[&key.parse().expect("snapshot key")].optional
 }
 
 #[test]
@@ -102,10 +101,7 @@ fn absorbs_a_removal_and_a_widened_ignore_list_in_one_pass() {
         vec!["bar@2.0.0".to_string(), "child@3.0.0".to_string()],
         "the removed dependency and the newly ignored optional both went, with their subtrees",
     );
-    assert_eq!(
-        updated.ignored_optional_dependencies,
-        Some(vec!["opt".to_string()]),
-    );
+    assert_eq!(updated.ignored_optional_dependencies, Some(vec!["opt".to_string()]));
     let importer = &updated.importers["."];
     assert!(importer.optional_dependencies.is_none());
     assert!(
@@ -123,14 +119,10 @@ fn absorbs_a_group_move_and_a_settings_change_in_one_pass() {
         "dependencies": { "bar": "^2.0.0" },
         "optionalDependencies": { "opt": "^5.0.0" },
     }));
-    let config = Config {
-        auto_install_peers: false,
-        ..Config::default()
-    };
+    let config = Config { auto_install_peers: false, ..Config::default() };
     let mut subject = lockfile();
-    subject.settings = Some(crate::fast_update_settings::lockfile_settings_from_config(
-        &Config::default(),
-    ));
+    subject.settings =
+        Some(crate::fast_update_settings::lockfile_settings_from_config(&Config::default()));
 
     let updated = try_compose_fast_updates(
         &subject,
@@ -160,14 +152,10 @@ fn falls_back_when_one_of_the_composed_changes_cannot_be_absorbed() {
         "dependencies": { "foo": "^9.0.0", "bar": "^2.0.0" },
         "optionalDependencies": { "opt": "^5.0.0" },
     }));
-    let config = Config {
-        auto_install_peers: false,
-        ..Config::default()
-    };
+    let config = Config { auto_install_peers: false, ..Config::default() };
     let mut subject = lockfile();
-    subject.settings = Some(crate::fast_update_settings::lockfile_settings_from_config(
-        &Config::default(),
-    ));
+    subject.settings =
+        Some(crate::fast_update_settings::lockfile_settings_from_config(&Config::default()));
 
     assert!(
         try_compose_fast_updates(
@@ -190,10 +178,7 @@ fn falls_back_when_a_removal_leaves_a_configured_patch_unused() {
         "dependencies": { "foo": "^1.0.0" },
         "optionalDependencies": { "opt": "^5.0.0" },
     }));
-    let config = Config {
-        allow_unused_patches: false,
-        ..patch_config(dir.path(), &["bar@2.0.0"])
-    };
+    let config = Config { allow_unused_patches: false, ..patch_config(dir.path(), &["bar@2.0.0"]) };
 
     assert!(
         try_compose_fast_updates(
@@ -263,10 +248,7 @@ fn lockfile_recording_a_patch_for_bar(config: &Config) -> Lockfile {
 #[test]
 fn falls_back_when_a_removal_orphans_a_patch_the_lockfile_already_records() {
     let dir = workspace(&["bar@2.0.0"]);
-    let config = Config {
-        allow_unused_patches: false,
-        ..patch_config(dir.path(), &["bar@2.0.0"])
-    };
+    let config = Config { allow_unused_patches: false, ..patch_config(dir.path(), &["bar@2.0.0"]) };
     let subject = lockfile_recording_a_patch_for_bar(&config);
     let drops_bar = manifest_from(json!({
         "dependencies": { "foo": "^1.0.0" },
@@ -454,9 +436,8 @@ fn patch_config(workspace_dir: &Path, keys: &[&str]) -> Config {
 #[test]
 fn absorbs_a_peer_setting_once_the_removal_drops_the_last_peer_dependent() {
     let mut subject = lockfile();
-    subject.settings = Some(crate::fast_update_settings::lockfile_settings_from_config(
-        &Config::default(),
-    ));
+    subject.settings =
+        Some(crate::fast_update_settings::lockfile_settings_from_config(&Config::default()));
     subject.importers
         .get_mut(".")
         .expect("importer")
@@ -488,10 +469,7 @@ fn absorbs_a_peer_setting_once_the_removal_drops_the_last_peer_dependent() {
         "dependencies": { "foo": "^1.0.0", "bar": "^2.0.0" },
         "optionalDependencies": { "opt": "^5.0.0" },
     }));
-    let config = Config {
-        auto_install_peers: false,
-        ..Config::default()
-    };
+    let config = Config { auto_install_peers: false, ..Config::default() };
 
     let updated = try_compose_fast_updates(
         &subject,

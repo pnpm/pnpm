@@ -109,11 +109,7 @@ fn strips_control_characters_from_the_username() {
         String::from_utf8_lossy(&output.stderr),
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(
-        stdout.trim(),
-        "al[31mice",
-        "control characters must be stripped",
-    );
+    assert_eq!(stdout.trim(), "al[31mice", "control characters must be stripped");
     assert!(!stdout.contains(esc), "ESC must be stripped: {stdout:?}");
     assert!(!stdout.contains(bel), "BEL must be stripped: {stdout:?}");
     drop((root, server));

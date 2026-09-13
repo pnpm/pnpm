@@ -17,10 +17,7 @@ fn gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
     eprintln!("Scenario 1: nothing may build — hashes must omit the engine...");
     set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[]));
@@ -62,12 +59,9 @@ fn gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds() {
         "the engine-agnostic slot must still be a valid layout",
     );
     assert!(
-        pkg_in_slot(
-            &version_dir.join(hash_with_builds),
-            "@pnpm.e2e/pkg-with-1-dep"
-        )
-        .join("package.json")
-        .exists(),
+        pkg_in_slot(&version_dir.join(hash_with_builds), "@pnpm.e2e/pkg-with-1-dep")
+            .join("package.json")
+            .exists(),
         "the engine-specific slot must be a valid layout too",
     );
 
@@ -84,10 +78,7 @@ fn gvs_hashes_are_stable_when_allow_builds_targets_an_unrelated_package() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
     eprintln!("Scenario 1: nothing may build...");
     set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[]));
@@ -100,10 +91,7 @@ fn gvs_hashes_are_stable_when_allow_builds_targets_an_unrelated_package() {
 
     eprintln!("Scenario 2: an unrelated package may build...");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    set_gvs_workspace_yaml(
-        &workspace,
-        &allow_builds_yaml(&[("some-unrelated-package", true)]),
-    );
+    set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[("some-unrelated-package", true)]));
     pacquet(&workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()
@@ -129,10 +117,7 @@ fn gvs_relinks_when_allow_builds_changes() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
     eprintln!("Installing with nothing allowed to build...");
     set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[]));
@@ -210,20 +195,12 @@ fn gvs_successful_build_creates_package_directory_with_build_artifacts() {
         .assert()
         .success();
 
-    let version_dir = pkg_version_dir(
-        &store_dir,
-        "@pnpm.e2e/pre-and-postinstall-scripts-example",
-        "1.0.0",
-    );
-    let pkg = pkg_in_slot(
-        &sole_hash_dir(&version_dir),
-        "@pnpm.e2e/pre-and-postinstall-scripts-example",
-    );
+    let version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
+    let pkg =
+        pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/pre-and-postinstall-scripts-example");
 
-    assert!(
-        pkg.join("package.json").exists(),
-        "the built package must be in its GVS slot",
-    );
+    assert!(pkg.join("package.json").exists(), "the built package must be in its GVS slot");
     assert!(
         pkg.join("generated-by-preinstall.js").exists(),
         "the preinstall artifact must be written into the GVS slot",
@@ -288,11 +265,8 @@ fn gvs_approve_builds_scenario_moves_artifacts_to_a_new_hash_dir() {
         .assert()
         .success();
 
-    let version_dir = pkg_version_dir(
-        &store_dir,
-        "@pnpm.e2e/pre-and-postinstall-scripts-example",
-        "1.0.0",
-    );
+    let version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
     let hash_before = sole_hash_dir(&version_dir)
         .file_name()
         .expect("hash dir name")
@@ -359,10 +333,7 @@ fn gvs_build_failure_cleans_up_broken_package_directory() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/failing-postinstall": "1.0.0" }),
-    );
+    write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/failing-postinstall": "1.0.0" }));
     set_gvs_workspace_yaml(
         &workspace,
         &allow_builds_yaml(&[("@pnpm.e2e/failing-postinstall", true)]),
@@ -414,11 +385,8 @@ fn gvs_rebuilds_successfully_after_simulated_build_failure_cleanup() {
         .assert()
         .success();
 
-    let version_dir = pkg_version_dir(
-        &store_dir,
-        "@pnpm.e2e/pre-and-postinstall-scripts-example",
-        "1.0.0",
-    );
+    let version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
     let hash_dir = sole_hash_dir(&version_dir);
     assert!(
         pkg_in_slot(&hash_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example")
@@ -491,11 +459,8 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
             .assert()
             .success();
 
-        let version_dir = pkg_version_dir(
-            &store_dir,
-            "@pnpm.e2e/pre-and-postinstall-scripts-example",
-            "1.0.0",
-        );
+        let version_dir =
+            pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
         let pkg = pkg_in_slot(
             &sole_hash_dir(&version_dir),
             "@pnpm.e2e/pre-and-postinstall-scripts-example",
@@ -519,14 +484,8 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
             .assert()
             .success();
 
-        assert!(
-            !marker.exists(),
-            "the successful retry must remove the marker",
-        );
-        assert!(
-            postinstall_artifact.exists(),
-            "the successful retry must recreate build output",
-        );
+        assert!(!marker.exists(), "the successful retry must remove the marker");
+        assert!(postinstall_artifact.exists(), "the successful retry must recreate build output");
         assert_eq!(
             fs::read_to_string(&package_manifest).expect("read the restored manifest"),
             pristine_manifest,
@@ -542,10 +501,7 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
             .assert()
             .success();
 
-        assert!(
-            !marker.exists(),
-            "the ordinary reinstall must remove the marker",
-        );
+        assert!(!marker.exists(), "the ordinary reinstall must remove the marker");
         assert!(
             postinstall_artifact.exists(),
             "the ordinary reinstall must not report up to date before rebuilding",
@@ -589,11 +545,8 @@ fn orphan_needs_build_marker_does_not_invalidate_repeat_install() {
         .assert()
         .success();
 
-    let version_dir = pkg_version_dir(
-        &store_dir,
-        "@pnpm.e2e/pre-and-postinstall-scripts-example",
-        "1.0.0",
-    );
+    let version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
     let orphan_pkg = pkg_in_slot(
         &version_dir.join("0000000000000000000000000000000000000000000000000000000000000000"),
         "@pnpm.e2e/pre-and-postinstall-scripts-example",
@@ -640,11 +593,8 @@ fn approve_builds_updates_gvs_symlinks_and_runs_builds_at_the_new_hash_dir() {
         .assert()
         .success();
 
-    let version_dir = pkg_version_dir(
-        &store_dir,
-        "@pnpm.e2e/pre-and-postinstall-scripts-example",
-        "1.0.0",
-    );
+    let version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
     let hash_before = sole_hash_dir(&version_dir)
         .file_name()
         .expect("hash dir name")

@@ -120,14 +120,8 @@ fn sweep_targets_only_native_binaries_under_dir() {
     ]);
     remove_quarantine_from_native_binaries(dir.path(), &cas_paths);
 
-    assert!(
-        !has_quarantine(&native),
-        "native binary should be unquarantined",
-    );
-    assert!(
-        has_quarantine(&script),
-        "non-binary files must be left untouched",
-    );
+    assert!(!has_quarantine(&native), "native binary should be unquarantined");
+    assert!(has_quarantine(&script), "non-binary files must be left untouched");
 }
 
 #[test]

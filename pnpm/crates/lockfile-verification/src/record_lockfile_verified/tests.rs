@@ -40,9 +40,7 @@ impl ResolutionVerifier for PassingVerifier {
 }
 
 fn verifier() -> Arc<dyn ResolutionVerifier> {
-    Arc::new(PassingVerifier {
-        policy: serde_json::Map::new(),
-    })
+    Arc::new(PassingVerifier { policy: serde_json::Map::new() })
 }
 
 fn parse_lockfile() -> Lockfile {
@@ -87,12 +85,7 @@ fn records_the_caller_supplied_lockfile_path() {
     fs::write(&lockfile_path, LOCKFILE).expect("write lockfile");
     let verifier = verifier();
 
-    record_lockfile_verified(
-        Some(dir.path()),
-        &lockfile_path,
-        &parse_lockfile(),
-        &[verifier],
-    );
+    record_lockfile_verified(Some(dir.path()), &lockfile_path, &parse_lockfile(), &[verifier]);
 
     let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("read cache");
     let record: CacheRecord = serde_json::from_str(cache.trim_end()).expect("parse cache");

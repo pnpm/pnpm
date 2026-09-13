@@ -69,10 +69,8 @@ fn collect_berry_versions(
     contents: &str,
     versions: &mut VersionsByPackageName,
 ) -> Result<(), YarnSyntaxError> {
-    let document: yaml_serde::Value = yaml_serde::from_str(contents)
-        .map_err(|source| YarnSyntaxError::Yaml {
-            source,
-        })?;
+    let document: yaml_serde::Value =
+        yaml_serde::from_str(contents).map_err(|source| YarnSyntaxError::Yaml { source })?;
     let entries = document.as_mapping().ok_or(YarnSyntaxError::BerryRootNotAMapping)?;
 
     for (key, entry) in entries {
@@ -84,9 +82,7 @@ fn collect_berry_versions(
         }
         let entry = entry
             .as_mapping()
-            .ok_or_else(|| YarnSyntaxError::BerryEntryNotAMapping {
-                entry: key.to_string(),
-            })?;
+            .ok_or_else(|| YarnSyntaxError::BerryEntryNotAMapping { entry: key.to_string() })?;
         let Some(version) = entry.get("version").and_then(scalar_as_str) else {
             continue;
         };
@@ -157,14 +153,10 @@ fn entry_version<'a>(
     property_indent: &mut Option<usize>,
 ) -> Result<Option<&'a str>, YarnSyntaxError> {
     if entry_names.is_empty() {
-        return Err(YarnSyntaxError::OrphanedProperty {
-            line,
-        });
+        return Err(YarnSyntaxError::OrphanedProperty { line });
     }
-    let property = ClassicProperty::parse(content)
-        .ok_or(YarnSyntaxError::PropertyExpected {
-            line,
-        })?;
+    let property =
+        ClassicProperty::parse(content).ok_or(YarnSyntaxError::PropertyExpected { line })?;
     if indent != *property_indent.get_or_insert(indent) {
         return Ok(None);
     }
@@ -183,9 +175,7 @@ fn start_classic_entry<'a>(
 ) -> Result<(), YarnSyntaxError> {
     let key = content
         .strip_suffix(':')
-        .ok_or(YarnSyntaxError::EntryKeyExpected {
-            line,
-        })?;
+        .ok_or(YarnSyntaxError::EntryKeyExpected { line })?;
     if key != METADATA_KEY {
         entry_names.extend(descriptor_package_names(key));
     }
@@ -205,10 +195,7 @@ impl<'a> ClassicProperty<'a> {
             return Some(Self::NestedBlock);
         }
         let (key, value) = split_key_and_value(content)?;
-        Some(Self::Valued {
-            key,
-            value,
-        })
+        Some(Self::Valued { key, value })
     }
 }
 

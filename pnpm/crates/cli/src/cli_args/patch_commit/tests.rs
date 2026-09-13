@@ -12,11 +12,7 @@ use tempfile::tempdir;
 
 fn empty_lockfile() -> Lockfile {
     Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer {
-            major: 9,
-            minor: 0,
-        })
-        .unwrap(),
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor: 0 }).unwrap(),
         settings: None,
         catalogs: None,
         overrides: None,
@@ -37,17 +33,11 @@ fn lockfile_with_packages(keys: &[&str]) -> Lockfile {
         .iter()
         .map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata()))
         .collect();
-    Lockfile {
-        packages: Some(packages),
-        ..empty_lockfile()
-    }
+    Lockfile { packages: Some(packages), ..empty_lockfile() }
 }
 
 fn lockfile_with_package_entries(entries: Vec<(PackageKey, PackageMetadata)>) -> Lockfile {
-    Lockfile {
-        packages: Some(entries.into_iter().collect()),
-        ..empty_lockfile()
-    }
+    Lockfile { packages: Some(entries.into_iter().collect()), ..empty_lockfile() }
 }
 
 fn registry_metadata() -> PackageMetadata {
@@ -100,28 +90,19 @@ fn patch_target_from_state_reports_missing_manifest_version() {
     let err = patch_target_from_state(&state, "foo", "2.0.0", &lockfile)
         .expect_err("missing fallback version");
 
-    assert!(
-        err.to_string().contains("foo@2.0.0"),
-        "error names fallback target: {err}",
-    );
+    assert!(err.to_string().contains("foo@2.0.0"), "error names fallback target: {err}");
 }
 
 #[test]
 fn patch_target_from_state_reports_installed_name_version_mismatch() {
     let lockfile = lockfile_with_packages(&["foo@1.0.0"]);
-    let state = EditDirState {
-        patched_pkg: "foo".to_string(),
-        apply_to_all: false,
-        package_key: None,
-    };
+    let state =
+        EditDirState { patched_pkg: "foo".to_string(), apply_to_all: false, package_key: None };
 
     let err = patch_target_from_state(&state, "foo", "2.0.0", &lockfile)
         .expect_err("missing selected version");
 
-    assert!(
-        err.to_string().contains("did you forget to install foo@2.0.0"),
-        "{err}",
-    );
+    assert!(err.to_string().contains("did you forget to install foo@2.0.0"), "{err}");
 }
 
 #[test]
@@ -129,14 +110,8 @@ fn patch_target_from_state_uses_persisted_package_key_for_same_version_candidate
     let git_tarball_url = "https://codeload.github.com/foo/foo/tar.gz/0123456789abcdef";
     let git_package_key = format!("foo@{git_tarball_url}").parse::<PackageKey>().unwrap();
     let lockfile = lockfile_with_package_entries(vec![
-        (
-            "foo@1.0.0".parse::<PackageKey>().unwrap(),
-            registry_metadata(),
-        ),
-        (
-            git_package_key.clone(),
-            git_tarball_metadata("1.0.0", git_tarball_url),
-        ),
+        ("foo@1.0.0".parse::<PackageKey>().unwrap(), registry_metadata()),
+        (git_package_key.clone(), git_tarball_metadata("1.0.0", git_tarball_url)),
     ]);
     let state = EditDirState {
         patched_pkg: "foo".to_string(),
@@ -154,10 +129,7 @@ fn patch_target_from_state_uses_persisted_package_key_for_same_version_candidate
 #[test]
 fn normalize_patches_dir_name_removes_dot_and_parent_components() {
     assert_eq!(normalize_patches_dir_name("./patches"), "patches");
-    assert_eq!(
-        normalize_patches_dir_name("patches/nested/../final"),
-        "patches/final",
-    );
+    assert_eq!(normalize_patches_dir_name("patches/nested/../final"), "patches/final");
     assert_eq!(normalize_patches_dir_name("../outside"), "outside");
     assert_eq!(normalize_patches_dir_name("."), ".");
 }
@@ -199,10 +171,7 @@ fn patch_commit_atomic_writer_replaces_existing_patch_file() {
 
     write_patch_file_atomically(&patch_file, b"new").expect("replace patch");
 
-    assert_eq!(
-        std::fs::read_to_string(patch_file).expect("read patch"),
-        "new",
-    );
+    assert_eq!(std::fs::read_to_string(patch_file).expect("read patch"), "new");
 }
 
 #[test]
@@ -213,11 +182,8 @@ fn cleanup_after_diff_removes_temporary_filtered_dir() {
     std::fs::create_dir(&clean_dir).expect("create clean dir");
     std::fs::create_dir(&filtered_dir).expect("create filtered dir");
 
-    cleanup_after_diff(
-        &clean_dir,
-        &PkgFilesForDiff::Temporary(filtered_dir.clone()),
-    )
-    .expect("cleanup temp dirs");
+    cleanup_after_diff(&clean_dir, &PkgFilesForDiff::Temporary(filtered_dir.clone()))
+        .expect("cleanup temp dirs");
 
     assert!(!clean_dir.exists(), "clean dir should be removed");
     assert!(!filtered_dir.exists(), "filtered dir should be removed");

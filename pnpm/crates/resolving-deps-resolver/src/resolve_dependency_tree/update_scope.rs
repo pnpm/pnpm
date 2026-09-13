@@ -33,10 +33,7 @@ impl VersionLine {
     /// The line `version` sits on.
     #[must_use]
     pub fn of(version: &node_semver::Version) -> Self {
-        VersionLine {
-            major: version.major,
-            minor: version.minor,
-        }
+        VersionLine { major: version.major, minor: version.minor }
     }
 
     /// The line a version selector pins, or `None` when it pins none -- a
@@ -52,8 +49,7 @@ impl VersionLine {
     /// Whether `version` resolves within this line.
     #[must_use]
     pub(super) fn covers(self, version: &node_semver::Version) -> bool {
-        version.major == self.major
-            && (self.major != 0 || version.minor == self.minor)
+        version.major == self.major && (self.major != 0 || version.minor == self.minor)
     }
 }
 
@@ -96,12 +92,8 @@ impl UpdateTargets {
     /// `updateMatching` calls.
     #[must_use]
     pub fn covers(&self, name: &str, version: Option<&node_semver::Version>) -> bool {
-        let Some(lines) = self.0.get(name) else {
-            return false;
-        };
-        let (Some(lines), Some(version)) = (lines.as_ref(), version) else {
-            return true;
-        };
+        let Some(lines) = self.0.get(name) else { return false };
+        let (Some(lines), Some(version)) = (lines.as_ref(), version) else { return true };
         lines
             .iter()
             .any(|line| line.covers(version))

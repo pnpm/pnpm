@@ -22,14 +22,9 @@ fn missing_importer_returns_no_importer() {
 /// like `.` poorly.
 #[test]
 fn no_importer_message_uses_bracket_quoted_id() {
-    let reason = StalenessReason::NoImporter {
-        importer_id: ".".to_string(),
-    };
+    let reason = StalenessReason::NoImporter { importer_id: ".".to_string() };
     let rendered = reason.to_string();
-    assert!(
-        rendered.contains(r#"importers["."]"#),
-        "expected bracket-quoted id, got {rendered:?}",
-    );
+    assert!(rendered.contains(r#"importers["."]"#), "expected bracket-quoted id, got {rendered:?}");
     assert!(
         !rendered.contains(r#"importers.".""#),
         "must not use Rust debug-format quoting, got {rendered:?}",

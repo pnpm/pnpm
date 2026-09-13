@@ -61,9 +61,7 @@ pub fn get_peer_version_range(version: &str) -> String {
         if Range::parse(body).is_ok() {
             return body.to_string();
         }
-        if let Some(at) = body
-            .rfind('@')
-            .filter(|&at| at > 0)
+        if let Some(at) = body.rfind('@').filter(|&at| at > 0)
             && Range::parse(&body[at + 1..]).is_ok()
         {
             return body[at + 1..].to_string();
@@ -79,11 +77,7 @@ fn desugar_workspace_range(version: &str) -> String {
     let Some(stripped) = version.strip_prefix("workspace:") else {
         return version.to_string();
     };
-    if Range::parse(stripped).is_ok() {
-        stripped.to_string()
-    } else {
-        "*".to_string()
-    }
+    if Range::parse(stripped).is_ok() { stripped.to_string() } else { "*".to_string() }
 }
 
 #[cfg(test)]

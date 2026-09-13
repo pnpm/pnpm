@@ -34,10 +34,7 @@ impl ProjectHierarchy {
         [
             ("dependencies", &self.hierarchy.dependencies),
             ("devDependencies", &self.hierarchy.dev_dependencies),
-            (
-                "optionalDependencies",
-                &self.hierarchy.optional_dependencies,
-            ),
+            ("optionalDependencies", &self.hierarchy.optional_dependencies),
         ]
     }
 }
@@ -68,11 +65,8 @@ pub(crate) fn render_tree(projects: &[ProjectHierarchy], opts: &RenderTreeOption
         .filter_map(|project| render_tree_for_project(project, opts, &multi_peer_pkgs))
         .collect::<Vec<_>>()
         .join("\n\n");
-    let legend = if opts.depth_above_projects_only && !output.is_empty() {
-        legend()
-    } else {
-        String::new()
-    };
+    let legend =
+        if opts.depth_above_projects_only && !output.is_empty() { legend() } else { String::new() };
     let summary = if opts.show_summary && opts.depth_above_projects_only && !output.is_empty() {
         format!("\n\n{}", list_summary(projects))
     } else {
@@ -96,16 +90,35 @@ fn render_tree_for_project(
     }
 
     let label = project_label(project);
-    let groups = project_tree_groups(project, opts, multi_peer_pkgs);
+    let mut groups: Vec<TreeNodeGroup> = Vec::new();
+    for (field, nodes) in project.groups() {
+        if nodes.is_empty() {
+            continue;
+        }
+        groups.push(TreeNodeGroup {
+            group: cyan_bright(&format!("{field}:")),
+            nodes: to_archy_nodes(get_pkg_color, nodes, opts.long, multi_peer_pkgs),
+        });
+    }
+    if opts.show_extraneous && !project.hierarchy.unsaved_dependencies.is_empty() {
+        groups.push(TreeNodeGroup {
+            group: cyan_bright(
+                "not saved (you should add these dependencies to package.json if you need them):",
+            ),
+            nodes: to_archy_nodes(
+                unsaved_color,
+                &project.hierarchy.unsaved_dependencies,
+                opts.long,
+                multi_peer_pkgs,
+            ),
+        });
+    }
 
     let root_label = bold_styled(&label);
     if groups.is_empty() {
         return Some(root_label);
     }
-    let tree = TreeNode {
-        label: root_label,
-        groups,
-    };
+    let tree = TreeNode { label: root_label, groups };
     Some(render_archy(&tree).trim_end().to_string())
 }
 
@@ -114,11 +127,7 @@ fn render_tree_for_project(
 fn project_label(project: &ProjectHierarchy) -> String {
     let mut label = String::new();
     if let Some(name) = &project.name {
-        label.push_str(&name_at_version(
-            name,
-            project.version.as_deref().unwrap_or(""),
-            plain,
-        ));
+        label.push_str(&name_at_version(name, project.version.as_deref().unwrap_or(""), plain));
         label.push(' ');
     }
     label.push_str(&dim(&project.path));
@@ -216,11 +225,7 @@ fn print_label(
     if node.status.deduped {
         label.push_str(&deduped_label());
     }
-    if node.search.matched {
-        bold_styled(&label)
-    } else {
-        label
-    }
+    if node.search.matched { bold_styled(&label) } else { label }
 }
 
 /// `name@version`, or — for an npm: protocol alias —
@@ -231,19 +236,12 @@ fn node_name_label(color: ColorFn, node: &DependencyNode) -> String {
         return name_at_version(&node.package.name, &node.package.version, color);
     }
     if node.package.version.contains('@') {
-        return format!(
-            "{}{}",
-            color(&node.alias),
-            gray(&format!("@{}", node.package.version)),
-        );
+        return format!("{}{}", color(&node.alias), gray(&format!("@{}", node.package.version)));
     }
     format!(
         "{}{}",
         color(&node.alias),
-        gray(&format!(
-            "@npm:{}@{}",
-            node.package.name, node.package.version
-        )),
+        gray(&format!("@npm:{}@{}", node.package.name, node.package.version)),
     )
 }
 
@@ -284,10 +282,7 @@ fn list_summary(projects: &[ProjectHierarchy]) -> String {
                 .sum::<u64>()
         })
         .sum();
-    let mut parts = vec![format!(
-        "{total} package{}",
-        if total == 1 { "" } else { "s" }
-    )];
+    let mut parts = vec![format!("{total} package{}", if total == 1 { "" } else { "s" })];
     if projects.len() > 1 {
         parts.push(format!("{} projects", projects.len()));
     }
@@ -295,34 +290,3 @@ fn list_summary(projects: &[ProjectHierarchy]) -> String {
 }
 
 mod structured;
-
-fn project_tree_groups(
-    project: &ProjectHierarchy,
-    opts: &RenderTreeOptions,
-    multi_peer_pkgs: &HashMap<String, usize>,
-) -> Vec<TreeNodeGroup> {
-    let mut groups: Vec<TreeNodeGroup> = Vec::new();
-    for (field, nodes) in project.groups() {
-        if nodes.is_empty() {
-            continue;
-        }
-        groups.push(TreeNodeGroup {
-            group: cyan_bright(&format!("{field}:")),
-            nodes: to_archy_nodes(get_pkg_color, nodes, opts.long, multi_peer_pkgs),
-        });
-    }
-    if opts.show_extraneous && !project.hierarchy.unsaved_dependencies.is_empty() {
-        groups.push(TreeNodeGroup {
-            group: cyan_bright(
-                "not saved (you should add these dependencies to package.json if you need them):",
-            ),
-            nodes: to_archy_nodes(
-                unsaved_color,
-                &project.hierarchy.unsaved_dependencies,
-                opts.long,
-                multi_peer_pkgs,
-            ),
-        });
-    }
-    groups
-}

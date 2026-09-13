@@ -286,18 +286,12 @@ pub fn load_workspace_state(
         Ok(text) => text,
         Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(source) => {
-            return Err(LoadWorkspaceStateError::ReadFile {
-                path: file_path,
-                source,
-            });
+            return Err(LoadWorkspaceStateError::ReadFile { path: file_path, source });
         }
     };
     serde_json::from_str(&text)
         .map(Some)
-        .map_err(|source| LoadWorkspaceStateError::ParseJson {
-            path: file_path,
-            source,
-        })
+        .map_err(|source| LoadWorkspaceStateError::ParseJson { path: file_path, source })
 }
 
 /// Error returned by [`load_workspace_state`].
@@ -310,10 +304,7 @@ pub enum LoadWorkspaceStateError {
 
     #[display("Failed to parse {path:?}: {source}")]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_STATE_PARSE_JSON))]
-    ParseJson {
-        path: PathBuf,
-        source: serde_json::Error,
-    },
+    ParseJson { path: PathBuf, source: serde_json::Error },
 }
 
 /// Wall-clock milliseconds since the Unix epoch, matching JS

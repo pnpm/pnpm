@@ -32,11 +32,8 @@ type ManifestDependencies<'manifest> = FxHashMap<PkgName, (&'manifest str, Depen
 /// importer's manifest map, built once so detection and application share
 /// the parsed aliases.
 pub(crate) struct ImportersPlan<'a, 'manifest> {
-    manifest_dependencies: Vec<(
-        &'a String,
-        &'manifest PackageManifest,
-        ManifestDependencies<'manifest>,
-    )>,
+    manifest_dependencies:
+        Vec<(&'a String, &'manifest PackageManifest, ManifestDependencies<'manifest>)>,
     /// Importers no project claims, to drop before the rest replays.
     stale: Vec<String>,
     workspace_package_names: HashSet<String>,
@@ -95,11 +92,7 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
 /// several: optional wins over prod, prod over dev.
 fn manifest_dependency_map(manifest: &PackageManifest) -> Option<ManifestDependencies<'_>> {
     let mut dependencies = ManifestDependencies::default();
-    for group in [
-        DependencyGroup::Dev,
-        DependencyGroup::Prod,
-        DependencyGroup::Optional,
-    ] {
+    for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
         for (name, specifier) in manifest.dependencies([group]) {
             dependencies.insert(PkgName::parse(name).ok()?, (specifier, group));
         }
@@ -168,18 +161,9 @@ pub(crate) fn apply_importers_update(
         return false;
     }
     let Lockfile { snapshots, importers, time, .. } = candidate;
-    let locked = LockedInputs {
-        snapshots: snapshots.as_ref(),
-        time: time.as_ref(),
-    };
-    for (importer_id, manifest, manifest_dependencies) in
-        &plan.manifest_dependencies
-    {
-        let entry = ImporterUpdate {
-            importer_id,
-            manifest,
-            manifest_dependencies,
-        };
+    let locked = LockedInputs { snapshots: snapshots.as_ref(), time: time.as_ref() };
+    for (importer_id, manifest, manifest_dependencies) in &plan.manifest_dependencies {
+        let entry = ImporterUpdate { importer_id, manifest, manifest_dependencies };
         if !apply_one_importer_update(importers, &entry, locked, plan, edits) {
             return false;
         }
@@ -229,11 +213,7 @@ fn importer_divergence(
             AliasDivergence::NeedsResolve => return ImporterDivergence::NeedsResolve,
         }
     }
-    if diverged {
-        ImporterDivergence::Absorbable
-    } else {
-        ImporterDivergence::Clean
-    }
+    if diverged { ImporterDivergence::Absorbable } else { ImporterDivergence::Clean }
 }
 
 /// [`ImporterDivergence`] for one declared alias.
@@ -267,11 +247,7 @@ fn alias_divergence(
         }
         return AliasDivergence::Diverged;
     }
-    if recorded_in == target {
-        AliasDivergence::Clean
-    } else {
-        AliasDivergence::Diverged
-    }
+    if recorded_in == target { AliasDivergence::Clean } else { AliasDivergence::Diverged }
 }
 
 fn importer_dependency<'a>(
@@ -279,10 +255,7 @@ fn importer_dependency<'a>(
     alias: &PkgName,
 ) -> Option<(DependencyGroup, &'a ResolvedDependencySpec)> {
     [
-        (
-            DependencyGroup::Optional,
-            importer.optional_dependencies.as_ref(),
-        ),
+        (DependencyGroup::Optional, importer.optional_dependencies.as_ref()),
         (DependencyGroup::Prod, importer.dependencies.as_ref()),
         (DependencyGroup::Dev, importer.dev_dependencies.as_ref()),
     ]
@@ -302,17 +275,13 @@ fn move_dependency(
     alias: &PkgName,
     target: DependencyGroup,
 ) -> Option<DependencyGroup> {
-    let source = [
-        DependencyGroup::Optional,
-        DependencyGroup::Prod,
-        DependencyGroup::Dev,
-    ]
-    .into_iter()
-    .find(|group| {
-        importer_group(importer, *group)
-            .as_ref()
-            .is_some_and(|dependencies| dependencies.contains_key(alias))
-    })?;
+    let source = [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev]
+        .into_iter()
+        .find(|group| {
+            importer_group(importer, *group)
+                .as_ref()
+                .is_some_and(|dependencies| dependencies.contains_key(alias))
+        })?;
     if source == target {
         return None;
     }
@@ -321,9 +290,7 @@ fn move_dependency(
     if source_group.as_ref().is_some_and(HashMap::is_empty) {
         *source_group = None;
     }
-    importer_group(importer, target)
-        .get_or_insert_default()
-        .insert(alias.clone(), dependency);
+    importer_group(importer, target).get_or_insert_default().insert(alias.clone(), dependency);
     Some(source)
 }
 

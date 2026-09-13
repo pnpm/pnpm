@@ -53,10 +53,6 @@ pub(crate) fn lockfile_from_solution(
 
     packages.extend(workspace_packages(metadata, registry, &selected, &source)?);
 
-    Ok(serialize_lockfile(packages))
-}
-
-fn serialize_lockfile(mut packages: Vec<Package>) -> String {
     packages.sort();
     let lockfile = Lockfile {
         version: ResolveVersion::V4,
@@ -65,7 +61,7 @@ fn serialize_lockfile(mut packages: Vec<Package>) -> String {
         metadata: Metadata::default(),
         patch: Patch::default(),
     };
-    lockfile.to_string()
+    Ok(lockfile.to_string())
 }
 
 /// The lock entries for the workspace's own members.
@@ -141,10 +137,7 @@ fn locked_dependency(
         .next_back()
         .map(|version| compatibility_line(&version.version))
         .ok_or_else(|| miette::miette!("no version of {name} satisfies {requirement}"))?;
-    let key = PackageKey::Registry {
-        name: name.to_string(),
-        compatibility,
-    };
+    let key = PackageKey::Registry { name: name.to_string(), compatibility };
     let version = selected
         .get(&key)
         .ok_or_else(|| miette::miette!("resolver did not select dependency {name}"))?;

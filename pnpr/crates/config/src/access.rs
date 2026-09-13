@@ -59,10 +59,7 @@ impl AccessSpec {
                                 declared_teams(teams),
                             )
                         })?;
-                    AccessToken::Team {
-                        name: team.to_string(),
-                        members: members.clone(),
-                    }
+                    AccessToken::Team { name: team.to_string(), members: members.clone() }
                 }
                 None => AccessToken::from(entry.as_str()),
             });
@@ -122,13 +119,7 @@ pub(super) fn build_teams(
                     "registry {registry:?} team {team:?} has an invalid member list: {reason}",
                 ),
             })?;
-        teams.insert(
-            team.clone(),
-            members
-                .iter()
-                .cloned()
-                .collect(),
-        );
+        teams.insert(team.clone(), members.iter().cloned().collect());
     }
     Ok(teams)
 }
@@ -190,13 +181,11 @@ pub(super) fn validate_access_token(token: &str) -> Result<(), String> {
     }
     if let Some((kind, name)) = token.split_once(':') {
         return match kind {
-            "team" if name.contains(':') => Err(format!(
-                "access token {token:?} is malformed; a team name cannot contain `:`",
-            )),
+            "team" if name.contains(':') => {
+                Err(format!("access token {token:?} is malformed; a team name cannot contain `:`"))
+            }
             "team" if !name.is_empty() => Ok(()),
-            "team" => Err(format!(
-                "access token {token:?} names no team; write `team:<name>`",
-            )),
+            "team" => Err(format!("access token {token:?} names no team; write `team:<name>`")),
             "group" | "groups" => Err(format!(
                 "unknown access token type {kind:?} in {token:?}; teams are declared per \
                  registry — did you mean \"team:{name}\"?",
@@ -209,9 +198,7 @@ pub(super) fn validate_access_token(token: &str) -> Result<(), String> {
     }
     let bare = token.strip_prefix('@').unwrap_or(token);
     if matches!(bare, "all" | "authenticated" | "anonymous") {
-        return Err(format!(
-            r#"unknown access token {token:?}; did you mean "${bare}"?"#,
-        ));
+        return Err(format!(r#"unknown access token {token:?}; did you mean "${bare}"?"#));
     }
     Ok(())
 }

@@ -52,19 +52,13 @@ pub(super) fn lockfile_to_dep_graph(
         );
         graph.insert(
             snapshot_key.to_string(),
-            DepsGraphNode {
-                full_pkg_id: full_pkg_id_of(snapshot_key, packages),
-                children,
-            },
+            DepsGraphNode { full_pkg_id: full_pkg_id_of(snapshot_key, packages), children },
         );
     }
     for link_target_node in link_target_nodes {
         graph.insert(
             link_target_node.clone(),
-            DepsGraphNode {
-                full_pkg_id: link_target_node,
-                children: IndexMap::default(),
-            },
+            DepsGraphNode { full_pkg_id: link_target_node, children: IndexMap::default() },
         );
     }
     graph
@@ -265,11 +259,7 @@ impl<'h> GvsHasher<'h> {
             &snapshot_key.to_string(),
             own_engine.as_deref().or(self.engine),
             self.build_required_dep_paths.as_ref(),
-            local_directory_scope(
-                metadata,
-                &metadata_key.suffix,
-                self.project_scope.as_deref(),
-            ),
+            local_directory_scope(metadata, &metadata_key.suffix, self.project_scope.as_deref()),
         );
         format_global_virtual_store_path(
             &metadata_key.name.to_string(),

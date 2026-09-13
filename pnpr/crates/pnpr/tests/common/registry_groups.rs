@@ -4,11 +4,7 @@ use std::{fmt::Write as _, fs, path::Path};
 pub fn grouped_config(root: &Path, npm_access: &str) -> Config {
     let mut yaml = String::from("storage: ./storage\nregistries:\n");
     for ecosystem in Ecosystem::all() {
-        let access = if ecosystem == Ecosystem::Npm {
-            npm_access
-        } else {
-            "$all"
-        };
+        let access = if ecosystem == Ecosystem::Npm { npm_access } else { "$all" };
         write!(yaml,
             "  {ecosystem}:\n    internal:\n      type: hosted\n      access: '{access}'\n    main:\n      type: router\n      sources: [internal]\n",
         ).unwrap();

@@ -74,14 +74,10 @@ pub fn merge_named_registries(
 ) -> Result<HashMap<String, String>, MergeNamedRegistriesError> {
     for (alias, url) in user_defined {
         if pnpm_deps_path::is_reserved_version_prefix(alias) {
-            return Err(MergeNamedRegistriesError::ReservedAlias {
-                alias: alias.clone(),
-            });
+            return Err(MergeNamedRegistriesError::ReservedAlias { alias: alias.clone() });
         }
         if !pnpm_deps_path::is_well_formed_registry_name(alias) {
-            return Err(MergeNamedRegistriesError::MalformedAlias {
-                alias: alias.clone(),
-            });
+            return Err(MergeNamedRegistriesError::MalformedAlias { alias: alias.clone() });
         }
         if !is_valid_http_url(url) {
             return Err(MergeNamedRegistriesError::InvalidUrl {

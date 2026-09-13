@@ -71,8 +71,7 @@ pub(super) async fn get_packument(
     headers: HeaderMap,
     Path(path): Path<NamePath>,
 ) -> Response {
-    serve_packument(&state, &identity, &headers, registry.as_deref(), &path.name)
-        .await
+    serve_packument(&state, &identity, &headers, registry.as_deref(), &path.name).await
 }
 
 /// `GET {base}/@{scope}/{pkg}` — a scoped package's packument — or
@@ -88,11 +87,9 @@ pub(super) async fn get_packument_or_version_manifest(
     let TwoSegments { first, second } = path;
     if first.starts_with('@') && !first.contains('/') {
         let name = format!("{first}/{second}");
-        return serve_packument(&state, &identity, &headers, registry.as_deref(), &name)
-            .await;
+        return serve_packument(&state, &identity, &headers, registry.as_deref(), &name).await;
     }
-    serve_version_manifest(&state, &identity, registry.as_deref(), &first, &second)
-        .await
+    serve_version_manifest(&state, &identity, registry.as_deref(), &first, &second).await
 }
 
 /// `GET {base}/@{scope}/{pkg}/{version-or-tag}` — a scoped package's version
@@ -108,8 +105,7 @@ pub(super) async fn get_scoped_version_manifest(
         return not_found();
     }
     let full = format!("{scope}/{name}");
-    serve_version_manifest(&state, &identity, registry.as_deref(), &full, &version)
-        .await
+    serve_version_manifest(&state, &identity, registry.as_deref(), &full, &version).await
 }
 
 /// `GET {base}/{pkg}/-/{filename}`.
@@ -119,14 +115,7 @@ pub(super) async fn get_tarball(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<TarballPath>,
 ) -> Response {
-    serve_tarball(
-        &state,
-        &identity,
-        registry.as_deref(),
-        &path.name,
-        &path.filename,
-    )
-    .await
+    serve_tarball(&state, &identity, registry.as_deref(), &path.name, &path.filename).await
 }
 
 /// `GET {base}/@{scope}/{pkg}/-/{filename}`.
@@ -141,8 +130,7 @@ pub(super) async fn get_scoped_tarball(
         return not_found();
     }
     let full = format!("{scope}/{name}");
-    serve_tarball(&state, &identity, registry.as_deref(), &full, &filename)
-        .await
+    serve_tarball(&state, &identity, registry.as_deref(), &full, &filename).await
 }
 
 /// `GET {base}/-/tarballs/sha512/{digest}` — an integrity-addressed tarball.
@@ -183,8 +171,7 @@ pub(super) async fn put_package(
     Path(path): Path<NamePath>,
     body: axum::body::Bytes,
 ) -> Response {
-    publish_package(&state, &identity, registry.as_deref(), &path.name, body)
-        .await
+    publish_package(&state, &identity, registry.as_deref(), &path.name, body).await
 }
 
 /// `PUT {base}/@{scope}/{pkg}` — publish a scoped package. A first segment
@@ -213,8 +200,7 @@ pub(super) async fn put_packument_revision(
     Path(path): Path<NamePath>,
     body: axum::body::Bytes,
 ) -> Response {
-    update_packument(&state, &identity, registry.as_deref(), &path.name, &body)
-        .await
+    update_packument(&state, &identity, registry.as_deref(), &path.name, &body).await
 }
 
 /// `DELETE {base}/{pkg}/-rev/{rev}` — remove a whole package
@@ -236,14 +222,7 @@ pub(super) async fn unpublish_tarball(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<TarballPath>,
 ) -> Response {
-    delete_tarball(
-        &state,
-        &identity,
-        registry.as_deref(),
-        &path.name,
-        &path.filename,
-    )
-    .await
+    delete_tarball(&state, &identity, registry.as_deref(), &path.name, &path.filename).await
 }
 
 /// `DELETE {base}/@{scope}/{pkg}/-/{filename}/-rev/{rev}` — remove one scoped
@@ -261,8 +240,7 @@ pub(super) async fn unpublish_scoped_tarball(
         return not_found();
     }
     let full = format!("{scope}/{name}");
-    delete_tarball(&state, &identity, registry.as_deref(), &full, &filename)
-        .await
+    delete_tarball(&state, &identity, registry.as_deref(), &full, &filename).await
 }
 
 /// `GET {base}/-/package/{pkg}/dist-tags`.
@@ -272,15 +250,8 @@ pub(super) async fn get_package_dist_tags(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<NamePath>,
 ) -> Response {
-    let response = get_dist_tags(&state, &identity, registry.as_deref(), &path.name)
-        .await;
-    caller_scoped(
-        &state,
-        Ecosystem::Npm,
-        registry.as_deref(),
-        Some(&path.name),
-        response,
-    )
+    let response = get_dist_tags(&state, &identity, registry.as_deref(), &path.name).await;
+    caller_scoped(&state, Ecosystem::Npm, registry.as_deref(), Some(&path.name), response)
 }
 
 /// `PUT {base}/-/package/{pkg}/dist-tags/{tag}`.
@@ -291,15 +262,7 @@ pub(super) async fn put_package_dist_tag(
     Path(path): Path<DistTagPath>,
     body: axum::body::Bytes,
 ) -> Response {
-    set_dist_tag(
-        &state,
-        &identity,
-        registry.as_deref(),
-        &path.name,
-        &path.tag,
-        &body,
-    )
-    .await
+    set_dist_tag(&state, &identity, registry.as_deref(), &path.name, &path.tag, &body).await
 }
 
 /// `DELETE {base}/-/package/{pkg}/dist-tags/{tag}`.
@@ -309,12 +272,5 @@ pub(super) async fn delete_package_dist_tag(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<DistTagPath>,
 ) -> Response {
-    remove_dist_tag(
-        &state,
-        &identity,
-        registry.as_deref(),
-        &path.name,
-        &path.tag,
-    )
-    .await
+    remove_dist_tag(&state, &identity, registry.as_deref(), &path.name, &path.tag).await
 }

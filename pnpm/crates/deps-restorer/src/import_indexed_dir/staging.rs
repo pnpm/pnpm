@@ -44,11 +44,7 @@ pub(super) fn import_atomic<Reporter: self::Reporter>(
         }
         Err(error) => {
             let _ = fs::remove_file(&temp);
-            Err(ImportIndexedDirError::PlaceFile {
-                from: temp,
-                to: target.to_path_buf(),
-                error,
-            })
+            Err(ImportIndexedDirError::PlaceFile { from: temp, to: target.to_path_buf(), error })
         }
     }
 }
@@ -85,10 +81,7 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
     //    temporary paths if restoration can't run.
     if let Err(error) = pnpm_fs::remove_dir_all_with_retry(dir_path) {
         paths.cleanup_after_failure(&preserved_modules);
-        return Err(ImportIndexedDirError::RemoveExisting {
-            path: dir_path.to_path_buf(),
-            error,
-        });
+        return Err(ImportIndexedDirError::RemoveExisting { path: dir_path.to_path_buf(), error });
     }
 
     // 4. Move the staged tree into place. There's a brief window
@@ -141,11 +134,8 @@ impl StagePaths {
         if !file_type.is_dir() {
             return Ok(PreservedModules::None);
         }
-        match preserve_modules_dir(
-            &self.target_modules,
-            &self.stage_modules,
-            &self.modules_backup,
-        ) {
+        match preserve_modules_dir(&self.target_modules, &self.stage_modules, &self.modules_backup)
+        {
             Ok(preserved) => Ok(preserved),
             Err(PreserveModulesFailure { error, preserved }) => {
                 self.cleanup_after_failure(&preserved);
@@ -203,18 +193,12 @@ pub(super) fn preserve_modules_dir(
         Ok(()) => return Ok(PreservedModules::Directory),
         Err(error) if is_modules_dir_collision(&error) => {}
         Err(error) => {
-            return Err(PreserveModulesFailure {
-                error,
-                preserved: PreservedModules::None,
-            });
+            return Err(PreserveModulesFailure { error, preserved: PreservedModules::None });
         }
     }
 
     rename_even_across_devices::<Host>(source, backup)
-        .map_err(|error| PreserveModulesFailure {
-            error,
-            preserved: PreservedModules::None,
-        })?;
+        .map_err(|error| PreserveModulesFailure { error, preserved: PreservedModules::None })?;
 
     merge_preserved_modules(destination, backup)
 }
@@ -255,10 +239,7 @@ pub(super) fn merge_preserved_modules(
             })?;
         moved_entries.push(name);
     }
-    Ok(PreservedModules::Merged {
-        backup: backup.to_path_buf(),
-        moved_entries,
-    })
+    Ok(PreservedModules::Merged { backup: backup.to_path_buf(), moved_entries })
 }
 pub(super) fn preserved_destination_entries(
     destination: &Path,
@@ -388,17 +369,13 @@ pub(super) fn leak_stage(stage: &Path, stage_modules: &Path, preserved_modules: 
 /// callers.
 pub(super) fn pick_stage_path(target: &Path) -> PathBuf {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let parent = target
-        .parent()
-        .unwrap_or_else(|| Path::new("."));
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
     let name = target
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("dir");
     let pid = std::process::id();
     let ctr = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos());
     parent.join(format!("{name}_pacquet-stage_{pid}_{nanos}_{ctr}"))
 }

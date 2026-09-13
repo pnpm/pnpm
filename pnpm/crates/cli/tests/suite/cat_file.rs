@@ -30,10 +30,7 @@ fn cat_file_works() {
         .assert()
         .success();
 
-    assert_eq!(
-        String::from_utf8(output.get_output().stdout.clone()).unwrap(),
-        "hello world",
-    );
+    assert_eq!(String::from_utf8(output.get_output().stdout.clone()).unwrap(), "hello world");
 }
 
 #[test]

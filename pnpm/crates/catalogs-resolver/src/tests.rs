@@ -18,10 +18,7 @@ fn catalogs_from(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
 }
 
 fn wanted(alias: &str, bare_specifier: &str) -> WantedDependency {
-    WantedDependency {
-        alias: alias.to_string(),
-        bare_specifier: bare_specifier.to_string(),
-    }
+    WantedDependency { alias: alias.to_string(), bare_specifier: bare_specifier.to_string() }
 }
 
 #[test]

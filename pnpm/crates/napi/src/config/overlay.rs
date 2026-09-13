@@ -75,15 +75,7 @@ pub(super) fn apply_manifest_rewrites(config: &mut Config, overlay: &ConfigOverl
         config.patched_dependencies = Some(
             patched_dependencies
                 .iter()
-                .map(|(key, path)| {
-                    (
-                        key.clone(),
-                        dir
-                            .join(path)
-                            .display()
-                            .to_string(),
-                    )
-                })
+                .map(|(key, path)| (key.clone(), dir.join(path).display().to_string()))
                 .collect(),
         );
         if config.workspace_dir.is_none() {
@@ -272,9 +264,7 @@ pub(super) fn pin_unkeyed_header(
     if let Some(header) = unkeyed
         && !default_uri.is_empty()
     {
-        by_uri
-            .entry(default_uri)
-            .or_insert_with(|| header.clone());
+        by_uri.entry(default_uri).or_insert_with(|| header.clone());
     }
     by_uri
 }

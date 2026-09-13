@@ -5,12 +5,8 @@ use std::time::Duration;
 use tempfile::TempDir;
 
 fn storage_in(tmp: &TempDir) -> Storage {
-    Storage::new(
-        &HostedStoreConfig::Fs,
-        tmp.path().join("storage"),
-        tmp.path().join("cache"),
-    )
-    .unwrap()
+    Storage::new(&HostedStoreConfig::Fs, tmp.path().join("storage"), tmp.path().join("cache"))
+        .unwrap()
 }
 
 fn image(name: &str) -> CanonicalPackageName {
@@ -82,10 +78,7 @@ async fn a_finished_upload_becomes_a_hosted_blob() {
 
     let name = image("acme/app");
     let slot = storage.stage_uploaded_blob(upload, &name, "sha256-abc").await.unwrap();
-    assert_eq!(
-        storage.finalize_blob_slot(slot).await.unwrap(),
-        BlobFinalize::Written,
-    );
+    assert_eq!(storage.finalize_blob_slot(slot).await.unwrap(), BlobFinalize::Written);
 
     let (_, size) = storage
         .open_hosted_blob(&name, "sha256-abc")
@@ -159,10 +152,7 @@ async fn a_package_nested_under_another_is_listed() {
             .unwrap();
     }
 
-    assert_eq!(
-        storage.hosted_package_names().await.unwrap(),
-        ["acme/app", "acme/app/tool"],
-    );
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app", "acme/app/tool"]);
 }
 
 #[tokio::test]
@@ -245,10 +235,7 @@ async fn a_blob_finalized_before_any_document_does_not_break_the_listing() {
         .await
         .unwrap();
 
-    assert_eq!(
-        storage.hosted_package_names().await.unwrap(),
-        ["acme/complete"],
-    );
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/complete"]);
 }
 
 #[tokio::test]
@@ -270,10 +257,7 @@ async fn an_unmanifested_package_does_not_have_its_blobs_walked() {
         .await
         .unwrap();
 
-    assert_eq!(
-        storage.hosted_package_names().await.unwrap(),
-        ["acme/complete"],
-    );
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/complete"]);
 }
 
 #[tokio::test]
@@ -316,11 +300,7 @@ async fn a_swept_upload_takes_its_repository_record_with_it() {
         .unwrap();
 
     assert_eq!(storage.sweep_blob_uploads(Duration::ZERO).await.unwrap(), 1);
-    assert!(
-        uploads_left(&tmp).is_empty(),
-        "the sweep left {:?}",
-        uploads_left(&tmp),
-    );
+    assert!(uploads_left(&tmp).is_empty(), "the sweep left {:?}", uploads_left(&tmp));
 }
 
 #[tokio::test]
@@ -337,11 +317,7 @@ async fn staging_an_upload_leaves_nothing_behind_it() {
 
     // Every successful push would otherwise leave one small file here
     // forever, and the sweep has no age to judge a record by.
-    assert!(
-        uploads_left(&tmp).is_empty(),
-        "staging left {:?}",
-        uploads_left(&tmp),
-    );
+    assert!(uploads_left(&tmp).is_empty(), "staging left {:?}", uploads_left(&tmp));
 }
 
 #[tokio::test]
@@ -363,11 +339,7 @@ async fn a_record_left_without_its_upload_is_reclaimed() {
             .unwrap(),
         0,
     );
-    assert!(
-        uploads_left(&tmp).is_empty(),
-        "the sweep left {:?}",
-        uploads_left(&tmp),
-    );
+    assert!(uploads_left(&tmp).is_empty(), "the sweep left {:?}", uploads_left(&tmp));
 }
 
 /// Two organizations of one object-store backend, which share a scratch root
@@ -377,12 +349,7 @@ fn two_orgs_of_one_bucket(tmp: &TempDir) -> (Storage, Storage) {
         store: std::sync::Arc::new(object_store::memory::InMemory::new()),
         prefix: String::new(),
     };
-    let root = Storage::new(
-        &hosted,
-        tmp.path().join("storage"),
-        tmp.path().join("cache"),
-    )
-    .unwrap();
+    let root = Storage::new(&hosted, tmp.path().join("storage"), tmp.path().join("cache")).unwrap();
     (root.for_hosted("first"), root.for_hosted("second"))
 }
 
@@ -464,10 +431,7 @@ async fn s3_upload_resumes_on_another_replica_and_survives_loss_of_scratch() {
     writer.write_all(b"world").await.unwrap();
     assert_eq!(writer.finish().await.unwrap(), 11);
     resumed.materialize().await.unwrap();
-    assert_eq!(
-        tokio::fs::read(resumed.path()).await.unwrap(),
-        b"hello world",
-    );
+    assert_eq!(tokio::fs::read(resumed.path()).await.unwrap(), b"hello world");
     second.finalize_uploaded_blob(resumed, &repository, "sha256-test").await.unwrap();
     assert_eq!(
         second
@@ -598,10 +562,7 @@ async fn failed_promotion_keeps_shared_chunks_available_for_retry() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(
-        axum::body::to_bytes(body, 100).await.unwrap().as_ref(),
-        b"accepted",
-    );
+    assert_eq!(axum::body::to_bytes(body, 100).await.unwrap().as_ref(), b"accepted");
 }
 
 #[tokio::test]
@@ -713,8 +674,5 @@ async fn prepared_completion_freezes_chunks_and_survives_replica_loss() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(
-        axum::body::to_bytes(body, 100).await.unwrap().as_ref(),
-        b"accepted",
-    );
+    assert_eq!(axum::body::to_bytes(body, 100).await.unwrap().as_ref(), b"accepted");
 }

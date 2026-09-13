@@ -44,11 +44,7 @@ fn dependency_options_to_save_type() {
     );
 
     assert_eq!(
-        save_type(RemoveDependencyOptions {
-            save_prod: true,
-            save_dev: true,
-            save_optional: true
-        }),
+        save_type(RemoveDependencyOptions { save_prod: true, save_dev: true, save_optional: true }),
         Some(Dev),
     );
 }

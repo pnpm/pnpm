@@ -52,10 +52,7 @@ async fn concurrent_picks_for_same_key_share_one_network_fetch() {
             .expect("all picks succeed");
 
     for result in results {
-        assert_eq!(
-            result.picked_package.expect("picked").version.to_string(),
-            "1.1.0",
-        );
+        assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
     }
     mock.assert_async().await;
 }
@@ -88,9 +85,7 @@ async fn private_scope_fails_closed_on_401_without_disk_fallback() {
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default()
         .with_route_hook(Arc::new(ScopeHook {
-            scope: MetadataCacheScope::Private {
-                descriptor_id: "deadbeef".to_string(),
-            },
+            scope: MetadataCacheScope::Private { descriptor_id: "deadbeef".to_string() },
         }) as Arc<dyn UpstreamRouteHook>);
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
@@ -114,15 +109,7 @@ async fn private_scope_fails_closed_on_401_without_disk_fallback() {
             },
         },
     };
-    let result = pick_package(
-        &ctx,
-        &range_spec("acme", "^1.0.0"),
-        &default_opts(&registry),
-    )
-    .await;
-    assert!(
-        result.is_err(),
-        "private 401 fails closed instead of serving the stale mirror",
-    );
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry)).await;
+    assert!(result.is_err(), "private 401 fails closed instead of serving the stale mirror");
     mock.assert_async().await;
 }

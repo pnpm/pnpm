@@ -107,10 +107,7 @@ fn check_settings_passes_when_overrides_both_empty() {
     assert!(
         check_lockfile_settings(
             &lockfile,
-            LockfileSettingsCheck {
-                overrides: Some(&empty),
-                ..settings_check(&Catalogs::new())
-            }
+            LockfileSettingsCheck { overrides: Some(&empty), ..settings_check(&Catalogs::new()) }
         )
         .is_ok(),
     );
@@ -131,10 +128,7 @@ fn check_settings_passes_when_overrides_match_regardless_of_order() {
     assert!(
         check_lockfile_settings(
             &lockfile,
-            LockfileSettingsCheck {
-                overrides: Some(&config),
-                ..settings_check(&Catalogs::new())
-            }
+            LockfileSettingsCheck { overrides: Some(&config), ..settings_check(&Catalogs::new()) }
         )
         .is_ok(),
     );
@@ -152,10 +146,7 @@ fn check_settings_returns_drift_on_overrides_value_change() {
     config.insert("foo".to_string(), "2.0.0".to_string());
     let err = check_lockfile_settings(
         &lockfile,
-        LockfileSettingsCheck {
-            overrides: Some(&config),
-            ..settings_check(&Catalogs::new())
-        },
+        LockfileSettingsCheck { overrides: Some(&config), ..settings_check(&Catalogs::new()) },
     )
     .expect_err("changed override value must surface drift");
     let StalenessReason::OverridesChanged { lockfile: l, config: c } = err else {
@@ -192,10 +183,7 @@ fn check_settings_returns_drift_when_config_has_overrides_but_lockfile_does_not(
     config.insert("foo".to_string(), "1.0.0".to_string());
     let err = check_lockfile_settings(
         &lockfile,
-        LockfileSettingsCheck {
-            overrides: Some(&config),
-            ..settings_check(&Catalogs::new())
-        },
+        LockfileSettingsCheck { overrides: Some(&config), ..settings_check(&Catalogs::new()) },
     )
     .expect_err("added override must surface drift");
     let StalenessReason::OverridesChanged { lockfile: l, config: c } = err else {
@@ -259,14 +247,8 @@ fn check_settings_returns_drift_when_patch_hash_changes() {
     let StalenessReason::PatchedDependenciesChanged { lockfile: l, config: c } = err else {
         panic!("expected PatchedDependenciesChanged, got {err:?}");
     };
-    assert_eq!(
-        l.get("graceful-fs@4.2.11").map(String::as_str),
-        Some("oldhash"),
-    );
-    assert_eq!(
-        c.get("graceful-fs@4.2.11").map(String::as_str),
-        Some("newhash"),
-    );
+    assert_eq!(l.get("graceful-fs@4.2.11").map(String::as_str), Some("oldhash"));
+    assert_eq!(c.get("graceful-fs@4.2.11").map(String::as_str), Some("newhash"));
 }
 
 #[test]
@@ -282,10 +264,7 @@ fn check_settings_returns_drift_when_patch_removed_from_config() {
     let StalenessReason::PatchedDependenciesChanged { lockfile: l, config: c } = err else {
         panic!("expected PatchedDependenciesChanged, got {err:?}");
     };
-    assert_eq!(
-        l.get("graceful-fs@4.2.11").map(String::as_str),
-        Some("abc123"),
-    );
+    assert_eq!(l.get("graceful-fs@4.2.11").map(String::as_str), Some("abc123"));
     assert!(c.is_empty());
 }
 
@@ -341,14 +320,8 @@ fn check_settings_returns_drift_on_package_extensions_checksum_value_change() {
     let StalenessReason::PackageExtensionsChecksumChanged { lockfile: l, config: c } = err else {
         panic!("expected PackageExtensionsChecksumChanged, got {err:?}");
     };
-    assert_eq!(
-        l.as_deref(),
-        Some("sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="),
-    );
-    assert_eq!(
-        c.as_deref(),
-        Some("sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="),
-    );
+    assert_eq!(l.as_deref(), Some("sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="));
+    assert_eq!(c.as_deref(), Some("sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="));
 }
 
 #[test]
@@ -363,10 +336,7 @@ fn check_settings_returns_drift_when_lockfile_has_checksum_but_config_does_not()
     let StalenessReason::PackageExtensionsChecksumChanged { lockfile: l, config: c } = err else {
         panic!("expected PackageExtensionsChecksumChanged, got {err:?}");
     };
-    assert_eq!(
-        l.as_deref(),
-        Some("sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="),
-    );
+    assert_eq!(l.as_deref(), Some("sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="));
     assert!(c.is_none());
 }
 
@@ -390,10 +360,7 @@ fn check_settings_returns_drift_when_config_has_checksum_but_lockfile_does_not()
         panic!("expected PackageExtensionsChecksumChanged, got {err:?}");
     };
     assert!(l.is_none());
-    assert_eq!(
-        c.as_deref(),
-        Some("sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="),
-    );
+    assert_eq!(c.as_deref(), Some("sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="));
 }
 
 #[test]
@@ -457,13 +424,7 @@ fn check_settings_returns_drift_when_auto_install_peers_differs() {
         },
     )
     .expect_err("a flipped autoInstallPeers must surface drift");
-    assert_eq!(
-        err,
-        StalenessReason::AutoInstallPeersChanged {
-            lockfile: true,
-            config: false
-        },
-    );
+    assert_eq!(err, StalenessReason::AutoInstallPeersChanged { lockfile: true, config: false });
     assert_eq!(err.setting_name(), Some("settings.autoInstallPeers"));
 }
 
@@ -512,13 +473,7 @@ fn check_settings_returns_drift_when_dedupe_peers_is_enabled() {
         },
     )
     .expect_err("enabling dedupePeers must surface drift");
-    assert_eq!(
-        err,
-        StalenessReason::DedupePeersChanged {
-            lockfile: false,
-            config: true
-        },
-    );
+    assert_eq!(err, StalenessReason::DedupePeersChanged { lockfile: false, config: true });
     assert_eq!(err.setting_name(), Some("settings.dedupePeers"));
 }
 
@@ -544,15 +499,9 @@ fn check_settings_returns_drift_when_exclude_links_from_lockfile_differs() {
     .expect_err("a flipped excludeLinksFromLockfile must surface drift");
     assert_eq!(
         err,
-        StalenessReason::ExcludeLinksFromLockfileChanged {
-            lockfile: false,
-            config: true
-        },
+        StalenessReason::ExcludeLinksFromLockfileChanged { lockfile: false, config: true },
     );
-    assert_eq!(
-        err.setting_name(),
-        Some("settings.excludeLinksFromLockfile"),
-    );
+    assert_eq!(err.setting_name(), Some("settings.excludeLinksFromLockfile"));
 }
 
 /// Only the first drifted field is reported, and pnpm's
@@ -678,13 +627,7 @@ fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() 
         },
     )
     .expect_err("changed peersSuffixMaxLength must surface drift");
-    assert_eq!(
-        err,
-        StalenessReason::PeersSuffixMaxLengthChanged {
-            lockfile: 10,
-            config: 100
-        },
-    );
+    assert_eq!(err, StalenessReason::PeersSuffixMaxLengthChanged { lockfile: 10, config: 100 });
 }
 
 // ---------------------------------------------------------------------------

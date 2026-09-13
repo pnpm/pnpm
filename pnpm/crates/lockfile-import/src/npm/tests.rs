@@ -35,10 +35,7 @@ fn nested_format_walks_the_whole_tree() {
                 "@pnpm.e2e/dep-of-pkg-with-1-dep".to_string(),
                 vec!["100.0.0".to_string(), "101.0.0".to_string()]
             ),
-            (
-                "@pnpm.e2e/pkg-with-1-dep".to_string(),
-                vec!["100.0.0".to_string()]
-            ),
+            ("@pnpm.e2e/pkg-with-1-dep".to_string(), vec!["100.0.0".to_string()]),
         ],
     );
 }
@@ -65,10 +62,7 @@ fn flat_format_reads_names_from_node_modules_paths() {
                 "@pnpm.e2e/dep-of-pkg-with-1-dep".to_string(),
                 vec!["100.0.0".to_string(), "100.1.0".to_string()]
             ),
-            (
-                "@pnpm.e2e/pkg-with-1-dep".to_string(),
-                vec!["*".to_string(), "100.0.0".to_string()]
-            ),
+            ("@pnpm.e2e/pkg-with-1-dep".to_string(), vec!["*".to_string(), "100.0.0".to_string()]),
         ],
     );
 }

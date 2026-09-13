@@ -382,15 +382,10 @@ impl BuildModules<'_> {
             pnpm_graph_hasher::warm_deps_state_cache(
                 graph,
                 &mut cache_guard,
-                crate::deps_graph::in_lockfile_order(graph)
-                    .into_iter()
-                    .map(|(key, _)| key),
+                crate::deps_graph::in_lockfile_order(graph).into_iter().map(|(key, _)| key),
             );
         }
-        DepStates {
-            graph,
-            cache,
-        }
+        DepStates { graph, cache }
     }
 }
 
@@ -436,9 +431,7 @@ fn schedule_builds<Reporter: self::Reporter>(
             on_node_skipped: &on_node_skipped,
         },
     )
-    .map_err(|source| BuildModulesError::ThreadPoolBuild {
-        source,
-    })?;
+    .map_err(|source| BuildModulesError::ThreadPoolBuild { source })?;
     match first_error.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner) {
         Some(error) => Err(error),
         None => Ok(()),

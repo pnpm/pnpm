@@ -86,10 +86,7 @@ fn unix_mode_is_applied_on_new_files() {
         .permissions()
         .mode()
         & 0o700;
-    assert_eq!(
-        mode, 0o700,
-        "owner rwx bits of 0o755 must survive any reasonable umask",
-    );
+    assert_eq!(mode, 0o700, "owner rwx bits of 0o755 must survive any reasonable umask");
 }
 
 #[test]
@@ -175,10 +172,7 @@ fn dangling_symlink_at_cas_path_is_scrubbed_to_a_regular_file() {
     ensure_file(&cas_path, b"fresh", None).expect("dangling link should be scrubbed");
 
     let meta = fs::symlink_metadata(&cas_path).unwrap();
-    assert!(
-        meta.file_type().is_file(),
-        "cas_path must end as a regular file",
-    );
+    assert!(meta.file_type().is_file(), "cas_path must end as a regular file");
     assert_eq!(fs::read(&cas_path).unwrap(), b"fresh");
 }
 
@@ -233,18 +227,10 @@ fn retry_on_fd_pressure_retries_emfile_and_enfile_until_success() {
         let result = retry_on_fd_pressure(|| {
             let attempt = attempts.get();
             attempts.set(attempt + 1);
-            if attempt < 2 {
-                Err(io::Error::from_raw_os_error(errno))
-            } else {
-                Ok("ok")
-            }
+            if attempt < 2 { Err(io::Error::from_raw_os_error(errno)) } else { Ok("ok") }
         });
         assert_eq!(result.unwrap(), "ok");
-        assert_eq!(
-            attempts.get(),
-            3,
-            "errno {errno} should have been retried twice",
-        );
+        assert_eq!(attempts.get(), 3, "errno {errno} should have been retried twice");
     }
 }
 
@@ -289,10 +275,7 @@ fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
                 barrier.wait();
                 ensure_file(&path, &content, None).expect("each writer should succeed");
                 let ino = fs::metadata(&*path).unwrap().ino();
-                observed
-                    .lock()
-                    .unwrap()
-                    .push(ino);
+                observed.lock().unwrap().push(ino);
             })
         })
         .collect();
@@ -307,9 +290,7 @@ fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
     let observed = observed.lock().unwrap();
     let first = observed[0];
     assert!(
-        observed
-            .iter()
-            .all(|ino| *ino == first),
+        observed.iter().all(|ino| *ino == first),
         "inode changed during concurrent writes: {observed:?}",
     );
     assert_eq!(final_meta.ino(), first);

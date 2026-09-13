@@ -99,26 +99,15 @@ pub(super) fn write_pnpr_benchmark_config(
 /// revision older than the mount model cannot share a config file with
 /// current ones.
 pub(super) fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
-    let upstream = || ColdMockUpstreamEntry {
-        kind: "upstream",
-        url: origin.to_string(),
-        public: true,
-    };
+    let upstream =
+        || ColdMockUpstreamEntry { kind: "upstream", url: origin.to_string(), public: true };
     let config = ColdMockConfig {
         storage: storage.display().to_string(),
-        mounts: ColdMockUpstreamTable {
-            npmjs: upstream(),
-        },
+        mounts: ColdMockUpstreamTable { npmjs: upstream() },
         default_target: "npmjs",
-        registries: ColdMockUpstreamTable {
-            npmjs: upstream(),
-        },
+        registries: ColdMockUpstreamTable { npmjs: upstream() },
         default_registry: "npmjs",
-        log: ColdMockLog {
-            kind: "stdout",
-            format: "pretty",
-            level: "error",
-        },
+        log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
     };
     serde_saphyr::to_string(&config).expect("serialize cold mock config")
 }
@@ -176,16 +165,10 @@ pub(super) fn pnpr_benchmark_config_yaml(
         routes: PnprBenchmarkRoutes {
             public: public_route_registries
                 .iter()
-                .map(|registry| PnprBenchmarkPublicRoute {
-                    registry: (*registry).to_string(),
-                })
+                .map(|registry| PnprBenchmarkPublicRoute { registry: (*registry).to_string() })
                 .collect(),
         },
-        log: PnprBenchmarkLog {
-            r#type: "stdout",
-            format: "pretty",
-            level: "error",
-        },
+        log: PnprBenchmarkLog { r#type: "stdout", format: "pretty", level: "error" },
     };
     serde_saphyr::to_string(&config).expect("serialize pnpr benchmark config")
 }
@@ -238,12 +221,9 @@ pub(super) fn append_pnpr_auth_to_npmrc(dir: &Path, pnpr_server: &str, token: &s
         .append(true)
         .open(&path)
         .expect("open benchmark .npmrc for pnpr auth");
-    writeln!(
-        file,
-        "{}:_authToken={token}",
-        pnpr_auth_config_key(pnpr_server),
-    )
-    .expect("append pnpr auth to benchmark .npmrc");
+    writeln!(file, "{}:_authToken={token}", pnpr_auth_config_key(pnpr_server)).expect(
+        "append pnpr auth to benchmark .npmrc",
+    );
 }
 /// Log in as the seeded benchmark user and return a bearer token. The login
 /// runs on a dedicated thread with its own runtime so it doesn't reach into the

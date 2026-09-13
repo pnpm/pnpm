@@ -11,13 +11,10 @@ impl NpmResolutionVerifier {
         &self,
         cached_policy: &serde_json::Map<String, JsonValue>,
     ) -> bool {
-        let recorded_every_unconditional_rule = [
-            "tarballUrlBinding",
-            "revisionHistoryBinding",
-            "integrityRequired",
-        ]
-        .into_iter()
-        .all(|flag| cached_policy.get(flag).and_then(JsonValue::as_bool) == Some(true));
+        let recorded_every_unconditional_rule =
+            ["tarballUrlBinding", "revisionHistoryBinding", "integrityRequired"]
+                .into_iter()
+                .all(|flag| cached_policy.get(flag).and_then(JsonValue::as_bool) == Some(true));
         if !recorded_every_unconditional_rule {
             return false;
         }
@@ -44,11 +41,7 @@ impl NpmResolutionVerifier {
             // A transport failure propagates the registry's own fetch error so
             // the install aborts with it rather than folding it into a policy
             // violation.
-            Err(message) => {
-                return Some(ResolutionVerification::FetchFailed {
-                    message,
-                });
-            }
+            Err(message) => return Some(ResolutionVerification::FetchFailed { message }),
         };
         let trust_opts = TrustCheckOptions {
             trust_policy_exclude: self.trust.exclude.as_ref(),

@@ -26,9 +26,7 @@ pub(super) fn package_present_at(modules: &Path, dir: &Path, version: &str) -> b
     // holding the package needs a check of its own. `dir` is
     // `modules.join(alias)` for a valid npm package name, so that is
     // either `modules` itself or the `@scope` directory.
-    let Some(parent) = dir.parent() else {
-        return false;
-    };
+    let Some(parent) = dir.parent() else { return false };
     if parent != modules && !fs::symlink_metadata(parent).is_ok_and(|entry| entry.is_dir()) {
         return false;
     }

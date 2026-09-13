@@ -11,10 +11,7 @@ fn parses_macos_product_versions() {
 
 #[test]
 fn validates_windows_kernel_versions() {
-    assert_eq!(
-        validate_windows_kernel_version(10, 0, 26_100),
-        Some((10, 0, 26_100)),
-    );
+    assert_eq!(validate_windows_kernel_version(10, 0, 26_100), Some((10, 0, 26_100)));
     assert_eq!(validate_windows_kernel_version(0, 0, 26_100), None);
     assert_eq!(validate_windows_kernel_version(10, 0, 0), None);
 }
@@ -65,14 +62,8 @@ fn an_artifact_digest_addresses_the_file_the_store_wrote() {
 
     let executable = &located_by_mode[0].1;
     let plain = &located_by_mode[1].1;
-    assert_ne!(
-        executable, plain,
-        "one content must not share a path across modes",
-    );
-    assert_eq!(
-        &located_by_mode[2].1, executable,
-        "any executable bit files as executable",
-    );
+    assert_ne!(executable, plain, "one content must not share a path across modes");
+    assert_eq!(&located_by_mode[2].1, executable, "any executable bit files as executable");
 }
 
 /// Content that does not hash to the digest it is filed under is not offered,
@@ -198,14 +189,8 @@ mod restore {
 
     fn snapshots() -> HashMap<PackageKey, SnapshotEntry> {
         HashMap::from([
-            (
-                SNAPSHOT.parse().expect("snapshot key"),
-                SnapshotEntry::default(),
-            ),
-            (
-                NODE_RUNTIME.parse().expect("runtime key"),
-                SnapshotEntry::default(),
-            ),
+            (SNAPSHOT.parse().expect("snapshot key"), SnapshotEntry::default()),
+            (NODE_RUNTIME.parse().expect("runtime key"), SnapshotEntry::default()),
         ])
     }
 
@@ -275,10 +260,7 @@ mod restore {
         let request: ResolveArtifactsRequest =
             serde_json::from_slice(request).expect("resolve request");
         let [candidate] = request.candidates.as_slice() else {
-            panic!(
-                "expected exactly one candidate, got {}",
-                request.candidates.len(),
-            );
+            panic!("expected exactly one candidate, got {}", request.candidates.len());
         };
         let payload = ArtifactPayload {
             kind: ARTIFACT_KIND.to_string(),
@@ -312,9 +294,7 @@ mod restore {
         let response = ResolveArtifactsResponse {
             artifacts: vec![ResolvedArtifact {
                 key: candidate.key.clone(),
-                variants: vec![ArtifactVariant {
-                    envelope,
-                }],
+                variants: vec![ArtifactVariant { envelope }],
             }],
         };
         serde_json::to_string(&response).expect("serialize response")
@@ -345,9 +325,7 @@ mod restore {
                 architecture_baseline: "x86-64-v2".to_string(),
                 environment: BTreeMap::new(),
             },
-            compatibility: CompatibilityConstraints::Tagged {
-                tags: supported_tags.clone(),
-            },
+            compatibility: CompatibilityConstraints::Tagged { tags: supported_tags.clone() },
             manifest: built_manifest(),
         };
         let envelope = SignedArtifactEnvelope::sign(
@@ -379,12 +357,8 @@ mod restore {
                 verification: "verified".to_string(),
             }),
         };
-        let trusted_keys = BTreeMap::from([(
-            KEY_ID.to_string(),
-            BASE64
-                .decode(public_key())
-                .unwrap(),
-        )]);
+        let trusted_keys =
+            BTreeMap::from([(KEY_ID.to_string(), BASE64.decode(public_key()).unwrap())]);
         assert!(super::super::stored_remote_side_effects_are_verified(
             &diff,
             &candidate,
@@ -413,8 +387,7 @@ mod restore {
     /// return the path the resulting overlay maps the built file to.
     async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> PathBuf {
         let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
-        let side_effects = apply(store_dir, built_manifest(), expected_downloads)
-            .await;
+        let side_effects = apply(store_dir, built_manifest(), expected_downloads).await;
         let maps = side_effects.get(&snapshot_key).expect("the snapshot must be restored");
         let [overlay] = maps.values().collect::<Vec<_>>()[..] else {
             panic!("expected one cache key, got {}", maps.len());
@@ -521,14 +494,8 @@ mod restore {
                 target_env = "gnu",
                 any(target_arch = "x86_64", target_arch = "aarch64")
             ),
-            all(
-                target_os = "macos",
-                any(target_arch = "x86_64", target_arch = "aarch64")
-            ),
-            all(
-                target_os = "windows",
-                any(target_arch = "x86_64", target_arch = "aarch64")
-            )
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
         )),
         ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
     )]
@@ -542,10 +509,7 @@ mod restore {
             .write_cas_file(built_bytes(), true)
             .expect("re-writing the same bytes names the same path");
         assert_eq!(restored, written);
-        assert_eq!(
-            std::fs::read(&restored).expect("read restored"),
-            built_bytes(),
-        );
+        assert_eq!(std::fs::read(&restored).expect("read restored"), built_bytes());
     }
 
     /// Same restore, same server as its sibling above; only the seeded store
@@ -559,14 +523,8 @@ mod restore {
                 target_env = "gnu",
                 any(target_arch = "x86_64", target_arch = "aarch64")
             ),
-            all(
-                target_os = "macos",
-                any(target_arch = "x86_64", target_arch = "aarch64")
-            ),
-            all(
-                target_os = "windows",
-                any(target_arch = "x86_64", target_arch = "aarch64")
-            )
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
         )),
         ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
     )]
@@ -594,24 +552,15 @@ mod restore {
                 target_env = "gnu",
                 any(target_arch = "x86_64", target_arch = "aarch64")
             ),
-            all(
-                target_os = "macos",
-                any(target_arch = "x86_64", target_arch = "aarch64")
-            ),
-            all(
-                target_os = "windows",
-                any(target_arch = "x86_64", target_arch = "aarch64")
-            )
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
         )),
         ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
     )]
     async fn an_artifact_with_nothing_to_restore_leaves_the_snapshot_unbuilt() {
         let store = tempfile::tempdir().expect("tempdir");
         let store_dir = StoreDir::new(store.path());
-        let empty = ArtifactManifest {
-            added: Vec::new(),
-            deleted: Vec::new(),
-        };
+        let empty = ArtifactManifest { added: Vec::new(), deleted: Vec::new() };
 
         let side_effects = apply(&store_dir, empty, 0).await;
 
@@ -683,14 +632,8 @@ mod restore {
                 target_env = "gnu",
                 any(target_arch = "x86_64", target_arch = "aarch64")
             ),
-            all(
-                target_os = "macos",
-                any(target_arch = "x86_64", target_arch = "aarch64")
-            ),
-            all(
-                target_os = "windows",
-                any(target_arch = "x86_64", target_arch = "aarch64")
-            )
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
         )),
         ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
     )]
@@ -705,11 +648,7 @@ mod restore {
             .expect(0)
             .create_async()
             .await;
-        let empty = SideEffectsDiff {
-            added: None,
-            deleted: None,
-            remote_origin: None,
-        };
+        let empty = SideEffectsDiff { added: None, deleted: None, remote_origin: None };
         publish(config.clone(), store_dir.clone(), empty).await;
         untouched.assert_async().await;
         untouched.remove_async().await;

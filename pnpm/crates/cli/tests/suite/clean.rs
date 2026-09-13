@@ -29,35 +29,17 @@ fn clean_removes_packages_and_pnpm_entries_but_preserves_non_pnpm_dotfiles() {
     assert!(output.status.success(), "pacquet clean should succeed");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Removing node_modules"),
-        "expected Removing node_modules: {stdout}",
-    );
+    assert!(stdout.contains("Removing node_modules"), "expected Removing node_modules: {stdout}");
 
     // Regular packages and pnpm hidden entries are gone.
-    assert!(
-        !node_modules.join("lodash").exists(),
-        "lodash package should be removed",
-    );
-    assert!(
-        !node_modules.join(".pnpm").exists(),
-        ".pnpm should be removed",
-    );
-    assert!(
-        !node_modules.join(".modules.yaml").exists(),
-        ".modules.yaml should be removed",
-    );
+    assert!(!node_modules.join("lodash").exists(), "lodash package should be removed");
+    assert!(!node_modules.join(".pnpm").exists(), ".pnpm should be removed");
+    assert!(!node_modules.join(".modules.yaml").exists(), ".modules.yaml should be removed");
 
     // Non-pnpm dotfiles (e.g. .cache) are preserved, along with the
     // node_modules directory itself.
-    assert!(
-        node_modules.join(".cache").exists(),
-        ".cache should be preserved",
-    );
-    assert!(
-        node_modules.exists(),
-        "node_modules directory should remain",
-    );
+    assert!(node_modules.join(".cache").exists(), ".cache should be preserved");
+    assert!(node_modules.exists(), "node_modules directory should remain");
 
     drop(root);
 }
@@ -77,21 +59,15 @@ fn clean_removes_package_links_into_the_virtual_store() {
         .join("greenly@1.0.0")
         .join("node_modules");
     seed_package(&store_pkg_dir, "greenly");
-    pnpm_fs::symlink_dir(
-        &store_pkg_dir.join("greenly"),
-        &node_modules.join("greenly"),
-    )
-    .expect("link the package into node_modules");
+    pnpm_fs::symlink_dir(&store_pkg_dir.join("greenly"), &node_modules.join("greenly"))
+        .expect("link the package into node_modules");
 
     let output = pacquet
         .with_args(["clean"])
         .output()
         .expect("run pacquet clean");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        output.status.success(),
-        "pacquet clean should succeed: {stderr}",
-    );
+    assert!(output.status.success(), "pacquet clean should succeed: {stderr}");
 
     let virtual_store_metadata = fs::symlink_metadata(node_modules.join(".pnpm"));
     assert!(
@@ -118,10 +94,7 @@ fn clean_handles_missing_node_modules_gracefully() {
         .with_args(["clean"])
         .output()
         .expect("run pacquet clean");
-    assert!(
-        output.status.success(),
-        "pacquet clean should succeed with no node_modules",
-    );
+    assert!(output.status.success(), "pacquet clean should succeed with no node_modules");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.is_empty(), "nothing should be printed: {stdout}");
@@ -142,10 +115,7 @@ fn clean_preserves_lockfile_by_default() {
         .expect("run pacquet clean");
     assert!(output.status.success(), "pacquet clean should succeed");
 
-    assert!(
-        lockfile.exists(),
-        "pnpm-lock.yaml should be preserved by default",
-    );
+    assert!(lockfile.exists(), "pnpm-lock.yaml should be preserved by default");
 
     drop(root);
 }
@@ -161,25 +131,16 @@ fn clean_lockfile_removes_lockfile() {
         .with_args(["clean", "--lockfile"])
         .output()
         .expect("run pacquet clean --lockfile");
-    assert!(
-        output.status.success(),
-        "pacquet clean --lockfile should succeed",
-    );
+    assert!(output.status.success(), "pacquet clean --lockfile should succeed");
 
-    assert!(
-        !lockfile.exists(),
-        "pnpm-lock.yaml should be removed with --lockfile",
-    );
+    assert!(!lockfile.exists(), "pnpm-lock.yaml should be removed with --lockfile");
 
     drop(root);
 }
 
 fn write_workspace(workspace: &Path, settings: &str) {
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        format!("packages:\n  - pkg1\n{settings}"),
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), format!("packages:\n  - pkg1\n{settings}"))
+        .expect("write pnpm-workspace.yaml");
     let pkg1 = workspace.join("pkg1");
     fs::create_dir_all(&pkg1).expect("create pkg1");
     fs::write(pkg1.join("package.json"), "{}").expect("write pkg1 manifest");
@@ -202,10 +163,7 @@ fn clean_from_a_workspace_subdirectory_cleans_every_project() {
         .output()
         .expect("run pacquet clean");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        output.status.success(),
-        "pacquet clean should succeed: {stderr}",
-    );
+    assert!(output.status.success(), "pacquet clean should succeed: {stderr}");
 
     assert!(
         !workspace
@@ -240,10 +198,7 @@ fn clean_from_a_workspace_subdirectory_honors_a_custom_modules_dir() {
         .output()
         .expect("run pacquet clean");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        output.status.success(),
-        "pacquet clean should succeed: {stderr}",
-    );
+    assert!(output.status.success(), "pacquet clean should succeed: {stderr}");
 
     assert!(
         !workspace
@@ -268,11 +223,8 @@ fn clean_from_a_workspace_subdirectory_honors_a_custom_modules_dir() {
 fn clean_works_in_a_workspace() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
 
-    fs::write(
-        workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - pkg1\n  - pkg2\n",
-    )
-    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - pkg1\n  - pkg2\n")
+        .expect("write pnpm-workspace.yaml");
     let pkg1 = workspace.join("pkg1");
     let pkg2 = workspace.join("pkg2");
     fs::create_dir_all(&pkg1).expect("create pkg1");
@@ -292,14 +244,8 @@ fn clean_works_in_a_workspace() {
     // `pnpm` prints the module dir relative to the cwd with the platform's
     // path separator (via `path.relative`), so build the expected text the
     // same way rather than hard-coding a `/`.
-    let expected_pkg1 = format!(
-        "Removing {}",
-        Path::new("pkg1").join("node_modules").display(),
-    );
-    let expected_pkg2 = format!(
-        "Removing {}",
-        Path::new("pkg2").join("node_modules").display(),
-    );
+    let expected_pkg1 = format!("Removing {}", Path::new("pkg1").join("node_modules").display());
+    let expected_pkg2 = format!("Removing {}", Path::new("pkg2").join("node_modules").display());
     assert!(stdout.contains(&expected_pkg1), "expected pkg1: {stdout}");
     assert!(stdout.contains(&expected_pkg2), "expected pkg2: {stdout}");
     assert!(
@@ -343,14 +289,8 @@ fn clean_removes_custom_virtual_store_dir_inside_the_project() {
     assert!(output.status.success(), "pacquet clean should succeed");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(
-        stdout.contains("Removing .pnpm-store"),
-        "expected custom store removal: {stdout}",
-    );
-    assert!(
-        !virtual_store.exists(),
-        "custom virtual store should be removed",
-    );
+    assert!(stdout.contains("Removing .pnpm-store"), "expected custom store removal: {stdout}");
+    assert!(!virtual_store.exists(), "custom virtual store should be removed");
     assert!(!node_modules.join("lodash").exists(), "packages removed");
 
     drop(root);
@@ -382,10 +322,7 @@ fn clean_does_not_remove_virtual_store_dir_outside_the_project_root() {
         .expect("run pacquet clean");
     assert!(output.status.success(), "pacquet clean should succeed");
 
-    assert!(
-        outside.exists(),
-        "virtual store outside root must be left alone",
-    );
+    assert!(outside.exists(), "virtual store outside root must be left alone");
 
     drop(root);
 }
@@ -410,10 +347,7 @@ mod scripts {
     fn clean_runs_the_clean_script_when_present() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
 
-        write_manifest(
-            &workspace,
-            &serde_json::json!({ "clean": "echo script-clean-ran" }),
-        );
+        write_manifest(&workspace, &serde_json::json!({ "clean": "echo script-clean-ran" }));
         let node_modules = workspace.join("node_modules");
         fs::create_dir_all(&node_modules).expect("create node_modules");
         seed_package(&node_modules, "lodash");
@@ -425,10 +359,7 @@ mod scripts {
         assert!(output.status.success(), "pacquet clean should succeed");
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-            stdout.contains("script-clean-ran"),
-            "clean script should run: {stdout}",
-        );
+        assert!(stdout.contains("script-clean-ran"), "clean script should run: {stdout}");
         // The built-in clean is overridden, so node_modules is untouched.
         assert!(
             node_modules.join("lodash").exists(),
@@ -442,10 +373,7 @@ mod scripts {
     fn purge_runs_the_builtin_clean_when_only_a_clean_script_exists() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
 
-        write_manifest(
-            &workspace,
-            &serde_json::json!({ "clean": "echo script-clean-ran" }),
-        );
+        write_manifest(&workspace, &serde_json::json!({ "clean": "echo script-clean-ran" }));
         let node_modules = workspace.join("node_modules");
         fs::create_dir_all(&node_modules).expect("create node_modules");
         seed_package(&node_modules, "lodash");
@@ -461,10 +389,7 @@ mod scripts {
             !stdout.contains("script-clean-ran"),
             "purge must not run the clean script: {stdout}",
         );
-        assert!(
-            !node_modules.join("lodash").exists(),
-            "purge built-in must clean node_modules",
-        );
+        assert!(!node_modules.join("lodash").exists(), "purge built-in must clean node_modules");
 
         drop(root);
     }
@@ -473,10 +398,7 @@ mod scripts {
     fn purge_runs_the_purge_script_when_present() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
 
-        write_manifest(
-            &workspace,
-            &serde_json::json!({ "purge": "echo script-purge-ran" }),
-        );
+        write_manifest(&workspace, &serde_json::json!({ "purge": "echo script-purge-ran" }));
         let node_modules = workspace.join("node_modules");
         fs::create_dir_all(&node_modules).expect("create node_modules");
         seed_package(&node_modules, "lodash");
@@ -488,10 +410,7 @@ mod scripts {
         assert!(output.status.success(), "pacquet purge should succeed");
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-            stdout.contains("script-purge-ran"),
-            "purge script should run: {stdout}",
-        );
+        assert!(stdout.contains("script-purge-ran"), "purge script should run: {stdout}");
         assert!(
             node_modules.join("lodash").exists(),
             "node_modules must not be cleaned when a script overrides",
@@ -505,10 +424,7 @@ mod scripts {
     fn pm_clean_runs_the_builtin_when_a_clean_script_exists() {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
 
-        write_manifest(
-            &workspace,
-            &serde_json::json!({ "clean": "echo script-clean-ran" }),
-        );
+        write_manifest(&workspace, &serde_json::json!({ "clean": "echo script-clean-ran" }));
         let node_modules = workspace.join("node_modules");
         fs::create_dir_all(&node_modules).expect("create node_modules");
         seed_package(&node_modules, "lodash");
@@ -520,28 +436,16 @@ mod scripts {
         assert!(output.status.success(), "pacquet pm clean should succeed");
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-            !stdout.contains("script-clean-ran"),
-            "the script must not run: {stdout}",
-        );
-        assert!(
-            !node_modules.join("lodash").exists(),
-            "the built-in must clean node_modules",
-        );
+        assert!(!stdout.contains("script-clean-ran"), "the script must not run: {stdout}");
+        assert!(!node_modules.join("lodash").exists(), "the built-in must clean node_modules");
 
         drop(root);
     }
 
     fn workspace_with_a_root_clean_script(workspace: &Path) {
-        write_manifest(
-            workspace,
-            &serde_json::json!({ "clean": "echo script-clean-ran" }),
-        );
-        fs::write(
-            workspace.join("pnpm-workspace.yaml"),
-            "packages:\n  - packages/*\n",
-        )
-        .expect("write pnpm-workspace.yaml");
+        write_manifest(workspace, &serde_json::json!({ "clean": "echo script-clean-ran" }));
+        fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+            .expect("write pnpm-workspace.yaml");
         let member = workspace.join("packages").join("a");
         fs::create_dir_all(&member).expect("create the workspace member");
         write_manifest(&member, &serde_json::json!({}));
@@ -561,14 +465,8 @@ mod scripts {
             .output()
             .expect("run pacquet clean");
         let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            !output.status.success(),
-            "pacquet clean should fail: {stderr}",
-        );
-        assert!(
-            stderr.contains("ERR_PNPM_SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT"),
-            "stderr={stderr}",
-        );
+        assert!(!output.status.success(), "pacquet clean should fail: {stderr}");
+        assert!(stderr.contains("ERR_PNPM_SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT"), "stderr={stderr}");
 
         drop(root);
     }
@@ -584,10 +482,7 @@ mod scripts {
             .output()
             .expect("run pacquet pm clean");
         let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            output.status.success(),
-            "pacquet pm clean should succeed: {stderr}",
-        );
+        assert!(output.status.success(), "pacquet pm clean should succeed: {stderr}");
         assert!(
             !workspace
                 .join("node_modules")
@@ -607,14 +502,8 @@ mod scripts {
 #[test]
 fn clean_removes_the_enclosing_npm_projects_modules() {
     for (manifest, contents) in [
-        (
-            "Cargo.toml",
-            "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
-        ),
-        (
-            "pyproject.toml",
-            "[project]\nname = 'member'\nversion = '1.0'\n",
-        ),
+        ("Cargo.toml", "[package]\nname = \"member\"\nversion = \"0.1.0\"\n"),
+        ("pyproject.toml", "[project]\nname = 'member'\nversion = '1.0'\n"),
     ] {
         for command in ["clean", "purge"] {
             let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();

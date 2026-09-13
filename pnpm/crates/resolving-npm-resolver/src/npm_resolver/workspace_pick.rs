@@ -45,13 +45,8 @@ pub(super) fn workspace_shadow_pick(
     if spec.revision.is_some() {
         return None;
     }
-    let mut result = try_workspace_shadow(
-        workspace_packages?,
-        spec,
-        &picked.version,
-        wanted_dependency,
-        opts,
-    )?;
+    let mut result =
+        try_workspace_shadow(workspace_packages?, spec, &picked.version, wanted_dependency, opts)?;
     result.package.latest = latest_allowed_by_policy(
         &picked.meta,
         opts.policy.published_by,
@@ -137,18 +132,11 @@ pub(crate) fn no_matching_version(
 ) -> ResolveError {
     let dep = match wanted_dependency.alias.as_deref() {
         Some(alias) => {
-            format!(
-                "{alias}@{}",
-                wanted_dependency.bare_specifier.as_deref().unwrap_or_default(),
-            )
+            format!("{alias}@{}", wanted_dependency.bare_specifier.as_deref().unwrap_or_default())
         }
         None => wanted_dependency.bare_specifier.clone().unwrap_or_default(),
     };
-    Box::new(NoMatchingVersionError::new(
-        dep,
-        redact_and_sanitize(registry),
-        meta,
-    ))
+    Box::new(NoMatchingVersionError::new(dep, redact_and_sanitize(registry), meta))
 }
 
 /// Registry pick was unavailable (no matching version or fetch
@@ -196,8 +184,7 @@ pub(super) fn try_workspace_shadow(
 
     let local_version = pick_matching_local_version_or_null(matching_name, spec)?;
     let local_parsed = Version::parse(&local_version).ok()?;
-    let prefer =
-        opts.project.prefer_workspace_packages || local_parsed > picked.version;
+    let prefer = opts.project.prefer_workspace_packages || local_parsed > picked.version;
     if !prefer {
         return None;
     }

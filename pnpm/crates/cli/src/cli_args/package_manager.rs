@@ -53,18 +53,12 @@ pub(crate) fn package_manager_to_sync(
     if let Some(version) =
         source_version.filter(|version| version_satisfies(version, wanted_version))
     {
-        return Some(PackageManagerToSync {
-            specifier: wanted_version.to_string(),
-            version,
-        });
+        return Some(PackageManagerToSync { specifier: wanted_version.to_string(), version });
     }
     if let Some(version) =
         exact_version(wanted_version).filter(|version| version_satisfies(version, wanted_version))
     {
-        return Some(PackageManagerToSync {
-            specifier: wanted_version.to_string(),
-            version,
-        });
+        return Some(PackageManagerToSync { specifier: wanted_version.to_string(), version });
     }
     // A range pin names no exact version, so the running pnpm's version is
     // the one the project actually uses.
@@ -106,12 +100,7 @@ pub(crate) fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageMa
     let package_manager = manifest.get("packageManager")?.as_str()?;
     let (name, version) = parse_package_manager(package_manager);
     let version = version.and_then(|version| exact_version(&version));
-    Some(WantedPackageManager {
-        name,
-        version,
-        from_dev_engines: false,
-        on_fail: None,
-    })
+    Some(WantedPackageManager { name, version, from_dev_engines: false, on_fail: None })
 }
 
 fn parse_dev_engines_package_manager(manifest: &Value) -> Option<WantedPackageManager> {
@@ -137,14 +126,7 @@ fn parse_dev_engines_package_manager(manifest: &Value) -> Option<WantedPackageMa
         .map(ToString::to_string)
         .or_else(|| {
             let index = index?;
-            Some(
-                if index == entries.len() - 1 {
-                    "error"
-                } else {
-                    "ignore"
-                }
-                .to_string(),
-            )
+            Some(if index == entries.len() - 1 { "error" } else { "ignore" }.to_string())
         });
     package_manager_from_engine(entry, true, on_fail)
 }
@@ -155,10 +137,7 @@ fn package_manager_from_engine(
     on_fail: Option<String>,
 ) -> Option<WantedPackageManager> {
     Some(WantedPackageManager {
-        name: value
-            .get("name")?
-            .as_str()?
-            .to_string(),
+        name: value.get("name")?.as_str()?.to_string(),
         version: value
             .get("version")
             .and_then(Value::as_str)

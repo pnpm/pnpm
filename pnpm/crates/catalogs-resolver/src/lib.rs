@@ -73,11 +73,7 @@ pub enum CatalogResolutionError {
         "The entry for '{alias}' in catalog '{catalog_name}' declares a dependency using the '{protocol}' protocol. This is not yet supported, but may be in a future version of pnpm."
     )]
     #[diagnostic(code(ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC))]
-    EntryInvalidSpec {
-        alias: String,
-        catalog_name: String,
-        protocol: String,
-    },
+    EntryInvalidSpec { alias: String, catalog_name: String, protocol: String },
 }
 
 /// Resolve a wanted dependency through the catalogs map.
@@ -103,12 +99,22 @@ pub fn resolve_from_catalog(
         });
     };
 
-    if let Some(error) =
-        validate_catalog_entry(catalog_lookup, catalog_name, &wanted_dependency.alias)
-    {
+    if parse_catalog_protocol(catalog_lookup).is_some() {
+        return recursive_catalog_error(catalog_name, &wanted_dependency.alias);
+    }
+
+    let protocol_of_lookup = catalog_lookup
+        .split(':')
+        .next()
+        .unwrap_or("");
+    if matches!(protocol_of_lookup, "link" | "file") {
         return CatalogResolutionResult::Misconfiguration(CatalogResolutionMisconfiguration {
             catalog_name: catalog_name.to_string(),
-            error,
+            error: CatalogResolutionError::EntryInvalidSpec {
+                alias: wanted_dependency.alias.clone(),
+                catalog_name: catalog_name.to_string(),
+                protocol: protocol_of_lookup.to_string(),
+            },
         });
     }
 
@@ -120,32 +126,15 @@ pub fn resolve_from_catalog(
     })
 }
 
+fn recursive_catalog_error(catalog_name: &str, alias: &str) -> CatalogResolutionResult {
+    CatalogResolutionResult::Misconfiguration(CatalogResolutionMisconfiguration {
+        catalog_name: catalog_name.to_string(),
+        error: CatalogResolutionError::EntryInvalidRecursiveDefinition {
+            alias: alias.to_string(),
+            catalog_name: catalog_name.to_string(),
+        },
+    })
+}
+
 #[cfg(test)]
 mod tests;
-
-fn validate_catalog_entry(
-    catalog_lookup: &str,
-    catalog_name: &str,
-    alias: &str,
-) -> Option<CatalogResolutionError> {
-    if parse_catalog_protocol(catalog_lookup).is_some() {
-        return Some(CatalogResolutionError::EntryInvalidRecursiveDefinition {
-            alias: alias.to_string(),
-            catalog_name: catalog_name.to_string(),
-        });
-    }
-
-    let protocol_of_lookup = catalog_lookup
-        .split(':')
-        .next()
-        .unwrap_or("");
-    if matches!(protocol_of_lookup, "link" | "file") {
-        return Some(CatalogResolutionError::EntryInvalidSpec {
-            alias: alias.to_string(),
-            catalog_name: catalog_name.to_string(),
-            protocol: protocol_of_lookup.to_string(),
-        });
-    }
-
-    None
-}

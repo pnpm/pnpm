@@ -97,14 +97,9 @@ fn dependency_options_to_dependency_groups() {
     );
 
     assert_eq!(
-        InstallDependencyOptions {
-            prod: false,
-            dev: false,
-            optional: true,
-            no_optional: false
-        }
-        .dependency_groups(false)
-        .collect::<Vec<_>>(),
+        InstallDependencyOptions { prod: false, dev: false, optional: true, no_optional: false }
+            .dependency_groups(false)
+            .collect::<Vec<_>>(),
         [Prod, Dev, Optional],
     );
 }
@@ -121,10 +116,7 @@ struct InstallArgsHarness {
 #[test]
 fn node_linker_default_is_none() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
-    assert!(
-        parsed.args.materialization.node_linker.is_none(),
-        "flag absent → field is None",
-    );
+    assert!(parsed.args.materialization.node_linker.is_none(), "flag absent → field is None");
 }
 
 #[test]
@@ -162,17 +154,11 @@ fn node_linker_invalid_value_rejected() {
 #[test]
 fn ignore_manifest_check_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
-    assert!(
-        !parsed.args.lockfile.ignore_manifest_check,
-        "flag absent → false",
-    );
+    assert!(!parsed.args.lockfile.ignore_manifest_check, "flag absent → false");
 
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--ignore-manifest-check"])
         .expect("parses --ignore-manifest-check");
-    assert!(
-        parsed.args.lockfile.ignore_manifest_check,
-        "flag present → true",
-    );
+    assert!(parsed.args.lockfile.ignore_manifest_check, "flag present → true");
 }
 
 #[test]
@@ -212,17 +198,11 @@ fn fix_lockfile_flag_parses() {
 #[test]
 fn frozen_store_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
-    assert!(
-        !parsed.args.materialization.frozen_store,
-        "flag absent → false",
-    );
+    assert!(!parsed.args.materialization.frozen_store, "flag absent → false");
 
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--frozen-store"])
         .expect("parses --frozen-store");
-    assert!(
-        parsed.args.materialization.frozen_store,
-        "flag present → true",
-    );
+    assert!(parsed.args.materialization.frozen_store, "flag present → true");
 }
 
 #[test]
@@ -322,10 +302,7 @@ fn registry_rewrite_updates_explicit_tarball_resolution_urls() {
     let LockfileResolution::Tarball(resolution) = resolution else {
         panic!("resolution stays tarball");
     };
-    assert_eq!(
-        resolution.tarball,
-        "http://client-registry.test/foo/-/foo-1.0.0.tgz",
-    );
+    assert_eq!(resolution.tarball, "http://client-registry.test/foo/-/foo-1.0.0.tgz");
 }
 
 #[test]

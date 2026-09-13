@@ -53,8 +53,7 @@ impl BugsArgs {
             let futures = self.packages
                 .iter()
                 .map(|spec| {
-                    let target_registry =
-                        bugs_registry(spec, self.registry.as_deref(), &registries);
+                    let target_registry = self.target_registry(&registries, spec);
 
                     let http_client = &http_client;
                     let auth_headers = &config.auth_headers;
@@ -78,6 +77,25 @@ impl BugsArgs {
             }
         }
         Ok(())
+    }
+}
+
+impl BugsArgs {
+    fn target_registry(
+        &self,
+        registries: &std::collections::HashMap<String, String>,
+        spec: &str,
+    ) -> String {
+        if let Some(registry) = &self.registry {
+            return normalize_registry_url(registry);
+        }
+        let (package_name, _) = parse_package_spec(spec);
+        let registry = pnpm_resolving_npm_resolver::pick_registry_for_package(
+            registries,
+            package_name,
+            Some(spec),
+        );
+        normalize_registry_url(&registry)
     }
 }
 
@@ -125,21 +143,13 @@ async fn get_bugs_url_from_registry(
                 pnpm_network::redact_url_credentials(&other.to_string()),
             ),
         };
-        BugsError::RegistryError {
-            url,
-            reason,
-        }
+        BugsError::RegistryError { url, reason }
     })
     .wrap_err_with(|| format!(r#"fetch package info for "{package_name}" from the registry"#))?;
 
     let manifest = package_manifest_from_version(&package_version);
     pick_bugs_url(&manifest)
-        .ok_or_else(|| {
-            BugsError::NoBugsUrlForPackage {
-                package: package_name.to_string(),
-            }
-            .into()
-        })
+        .ok_or_else(|| BugsError::NoBugsUrlForPackage { package: package_name.to_string() }.into())
 }
 
 fn package_manifest_from_version(version: &PackageVersion) -> Value {
@@ -164,10 +174,7 @@ fn pick_bugs_url(manifest: &Value) -> Option<String> {
                 .map(String::from),
             _ => None,
         };
-        if url
-            .as_ref()
-            .is_some_and(|url_str| is_http_url(url_str))
-        {
+        if url.as_ref().is_some_and(|url_str| is_http_url(url_str)) {
             return url;
         }
     }
@@ -313,11 +320,7 @@ fn is_http_url(value: &str) -> bool {
 }
 
 fn normalize_registry_url(url: &str) -> String {
-    if url.ends_with('/') {
-        url.to_owned()
-    } else {
-        format!("{url}/")
-    }
+    if url.ends_with('/') { url.to_owned() } else { format!("{url}/") }
 }
 
 fn open_url<Sys: OpenUrl>(url: &str) {
@@ -366,21 +369,3 @@ fn parse_package_spec(spec: &str) -> (&str, Option<&str>) {
 
 #[cfg(test)]
 mod tests;
-
-fn bugs_registry(
-    spec: &str,
-    registry: Option<&str>,
-    registries: &std::collections::HashMap<String, String>,
-) -> String {
-    let (package_name, _tag) = parse_package_spec(spec);
-    if let Some(override_registry) = registry {
-        normalize_registry_url(override_registry)
-    } else {
-        let picked = pnpm_resolving_npm_resolver::pick_registry_for_package(
-            registries,
-            package_name,
-            Some(spec),
-        );
-        normalize_registry_url(&picked)
-    }
-}

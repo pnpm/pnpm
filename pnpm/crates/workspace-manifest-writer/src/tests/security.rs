@@ -52,10 +52,7 @@ fn allow_builds_replaces_a_value_with_an_escaped_quote() {
         Some("allowBuilds:\n  esbuild: \"a \\\" # b\" # real\n"),
         &[("esbuild", false)],
     );
-    assert_eq!(
-        out.as_deref(),
-        Some("allowBuilds:\n  esbuild: false # real\n"),
-    );
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  esbuild: false # real\n"));
 }
 
 #[test]
