@@ -4513,13 +4513,22 @@ importers:
 
   pnpm11/exec/pnpm-cli-runner:
     dependencies:
+      '@pnpm/cli.meta':
+        specifier: workspace:*
+        version: link:../../cli/meta
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1(supports-color@10.2.2)
       '@pnpm/exec.pnpm-cli-runner':
         specifier: workspace:*
         version: 'link:'
+      cross-env:
+        specifier: 'catalog:'
+        version: 10.1.0
 
   pnpm11/exec/prepare-package:
     dependencies:
