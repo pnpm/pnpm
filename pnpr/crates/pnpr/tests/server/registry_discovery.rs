@@ -195,16 +195,21 @@ async fn upstream_search_exhausts_results_to_return_an_exact_total() {
     last.assert_async().await;
 }
 
+/// A huge `from` may not force an unbounded upstream walk: the fetch
+/// budgets (8 pages / 2000 results) bound the cost, and the response is a
+/// 200 with an empty window and an approximate `total` — never a refusal.
 #[tokio::test]
-async fn upstream_search_rejects_unbounded_offsets_and_result_sets() {
+async fn upstream_search_bounds_the_walk_for_a_huge_offset() {
     let mut upstream = mockito::Server::new_async().await;
-    let oversized = upstream
+    let objects: Vec<_> =
+        (0..250).map(|i| json!({ "package": { "name": format!("remote-{i}") } })).collect();
+    let pages = upstream
         .mock("GET", "/-/v1/search")
-        .match_query("text=remote&from=0&size=250")
+        .match_query(mockito::Matcher::Any)
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(json!({ "objects": [], "total": 2_001 }).to_string())
-        .expect(1)
+        .with_body(json!({ "objects": objects, "total": 10_000 }).to_string())
+        .expect(8)
         .create_async()
         .await;
     let tmp = TempDir::new().unwrap();
@@ -212,31 +217,24 @@ async fn upstream_search_rejects_unbounded_offsets_and_result_sets() {
     config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
     let app = router(config);
 
-    let offset = app
-        .clone()
-        .oneshot(
-            Request::get("/-/v1/search?text=remote&from=2001")
-                .body(Body::empty())
-                .unwrap(),
-        )
+    let response = app
+        .oneshot(Request::get("/-/v1/search?text=remote&from=2001").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    assert_eq!(offset.status(), StatusCode::BAD_REQUEST);
-
-    let result_set = app
-        .oneshot(
-            Request::get("/-/v1/search?text=remote")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(result_set.status(), StatusCode::BAD_REQUEST);
-    oversized.assert_async().await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    assert_eq!(body["objects"], json!([]));
+    // The 8000 results the budget left unscanned keep `total` in the
+    // advertised ballpark (the scanned pages dedup to 250 names).
+    assert!(body["total"].as_u64().unwrap() >= 8_000, "total {}", body["total"]);
+    pages.assert_async().await;
 }
 
+/// An upstream that dribbles short pages is cut off by the page budget:
+/// eight fetches, then the walk truncates into an approximate `total`
+/// instead of erroring.
 #[tokio::test]
-async fn upstream_search_rejects_more_than_eight_short_pages() {
+async fn upstream_search_stops_after_eight_short_pages() {
     let mut upstream = mockito::Server::new_async().await;
     let short_page = upstream
         .mock("GET", "/-/v1/search")
@@ -267,8 +265,69 @@ async fn upstream_search_rejects_more_than_eight_short_pages() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    assert_eq!(body["objects"].as_array().unwrap().len(), 1);
     short_page.assert_async().await;
+}
+
+/// An upstream that reports more results but returns an empty page is
+/// misbehaving; that surfaces as a gateway error rather than looping or
+/// silently under-reporting.
+#[tokio::test]
+async fn upstream_search_reporting_results_but_returning_none_is_a_gateway_error() {
+    let mut upstream = mockito::Server::new_async().await;
+    let lying_page = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::Any)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(json!({ "objects": [], "total": 9 }).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let response = app
+        .oneshot(Request::get("/-/v1/search?text=remote").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    lying_page.assert_async().await;
+}
+
+/// An upstream without a search endpoint (404) contributes nothing; the
+/// search still answers with what the other sources hold.
+#[tokio::test]
+async fn upstream_without_a_search_endpoint_is_skipped() {
+    let mut upstream = mockito::Server::new_async().await;
+    let missing = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::Any)
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(tmp.path(), "ajv");
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let response = app
+        .oneshot(Request::get("/-/v1/search?text=ajv").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    assert_eq!(body["total"], json!(1));
+    assert_eq!(body["objects"][0]["package"]["name"], json!("ajv"));
+    missing.assert_async().await;
 }
 
 #[tokio::test]
