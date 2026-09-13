@@ -15,7 +15,7 @@ const WRAPPER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 /** Each alias and the argv it prepends: `pnpx` and `pnx` mean `pnpm dlx`. */
 const ALIASES = [['pn', ''], ['pnpx', 'dlx '], ['pnx', 'dlx ']]
 // No pnpm on it, so a `PATH` lookup finds nothing but the decoys the tests plant.
-// `readlink` and `dirname` still have to be reachable.
+// The system directories stay on it for whatever the sibling itself reaches for.
 const BARE_PATH = '/usr/bin:/bin'
 const ARGS = ['add', 'foo']
 
@@ -37,7 +37,7 @@ describe('alias bins', () => {
       it('runs the pnpm beside it with no pnpm on PATH', { skip: NO_SH }, async () => {
         const { wrapperDir } = createFixture()
 
-        const result = await run(path.join(wrapperDir, alias), ARGS, { PATH: BARE_PATH })
+        const result = await run(path.join(wrapperDir, alias), ARGS, { env: { PATH: BARE_PATH } })
         assert.equal(result.status, 0, result.stderr)
         assert.equal(result.stdout, expected)
       })
@@ -49,7 +49,7 @@ describe('alias bins', () => {
         const decoyDir = path.join(dir, 'decoy')
         writeStub(path.join(decoyDir, 'pnpm'), 'decoy')
 
-        const result = await run(path.join(wrapperDir, alias), ARGS, { PATH: `${decoyDir}:${BARE_PATH}` })
+        const result = await run(path.join(wrapperDir, alias), ARGS, { env: { PATH: `${decoyDir}:${BARE_PATH}` } })
         assert.equal(result.status, 0, result.stderr)
         assert.equal(result.stdout, expected)
       })
@@ -64,7 +64,7 @@ describe('alias bins', () => {
         const link = path.join(binDir, alias)
         fs.symlinkSync(path.relative(binDir, path.join(wrapperDir, alias)), link)
 
-        const result = await run(link, ARGS, { PATH: BARE_PATH })
+        const result = await run(link, ARGS, { env: { PATH: BARE_PATH } })
         assert.equal(result.status, 0, result.stderr)
         assert.equal(result.stdout, expected)
       })
@@ -78,7 +78,18 @@ describe('alias bins', () => {
         const link = path.join(binDir, alias)
         fs.symlinkSync(path.join(wrapperDir, alias), link)
 
-        const result = await run(link, ARGS, { PATH: BARE_PATH })
+        const result = await run(link, ARGS, { env: { PATH: BARE_PATH } })
+        assert.equal(result.status, 0, result.stderr)
+        assert.equal(result.stdout, expected)
+      })
+
+      // The kernel and the C library's `PATH` search hand the interpreter the
+      // path they resolved, so `$0` is bare only when a shell is given the name
+      // itself — and then it stands for a file in the current directory.
+      it('runs as a bare name handed to sh', { skip: NO_SH }, async () => {
+        const { wrapperDir } = createFixture()
+
+        const result = await run('sh', [alias, ...ARGS], { cwd: wrapperDir, env: { PATH: BARE_PATH } })
         assert.equal(result.status, 0, result.stderr)
         assert.equal(result.stdout, expected)
       })
@@ -96,7 +107,7 @@ describe('alias bins', () => {
         fs.symlinkSync(path.join(wrapperDir, alias), path.join(secondDir, alias))
         fs.symlinkSync(path.relative(firstDir, path.join(secondDir, alias)), path.join(firstDir, alias))
 
-        const result = await run(path.join(firstDir, alias), ARGS, { PATH: BARE_PATH })
+        const result = await run(path.join(firstDir, alias), ARGS, { env: { PATH: BARE_PATH } })
         assert.equal(result.status, 0, result.stderr)
         assert.equal(result.stdout, expected)
       })
@@ -115,9 +126,26 @@ describe('alias bins', () => {
     const link = path.join(binDir, 'pnpx')
     fs.symlinkSync(path.relative(binDir, path.join(wrapperDir, 'pnpx')), link)
 
-    const result = await run(link, ARGS, { PATH: `${decoyDir}:${BARE_PATH}` })
+    const result = await run(link, ARGS, { env: { PATH: `${decoyDir}:${BARE_PATH}` } })
     assert.equal(result.status, 0, result.stderr)
     assert.equal(result.stdout, `sibling: dlx ${ARGS.join(' ')}\n`)
+  })
+
+  // The walk is copied into every bin that has to find a file beside itself, so
+  // a fix to one of them can silently miss the rest.
+  it('walks symlinks the same way in every bin', () => {
+    const walks = ['pnpm', ...ALIASES.map(([alias]) => alias)].map((bin) => {
+      const script = fs.readFileSync(path.join(WRAPPER_DIR, bin), 'utf8')
+      const start = script.indexOf('\nself=$0\n')
+      const end = script.indexOf('\ndone\n', start)
+      assert.ok(start >= 0 && end > start, `${bin} has no symlink walk`)
+      // Without the comments, which name the alias and so differ by design.
+      const code = script.slice(start, end).split('\n').filter((line) => !line.startsWith('#'))
+      return [bin, code.join('\n')]
+    })
+    for (const [bin, walk] of walks) {
+      assert.equal(walk, walks[0][1], `${bin} walks symlinks differently from ${walks[0][0]}`)
+    }
   })
 
   // What a script-less install leaves: `pnpm` is still the shebang-less
@@ -126,26 +154,26 @@ describe('alias bins', () => {
   it('reaches the placeholder pnpm when the install script was skipped', { skip: NO_SH }, async () => {
     const { wrapperDir } = createFixture({ installBinary: false })
 
-    const result = await run(path.join(wrapperDir, 'pnpx'), ARGS, { COREPACK_ENABLE_NETWORK: '0' })
+    const result = await run(path.join(wrapperDir, 'pnpx'), ARGS, { env: { COREPACK_ENABLE_NETWORK: '0' } })
     assert.notEqual(result.status, 0)
     assert.match(result.stderr, /Network access is disabled/)
   })
 })
 
 /**
- * Spawn `command` with `args`, `env` overriding the inherited environment.
- * Resolves once the child has exited, with its exit status and decoded output;
- * rejects only if it could not be spawned.
+ * Spawn `command` with `args`. Resolves once the child has exited, with its
+ * exit status and decoded output; rejects only if it could not be spawned.
  *
  * @param {string} command Executable to spawn, as an absolute path or a name on `PATH`.
  * @param {string[]} args Arguments to pass to it.
- * @param {Record<string, string>} [env] Variables layered over `process.env`; the
- *   environment is inherited unchanged when omitted.
+ * @param {{env?: Record<string, string>, cwd?: string}} [options] `env` is
+ *   layered over `process.env`, which is inherited unchanged when omitted;
+ *   `cwd` defaults to the current directory.
  * @returns {Promise<{status: number | null, stdout: string, stderr: string}>}
  *   `status` is null when a signal ended the child.
  */
-function run (command, args, env) {
-  const child = spawn(command, args, { env: { ...process.env, ...env } })
+function run (command, args, { env, cwd } = {}) {
+  const child = spawn(command, args, { cwd, env: { ...process.env, ...env } })
 
   let stdout = ''
   let stderr = ''
