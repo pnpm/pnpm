@@ -11,6 +11,7 @@ import {
   spawnPnpx,
   waitForPnpmExit,
 } from './execPnpm.js'
+import { isCurrentVersionPublished } from './isCurrentVersionPublished.js'
 import { pathToLocalPkg } from './localPkg.js'
 import testDefaults from './testDefaults.js'
 
@@ -21,6 +22,7 @@ export {
   execPnpmSync,
   execPnpx,
   execPnpxSync,
+  isCurrentVersionPublished,
   pathToLocalPkg,
   pnpmBinLocation,
   pnpxBinLocation,
