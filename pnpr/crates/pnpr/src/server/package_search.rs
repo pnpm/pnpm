@@ -20,12 +20,9 @@ pub(super) struct SearchPage<Item> {
     pub(super) names: HashSet<String>,
     pub(super) from: usize,
     pub(super) size: usize,
-    /// Results a fetch budget never downloaded: a source's reported total
-    /// minus what was walked, not deduplicated against `names`. They keep
-    /// `total` an over-approximation instead of turning a large source into
-    /// an error, and they occupy the tail of the served sequence, behind
-    /// every downloaded result of every source, so a source walked after a
-    /// truncated one is never buried under slots nobody can fill.
+    /// A source's reported total minus what was walked, not deduplicated
+    /// against `names`. Counted at the tail of the served sequence, behind
+    /// every downloaded result of every source.
     pub(super) unscanned: usize,
 }
 
@@ -65,6 +62,12 @@ pub(super) const MAX_UPSTREAM_SEARCH_RESULTS: usize = 2_000;
 
 pub(super) const MAX_UPSTREAM_SEARCH_PAGES: usize = 8;
 
+/// The ceiling on upstream requests for one search, however many sources a
+/// registry routes to. Continuation pages stop at
+/// [`MAX_UPSTREAM_SEARCH_PAGES`]; the fetch each source is guaranteed may
+/// carry the search past that, but never past this.
+pub(super) const MAX_UPSTREAM_SEARCH_REQUESTS: usize = 32;
+
 /// What one search may download from its upstreams. The budgets bound
 /// pnpr's own fetching, never what an upstream advertises: npmjs's loose
 /// full-text search reports five-digit totals for almost any term, so a
@@ -72,6 +75,7 @@ pub(super) const MAX_UPSTREAM_SEARCH_PAGES: usize = 8;
 #[derive(Default)]
 pub(super) struct UpstreamSearchBudget {
     pub(super) pages: usize,
+    pub(super) requests: usize,
     pub(super) results: usize,
 }
 
@@ -89,8 +93,6 @@ impl UpstreamSearchBudget {
         MAX_UPSTREAM_SEARCH_RESULTS.saturating_sub(self.results)
     }
 
-    /// Charge one upstream page against the budget. `false` means the page
-    /// budget is spent, which truncates the walk rather than failing it.
     pub(super) fn try_take_page(&mut self) -> bool {
         if self.pages == MAX_UPSTREAM_SEARCH_PAGES {
             return false;
@@ -99,7 +101,14 @@ impl UpstreamSearchBudget {
         true
     }
 
-    /// Charge one page's consumed results against the budget.
+    pub(super) fn try_take_request(&mut self) -> bool {
+        if self.requests == MAX_UPSTREAM_SEARCH_REQUESTS {
+            return false;
+        }
+        self.requests += 1;
+        true
+    }
+
     pub(super) fn add_results(&mut self, object_count: usize) {
         self.results = self.results.saturating_add(object_count);
     }
@@ -108,10 +117,8 @@ impl UpstreamSearchBudget {
 /// `GET /-/v1/search?text=...&from=...&size=...` — npm search v1 endpoint.
 /// Hosted results are counted after routing and access filters, then optional
 /// upstream results are appended in registry-source order. An upstream only
-/// participates when its `search` setting is enabled. An upstream small
-/// enough to exhaust makes `total` the exact deduplicated count; one the
-/// [`UpstreamSearchBudget`] cuts short still serves the requested window and
-/// folds its unscanned remainder into `total`.
+/// participates when its `search` setting is enabled, and only within the
+/// [`UpstreamSearchBudget`].
 pub(super) async fn serve_search(
     state: &AppState,
     identity: &Identity,
@@ -285,13 +292,14 @@ pub(super) async fn append_upstream_search(
     const FETCH_SIZE: usize = 250;
 
     let resolved = RegistrySource::Upstream(context.source.to_string());
-    // The first fetch is not conditional on the shared budgets, so a source
-    // routed after a large one still reaches `objects` or, at minimum,
-    // `total`. Sizing every request to the result budget keeps that
-    // guarantee cheap: once the budget is spent it is a one-entry probe.
+    // Deliberately unconditional: a source routed after a large one must
+    // still be asked, or it vanishes from `objects` and `total` at once.
     budget.try_take_page();
     let mut from = 0usize;
     loop {
+        if !budget.try_take_request() {
+            return Ok(());
+        }
         let size = budget.remaining_results().clamp(1, FETCH_SIZE);
         let query = upstream_search_query(context.query_string, from, size);
         let response = match context.upstream.fetch_search(&query).await? {
@@ -306,14 +314,11 @@ pub(super) async fn append_upstream_search(
 }
 
 pub(super) enum PageOutcome {
-    /// This source needs no more fetching: exhausted exactly, or truncated
-    /// with its unscanned remainder folded into the approximate total.
     Done,
     More,
 }
 
-/// Fold one fetched upstream page into the result set, advancing `from` by
-/// what the result budget let it keep.
+/// Advances `from` by what the result budget let this page keep.
 pub(super) fn consume_upstream_page(
     context: &UpstreamSearchContext<'_>,
     resolved: &RegistrySource,
@@ -339,10 +344,9 @@ pub(super) fn consume_upstream_page(
         });
     }
     if budget.remaining_results() == 0 || !budget.try_take_page() {
-        // The remainder is raw, unfiltered by `search_result_is_visible`,
-        // yet it leaks nothing: `upstream_search_admits` withholds a source
-        // from any caller its access or package rules deny, so only a caller
-        // free to query the source in full ever sees its counts.
+        // Raw, unfiltered by `search_result_is_visible`, yet no leak:
+        // `upstream_search_admits` withholds a source from any caller its
+        // access or package rules deny.
         page.unscanned = page.unscanned.saturating_add(response.total.saturating_sub(*from));
         return Ok(PageOutcome::Done);
     }

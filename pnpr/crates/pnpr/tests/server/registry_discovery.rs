@@ -1,8 +1,8 @@
 use super::{
-    AccessList, AuthState, Body, Config, Ipv4Addr, PackagePattern, PackageRules, Registries,
-    Registry, Request, ServiceExt, SocketAddr, SocketAddrV4, StatusCode, TempDir, Value,
-    access_rule, body_bytes, body_json, config_for, fs, header, hosted_with_access, json, router,
-    router_with_auth, seed_hosted, seed_hosted_with_maintainer, to_bytes,
+    AccessList, AuthState, Body, Config, Ecosystem, Ipv4Addr, PackagePattern, PackageRules,
+    Registries, Registry, Request, ServiceExt, SocketAddr, SocketAddrV4, StatusCode, TempDir,
+    Value, access_rule, body_bytes, body_json, config_for, fs, header, hosted_with_access, json,
+    router, router_with_auth, seed_hosted, seed_hosted_with_maintainer, to_bytes,
 };
 
 #[tokio::test]
@@ -195,7 +195,6 @@ async fn upstream_search_exhausts_results_to_return_an_exact_total() {
     last.assert_async().await;
 }
 
-/// A huge `from` may not force an unbounded upstream walk.
 #[tokio::test]
 async fn upstream_search_bounds_the_walk_for_a_huge_offset() {
     let mut upstream = mockito::Server::new_async().await;
@@ -233,8 +232,6 @@ async fn upstream_search_bounds_the_walk_for_a_huge_offset() {
     pages.assert_async().await;
 }
 
-/// An upstream that dribbles short pages is cut off by the page budget
-/// rather than erroring.
 #[tokio::test]
 async fn upstream_search_stops_after_eight_short_pages() {
     let mut upstream = mockito::Server::new_async().await;
@@ -276,8 +273,64 @@ async fn upstream_search_stops_after_eight_short_pages() {
     short_page.assert_async().await;
 }
 
-/// An upstream that reports more results but returns an empty page is
-/// misbehaving, so the search fails rather than looping.
+#[tokio::test]
+async fn upstream_search_stops_at_the_request_cap_however_many_sources_route() {
+    let mut upstream = mockito::Server::new_async().await;
+    let requests = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::Any)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({ "objects": [{ "package": { "name": "remote-a" } }], "total": 1 }).to_string(),
+        )
+        .expect(32)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    // Forty search-enabled upstreams, each of which would otherwise be
+    // guaranteed its own fetch.
+    let template = config.routing.upstreams
+        .get("npmjs")
+        .expect("default `npmjs` upstream")
+        .clone();
+    let mut graph = vec![];
+    let mut sources = vec![];
+    for index in 0..40 {
+        let name = format!("mirror-{index}");
+        let mut mirror = template.clone();
+        mirror.search = true;
+        config.routing.upstreams.insert(name.clone(), mirror);
+        // A distinct pattern per mirror, so the router reaches every one of
+        // them; only the last is a catch-all.
+        let patterns = if index == 39 {
+            vec![]
+        } else {
+            vec![PackagePattern::parse(&format!("@m{index}/*"), Ecosystem::Npm).unwrap()]
+        };
+        graph.push((name.clone(), Registry::Upstream { patterns }));
+        sources.push(name);
+    }
+    graph.push(("main".to_string(), Registry::Router { sources }));
+    let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    registries.validate().expect("router config is valid");
+    config.routing.registries = registries;
+    let app = router(config);
+
+    let response = app
+        .oneshot(
+            Request::get("/-/v1/search?text=remote")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    requests.assert_async().await;
+}
+
 #[tokio::test]
 async fn upstream_search_reporting_results_but_returning_none_is_a_gateway_error() {
     let mut upstream = mockito::Server::new_async().await;
@@ -308,7 +361,6 @@ async fn upstream_search_reporting_results_but_returning_none_is_a_gateway_error
     lying_page.assert_async().await;
 }
 
-/// An upstream without a search endpoint contributes nothing.
 #[tokio::test]
 async fn upstream_without_a_search_endpoint_is_skipped() {
     let mut upstream = mockito::Server::new_async().await;
@@ -429,9 +481,6 @@ async fn registry_directory_describes_oci_only_named_endpoints() {
     }
 }
 
-/// A caller denied by any of an upstream's package access refinements is
-/// excluded from that upstream's search entirely, which is what makes
-/// folding its raw unscanned remainder into `total` safe.
 #[tokio::test]
 async fn search_excludes_an_upstream_with_a_denying_package_rule() {
     let mut upstream = mockito::Server::new_async().await;

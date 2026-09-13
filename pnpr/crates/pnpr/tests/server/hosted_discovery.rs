@@ -89,14 +89,9 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
     visible.assert_async().await;
 }
 
-/// npmjs's loose full-text search advertises five-digit totals for almost
-/// any term, so a source larger than the fetch budget is truncated, never
-/// refused.
 #[tokio::test]
 async fn search_truncates_a_huge_upstream_instead_of_refusing() {
     let mut upstream = mockito::Server::new_async().await;
-    // Every page returns the same three results while advertising tens of
-    // thousands, like npmjs does for a broad term.
     let pages = upstream
         .mock("GET", "/-/v1/search")
         .match_query(mockito::Matcher::UrlEncoded("text".into(), "jquery".into()))
@@ -140,13 +135,8 @@ async fn search_truncates_a_huge_upstream_instead_of_refusing() {
     pages.assert_async().await;
 }
 
-/// With several search-enabled upstreams, a source the earlier ones starved
-/// still gets one fetch, so it never vanishes from both `objects` and
-/// `total` at once.
 #[tokio::test]
 async fn starved_upstream_still_counts_toward_the_search_total() {
-    // `corp` is routed first and burns the whole shared budget: 8 pages of
-    // 250 results while advertising 23,547.
     let mut corp = mockito::Server::new_async().await;
     let corp_objects: Vec<_> = (0..250)
         .map(|i| json!({ "package": { "name": format!("@corp/widget-{i}") } }))
@@ -160,8 +150,6 @@ async fn starved_upstream_still_counts_toward_the_search_total() {
         .expect(8)
         .create_async()
         .await;
-    // `npmjs` comes after the budget is spent, so the fetch it is guaranteed
-    // must be the one-entry probe rather than a full page.
     let mut npmjs = mockito::Server::new_async().await;
     let npmjs_body = json!({ "objects": [{ "package": { "name": "widget-solo" } }], "total": 1 });
     let npmjs_page = npmjs
