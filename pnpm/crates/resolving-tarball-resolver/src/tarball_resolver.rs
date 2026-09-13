@@ -10,9 +10,6 @@ use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
     ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
-use pnpm_store_dir::{
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
-};
 use pnpm_tarball::{
     FetchTarballForResolution, MemCache, PrefetchIntegrityCheck, PrefetchResult, RetryOpts,
     prefetch_cas_paths,
@@ -40,17 +37,7 @@ pub struct TarballFetchContext {
     /// the resolver can look an entry up before the preflight that would
     /// reveal a redirect.
     pub prior_tarball_entries: Arc<HashMap<String, PriorTarballEntry>>,
-    pub store: TarballStore,
-}
-
-pub struct TarballStore {
-    pub dir: &'static StoreDir,
-    pub index_writer: Option<Arc<StoreIndexWriter>>,
-    /// Read-only store index, for reusing a warm tarball without a
-    /// re-download (see `reuse_from_warm_store`).
-    pub index: Option<SharedReadonlyStoreIndex>,
-    pub verify_integrity: bool,
-    pub verified_files_cache: SharedVerifiedFilesCache,
+    pub store: pnpm_tarball::ArchiveStoreContext<'static>,
 }
 
 /// One remote-tarball entry carried over from the prior lockfile.
@@ -236,7 +223,7 @@ impl TarballResolver {
         let ctx = self.fetch_context.as_ref()?;
         let prior = ctx.prior_tarball_entries.get(normalized_bare_specifier)?;
         let cache_key = &prior.store_index_key;
-        let PrefetchResult { cas_paths, manifests, .. } = ctx.store.prefetch(cache_key).await;
+        let PrefetchResult { cas_paths, manifests, .. } = ctx.prefetch(cache_key).await;
         // The bundled manifest is required to resolve the tarball's
         // transitive dependencies; a row without one (or with no CAFS
         // entry) is treated as a miss so the caller re-fetches.
@@ -307,14 +294,14 @@ fn is_http_url(bare: &str) -> bool {
 #[cfg(test)]
 mod tests;
 
-impl TarballStore {
+impl TarballFetchContext {
     async fn prefetch(&self, cache_key: &str) -> PrefetchResult {
         prefetch_cas_paths(
-            self.index.clone(),
-            self.dir,
+            self.store.index.clone(),
+            self.store.dir,
             vec![cache_key.to_string()],
-            PrefetchIntegrityCheck::eager_if(self.verify_integrity),
-            Arc::clone(&self.verified_files_cache),
+            PrefetchIntegrityCheck::eager_if(self.store.verify_integrity),
+            Arc::clone(&self.store.verified_files_cache),
         )
         .await
     }

@@ -15,7 +15,7 @@ pub(in super::super) fn install_test<'a>(
         sequential: false,
         dry_run: false,
         json: false,
-        workspace: crate::cli_args::run::RunWorkspaceArgs {
+        workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
             resume_from: ctx.workspace.resume_from.map(str::to_string),
             report_summary: ctx.workspace.report_summary,
             no_bail: false,

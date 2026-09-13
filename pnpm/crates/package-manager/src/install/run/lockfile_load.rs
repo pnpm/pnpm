@@ -51,12 +51,12 @@ pub(super) async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
     // ask whether the pnpmfile exports hooks. The handle is handed to
     // the resolve path below so an install spawns at most one.
     let pnpmfile_hook = resolve_pnpmfile_hook(
-        install.config,
+        install.context.config,
         &workspace.dirs.workspace_root,
-        owned.pnpmfile_hook_override.take(),
+        owned.projects.pnpmfile_hook_override.take(),
     )?;
     let manifests = HookedManifests::hook::<Reporter>(
-        install.config,
+        install.context.config,
         &workspace.dirs.workspace_root,
         &scope.project_manifests,
         pnpmfile_hook.as_ref(),
@@ -70,7 +70,7 @@ pub(super) async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
         pre_merge_importers: wanted.pre_merge_importers,
         current: join_current_lockfile_load::<Reporter>(
             current_lockfile_task,
-            install.config,
+            install.context.config,
             &workspace.prefix,
         )
         .await,
@@ -91,9 +91,9 @@ pub(super) fn announce_manifest_load<Reporter: self::Reporter>(
     install: InstallView<'_>,
     workspace_root: &Path,
 ) {
-    register_workspace_in_store(install.config, workspace_root);
-    if install.emit_initial_manifest {
-        emit_initial_package_manifest::<Reporter>(install.manifest);
+    register_workspace_in_store(install.context.config, workspace_root);
+    if install.context.emit_initial_manifest {
+        emit_initial_package_manifest::<Reporter>(install.context.manifest);
     }
 }
 // Overlap the wanted-lockfile prefetch with cycle validation, then start the independent current read.
@@ -105,26 +105,26 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
     selection: Option<&crate::WorkspaceInstallSelection<'_>>,
     loaded_workspace_projects: Option<&[pnpm_workspace::Project]>,
 ) -> Result<StartedLockfiles<'a>, InstallError> {
-    install.lockfile.prefetch();
+    install.context.lockfile.prefetch();
     // Report the projects this install covers depending on each
     // other in a cycle — after the short-circuit above, because pnpm
     // returns from "Already up to date" before reaching its own
     // check, and before any resolution, because a
     // `disallowWorkspaceCycles` failure must not be paid for.
     report_install_scope_cycles::<Reporter>(
-        install.config,
+        install.context.config,
         workspace.dirs.workspace_dir.as_deref(),
         selection,
         (install.execution.mutation, workspace_projects(loaded_workspace_projects, selection)),
     )?;
-    let current_lockfile_task = spawn_current_lockfile_load(install.config);
+    let current_lockfile_task = spawn_current_lockfile_load(install.context.config);
     // Past the repeat-install fast path every install flavor needs
     // the wanted lockfile's contents; force the deferred load here.
     // A broken lockfile is regenerable state, so only a frozen
     // install treats it as fatal (upstream `readLockfiles`).
     let phase_start = std::time::Instant::now();
     let wanted = load_wanted_lockfile::<Reporter>(
-        install.lockfile,
+        install.context.lockfile,
         install.lockfile_policy.frozen,
         (&workspace.dirs.workspace_root, &workspace.prefix),
     )?;
@@ -139,13 +139,14 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
     // parsed, so the probe overlaps planning on the frozen path and
     // the whole resolution on the fresh path.
     let early_host_detection =
-        needs_early_host_detection(install.config, mode.resolve_only, wanted.lockfile).then(|| {
-            pnpm_deps_restorer::materialization_plan::HostDetection::spawn(
-                install.config.engine_strict,
-                mode.effective_node_version.clone(),
-                owned.supported_architectures.clone(),
-            )
-        });
+        needs_early_host_detection(install.context.config, mode.resolve_only, wanted.lockfile)
+            .then(|| {
+                pnpm_deps_restorer::materialization_plan::HostDetection::spawn(
+                    install.context.config.engine_strict,
+                    mode.effective_node_version.clone(),
+                    owned.projects.supported_architectures.clone(),
+                )
+            });
     Ok(StartedLockfiles { wanted, current_lockfile_task, early_host_detection })
 }
 // Both lockfiles can be megabyte-scale YAML documents; read the current one off the reactor

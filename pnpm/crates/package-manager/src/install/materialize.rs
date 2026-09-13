@@ -155,7 +155,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             unbuilt_builds: prior_unbuilt_builds,
             allow_builds_changed: allow_builds_changed_since(
                 self.modules.modules_manifest,
-                self.install.config,
+                self.install.context.config,
             ),
             prune_orphans: self.modules.prune_orphans,
         }
@@ -174,8 +174,8 @@ impl<'a> MaterializationInputs<'a, '_> {
             update_checksums: self.install.lockfile_policy.update_checksums,
             resolution_verifiers,
             drivers: crate::install_with_fresh_lockfile::FreshInstallDrivers {
-                http_client: self.install.http_client,
-                config: self.install.config,
+                http_client: self.install.context.http_client,
+                config: self.install.context.config,
                 logged_methods: self.modules.logged_methods,
             },
             projects: crate::install_with_fresh_lockfile::FreshInstallProjects {
@@ -272,7 +272,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                         loaded_lockfile,
                         &self.lockfiles.verification.resolution_verifiers,
                         self.lockfiles.verification.derived_lockfile_path.as_deref(),
-                        &self.install.config.cache_dir,
+                        &self.install.context.config.cache_dir,
                     )
                 })
             },
@@ -287,7 +287,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         let resolution_verifiers =
             std::mem::take(&mut self.lockfiles.verification.resolution_verifiers);
         let derived_lockfile_path = self.lockfiles.verification.derived_lockfile_path.take();
-        let site = (self.workspace.workspace_root, self.install.config);
+        let site = (self.workspace.workspace_root, self.install.context.config);
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let fresh_result = InstallWithFreshLockfile {
             inputs: self.fresh_inputs(&dependency_groups, &resolution_verifiers, &prior_unbuilt),

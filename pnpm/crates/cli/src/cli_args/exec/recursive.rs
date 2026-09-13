@@ -140,6 +140,7 @@ fn resumed_exec_task_graph(
     task_run_state_context: &TaskRunStateContext,
 ) -> miette::Result<TaskGraph> {
     let resume_anchor = args
+        .workspace
         .resume_from
         .as_ref()
         .map(|resume_from| find_resume_root(resume_from, graph))
@@ -179,7 +180,7 @@ struct ExecRun<'a> {
 impl ExecRun<'_> {
     /// Run every task, then report the outcome the way the flags ask for.
     fn execute(&self, task_graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> miette::Result<()> {
-        let bail = !self.args.no_bail;
+        let bail = !self.args.workspace.no_bail;
         let concurrency = exec_concurrency(self.args, self.config, task_graph.len());
         let result = queued_exec_results(task_graph);
         let first_failure: Mutex<Option<String>> = Mutex::new(None);

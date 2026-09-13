@@ -4,16 +4,14 @@ use super::{
 };
 
 pub(super) struct ImporterHoistPolicy {
-    /// `auto_install_peers || dedupe_peer_dependents` — upstream's
-    /// `hoistPeers`. Both hoist rounds no-op when it is `false`, so a
-    /// missing peer stays missing and the packages that declare it keep
-    /// an unsuffixed snapshot.
-    pub(super) hoist_peers: bool,
-    pub(super) auto_install_peers: bool,
-    pub(super) auto_install_peers_from_highest_match: bool,
-    pub(super) resolve_peers_from_workspace_root: bool,
+    pub(super) peers: crate::ImporterPeerOptions,
     pub(super) peers_suffix_max_length: usize,
-    pub(super) dedupe_peers: bool,
+}
+
+impl ImporterHoistPolicy {
+    pub(super) fn should_hoist_peers(&self) -> bool {
+        self.peers.auto_install_peers || self.peers.dedupe_peer_dependents
+    }
 }
 
 #[derive(Default)]
@@ -92,15 +90,8 @@ impl super::ImporterHoistState {
             ctx,
             project_dir: settings.project_dir,
             policy: ImporterHoistPolicy {
-                hoist_peers: settings.peers.auto_install_peers
-                    || settings.peers.dedupe_peer_dependents,
-                auto_install_peers: settings.peers.auto_install_peers,
-                auto_install_peers_from_highest_match: settings
-                    .peers
-                    .auto_install_peers_from_highest_match,
-                resolve_peers_from_workspace_root: settings.peers.resolve_peers_from_workspace_root,
+                peers: settings.peers,
                 peers_suffix_max_length: settings.peers_suffix_max_length,
-                dedupe_peers: settings.peers.dedupe_peers,
             },
             links: settings.links,
             progress: ImporterHoistProgress::default(),

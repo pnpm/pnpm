@@ -20,8 +20,8 @@ mod execution;
 
 use super::{
     Arc, DependencyGroup, InMemoryPackageMetaCache, IncludedDependencies, Install, InstallError,
-    InstallRunOptions, IsTerminal, Lockfile, PackageManifest, Path, PathBuf, Reporter,
-    UpdateSeedPolicy, build_resolution_verifiers, lockfile_root_dir,
+    InstallRunOptions, IsTerminal, Lockfile, Path, PathBuf, Reporter, UpdateSeedPolicy,
+    build_resolution_verifiers, lockfile_root_dir,
 };
 use pnpm_config::Config;
 use pnpm_store_dir::VerifiedFileIntegrity;
@@ -105,23 +105,20 @@ where
     fn split(self) -> (InstallView<'a>, InstallOwned) {
         (
             InstallView {
-                http_client: self.context.http_client,
-                config: self.context.config,
-                manifest: self.context.manifest,
-                emit_initial_manifest: self.context.emit_initial_manifest,
-                lockfile: self.context.lockfile,
-                lockfile_path: self.context.lockfile_path,
+                context: self.context,
                 lockfile_policy: self.lockfile_policy,
                 execution: self.execution,
             },
             InstallOwned {
                 tarball_mem_cache: self.fetching.tarball_mem_cache,
                 http_client_arc: self.fetching.http_client_arc,
-                dependency_groups: self.projects.dependency_groups.into_iter().collect(),
-                supported_architectures: self.projects.supported_architectures,
-                catalogs_override: self.projects.catalogs_override,
-                pnpmfile_hook_override: self.projects.pnpmfile_hook_override,
-                workspace_projects_override: self.projects.workspace_projects_override,
+                projects: super::InstallProjects {
+                    dependency_groups: self.projects.dependency_groups.into_iter().collect(),
+                    supported_architectures: self.projects.supported_architectures,
+                    catalogs_override: self.projects.catalogs_override,
+                    pnpmfile_hook_override: self.projects.pnpmfile_hook_override,
+                    workspace_projects_override: self.projects.workspace_projects_override,
+                },
                 resolution: self.resolution,
             },
         )
@@ -132,7 +129,10 @@ where
         options: InstallRunOptions<'a, '_>,
     ) -> Result<InstallRunOutcome, InstallError> {
         let (install, mut owned) = self.split();
-        install.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        install
+            .context
+            .http_client
+            .set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         owned.http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let mode = RunMode::settle(install, &owned, &options)?;
         let mut workspace = InstallWorkspace::discover::<Reporter>(install, &mut owned, &options)?;
@@ -174,12 +174,7 @@ enum InstallRunOutcome {
 
 #[derive(Clone, Copy)]
 pub(super) struct InstallView<'a> {
-    pub(super) http_client: &'a super::ThrottledClient,
-    pub(super) config: &'static Config,
-    pub(super) manifest: &'a PackageManifest,
-    pub(super) emit_initial_manifest: bool,
-    pub(super) lockfile: super::MaybeLazyLockfile<'a>,
-    pub(super) lockfile_path: Option<&'a Path>,
+    pub(super) context: super::InstallInvocation<'a>,
     pub(super) lockfile_policy: InstallLockfilePolicy,
     pub(super) execution: InstallExecution,
 }
@@ -209,11 +204,7 @@ pub struct InstallExecution {
 struct InstallOwned {
     tarball_mem_cache: Arc<super::MemCache>,
     http_client_arc: Arc<super::ThrottledClient>,
-    dependency_groups: Vec<DependencyGroup>,
-    supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
-    catalogs_override: Option<super::Catalogs>,
-    pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    workspace_projects_override: Option<Vec<pnpm_workspace::Project>>,
+    projects: super::InstallProjects<Vec<DependencyGroup>>,
     resolution: crate::install::run::ResolutionInputs,
 }
 
@@ -254,7 +245,10 @@ impl RunMode {
         // `useLockfile: false`) is a config conflict: the only output the
         // flag produces is the lockfile, and that write is disabled.
         // Fail fast rather than run a resolve that writes nothing.
-        reject_lockfile_only_without_lockfile(install.config, install.execution.lockfile_only)?;
+        reject_lockfile_only_without_lockfile(
+            install.context.config,
+            install.execution.lockfile_only,
+        )?;
         // `enableModulesDir: false` (with the global virtual store off) is
         // "resolve and write the lockfile, materialize nothing" — the same
         // pipeline `--lockfile-only` takes, entered from config. It stays
@@ -263,11 +257,11 @@ impl RunMode {
         // rebuild — which runs against an already-materialized
         // `node_modules` — into a silent no-op.
         let lockfile_only = effective_lockfile_only(
-            install.config,
+            install.context.config,
             install.execution.lockfile_only,
             options.rebuild.as_ref(),
         );
-        reject_conflicting_store_config(install.config)?;
+        reject_conflicting_store_config(install.context.config)?;
         Ok(Self {
             lockfile_only,
             // `--dry-run` resolves but never materializes, so it borrows the
@@ -280,13 +274,16 @@ impl RunMode {
             prefer_frozen_lockfile: install
                 .lockfile_policy
                 .prefer_frozen
-                .unwrap_or(install.config.prefer_frozen_lockfile),
+                .unwrap_or(install.context.config.prefer_frozen_lockfile),
             // The same set the dependency-graph walker observes, written to
             // `.modules.yaml` as `included`.
-            included: super::included_dependencies(&owned.dependency_groups),
+            included: super::included_dependencies(&owned.projects.dependency_groups),
             can_prompt: options.prompt_eligibility_override.unwrap_or_else(prompts_are_answerable),
             peer_issues_sink_is_none: owned.resolution.peer_issues_sink.is_none(),
-            effective_node_version: super::effective_node_version(install.config, install.manifest),
+            effective_node_version: super::effective_node_version(
+                install.context.config,
+                install.context.manifest,
+            ),
             verified_file_integrity_baseline,
         })
     }
@@ -340,7 +337,7 @@ impl Verification {
         let planned_canonical_fetches =
             pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
         let resolution_verifiers = install_resolution_verifiers(
-            install.config,
+            install.context.config,
             install.lockfile_policy.trust,
             (&owned.http_client_arc, &meta_cache, owned.resolution.auth_override.as_ref()),
             &planned_canonical_fetches,
@@ -350,8 +347,8 @@ impl Verification {
             planned_canonical_fetches,
             resolution_verifiers,
             derived_lockfile_path: has_lockfile.then(|| {
-                install.lockfile_path.map_or_else(
-                    || workspace_root.join(install.config.wanted_lockfile_name()),
+                install.context.lockfile_path.map_or_else(
+                    || workspace_root.join(install.context.config.wanted_lockfile_name()),
                     Path::to_path_buf,
                 )
             }),

@@ -362,6 +362,7 @@ where
     pub projects: InstallProjects<DependencyGroupList>,
 }
 
+#[derive(Clone, Copy)]
 pub struct InstallInvocation<'a> {
     pub http_client: &'a ThrottledClient,
     pub config: &'static Config,

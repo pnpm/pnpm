@@ -26,7 +26,7 @@ impl ScriptShortcutArgs {
             sequential: false,
             dry_run: false,
             json: false,
-            workspace: crate::cli_args::run::RunWorkspaceArgs {
+            workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
                 resume_from: None,
                 report_summary: false,
                 no_bail: false,

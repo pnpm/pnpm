@@ -10,7 +10,7 @@ impl ImporterHoistState {
     /// Resolve the importer's missing *required* peers to a fixpoint,
     /// rebuilding the missing-*optional* buckets the round's
     /// [`Self::hoist_optional_round`] consumes. No-op when nothing may
-    /// be hoisted (see [`super::hoist_state::ImporterHoistPolicy::hoist_peers`]); the final
+    /// be hoisted (see [`super::hoist_state::ImporterHoistPolicy::should_hoist_peers`]); the final
     /// peer pass still reports every unmet peer as a warning.
     pub(crate) async fn run_required_round<Chain>(
         &mut self,
@@ -20,7 +20,7 @@ impl ImporterHoistState {
     where
         Chain: Resolver + ?Sized,
     {
-        if !self.policy.hoist_peers {
+        if !self.policy.should_hoist_peers() {
             return Ok(());
         }
         if self.progress.discovery_converged
@@ -41,7 +41,7 @@ impl ImporterHoistState {
         &mut self,
         peer_discovery: &mut PeerHoistDiscovery,
     ) -> Option<RequiredRound> {
-        if !self.policy.hoist_peers {
+        if !self.policy.should_hoist_peers() {
             return None;
         }
         self.begin_required_round();
@@ -139,7 +139,7 @@ impl ImporterHoistState {
             let (missing_required, fresh_optional) = partition_missing_peers(
                 &self.progress.merged_missing,
                 &self.dependencies.parent_pkg_aliases,
-                self.policy.auto_install_peers_from_highest_match,
+                self.policy.peers.auto_install_peers_from_highest_match,
             );
             self.append_resolved_peer_providers(
                 &round.discovery.resolved_peer_providers_by_alias,
@@ -183,7 +183,7 @@ impl ImporterHoistState {
         );
         let hoisted = hoist_peers(
             &HoistPeersOptions {
-                auto_install_peers: self.policy.auto_install_peers,
+                auto_install_peers: self.policy.peers.auto_install_peers,
                 all_preferred_versions: &hoist_preferred,
                 workspace_root_deps: self.hoist_root_deps(),
                 override_bare_specifier: self.selection.override_bare_specifier.as_deref(),
@@ -224,7 +224,7 @@ impl ImporterHoistState {
     /// The workspace root's own dependencies, when peers resolve from there.
     /// They bound what a hoist may install.
     pub(super) fn hoist_root_deps(&self) -> &[WorkspaceRootDep] {
-        if self.policy.resolve_peers_from_workspace_root {
+        if self.policy.peers.resolve_peers_from_workspace_root {
             &self.dependencies.workspace_root_deps
         } else {
             &[]
@@ -289,7 +289,7 @@ impl ImporterHoistState {
         provider_pkg_ids: &HashMap<crate::NodeId, String>,
         missing_required: &BTreeMap<String, MissingPeerInfo>,
     ) {
-        if !self.policy.auto_install_peers {
+        if !self.policy.peers.auto_install_peers {
             return;
         }
         for (alias, node_id) in providers {
@@ -313,7 +313,7 @@ impl ImporterHoistState {
 
     /// Hoist this round's missing optional peers; `true` when any were
     /// installed (the workspace runs another round). No-op when nothing
-    /// may be hoisted (see [`super::hoist_state::ImporterHoistPolicy::hoist_peers`]).
+    /// may be hoisted (see [`super::hoist_state::ImporterHoistPolicy::should_hoist_peers`]).
     pub(crate) async fn hoist_optional_round<Chain>(
         &mut self,
         resolver: &Chain,
@@ -321,7 +321,9 @@ impl ImporterHoistState {
     where
         Chain: Resolver + ?Sized,
     {
-        if !self.policy.hoist_peers || self.dependencies.all_missing_optional_peers.is_empty() {
+        if !self.policy.should_hoist_peers()
+            || self.dependencies.all_missing_optional_peers.is_empty()
+        {
             return Ok(false);
         }
         let hoist_preferred = self.ctx.preferred_versions_for_names(

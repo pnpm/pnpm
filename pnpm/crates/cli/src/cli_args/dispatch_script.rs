@@ -106,7 +106,7 @@ pub(super) fn fallback<'a>(
         sequential: false,
         dry_run: false,
         json: false,
-        workspace: crate::cli_args::run::RunWorkspaceArgs {
+        workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
             resume_from: None,
             report_summary: false,
             no_bail: false,
@@ -164,6 +164,17 @@ struct RecursiveCliOptions<'a> {
 }
 
 impl<'a> RecursiveCliOptions<'a> {
+    fn execution_args(self, config: &Config) -> super::recursive::RecursiveExecutionArgs {
+        super::recursive::RecursiveExecutionArgs {
+            resume_from: self.resume_from.map(str::to_string),
+            report_summary: self.report_summary,
+            no_bail: !config.bail,
+            sort: config.sort,
+            reverse: config.reverse,
+            parallel: self.parallel,
+        }
+    }
+
     fn from_ctx(ctx: &RunCtx<'a>) -> Self {
         Self {
             resume_from: ctx.workspace.resume_from,
@@ -179,12 +190,7 @@ fn with_recursive_run_options(
     mut args: RunArgs,
     config: &Config,
 ) -> RunArgs {
-    args.workspace.resume_from = cli_options.resume_from.map(str::to_string);
-    args.workspace.report_summary = cli_options.report_summary;
-    args.workspace.no_bail = !config.bail;
-    args.workspace.sort = config.sort;
-    args.workspace.reverse = config.reverse;
-    args.workspace.parallel = cli_options.parallel;
+    args.workspace = cli_options.execution_args(config);
     args.if_present |= cli_options.if_present;
     args
 }
@@ -194,12 +200,7 @@ fn with_recursive_exec_options(
     mut args: ExecArgs,
     config: &Config,
 ) -> ExecArgs {
-    args.resume_from = cli_options.resume_from.map(str::to_string);
-    args.report_summary = cli_options.report_summary;
-    args.no_bail = !config.bail;
-    args.sort = config.sort;
-    args.reverse = config.reverse;
-    args.parallel = cli_options.parallel;
+    args.workspace = cli_options.execution_args(config);
     args
 }
 

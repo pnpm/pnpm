@@ -76,7 +76,7 @@ pub(super) fn build_exec_task_graph(
     selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
     command_name: &str,
 ) -> TaskGraph {
-    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = if args.sort {
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = if args.workspace.sort {
         filtered_projects_dependencies(
             graph,
             selection.full_graph(),
@@ -107,13 +107,13 @@ pub(super) fn build_exec_task_graph(
             (key, node)
         })
         .collect();
-    if args.reverse { reverse_task_graph(&task_graph) } else { task_graph }
+    if args.workspace.reverse { reverse_task_graph(&task_graph) } else { task_graph }
 }
 
 /// `--parallel` runs every task at once; otherwise the workspace
 /// concurrency setting caps it, never below one.
 pub(super) fn exec_concurrency(args: &ExecArgs, config: &Config, task_count: usize) -> usize {
-    if args.parallel {
+    if args.workspace.parallel {
         return task_count;
     }
     usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
@@ -160,7 +160,7 @@ pub(super) fn report_recursive_outcome(
     result: &IndexMap<String, ExecutionStatus>,
     bail_prefix: Option<String>,
 ) -> miette::Result<()> {
-    if args.report_summary {
+    if args.workspace.report_summary {
         write_recursive_summary(workspace_root, result)?;
     }
     if let Some(prefix) = bail_prefix {

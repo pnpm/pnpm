@@ -156,7 +156,7 @@ impl<'a> RunExecution<'a> {
             lockfiles,
             workspace: self.workspace.materialization_workspace(
                 (
-                    std::mem::take(&mut self.owned.dependency_groups),
+                    std::mem::take(&mut self.owned.projects.dependency_groups),
                     self.options.manifests.specifier_manifests.take(),
                 ),
                 (
@@ -207,7 +207,7 @@ impl<'a> RunExecution<'a> {
             catalogs: std::mem::take(&mut self.workspace.catalogs),
             catalog_context_present: self.workspace.catalog_context_present,
             verified_file_integrity_baseline: self.mode.verified_file_integrity_baseline,
-            config: self.install.config,
+            config: self.install.context.config,
         }
     }
 
@@ -237,14 +237,16 @@ impl<'a> RunExecution<'a> {
                 is_inconsistent: dispatched.modules.is_inconsistent,
             },
             projects: crate::install::state_options::ApplyProjectSelection {
-                requested_importer_ids: scope.importers.requested_importer_ids.as_ref(),
-                real_importer_ids: &scope.importers.real_importer_ids,
-                manifests: project_manifests,
+                importers: crate::install::state_options::SelectedImporters {
+                    requested_ids: scope.importers.requested_importer_ids.as_ref(),
+                    real_ids: &scope.importers.real_importer_ids,
+                    manifests: project_manifests,
+                },
                 workspace_root: std::mem::take(&mut self.workspace.dirs.workspace_root),
                 included: self.mode.included,
                 node_linker: self.install.execution.node_linker,
                 filtered_install: scope.importers.filtered_install,
-                supported_architectures: self.owned.supported_architectures.take(),
+                supported_architectures: self.owned.projects.supported_architectures.take(),
             },
             resolution: crate::install::state_options::ApplyResolutionState {
                 existing_wanted: lockfiles.wanted.loaded,
@@ -317,7 +319,7 @@ impl super::RunMode {
         crate::install::materialize::MaterializationExecution {
             effective_node_version: self.effective_node_version.take(),
             take_frozen_path,
-            supported_architectures: owned.supported_architectures.as_ref(),
+            supported_architectures: owned.projects.supported_architectures.as_ref(),
             early_host_detection,
             resolve_only: self.resolve_only,
             can_prompt: self.can_prompt,

@@ -31,7 +31,6 @@ use pnpm_resolving_npm_resolver::{
     shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pnpm_store_dir::StoreDir;
 use pnpm_workspace_state::ConfigDependency;
 use serde_json::Value;
 use std::{
@@ -299,7 +298,7 @@ struct EnvInstallerContext {
     node_version: String,
     resolver: NpmResolver<InMemoryPackageMetaCache>,
     network: EnvironmentNetwork,
-    store: EnvironmentStore,
+    store: pnpm_env_installer::ConfigDependencyStore,
 }
 
 pub(crate) struct EnvironmentNetwork {
@@ -307,14 +306,7 @@ pub(crate) struct EnvironmentNetwork {
     auth_headers: Arc<pnpm_network::AuthHeaders>,
     registries: HashMap<String, String>,
     retry_opts: RetryOpts,
-}
-
-pub(crate) struct EnvironmentStore {
-    dir: &'static StoreDir,
-    verify_integrity: bool,
-    strict_pkg_content_check: bool,
     offline: bool,
-    import_method: pnpm_config::PackageImportMethod,
 }
 
 impl EnvInstallerContext {
@@ -364,19 +356,24 @@ impl EnvInstallerContext {
 
         let registries: HashMap<String, String> = registries.into_iter().collect();
         let retry_opts = config.retry_opts();
-        let network = EnvironmentNetwork { http_client, auth_headers, registries, retry_opts };
+        let network = EnvironmentNetwork {
+            http_client,
+            auth_headers,
+            registries,
+            retry_opts,
+            offline: config.offline,
+        };
         let resolver = network.resolver(config);
 
         Ok(Self {
             node_version: detect_node_version().unwrap_or_else(|| "0.0.0".to_string()),
             resolver,
             network,
-            store: EnvironmentStore {
+            store: pnpm_env_installer::ConfigDependencyStore {
                 dir: Box::leak(Box::new(config.store_dir.clone())),
                 verify_integrity: config.verify_store_integrity,
                 strict_pkg_content_check: config.strict_store_pkg_content_check,
-                offline: config.offline,
-                import_method: config.package_import_method,
+                package_import_method: config.package_import_method,
             },
         })
     }
@@ -391,7 +388,7 @@ impl EnvInstallerContext {
                 http_client: &self.network.http_client,
                 auth_headers: &self.network.auth_headers,
                 retry_opts: self.network.retry_opts,
-                offline: self.store.offline,
+                offline: self.network.offline,
             },
             platform: pnpm_package_is_installable::InstallabilityOptions {
                 supported_architectures: None,
@@ -401,12 +398,7 @@ impl EnvInstallerContext {
                 current_libc: host_libc(),
                 ..Default::default()
             },
-            store: pnpm_env_installer::ConfigDependencyStore {
-                dir: self.store.dir,
-                verify_integrity: self.store.verify_integrity,
-                strict_pkg_content_check: self.store.strict_pkg_content_check,
-                package_import_method: self.store.import_method,
-            },
+            store: self.store,
             root_dir,
 
             registries: &self.network.registries,
@@ -466,7 +458,7 @@ impl EnvironmentNetwork {
                 filter_metadata: config.requires_full_metadata_for_resolution(),
             },
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
-                offline: config.offline,
+                offline: self.offline,
                 prefer_offline: config.prefer_offline,
                 ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
             },

@@ -58,6 +58,7 @@ fn scope_of(name: &str) -> Option<usize> {
     name.starts_with('@').then(|| name.find('/')).flatten()
 }
 
+#[derive(Clone, Copy)]
 pub struct ConfigDependencyStore {
     pub dir: &'static StoreDir,
     pub verify_integrity: bool,

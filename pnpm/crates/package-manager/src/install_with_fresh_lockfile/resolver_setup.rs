@@ -314,7 +314,9 @@ impl ResolverChainInputs<'_> {
                 auth_headers: Arc::clone(self.fetching.auth_headers),
                 retry_opts: self.retry_opts(),
                 prior_tarball_entries: Arc::new(prior_tarball_entries(self.project.lockfile)),
-                store: pnpm_resolving_tarball_resolver::TarballStore {
+                store: pnpm_tarball::ArchiveStoreContext {
+                    strict_pkg_content_check: false,
+                    prefetched_cas_paths: None,
                     dir: self.store.dir,
                     index_writer: Some(Arc::clone(self.store.index_writer)),
                     index: self.store.index.cloned(),

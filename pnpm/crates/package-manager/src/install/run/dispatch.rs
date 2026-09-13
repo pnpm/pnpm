@@ -119,7 +119,7 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
     let lockfile = lockfiles.wanted.get().expect("frozen dispatch verified lockfile is present");
     finish_frozen_lockfile_only::<Reporter>(
         lockfile,
-        install.config,
+        install.context.config,
         LockfileOnlyFrozen {
             workspace_root: &workspace.dirs.workspace_root,
             prefix: &workspace.prefix,
@@ -166,7 +166,7 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
             frozen: take_frozen_path,
             filtered: scope.importers.filtered_install,
             disable_optimistic_check: install.lockfile_policy.disable_optimistic_repeat,
-            supported_architectures: owned.supported_architectures.as_ref(),
+            supported_architectures: owned.projects.supported_architectures.as_ref(),
             rebuild: options.rebuild.as_ref(),
             effective_node_version: mode.effective_node_version.as_deref(),
         },
@@ -195,8 +195,9 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::Context(ContextLog {
         level: LogLevel::Debug,
         current_lockfile_exists: loaded.current.is_some(),
-        store_dir: install.config.store_dir.display().to_string(),
+        store_dir: install.context.config.store_dir.display().to_string(),
         virtual_store_dir: install
+            .context
             .config
             .effective_virtual_store_dir()
             .to_string_lossy()
@@ -219,7 +220,7 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
     // - [`DEV_PREINSTALL_ALREADY_RAN_ENV`], the delegating CLI's
     //   marker for the one path that carries no flag of its own.
     run_dev_preinstall_hook::<Reporter>(&DevPreinstallScope {
-        config: install.config,
+        config: install.context.config,
         workspace_root: &workspace.dirs.workspace_root,
         project_manifests,
         resolve_only: mode.resolve_only,
@@ -384,7 +385,7 @@ impl Verification {
 impl<'r> Settled<'r, '_> {
     fn modules_tree(self) -> crate::install::state_options::ModulesTreeContext<'r> {
         crate::install::state_options::ModulesTreeContext {
-            config: self.install.config,
+            config: self.install.context.config,
             workspace_root: &self.projects.workspace.dirs.workspace_root,
             node_linker: self.install.execution.node_linker,
             included: self.mode.included,
@@ -402,7 +403,7 @@ impl<'r> Settled<'r, '_> {
         LockfileFreshnessInputs {
             lockfile_dir: &workspace.dirs.workspace_root,
             manifests: &lockfiles.manifest_freshness_inputs,
-            config: install.config,
+            config: install.context.config,
             catalogs: &workspace.catalogs,
             pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
             scope: FreshnessScope {

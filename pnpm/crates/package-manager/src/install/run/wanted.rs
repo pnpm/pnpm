@@ -101,7 +101,7 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
         &lockfiles.manifest_freshness_inputs,
     )
     .await;
-    reconcile_branch_lockfile(&mut lockfiles, loaded, install.config);
+    reconcile_branch_lockfile(&mut lockfiles, loaded, install.context.config);
     if may_fast_update_lockfile(install, mode.prefer_frozen_lockfile) {
         lockfiles.wanted.fast_updated =
             try_fast_update_lockfile::<Reporter>(FastUpdateLockfileOptions {
@@ -110,7 +110,7 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
                 freshness: LockfileFreshnessInputs {
                     lockfile_dir: &workspace.dirs.workspace_root,
                     manifests: &lockfiles.manifest_freshness_inputs,
-                    config: install.config,
+                    config: install.context.config,
                     catalogs: &workspace.catalogs,
                     pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
                     scope: FreshnessScope {
@@ -160,7 +160,7 @@ pub(super) async fn synthesize_wanted(
             freshness: LockfileFreshnessInputs {
                 lockfile_dir: &workspace.dirs.workspace_root,
                 manifests: manifest_freshness_inputs,
-                config: install.config,
+                config: install.context.config,
                 catalogs: &workspace.catalogs,
                 pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
                 scope: FreshnessScope {

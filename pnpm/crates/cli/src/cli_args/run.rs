@@ -73,36 +73,7 @@ pub struct RunArgs {
     #[clap(long)]
     pub json: bool,
     #[clap(flatten)]
-    pub workspace: RunWorkspaceArgs,
-}
-
-#[derive(Debug, Clone, clap::Args)]
-pub struct RunWorkspaceArgs {
-    /// Run the script starting from the given package, skipping every
-    /// package that sorts before it. Only meaningful together with the
-    /// global `-r` / `--recursive` flag (the `--resume-from` flag).
-    #[clap(skip)]
-    pub resume_from: Option<String>,
-    /// Save the execution result of every package to
-    /// `pnpm-exec-summary.json`. Only meaningful together with the
-    /// global `-r` / `--recursive` flag (the `--report-summary` flag).
-    #[clap(skip)]
-    pub report_summary: bool,
-    /// Keep running the remaining scripts after one fails instead of
-    /// aborting on the first failure (the global `--no-bail` flag).
-    /// Applies to a recursive run and to a `/pattern/` run that selects
-    /// several scripts; both bail by default.
-    #[clap(skip)]
-    pub no_bail: bool,
-    /// Sort recursive workspace projects topologically before running.
-    #[clap(skip = true)]
-    pub sort: bool,
-    /// Reverse the project order of a recursive run.
-    #[clap(skip = true)]
-    pub reverse: bool,
-    /// Start scripts in all selected projects concurrently.
-    #[clap(skip = true)]
-    pub parallel: bool,
+    pub workspace: super::recursive::RecursiveExecutionArgs,
 }
 
 /// Errors from `pacquet run`, including the hidden-script rejections from
@@ -330,12 +301,14 @@ fn exec_fallback(
     ExecArgs {
         command: RunArgs::script(script_name, args.iter().cloned()),
         shell_mode: false,
-        resume_from: None,
-        report_summary: false,
-        no_bail: false,
-        sort: true,
-        reverse: false,
-        parallel: false,
+        workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
+            resume_from: None,
+            report_summary: false,
+            no_bail: false,
+            sort: true,
+            reverse: false,
+            parallel: false,
+        },
     }
     .run(dirs, config, reporter)
 }

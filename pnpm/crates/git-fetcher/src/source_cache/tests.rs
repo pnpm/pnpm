@@ -1,4 +1,4 @@
-use super::{GitSourceCache, GitSourceOptions};
+use super::{GitSource, GitSourceCache};
 use pnpm_fs::copy_dir_contents;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
 use std::{
@@ -18,10 +18,12 @@ fn concurrent_and_sequential_consumers_share_a_checkout() {
     let cache = GitSourceCache::default();
     #[cfg(unix)]
     let log = pnpm_testing_utils::git_repo::GitCommandLog::new(root.path());
-    let opts = GitSourceOptions {
+    let opts = GitSource {
+        cache: &cache,
+        path: None,
         repo: &url,
         commit: &commit,
-        git_shallow_hosts: &[],
+        shallow_hosts: &[],
         #[cfg(unix)]
         git_bin: Some(&log.bin),
         #[cfg(not(unix))]
@@ -47,11 +49,22 @@ fn concurrent_and_sequential_consumers_share_a_checkout() {
     #[cfg(unix)]
     assert_eq!(log.acquisitions().len(), 1);
     let path = later.path().to_path_buf();
+    let next_install = GitSourceCache::default();
     drop(cache);
+    let opts = GitSource {
+        cache: &next_install,
+        path: None,
+        repo: &url,
+        commit: &commit,
+        shallow_hosts: &[],
+        #[cfg(unix)]
+        git_bin: Some(&log.bin),
+        #[cfg(not(unix))]
+        git_bin: None,
+    };
     assert!(path.exists(), "active consumer lost its snapshot: {path:?}");
     drop((later, sources));
     assert!(!path.exists(), "snapshot was not cleaned: {path:?}");
-    let next_install = GitSourceCache::default();
     let next_source = next_install.get(&opts).unwrap();
     assert_ne!(next_source.path(), path);
     #[cfg(unix)]
@@ -81,7 +94,14 @@ fn repositories_commits_and_url_spellings_are_isolated() {
         (&alternate_url, &first, "first"),
     ] {
         let source = cache
-            .get(&GitSourceOptions { repo: url, commit, git_shallow_hosts: &[], git_bin: None })
+            .get(&GitSource {
+                cache: &cache,
+                path: None,
+                repo: url,
+                commit,
+                shallow_hosts: &[],
+                git_bin: None,
+            })
             .unwrap();
         assert_eq!(fs::read_to_string(source.path().join("value")).unwrap(), expected);
         for previous in &sources {
@@ -99,10 +119,12 @@ fn working_copies_preserve_git_context_without_sharing_mutations() {
     let commit = repo.commit("initial");
     let cache = GitSourceCache::default();
     let source = cache
-        .get(&GitSourceOptions {
+        .get(&GitSource {
+            cache: &cache,
+            path: None,
             repo: &repo.file_url(),
             commit: &commit,
-            git_shallow_hosts: &[],
+            shallow_hosts: &[],
             git_bin: None,
         })
         .unwrap();
@@ -156,12 +178,14 @@ fn shallow_and_full_checkouts_of_one_commit_are_isolated() {
     env.set("PACQUET_GIT_SHIM_FAKE_COMMIT", commit);
     let cache = GitSourceCache::default();
     let shallow_hosts = ["test.invalid".to_string()];
-    let [shallow, full] = [&shallow_hosts[..], &[]].map(|git_shallow_hosts| {
+    let [shallow, full] = [&shallow_hosts[..], &[]].map(|shallow_hosts| {
         cache
-            .get(&GitSourceOptions {
+            .get(&GitSource {
+                cache: &cache,
+                path: None,
                 repo: "git://test.invalid/x/y.git",
                 commit,
-                git_shallow_hosts,
+                shallow_hosts,
                 git_bin: Some(&shim),
             })
             .unwrap()
@@ -190,10 +214,12 @@ fn checkouts_by_different_git_executables_are_isolated() {
     ];
     let sources = logs.each_ref().map(|log| {
         cache
-            .get(&GitSourceOptions {
+            .get(&GitSource {
+                cache: &cache,
+                path: None,
                 repo: &url,
                 commit: &commit,
-                git_shallow_hosts: &[],
+                shallow_hosts: &[],
                 git_bin: Some(&log.bin),
             })
             .unwrap()
@@ -212,10 +238,12 @@ fn acquisition_failures_are_shared_and_cleaned_and_a_new_install_retries() {
     let log = GitCommandLog::new(root.path());
     let cache = GitSourceCache::default();
     let missing = root.path().join("missing.git");
-    let opts = GitSourceOptions {
+    let opts = GitSource {
+        cache: &cache,
+        path: None,
         repo: missing.to_str().unwrap(),
         commit: "0123456789012345678901234567890123456789",
-        git_shallow_hosts: &[],
+        shallow_hosts: &[],
         git_bin: Some(&log.bin),
     };
     let barrier = Barrier::new(4);
@@ -237,8 +265,17 @@ fn acquisition_failures_are_shared_and_cleaned_and_a_new_install_retries() {
     assert!(Arc::ptr_eq(&later, &errors[0]), "failure was retried within the install");
     assert_eq!(log.acquisitions().len(), 1);
     assert!(!log.acquisitions()[0].exists(), "partial checkout survived: {:?}", log.acquisitions());
+    let next_install = GitSourceCache::default();
     drop(cache);
-    GitSourceCache::default().get(&opts).unwrap_err();
+    let opts = GitSource {
+        cache: &next_install,
+        path: None,
+        repo: missing.to_str().unwrap(),
+        commit: "0123456789012345678901234567890123456789",
+        shallow_hosts: &[],
+        git_bin: Some(&log.bin),
+    };
+    next_install.get(&opts).unwrap_err();
     assert_eq!(log.acquisitions().len(), 2);
     assert!(log.acquisitions().iter().all(|path| !path.exists()), "failed checkouts survived");
 }

@@ -13,13 +13,12 @@
 pub(crate) mod tests;
 
 use crate::{
-    GitSourceCache,
+    GitSource, GitSourceCache,
     cas_io::{ImportedFiles, import_into_cas},
     error::{GitFetcherError, PreparePackageError},
     prepare_package::{
         AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package, safe_join_path,
     },
-    source_cache::GitSourceOptions,
 };
 use pnpm_fs_packlist::packlist;
 use pnpm_network::{redact_and_sanitize, redact_and_sanitize_multiline};
@@ -126,22 +125,13 @@ impl GitFetcher<'_> {
         Ok(GitFetchOutput { cas_paths, built: should_be_built })
     }
     fn copy_source(&self, temp_location: &Path) -> Result<(), GitFetcherError> {
-        let source = self
-            .source
-            .cache
-            .get(&GitSourceOptions {
-                repo: self.source.repo,
-                commit: self.source.commit,
-                git_shallow_hosts: self.source.shallow_hosts,
-                git_bin: self.source.git_bin,
-            })
-            .map_err(|err| {
-                name_fetch_failure(
-                    self.source.repo,
-                    self.package_name,
-                    GitFetcherError::SharedSource(err),
-                )
-            })?;
+        let source = self.source.cache.get(&self.source).map_err(|err| {
+            name_fetch_failure(
+                self.source.repo,
+                self.package_name,
+                GitFetcherError::SharedSource(err),
+            )
+        })?;
         pnpm_fs::copy_dir_contents(source.path(), temp_location).map_err(GitFetcherError::Io)?;
 
         Ok(())
@@ -366,10 +356,12 @@ pub async fn read_git_manifest(
     tokio::task::block_in_place(|| {
         let source = query
             .source_cache
-            .get(&GitSourceOptions {
+            .get(&GitSource {
+                cache: query.source_cache,
+                path: query.path,
                 repo: query.repo,
                 commit: query.commit,
-                git_shallow_hosts: query.git_shallow_hosts,
+                shallow_hosts: query.git_shallow_hosts,
                 git_bin: query.git_bin,
             })
             .map_err(GitFetcherError::SharedSource)?;

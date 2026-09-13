@@ -20,9 +20,7 @@ pub(crate) struct ApplyPriorState {
 }
 
 pub(crate) struct ApplyProjectSelection<'a> {
-    pub(crate) requested_importer_ids: Option<&'a HashSet<String>>,
-    pub(crate) real_importer_ids: &'a HashSet<String>,
-    pub(crate) manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(crate) importers: SelectedImporters<'a>,
     pub(crate) workspace_root: PathBuf,
     pub(crate) included: IncludedDependencies,
     pub(crate) node_linker: NodeLinker,

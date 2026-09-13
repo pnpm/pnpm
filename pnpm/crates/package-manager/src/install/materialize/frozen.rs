@@ -17,7 +17,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             current: self.lockfiles.current,
             current_entries: LockfileEntries::of_previous_install(
                 self.lockfiles.current,
-                self.install.config.force,
+                self.install.context.config.force,
             ),
             resolution_verifiers: self
                 .workspace
@@ -42,8 +42,8 @@ impl<'a> MaterializationInputs<'a, '_> {
         };
         InstallFrozenLockfile {
             drivers: pnpm_deps_restorer::FrozenInstallDrivers {
-                config: self.install.config,
-                http_client: self.install.http_client,
+                config: self.install.context.config,
+                http_client: self.install.context.http_client,
                 pnpmfile_hook: self.resolution.pnpmfile_hook.as_ref(),
                 tarball_mem_cache: Some(&self.downloads.tarball_mem_cache),
             },
@@ -59,7 +59,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 hoisted_locations: self.modules.prior_hoisted_locations,
                 allow_builds_changed: allow_builds_changed_since(
                     self.modules.modules_manifest,
-                    self.install.config,
+                    self.install.context.config,
                 ),
                 unbuilt_builds: prior_unbuilt_builds,
                 prune_orphans: self.modules.prune_orphans,
@@ -103,7 +103,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             lockfile,
             &self.lockfiles.verification.resolution_verifiers,
             self.lockfiles.verification.derived_lockfile_path.as_deref(),
-            &self.install.config.cache_dir,
+            &self.install.context.config.cache_dir,
         )
         .await?;
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);

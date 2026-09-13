@@ -52,11 +52,7 @@ fn select_apply_state<'a>(inputs: &'a ApplyMaterializationInputs<'_, '_>) -> Mat
             wanted: inputs.resolution.loaded,
             current: inputs.prior.lockfile.as_ref(),
         },
-        projects: crate::install::state_options::SelectedImporters {
-            requested_ids: inputs.projects.requested_importer_ids,
-            real_ids: inputs.projects.real_importer_ids,
-            manifests: inputs.projects.manifests,
-        },
+        projects: inputs.projects.importers,
 
         workspace_root: &inputs.projects.workspace_root,
         included: inputs.projects.included,
@@ -79,7 +75,7 @@ async fn link_apply_projects<Reporter: self::Reporter + 'static>(
         current_lockfile: state.current_lockfile.as_ref(),
         wanted_lockfile: state.wanted_lockfile,
         workspace_root: &inputs.projects.workspace_root,
-        project_manifests: inputs.projects.manifests,
+        project_manifests: inputs.projects.importers.manifests,
         materialized_project_manifests: &state.project_manifests,
     })
     .await?;
@@ -165,7 +161,7 @@ fn run_apply_scripts<Reporter: self::Reporter>(
         node_linker: inputs.projects.node_linker,
         workspace_root: &inputs.projects.workspace_root,
 
-        project_manifests: inputs.projects.manifests,
+        project_manifests: inputs.projects.importers.manifests,
         materialized_project_manifests: &state.project_manifests,
         materialized_current_lockfile: state.current_lockfile.as_ref(),
     })?;
@@ -183,7 +179,7 @@ async fn apply<Reporter: self::Reporter + 'static>(
     // can hold more — importers a filtered run left alone, or ones
     // `pruneLockfileImporters` has yet to drop.
     let installed_importer_ids =
-        inputs.projects.requested_importer_ids.unwrap_or(inputs.projects.real_importer_ids);
+        inputs.projects.importers.requested_ids.unwrap_or(inputs.projects.importers.real_ids);
     tracing::info!(target: "pacquet::install", "Complete all");
 
     if complete_resolve_only::<Reporter>(&ResolveOnlyCompletionInputs {
@@ -226,7 +222,7 @@ fn finish_apply<Reporter: self::Reporter>(
     let peer_catalogs =
         inputs.completion.catalog_context_present.then_some(&inputs.completion.catalogs);
     let installed_importer_ids =
-        inputs.projects.requested_importer_ids.unwrap_or(inputs.projects.real_importer_ids);
+        inputs.projects.importers.requested_ids.unwrap_or(inputs.projects.importers.real_ids);
     // Nothing below reads the materialized lockfiles, and each holds a
     // workspace-scale importer map.
     pnpm_fs::background_drop((
@@ -276,7 +272,7 @@ fn write_applied_workspace_state(
             inputs.projects.included,
             inputs.projects.supported_architectures.as_ref(),
             &inputs.completion.catalogs,
-            inputs.projects.manifests,
+            inputs.projects.importers.manifests,
             inputs.projects.filtered_install,
             filesystem_now_ms(&inputs.projects.workspace_root),
         ),

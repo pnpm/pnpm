@@ -518,7 +518,7 @@ impl ImporterHoistState {
     fn peers_opts(&self) -> ResolvePeersOptions {
         ResolvePeersOptions {
             peers_suffix_max_length: self.policy.peers_suffix_max_length,
-            dedupe_peers: self.policy.dedupe_peers,
+            dedupe_peers: self.policy.peers.dedupe_peers,
             project_dir: Some(self.project_dir.clone()),
             links: crate::PeerLinkOptions {
                 exclude_links_from_lockfile: self.links.exclude_links_from_lockfile,
