@@ -189,7 +189,8 @@ pub fn check_pkg_files_integrity(
     verified_files_cache: &VerifiedFilesCache,
 ) -> VerifyResult {
     let (mut result, pending) = defer_pkg_files_integrity(store_dir, entry);
-    result.passed = pending.verify(store_dir, verified_files_cache) && result.passed;
+    result.passed =
+        pending.verify(store_dir, verified_files_cache) && result.passed;
     result
 }
 

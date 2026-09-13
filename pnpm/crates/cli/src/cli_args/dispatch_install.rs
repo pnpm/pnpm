@@ -76,8 +76,12 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(pipeline.run::<DefaultReporter>()).await
             }
-            ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await,
-            ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await,
+            ReporterType::Ndjson => {
+                Box::pin(pipeline.run::<NdjsonReporter>()).await
+            }
+            ReporterType::Silent => {
+                Box::pin(pipeline.run::<SilentReporter>()).await
+            }
         };
         update_notifier::settle(update_check, &added).await;
         added
@@ -252,8 +256,12 @@ pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<C
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(pipeline.run::<DefaultReporter>()).await?;
             }
-            ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
-            ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
+            ReporterType::Ndjson => {
+                Box::pin(pipeline.run::<NdjsonReporter>()).await?;
+            }
+            ReporterType::Silent => {
+                Box::pin(pipeline.run::<SilentReporter>()).await?;
+            }
         }
         Ok(())
     }))
@@ -405,8 +413,12 @@ async fn run_install_pipeline(
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(pipeline.run_with_config::<DefaultReporter>()).await
         }
-        ReporterType::Ndjson => Box::pin(pipeline.run_with_config::<NdjsonReporter>()).await,
-        ReporterType::Silent => Box::pin(pipeline.run_with_config::<SilentReporter>()).await,
+        ReporterType::Ndjson => {
+            Box::pin(pipeline.run_with_config::<NdjsonReporter>()).await
+        }
+        ReporterType::Silent => {
+            Box::pin(pipeline.run_with_config::<SilentReporter>()).await
+        }
     }
 }
 
@@ -424,8 +436,12 @@ async fn run_update_pipeline(
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(pipeline.run::<DefaultReporter>()).await?;
         }
-        ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
-        ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
+        ReporterType::Ndjson => {
+            Box::pin(pipeline.run::<NdjsonReporter>()).await?;
+        }
+        ReporterType::Silent => {
+            Box::pin(pipeline.run::<SilentReporter>()).await?;
+        }
     }
     Ok(())
 }

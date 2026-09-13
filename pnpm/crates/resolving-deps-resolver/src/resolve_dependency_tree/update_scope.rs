@@ -52,7 +52,8 @@ impl VersionLine {
     /// Whether `version` resolves within this line.
     #[must_use]
     pub(super) fn covers(self, version: &node_semver::Version) -> bool {
-        version.major == self.major && (self.major != 0 || version.minor == self.minor)
+        version.major == self.major
+            && (self.major != 0 || version.minor == self.minor)
     }
 }
 

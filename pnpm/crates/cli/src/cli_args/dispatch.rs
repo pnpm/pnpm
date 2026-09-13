@@ -114,7 +114,8 @@ impl CliArgs {
         }) {
             configure_color(color);
         }
-        let dir = dunce::canonicalize(&self.paths.dir).unwrap_or_else(|_| self.paths.dir.clone());
+        let dir = dunce::canonicalize(&self.paths.dir)
+            .unwrap_or_else(|_| self.paths.dir.clone());
         configure_default_reporter(&DefaultReporterSetup {
             reporter: self.effective_reporter(),
             dir: &dir,

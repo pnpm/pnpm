@@ -347,7 +347,8 @@ impl Walker<'_> {
             graph,
             direct_dependencies_by_alias: direct_by_alias,
             missing_names_by_pkg: self.missing_names_by_pkg(),
-            resolved_peer_providers_by_alias: self.providers.resolved_peer_providers_by_alias,
+            resolved_peer_providers_by_alias: self.providers
+                .resolved_peer_providers_by_alias,
             peer_dependency_issues: self.output.issues,
             paths_by_node_id,
         }

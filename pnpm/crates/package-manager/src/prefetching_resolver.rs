@@ -211,17 +211,30 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                     )
                     .await
                 }
-                None => self.fetch_tarball_integrity(tarball, &package_url, &package_id).await,
+                None => {
+                    self.fetch_tarball_integrity(tarball, &package_url, &package_id)
+                        .await
+                }
             }
         })
         .await?;
+        self.apply_discovered_integrity(result, resolution);
+        Ok(())
+    }
+
+    fn apply_discovered_integrity(
+        &self,
+        result: &mut ResolveResult,
+        resolution: &LockfileResolution,
+    ) {
         if self.ctx.policy.custom_session.is_some() {
             result.resolution = resolution.clone();
-        } else if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
+        } else if let LockfileResolution::Tarball(tarball) =
+            &mut result.resolution
+        {
             // The native cache is URL-keyed; each edge keeps its other fields.
             tarball.integrity = resolution.integrity().cloned();
         }
-        Ok(())
     }
 
     // Custom fetchers can choose different content for the same URL for different packages.
@@ -384,7 +397,8 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 package_file_count,
             );
             let _ = if revision_addressed {
-                download.run_revision_addressed_with_mem_cache::<Reporter>(&ctx.mem_cache).await
+                download.run_revision_addressed_with_mem_cache::<Reporter>(&ctx.mem_cache)
+                    .await
             } else {
                 download.run_with_mem_cache::<Reporter>(&ctx.mem_cache).await
             };
@@ -494,7 +508,8 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
         Box::pin(async move {
             let mut result = self.inner.resolve(wanted_dependency, opts).await?;
             if let Some(result_mut) = result.as_mut() {
-                self.populate_missing_integrity(result_mut, &opts.project.lockfile_dir).await?;
+                self.populate_missing_integrity(result_mut, &opts.project.lockfile_dir)
+                    .await?;
                 if self.ctx.policy.downloads
                     && !self.should_skip_prefetch(wanted_dependency, result_mut)
                 {

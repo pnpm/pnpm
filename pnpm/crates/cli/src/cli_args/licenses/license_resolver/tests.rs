@@ -24,13 +24,15 @@ async fn resolves_license_file_when_manifest_has_no_license() {
         Some("MIT".to_string()),
     );
     assert_eq!(
-        resolve_license_from_dir(Some("SEE LICENSE IN LICENSE".to_string()), dir.path()).await,
+        resolve_license_from_dir(Some("SEE LICENSE IN LICENSE".to_string()), dir.path())
+            .await,
         Some("MIT".to_string()),
     );
 
     tokio::fs::write(dir.path().join("LICENSE"), "custom terms").await.unwrap();
     assert_eq!(
-        resolve_license_from_dir(Some("SEE LICENSE IN LICENSE".to_string()), dir.path()).await,
+        resolve_license_from_dir(Some("SEE LICENSE IN LICENSE".to_string()), dir.path())
+            .await,
         Some("Unknown".to_string()),
     );
 }

@@ -25,19 +25,22 @@ pub(super) async fn link_pnpr_lockfile<Reporter: self::Reporter + 'static>(
     let install = {
         let mut base_install = state.install(link.dependency_groups);
         base_install.lockfile_policy.frozen = true;
-        base_install.lockfile_policy.ignore_manifest_check = link.lockfile.ignore_manifest_check;
+        base_install.lockfile_policy.ignore_manifest_check = link.lockfile
+            .ignore_manifest_check;
         base_install.lockfile_policy.trust = true;
         base_install.execution.skip_runtimes = link.skip_runtimes;
         base_install.execution.node_linker = link.node_linker;
         base_install.context.lockfile_path = link.lockfile_path;
         base_install.context.lockfile = MaybeLazyLockfile::Loaded(Some(lockfile));
-        base_install.projects.supported_architectures = link.supported_architectures;
+        base_install.projects.supported_architectures = link
+            .supported_architectures;
         base_install.projects.pnpmfile_hook_override = pnpmfile_hook;
         base_install
     };
     match selection {
         Some(selection) => {
-            Box::pin(install.run_selected::<Reporter>(workspace_install_selection(selection))).await
+            Box::pin(install.run_selected::<Reporter>(workspace_install_selection(selection)))
+                .await
         }
         None => install.run::<Reporter>().await,
     }
@@ -195,10 +198,12 @@ pub(super) async fn install_from_local_lockfile<Reporter: self::Reporter + 'stat
             .await
         }
         (Some(selection), None) => {
-            Box::pin(install.run_selected::<Reporter>(workspace_install_selection(selection))).await
+            Box::pin(install.run_selected::<Reporter>(workspace_install_selection(selection)))
+                .await
         }
         (None, Some(lockfile_verification_override)) => {
-            install.run_with_lockfile_verification::<Reporter>(lockfile_verification_override).await
+            install.run_with_lockfile_verification::<Reporter>(lockfile_verification_override)
+                .await
         }
         (None, None) => install.run::<Reporter>().await,
     };
@@ -308,15 +313,7 @@ fn local_verify_options(
             registries: state.config.registry_declarations(),
             authorization: state.config.auth_headers.for_url(pnpr_server),
         },
-        verification: pnpm_pnpr_client::VerificationPolicy {
-            minimum_release_age: state.config.minimum_release_age,
-            minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
-            minimum_release_age_ignore_missing_time: state.config
-                .minimum_release_age_ignore_missing_time,
-            trust_policy: state.config.trust_policy,
-            trust_policy_exclude: state.config.trust_policy_exclude.clone(),
-            trust_policy_ignore_after: state.config.trust_policy_ignore_after,
-        },
+        verification: super::pnpr_request::verification_policy(state.config),
     }
 }
 
@@ -366,7 +363,8 @@ pub(super) async fn merge_and_save_pnpr_lockfile<Reporter: self::Reporter + 'sta
         lockfile,
     )?;
     let merged_repair_verifiers =
-        verify_merged_repair::<Reporter>(state, link, session.partial_selection, &lockfile).await?;
+        verify_merged_repair::<Reporter>(state, link, session.partial_selection, &lockfile)
+            .await?;
 
     save_pnpr_lockfile(
         state,
@@ -388,7 +386,8 @@ fn local_lockfile_install<'a>(
 ) -> pnpm_package_manager::Install<'a, Vec<DependencyGroup>> {
     let mut base_install = state.install(link.dependency_groups.clone());
     base_install.lockfile_policy.frozen = true;
-    base_install.lockfile_policy.ignore_manifest_check = link.lockfile.ignore_manifest_check;
+    base_install.lockfile_policy.ignore_manifest_check = link.lockfile
+        .ignore_manifest_check;
     base_install.lockfile_policy.trust = true;
     base_install.execution.skip_runtimes = link.skip_runtimes;
     base_install.execution.node_linker = link.node_linker;

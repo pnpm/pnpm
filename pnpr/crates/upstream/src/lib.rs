@@ -233,7 +233,8 @@ impl Upstream {
             conditional_headers.insert(header::IF_MODIFIED_SINCE, value);
         }
         let sent_conditional = !conditional_headers.is_empty();
-        let (response, _guard) = self.get_with_scoped_headers(&url, &conditional_headers).await?;
+        let (response, _guard) = self.get_with_scoped_headers(&url, &conditional_headers)
+            .await?;
         if response.status() == StatusCode::NOT_FOUND {
             // A 404 is an authoritative answer, not an upstream failure.
             self.breaker.record_success();
@@ -285,7 +286,8 @@ impl Upstream {
             name.as_str(),
             filename,
         );
-        let (response, guard) = self.get_with_scoped_headers(&url, &HeaderMap::new()).await?;
+        let (response, guard) = self.get_with_scoped_headers(&url, &HeaderMap::new())
+            .await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -326,7 +328,8 @@ impl Upstream {
         {
             headers.insert(header::ACCEPT, value);
         }
-        let (response, _guard) = self.get_with_scoped_headers(&url, &headers).await?;
+        let (response, _guard) = self.get_with_scoped_headers(&url, &headers)
+            .await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -370,7 +373,8 @@ impl Upstream {
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         let started = Instant::now();
         self.ensure_available()?;
-        let (response, guard) = self.get_with_scoped_headers(url, &HeaderMap::new()).await?;
+        let (response, guard) = self.get_with_scoped_headers(url, &HeaderMap::new())
+            .await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -393,8 +397,8 @@ impl Upstream {
             "{}/-/tarballs/sha512/{digest}",
             self.base.trim_end_matches('/'),
         );
-        let client =
-            self.http.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
+        let client = self.http.client.acquire_for_url_without_redirects_with_priority(&url, 0)
+            .await;
         let started = Instant::now();
         let request = client
             .get(&url)

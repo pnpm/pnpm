@@ -186,7 +186,8 @@ fn moves_a_range_past_a_peer_suffix_naming_the_version_it_moves_to() {
 
     let alias: PkgName = "foo".parse().expect("alias");
     assert_eq!(
-        updated.importers["."].dependencies.as_ref().expect("dependencies")[&alias].version
+        updated.importers["."].dependencies.as_ref().expect("dependencies")[&alias]
+            .version
             .to_string(),
         "1.2.0",
     );

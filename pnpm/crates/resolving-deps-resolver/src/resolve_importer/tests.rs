@@ -385,7 +385,9 @@ mod resolution_mode {
         opts.resolution.pick_lowest_direct = false;
         opts.resolution.subdep_published_by = Some(maximum);
 
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+            .await
+            .unwrap();
 
         assert_eq!(resolver.opts_for("direct"), (false, Some(maximum)));
         assert_eq!(resolver.opts_for("sub"), (false, Some(maximum)));
@@ -402,7 +404,9 @@ mod resolution_mode {
         opts.resolution.pick_lowest_direct = true;
         opts.resolution.subdep_published_by = None;
 
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+            .await
+            .unwrap();
 
         assert_eq!(resolver.opts_for("direct"), (true, None));
         assert_eq!(resolver.opts_for("sub"), (false, None));
@@ -424,7 +428,9 @@ mod resolution_mode {
         opts.resolution.pick_lowest_direct = true;
         opts.resolution.subdep_published_by = Some(cutoff);
 
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+            .await
+            .unwrap();
 
         assert_eq!(resolver.opts_for("direct"), (true, Some(maximum)));
         assert_eq!(resolver.opts_for("sub"), (false, Some(cutoff)));

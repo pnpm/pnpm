@@ -156,7 +156,10 @@ fn source_configuration_and_environment_changes_select_different_snapshots() {
     );
     let cache = tempfile::tempdir().unwrap();
     let environment = std::collections::BTreeMap::new();
-    let key = || super::snapshot_entry(cache.path(), root.path(), "task", &environment).unwrap().1;
+    let key = || {
+        super::snapshot_entry(cache.path(), root.path(), "task", &environment).unwrap()
+            .1
+    };
     let original = key();
     fs::write(root.path().join("src/lib.rs"), "pub fn value() -> u8 { 2 }").unwrap();
     let changed_source = key();
@@ -174,7 +177,8 @@ fn source_configuration_and_environment_changes_select_different_snapshots() {
         "--cfg another_build".to_string(),
     )]);
     let changed_environment =
-        super::snapshot_entry(cache.path(), root.path(), "task", &environment).unwrap().1;
+        super::snapshot_entry(cache.path(), root.path(), "task", &environment).unwrap()
+            .1;
     assert_ne!(changed_config, changed_environment);
 }
 

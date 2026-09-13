@@ -214,7 +214,8 @@ async fn opens_browser_when_enter_key_is_pressed_before_poll_completes() {
             let (poll_tx, poll_rx) = oneshot::channel::<Result<String, PollError>>();
             let handle = tokio::task::spawn_local(async move {
                 let poll = async move { poll_rx.await.expect("poll resolved") };
-                prompt_browser_open::<Fake, RecordingReporter, PollError, _>(AUTH_URL, poll).await
+                prompt_browser_open::<Fake, RecordingReporter, PollError, _>(AUTH_URL, poll)
+                    .await
             });
 
             // Let the prompt register its listener, then press Enter.
@@ -245,7 +246,8 @@ async fn warns_and_continues_polling_when_open_fails() {
             let (poll_tx, poll_rx) = oneshot::channel::<Result<String, PollError>>();
             let handle = tokio::task::spawn_local(async move {
                 let poll = async move { poll_rx.await.expect("poll resolved") };
-                prompt_browser_open::<Fake, RecordingReporter, PollError, _>(AUTH_URL, poll).await
+                prompt_browser_open::<Fake, RecordingReporter, PollError, _>(AUTH_URL, poll)
+                    .await
             });
 
             tokio::task::yield_now().await;

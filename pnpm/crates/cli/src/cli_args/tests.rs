@@ -348,11 +348,14 @@ fn resolve_bool_override_tri_state() {
 #[test]
 fn trust_lockfile_pair_resolves_last_one_wins() {
     assert!(
-        install_args(&["pacquet", "install", "--no-trust-lockfile"]).lockfile_updates
+        install_args(&["pacquet", "install", "--no-trust-lockfile"])
+            .lockfile_updates
             .no_trust_lockfile,
     );
     assert!(
-        install_args(&["pacquet", "install", "--trust-lockfile"]).lockfile_updates.trust_lockfile,
+        install_args(&["pacquet", "install", "--trust-lockfile"])
+            .lockfile_updates
+            .trust_lockfile,
     );
 
     // Both spellings in one argv must not error (pnpm forwards raw tokens);
@@ -364,7 +367,8 @@ fn trust_lockfile_pair_resolves_last_one_wins() {
         "--no-trust-lockfile",
     ]);
     assert!(
-        last_off.lockfile_updates.no_trust_lockfile && !last_off.lockfile_updates.trust_lockfile,
+        last_off.lockfile_updates.no_trust_lockfile
+            && !last_off.lockfile_updates.trust_lockfile,
         "--no wins when last",
     );
     let last_on = install_args(&[
@@ -374,7 +378,8 @@ fn trust_lockfile_pair_resolves_last_one_wins() {
         "--trust-lockfile",
     ]);
     assert!(
-        last_on.lockfile_updates.trust_lockfile && !last_on.lockfile_updates.no_trust_lockfile,
+        last_on.lockfile_updates.trust_lockfile
+            && !last_on.lockfile_updates.no_trust_lockfile,
         "--trust wins when last",
     );
 }

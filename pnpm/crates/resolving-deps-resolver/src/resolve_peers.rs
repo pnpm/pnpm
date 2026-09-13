@@ -360,7 +360,8 @@ pub fn resolve_peers_workspace(
     }
     WorkspaceResolvePeersResult {
         graph: finished.graph,
-        direct_dependencies_by_importer: finished.direct_dependencies_by_importer,
+        direct_dependencies_by_importer: finished
+            .direct_dependencies_by_importer,
         peer_dependency_issues_by_importer,
         paths_by_node_id: finished.paths_by_node_id,
     }
@@ -486,7 +487,8 @@ fn walk_importer(
         parent_node_ids: &parent_node_ids,
         parent_pkg_ids: &parent_pkg_ids_chain,
     };
-    let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = importer.direct
+    let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = importer
+        .direct
         .iter()
         .partition(|dep| !walker.opts.scope.hoisted_peer_provider_node_ids.contains(&dep.node_id));
     for dep in &own_direct {

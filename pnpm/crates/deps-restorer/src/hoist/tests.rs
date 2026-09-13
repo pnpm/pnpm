@@ -1006,7 +1006,8 @@ fn workspace_packages_hoist_privately_with_lowest_precedence() {
     })
     .expect("non-empty graph");
 
-    let mut placed: Vec<(&str, HoistKind, &str)> = result.hoisted_workspace_aliases
+    let mut placed: Vec<(&str, HoistKind, &str)> = result
+        .hoisted_workspace_aliases
         .iter()
         .map(|(alias, kind, dir)| (alias.as_str(), *kind, dir.to_str().unwrap()))
         .collect();

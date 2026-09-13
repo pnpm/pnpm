@@ -148,7 +148,9 @@ impl TaskRunStateContext {
                     };
                     completed.insert(self.keys_by_id.get(&id)?.clone());
                 }
-                JournalRecord::Finish(record) if record.run == header.run && record.finished => {
+                JournalRecord::Finish(record)
+                    if record.run == header.run && record.finished =>
+                {
                     return None;
                 }
                 _ => {}

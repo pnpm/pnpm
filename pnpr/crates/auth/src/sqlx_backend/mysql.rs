@@ -31,7 +31,8 @@ impl SqlAuth<MysqlDatabase> {
         let startup_db = MysqlDatabase {
             pool: startup_pool,
         };
-        with_auth_timeout(settings.startup_timeout, startup_db.init_schema()).await?;
+        with_auth_timeout(settings.startup_timeout, startup_db.init_schema())
+            .await?;
         startup_db.pool.close().await;
 
         let pool = mysql_pool_options(settings, settings.timeout, settings.timeout)?
@@ -221,9 +222,11 @@ impl AuthSqlBackend for MysqlDatabase {
 impl MysqlDatabase {
     async fn init_schema(&self) -> Result<()> {
         sqlx::query(super::super::USERS_TABLE_SQL).execute(&self.pool).await?;
-        sqlx::query(super::super::token_store::TOKENS_TABLE_SQL).execute(&self.pool).await?;
+        sqlx::query(super::super::token_store::TOKENS_TABLE_SQL).execute(&self.pool)
+            .await?;
         create_token_index(&self.pool).await?;
-        sqlx::query(super::super::AUTH_COUNTERS_TABLE_SQL).execute(&self.pool).await?;
+        sqlx::query(super::super::AUTH_COUNTERS_TABLE_SQL).execute(&self.pool)
+            .await?;
         self.ensure_user_counter().await
     }
 
@@ -249,8 +252,8 @@ impl MysqlDatabase {
     }
 
     async fn actual_user_count(&self) -> Result<i64> {
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool)
+            .await?;
         Ok(count.max(0))
     }
 
@@ -288,8 +291,8 @@ impl MysqlDatabase {
             tx.commit().await?;
             return Ok(false);
         };
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&mut *tx).await?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&mut *tx)
+            .await?;
         if counter <= count {
             tx.commit().await?;
             return Ok(false);
@@ -312,8 +315,8 @@ impl MysqlDatabase {
 }
 
 async fn create_token_index(pool: &MySqlPool) -> Result<()> {
-    let result =
-        sqlx::query("CREATE INDEX tokens_username ON tokens(username)").execute(pool).await;
+    let result = sqlx::query("CREATE INDEX tokens_username ON tokens(username)").execute(pool)
+        .await;
     match result {
         Ok(_) => Ok(()),
         Err(err) if is_duplicate_index(&err) => Ok(()),

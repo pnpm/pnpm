@@ -67,7 +67,8 @@ async fn anonymous_resolve_is_rejected_before_the_body_is_collected() {
         .body(body)
         .unwrap();
 
-    let response = tokio::time::timeout(Duration::from_millis(250), app.oneshot(request)).await
+    let response = tokio::time::timeout(Duration::from_millis(250), app.oneshot(request))
+        .await
         .expect("authentication must finish without waiting for the request body")
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -158,7 +159,8 @@ async fn anonymous_verify_lockfile_is_rejected_before_the_body_is_collected() {
         .body(body)
         .unwrap();
 
-    let response = tokio::time::timeout(Duration::from_millis(250), app.oneshot(request)).await
+    let response = tokio::time::timeout(Duration::from_millis(250), app.oneshot(request))
+        .await
         .expect("authentication must finish without waiting for the request body")
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);

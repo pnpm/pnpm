@@ -451,7 +451,10 @@ async fn valid_workloads_do_not_wait_for_a_forced_network_refresh() {
     let refreshing = Arc::clone(&state);
     let refresh =
         tokio::spawn(
-            async move { refreshing.metadata(&refreshing.providers["example"], true).await },
+            async move {
+                refreshing.metadata(&refreshing.providers["example"], true)
+                    .await
+            },
         );
     tokio::time::timeout(
         Duration::from_secs(2),
@@ -459,7 +462,8 @@ async fn valid_workloads_do_not_wait_for_a_forced_network_refresh() {
     )
     .await
     .unwrap();
-    tokio::time::timeout(Duration::from_millis(100), state.workload(&token)).await
+    tokio::time::timeout(Duration::from_millis(100), state.workload(&token))
+        .await
         .unwrap()
         .unwrap();
     provider.discovery.release_discovery.notify_one();

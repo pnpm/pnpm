@@ -358,7 +358,8 @@ impl<'a> InstallFrozenLockfile<'a> {
         let (store_index_writer, writer_task) =
             StoreIndexWriter::spawn_for(&ctx.config.store_dir, ctx.config.frozen_store);
 
-        let settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
+        let settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped)
+            .await?;
 
         let fetched = self.fetch::<Reporter>(
             &ctx,

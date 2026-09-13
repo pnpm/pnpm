@@ -55,7 +55,9 @@ pub struct WorkspaceKeyIssues {
 impl WorkspaceKeyIssues {
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.refused.is_empty() && self.unrecognized.is_empty() && self.non_camel_case.is_empty()
+        self.refused.is_empty()
+            && self.unrecognized.is_empty()
+            && self.non_camel_case.is_empty()
     }
 }
 

@@ -93,7 +93,8 @@ where
         canonical_workspace.as_deref(),
         &result.id,
     );
-    finalize_wanted_result(ctx, wanted, opts, cache_key, workspace_final_key, result).await
+    finalize_wanted_result(ctx, wanted, opts, cache_key, workspace_final_key, result)
+        .await
 }
 
 /// Apply the configured manifest hooks to the resolved manifest fragment

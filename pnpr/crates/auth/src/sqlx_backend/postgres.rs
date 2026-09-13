@@ -31,7 +31,8 @@ impl SqlAuth<PostgresDatabase> {
         let startup_db = PostgresDatabase {
             pool: startup_pool,
         };
-        with_auth_timeout(settings.startup_timeout, startup_db.init_schema()).await?;
+        with_auth_timeout(settings.startup_timeout, startup_db.init_schema())
+            .await?;
         startup_db.pool.close().await;
 
         let pool = postgres_pool_options(settings, settings.timeout, settings.timeout)?
@@ -209,9 +210,12 @@ impl AuthSqlBackend for PostgresDatabase {
 impl PostgresDatabase {
     async fn init_schema(&self) -> Result<()> {
         sqlx::query(super::super::USERS_TABLE_SQL).execute(&self.pool).await?;
-        sqlx::query(super::super::token_store::TOKENS_TABLE_SQL).execute(&self.pool).await?;
-        sqlx::query(super::super::token_store::TOKENS_INDEX_SQL).execute(&self.pool).await?;
-        sqlx::query(super::super::AUTH_COUNTERS_TABLE_SQL).execute(&self.pool).await?;
+        sqlx::query(super::super::token_store::TOKENS_TABLE_SQL).execute(&self.pool)
+            .await?;
+        sqlx::query(super::super::token_store::TOKENS_INDEX_SQL).execute(&self.pool)
+            .await?;
+        sqlx::query(super::super::AUTH_COUNTERS_TABLE_SQL).execute(&self.pool)
+            .await?;
         self.ensure_user_counter().await
     }
 
@@ -236,8 +240,8 @@ impl PostgresDatabase {
     }
 
     async fn actual_user_count(&self) -> Result<i64> {
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool).await?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&self.pool)
+            .await?;
         Ok(count.max(0))
     }
 
@@ -274,8 +278,8 @@ impl PostgresDatabase {
             tx.commit().await?;
             return Ok(false);
         };
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&mut *tx).await?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(&mut *tx)
+            .await?;
         if counter <= count {
             tx.commit().await?;
             return Ok(false);

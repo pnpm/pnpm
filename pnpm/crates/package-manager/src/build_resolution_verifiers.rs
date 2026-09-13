@@ -111,7 +111,8 @@ pub fn build_resolution_verifiers(
         },
         metadata: pnpm_resolving_npm_resolver::VerificationMetadataClient {
             registry_supports_time_field: config.registry_supports_time_field,
-            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+            ignore_missing_time_field: config
+                .minimum_release_age_ignore_missing_time,
             http_client,
             auth_headers: auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers)),
             cache_dir: Some(config.cache_dir.clone()),

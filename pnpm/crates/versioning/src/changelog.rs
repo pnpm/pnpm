@@ -67,7 +67,8 @@ fn release_bump_for(
 ) -> Option<ReleaseBumpType> {
     for (reference, bump_type) in releases {
         if reference == &release.name
-            || (is_dir_ref(reference) && normalize_project_dir(reference) == release.dir)
+            || (is_dir_ref(reference)
+                && normalize_project_dir(reference) == release.dir)
         {
             return bump_type.release();
         }

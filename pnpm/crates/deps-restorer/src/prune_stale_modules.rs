@@ -130,8 +130,9 @@ impl<'a> PruneStaleModules<'a> {
     /// depend on install history rather than on the manifests. Pnpm
     /// folds the same condition into this diff.
     fn wanted_root_deps(&self) -> Option<HashMap<&'a PkgName, &'a ImporterDepVersion>> {
-        let root_snapshot =
-            self.config.dedupe_direct_deps.then(|| self.wanted_lockfile.importers.get("."))??;
+        let root_snapshot = self.config.dedupe_direct_deps.then(|| {
+            self.wanted_lockfile.importers.get(".")
+        })??;
         Some(
             direct_deps_of(root_snapshot, self.included_groups)
                 .into_iter()
@@ -153,7 +154,9 @@ fn unlink_stale_direct_deps<Reporter: self::Reporter>(
     for (alias, current_spec, group) in direct_deps_of(current_snapshot, &RECORDED_GROUPS) {
         let still_wanted = wanted_specs
             .iter()
-            .any(|(name, spec, _)| *name == alias && spec.version == current_spec.version);
+            .any(|(name, spec, _)| {
+                *name == alias && spec.version == current_spec.version
+            });
         let deduped_by_root = dedupe_against_root.is_some_and(|root_deps| {
             root_deps
                 .get(alias)

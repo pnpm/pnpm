@@ -54,8 +54,9 @@ async fn returns_npm_id_token_without_any_fetch() {
         }
     }
 
-    let token =
-        get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default()).await.unwrap();
+    let token = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, Some("forwarded-token".to_owned()));
 }
 
@@ -78,8 +79,9 @@ async fn returns_none_outside_supported_ci() {
         }
     }
 
-    let token =
-        get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default()).await.unwrap();
+    let token = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, None);
 }
 
@@ -89,7 +91,8 @@ async fn errors_when_github_permissions_missing() {
         "no request when the request token/url are absent"
     ));
 
-    let err = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default()).await
+    let err = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
         .unwrap_err();
     assert!(matches!(
         err,
@@ -118,8 +121,9 @@ async fn fetches_and_returns_github_id_token() {
         })
     });
 
-    let token =
-        get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default()).await.unwrap();
+    let token = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, Some("gh-id-token".to_owned()));
 }
 
@@ -133,7 +137,8 @@ async fn errors_on_non_ok_github_response() {
         }
     ));
 
-    let err = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default()).await
+    let err = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
         .unwrap_err();
     assert!(matches!(
         err,
@@ -151,7 +156,8 @@ async fn errors_on_github_response_without_value() {
         }
     ));
 
-    let err = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default()).await
+    let err = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
         .unwrap_err();
     assert!(matches!(
         err,

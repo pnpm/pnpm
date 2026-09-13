@@ -133,7 +133,8 @@ pub(super) async fn resolve_graph<'a: 'm, 'm, Reporter: self::Reporter + 'static
     manifests: &'m mut ManifestSlots<'a>,
 ) -> Result<Resolved<'m, Reporter>, InstallWithFreshLockfileError> {
     let registries = std::mem::take(&mut setup.registries);
-    let prep = prepare_resolution::<Reporter>(install, owned, setup, manifests).await?;
+    let prep = prepare_resolution::<Reporter>(install, owned, setup, manifests)
+        .await?;
     let importer_manifests = manifests.view();
     let pass = run_prepared_resolve(
         ResolutionContext {
@@ -199,7 +200,9 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             lockfile: crate::install_with_fresh_lockfile::resolution_inputs::ReuseLockfileInputs {
                 wanted: self.wanted_lockfile(),
                 shared: self.prep.wanted_lockfile_shared.as_ref(),
-                extensions_checksum: self.prep.transforms.package_extensions_checksum.as_deref(),
+                extensions_checksum: self.prep.transforms
+                    .package_extensions_checksum
+                    .as_deref(),
                 parsed_overrides: self.prep.transforms.parsed_overrides.as_deref(),
                 resolved_overrides: self.prep.transforms.resolved_overrides.as_ref(),
             },
@@ -210,7 +213,8 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
                 has_pnpmfile_hook: self.prep.hooks.pnpmfile_hook.is_some(),
                 has_custom_resolvers: !self.setup.chain.custom_resolvers.is_empty(),
                 has_patches: self.prep.patches.record.is_some(),
-                can_fast_update_overrides: self.setup.observer.can_fast_update_overrides,
+                can_fast_update_overrides: self.setup.observer
+                    .can_fast_update_overrides,
             }),
             npm_resolver: &*self.setup.chain.npm_resolver,
             resolve_options: &shared_resolve_options.build(
@@ -308,7 +312,9 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             lockfile_dir: self.install.projects.lockfile_dir,
             shared_resolve_options,
 
-            override_bare_specifier: self.prep.transforms.hooks.override_bare_specifier.clone(),
+            override_bare_specifier: self.prep.transforms.hooks
+                .override_bare_specifier
+                .clone(),
             patched_dependencies: self.prep.patches.record.clone(),
         }
     }
@@ -326,8 +332,8 @@ pub(super) async fn run_prepared_resolve<'m, Reporter: self::Reporter + 'static>
             context.owned.resolution.preferred_versions_override.as_ref(),
         );
     let shared_resolve_options = context.shared_options();
-    let lockfile_reuse_seed =
-        context.reuse_seed(&shared_resolve_options, &preferred_versions_seed).await;
+    let lockfile_reuse_seed = context.reuse_seed(&shared_resolve_options, &preferred_versions_seed)
+        .await;
     let phase_start = std::time::Instant::now();
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,

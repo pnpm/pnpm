@@ -228,7 +228,8 @@ impl Container {
                         index: input.store.index.clone(),
                         index_writer: input.store.index_writer.clone(),
                         verify_integrity: input.store.verify_integrity,
-                        strict_pkg_content_check: input.store.strict_pkg_content_check,
+                        strict_pkg_content_check: input.store
+                            .strict_pkg_content_check,
                         verified_files_cache: Arc::clone(&input.store.verified_files_cache),
                         prefetched_cas_paths: input.store.prefetched_cas_paths,
                     },

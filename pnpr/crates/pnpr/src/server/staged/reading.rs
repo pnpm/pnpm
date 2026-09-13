@@ -60,10 +60,11 @@ pub(super) async fn serve_staged_view(
     registry: Option<&str>,
     stage_id: &str,
 ) -> Response {
-    let stored = match load_authorized_record(state, identity, registry, stage_id).await {
-        Ok(stored) => stored,
-        Err(err) => return err.into_response(),
-    };
+    let stored =
+        match load_authorized_record(state, identity, registry, stage_id).await {
+            Ok(stored) => stored,
+            Err(err) => return err.into_response(),
+        };
     json_response(StatusCode::OK, &stored.record.metadata())
 }
 
@@ -75,7 +76,9 @@ pub(super) async fn serve_staged_tarball(
     registry: Option<&str>,
     stage_id: &str,
 ) -> Response {
-    if let Err(response) = load_authorized_record(state, identity, registry, stage_id).await {
+    if let Err(response) = load_authorized_record(state, identity, registry, stage_id)
+        .await
+    {
         return response.into_response();
     }
     let body = match state.inner.storage.read_staged_body(stage_id).await {

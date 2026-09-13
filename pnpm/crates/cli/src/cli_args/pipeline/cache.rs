@@ -338,7 +338,9 @@ fn remove_stale_outputs(
         if !target.exists() {
             continue;
         }
-        if create_hex_hash_from_file(&target).unwrap_or_default() != recorded.hash {
+        if create_hex_hash_from_file(&target).unwrap_or_default()
+            != recorded.hash
+        {
             return Err(format!(
                 "{} was modified after the previous run produced it",
                 recorded.path,

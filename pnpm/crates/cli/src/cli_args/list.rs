@@ -153,7 +153,8 @@ impl ListArgs {
 
         if (matches!(self.graph.depth, RecursionLimit::Levels(n) if n > 0)
             || self.graph.depth == RecursionLimit::Unlimited)
-            && let Some(output) = self.render_global_tree(config, &global_pkg_dir).await?
+            && let Some(output) = self.render_global_tree(config, &global_pkg_dir)
+                .await?
         {
             return Ok(output);
         }

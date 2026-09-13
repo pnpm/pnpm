@@ -7,6 +7,7 @@ use pnpm_matcher::{Matcher, create_matcher};
 use pnpm_network::{redact_and_sanitize, redact_url_for_display};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pnpm_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
+use server::resolve_server_url;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     ops::Range,
@@ -113,7 +114,8 @@ async fn find_outdated_with_runner<Reporter: self::Reporter, Runner: GitCommandR
     server_url: &str,
     runner: &Runner,
 ) -> miette::Result<Vec<OutdatedGitHubAction>> {
-    let plans = create_plan::<Reporter, _>(root, matcher, server_url, runner).await?;
+    let plans = create_plan::<Reporter, _>(root, matcher, server_url, runner)
+        .await?;
     Ok(to_outdated(plans, !compatible, server_url))
 }
 
@@ -140,7 +142,8 @@ async fn update_with_runner<Reporter: self::Reporter, Runner: GitCommandRunner +
     server_url: &str,
     runner: &Runner,
 ) -> miette::Result<Vec<OutdatedGitHubAction>> {
-    let plans = create_plan::<Reporter, _>(root, matcher, server_url, runner).await?;
+    let plans = create_plan::<Reporter, _>(root, matcher, server_url, runner)
+        .await?;
     let updates = plans
         .into_iter()
         .filter(|plan| plan_is_outdated(plan, latest))
@@ -182,7 +185,8 @@ async fn create_plan<Reporter: self::Reporter, Runner: GitCommandRunner + Sync>(
         .iter()
         .map(|action| action.repo.clone())
         .collect::<BTreeSet<_>>();
-    let refs_by_repo = versions_by_repo::<Reporter, Runner>(repos, server_url, runner).await;
+    let refs_by_repo = versions_by_repo::<Reporter, Runner>(repos, server_url, runner)
+        .await;
     let mut plans = Vec::new();
     for action in actions {
         let Some(versions) = refs_by_repo.get(&action.repo) else {
@@ -246,7 +250,8 @@ fn plan_action_update(
     let candidates = versions
         .iter()
         .filter(|candidate| {
-            !current.version.pre_release.is_empty() || candidate.version.pre_release.is_empty()
+            !current.version.pre_release.is_empty()
+                || candidate.version.pre_release.is_empty()
         })
         .collect::<Vec<_>>();
     let Some(latest) = candidates.last() else {
@@ -296,7 +301,9 @@ fn find_current(action: &ActionReference, versions: &[RepoVersion]) -> Option<Re
         && let Some(version) = parse_version(comment)
         && let Some(current) = versions
             .iter()
-            .find(|candidate| candidate.commit == action.ref_ && candidate.version == version)
+            .find(|candidate| {
+                candidate.commit == action.ref_ && candidate.version == version
+            })
     {
         return Some(current.clone());
     }
@@ -310,7 +317,8 @@ fn find_current(action: &ActionReference, versions: &[RepoVersion]) -> Option<Re
         return versions
             .iter()
             .rfind(|candidate| {
-                candidate.version.major == major && candidate.version.pre_release.is_empty()
+                candidate.version.major == major
+                    && candidate.version.pre_release.is_empty()
             })
             .cloned();
     }
@@ -396,41 +404,6 @@ fn to_outdated(
     actions.into_values().collect()
 }
 
-/// Resolves the effective GitHub server base URL: the
-/// `update.githubActionsServer` setting, the `GITHUB_SERVER_URL`
-/// environment variable, or <https://github.com> — first non-empty wins.
-fn resolve_server_url(server_url: Option<&str>) -> miette::Result<String> {
-    let url = server_url
-        .filter(|url| !url.is_empty())
-        .map(str::to_string)
-        .or_else(|| {
-            std::env::var("GITHUB_SERVER_URL")
-                .ok()
-                .filter(|url| !url.is_empty())
-        })
-        .unwrap_or_else(|| "https://github.com".to_string());
-    validate_server_url(&url)
-}
-
-fn validate_server_url(url: &str) -> miette::Result<String> {
-    let parsed = url::Url::parse(url)
-        .ok()
-        .filter(|parsed| {
-            parsed.host_str().is_some()
-                && pnpm_network::is_url_secure_for_credentials(parsed.as_str())
-        });
-    let Some(parsed) = parsed else {
-        return Err(miette::miette!(
-            code = "ERR_PNPM_GITHUB_ACTIONS_SERVER_PROTOCOL",
-            "The GitHub Actions server URL must use HTTPS, except for HTTP on loopback hosts",
-        ));
-    };
-    Ok(parsed
-        .as_str()
-        .trim_end_matches('/')
-        .to_string())
-}
-
 fn global_warn<Reporter: self::Reporter>(message: String) {
     Reporter::emit(&LogEvent::Global(GlobalLog {
         level: LogLevel::Warn,
@@ -443,3 +416,5 @@ mod tests;
 
 mod edits;
 mod workflow;
+
+mod server;

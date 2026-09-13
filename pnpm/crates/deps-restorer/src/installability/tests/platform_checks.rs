@@ -50,7 +50,9 @@ fn skip_optional_with_wrong_os() {
     assert_eq!(skipped_events.len(), 1);
     if let LogEvent::SkippedOptionalDependency(log) = skipped_events[0] {
         assert_eq!(log.reason, SkippedOptionalReason::UnsupportedPlatform);
-        let SkippedOptionalPackage::Installed { name, version, .. } = &log.package else {
+        let SkippedOptionalPackage::Installed { name, version, .. } =
+            &log.package
+        else {
             panic!(
                 "expected Installed payload for unsupported_platform, got {:?}",
                 log.package,

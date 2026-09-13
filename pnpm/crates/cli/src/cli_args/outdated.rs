@@ -208,7 +208,8 @@ impl OutdatedArgs {
             Vec::new()
         };
         outdated.extend(
-            self.project_outdated_actions::<Reporter>(config, root, &filters.include).await?,
+            self.project_outdated_actions::<Reporter>(config, root, &filters.include)
+                .await?,
         );
 
         self.report_outdated(&mut outdated)

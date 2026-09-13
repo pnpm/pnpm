@@ -64,8 +64,8 @@ async fn hosted_revision_ref_paths_reject_noncanonical_segments() {
 
     let invalid_digest = storage.read_hosted_revision_refs("../escape").await;
     assert!(invalid_digest.is_err());
-    let invalid_ref =
-        storage.write_hosted_revision_ref(&digest, "../escape", "owner-a", b"{}").await;
+    let invalid_ref = storage.write_hosted_revision_ref(&digest, "../escape", "owner-a", b"{}")
+        .await;
     assert!(invalid_ref.is_err());
 }
 

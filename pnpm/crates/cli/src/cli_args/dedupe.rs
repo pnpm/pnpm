@@ -82,7 +82,8 @@ impl DedupeArgs {
                 PolicyExcludes::Persist
             };
             base_install.execution.skip_runtimes = false;
-            base_install.execution.lockfile_only = self.lockfile_only || self.check;
+            base_install.execution.lockfile_only =
+                self.lockfile_only || self.check;
             base_install.resolution.update_seed_policy =
                 pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll;
             base_install.resolution.observer = Some(Arc::new(

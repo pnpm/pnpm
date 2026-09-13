@@ -106,7 +106,8 @@ checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 "#;
 
     assert_eq!(
-        parse_lockfile(lockfile, "https://registry.example.test/index/").unwrap().crates,
+        parse_lockfile(lockfile, "https://registry.example.test/index/").unwrap()
+            .crates,
         vec![LockedCrate {
             name: "serde".to_string(),
             version: "1.0.228".to_string(),
@@ -528,7 +529,8 @@ async fn asks_cargo_for_the_workspace_root_of_a_member() {
         cargo_root,
     );
     assert_eq!(
-        discover_workspace_roots(&[member.join("Cargo.toml"), cargo_root.join("Cargo.toml")]).await
+        discover_workspace_roots(&[member.join("Cargo.toml"), cargo_root.join("Cargo.toml")])
+            .await
             .unwrap(),
         [dunce::canonicalize(cargo_root).unwrap()],
     );
@@ -749,7 +751,9 @@ async fn cargo_resolution_is_offloaded_to_the_pnpr_server() {
         .create_async()
         .await;
 
-    let lockfile = resolve_via_pnpr(&config_for_pnpr(&server.url()), METADATA).await.unwrap();
+    let lockfile = resolve_via_pnpr(&config_for_pnpr(&server.url()), METADATA)
+        .await
+        .unwrap();
 
     assert_eq!(lockfile.as_deref(), Some("version = 4\n"));
     handshake.assert_async().await;
@@ -777,8 +781,9 @@ async fn configured_cargo_registry_is_sent_to_the_pnpr_server() {
     let mut config = config_for_pnpr(&server.url());
     config.cargo.index_url = "https://registry.example.test/index/".to_string();
 
-    let lockfile =
-        resolve_via_pnpr(&config, r#"{"packages":[],"workspace_members":[]}"#).await.unwrap();
+    let lockfile = resolve_via_pnpr(&config, r#"{"packages":[],"workspace_members":[]}"#)
+        .await
+        .unwrap();
 
     assert_eq!(lockfile.as_deref(), Some("version = 4\n"));
     handshake.assert_async().await;
@@ -822,7 +827,9 @@ async fn an_unterminated_pnpr_response_does_not_grow_without_bound() {
         .await;
 
     let metadata = r#"{"packages":[],"workspace_members":[]}"#;
-    let error = resolve_via_pnpr(&config_for_pnpr(&server.url()), metadata).await.unwrap_err();
+    let error = resolve_via_pnpr(&config_for_pnpr(&server.url()), metadata)
+        .await
+        .unwrap_err();
 
     assert!(
         error
@@ -853,7 +860,9 @@ async fn a_second_terminal_frame_fails_the_resolve() {
         .await;
 
     let metadata = r#"{"packages":[],"workspace_members":[]}"#;
-    let error = resolve_via_pnpr(&config_for_pnpr(&server.url()), metadata).await.unwrap_err();
+    let error = resolve_via_pnpr(&config_for_pnpr(&server.url()), metadata)
+        .await
+        .unwrap_err();
 
     assert!(
         error

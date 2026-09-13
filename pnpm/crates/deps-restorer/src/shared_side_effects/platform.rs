@@ -129,7 +129,8 @@ pub(super) fn validate_windows_kernel_version(
 }
 pub(super) fn patch_hash(snapshot_key: &PackageKey) -> Option<String> {
     let rendered = snapshot_key.to_string();
-    let start = pnpm_deps_path::index_of_dep_path_suffix(&rendered).patch_hash_index?;
+    let start = pnpm_deps_path::index_of_dep_path_suffix(&rendered)
+        .patch_hash_index?;
     let value = rendered.get(start + "(patch_hash=".len()..)?;
     Some(value.split_once(')')?.0.to_string())
 }

@@ -111,7 +111,8 @@ where
         feed.send(chunk).await;
     }
     let body_error =
-        pump_body::<Reporter, _>(&mut stream, &mut hasher, progress, &mut feed, package_url).await;
+        pump_body::<Reporter, _>(&mut stream, &mut hasher, progress, &mut feed, package_url)
+            .await;
     if body_error.is_none() {
         progress.warn_if_slow(http_client, package_url);
     }

@@ -77,7 +77,8 @@ async fn current_pnpmfile_checksum_trusts_the_hash_when_the_lockfile_records_one
     let hooks = finder::load_pnpmfile(tmp.path());
     let recorded = pnpm_crypto_hash::create_hash(src);
     assert_eq!(
-        pnpm_hooks::current_pnpmfile_checksum(hooks.as_ref(), Some(&recorded)).await,
+        pnpm_hooks::current_pnpmfile_checksum(hooks.as_ref(), Some(&recorded))
+            .await,
         Some(recorded),
     );
 }

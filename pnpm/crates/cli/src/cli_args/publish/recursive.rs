@@ -67,7 +67,8 @@ impl PublishArgs {
             .filter(|root| to_publish.contains(root))
         {
             packed.push(
-                self.pack_directory::<Reporter>(&root, config, before_packing_hooks).await?,
+                self.pack_directory::<Reporter>(&root, config, before_packing_hooks)
+                    .await?,
             );
         }
         let packages = packed

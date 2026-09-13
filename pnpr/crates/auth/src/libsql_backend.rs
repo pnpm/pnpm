@@ -101,7 +101,8 @@ impl LibsqlAuth {
                 if interval > 0 {
                     builder = builder.sync_interval(Duration::from_secs(interval));
                 }
-                with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, Box::pin(builder.build())).await?
+                with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, Box::pin(builder.build()))
+                    .await?
             }
             None => {
                 with_auth_timeout(
@@ -151,7 +152,8 @@ impl LibsqlAuth {
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
         with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query("SELECT COUNT(*) FROM users", ()).await?;
+            let mut rows = self.conn.query("SELECT COUNT(*) FROM users", ())
+                .await?;
             let Some(row) = rows.next().await? else {
                 return Err(missing_count_row());
             };
@@ -170,7 +172,8 @@ impl UserBackend for LibsqlAuth {
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
         let hash = tokio::sync::OnceCell::new();
-        retry_database_conflicts(|| self.add_or_login_attempt(username, password, &hash)).await
+        retry_database_conflicts(|| self.add_or_login_attempt(username, password, &hash))
+            .await
     }
 }
 
@@ -192,8 +195,8 @@ impl LibsqlAuth {
         // cap atomically so it holds even under a concurrent burst.
         self.check_registration_allowed().await?;
 
-        let hash =
-            hash.get_or_try_init(|| hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST)).await?;
+        let hash = hash.get_or_try_init(|| hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST))
+            .await?;
         if matches!(self.max_users, MaxUsers::Unlimited) {
             return self.insert_uncapped_user(username, password, hash).await;
         }
@@ -248,7 +251,8 @@ impl LibsqlAuth {
     ) -> Result<(UpsertOutcome, String)> {
         let mut can_retry_after_reconcile = true;
         loop {
-            let tx = self.conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
+            let tx = self.conn.transaction_with_behavior(TransactionBehavior::Immediate)
+                .await?;
             // The counter can overcount after an interrupted write; reconcile it
             // once before believing the cap is full.
             let Some(tx) = self.claim_cap_slot(tx).await? else {
@@ -271,7 +275,8 @@ impl LibsqlAuth {
                 }
                 Err(err) if is_unique_violation(&err) => {
                     tx.rollback().await?;
-                    return self.login_after_lost_insert(username, password).await;
+                    return self.login_after_lost_insert(username, password)
+                        .await;
                 }
                 Err(err) => return Err(err.into()),
             }
@@ -388,7 +393,8 @@ impl TokenBackend for LibsqlAuth {
         let Some(record) = self.find_by_key(key).await? else {
             return Ok(None);
         };
-        self.conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await?;
+        self.conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key])
+            .await?;
         Ok(Some(record))
     }
 }

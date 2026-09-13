@@ -148,11 +148,13 @@ impl ImporterTransforms {
     }
 
     fn manifest_hook(&self) -> Option<ManifestHook> {
-        let compat_package_extensions_hook: Option<ManifestHook> = self.compat_package_extender
+        let compat_package_extensions_hook: Option<ManifestHook> = self
+            .compat_package_extender
             .map(|extender| {
                 Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
             });
-        let package_extensions_hook: Option<ManifestHook> = self.package_extender
+        let package_extensions_hook: Option<ManifestHook> = self
+            .package_extender
             .as_ref()
             .map(|extender| {
                 let extender = Arc::clone(extender);
@@ -178,9 +180,9 @@ impl ImporterTransforms {
         let overrides_hook: Option<ManifestHook> = self.versions_overrider.map(|overrider| {
             Arc::new(move |manifest| overrider.apply_to_arc(manifest, None)) as ManifestHook
         });
-        let deploy_manifest_hook: Option<ManifestHook> = self.deploy_manifest_hook.then(|| {
-            Arc::new(apply_deploy_manifest_hook_to_arc) as ManifestHook
-        });
+        let deploy_manifest_hook: Option<ManifestHook> = self
+            .deploy_manifest_hook
+            .then(|| Arc::new(apply_deploy_manifest_hook_to_arc) as ManifestHook);
         let ignored_optional_matcher = self.ignored_optional_matcher;
         let ignored_optional_hook = (!ignored_optional_matcher.is_empty()).then(|| {
             Arc::new(move |mut manifest: Arc<Value>| {

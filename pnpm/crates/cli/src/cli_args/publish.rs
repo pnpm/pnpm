@@ -175,7 +175,8 @@ impl PublishArgs {
 
         if recursive {
             let published =
-                self.run_recursive::<Reporter>(dir, config, stage, &before_packing_hooks).await?;
+                self.run_recursive::<Reporter>(dir, config, stage, &before_packing_hooks)
+                    .await?;
             return Ok(PublishedPackages::Recursive(published));
         }
 
@@ -244,10 +245,10 @@ impl PublishArgs {
         network: &PublishNetwork<'_>,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
     ) -> miette::Result<PublishSummary> {
-        let packed =
-            self.pack_directory::<Reporter>(project_dir, config, before_packing_hooks).await?;
-        let summary =
-            publish_packed_pkg::<Host, Reporter>(&packed.packed_pkg(), opts, network).await?;
+        let packed = self.pack_directory::<Reporter>(project_dir, config, before_packing_hooks)
+            .await?;
+        let summary = publish_packed_pkg::<Host, Reporter>(&packed.packed_pkg(), opts, network)
+            .await?;
 
         self.run_post_publish_scripts::<Reporter>(&packed, config)?;
         Ok(summary)
@@ -370,7 +371,8 @@ impl PublishArgs {
                 locks: None,
             },
         };
-        crate::cli_args::pack::set_injected_changelog(&mut options, config, dir).await?;
+        crate::cli_args::pack::set_injected_changelog(&mut options, config, dir)
+            .await?;
         pack_api::<Reporter, PackHost>(&options).await
             .map_err(miette::Report::new)
             .wrap_err(crate::cli_args::pack::PACK_ERROR_CONTEXT)

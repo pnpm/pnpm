@@ -195,7 +195,9 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 .map_err(|err| Box::new(err) as ResolveError)?;
 
                 result.package.manifest = resolved.manifest.map(Arc::new);
-                if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
+                if let LockfileResolution::Tarball(tarball) =
+                    &mut result.resolution
+                {
                     // A git host's archive carries no integrity of its
                     // own, and the install pass refuses a tarball
                     // resolution without one

@@ -137,7 +137,8 @@ pub(super) async fn warm_child<Chain>(
         ctx.update_cache_scope(),
         is_update_target(ctx.update_scope(), &wanted, None, parent_depth + 1),
     ));
-    let Ok(child) = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await
+    let Ok(child) = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key)
+        .await
     else {
         return;
     };

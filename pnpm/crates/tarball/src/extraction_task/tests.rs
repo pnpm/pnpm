@@ -77,7 +77,9 @@ fn cancelled_waiter_keeps_capacity_for_queued_extraction() {
 async fn extraction_returns_result_and_releases_capacity_on_error() {
     let semaphore = Box::leak(Box::new(Semaphore::new(1)));
     let permit = semaphore.acquire().await.unwrap();
-    let result = spawn_extraction(permit, || Err::<(), _>("invalid archive")).await.unwrap();
+    let result = spawn_extraction(permit, || Err::<(), _>("invalid archive"))
+        .await
+        .unwrap();
 
     assert_eq!(result, Err("invalid archive"));
     assert_eq!(semaphore.available_permits(), 1);

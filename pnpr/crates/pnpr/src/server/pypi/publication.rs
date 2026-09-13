@@ -28,7 +28,8 @@ pub(super) async fn post_upload(
         Ok(body) => body,
         Err(err) => return private_no_cache(err.into_response()),
     };
-    let response = match upload_file(&state, &identity, registry.as_deref(), &headers, &body).await
+    let response = match upload_file(&state, &identity, registry.as_deref(), &headers, &body)
+        .await
     {
         Ok(()) => StatusCode::OK.into_response(),
         Err(err) => err.into_response(),
@@ -49,7 +50,8 @@ pub(super) async fn upload_file(
         .ok_or_else(|| bad_request("request body must be multipart/form-data"))?;
     let parts = multipart::parse_form(content_type, body).map_err(bad_request)?;
     let upload = parse_upload(parts).map_err(bad_request)?;
-    validate_upload(state, identity, registry, upload).await?.publish(state).await
+    validate_upload(state, identity, registry, upload).await?.publish(state)
+        .await
 }
 
 /// An upload that may proceed: the caller is allowed to publish the project,

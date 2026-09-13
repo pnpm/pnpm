@@ -51,9 +51,11 @@ impl CustomFetcherSession {
         opts: Value,
     ) -> Result<LockfileResolution, InstallPackageBySnapshotError> {
         let lockfile_dir = fetcher_lockfile_dir(&opts, download.requester);
-        let outcome = self.fetch::<Reporter>(download.clone(), original, opts).await?;
+        let outcome = self.fetch::<Reporter>(download.clone(), original, opts)
+            .await?;
         let (resolution, tarball) =
-            fetch_outcome_tarball::<Reporter>(&download, &lockfile_dir, outcome).await?;
+            fetch_outcome_tarball::<Reporter>(&download, &lockfile_dir, outcome)
+                .await?;
         let Some(tarball) = tarball else {
             return Ok(resolution);
         };

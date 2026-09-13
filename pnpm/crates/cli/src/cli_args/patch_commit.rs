@@ -142,7 +142,8 @@ impl PatchCommitArgs {
         let target = patch_target_from_state(&state_value, &name, &version, &current_lockfile)?;
 
         let patch_content =
-            diff_against_clean::<Reporter>(&state, &patch_dir, &target, &current_lockfile).await?;
+            diff_against_clean::<Reporter>(&state, &patch_dir, &target, &current_lockfile)
+                .await?;
 
         if patch_content.is_empty() {
             println!(

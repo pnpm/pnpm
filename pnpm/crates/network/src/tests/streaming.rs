@@ -41,7 +41,8 @@ async fn streamed_responses_retain_both_permits_until_consumed_or_dropped() {
     let initial_permits = client.semaphore.available_permits();
     let url = format!("{}/artifact", server.url());
     for mode in 0..3 {
-        assert_streamed_response_permits(&client, &url, mode, initial_permits).await;
+        assert_streamed_response_permits(&client, &url, mode, initial_permits)
+            .await;
     }
     mock.assert_async().await;
 }
@@ -65,7 +66,9 @@ async fn assert_streamed_response_permits(
     assert_eq!(response.content_length(), Some(14));
     assert_eq!(client.semaphore.available_permits(), initial_permits - 1);
     assert!(
-        tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(url)).await.is_err(),
+        tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(url))
+            .await
+            .is_err(),
     );
     if mode == 0 {
         assert_eq!(response.bytes().await.unwrap(), "artifact bytes");
@@ -85,7 +88,8 @@ async fn assert_streamed_response_permits(
         }
         drop(stream);
     }
-    let guard =
-        tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(url)).await.unwrap();
+    let guard = tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(url))
+        .await
+        .unwrap();
     drop(guard);
 }

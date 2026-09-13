@@ -59,7 +59,8 @@ pub(crate) fn render_ignored_builds(config: &Config) -> miette::Result<String> {
         .collect();
     disallowed_builds.sort();
 
-    let mut automatically_ignored_builds = get_automatically_ignored_builds(config)?.names;
+    let mut automatically_ignored_builds = get_automatically_ignored_builds(config)?
+        .names;
     if let Some(list) = automatically_ignored_builds.as_mut() {
         list.retain(|build| !disallowed_builds.contains(build));
     }

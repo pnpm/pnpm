@@ -169,11 +169,13 @@ pub(super) async fn bare_save_specifier(
         return Ok(workspace_specifier);
     }
     if let Some(version_spec) = node_runtime_version_spec(package_name, explicit_spec) {
-        return resolve_node_runtime_specifier(version_spec, prev_specifier, inputs).await;
+        return resolve_node_runtime_specifier(version_spec, prev_specifier, inputs)
+            .await;
     }
     if let Some(ProtocolSelector::Jsr(jsr)) = selector.protocol.as_ref() {
         return Ok(
-            resolve_jsr_save_specifier(jsr, inputs.add, manifest, inputs.resolution).await?
+            resolve_jsr_save_specifier(jsr, inputs.add, manifest, inputs.resolution)
+                .await?
                 .unwrap_or_else(|| package_selector.to_string()),
         );
     }
@@ -359,7 +361,9 @@ impl ProtocolSelector {
         {
             return Ok(Some(Self::Jsr(spec)));
         }
-        let Some(alias) = WorkspaceSpec::parse(selector).and_then(|spec| spec.alias) else {
+        let Some(alias) =
+            WorkspaceSpec::parse(selector).and_then(|spec| spec.alias)
+        else {
             return Ok(None);
         };
         let name = protocol_package_name(&alias, selector)?;

@@ -349,7 +349,9 @@ fn check_recorded_config(
 
     check_overrides(lockfile, check.overrides)?;
 
-    if lockfile.package_extensions_checksum.as_deref() != check.package_extensions_checksum {
+    if lockfile.package_extensions_checksum.as_deref()
+        != check.package_extensions_checksum
+    {
         return Err(StalenessReason::PackageExtensionsChecksumChanged {
             lockfile: lockfile.package_extensions_checksum.clone(),
             config: check.package_extensions_checksum.map(str::to_string),

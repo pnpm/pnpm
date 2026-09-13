@@ -12,7 +12,8 @@ impl ThrottledClient {
         url: &str,
         auth_headers: &AuthHeaders,
     ) -> Result<SecureAuthResponse, reqwest::Error> {
-        self.get_bytes_with_secure_auth_and_accept(url, auth_headers, None).await
+        self.get_bytes_with_secure_auth_and_accept(url, auth_headers, None)
+            .await
     }
 
     /// Retry a complete authenticated GET, including redirects and body reads.
@@ -45,7 +46,8 @@ impl ThrottledClient {
         retry_opts: RetryOpts,
         body_limit: usize,
     ) -> Result<SecureAuthResponse, reqwest::Error> {
-        retry::get_secure_bytes(self, url, auth_headers, accept, retry_opts, body_limit).await
+        retry::get_secure_bytes(self, url, auth_headers, accept, retry_opts, body_limit)
+            .await
     }
 
     /// Negotiate an ecosystem's metadata representation while retaining the

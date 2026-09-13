@@ -205,7 +205,9 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
     installability_host: Option<&pnpm_deps_restorer::InstallabilityHost>,
     scope: PlanScope,
 ) -> Result<SkippedSnapshots, InstallWithFreshLockfileError> {
-    let closure_importer_ids: std::collections::HashSet<String> = lockfiles.built.importers
+    let closure_importer_ids: std::collections::HashSet<String> = lockfiles
+        .built
+        .importers
         .keys()
         .cloned()
         .collect();

@@ -244,7 +244,8 @@ async fn get_project_page(
     };
     let document = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, project) {
         RegistrySource::Hosted(source) => {
-            read_hosted_document::<ProjectDocument>(&state, &identity, &source, &key).await
+            read_hosted_document::<ProjectDocument>(&state, &identity, &source, &key)
+                .await
         }
         source @ RegistrySource::Upstream(_) => {
             load_upstream_page(&state, &identity, &source, &key, project).await
@@ -327,17 +328,11 @@ async fn get_file(
     };
     let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, project) {
         RegistrySource::Hosted(source) => {
-            match read_hosted_document::<ProjectDocument>(&state, &identity, &source, &key).await {
-                Ok(Some(document)) if document.file(filename).is_some() => {
-                    serve_hosted_blob(&state, &identity, &source, &key, filename).await
-                        .unwrap_or_else(IntoResponse::into_response)
-                }
-                Ok(_) => not_found(),
-                Err(err) => err.into_response(),
-            }
+            hosted_file(&state, &identity, &source, &key, filename).await
         }
         source @ RegistrySource::Upstream(_) => {
-            file_via_upstream(&state, &identity, &source, &key, project, filename).await
+            file_via_upstream(&state, &identity, &source, &key, project, filename)
+                .await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
     };
@@ -366,11 +361,12 @@ async fn file_via_upstream(
         Err(err) => return err.into_response(),
     };
 
-    let (document, base) = match load_upstream_page(state, identity, source, key, project).await {
-        Ok(Some(page)) => page,
-        Ok(None) => return not_found(),
-        Err(err) => return err.into_response(),
-    };
+    let (document, base) =
+        match load_upstream_page(state, identity, source, key, project).await {
+            Ok(Some(page)) => page,
+            Ok(None) => return not_found(),
+            Err(err) => return err.into_response(),
+        };
     let Some(entry) = document.file(filename) else {
         return not_found();
     };
@@ -430,6 +426,25 @@ fn project_page_response(
             }
         }
         Ok(None) => not_found(),
+        Err(err) => err.into_response(),
+    }
+}
+
+async fn hosted_file(
+    state: &AppState,
+    identity: &Identity,
+    source: &str,
+    key: &CanonicalPackageName,
+    filename: &str,
+) -> Response {
+    match read_hosted_document::<ProjectDocument>(state, identity, source, key)
+        .await
+    {
+        Ok(Some(document)) if document.file(filename).is_some() => {
+            serve_hosted_blob(state, identity, source, key, filename).await
+                .unwrap_or_else(IntoResponse::into_response)
+        }
+        Ok(_) => not_found(),
         Err(err) => err.into_response(),
     }
 }

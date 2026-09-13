@@ -237,7 +237,8 @@ async fn rejecting_a_staged_publish_deletes_it_without_publishing() {
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
     let doc = publish_doc("rejected-pkg", "1.0.0", b"bytes");
-    let stage_id = stage_package(app.clone(), "rejected-pkg", &doc, &token).await;
+    let stage_id = stage_package(app.clone(), "rejected-pkg", &doc, &token)
+        .await;
 
     let reject = app
         .clone()
@@ -282,7 +283,8 @@ async fn staging_supports_scoped_packages() {
 
     let tarball = b"scoped-bytes";
     let doc = publish_doc("@scope/staged", "2.0.0", tarball);
-    let stage_id = stage_package(app.clone(), "@scope/staged", &doc, &token).await;
+    let stage_id = stage_package(app.clone(), "@scope/staged", &doc, &token)
+        .await;
 
     let list = app
         .clone()
@@ -470,7 +472,8 @@ async fn approving_a_version_published_in_the_meantime_conflicts() {
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
 
     let doc = publish_doc("conflicted-pkg", "1.0.0", b"staged-bytes");
-    let stage_id = stage_package(app.clone(), "conflicted-pkg", &doc, &token).await;
+    let stage_id = stage_package(app.clone(), "conflicted-pkg", &doc, &token)
+        .await;
 
     // The same version lands through a direct publish before approval.
     let direct = publish_doc("conflicted-pkg", "1.0.0", b"direct-bytes");

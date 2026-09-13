@@ -114,7 +114,8 @@ async fn registry_resolution_with_no_active_policy_skips_metadata_lookup() {
     let verifier = create_npm_resolution_verifier(opts);
     let name: PkgName = "acme".parse().expect("parse");
     assert!(!verifier.might_verify(&registry_resolution(), ctx(&name, "1.0.0")));
-    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.0.0")).await;
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.0.0"))
+        .await;
 
     assert_eq!(result, ResolutionVerification::Ok);
 }

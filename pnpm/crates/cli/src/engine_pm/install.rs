@@ -100,7 +100,8 @@ pub(crate) async fn install_engine_from_env<Reporter: self::Reporter + 'static>(
     version: &str,
 ) -> miette::Result<PathBuf> {
     let config = package_manager_engine_config(config)?.leak();
-    install_engine_from_env_with_config::<Reporter>(config, pm, env, version).await
+    install_engine_from_env_with_config::<Reporter>(config, pm, env, version)
+        .await
 }
 
 /// The packages that make up `pm` at `version`. Errors for an engine that

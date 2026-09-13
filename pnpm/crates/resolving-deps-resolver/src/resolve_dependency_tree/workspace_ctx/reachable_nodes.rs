@@ -122,7 +122,9 @@ pub(super) fn walk_reachable_nodes(
             continue;
         };
         reachable_pkg_ids.insert(Arc::<str>::clone(&node.resolved_package_id));
-        if let crate::resolved_tree::TreeChildren::Realized(children) = &node.children {
+        if let crate::resolved_tree::TreeChildren::Realized(children) =
+            &node.children
+        {
             pending_node_ids.extend(children.values().cloned());
         }
     }

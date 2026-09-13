@@ -424,7 +424,8 @@ fn build_auth_headers_keeps_every_credential_by_scope() {
         },
     );
     assert_eq!(
-        config.registry_creds_by_uri["//other.example/"][DEFAULT_REGISTRY_SCOPE].token_helper,
+        config.registry_creds_by_uri["//other.example/"][DEFAULT_REGISTRY_SCOPE]
+            .token_helper,
         Some(vec!["get-token".to_string(), "--json".to_string()]),
     );
 }

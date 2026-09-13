@@ -183,10 +183,11 @@ pub(super) async fn list_tokens(state: &AppState, identity: &Identity) -> Respon
         Ok(username) => username,
         Err(err) => return err.into_response(),
     };
-    let tokens = match state.inner.identity.auth.tokens.list_for_user(&username).await {
-        Ok(tokens) => tokens,
-        Err(err) => return err.into_response(),
-    };
+    let tokens =
+        match state.inner.identity.auth.tokens.list_for_user(&username).await {
+            Ok(tokens) => tokens,
+            Err(err) => return err.into_response(),
+        };
     let objects: Vec<Value> = tokens
         .into_iter()
         .map(|(key, record)| token_response_object(&key, &record))
@@ -215,11 +216,13 @@ pub(super) async fn revoke_token_by_key(
             resource: "this token".to_string(),
         }
         .into_response(),
-        Ok(Some(_)) => match state.inner.identity.auth.tokens.revoke_by_key(key).await {
-            Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": "token revoked" })),
-            Ok(None) => not_found(),
-            Err(err) => err.into_response(),
-        },
+        Ok(Some(_)) => {
+            match state.inner.identity.auth.tokens.revoke_by_key(key).await {
+                Ok(Some(_)) => json_response(StatusCode::OK, &json!({ "ok": "token revoked" })),
+                Ok(None) => not_found(),
+                Err(err) => err.into_response(),
+            }
+        }
         Ok(None) => not_found(),
         Err(err) => err.into_response(),
     }
@@ -251,11 +254,12 @@ pub(super) async fn logout(state: &AppState, identity: &Identity, raw_token: &st
         Err(err) => return err.into_response(),
         Ok(None) => {}
     }
-    let target_owner = match state.inner.identity.auth.tokens.lookup(raw_token).await {
-        Ok(Some(owner)) => owner,
-        Ok(None) => return not_found(),
-        Err(err) => return err.into_response(),
-    };
+    let target_owner =
+        match state.inner.identity.auth.tokens.lookup(raw_token).await {
+            Ok(Some(owner)) => owner,
+            Ok(None) => return not_found(),
+            Err(err) => return err.into_response(),
+        };
     if target_owner != username {
         return RegistryError::Forbidden {
             user: username,

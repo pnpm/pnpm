@@ -792,11 +792,13 @@ async fn in_memory_cache_does_not_leak_across_registries() {
         },
     };
 
-    let pick_a = pick_package(&ctx, &range_spec("acme", "*"), &default_opts(&registry_a)).await
+    let pick_a = pick_package(&ctx, &range_spec("acme", "*"), &default_opts(&registry_a))
+        .await
         .expect("a")
         .picked_package
         .expect("a picked");
-    let pick_b = pick_package(&ctx, &range_spec("acme", "*"), &default_opts(&registry_b)).await
+    let pick_b = pick_package(&ctx, &range_spec("acme", "*"), &default_opts(&registry_b))
+        .await
         .expect("b")
         .picked_package
         .expect("b picked");

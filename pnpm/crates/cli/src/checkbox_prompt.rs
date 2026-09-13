@@ -192,7 +192,8 @@ impl<Value> CheckboxPrompt<Value> {
             Key::ArrowUp | Key::Char('k') => self.move_active(-1),
             Key::ArrowDown | Key::Char('j') => self.move_active(1),
             Key::Char(' ') => {
-                self.checked[self.viewport.active] = !self.checked[self.viewport.active];
+                self.checked[self.viewport.active] =
+                    !self.checked[self.viewport.active];
             }
             Key::Char('a') => {
                 let select_all = self.items
@@ -256,12 +257,16 @@ impl<Value> CheckboxPrompt<Value> {
         }
         if self.viewport.active < self.viewport.top {
             self.viewport.top = self.viewport.active;
-        } else if self.viewport.active >= self.viewport.top + self.viewport.page_size {
-            self.viewport.top = self.viewport.active + 1 - self.viewport.page_size;
+        } else if self.viewport.active
+            >= self.viewport.top + self.viewport.page_size
+        {
+            self.viewport.top =
+                self.viewport.active + 1 - self.viewport.page_size;
         }
         while self.viewport.top > 0
             && !is_choice(&self.items[self.viewport.top - 1])
-            && self.viewport.active + 1 - (self.viewport.top - 1) <= self.viewport.page_size
+            && self.viewport.active + 1 - (self.viewport.top - 1)
+                <= self.viewport.page_size
         {
             self.viewport.top -= 1;
         }

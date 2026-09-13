@@ -86,7 +86,8 @@ fn compatible_package_range_update_skips_resolution() {
         .expect("wanted lockfile");
     let name = "@pnpm.e2e/has-optional-peer-with-peer".parse().expect("package name");
     assert_eq!(
-        wanted.importers["."].dependencies.as_ref().expect("dependencies")[&name].specifier,
+        wanted.importers["."].dependencies.as_ref().expect("dependencies")[&name]
+            .specifier,
         ">=1.0.0 <2",
     );
 

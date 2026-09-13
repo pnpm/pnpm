@@ -64,18 +64,16 @@ impl Request {
         let reference_key = sha256_hex(reference.as_bytes());
         let namespace = format!("{namespace}-oci-manifest-{reference_key}");
         let storage = &self.state.inner.storage;
-        let ttl = if Digest::parse(reference).is_ok() {
-            Duration::MAX
-        } else {
-            upstream.maxage().unwrap_or(self.state.inner.config.http.packument_ttl)
-        };
+        let ttl = self.proxy_manifest_ttl(upstream, reference);
         if upstream.caches()
-            && let Some(bytes) = storage.read_upstream_document(&namespace, key, ttl).await?
+            && let Some(bytes) = storage.read_upstream_document(&namespace, key, ttl)
+                .await?
         {
             return manifest_response(bytes, self.method == Method::HEAD).map(Some);
         }
         if self.method == Method::HEAD
-            && let Some(answered) = head_proxy_manifest(upstream, key, reference).await?
+            && let Some(answered) = head_proxy_manifest(upstream, key, reference)
+                .await?
         {
             return Ok(answered);
         }
@@ -89,11 +87,20 @@ impl Request {
             FetchOutcome::NotFound => return Ok(None),
             FetchOutcome::Ok(response) => response,
         };
-        let bytes = self.read_verified_proxy_manifest(response, reference).await?;
+        let bytes = self.read_verified_proxy_manifest(response, reference)
+            .await?;
         if upstream.caches() {
             storage.write_upstream_document(&namespace, key, &bytes).await?;
         }
         manifest_response(bytes, self.method == Method::HEAD).map(Some)
+    }
+
+    fn proxy_manifest_ttl(&self, upstream: &pnpr_upstream::Upstream, reference: &str) -> Duration {
+        if Digest::parse(reference).is_ok() {
+            Duration::MAX
+        } else {
+            upstream.maxage().unwrap_or(self.state.inner.config.http.packument_ttl)
+        }
     }
 
     async fn read_verified_proxy_manifest(
@@ -126,8 +133,8 @@ impl Request {
             Ok(found) => found,
             Err(err) => return registry_error(err),
         };
-        let result =
-            self.proxied_blob(upstream, &format!("{namespace}-oci-blobs"), key, digest).await;
+        let result = self.proxied_blob(upstream, &format!("{namespace}-oci-blobs"), key, digest)
+            .await;
         let mut response = result.unwrap_or_else(IntoResponse::into_response);
         if response.status().is_success() {
             super::insert_header(&mut response, DOCKER_CONTENT_DIGEST, &digest.to_string());
@@ -147,7 +154,8 @@ impl Request {
         let filename = digest.blob_filename();
         let storage = &self.state.inner.storage;
         if upstream.caches()
-            && let Some((file, len)) = storage.open_upstream_blob(namespace, key, &filename).await?
+            && let Some((file, len)) = storage.open_upstream_blob(namespace, key, &filename)
+                .await?
         {
             let body = if self.method == Method::HEAD {
                 Body::empty()
@@ -186,7 +194,8 @@ impl Request {
     ) -> Result<Response, RegistryError> {
         let filename = digest.blob_filename();
         let storage = &self.state.inner.storage;
-        let write = storage.open_upstream_blob_tmp(namespace, key, &filename).await?;
+        let write = storage.open_upstream_blob_tmp(namespace, key, &filename)
+            .await?;
         let integrity = sha256_integrity(digest.hex()).expect("validated SHA-256 digest");
         let limit = self.state.inner.config.http.oci.max_blob_bytes;
         if upstream.caches() {
@@ -195,7 +204,8 @@ impl Request {
             return Ok(tarball_response(body, None));
         }
         let (file, len, path) =
-            streaming::download_verified_to_temp(response, write, &integrity, limit).await
+            streaming::download_verified_to_temp(response, write, &integrity, limit)
+                .await
                 .map_err(|err| tarball_stream_error(err, key, &filename))?;
         Ok(tarball_response(
             streaming::stream_file_and_remove(file, path),

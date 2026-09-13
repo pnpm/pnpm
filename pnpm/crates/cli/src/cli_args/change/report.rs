@@ -27,7 +27,8 @@ pub(super) async fn render_status(
     };
     // Probe as the release does, so the preview matches it.
     let unpublished_dirs =
-        unpublished_release_dirs(config, &assemble(HashSet::new())?, published_names).await?;
+        unpublished_release_dirs(config, &assemble(HashSet::new())?, published_names)
+            .await?;
     let plan = assemble(unpublished_dirs)?;
     if plan.releases.is_empty() {
         return Ok("No pending changes.".to_string());

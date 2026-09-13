@@ -77,7 +77,8 @@ impl SharedArtifactStore {
             let digest = Bytes::copy_from_slice(&compiler_cache_digest(&owner, key, &bytes));
             let stored: PutPayload = [digest, bytes].into_iter().collect();
             let created = self.create_object(&path, stored).await?;
-            self.release_uncommitted(&owner, size, if created { size } else { 0 }).await?;
+            self.release_uncommitted(&owner, size, if created { size } else { 0 })
+                .await?;
             reclamation_needed = started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY;
             if reclamation_needed {
                 self.begin_publication(&publication).await?;
@@ -85,7 +86,8 @@ impl SharedArtifactStore {
             Ok(created)
         })
         .await;
-        self.complete_publication(&publication, reclamation_needed, result).await
+        self.complete_publication(&publication, reclamation_needed, result)
+            .await
     }
 
     /// Returns the payload length using object metadata, without verifying content.

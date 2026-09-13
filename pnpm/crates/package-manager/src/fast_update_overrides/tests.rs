@@ -619,7 +619,8 @@ async fn a_range_override_moves_to_the_version_the_graph_already_holds() {
 
     // The rewrite itself stops at the stub's empty resolution; the version
     // it asked for is the decision under test.
-    let _ = try_update(&lockfile, &range_override("^1.2.0"), &overrides, &resolver).await;
+    let _ = try_update(&lockfile, &range_override("^1.2.0"), &overrides, &resolver)
+        .await;
 
     assert_eq!(
         *resolver.requested.lock().expect("requested versions"),
@@ -638,7 +639,9 @@ async fn a_range_override_no_locked_version_satisfies_falls_back() {
     };
 
     assert!(
-        try_update(&lockfile, &range_override("^3.0.0"), &overrides, &resolver).await.is_none(),
+        try_update(&lockfile, &range_override("^3.0.0"), &overrides, &resolver)
+            .await
+            .is_none(),
         "only the resolver can fetch a version the lockfile does not hold",
     );
     assert_eq!(
@@ -708,7 +711,8 @@ async fn a_parent_scoped_override_moves_only_that_parents_edge() {
         manifest: json!({ "name": "target", "version": "2.0.0", "dependencies": { "child": "^1.0.0" } }),
     };
 
-    let updated = try_update(&lockfile, &parent_scoped_override(), &overrides, &resolver).await
+    let updated = try_update(&lockfile, &parent_scoped_override(), &overrides, &resolver)
+        .await
         .expect("moving one parent's edge needs no resolution");
 
     let target: PkgName = "target".parse().expect("package name");
@@ -762,7 +766,8 @@ async fn a_parent_scoped_override_prunes_the_old_version_when_nothing_else_holds
         manifest: json!({ "name": "target", "version": "2.0.0", "dependencies": { "child": "^1.0.0" } }),
     };
 
-    let updated = try_update(&lockfile, &parent_scoped_override(), &overrides, &resolver).await
+    let updated = try_update(&lockfile, &parent_scoped_override(), &overrides, &resolver)
+        .await
         .expect("moving one parent's edge needs no resolution");
 
     let keys: Vec<_> = updated.snapshots

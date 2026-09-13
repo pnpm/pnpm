@@ -224,7 +224,8 @@ fn build_modules<'a>(
         cache: crate::BuildCacheContext {
             maps_by_snapshot: Some(inputs.cache.maps_by_snapshot),
             engine_name: inputs.cache.engine_name,
-            read: config.side_effects_cache_read() || config.remote_side_effects_cache.is_some(),
+            read: config.side_effects_cache_read()
+                || config.remote_side_effects_cache.is_some(),
             write: config.side_effects_cache_write(),
             publisher: shared_side_effects_publisher,
             store_dir: Some(&config.store_dir),

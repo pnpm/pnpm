@@ -178,7 +178,8 @@ async fn finish_pipeline_run(
     if invocation.report
         && let Some(upload) = outcome.upload
     {
-        report_pipeline_run(cfg, invocation.report_to.as_deref(), upload, reporter).await;
+        report_pipeline_run(cfg, invocation.report_to.as_deref(), upload, reporter)
+            .await;
     }
     if outcome.failed_tasks > 0 {
         return Err(super::super::pipeline::PipelineError::PipelineFail {

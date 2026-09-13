@@ -182,7 +182,8 @@ fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
     let original = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
         .expect("load original lockfile")
         .expect("original lockfile");
-    let optional_snapshot_keys: std::collections::HashSet<_> = original.snapshots
+    let optional_snapshot_keys: std::collections::HashSet<_> = original
+        .snapshots
         .as_ref()
         .expect("original snapshots")
         .iter()

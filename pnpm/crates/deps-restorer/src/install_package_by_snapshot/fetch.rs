@@ -79,7 +79,8 @@ pub(super) async fn download_tarball<Reporter: self::Reporter>(
 ) -> Result<HashMap<String, PathBuf>, TarballError> {
     let Some(mem_cache) = tarball_mem_cache else {
         return if revision_addressed {
-            download.run_revision_addressed_without_mem_cache::<Reporter>().await
+            download.run_revision_addressed_without_mem_cache::<Reporter>()
+                .await
         } else {
             download.run_without_mem_cache::<Reporter>().await
         };
@@ -164,8 +165,8 @@ impl InstallPackageBySnapshot<'_> {
         emit_progress_resolved::<Reporter>(&package_id, self.ctx.requester);
 
         let download = self.ingest(metadata, &package_id);
-        let custom =
-            self.custom_fetch::<Reporter>(package_key, metadata, &package_id, &download).await?;
+        let custom = self.custom_fetch::<Reporter>(package_key, metadata, &package_id, &download)
+            .await?;
         let resolution = custom.resolution.as_ref().unwrap_or(&metadata.resolution);
         // Derived from the effective resolution, not the lockfile's: a
         // custom fetcher's `delegate` can resolve to a directory, and
@@ -250,7 +251,8 @@ impl InstallPackageBySnapshot<'_> {
         let allow_build = self.allow_build();
         match fetch.resolution {
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
-                self.fetch_snapshot_tarball::<Reporter>(&fetch, &allow_build).await
+                self.fetch_snapshot_tarball::<Reporter>(&fetch, &allow_build)
+                    .await
             }
             LockfileResolution::Directory(dir_resolution) => {
                 // Injected workspace dep (`file:./local-pkg` with
@@ -292,7 +294,8 @@ impl InstallPackageBySnapshot<'_> {
                 .await
             }
             LockfileResolution::Git(git_resolution) => {
-                self.fetch_git::<Reporter>(&fetch, git_resolution, &allow_build).await
+                self.fetch_git::<Reporter>(&fetch, git_resolution, &allow_build)
+                    .await
             }
             // A custom-typed resolution cannot be materialized without
             // a custom fetcher that claims it.

@@ -1,6 +1,8 @@
 pub(crate) use planning::{FastOverride, build_replacement_plan};
 
+mod manifest_dependencies;
 mod planning;
+use manifest_dependencies::{effective_dependencies, manifest_dependency_map};
 
 use planning::{ResolvedOverride, build_rewrite_plan, package_metadata, resolve_override};
 
@@ -74,7 +76,9 @@ pub(crate) async fn apply_rewrite_plan(
                 override_entry.new_version.is_some()
                     && plan.replacements
                         .iter()
-                        .any(|(old, new)| old != new && old.name == override_entry.name)
+                        .any(|(old, new)| {
+                            old != new && old.name == override_entry.name
+                        })
             })
             .map(|override_entry| resolve_override(context, override_entry)),
     )
@@ -426,27 +430,6 @@ fn find_reusable_dependency(
         .next()
         .is_none()
         .then(|| SnapshotDepRef::Plain(key.suffix.clone()))
-}
-
-fn effective_dependencies(manifest: &Value) -> Option<HashMap<PkgName, String>> {
-    let optional = manifest_dependency_map(manifest, "optionalDependencies")?;
-    Some(
-        manifest_dependency_map(manifest, "dependencies")?
-            .into_iter()
-            .filter(|(name, _)| !optional.contains_key(name))
-            .collect(),
-    )
-}
-
-fn manifest_dependency_map(manifest: &Value, key: &str) -> Option<HashMap<PkgName, String>> {
-    let Some(value) = manifest.get(key) else {
-        return Some(HashMap::new());
-    };
-    let map = value.as_object()?;
-    map
-        .iter()
-        .map(|(name, spec)| Some((PkgName::parse(name).ok()?, spec.as_str()?.to_string())))
-        .collect()
 }
 
 #[cfg(test)]

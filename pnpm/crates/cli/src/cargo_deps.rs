@@ -79,8 +79,8 @@ pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
     context: InstallContext,
     inventory: &EcosystemWorkspaceInventory,
 ) -> Result<InstallTask<'static>> {
-    let roots =
-        discover_workspace_roots(inventory.manifests(EcosystemManifest::Cargo).await?).await?;
+    let roots = discover_workspace_roots(inventory.manifests(EcosystemManifest::Cargo).await?)
+        .await?;
     let metadata = roots
         .iter()
         .flat_map(|root| metadata_paths(root))

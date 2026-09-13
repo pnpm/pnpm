@@ -123,7 +123,9 @@ impl ValidatedEntry {
 
     async fn stage(self, state: &AppState, now: &str) -> Result<StagedPublish, RegistryError> {
         match self {
-            ValidatedEntry::Npm(doc, org) => stage_publish(state, *doc, now, Some(&org)).await,
+            ValidatedEntry::Npm(doc, org) => {
+                stage_publish(state, *doc, now, Some(&org)).await
+            }
             ValidatedEntry::Cargo(publication) => publication.stage(state).await,
             ValidatedEntry::Pypi(publication) => publication.stage(state).await,
             ValidatedEntry::Oci(publication) => publication.stage(state).await.map_err(Into::into),
@@ -236,7 +238,8 @@ async fn validate_entry(
             let target = authorize_crate_publish(state, identity, None, &entry.metadata)?;
             let archive = decode_base64(&entry.archive, "archive")?;
             Ok(ValidatedEntry::Cargo(
-                verify_crate_archive(target, entry.metadata, archive.into()).await?,
+                verify_crate_archive(target, entry.metadata, archive.into())
+                    .await?,
             ))
         }
         Ecosystem::Pypi => validate_pypi_entry(state, identity, package),
@@ -309,7 +312,8 @@ async fn validate_npm_entry(
     // The batch endpoint is path-less, so each package routes via the
     // default target; validation resolves that route and checks the
     // resolved hosted registry's publish rule per document.
-    let (doc, target) = validate_publish_doc(state, identity, None, name, package).await?;
+    let (doc, target) = validate_publish_doc(state, identity, None, name, package)
+        .await?;
     Ok(ValidatedEntry::Npm(Box::new(doc), target.org))
 }
 

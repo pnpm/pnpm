@@ -38,7 +38,8 @@ pub(crate) fn to_string<Document: Serialize>(
     let document = serde_json::to_value(value);
     let stash = LOWERED_MAPS.with_borrow_mut(|slot| std::mem::replace(slot, previous));
     let mut document = document?;
-    let mut maps = stash.expect("the stash installed above is only taken here").maps;
+    let mut maps = stash.expect("the stash installed above is only taken here")
+        .maps;
     if !maps.is_empty() {
         let mut remaining = maps.len();
         splice_lowered_maps(&mut document, &stash_nonce, &mut maps, &mut remaining);

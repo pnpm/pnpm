@@ -259,8 +259,9 @@ impl Store {
             .into_owned();
         if component == ".present" {
             // A marker whose document is gone is a stale index entry.
-            let present =
-                !name.is_empty() && fs::try_exists(self.root.join(name).join(DOCUMENT_FILE)).await?;
+            let present = !name.is_empty()
+                && fs::try_exists(self.root.join(name).join(DOCUMENT_FILE))
+                    .await?;
             return Ok(if present {
                 IndexEntry::Package
             } else {

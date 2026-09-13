@@ -19,7 +19,8 @@ async fn update_config_records_prefer_frozen_lockfile_as_explicit() {
             .current::<Host>(root.path())
             .expect("load configuration");
 
-        run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+            .await
             .expect("run updateConfig hook");
 
         assert_eq!(config.prefer_frozen_lockfile, prefer_value);

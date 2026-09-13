@@ -22,9 +22,9 @@ impl ReporterState {
         let (stage, dep_path, wd) = lifecycle_ids(message);
         let key = format!("{stage}:{dep_path}");
         let collapsed = contains_path(wd, "/node_modules/") || contains_path(wd, "tmp/_tmp_");
-        let running = self.rendering.format_indented_status(&self.rendering.colors.magenta_bright(
-            "Running...",
-        ));
+        let running = self.rendering.format_indented_status(
+            &self.rendering.colors.magenta_bright("Running..."),
+        );
         let now = std::time::Instant::now();
         self.scripts.entries
             .entry(key.clone())

@@ -86,7 +86,9 @@ impl HostedBackend for Store {
         filename: &str,
         range: &GetRange,
     ) -> Result<Option<RangedBlob>> {
-        let Some((mut file, size)) = Store::open_blob(self, name, filename).await? else {
+        let Some((mut file, size)) = Store::open_blob(self, name, filename)
+            .await?
+        else {
             return Ok(None);
         };
         let Ok(range) = range.as_range(size) else {
@@ -220,7 +222,8 @@ impl HostedBackend for Store {
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
-        Store::replace_record_if_current(self, namespace, key, expected, bytes).await
+        Store::replace_record_if_current(self, namespace, key, expected, bytes)
+            .await
     }
 
     async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {

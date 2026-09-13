@@ -171,7 +171,8 @@ impl UpdateChangesetContext {
         }
         let production_dependencies_changed = dep_specs_before.is_none_or(|before| {
             before.dependencies != dep_specs.dependencies
-                || before.optional_dependencies != dep_specs.optional_dependencies
+                || before.optional_dependencies
+                    != dep_specs.optional_dependencies
         }) || uses_changed_catalog_entry(
             dep_specs.production_groups(),
             changed_catalog_entries,

@@ -23,7 +23,8 @@ impl Store {
         let mut index = self.read_revision_ref_index(digest).await?;
         let outcome = index.insert(ref_id, owner, bytes)?;
         if outcome == HostedRevisionRefWrite::Claimed {
-            write_atomic(&self.revision_ref_index_path(digest), &index.to_bytes()).await?;
+            write_atomic(&self.revision_ref_index_path(digest), &index.to_bytes())
+                .await?;
         }
         Ok(outcome)
     }
@@ -37,7 +38,8 @@ impl Store {
         let _guard = self.revision_ref_write_lock.lock().await;
         let mut index = self.read_revision_ref_index(digest).await?;
         if index.remove_if_owned(ref_id, owner) {
-            write_atomic(&self.revision_ref_index_path(digest), &index.to_bytes()).await?;
+            write_atomic(&self.revision_ref_index_path(digest), &index.to_bytes())
+                .await?;
         }
         Ok(())
     }
@@ -51,7 +53,8 @@ impl Store {
         let _guard = self.revision_ref_write_lock.lock().await;
         let mut index = self.read_revision_ref_index(digest).await?;
         if index.commit_if_owned(ref_id, owner)? {
-            write_atomic(&self.revision_ref_index_path(digest), &index.to_bytes()).await?;
+            write_atomic(&self.revision_ref_index_path(digest), &index.to_bytes())
+                .await?;
         }
         Ok(())
     }

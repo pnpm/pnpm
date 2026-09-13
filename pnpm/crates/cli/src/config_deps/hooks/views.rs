@@ -24,7 +24,8 @@ pub(super) fn resolved_config_views(
     // config carries as the `registry` setting. The prefix map reports only
     // the prefixes the project declares, and nothing when it declares none,
     // as pnpm 11 does.
-    let mut registries_by_scope = config.resolved_registry_lookups().registries_by_scope;
+    let mut registries_by_scope = config.resolved_registry_lookups()
+        .registries_by_scope;
     registries_by_scope.insert("default".to_string(), config.registry.clone());
     set(
         "registriesByScope",

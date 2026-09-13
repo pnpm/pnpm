@@ -14,10 +14,11 @@ pub(super) async fn serve_staged_approve(
     registry: Option<&str>,
     stage_id: &str,
 ) -> Response {
-    let stored = match load_authorized_record(state, identity, registry, stage_id).await {
-        Ok(stored) => stored,
-        Err(err) => return err.into_response(),
-    };
+    let stored =
+        match load_authorized_record(state, identity, registry, stage_id).await {
+            Ok(stored) => stored,
+            Err(err) => return err.into_response(),
+        };
     let claim = match claim_for_approval(state, stage_id, stored).await {
         Ok(claim) => claim,
         Err(err) => return err.into_response(),
@@ -58,12 +59,14 @@ pub(super) async fn claim_for_approval(
         // Something got between the read and the claim. Another approval
         // leaves its claim behind; one that finished, or a rejection, leaves
         // no record at all.
-        DocumentWrite::Conflict => match state.inner.storage.read_staged_meta(stage_id).await? {
-            Some(_) => Err(RegistryError::StagedApprovalInFlight {
-                stage_id: stage_id.to_string(),
-            }),
-            None => Err(RegistryError::NotFound),
-        },
+        DocumentWrite::Conflict => {
+            match state.inner.storage.read_staged_meta(stage_id).await? {
+                Some(_) => Err(RegistryError::StagedApprovalInFlight {
+                    stage_id: stage_id.to_string(),
+                }),
+                None => Err(RegistryError::NotFound),
+            }
+        }
     }
 }
 
@@ -140,10 +143,13 @@ pub(super) async fn approve_claimed(
     // changed since staging, and the version may have been published in
     // the meantime (which surfaces as the usual 409).
     let (validated, target) =
-        validate_publish_doc(state, identity, record.registry.as_deref(), name, incoming).await?;
+        validate_publish_doc(state, identity, record.registry.as_deref(), name, incoming)
+            .await?;
 
-    let _packument_guard = state.inner.locks.packages.lock(validated.name.as_str()).await;
-    let staged = stage_publish(state, validated, &now_iso(), Some(&target.org)).await?;
+    let _packument_guard = state.inner.locks.packages.lock(validated.name.as_str())
+        .await;
+    let staged = stage_publish(state, validated, &now_iso(), Some(&target.org))
+        .await?;
     // Nothing is visible yet, which is the last moment a rejection can still
     // take the stage back. Past the commit it cannot: the publish is served.
     if let Err(err) = still_claimed(state, stage_id, claim).await {

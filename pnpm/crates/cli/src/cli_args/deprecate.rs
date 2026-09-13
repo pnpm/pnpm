@@ -201,7 +201,8 @@ impl DeprecateArgs {
             .ok_or(DeprecateError::MessageRequired)?;
 
         let output =
-            update_deprecation(&context, Some(&message), &package_name, version.as_deref()).await?;
+            update_deprecation(&context, Some(&message), &package_name, version.as_deref())
+                .await?;
         Ok(Some(output))
     }
 }
@@ -218,7 +219,8 @@ pub(crate) async fn update_deprecation(
     let package_url = package_url(package_name, &registry_url)?;
 
     let mut package_meta: PackageMeta =
-        fetch_package_meta(context, &package_url, auth_header.as_deref(), package_name).await?;
+        fetch_package_meta(context, &package_url, auth_header.as_deref(), package_name)
+            .await?;
 
     let versions_to_update = require_matching_versions(&package_meta, package_name, version_range)?;
 

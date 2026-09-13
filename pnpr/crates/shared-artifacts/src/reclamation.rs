@@ -68,7 +68,8 @@ impl SharedArtifactStore {
             // the same, and dropping the scopes it holds would let an artifact
             // reaching the same machines be published beside it.
             if artifacts.every_variant_read
-                && self.scope_is_abandoned(&entry.location, &artifacts.digests).await?
+                && self.scope_is_abandoned(&entry.location, &artifacts.digests)
+                    .await?
             {
                 self.store.delete(&entry.location).await?;
             }
@@ -97,7 +98,8 @@ impl SharedArtifactStore {
         let Some(relative) = self.relative_path(location).map(str::to_string) else {
             return Ok(false);
         };
-        let Some(holder) = self.read_object_bounded(&relative, MAX_SCOPE_MARKER_BYTES).await?
+        let Some(holder) = self.read_object_bounded(&relative, MAX_SCOPE_MARKER_BYTES)
+            .await?
         else {
             return Ok(false);
         };

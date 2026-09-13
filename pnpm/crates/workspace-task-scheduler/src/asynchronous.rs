@@ -106,7 +106,9 @@ impl AsyncState {
         match completion {
             TaskCompletion::Passed => self.release_dependents(index, dependents),
             TaskCompletion::Failed if policy.bail => self.stop_dispatch = true,
-            TaskCompletion::Aborted | TaskCompletion::Cancelled => self.stop_dispatch = true,
+            TaskCompletion::Aborted | TaskCompletion::Cancelled => {
+                self.stop_dispatch = true;
+            }
             TaskCompletion::Failed if policy.continue_on => {
                 self.release_dependents(index, dependents);
             }

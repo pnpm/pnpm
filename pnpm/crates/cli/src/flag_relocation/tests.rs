@@ -146,7 +146,9 @@ fn mixed_short_cluster_moves_with_its_value() {
 fn relocated_mixed_short_cluster_parses_with_both_options_applied() {
     let args = parse(&["pnpm", "-ro", "dist", "pack-app"]);
     assert!(args.workspace.recursive);
-    let crate::cli_args::cli_command::CliCommand::PackApp(pack_app) = args.command else {
+    let crate::cli_args::cli_command::CliCommand::PackApp(pack_app) = args
+        .command
+    else {
         panic!("expected pack-app");
     };
     assert_eq!(pack_app.output_dir.as_deref(), Some("dist"));

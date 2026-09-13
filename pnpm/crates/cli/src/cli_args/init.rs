@@ -87,7 +87,9 @@ pub(crate) async fn version_to_pin(config: &Config) -> String {
     let lookup = Box::pin(config_deps::resolve_engine_version(
         &config, "pnpm", "latest",
     ));
-    let Ok(Ok(Some(resolved))) = tokio::time::timeout(LATEST_LOOKUP_TIMEOUT, lookup).await else {
+    let Ok(Ok(Some(resolved))) = tokio::time::timeout(LATEST_LOOKUP_TIMEOUT, lookup)
+        .await
+    else {
         return PNPM_VERSION.to_string();
     };
     // A `latest` the maturity or trust policy rejects is not something to pin

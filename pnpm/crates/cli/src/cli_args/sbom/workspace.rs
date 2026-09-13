@@ -9,7 +9,9 @@ use super::{
 /// `--filter-prod` selector, or `--workspace-root`. Without one, every
 /// importer in the lockfile is in scope.
 pub(super) fn selectors_narrow_the_run(config: &Config) -> bool {
-    !config.filter.is_empty() || !config.filter_prod.is_empty() || config.workspace_root
+    !config.filter.is_empty()
+        || !config.filter_prod.is_empty()
+        || config.workspace_root
 }
 
 /// The lockfile importer ids of the workspace projects the run's selectors

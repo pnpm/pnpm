@@ -42,7 +42,9 @@ async fn lockfile_repair_rejects_a_server_without_the_capability() {
         .create_async()
         .await;
 
-    let Err(error) = PnprClient::new(server.url()).resolve_projects(options).await else {
+    let Err(error) = PnprClient::new(server.url()).resolve_projects(options)
+        .await
+    else {
         panic!("an older server must not silently ignore repair mode");
     };
 
@@ -332,8 +334,8 @@ async fn resolve_mock_frames(
     }
     let resolve_mock = resolve_mock.create_async().await;
 
-    let result =
-        PnprClient::new(server.url()).resolve_projects_streaming(options, on_package).await;
+    let result = PnprClient::new(server.url()).resolve_projects_streaming(options, on_package)
+        .await;
     resolve_mock.assert_async().await;
     result
 }

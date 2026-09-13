@@ -292,7 +292,8 @@ fn moves_to_a_higher_locked_version_even_when_the_locked_one_still_satisfies() {
 
     let alias: PkgName = "foo".parse().expect("alias");
     assert_eq!(
-        updated.importers["."].dependencies.as_ref().expect("dependencies")[&alias].version
+        updated.importers["."].dependencies.as_ref().expect("dependencies")[&alias]
+            .version
             .to_string(),
         "1.2.0",
     );

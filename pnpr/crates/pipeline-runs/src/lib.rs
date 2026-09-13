@@ -79,7 +79,9 @@ impl PipelineRunStore {
         }
         let document = serde_json::to_vec(&run)?;
         let key = format!("{}{RECORD_SUFFIX}", run.run_id);
-        if self.storage.create_pipeline_run(&run.workspace, &key, &document).await? {
+        if self.storage.create_pipeline_run(&run.workspace, &key, &document)
+            .await?
+        {
             return Ok(());
         }
         Err(RegistryError::BadRequest {

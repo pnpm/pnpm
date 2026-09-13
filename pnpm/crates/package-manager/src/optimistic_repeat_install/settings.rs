@@ -159,7 +159,8 @@ impl SettingsComparison<'_> {
         return_drift_if!(
             self,
             "excludeLinksFromLockfile",
-            recorded.exclude_links_from_lockfile != live.exclude_links_from_lockfile,
+            recorded.exclude_links_from_lockfile
+                != live.exclude_links_from_lockfile,
         );
         return_drift_if!(
             self,
@@ -174,7 +175,8 @@ impl SettingsComparison<'_> {
         return_drift_if!(
             self,
             "ignoredOptionalDependencies",
-            recorded.ignored_optional_dependencies != live.ignored_optional_dependencies,
+            recorded.ignored_optional_dependencies
+                != live.ignored_optional_dependencies,
         );
         return_drift_if!(
             self,
@@ -213,7 +215,8 @@ impl SettingsComparison<'_> {
         return_drift_if!(
             self,
             "minimumReleaseAgeExclude",
-            recorded.minimum_release_age_exclude != live.minimum_release_age_exclude,
+            recorded.minimum_release_age_exclude
+                != live.minimum_release_age_exclude,
         );
         return_drift_if!(
             self,
@@ -224,7 +227,8 @@ impl SettingsComparison<'_> {
         return_drift_if!(
             self,
             "minimumReleaseAgeStrict",
-            recorded.minimum_release_age_strict != live.minimum_release_age_strict,
+            recorded.minimum_release_age_strict
+                != live.minimum_release_age_strict,
         );
         return_drift_if!(self, "nodeLinker", recorded.node_linker != live.node_linker);
         return_drift_if!(self, "optional", recorded.optional != live.optional);

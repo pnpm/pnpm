@@ -58,7 +58,8 @@ pub(super) async fn ensure_user_counter(conn: &Connection) -> Result<()> {
 }
 
 pub(super) async fn reconcile_user_counter_overcount(conn: &Connection) -> Result<bool> {
-    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)
+        .await?;
     let mut counter_rows = tx.query(
         "SELECT value FROM auth_counters WHERE name = ?1",
         params!["users"],
@@ -102,7 +103,8 @@ where
         match operation().await {
             Ok(value) => return Ok(value),
             Err(RegistryError::Libsql(error)) if retries < 8 && is_transaction_conflict(&error) => {
-                tokio::time::sleep(Duration::from_millis(10 << retries.min(5))).await;
+                tokio::time::sleep(Duration::from_millis(10 << retries.min(5)))
+                    .await;
                 retries += 1;
             }
             Err(error) => return Err(error),

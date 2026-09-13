@@ -98,7 +98,8 @@ impl StarsRequest<'_> {
     /// per-user endpoint still has to be asked.
     async fn own_stars(&self) -> miette::Result<Option<Value>> {
         let star_url = format!("{}-/user/v1/star", self.registry_url);
-        let (client, response) = self.get(&star_url, "requesting the self stars endpoint").await?;
+        let (client, response) = self.get(&star_url, "requesting the self stars endpoint")
+            .await?;
         if !response.status().is_success() {
             drop(client);
             return Ok(None);
@@ -130,7 +131,8 @@ impl StarsRequest<'_> {
     async fn user_stars(&self, username: &str) -> miette::Result<Value> {
         let encoded_username = encode_uri_component(username);
         let stars_url = format!("{}-/user/{encoded_username}/stars", self.registry_url);
-        let (client, response) = self.get(&stars_url, "requesting the user stars endpoint").await?;
+        let (client, response) = self.get(&stars_url, "requesting the user stars endpoint")
+            .await?;
         if response.status().is_success() {
             let body = response.json().await.into_diagnostic()?;
             drop(client);
@@ -140,7 +142,8 @@ impl StarsRequest<'_> {
 
         let util_stars_url = format!("{}-/util/user/{encoded_username}/stars", self.registry_url);
         let (client, response) =
-            self.get(&util_stars_url, "requesting the alt user stars endpoint").await?;
+            self.get(&util_stars_url, "requesting the alt user stars endpoint")
+                .await?;
         if !response.status().is_success() {
             let status = response.status();
             if status == 404 {

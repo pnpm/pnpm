@@ -49,7 +49,10 @@ pub(crate) async fn check_custom_resolver_force_resolve(
                 .iter()
                 .map(move |hook| {
                     let snapshot_json = snapshot_json.clone();
-                    async move { hook.should_refresh_resolution(dep_path, snapshot_json).await }
+                    async move {
+                        hook.should_refresh_resolution(dep_path, snapshot_json)
+                            .await
+                    }
                 })
         })
         .collect();

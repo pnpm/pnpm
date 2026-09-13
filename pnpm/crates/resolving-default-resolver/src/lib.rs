@@ -44,7 +44,9 @@ impl DefaultResolver {
         opts: &ResolveOptions,
     ) -> Result<ResolveResult, ResolveError> {
         for resolver in &self.chain {
-            if let Some(result) = resolver.resolve(wanted_dependency, opts).await? {
+            if let Some(result) = resolver.resolve(wanted_dependency, opts)
+                .await?
+            {
                 return Ok(result);
             }
         }
@@ -86,7 +88,9 @@ impl Resolver for DefaultResolver {
     ) -> ResolveFuture<'a> {
         Box::pin(async move {
             for resolver in &self.chain {
-                if let Some(result) = resolver.resolve(wanted_dependency, opts).await? {
+                if let Some(result) = resolver.resolve(wanted_dependency, opts)
+                    .await?
+                {
                     return Ok(Some(result));
                 }
             }

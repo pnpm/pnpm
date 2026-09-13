@@ -344,7 +344,8 @@ where
     Reporter: self::Reporter,
 {
     if is_github_actions::<Sys>() {
-        return github_request_token::<Sys, Reporter>(SIGSTORE_AUDIENCE, options).await
+        return github_request_token::<Sys, Reporter>(SIGSTORE_AUDIENCE, options)
+            .await
             .map_err(Into::into);
     }
 

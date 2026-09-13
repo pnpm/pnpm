@@ -194,7 +194,8 @@ impl S3Store {
         bytes: &[u8],
         version: Option<&UpdateVersion>,
     ) -> Result<bool> {
-        self.write_object_if_current(&self.document_key(name), bytes, version).await
+        self.write_object_if_current(&self.document_key(name), bytes, version)
+            .await
     }
 
     async fn write_object_if_current(

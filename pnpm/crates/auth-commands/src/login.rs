@@ -162,13 +162,16 @@ where
         }),
     };
 
-    let token = match web_login::<Sys, Reporter>(http_client, &registry, &fetch_options).await {
+    let token = match web_login::<Sys, Reporter>(http_client, &registry, &fetch_options)
+        .await
+    {
         Ok(token) => token,
         // Only a genuine web-login HTTP 404 / 405 means "web login unsupported";
         // every other failure (invalid response, poll timeout, transport) is
         // fatal and propagates.
         Err(WebLoginFlowError::Http { status, .. }) if status == 404 || status == 405 => {
-            classic_login::<Sys, Reporter>(http_client, &registry, fetch_options).await?
+            classic_login::<Sys, Reporter>(http_client, &registry, fetch_options)
+                .await?
         }
         Err(error) => return Err(error.into()),
     };

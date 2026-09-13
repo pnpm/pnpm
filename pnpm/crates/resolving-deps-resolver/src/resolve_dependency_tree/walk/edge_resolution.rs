@@ -24,7 +24,8 @@ where
     'e: 'async_recursion,
     Chain: Resolver + ?Sized,
 {
-    let current_is_optional = wanted.optional.unwrap_or(false) || edge.parent_optional;
+    let current_is_optional =
+        wanted.optional.unwrap_or(false) || edge.parent_optional;
 
     // The edge's recorded snapshot key in the prior lockfile, if any.
     // Feeds both subtree reuse (below) and — when the edge re-resolves
@@ -70,7 +71,8 @@ where
     let mut wanted = wanted;
     pin_locked_version(ctx, &mut wanted, prior_key.as_ref(), edge.depth);
 
-    let Some(result) = resolve_edge(ctx, resolver, &mut wanted, &edge, prior_key.as_ref()).await?
+    let Some(result) = resolve_edge(ctx, resolver, &mut wanted, &edge, prior_key.as_ref())
+        .await?
     else {
         return Ok(NodeSeed::Done(None));
     };
@@ -262,7 +264,8 @@ pub(super) fn seed_pending(
             id: &resolved.id,
             result: &result,
             peer_shadowed: &peer_shadowed,
-            resolves_children_through_catalogs: identity.resolves_children_through_catalogs,
+            resolves_children_through_catalogs: identity
+                .resolves_children_through_catalogs,
             current_is_optional: resolved.current_is_optional,
             is_link: identity.is_link,
             is_leaf: identity.is_leaf,
@@ -274,16 +277,12 @@ pub(super) fn seed_pending(
     Ok(NodeSeed::Pending(Box::new(PendingNode {
         result,
         is_link: identity.is_link,
-        resolves_children_through_catalogs: identity.resolves_children_through_catalogs,
+        resolves_children_through_catalogs: identity
+            .resolves_children_through_catalogs,
         peer_shadowed,
         claim: None,
         prior_key: resolved.prior_key,
-        ancestry: super::PendingNodeAncestry {
-            parent_ancestors: Arc::clone(edge.ancestor_ids),
-            next_ancestors: super::super::child_ancestor_ids(edge.ancestor_ids, &resolved.id),
-            depth: edge.depth,
-            current_is_optional: resolved.current_is_optional,
-        },
+        ancestry: edge.pending_ancestry(&resolved.id, resolved.current_is_optional),
         identity: super::PendingNodeIdentity {
             id: resolved.id,
             alias,
@@ -506,4 +505,15 @@ pub(super) fn is_droppable_resolve_error(err: &ResolveDependencyTreeError) -> bo
             | ResolveDependencyTreeError::GitResolve(_)
             | ResolveDependencyTreeError::SpecNotSupported { .. },
     )
+}
+
+impl ChildEdge<'_> {
+    fn pending_ancestry(&self, id: &str, current_is_optional: bool) -> super::PendingNodeAncestry {
+        super::PendingNodeAncestry {
+            parent_ancestors: Arc::clone(self.ancestor_ids),
+            next_ancestors: super::super::child_ancestor_ids(self.ancestor_ids, id),
+            depth: self.depth,
+            current_is_optional,
+        }
+    }
 }

@@ -342,7 +342,9 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         })
         .expect("must emit pnpm:skipped-optional-dependency");
     assert_eq!(skipped_event.reason, SkippedOptionalReason::BuildFailure);
-    let SkippedOptionalPackage::Installed { name, version, .. } = &skipped_event.package else {
+    let SkippedOptionalPackage::Installed { name, version, .. } =
+        &skipped_event.package
+    else {
         panic!(
             "expected Installed payload for build_failure, got {:?}",
             skipped_event.package,

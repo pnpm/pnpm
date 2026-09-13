@@ -56,7 +56,8 @@ fn upsert_dependency(
     let mut offset = section_start;
     for line in section.split_inclusive('\n') {
         if let Some(value_range) = dependency_value_range(line, name) {
-            let value_range = (offset + value_range.start)..(offset + value_range.end);
+            let value_range =
+                (offset + value_range.start)..(offset + value_range.end);
             return replace_dependency_value(contents, value_range, name, version_spec);
         }
         offset += line.len();

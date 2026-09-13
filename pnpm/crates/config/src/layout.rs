@@ -279,8 +279,8 @@ impl Config {
         // An explicit `mergeGitBranchLockfiles` — including an explicit
         // `false` — settles the question without consulting the pattern.
         let merge_is_explicit = self.explicit_settings.contains_key("mergeGitBranchLockfiles");
-        let pattern_decides =
-            !merge_is_explicit && !self.merge_git_branch_lockfiles_branch_pattern.is_empty();
+        let pattern_decides = !merge_is_explicit
+            && !self.merge_git_branch_lockfiles_branch_pattern.is_empty();
         if !self.use_git_branch_lockfile && !pattern_decides {
             return;
         }

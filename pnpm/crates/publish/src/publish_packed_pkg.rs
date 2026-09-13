@@ -98,8 +98,8 @@ where
     Reporter: self::Reporter,
 {
     let input = opts.registry.create_options_input();
-    let resolved =
-        create_publish_options::<Sys, Reporter>(pkg.published_manifest, &input, true).await?;
+    let resolved = create_publish_options::<Sys, Reporter>(pkg.published_manifest, &input, true)
+        .await?;
 
     let name = manifest_string(pkg.published_manifest, "name");
     let version = manifest_string(pkg.published_manifest, "version");
@@ -115,8 +115,8 @@ where
         return Ok(summary);
     }
 
-    let body =
-        publish_body::<Sys, Reporter>(pkg, opts, &resolved, &summary, &name, &version).await?;
+    let body = publish_body::<Sys, Reporter>(pkg, opts, &resolved, &summary, &name, &version)
+        .await?;
 
     let put_url = publish_endpoint(&registry, &name, is_stage)?;
     let authorization = publish_authorization(&resolved, network, &registry, &name);

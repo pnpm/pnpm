@@ -108,9 +108,10 @@ pub(super) fn precomputed_workspace_cycles(
     cfg: &Config,
     precompute_workspace_cycles: bool,
 ) -> Option<Vec<Vec<PathBuf>>> {
-    (precompute_workspace_cycles && selection.all.is_none() && !cfg.ignore_workspace_cycles).then(
-        || pnpm_package_manager::workspace_cycles(&selection.selected).unwrap_or_default(),
-    )
+    (precompute_workspace_cycles
+        && selection.all.is_none()
+        && !cfg.ignore_workspace_cycles)
+        .then(|| pnpm_package_manager::workspace_cycles(&selection.selected).unwrap_or_default())
 }
 
 struct SelectionGraph {

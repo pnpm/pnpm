@@ -38,7 +38,8 @@ pub async fn approve_global_builds<Reporter: self::Reporter + 'static>(
             rebuild_groups.push((install_dir, build_packages));
         }
     }
-    rebuild_approved_groups::<Reporter>(base_config, global_pkg_dir, rebuild_groups).await
+    rebuild_approved_groups::<Reporter>(base_config, global_pkg_dir, rebuild_groups)
+        .await
 }
 
 /// Each global group's install dir with its ignored builds.

@@ -220,7 +220,9 @@ impl Line {
     /// escape codes (plain text like progress lines).
     /// Whether this line renders exactly as `other` did at the same row.
     fn same_text_at(&self, other: &Line) -> bool {
-        self.raw == other.raw && self.row == other.row && self.newline == other.newline
+        self.raw == other.raw
+            && self.row == other.row
+            && self.newline == other.newline
     }
 
     /// Whether the line sits at a different row, or occupies a different

@@ -110,7 +110,9 @@ pub fn calculate_diff(
             (None, Some(now)) => {
                 added.insert(file.to_string(), clone_info(now));
             }
-            (Some(before), Some(now)) if before.digest != now.digest || before.mode != now.mode => {
+            (Some(before), Some(now))
+                if before.digest != now.digest || before.mode != now.mode =>
+            {
                 added.insert(file.to_string(), clone_info(now));
             }
             _ => {}

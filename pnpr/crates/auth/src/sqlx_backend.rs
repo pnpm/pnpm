@@ -129,9 +129,11 @@ where
     ) -> Result<(UpsertOutcome, String)> {
         validate_username(username)?;
 
-        if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
+        if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username))
+            .await?
         {
-            return verify_returning_user(&stored.username, password, stored.bcrypt_hash).await;
+            return verify_returning_user(&stored.username, password, stored.bcrypt_hash)
+                .await;
         }
 
         self.check_registration_capacity().await?;
@@ -140,7 +142,8 @@ where
         match self.db.insert_user(username, &hash, self.max_users).await? {
             InsertUser::Created => Ok((UpsertOutcome::Created, username.to_string())),
             InsertUser::Existing(stored) => {
-                verify_returning_user(&stored.username, password, stored.bcrypt_hash).await
+                verify_returning_user(&stored.username, password, stored.bcrypt_hash)
+                    .await
             }
             InsertUser::CapReached => match self.max_users {
                 MaxUsers::Limited(max) => Err(RegistryError::TooManyUsers {
@@ -189,7 +192,9 @@ where
     }
 
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let Some(record) = with_auth_timeout(self.timeout, self.db.find_token(key)).await? else {
+        let Some(record) = with_auth_timeout(self.timeout, self.db.find_token(key))
+            .await?
+        else {
             return Ok(None);
         };
         self.db.delete_token(key).await?;

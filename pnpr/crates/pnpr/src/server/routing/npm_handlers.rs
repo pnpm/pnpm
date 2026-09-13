@@ -71,7 +71,8 @@ pub(super) async fn get_packument(
     headers: HeaderMap,
     Path(path): Path<NamePath>,
 ) -> Response {
-    serve_packument(&state, &identity, &headers, registry.as_deref(), &path.name).await
+    serve_packument(&state, &identity, &headers, registry.as_deref(), &path.name)
+        .await
 }
 
 /// `GET {base}/@{scope}/{pkg}` — a scoped package's packument — or
@@ -87,9 +88,11 @@ pub(super) async fn get_packument_or_version_manifest(
     let TwoSegments { first, second } = path;
     if first.starts_with('@') && !first.contains('/') {
         let name = format!("{first}/{second}");
-        return serve_packument(&state, &identity, &headers, registry.as_deref(), &name).await;
+        return serve_packument(&state, &identity, &headers, registry.as_deref(), &name)
+            .await;
     }
-    serve_version_manifest(&state, &identity, registry.as_deref(), &first, &second).await
+    serve_version_manifest(&state, &identity, registry.as_deref(), &first, &second)
+        .await
 }
 
 /// `GET {base}/@{scope}/{pkg}/{version-or-tag}` — a scoped package's version
@@ -105,7 +108,8 @@ pub(super) async fn get_scoped_version_manifest(
         return not_found();
     }
     let full = format!("{scope}/{name}");
-    serve_version_manifest(&state, &identity, registry.as_deref(), &full, &version).await
+    serve_version_manifest(&state, &identity, registry.as_deref(), &full, &version)
+        .await
 }
 
 /// `GET {base}/{pkg}/-/{filename}`.
@@ -137,7 +141,8 @@ pub(super) async fn get_scoped_tarball(
         return not_found();
     }
     let full = format!("{scope}/{name}");
-    serve_tarball(&state, &identity, registry.as_deref(), &full, &filename).await
+    serve_tarball(&state, &identity, registry.as_deref(), &full, &filename)
+        .await
 }
 
 /// `GET {base}/-/tarballs/sha512/{digest}` — an integrity-addressed tarball.
@@ -178,7 +183,8 @@ pub(super) async fn put_package(
     Path(path): Path<NamePath>,
     body: axum::body::Bytes,
 ) -> Response {
-    publish_package(&state, &identity, registry.as_deref(), &path.name, body).await
+    publish_package(&state, &identity, registry.as_deref(), &path.name, body)
+        .await
 }
 
 /// `PUT {base}/@{scope}/{pkg}` — publish a scoped package. A first segment
@@ -207,7 +213,8 @@ pub(super) async fn put_packument_revision(
     Path(path): Path<NamePath>,
     body: axum::body::Bytes,
 ) -> Response {
-    update_packument(&state, &identity, registry.as_deref(), &path.name, &body).await
+    update_packument(&state, &identity, registry.as_deref(), &path.name, &body)
+        .await
 }
 
 /// `DELETE {base}/{pkg}/-rev/{rev}` — remove a whole package
@@ -254,7 +261,8 @@ pub(super) async fn unpublish_scoped_tarball(
         return not_found();
     }
     let full = format!("{scope}/{name}");
-    delete_tarball(&state, &identity, registry.as_deref(), &full, &filename).await
+    delete_tarball(&state, &identity, registry.as_deref(), &full, &filename)
+        .await
 }
 
 /// `GET {base}/-/package/{pkg}/dist-tags`.
@@ -264,7 +272,8 @@ pub(super) async fn get_package_dist_tags(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<NamePath>,
 ) -> Response {
-    let response = get_dist_tags(&state, &identity, registry.as_deref(), &path.name).await;
+    let response = get_dist_tags(&state, &identity, registry.as_deref(), &path.name)
+        .await;
     caller_scoped(
         &state,
         Ecosystem::Npm,

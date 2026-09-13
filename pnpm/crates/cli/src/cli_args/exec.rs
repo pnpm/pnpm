@@ -135,7 +135,8 @@ impl ExecArgs {
         reporter: ReporterType,
     ) -> miette::Result<()> {
         super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
-        recursive::exec_recursive(self, config, dir, reporter_emit(reporter)).await
+        recursive::exec_recursive(self, config, dir, reporter_emit(reporter))
+            .await
     }
 }
 

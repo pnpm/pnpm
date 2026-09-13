@@ -32,7 +32,8 @@ impl SharedArtifactStore {
                     "lookup contains a duplicate candidate".to_string(),
                 ));
             }
-            let Some(resolved) = self.resolve_candidate(username, &candidate, &mut budget).await?
+            let Some(resolved) = self.resolve_candidate(username, &candidate, &mut budget)
+                .await?
             else {
                 continue;
             };

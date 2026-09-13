@@ -14,7 +14,8 @@ async fn restores_changed_and_new_files_after_an_error() {
     let existing = directory.path().join("existing");
     let created = directory.path().join("created");
     fs::write(&existing, "before").unwrap();
-    let mutation = capture(&directory, [existing.clone(), created.clone()]).await;
+    let mutation = capture(&directory, [existing.clone(), created.clone()])
+        .await;
 
     fs::write(&existing, "after").unwrap();
     fs::write(&created, "new").unwrap();
@@ -49,7 +50,8 @@ async fn attempts_every_restoration_after_one_fails() {
     let existing = directory.path().join("a-existing");
     let unrestorable = directory.path().join("z-unrestorable");
     fs::write(&existing, "before").unwrap();
-    let mutation = capture(&directory, [existing.clone(), unrestorable.clone()]).await;
+    let mutation = capture(&directory, [existing.clone(), unrestorable.clone()])
+        .await;
 
     fs::write(&existing, "after").unwrap();
     fs::create_dir(&unrestorable).unwrap();

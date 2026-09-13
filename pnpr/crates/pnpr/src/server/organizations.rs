@@ -282,7 +282,8 @@ async fn org_packages(
                     source: &source,
                     prefix: &prefix,
                 };
-                add_hosted_org_packages(state, identity, scan, &mut packages).await
+                add_hosted_org_packages(state, identity, scan, &mut packages)
+                    .await
             }
             DiscoverySource::Upstream(source) => {
                 let scan = OrgScan {
@@ -290,7 +291,8 @@ async fn org_packages(
                     source: &source,
                     prefix: &prefix,
                 };
-                add_upstream_org_packages(state, identity, scan, scope, &mut packages).await
+                add_upstream_org_packages(state, identity, scan, scope, &mut packages)
+                    .await
             }
         };
         scanned?;

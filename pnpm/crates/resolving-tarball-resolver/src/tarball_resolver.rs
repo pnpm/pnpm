@@ -118,7 +118,8 @@ impl TarballResolver {
         // (cold store, key drift, a row without a bundled manifest) falls
         // through to the HEAD + download below.
         if let Some(reused) =
-            self.reuse_from_warm_store(wanted_dependency, &normalized_bare_specifier).await
+            self.reuse_from_warm_store(wanted_dependency, &normalized_bare_specifier)
+                .await
         {
             return Ok(Some(reused));
         }
@@ -184,7 +185,8 @@ impl TarballResolver {
     /// Authenticate the HEAD preflight like the GET. Only immutable responses
     /// pin the post-redirect URL; mutable URLs must be revalidated on the next run.
     async fn preflight_url(&self, normalized_bare_specifier: &str) -> Result<String, ResolveError> {
-        let client = self.http_client.acquire_for_url(normalized_bare_specifier).await;
+        let client = self.http_client.acquire_for_url(normalized_bare_specifier)
+            .await;
         let mut request = client.head(normalized_bare_specifier);
         if let Some(value) = self.fetch_context
             .as_ref()
@@ -226,7 +228,8 @@ impl TarballResolver {
         let ctx = self.fetch_context.as_ref()?;
         let prior = ctx.prior_tarball_entries.get(normalized_bare_specifier)?;
         let cache_key = &prior.store_index_key;
-        let PrefetchResult { cas_paths, manifests, .. } = ctx.prefetch(cache_key).await;
+        let PrefetchResult { cas_paths, manifests, .. } = ctx.prefetch(cache_key)
+            .await;
         // The bundled manifest is required to resolve the tarball's
         // transitive dependencies; a row without one (or with no CAFS
         // entry) is treated as a miss so the caller re-fetches.

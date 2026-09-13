@@ -253,7 +253,8 @@ async fn outdated_dependency(
     let bare_specifier =
         dereference_catalog(&run.catalogs, candidate.alias, candidate.bare_specifier)?;
     let resolved_package_name =
-        PackageManifest::resolve_registry_dependency(candidate.alias, &bare_specifier).0
+        PackageManifest::resolve_registry_dependency(candidate.alias, &bare_specifier)
+            .0
             .to_string();
     let latest = resolve_outdated_target(
         run,

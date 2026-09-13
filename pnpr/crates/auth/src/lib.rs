@@ -136,9 +136,15 @@ impl AuthState {
     pub async fn load(auth: &AuthConfig, backend: &BackendConfig) -> Result<Self> {
         match backend {
             BackendConfig::Local => {}
-            BackendConfig::Libsql(settings) => return Self::load_libsql(auth, settings).await,
-            BackendConfig::Postgres(settings) => return Self::load_postgres(auth, settings).await,
-            BackendConfig::Mysql(settings) => return Self::load_mysql(auth, settings).await,
+            BackendConfig::Libsql(settings) => {
+                return Self::load_libsql(auth, settings).await;
+            }
+            BackendConfig::Postgres(settings) => {
+                return Self::load_postgres(auth, settings).await;
+            }
+            BackendConfig::Mysql(settings) => {
+                return Self::load_mysql(auth, settings).await;
+            }
         }
         Self::load_local(auth)
     }
@@ -405,7 +411,8 @@ impl UserStore {
         let Some(path) = self.path.clone() else {
             return Ok(());
         };
-        tokio::task::spawn_blocking(move || write_atomic(&path, body.as_bytes())).await??;
+        tokio::task::spawn_blocking(move || write_atomic(&path, body.as_bytes()))
+            .await??;
         Ok(())
     }
 }

@@ -264,7 +264,9 @@ impl<'a> IngestTarballToStore<'a> {
 
         let (cache_lock, owner_notify) = claim_cache_entry(mem_cache, mem_cache_key.clone());
         match owner_notify {
-            None => self.wait_for_owner::<Reporter>(&cache_lock, progress_key).await,
+            None => {
+                self.wait_for_owner::<Reporter>(&cache_lock, progress_key).await
+            }
             Some(notify) => {
                 self.fetch_as_owner::<Reporter>(
                     mem_cache,
@@ -396,7 +398,8 @@ impl<'a> IngestTarballToStore<'a> {
         notify: &Notify,
         revision_addressed: bool,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
-        let result = self.run_without_mem_cache_inner::<Reporter>(revision_addressed).await;
+        let result = self.run_without_mem_cache_inner::<Reporter>(revision_addressed)
+            .await;
         match result {
             Ok(cas_paths) => {
                 let cas_paths = Arc::new(cas_paths);

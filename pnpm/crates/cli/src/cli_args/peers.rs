@@ -112,7 +112,8 @@ fn checked_project_dirs(
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
     let (projects, _) = discover_workspace_projects(workspace_root, config)?;
     Ok(
-        select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?.selected
+        select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?
+            .selected
             .keys()
             .cloned()
             .collect(),

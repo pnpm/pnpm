@@ -284,7 +284,8 @@ fn merge_pattern_manifests(
     merge: &MergePatterns<'_>,
 ) -> Result<BTreeSet<PathBuf>, FindWorkspaceProjectsError> {
     let merged: std::sync::Mutex<BTreeSet<PathBuf>> = std::sync::Mutex::default();
-    let pattern_errors: Vec<Option<FindWorkspaceProjectsError>> = merge.include_patterns
+    let pattern_errors: Vec<Option<FindWorkspaceProjectsError>> = merge
+        .include_patterns
         .par_iter()
         .map(|pattern| {
             match collect_pattern_manifests(

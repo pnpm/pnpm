@@ -104,7 +104,8 @@ pub async fn read_lockfile(
 ) -> napi::Result<Option<serde_json::Value>> {
     let kind = LockfileKind::parse(options.kind.as_deref())?;
     let path = lockfile_path(&options.dir, options.modules_dir.as_deref(), &kind);
-    let loaded = tokio::task::spawn_blocking(move || Lockfile::load_from_path(&path)).await
+    let loaded = tokio::task::spawn_blocking(move || Lockfile::load_from_path(&path))
+        .await
         .map_err(|join_error| {
             napi::Error::from_reason(format!("readLockfile task panicked: {join_error}"))
         })?
@@ -174,7 +175,9 @@ pub fn filter_lockfile_by_importers(
                     optional_dependencies: options.include_optional_dependencies.unwrap_or(true),
                 },
                 skipped,
-                fail_on_missing_dependencies: options.fail_on_missing_dependencies.unwrap_or(false),
+                fail_on_missing_dependencies: options
+                    .fail_on_missing_dependencies
+                    .unwrap_or(false),
             },
         )
         .map_err(|error| to_napi_error(&error))?;

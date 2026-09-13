@@ -266,7 +266,8 @@ async fn prepare_source<Reporter: self::Reporter>(
 
     let name = packed_identity(&manifest)?;
 
-    let mut publish_manifest = opts.manifest.export::<Reporter>(&opts.dir, &dir, &manifest).await?;
+    let mut publish_manifest = opts.manifest.export::<Reporter>(&opts.dir, &dir, &manifest)
+        .await?;
 
     let (normalized_name, published_version) = published_identity(&mut publish_manifest, name)?;
     Ok(PackSource {

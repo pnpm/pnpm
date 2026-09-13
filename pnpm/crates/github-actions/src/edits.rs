@@ -39,7 +39,8 @@ pub(super) async fn apply_workflow_edits(
         let text = fs::read_to_string(&file).await
             .map_err(|error| miette::miette!("Failed to read {file_display}: {error}"))?;
         let text = apply_replacements(&file, text, replacements)?;
-        tokio::task::spawn_blocking(move || pnpm_fs::write_atomic(&file, text.as_bytes())).await
+        tokio::task::spawn_blocking(move || pnpm_fs::write_atomic(&file, text.as_bytes()))
+            .await
             .map_err(|error| miette::miette!("Failed to write {file_display}: {error}"))?
             .map_err(|error| miette::miette!("Failed to write {file_display}: {error}"))?;
     }

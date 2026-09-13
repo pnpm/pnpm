@@ -155,7 +155,8 @@ async fn record_package(
 
     let mut dependencies = HashMap::new();
     for (alias, specifier) in read_dependency_map(manifest, "dependencies") {
-        let child = resolve_dep(&alias, &specifier, false, resolver, opts).await?;
+        let child = resolve_dep(&alias, &specifier, false, resolver, opts)
+            .await?;
         dependencies.insert(snapshot_dep_name(&alias)?, child.snapshot_ref(&alias)?);
         children.push(child);
     }
@@ -413,7 +414,8 @@ async fn record_package_closure(
             clear_optional(env_lockfile, &package);
             continue;
         }
-        let children = record_package(env_lockfile, package, resolver, opts).await?;
+        let children = record_package(env_lockfile, package, resolver, opts)
+            .await?;
         resolved.extend(children);
     }
 

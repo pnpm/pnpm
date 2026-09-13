@@ -53,7 +53,8 @@ async fn selected_add_prepares_and_persists_only_selected_projects() {
 
     let packages = ["foo@workspace:*".to_string()];
     let (add, owned) = test_add(config, &http_client, &packages, None);
-    prepare_selected_manifests::<SilentReporter>(&mut projects, &indices, add, &owned).await
+    prepare_selected_manifests::<SilentReporter>(&mut projects, &indices, add, &owned)
+        .await
         .expect("prepare selected manifests");
     persist_selected_manifests::<SilentReporter>(&mut projects, &indices)
         .expect("persist selected manifests");

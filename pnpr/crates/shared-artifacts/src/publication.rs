@@ -22,7 +22,8 @@ impl SharedArtifactStore {
             self.publish_active(prepared, &publication, &mut reclamation_needed),
         )
         .await;
-        self.complete_publication(&publication, reclamation_needed, result).await
+        self.complete_publication(&publication, reclamation_needed, result)
+            .await
     }
 
     pub(super) async fn complete_publication<Outcome>(
@@ -31,7 +32,8 @@ impl SharedArtifactStore {
         reclamation_needed: bool,
         result: Result<Outcome>,
     ) -> Result<Outcome> {
-        let finish = self.finish_publication(publication, reclamation_needed).await;
+        let finish = self.finish_publication(publication, reclamation_needed)
+            .await;
         if finish.is_ok()
             && let Err(error) = self.try_reclaim_unreferenced_blobs().await
         {
@@ -98,8 +100,8 @@ impl SharedArtifactStore {
         publication: &str,
         reclamation_needed: &mut bool,
     ) -> Result<bool> {
-        let (stored, created) =
-            self.publish_claimed(prepared, publication, reclamation_needed).await;
+        let (stored, created) = self.publish_claimed(prepared, publication, reclamation_needed)
+            .await;
         if stored.is_err() && !created.is_empty() {
             // The scopes stay claimed. Giving them back here cannot be ordered
             // against a publication of the same envelope, which recognises these
@@ -126,7 +128,8 @@ impl SharedArtifactStore {
     ) -> (Result<bool>, Vec<String>) {
         let mut created = Vec::new();
         let stored =
-            self.publish_reserving(prepared, publication, reclamation_needed, &mut created).await;
+            self.publish_reserving(prepared, publication, reclamation_needed, &mut created)
+                .await;
         (stored, created)
     }
 
@@ -218,7 +221,8 @@ impl SharedArtifactStore {
         self.store_new_blobs(new_blobs, &mut charge).await?;
         let created = self.publish_envelope(&prepared, charge).await?;
         if created && started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY {
-            self.recover_expired_publication(&prepared, publication, reclamation_needed).await?;
+            self.recover_expired_publication(&prepared, publication, reclamation_needed)
+                .await?;
         }
 
         Ok(created)
@@ -352,10 +356,12 @@ impl SharedArtifactStore {
         let winner = if created {
             Ok(None)
         } else {
-            self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await
+            self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64)
+                .await
         };
         let released =
-            self.release_uncommitted(charge.owner, charge.added_bytes, charge.retained_bytes).await;
+            self.release_uncommitted(charge.owner, charge.added_bytes, charge.retained_bytes)
+                .await;
         if let Err(error) = released {
             *charge.reclamation_needed = matches!(&error, RegistryError::ObjectStore(_));
             return Err(error);
@@ -377,6 +383,7 @@ impl SharedArtifactStore {
         charge: &mut PublicationQuota<'_>,
     ) -> Result<()> {
         *charge.reclamation_needed = true;
-        self.release_uncommitted(charge.owner, charge.added_bytes, charge.retained_bytes).await
+        self.release_uncommitted(charge.owner, charge.added_bytes, charge.retained_bytes)
+            .await
     }
 }

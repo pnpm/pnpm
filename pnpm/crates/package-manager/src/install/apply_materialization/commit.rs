@@ -53,7 +53,8 @@ pub(super) fn commit_modules_state(
         save_relinked_wanted_lockfile(&RelinkedLockfileSave {
             config: inputs.tree.config,
             workspace_root: inputs.tree.workspace_root,
-            lockfile_synthesized_from_current: inputs.write.synthesized_from_current,
+            lockfile_synthesized_from_current: inputs.write
+                .synthesized_from_current,
             lockfile_was_fast_updated: inputs.write.fast_updated,
             save_lockfile: inputs.write.save,
             loaded_wanted_lockfile: inputs.lockfiles.wanted,

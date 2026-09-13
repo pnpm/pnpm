@@ -262,21 +262,22 @@ impl UpdateArgs {
         if crate::cli_args::global::selects_pnpm_cli(&self.packages) {
             return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
         }
-        let selected_hashes: Option<HashSet<String>> = if self.selection.interactive {
-            match crate::cli_args::update_interactive::select_global_package_groups::<Reporter>(
-                config,
-                &self.packages,
-                self.selection.latest,
-                self.prompt,
-            )
-            .await?
-            {
-                Some(selected) => Some(selected),
-                None => return Ok(()),
-            }
-        } else {
-            None
-        };
+        let selected_hashes: Option<HashSet<String>> =
+            if self.selection.interactive {
+                match crate::cli_args::update_interactive::select_global_package_groups::<Reporter>(
+                    config,
+                    &self.packages,
+                    self.selection.latest,
+                    self.prompt,
+                )
+                .await?
+                {
+                    Some(selected) => Some(selected),
+                    None => return Ok(()),
+                }
+            } else {
+                None
+            };
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
         let range_spec_style = RangeSpecStyle::from_save_options(

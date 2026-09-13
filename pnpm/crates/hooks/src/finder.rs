@@ -167,7 +167,8 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
     ) -> Result<Value, HookError> {
         let mut changed = false;
         for hook in &self.hooks {
-            let result = hook.after_all_resolved(lockfile.clone(), ctx.clone()).await?;
+            let result = hook.after_all_resolved(lockfile.clone(), ctx.clone())
+                .await?;
             if !result.is_null() {
                 lockfile = result;
                 changed = true;

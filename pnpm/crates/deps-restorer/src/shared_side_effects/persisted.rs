@@ -113,7 +113,9 @@ pub(super) fn manifest_matches_diff(manifest: &ArtifactManifest, diff: &SideEffe
         if !added
             .get(&file.path)
             .is_some_and(|stored| {
-                stored.digest == digest && stored.mode == file.mode && stored.size == file.size
+                stored.digest == digest
+                    && stored.mode == file.mode
+                    && stored.size == file.size
             })
         {
             return false;

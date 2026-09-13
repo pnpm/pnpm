@@ -47,7 +47,8 @@ async fn concurrent_picks_for_same_key_share_one_network_fetch() {
     let spec = range_spec("acme", "^1.0.0");
     let opts = default_opts(&registry);
     let results =
-        futures_util::future::try_join_all((0..20).map(|_| pick_package(&ctx, &spec, &opts))).await
+        futures_util::future::try_join_all((0..20).map(|_| pick_package(&ctx, &spec, &opts)))
+            .await
             .expect("all picks succeed");
 
     for result in results {

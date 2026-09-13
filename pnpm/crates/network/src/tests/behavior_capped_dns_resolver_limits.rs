@@ -680,8 +680,10 @@ async fn acquire_for_url_routes_per_registry_then_falls_back() {
     )
     .expect("valid");
 
-    let scoped_guard = throttled.acquire_for_url("https://reg.example.com/pkg").await;
-    let default_guard = throttled.acquire_for_url("https://other.example.org/pkg").await;
+    let scoped_guard = throttled.acquire_for_url("https://reg.example.com/pkg")
+        .await;
+    let default_guard = throttled.acquire_for_url("https://other.example.org/pkg")
+        .await;
     let scoped_ptr: *const reqwest::Client = &raw const *scoped_guard;
     let default_ptr: *const reqwest::Client = &raw const *default_guard;
     assert_ne!(
@@ -752,7 +754,8 @@ async fn per_registry_route_selects_the_client_for_the_requested_redirect_mode()
     // and still look green.
     {
         let routed_guard = throttled.acquire_for_url(&url).await;
-        let unmatched_guard = throttled.acquire_for_url("https://other.example.org/pkg").await;
+        let unmatched_guard = throttled.acquire_for_url("https://other.example.org/pkg")
+            .await;
         let routed: *const reqwest::Client = &raw const *routed_guard;
         let unmatched: *const reqwest::Client = &raw const *unmatched_guard;
         assert_ne!(

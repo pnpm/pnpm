@@ -60,12 +60,13 @@ impl Request {
             };
             return self.caller_scoped(Some(repo.key.as_str()), response);
         }
-        let (body, size) =
-            match repo.storage.open_hosted_blob(&repo.key, &digest.blob_filename()).await {
-                Ok(Some(blob)) => blob,
-                Ok(None) => return error(ErrorCode::BlobUnknown, "no such blob"),
-                Err(err) => return registry_error(err),
-            };
+        let (body, size) = match repo.storage.open_hosted_blob(&repo.key, &digest.blob_filename())
+            .await
+        {
+            Ok(Some(blob)) => blob,
+            Ok(None) => return error(ErrorCode::BlobUnknown, "no such blob"),
+            Err(err) => return registry_error(err),
+        };
         let response = self.blob_response(body, size, digest, &etag);
         self.caller_scoped(Some(repo.key.as_str()), response)
     }

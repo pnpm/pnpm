@@ -159,7 +159,9 @@ fn distribute_dependencies(
     for node in nodes {
         match field_of.get(node.alias.as_str()) {
             Some(DependenciesField::Dependencies) => hierarchy.dependencies.push(node),
-            Some(DependenciesField::DevDependencies) => hierarchy.dev_dependencies.push(node),
+            Some(DependenciesField::DevDependencies) => {
+                hierarchy.dev_dependencies.push(node);
+            }
             Some(DependenciesField::OptionalDependencies) => {
                 hierarchy.optional_dependencies.push(node);
             }

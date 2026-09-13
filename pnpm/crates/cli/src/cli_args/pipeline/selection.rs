@@ -89,7 +89,8 @@ pub(super) fn select_affected_projects(
     let all_dirs: Vec<PathBuf> = options.graph
         .keys()
         .filter(|dir| {
-            options.config.include_workspace_root || dir.as_path() != options.workspace_root
+            options.config.include_workspace_root
+                || dir.as_path() != options.workspace_root
         })
         .cloned()
         .collect();
@@ -228,7 +229,8 @@ fn select_changed_projects(
         &GetChangedProjectsOptions {
             workspace_dir: options.workspace_root,
             test_pattern: &options.config.test_pattern,
-            changed_files_ignore_pattern: &options.config.changed_files_ignore_pattern,
+            changed_files_ignore_pattern: &options.config
+                .changed_files_ignore_pattern,
         },
     )
     .map_err(miette::Report::new)?;

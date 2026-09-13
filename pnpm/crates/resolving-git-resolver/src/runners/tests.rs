@@ -52,7 +52,10 @@ async fn head_probe_accepts_success_without_retrying() {
         .expect(1)
         .create_async()
         .await;
-    assert!(real_probe().anonymous_head_ok(&format!("{}/foo/bar/tar.gz/abc", server.url())).await);
+    assert!(
+        real_probe().anonymous_head_ok(&format!("{}/foo/bar/tar.gz/abc", server.url()))
+            .await,
+    );
     mock.assert_async().await;
 }
 
@@ -65,7 +68,10 @@ async fn head_probe_does_not_retry_definitive_statuses() {
         .expect(1)
         .create_async()
         .await;
-    assert!(!real_probe().anonymous_head_ok(&format!("{}/foo/bar/tar.gz/abc", server.url())).await);
+    assert!(
+        !real_probe().anonymous_head_ok(&format!("{}/foo/bar/tar.gz/abc", server.url()))
+            .await,
+    );
     mock.assert_async().await;
 }
 
@@ -105,7 +111,10 @@ async fn head_probe_retries_transient_statuses_to_exhaustion() {
         .expect(3)
         .create_async()
         .await;
-    assert!(!real_probe().anonymous_head_ok(&format!("{}/foo/bar/tar.gz/abc", server.url())).await);
+    assert!(
+        !real_probe().anonymous_head_ok(&format!("{}/foo/bar/tar.gz/abc", server.url()))
+            .await,
+    );
     mock.assert_async().await;
 }
 

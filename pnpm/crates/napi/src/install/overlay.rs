@@ -135,7 +135,8 @@ fn build_dependencies_overlay(
         dedupe_peers: options.dedupe_peers,
         dedupe_direct_deps: options.dedupe_direct_deps,
         dedupe_injected_deps: options.dedupe_injected_deps,
-        resolve_peers_from_workspace_root: options.resolve_peers_from_workspace_root,
+        resolve_peers_from_workspace_root: options
+            .resolve_peers_from_workspace_root,
         peers_suffix_max_length: options.peers_suffix_max_length.map(u64::from),
         ..overlay
     }
@@ -145,7 +146,9 @@ fn build_network_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> Co
     let network_config = options.network_config.as_ref();
     ConfigOverlay {
         network_concurrency: options.network_concurrency
-            .or_else(|| network_config.and_then(|config| config.network_concurrency))
+            .or_else(|| {
+                network_config.and_then(|config| config.network_concurrency)
+            })
             .map(|value| value as usize),
         max_sockets: network_config
             .and_then(|config| config.max_sockets)
@@ -164,19 +167,27 @@ fn build_fetch_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> Conf
     let network_config = options.network_config.as_ref();
     ConfigOverlay {
         fetch_retry_mintimeout: options.fetch_retry_mintimeout
-            .or_else(|| network_config.and_then(|config| config.fetch_retry_mintimeout))
+            .or_else(|| {
+                network_config.and_then(|config| config.fetch_retry_mintimeout)
+            })
             .map(u64::from),
         fetch_retry_maxtimeout: options.fetch_retry_maxtimeout
-            .or_else(|| network_config.and_then(|config| config.fetch_retry_maxtimeout))
+            .or_else(|| {
+                network_config.and_then(|config| config.fetch_retry_maxtimeout)
+            })
             .map(u64::from),
         fetch_timeout: options.fetch_timeout
             .or_else(|| network_config.and_then(|config| config.fetch_timeout))
             .map(u64::from),
         fetch_warn_timeout_ms: options.fetch_warn_timeout_ms
-            .or_else(|| network_config.and_then(|config| config.fetch_warn_timeout_ms))
+            .or_else(|| {
+                network_config.and_then(|config| config.fetch_warn_timeout_ms)
+            })
             .map(u64::from),
         fetch_min_speed_ki_bps: options.fetch_min_speed_ki_bps
-            .or_else(|| network_config.and_then(|config| config.fetch_min_speed_ki_bps))
+            .or_else(|| {
+                network_config.and_then(|config| config.fetch_min_speed_ki_bps)
+            })
             .map(u64::from),
         user_agent: options.user_agent
             .clone()

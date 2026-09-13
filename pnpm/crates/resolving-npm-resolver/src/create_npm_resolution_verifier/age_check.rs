@@ -56,17 +56,18 @@ impl NpmResolutionVerifier {
         {
             return None;
         }
-        let published = match self.fetch_published_at(registry, name, version).await {
-            Ok(value) => value,
-            // A transport failure propagates the registry's own fetch error so
-            // the install aborts with it; a successful fetch that merely lacks a
-            // timestamp is handled below.
-            Err(message) => {
-                return Some(ResolutionVerification::FetchFailed {
-                    message,
-                });
-            }
-        };
+        let published =
+            match self.fetch_published_at(registry, name, version).await {
+                Ok(value) => value,
+                // A transport failure propagates the registry's own fetch error so
+                // the install aborts with it; a successful fetch that merely lacks a
+                // timestamp is handled below.
+                Err(message) => {
+                    return Some(ResolutionVerification::FetchFailed {
+                        message,
+                    });
+                }
+            };
         let Some(published) = published else {
             return self.missing_publish_time_verdict(registry, name).await;
         };
@@ -104,7 +105,8 @@ impl NpmResolutionVerifier {
                     .or_insert_with(|| Arc::new(OnceCell::new())),
             )
         };
-        let modified = cell.get_or_init(|| self.fetch_head_modified(registry, name)).await;
+        let modified = cell.get_or_init(|| self.fetch_head_modified(registry, name))
+            .await;
         modified
             .as_deref()
             .and_then(|value| httpdate::parse_http_date(value).ok())
@@ -164,11 +166,14 @@ impl NpmResolutionVerifier {
         name: &PkgName,
         version: &str,
     ) -> Result<Option<String>, String> {
-        if let Some(value) = self.try_abbreviated_modified_shortcut(registry, name, version).await {
+        if let Some(value) = self.try_abbreviated_modified_shortcut(registry, name, version)
+            .await
+        {
             return Ok(Some(value));
         }
         if self.metadata.registry_supports_time_field
-            && let Some(value) = self.abbreviated_version_time(registry, name, version).await
+            && let Some(value) = self.abbreviated_version_time(registry, name, version)
+                .await
         {
             return Ok(Some(value));
         }
@@ -177,7 +182,9 @@ impl NpmResolutionVerifier {
         {
             return Ok(Some(value.clone()));
         }
-        if let Some(value) = self.fetch_attestation_time(registry, name, version).await? {
+        if let Some(value) = self.fetch_attestation_time(registry, name, version)
+            .await?
+        {
             return Ok(Some(value));
         }
         let full_meta_time = self.fetch_full_meta_time(registry, name).await?;

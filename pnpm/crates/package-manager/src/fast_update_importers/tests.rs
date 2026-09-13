@@ -263,7 +263,8 @@ snapshots:
 ";
 
 fn snapshot_optional(lockfile: &Lockfile, key: &str) -> bool {
-    lockfile.snapshots.as_ref().expect("snapshots")[&key.parse().expect("snapshot key")].optional
+    lockfile.snapshots.as_ref().expect("snapshots")[&key.parse().expect("snapshot key")]
+        .optional
 }
 
 /// `foo` and `bar` are prod dependencies (`bar` reaching `child`), `qux`

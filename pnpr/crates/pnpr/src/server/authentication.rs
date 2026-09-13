@@ -101,7 +101,9 @@ pub(super) async fn authenticate(
         }
     }
 
-    let identity = match resolve_caller(&state, header.as_deref(), &method, &path, peer).await {
+    let identity = match resolve_caller(&state, header.as_deref(), &method, &path, peer)
+        .await
+    {
         Ok(identity) => identity,
         Err(err) => return err.into_response(),
     };
@@ -191,7 +193,9 @@ async fn resolve_caller(
             super::oidc::check_workload_request(&state.inner.config, &workload, method, path)?;
             return Ok(Identity::user(workload.identity.username));
         }
-        if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token).await? {
+        if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token)
+            .await?
+        {
             check_token_restrictions(&record, method, path, peer)?;
             return Ok(Identity::user(record.username));
         }

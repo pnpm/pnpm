@@ -90,7 +90,9 @@ async fn scan_workflow_file(
             .strip_prefix("./")
             .or_else(|| value.strip_prefix("$/"))
         {
-            if let Some(candidate) = resolve_local_reference(root, canonical_root, local).await? {
+            if let Some(candidate) = resolve_local_reference(root, canonical_root, local)
+                .await?
+            {
                 scan.local_references.push(candidate);
             }
             continue;

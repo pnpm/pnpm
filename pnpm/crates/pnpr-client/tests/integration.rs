@@ -49,7 +49,8 @@ use tokio::{
 /// caller (pnpr only honors `_authToken` on requests — the resolver
 /// endpoints reject Basic credentials), and the storage guard.
 async fn start_pnpr(registry_url: &str) -> (String, String, TempDir) {
-    start_pnpr_inner(None, Vec::new(), vec![registry_url.to_string()], false).await
+    start_pnpr_inner(None, Vec::new(), vec![registry_url.to_string()], false)
+        .await
 }
 
 /// Like [`start_pnpr`] but registers operator-managed access-bearing
@@ -71,7 +72,8 @@ async fn start_pnpr_with_upstreams_at(
     public_url: &str,
     upstreams: Vec<(String, pnpr::UpstreamConfig)>,
 ) -> (String, String, TempDir) {
-    start_pnpr_inner(Some(public_url.to_string()), upstreams, Vec::new(), false).await
+    start_pnpr_inner(Some(public_url.to_string()), upstreams, Vec::new(), false)
+        .await
 }
 
 async fn start_pnpr_inner(

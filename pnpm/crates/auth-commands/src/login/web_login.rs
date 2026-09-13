@@ -53,7 +53,8 @@ where
         fetch_options: fetch_options.clone(),
         timeout_ms: None,
     });
-    prompt_browser_open::<Sys, Reporter, WebAuthTimeoutError, _>(&auth_url, poll).await
+    prompt_browser_open::<Sys, Reporter, WebAuthTimeoutError, _>(&auth_url, poll)
+        .await
         .map_err(WebLoginFlowError::Timeout)
 }
 

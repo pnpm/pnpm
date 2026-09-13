@@ -77,11 +77,14 @@ impl<'a> FrozenInputs<'a> {
                     project_dir,
                 )
             };
-        let trusted_importer_ids: std::collections::HashSet<String> = install.projects.manifests
+        let trusted_importer_ids: std::collections::HashSet<String> = install
+            .projects
+            .manifests
             .iter()
             .map(importer_id)
             .collect();
-        let root_component_importers: std::collections::HashSet<String> = install.projects
+        let root_component_importers: std::collections::HashSet<String> = install
+            .projects
             .manifests
             .iter()
             .filter(|(_, manifest)| {
@@ -117,12 +120,14 @@ impl<'a> FrozenInputs<'a> {
                 progress_reported,
                 tarball_mem_cache: install.drivers.tarball_mem_cache,
                 custom_fetcher_session,
-                planned_canonical_fetches: install.lockfiles.planned_canonical_fetches,
+                planned_canonical_fetches: install.lockfiles
+                    .planned_canonical_fetches,
             },
             selection: crate::SnapshotSelection {
                 skipped,
                 include_optional: install.included().optional_dependencies,
-                supported_architectures: install.platform.supported_architectures,
+                supported_architectures: install.platform
+                    .supported_architectures,
             },
             ctx,
 

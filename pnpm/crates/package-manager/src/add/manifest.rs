@@ -25,7 +25,8 @@ pub(super) async fn prepare_selected_add<Reporter: self::Reporter>(
     add: AddOptions<'_>,
     owned: &AddOwned,
 ) -> Result<SelectedAddPreparation, AddError> {
-    let prepared = prepare_selected_manifests::<Reporter>(projects, indices, add, owned).await?;
+    let prepared = prepare_selected_manifests::<Reporter>(projects, indices, add, owned)
+        .await?;
     write_workspace_catalogs_selected(
         add.config,
         &prepared.workspace_dir,

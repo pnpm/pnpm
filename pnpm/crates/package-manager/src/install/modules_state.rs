@@ -88,8 +88,8 @@ pub(super) fn frozen_tree_intact(
         return false;
     }
     let skipped = crate::SkippedSnapshots::from_strings(&modules.skipped);
-    let probe_slots =
-        !matches!(node_linker, NodeLinker::Hoisted) && !config.enable_global_virtual_store;
+    let probe_slots = !matches!(node_linker, NodeLinker::Hoisted)
+        && !config.enable_global_virtual_store;
     if probe_slots
         && let Some(snapshots) = wanted.snapshots.as_ref()
         && !all_virtual_store_slots_present(snapshots, config, &skipped)
@@ -191,7 +191,9 @@ pub(super) fn check_modules_settings_diff(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
 ) -> Result<(), InstallError> {
-    if modules.virtual_store_dir_max_length != config.virtual_store_dir_max_length {
+    if modules.virtual_store_dir_max_length
+        != config.virtual_store_dir_max_length
+    {
         return Err(InstallError::VirtualStoreDirMaxLengthDiff);
     }
     if normalized_pattern(modules.public_hoist_pattern.as_deref())
@@ -239,7 +241,8 @@ pub(super) fn modules_layout_consistent_with(
     modules.layout_version == Some(LayoutVersion)
         && modules.node_linker == Some(map_node_linker(node_linker))
         && hoist_patterns_match
-        && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
+        && modules.virtual_store_dir_max_length
+            == config.virtual_store_dir_max_length
         && modules.store_dir == config.store_dir.display().to_string()
         && modules.virtual_store_dir
             == config

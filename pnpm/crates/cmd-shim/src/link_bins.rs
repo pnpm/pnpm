@@ -430,7 +430,8 @@ where
                     probe_path: &probe_path,
                     shim_path: &bins_dir.join(&command.name),
                     node_path: &node_path,
-                    prefer_symlinked_executables: options.prefer_symlinked_executables,
+                    prefer_symlinked_executables: options
+                        .prefer_symlinked_executables,
                     make_powershell_shim: wants_powershell_shim(pkg_name),
                     bin_dir,
                 },
@@ -485,7 +486,8 @@ fn shim_node_path(pkg: &PackageBinSource, extra_node_paths: &[String]) -> Vec<St
     let mut merged = if let Some(resolved) = &pkg.resolved_location {
         bin_node_paths(resolved)
     } else {
-        let dir = dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
+        let dir =
+            dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
         bin_node_paths(&dir)
     };
     for extra in extra_node_paths {

@@ -137,7 +137,9 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
             snapshot_key: snapshot_key.to_string(),
             metadata_key: metadata_key.to_string(),
         })?;
-    let installed = match batch.installer.run::<Reporter>(snapshot_key, metadata, snapshot).await {
+    let installed = match batch.installer.run::<Reporter>(snapshot_key, metadata, snapshot)
+        .await
+    {
         Ok(installed) => installed,
         Err(err) => return swallow_optional_fetch_failure(snapshot_key, snapshot, err),
     };

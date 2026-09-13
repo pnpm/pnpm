@@ -38,8 +38,8 @@ async fn scoped_packument_is_served() {
 async fn every_address_of_one_scoped_package_reaches_it() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"scoped-address-bytes";
-    let _packument_mock =
-        mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes).await;
+    let _packument_mock = mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes)
+        .await;
     let _tarball_mock = upstream
         .mock("GET", "/@types/node/-/node-20.0.0.tgz")
         .with_status(200)
@@ -735,7 +735,8 @@ async fn url_delimiters_in_a_package_name_are_rejected() {
 async fn a_single_npm_ecosystem_answers_at_the_root() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"npm-tarball-bytes";
-    let _packument = mock_packument_for_tarball(&mut upstream, "npm", "10.0.0", bytes).await;
+    let _packument = mock_packument_for_tarball(&mut upstream, "npm", "10.0.0", bytes)
+        .await;
     let tarball = upstream
         .mock("GET", "/npm/-/npm-10.0.0.tgz")
         .with_status(200)
@@ -785,7 +786,8 @@ async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
     for authenticated in [false, true] {
-        let directory = read_registry_directory(&app, authenticated.then_some(&token)).await;
+        let directory = read_registry_directory(&app, authenticated.then_some(&token))
+            .await;
         for ecosystem in Ecosystem::all() {
             assert_grouped_ecosystem(
                 &directory,

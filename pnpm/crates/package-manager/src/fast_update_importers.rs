@@ -172,7 +172,9 @@ pub(crate) fn apply_importers_update(
         snapshots: snapshots.as_ref(),
         time: time.as_ref(),
     };
-    for (importer_id, manifest, manifest_dependencies) in &plan.manifest_dependencies {
+    for (importer_id, manifest, manifest_dependencies) in
+        &plan.manifest_dependencies
+    {
         let entry = ImporterUpdate {
             importer_id,
             manifest,

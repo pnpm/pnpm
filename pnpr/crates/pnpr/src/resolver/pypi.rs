@@ -182,7 +182,8 @@ async fn resolve(
                     .get(&name)
                     .and_then(|versions| versions.get(&version))
                     .ok_or_else(|| format!("{name} {version} is not a candidate"))?;
-                let metadata = reader.metadata(&name, &version, candidate).await?;
+                let metadata = reader.metadata(&name, &version, candidate)
+                    .await?;
                 packages.metadata.insert((name, version), metadata);
             }
         }
@@ -333,7 +334,8 @@ impl IndexReader {
             verify_digest(&document, digests, "metadata file", &candidate.wheel.name)?;
             document
         } else {
-            let (wheel, _) = self.fetch(auth, wheel_url, "wheel", MAX_WHEEL_BYTES, None).await?;
+            let (wheel, _) = self.fetch(auth, wheel_url, "wheel", MAX_WHEEL_BYTES, None)
+                .await?;
             verify_digest(
                 &wheel,
                 &candidate.wheel.hashes,

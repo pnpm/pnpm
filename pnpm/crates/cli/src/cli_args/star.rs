@@ -138,11 +138,13 @@ async fn perform_legacy_star_action(
     is_star: bool,
 ) -> miette::Result<()> {
     let action = action_word(is_star);
-    let username = fetch_whoami(registry_url, http_client, auth_header, retry_opts).await?;
+    let username = fetch_whoami(registry_url, http_client, auth_header, retry_opts)
+        .await?;
     let pkg_url = format!("{registry_url}{escaped_name}");
 
     let mut pkg_data =
-        fetch_package_document(http_client, &pkg_url, auth_header, retry_opts, package_name).await?;
+        fetch_package_document(http_client, &pkg_url, auth_header, retry_opts, package_name)
+            .await?;
 
     apply_star_to_users(&mut pkg_data, &username, is_star);
 
@@ -166,18 +168,7 @@ async fn perform_legacy_star_action(
         .wrap_err("updating the package metadata")?;
 
     if !update_response.status().is_success() {
-        let status = update_response.status();
-        let body = update_response.text().await.unwrap_or_default();
-        return Err(StarError::LegacyFailed {
-            action,
-            status: status.as_u16(),
-            status_text: status
-                .canonical_reason()
-                .unwrap_or_default()
-                .to_string(),
-            body,
-        }
-        .into());
+        return Err(legacy_star_error(update_response, action).await.into());
     }
     drop(client2);
     Ok(())
@@ -306,6 +297,20 @@ async fn alternate_star_error(response: reqwest::Response, is_star: bool) -> Sta
     let status = response.status();
     let body = response.text().await.unwrap_or_default();
     StarError::Failed {
+        action,
+        status: status.as_u16(),
+        status_text: status
+            .canonical_reason()
+            .unwrap_or_default()
+            .to_string(),
+        body,
+    }
+}
+
+async fn legacy_star_error(response: reqwest::Response, action: &'static str) -> StarError {
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    StarError::LegacyFailed {
         action,
         status: status.as_u16(),
         status_text: status

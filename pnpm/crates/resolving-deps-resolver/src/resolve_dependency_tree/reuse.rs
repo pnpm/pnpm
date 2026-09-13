@@ -495,7 +495,8 @@ where
         edge.ancestor_ids,
         HashSet::default(),
     );
-    let (children, others_stale) = reused_children(ctx, resolver, &children_owner, reused).await?;
+    let (children, others_stale) = reused_children(ctx, resolver, &children_owner, reused)
+        .await?;
     remember_node_parent_ids(ctx, node_id, Arc::clone(edge.ancestor_ids));
     insert_tree_node(ctx, node_id.clone(), reused_id, children, edge.depth);
     if children_owner.owns_children

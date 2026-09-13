@@ -29,13 +29,14 @@ impl Request {
             Err(err) => return registry_error(err),
         };
         let filter = ReferrerFilter::new(digest, &self.query);
-        let page =
-            match self.scan_referrers(&repo.storage, &repo.key, &document, &filter, last).await {
-                Ok(page) => page,
-                Err(response) => return response,
-            };
-        if let Err(response) =
-            self.record_referrer_index(&repo.storage, &repo.key, &page.additions).await
+        let page = match self.scan_referrers(&repo.storage, &repo.key, &document, &filter, last)
+            .await
+        {
+            Ok(page) => page,
+            Err(response) => return response,
+        };
+        if let Err(response) = self.record_referrer_index(&repo.storage, &repo.key, &page.additions)
+            .await
         {
             return response;
         }
@@ -80,7 +81,9 @@ impl Request {
             let indexed = indexed_referrer(migrated.as_ref(), entry);
             // The lock is only held while the migration has something to
             // write; an entry the index already answers for releases it.
-            if migration_guard.is_some() && indexed.flatten().is_some() && page.additions.is_empty()
+            if migration_guard.is_some()
+                && indexed.flatten().is_some()
+                && page.additions.is_empty()
             {
                 drop(migration_guard.take());
             }
@@ -88,8 +91,10 @@ impl Request {
                 ReferrerStep::Skip => {}
                 ReferrerStep::Stop => break,
                 ReferrerStep::Migrate => {
-                    migration_guard =
-                        Some(self.state.inner.locks.referrer_migrations.lock(key.as_str()).await);
+                    migration_guard = Some(
+                        self.state.inner.locks.referrer_migrations.lock(key.as_str())
+                            .await,
+                    );
                     migrated = Some(read_image_document(storage, key).await?);
                     continue;
                 }
@@ -117,7 +122,8 @@ impl Request {
         filter: &ReferrerFilter,
         unindexed: bool,
     ) -> Result<bool, Response> {
-        let manifest = self.read_referrer_manifest(storage, key, entry, page).await?;
+        let manifest = self.read_referrer_manifest(storage, key, entry, page)
+            .await?;
         page
             .push_referrer(entry, manifest, filter, unindexed)
             .map_err(|response| *response)

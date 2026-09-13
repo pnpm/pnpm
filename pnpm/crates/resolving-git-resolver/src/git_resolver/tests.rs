@@ -192,7 +192,8 @@ async fn github_shortcut_full_commit_returns_tarball() {
 async fn archive_probe_failure_records_git_over_https() {
     const COMMIT: &str = "0000000000000000000000000000000000000000";
     let (result, runner, probe) =
-        resolve_with(false, &format!("{COMMIT}\tHEAD\n"), "github:foo/bar").await;
+        resolve_with(false, &format!("{COMMIT}\tHEAD\n"), "github:foo/bar")
+            .await;
 
     assert_eq!(
         result.normalized_bare_specifier.as_deref(),

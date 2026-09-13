@@ -80,7 +80,8 @@ impl WorkspaceTreeCtx {
         from: usize,
         to: usize,
     ) -> bool {
-        let written = self.tree.written_since(from, to, |log| &log.children_by_id);
+        let written =
+            self.tree.written_since(from, to, |log| &log.children_by_id);
         let children_by_id = lock_recoverable(&self.children.by_id);
         for pkg_id in &written {
             let Some(spec) = children_by_id
@@ -245,7 +246,8 @@ impl super::WorkspaceTreeStorage {
         let packages = lock_recoverable(&self.packages);
         node_ids
             .filter_map(|node_id| {
-                let pkg_id = &dependencies_tree.get(node_id)?.resolved_package_id;
+                let pkg_id =
+                    &dependencies_tree.get(node_id)?.resolved_package_id;
                 packages
                     .contains_key(&**pkg_id)
                     .then(|| (node_id.clone(), pkg_id.to_string()))

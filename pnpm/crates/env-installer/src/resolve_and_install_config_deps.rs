@@ -232,7 +232,8 @@ async fn resolve_one(
     // of the lockfile until it is declared as a clean specifier.
     let optional_subdeps = match (pinned_integrity, result.package.manifest.as_deref()) {
         (None, Some(manifest)) => {
-            resolve_optional_subdeps(name, manifest, resolver, opts, env_lockfile).await?
+            resolve_optional_subdeps(name, manifest, resolver, opts, env_lockfile)
+                .await?
         }
         _ => None,
     };

@@ -51,7 +51,8 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
     let registry = server.url();
     let config_dir = Path::new("/other/config");
 
-    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .expect("classic login succeeds");
 
     login_mock.assert_async().await;
@@ -98,7 +99,8 @@ async fn should_fall_back_to_classic_login_on_a_subpath_registry_without_a_trail
     let registry = format!("{}/npm/registry", server.url());
     let config_dir = Path::new("/mock/config");
 
-    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .expect("classic login succeeds on a subpath registry");
 
     login_mock.assert_async().await;
@@ -143,7 +145,8 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_405() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .expect("classic login succeeds");
 
     assert_eq!(result, format!("Logged in on {registry}/"));
@@ -192,7 +195,8 @@ async fn should_handle_classic_otp_challenge_during_login() {
     let registry = server.url();
     let config_dir = Path::new("/otp/config");
 
-    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .expect("classic OTP login succeeds");
 
     challenge.assert_async().await;
@@ -238,7 +242,8 @@ async fn should_handle_webauth_otp_challenge_during_login() {
     let registry = server.url();
     let config_dir = Path::new("/otp/config");
 
-    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .expect("web-auth OTP login succeeds");
 
     challenge.assert_async().await;
@@ -278,7 +283,8 @@ async fn should_not_trigger_otp_for_non_401_errors() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     assert_eq!(
@@ -316,7 +322,8 @@ async fn should_not_trigger_otp_for_401_without_www_authenticate_otp_header() {
     let registry = server.url();
     let config_dir = Path::new("/otp/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     assert_eq!(
@@ -352,7 +359,8 @@ async fn should_throw_when_username_is_empty_in_classic_login() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     assert!(matches!(err, LoginError::MissingCredentials), "got {err:?}");
@@ -397,7 +405,8 @@ async fn should_cancel_the_login_when_a_credential_prompt_is_interrupted() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     assert!(matches!(err, LoginError::Canceled), "got {err:?}");
@@ -436,7 +445,8 @@ async fn should_throw_when_classic_login_returns_no_token() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     assert_eq!(
@@ -478,7 +488,8 @@ async fn should_surface_a_non_interrupt_prompt_failure_as_a_prompt_error() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     assert!(matches!(err, LoginError::Prompt { .. }), "got {err:?}");

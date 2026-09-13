@@ -68,8 +68,9 @@ fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_f
                 let store_dir = leaked_store_dir(dir.path());
                 let http_client = ThrottledClient::new_for_installs();
 
-                let cas_map =
-                    ingest_benchmark_package(&package, &http_client, store_dir).await.unwrap();
+                let cas_map = ingest_benchmark_package(&package, &http_client, store_dir)
+                    .await
+                    .unwrap();
                 cas_map.len()
             });
     });
@@ -102,7 +103,8 @@ fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard
                     packages
                         .iter()
                         .map(|package| async {
-                            ingest_benchmark_package(package, &http_client, store_dir).await
+                            ingest_benchmark_package(package, &http_client, store_dir)
+                                .await
                         }),
                 )
                 .await

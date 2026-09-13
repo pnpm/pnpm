@@ -72,7 +72,9 @@ pub(super) fn run_materialized_project_scripts<Reporter: self::Reporter>(
     if !projects_to_run.is_empty() {
         let project_graph = project_lifecycle_graph(
             &projects_to_run,
-            inputs.request.workspace.map(|selection| selection.project_dependencies),
+            inputs.request.workspace.map(|selection| {
+                selection.project_dependencies
+            }),
             inputs.workspace_root,
             inputs.materialized_current_lockfile,
         )?;
@@ -112,9 +114,12 @@ pub(super) fn materialized_script_projects<'a>(
             mutation: inputs.request.mutation,
             workspace_root: inputs.workspace_root,
             active_project_dir: inputs.request.manifest_dir,
-            selected_dirs: inputs.request.workspace.map(|selection| selection.selected_dirs),
+            selected_dirs: inputs.request.workspace.map(|selection| {
+                selection.selected_dirs
+            }),
             project_manifests: inputs.project_manifests,
-            materialized_project_manifests: inputs.materialized_project_manifests,
+            materialized_project_manifests: inputs
+                .materialized_project_manifests,
         })
     }
 }

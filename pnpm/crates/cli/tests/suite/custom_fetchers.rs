@@ -472,7 +472,8 @@ module.exports = { fetchers: [{
                     .expect("read lockfile")
                     .expect("lockfile exists");
                 let key: pnpm_lockfile::PackageKey = "fetcher-pkg@1.0.0".parse().unwrap();
-                let resolution = &lockfile.packages.as_ref().unwrap()[&key].resolution;
+                let resolution =
+                    &lockfile.packages.as_ref().unwrap()[&key].resolution;
                 assert_eq!(
                     resolution
                         .checkable_integrity()

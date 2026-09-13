@@ -213,7 +213,9 @@ pub(super) fn apply_output_overrides(cfg: &mut Config, overrides: &OutputOverrid
         cfg.test_pattern = overrides.test_pattern.to_vec();
     }
     if !overrides.changed_files_ignore_pattern.is_empty() {
-        cfg.changed_files_ignore_pattern = overrides.changed_files_ignore_pattern.to_vec();
+        cfg.changed_files_ignore_pattern = overrides
+            .changed_files_ignore_pattern
+            .to_vec();
     }
     if let Some(workspace_concurrency) = overrides.workspace_concurrency {
         cfg.workspace_concurrency =
@@ -240,8 +242,12 @@ pub(in super::super) async fn apply_update_config(
         ReporterType::Default | ReporterType::AppendOnly => {
             prepare_config::<DefaultReporter>(config, dir).await?
         }
-        ReporterType::Ndjson => prepare_config::<NdjsonReporter>(config, dir).await?,
-        ReporterType::Silent => prepare_config::<SilentReporter>(config, dir).await?,
+        ReporterType::Ndjson => {
+            prepare_config::<NdjsonReporter>(config, dir).await?
+        }
+        ReporterType::Silent => {
+            prepare_config::<SilentReporter>(config, dir).await?
+        }
     };
     Ok(())
 }

@@ -48,7 +48,8 @@ impl ImportArgs {
                 .wrap_err("backing up existing pnpm-lock.yaml")?;
         }
         let install_result =
-            import_versions::<Reporter>(&state, &lockfile_path, preferred_versions).await;
+            import_versions::<Reporter>(&state, &lockfile_path, preferred_versions)
+                .await;
 
         let import_result = install_result.and_then(|()| {
             if let Some(env_lockfile) = env_lockfile {

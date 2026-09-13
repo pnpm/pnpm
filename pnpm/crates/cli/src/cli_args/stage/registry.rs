@@ -48,12 +48,14 @@ pub(super) async fn fetch_stage_tarball(
 ) -> miette::Result<Vec<u8>> {
     let url = stage_endpoint_url(&context.registry, &format!("-/stage/{stage_id}/tarball"))?;
     let action = format!("download staged package {stage_id}");
-    let (_guard, response) = stage_send(context, reqwest::Method::GET, url.as_str(), None).await
+    let (_guard, response) = stage_send(context, reqwest::Method::GET, url.as_str(), None)
+        .await
         .map_err(|source| request_failed(&action, source))?;
     if !response.status().is_success() {
         return Err(registry_error_from_response(response, &action).await.into());
     }
-    let tarball_data = read_limited_body(response, STAGE_TARBALL_BODY_LIMIT).await
+    let tarball_data = read_limited_body(response, STAGE_TARBALL_BODY_LIMIT)
+        .await
         .map_err(|source| request_failed(&action, source))?;
     if tarball_data.truncated {
         return Err(StageError::RequestFailed {
@@ -111,7 +113,8 @@ pub(super) async fn stage_request_with_otp<Reporter: self::Reporter>(
     action: &str,
 ) -> miette::Result<()> {
     let mut session = OtpSession::new(context.web_auth_fetch_options.clone());
-    stage_request_in_session::<Reporter>(context, &mut session, method, url, action).await
+    stage_request_in_session::<Reporter>(context, &mut session, method, url, action)
+        .await
 }
 
 /// Send one stage mutation through `session`, so a series of mutations
@@ -215,7 +218,8 @@ pub(super) async fn fetch_stage_items(
             url.query_pairs_mut().append_pair("package", package);
         }
         let response: StageListResponse =
-            stage_json_request(context, url.as_str(), "list staged packages").await?;
+            stage_json_request(context, url.as_str(), "list staged packages")
+                .await?;
         let page_len = response.items.len();
         items.extend(response.items);
         if items.len() >= response.total || page_len < PER_PAGE {
@@ -235,7 +239,8 @@ pub(super) async fn stage_json_request<Body: serde::de::DeserializeOwned>(
     url: &str,
     action: &str,
 ) -> miette::Result<Body> {
-    let (_guard, response) = stage_send(context, reqwest::Method::GET, url, None).await
+    let (_guard, response) = stage_send(context, reqwest::Method::GET, url, None)
+        .await
         .map_err(|source| request_failed(action, source))?;
     if !response.status().is_success() {
         return Err(registry_error_from_response(response, action).await.into());

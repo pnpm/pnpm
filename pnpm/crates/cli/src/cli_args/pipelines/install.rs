@@ -31,7 +31,8 @@ impl InstallPipeline {
     pub(crate) async fn run_with_config<Reporter: self::Reporter + 'static>(
         self,
     ) -> miette::Result<&'static Config> {
-        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, self.frozen_lockfile).await?;
+        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, self.frozen_lockfile)
+            .await?;
         // Built ahead of project discovery so a run that is certain to
         // read the wanted lockfile parses it on a background thread
         // while discovery walks the workspace. Certain means the fast

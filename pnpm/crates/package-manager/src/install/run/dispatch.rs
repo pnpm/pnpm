@@ -103,7 +103,8 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
         return Ok(None);
     }
 
-    prepare_dispatched_modules::<Reporter>(settled, options, take_frozen_path).await
+    prepare_dispatched_modules::<Reporter>(settled, options, take_frozen_path)
+        .await
 }
 pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'static>(
     settled: Settled<'_, '_>,
@@ -147,7 +148,9 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
             lockfiles: crate::install::state_options::PreparedLockfiles {
                 wanted: settled.lockfiles.wanted.get(),
                 current: settled.loaded.current.as_ref(),
-                importer_ids: settled.projects.scope.importers.requested_importer_ids.as_ref(),
+                importer_ids: settled.projects.scope.importers
+                    .requested_importer_ids
+                    .as_ref(),
             },
             projects: crate::install::state_options::InstallProjectMetadata {
                 catalogs: &settled.projects.workspace.catalogs,
@@ -157,8 +160,11 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
             repeat: crate::install::state_options::RepeatInstallPolicy {
                 frozen: take_frozen_path,
                 filtered: settled.projects.scope.importers.filtered_install,
-                disable_optimistic_check: settled.install.lockfile_policy.disable_optimistic_repeat,
-                supported_architectures: settled.owned.projects.supported_architectures.as_ref(),
+                disable_optimistic_check: settled.install.lockfile_policy
+                    .disable_optimistic_repeat,
+                supported_architectures: settled.owned.projects
+                    .supported_architectures
+                    .as_ref(),
                 rebuild: options.rebuild.as_ref(),
                 effective_node_version: settled.mode.effective_node_version.as_deref(),
             },
@@ -341,7 +347,9 @@ pub(super) async fn finish_frozen_lockfile_only<Reporter: self::Reporter + 'stat
     config: &Config,
     finish: LockfileOnlyFrozen<'_, '_>,
 ) -> Result<(), InstallError> {
-    if let Some(lockfile_verification_override) = finish.lockfile_verification_override {
+    if let Some(lockfile_verification_override) = finish
+        .lockfile_verification_override
+    {
         lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
     } else {
         verify_lockfile_eagerly::<Reporter>(
@@ -403,7 +411,8 @@ impl<'r> Settled<'r, '_> {
             catalogs: &workspace.catalogs,
             pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
             scope: FreshnessScope {
-                ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
+                ignore_manifest_check: install.lockfile_policy
+                    .ignore_manifest_check,
                 prune_stale_importers: scope.prune_stale_importers,
                 allow_missing_dependency_free_importers: true,
             },

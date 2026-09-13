@@ -177,7 +177,9 @@ fn merge_filtered_wanted_lockfile_refreshes_all_importers_when_global_inputs_cha
     let expected_overrides = fresh.overrides.clone();
     let expected_package_extensions_checksum = fresh.package_extensions_checksum.clone();
     let expected_pnpmfile_checksum = fresh.pnpmfile_checksum.clone();
-    let expected_ignored_optional_dependencies = fresh.ignored_optional_dependencies.clone();
+    let expected_ignored_optional_dependencies = fresh
+        .ignored_optional_dependencies
+        .clone();
     let expected_patched_dependencies = fresh.patched_dependencies.clone();
     let expected_shared_metadata = fresh.packages
         .as_ref()

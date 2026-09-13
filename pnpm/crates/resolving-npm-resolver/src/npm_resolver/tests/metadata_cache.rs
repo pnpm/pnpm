@@ -192,10 +192,11 @@ async fn malformed_revision_metadata_has_the_malformed_metadata_error() {
             alias: Some("acme".to_string()),
             ..WantedDependency::default()
         };
-        let error = match resolver.resolve(&wanted, &ResolveOptions::default()).await {
-            Ok(result) => panic!("revision {revision} must fail the resolve; got {result:?}"),
-            Err(error) => error,
-        };
+        let error =
+            match resolver.resolve(&wanted, &ResolveOptions::default()).await {
+                Ok(result) => panic!("revision {revision} must fail the resolve; got {result:?}"),
+                Err(error) => error,
+            };
 
         let error =
             error.downcast_ref::<MalformedRevisionHistoryError>().expect("revision history error");

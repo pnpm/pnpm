@@ -82,7 +82,8 @@ pub async fn resolve(
     let temp = tempfile::Builder::new().prefix("pnpr-resolve-").tempdir()?;
     let dir = temp.path();
 
-    let Workspace { member_dirs, wrote_root } = write_importer_manifests(dir, &projects).await?;
+    let Workspace { member_dirs, wrote_root } = write_importer_manifests(dir, &projects)
+        .await?;
     write_workspace_manifest(dir, &member_dirs).await?;
 
     let manifest = root_manifest(dir, wrote_root)?;

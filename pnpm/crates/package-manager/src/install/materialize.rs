@@ -224,11 +224,13 @@ impl<'a> MaterializationInputs<'a, '_> {
             lockfile_verification_gate,
             resolution: crate::ResolutionInputs {
                 update_seed_policy: self.resolution.inputs.update_seed_policy,
-                preferred_versions_override: self.resolution.inputs.preferred_versions_override,
+                preferred_versions_override: self.resolution.inputs
+                    .preferred_versions_override,
                 auth_override: self.resolution.inputs.auth_override,
                 observer: self.resolution.inputs.observer,
                 peer_issues_sink: self.resolution.inputs.peer_issues_sink,
-                deps_requiring_build_sink: self.resolution.inputs.deps_requiring_build_sink,
+                deps_requiring_build_sink: self.resolution.inputs
+                    .deps_requiring_build_sink,
             },
             fetching: crate::install_with_fresh_lockfile::FreshFetchingInputs {
                 tarball_mem_cache: self.downloads.tarball_mem_cache,
@@ -236,7 +238,8 @@ impl<'a> MaterializationInputs<'a, '_> {
                 meta_cache: self.lockfiles.verification.meta_cache,
             },
             projects: crate::install_with_fresh_lockfile::FreshProjectInputs {
-                lockfile_specifier_manifests: self.workspace.lockfile_specifier_project_manifests
+                lockfile_specifier_manifests: self.workspace
+                    .lockfile_specifier_project_manifests
                     .map(|manifests| {
                         lockfile_specifier_manifests_by_id(manifests, self.workspace.workspace_root)
                     }),
@@ -260,8 +263,9 @@ impl<'a> MaterializationInputs<'a, '_> {
         &mut self,
     ) -> Result<Option<crate::LockfileVerificationGate>, InstallError> {
         Ok(
-            if let Some(lockfile_verification_override) =
-                self.lockfiles.verification_override.take()
+            if let Some(lockfile_verification_override) = self.lockfiles
+                .verification_override
+                .take()
             {
                 lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
                 None
@@ -281,11 +285,14 @@ impl<'a> MaterializationInputs<'a, '_> {
     async fn fresh<Reporter: self::Reporter + 'static>(
         mut self,
     ) -> Result<MaterializationOutput, InstallError> {
-        let lockfile_verification_gate = self.start_fresh_verification::<Reporter>().await?;
+        let lockfile_verification_gate = self.start_fresh_verification::<Reporter>()
+            .await?;
         let dependency_groups = std::mem::take(&mut self.workspace.dependency_groups);
         let resolution_verifiers =
             std::mem::take(&mut self.lockfiles.verification.resolution_verifiers);
-        let derived_lockfile_path = self.lockfiles.verification.derived_lockfile_path.take();
+        let derived_lockfile_path = self.lockfiles.verification
+            .derived_lockfile_path
+            .take();
         let site = (self.workspace.workspace_root, self.install.context.config);
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let fresh_result = InstallWithFreshLockfile {

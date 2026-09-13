@@ -145,7 +145,10 @@ pub(super) async fn hook_project_manifests(
                     dir: None,
                 };
                 let pre_hooked = pre_hooked_paths.contains(manifest.path());
-                async move { hook_one_manifest(hook, ctx, project_dir, manifest, pre_hooked).await }
+                async move {
+                    hook_one_manifest(hook, ctx, project_dir, manifest, pre_hooked)
+                        .await
+                }
             }),
     )
     .await

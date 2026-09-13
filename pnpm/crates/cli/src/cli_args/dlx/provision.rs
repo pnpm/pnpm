@@ -141,7 +141,8 @@ pub(super) async fn run_package_manager<Reporter: self::Reporter + 'static>(
     args: &[String],
     spawn: &DlxSpawn<'_>,
 ) -> miette::Result<()> {
-    let engine = Box::pin(provision::<Reporter>(config, pm, version_spec)).await?;
+    let engine = Box::pin(provision::<Reporter>(config, pm, version_spec))
+        .await?;
     let executable = match bin {
         Some(bin) => engine.command(bin),
         None => engine.program.clone(),

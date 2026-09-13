@@ -279,12 +279,18 @@ struct Request {
 impl Request {
     async fn dispatch(&self, endpoint: Endpoint, body: Body) -> Response {
         match endpoint {
-            Endpoint::Referrers { name, digest } => self.referrers(&name, &digest).await,
+            Endpoint::Referrers { name, digest } => {
+                self.referrers(&name, &digest).await
+            }
             Endpoint::Catalog => self.catalog().await,
             Endpoint::Tags { name } => self.tags(&name).await,
-            Endpoint::Manifest { name, reference } => self.manifest(&name, &reference, body).await,
+            Endpoint::Manifest { name, reference } => {
+                self.manifest(&name, &reference, body).await
+            }
             Endpoint::Blob { name, digest } => self.blob(&name, &digest).await,
-            Endpoint::StartUpload { name } => self.start_upload(&name, body).await,
+            Endpoint::StartUpload { name } => {
+                self.start_upload(&name, body).await
+            }
             Endpoint::Upload { name, id } => self.upload(&name, &id, body).await,
         }
     }

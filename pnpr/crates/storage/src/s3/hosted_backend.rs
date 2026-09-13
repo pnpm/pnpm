@@ -211,7 +211,8 @@ impl HostedBackend for S3Store {
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
-        S3Store::replace_record_if_current(self, namespace, key, expected, bytes).await
+        S3Store::replace_record_if_current(self, namespace, key, expected, bytes)
+            .await
     }
 
     async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {

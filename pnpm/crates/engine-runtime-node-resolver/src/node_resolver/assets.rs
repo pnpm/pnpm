@@ -79,7 +79,8 @@ async fn fetch_node_shasums(
     } = request;
     match (verify_signature, auth_headers.is_empty()) {
         (true, true) => {
-            fetch_verified_node_shasums_file_cached(http_client, integrities_url, cache_dir).await
+            fetch_verified_node_shasums_file_cached(http_client, integrities_url, cache_dir)
+                .await
                 .map_err(NodeResolverError::FetchVerifiedNodeShasums)
         }
         (true, false) => fetch_verified_node_shasums_file_cached_with_auth_headers(
@@ -90,7 +91,8 @@ async fn fetch_node_shasums(
         )
         .await
         .map_err(NodeResolverError::FetchVerifiedNodeShasums),
-        (false, true) => fetch_shasums_file_cached(http_client, integrities_url, cache_dir).await
+        (false, true) => fetch_shasums_file_cached(http_client, integrities_url, cache_dir)
+            .await
             .map_err(NodeResolverError::FetchShasumsFile),
         (false, false) => fetch_shasums_file_cached_with_auth_headers(
             http_client,

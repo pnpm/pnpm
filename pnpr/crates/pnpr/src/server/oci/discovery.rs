@@ -98,7 +98,9 @@ impl Request {
         let last = query_param(Some(&self.query), "last");
         let mut repositories = Vec::new();
         for source in hosted_sources(&self.state, target, ECOSYSTEM) {
-            match self.readable_repositories(target, &source, last.as_deref()).await {
+            match self.readable_repositories(target, &source, last.as_deref())
+                .await
+            {
                 Ok(names) => repositories.extend(names),
                 Err(err) => return Err(err),
             }

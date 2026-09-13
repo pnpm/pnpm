@@ -209,7 +209,9 @@ impl AuthHeaders {
     /// authorization for any URL.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.by_uri.is_empty() && self.scoped_by_scope.is_empty() && self.route_hook.is_none()
+        self.by_uri.is_empty()
+            && self.scoped_by_scope.is_empty()
+            && self.route_hook.is_none()
     }
 
     /// Overlay a ready-to-send `Authorization` header at `url`.

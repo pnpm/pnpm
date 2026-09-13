@@ -40,7 +40,9 @@ pub(super) async fn get_search(
         .map_or(0, |page| page.saturating_sub(1).saturating_mul(size));
 
     let mut page = SearchPage::new(from, size);
-    if let Err(err) = collect_hosted_crates(&state, &identity, &target, &text, &mut page).await {
+    if let Err(err) = collect_hosted_crates(&state, &identity, &target, &text, &mut page)
+        .await
+    {
         return error_response(err);
     }
     let total = page.total();
@@ -61,7 +63,8 @@ async fn collect_hosted_crates(
         let DiscoverySource::Hosted(source) = source else {
             continue;
         };
-        let hosted = hosted_search_names(state, identity, target, &source, ECOSYSTEM, text).await;
+        let hosted = hosted_search_names(state, identity, target, &source, ECOSYSTEM, text)
+            .await;
         let (storage, names) = match hosted {
             Ok(Some(hosted)) => hosted,
             Ok(None) => continue,

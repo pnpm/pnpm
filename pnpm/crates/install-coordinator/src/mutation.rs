@@ -14,7 +14,8 @@ impl MetadataMutation {
         paths: impl IntoIterator<Item = PathBuf>,
     ) -> Result<Self> {
         let paths = paths.into_iter().collect::<Vec<_>>();
-        tokio::task::spawn_blocking(move || Self::capture_blocking(&transaction_key, paths)).await
+        tokio::task::spawn_blocking(move || Self::capture_blocking(&transaction_key, paths))
+            .await
             .into_diagnostic()
             .wrap_err("join metadata snapshot task")?
     }

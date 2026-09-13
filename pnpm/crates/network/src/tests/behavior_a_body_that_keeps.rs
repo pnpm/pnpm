@@ -245,7 +245,8 @@ async fn stalled_consumers_release_permits_on_deadline_or_cancellation() {
             .unwrap()
             .unwrap();
         assert!(
-            tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(&url)).await
+            tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(&url))
+                .await
                 .is_err(),
         );
         if cancel {

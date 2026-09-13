@@ -72,9 +72,10 @@ pub(super) async fn verify_signatures(
     config: &Config,
     http_client: &ThrottledClient,
 ) -> Result<SignatureVerificationResult, SignaturesError> {
-    let keys_by_registry = fetch_keys_by_registry(packages, config, http_client).await?;
-    let packuments =
-        fetch_needed_packuments(packages, &keys_by_registry, config, http_client).await;
+    let keys_by_registry = fetch_keys_by_registry(packages, config, http_client)
+        .await?;
+    let packuments = fetch_needed_packuments(packages, &keys_by_registry, config, http_client)
+        .await;
 
     let mut result = SignatureVerificationResult::default();
     for pkg in packages {
@@ -139,7 +140,8 @@ async fn fetch_needed_packuments(
     let packument_fetches = needed
         .into_iter()
         .map(|(registry, name)| async move {
-            let result = fetch_packument(name, registry, config, http_client).await
+            let result = fetch_packument(name, registry, config, http_client)
+                .await
                 .map_err(|err| err.to_string());
             ((registry.to_string(), name.to_string()), result)
         });

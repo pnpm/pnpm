@@ -78,7 +78,9 @@ pub(super) fn build_resolved_lockfile<Reporter>(
             prior: crate::install_with_fresh_lockfile::resolution_inputs::FreshLockfilePrior {
                 importers: resolved.reuse.guard_previous_importers,
                 scope: resolved.reuse.guard_update_reuse_scope.clone(),
-                scopes_by_importer: resolved.reuse.guard_update_reuse_scopes_by_importer.clone(),
+                scopes_by_importer: resolved.reuse
+                    .guard_update_reuse_scopes_by_importer
+                    .clone(),
                 lockfile: views.wanted_lockfile,
             },
             resolution:

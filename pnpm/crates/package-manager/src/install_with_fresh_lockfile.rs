@@ -401,9 +401,10 @@ impl InstallWithFreshLockfile<'_> {
         let mut owned = self.owned;
         let mut manifests = ManifestSlots::declared(self.importer_manifests);
         let mut setup = set_up_resolvers::<Reporter>(install, &mut owned).await?;
-        let resolved =
-            resolve_graph::<Reporter>(install, &mut owned, &mut setup, &mut manifests).await?;
-        finish_resolved_install::<Reporter>(install, owned, setup, resolved).await
+        let resolved = resolve_graph::<Reporter>(install, &mut owned, &mut setup, &mut manifests)
+            .await?;
+        finish_resolved_install::<Reporter>(install, owned, setup, resolved)
+            .await
     }
 }
 

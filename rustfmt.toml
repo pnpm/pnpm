@@ -1,6 +1,7 @@
 use_small_heuristics = "Default"
 
 chain_complexity_layout = true
+chain_head_width = 80
 struct_lit_width = 0
 struct_pattern_width = 35
 

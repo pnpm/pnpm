@@ -221,8 +221,9 @@ async fn fetch_sigstore_token_uses_github_request_token() {
         })
     });
 
-    let token =
-        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap();
+    let token = fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, "gh-sigstore-token");
 }
 
@@ -249,8 +250,9 @@ async fn fetch_sigstore_token_reads_gitlab_env_token() {
         }
     }
 
-    let token =
-        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap();
+    let token = fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, "gl-sigstore-token");
 }
 
@@ -276,8 +278,9 @@ async fn fetch_sigstore_token_errors_when_gitlab_token_missing() {
         }
     }
 
-    let err =
-        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap_err();
+    let err = fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default())
+        .await
+        .unwrap_err();
     assert!(matches!(err, ProvenanceGenError::GitLabMissingToken));
 }
 
@@ -396,7 +399,8 @@ async fn generate_provenance_forwards_fetch_timeout_to_the_signer() {
         fetch_timeout: Some(1234),
         ..OidcHttpOptions::default()
     };
-    generate_provenance::<TimeoutSys, SilentReporter>("pkg", "1.0.0", b"tarball", &options).await
+    generate_provenance::<TimeoutSys, SilentReporter>("pkg", "1.0.0", b"tarball", &options)
+        .await
         .expect("provenance generation succeeds");
 }
 
@@ -539,7 +543,8 @@ async fn fetch_sigstore_token_rejects_unsupported_provider() {
         }
     }
 
-    let err =
-        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap_err();
+    let err = fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default())
+        .await
+        .unwrap_err();
     assert!(matches!(err, ProvenanceGenError::UnsupportedProvider));
 }

@@ -102,7 +102,8 @@ impl SelectedUpdatePreparation {
             self.catalogs_override = Some(complete_catalogs);
         }
         if self.workspace_dir_for_catalogs.is_none() {
-            self.workspace_dir_for_catalogs = prepared.workspace_dir_for_catalogs;
+            self.workspace_dir_for_catalogs = prepared
+                .workspace_dir_for_catalogs;
         }
     }
 }
@@ -158,7 +159,8 @@ pub(super) async fn prepare_manifest<Reporter: self::Reporter>(
     latest_chain: &mut Option<LatestResolverChain>,
 ) -> Result<Option<UpdatePreparation>, UpdateError> {
     let Some(decision) =
-        decide_update::<Reporter>(manifest, update, owned, catalogs_seed, latest_chain).await?
+        decide_update::<Reporter>(manifest, update, owned, catalogs_seed, latest_chain)
+            .await?
     else {
         return Ok(None);
     };

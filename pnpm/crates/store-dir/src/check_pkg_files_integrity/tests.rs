@@ -464,7 +464,10 @@ fn the_tally_covers_hashing_only() {
             info(&digest, content.len() as u64, 0o644, Some(future)),
         )],
     );
-    assert!(check_pkg_files_integrity(&store_dir, trusted, &VerifiedFilesCache::new()).passed);
+    assert!(
+        check_pkg_files_integrity(&store_dir, trusted, &VerifiedFilesCache::new())
+            .passed,
+    );
 
     let unknown_algo = index_with(
         "sha256",
@@ -474,14 +477,18 @@ fn the_tally_covers_hashing_only() {
         )],
     );
     assert!(
-        !check_pkg_files_integrity(&store_dir, unknown_algo, &VerifiedFilesCache::new()).passed,
+        !check_pkg_files_integrity(&store_dir, unknown_algo, &VerifiedFilesCache::new())
+            .passed,
     );
 
     let missing = index_with(
         "sha512",
         vec![("missing", info(&sha512_hex(b"absent"), 6, 0o644, Some(0)))],
     );
-    assert!(!check_pkg_files_integrity(&store_dir, missing, &VerifiedFilesCache::new()).passed);
+    assert!(
+        !check_pkg_files_integrity(&store_dir, missing, &VerifiedFilesCache::new())
+            .passed,
+    );
 
     let recorded = VerifiedFileIntegrity::snapshot().since(before);
     dbg!(recorded);

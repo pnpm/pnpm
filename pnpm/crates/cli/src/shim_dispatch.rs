@@ -154,7 +154,9 @@ fn dispatch_target(
 fn shim_package(target: &ShimTarget) -> Option<String> {
     match target {
         ShimTarget::Virtual(package) => Some(package.clone()),
-        ShimTarget::Installed(path) => provider_of_target(path).map(|provider| provider.name),
+        ShimTarget::Installed(path) => {
+            provider_of_target(path).map(|provider| provider.name)
+        }
     }
 }
 

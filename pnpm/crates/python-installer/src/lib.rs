@@ -72,7 +72,8 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         return Ok(Vec::new());
     }
     let interpreter: Interpreter =
-        host::run(&config.python.executable, "probe", serde_json::json!({})).await?;
+        host::run(&config.python.executable, "probe", serde_json::json!({}))
+            .await?;
     let (index, auth) = python_index(config)?;
     config.store_dir.init().into_diagnostic()?;
     let store_index = StoreIndex::shared_for(&config.store_dir, config.frozen_store);
@@ -179,7 +180,8 @@ impl PythonPrepare<'_> {
         let fresh = existing
             .as_ref()
             .is_some_and(|lock| {
-                lock.tool.pnpm == inputs && lock.requires_python == project.requires_python
+                lock.tool.pnpm == inputs
+                    && lock.requires_python == project.requires_python
             });
         self.check_frozen_lockfile(&lock_path, fresh)?;
         let lock = self.lockfile::<Reporter>(
@@ -229,7 +231,8 @@ impl PythonPrepare<'_> {
                 index: self.store_index.clone(),
                 index_writer: Some(Arc::clone(self.writer)),
                 verify_integrity: self.context.config.verify_store_integrity,
-                strict_pkg_content_check: self.context.config.strict_store_pkg_content_check,
+                strict_pkg_content_check: self.context.config
+                    .strict_store_pkg_content_check,
                 verified_files_cache: Arc::default(),
                 prefetched_cas_paths: None,
             },
@@ -281,7 +284,8 @@ impl PythonPrepare<'_> {
             accept_server_lockfile(&lock, &inputs, requires_python.as_deref())?;
             self.accept_lockfile::<Reporter>(registry, lock, requirements).await
         } else {
-            let solution = resolver::resolve::<Reporter>(registry, requirements).await?;
+            let solution = resolver::resolve::<Reporter>(registry, requirements)
+                .await?;
             Lockfile::new(
                 &registry.packages,
                 &self.interpreter.target,

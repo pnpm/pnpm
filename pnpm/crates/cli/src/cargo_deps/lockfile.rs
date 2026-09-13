@@ -36,7 +36,8 @@ impl LockedPackages {
 }
 
 pub(crate) async fn workspace_root(manifest_path: &Path) -> Result<PathBuf> {
-    workspace_metadata(manifest_path).await.map(|metadata| metadata.workspace_root)
+    workspace_metadata(manifest_path).await
+        .map(|metadata| metadata.workspace_root)
 }
 
 async fn workspace_metadata(manifest_path: &Path) -> Result<CargoWorkspaceMetadata> {

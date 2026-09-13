@@ -376,7 +376,8 @@ fn remaining_patch_files(
         .iter()
         .filter(|(patch, _)| !removed_patches.contains(patch))
         .map(|(patch, patch_file)| {
-            PatchRemovalTarget::new(patch, patch_file, ctx).map(|target| target.target_path)
+            PatchRemovalTarget::new(patch, patch_file, ctx)
+                .map(|target| target.target_path)
         })
         .collect::<Result<HashSet<_>, _>>()
 }

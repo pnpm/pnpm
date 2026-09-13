@@ -557,7 +557,8 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
                     index: None,
                     index_writer: None,
                     verify_integrity: config.verify_store_integrity,
-                    strict_pkg_content_check: config.strict_store_pkg_content_check,
+                    strict_pkg_content_check: config
+                        .strict_store_pkg_content_check,
                     verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
                     prefetched_cas_paths: None,
                 },

@@ -194,7 +194,9 @@ impl PreviewState<'_> {
         // sense once an earlier record removed it; `apply_patch_to_dir`
         // reports every other spelling. A `Modify` of a removed manifest is
         // left to it for the same reason.
-        if matches!(operation, FileOperation::Create(_)) != self.manifest_removed {
+        if matches!(operation, FileOperation::Create(_))
+            != self.manifest_removed
+        {
             return Ok(());
         }
         self.apply_to_manifest(file_patch)

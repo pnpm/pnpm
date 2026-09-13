@@ -13,7 +13,8 @@ async fn an_upstream_resolves_a_private_package() {
     let registry = TestRegistry::start();
     let token = register_token(&registry.url(), "needs-auth-forwarder").await;
     let (pnpr_url, pnpr_auth, _storage) =
-        start_pnpr_with_upstreams(vec![registry_upstream(&registry.url(), &token)]).await;
+        start_pnpr_with_upstreams(vec![registry_upstream(&registry.url(), &token)])
+            .await;
 
     let client = PnprClient::new(pnpr_url);
 

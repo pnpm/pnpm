@@ -190,13 +190,16 @@ fn verify_variant(
 
 fn artifact_matches_candidate(payload: &ArtifactPayload, candidate: &ArtifactCandidate) -> bool {
     let ArtifactCandidate { key: input_key, subject, owner } = candidate;
-    payload.input_key == *input_key && payload.subject == *subject && payload.owner == *owner
+    payload.input_key == *input_key
+        && payload.subject == *subject
+        && payload.owner == *owner
 }
 
 impl PnprClient {
     /// Confirm that the server enabled the v0 signed-artifact `PoC`.
     pub async fn handshake_artifacts(&self) -> Result<(), PnprClientError> {
-        let capability = self.fetch_handshake(Some(self.artifact_request_timeout)).await?;
+        let capability = self.fetch_handshake(Some(self.artifact_request_timeout))
+            .await?;
         if !capability.artifacts.contains(&PROTOCOL_VERSION) {
             return Err(PnprClientError::Server(format!(
                 "pnpr server does not advertise shared artifact protocol v{PROTOCOL_VERSION}",
@@ -247,7 +250,9 @@ impl PnprClient {
             return Ok(BTreeMap::new());
         }
         opts.candidates.retain(|candidate| {
-            let ArtifactSubject::DependencySideEffects { package, .. } = &candidate.subject else {
+            let ArtifactSubject::DependencySideEffects { package, .. } =
+                &candidate.subject
+            else {
                 return false;
             };
             opts.build_policy.permits(&package.name)
@@ -299,7 +304,8 @@ impl PnprClient {
                 String::from_utf8_lossy(&body),
             )));
         }
-        let body = response_body_bounded(response, MAX_RESOLVE_RESPONSE_SIZE).await?;
+        let body = response_body_bounded(response, MAX_RESOLVE_RESPONSE_SIZE)
+            .await?;
         serde_json::from_slice(&body).map_err(|err| PnprClientError::Protocol(err.to_string()))
     }
 
@@ -329,7 +335,8 @@ impl PnprClient {
                 String::from_utf8_lossy(&body),
             )));
         }
-        let bytes = response_body_bounded(response, MAX_FILE_SIZE as usize).await?;
+        let bytes = response_body_bounded(response, MAX_FILE_SIZE as usize)
+            .await?;
         verify_blob(&request.integrity, &bytes)
             .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
         Ok(bytes)

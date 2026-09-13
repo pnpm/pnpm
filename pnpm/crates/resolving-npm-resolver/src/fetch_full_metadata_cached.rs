@@ -178,7 +178,8 @@ impl FetchAttempt<'_> {
         // inline parses held the metadata phase to a third of pnpm's
         // throughput.
         let decode = self.decoder(etag, normalize_to_abbreviated, started_at);
-        let (meta, elapsed) = tokio::task::spawn_blocking(move || decode.run(&raw_body)).await
+        let (meta, elapsed) = tokio::task::spawn_blocking(move || decode.run(&raw_body))
+            .await
             .map_err(|error| FetchMetadataError::ParseTask {
                 url: redact_url_credentials(self.url),
                 error,
@@ -199,7 +200,8 @@ impl FetchAttempt<'_> {
             mirror_path: self.mirror_path.map(Path::to_path_buf),
             etag,
             normalize_to_abbreviated,
-            should_filter_metadata: self.opts.full_metadata && self.opts.filter_metadata,
+            should_filter_metadata: self.opts.full_metadata
+                && self.opts.filter_metadata,
             started_at,
         }
     }

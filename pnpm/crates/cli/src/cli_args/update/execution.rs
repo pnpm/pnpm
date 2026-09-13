@@ -134,7 +134,8 @@ impl UpdateArgs {
                 .await
             }
             None => {
-                super::super::install::install_via_pnpr::<Reporter>(state, pnpr_server, link).await
+                super::super::install::install_via_pnpr::<Reporter>(state, pnpr_server, link)
+                    .await
             }
         }
     }
@@ -146,7 +147,8 @@ impl UpdateArgs {
         inputs: &UpdateInputs,
     ) -> miette::Result<()> {
         let Some(packages) =
-            self.select_local_packages::<Reporter>(&state, selection.as_ref(), inputs).await?
+            self.select_local_packages::<Reporter>(&state, selection.as_ref(), inputs)
+                .await?
         else {
             return Ok(());
         };
@@ -160,7 +162,8 @@ impl UpdateArgs {
             let update = self.prepare_update(&mut state, inputs, &packages)?;
             match &mut selection {
                 Some(selection) => {
-                    update.run_selected::<Reporter>(selection.selected_projects()).await
+                    update.run_selected::<Reporter>(selection.selected_projects())
+                        .await
                 }
                 None => update.run::<Reporter>().await,
             }

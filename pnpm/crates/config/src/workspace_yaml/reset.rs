@@ -198,13 +198,12 @@ impl WorkspaceSettings {
                 config.workspace_package_patterns.clone_from(&defaults.workspace_package_patterns);
             }
             "gitBranchLockfile" => {
-                config.use_git_branch_lockfile = defaults.use_git_branch_lockfile;
+                config.use_git_branch_lockfile = defaults
+                    .use_git_branch_lockfile;
                 config.git_branch_lockfile_name = None;
             }
             "sideEffectsCache" => {
-                config.side_effects_cache_read_setting = defaults.side_effects_cache_read_setting;
-                config.side_effects_cache_write_setting = defaults.side_effects_cache_write_setting;
-                config.remote_side_effects_cache.clone_from(&defaults.remote_side_effects_cache);
+                reset_side_effects_cache(config, defaults);
             }
             "httpsProxy" | "httpProxy" | "proxy" | "noProxy" | "noproxy" => {
                 reset_proxy_setting(config, defaults, key);
@@ -215,9 +214,12 @@ impl WorkspaceSettings {
                 config.audit_ignore_prune = defaults.audit_ignore_prune;
             }
             "update" | "updateConfig" => config.update_config.clone_from(&defaults.update_config),
-            "cleanupUnusedCatalogs" => config.catalog_prune = defaults.catalog_prune,
+            "cleanupUnusedCatalogs" => {
+                config.catalog_prune = defaults.catalog_prune;
+            }
             "virtualStoreType" => {
-                config.enable_global_virtual_store = defaults.enable_global_virtual_store;
+                config.enable_global_virtual_store = defaults
+                    .enable_global_virtual_store;
             }
             "maxsockets" => config.max_sockets = defaults.max_sockets,
             // Shapes only a file has, whose resolved form lives under the
@@ -249,4 +251,12 @@ fn apply_named_reset(
     };
     reset(config, defaults);
     true
+}
+
+fn reset_side_effects_cache(config: &mut Config, defaults: &Config) {
+    config.side_effects_cache_read_setting = defaults
+        .side_effects_cache_read_setting;
+    config.side_effects_cache_write_setting = defaults
+        .side_effects_cache_write_setting;
+    config.remote_side_effects_cache.clone_from(&defaults.remote_side_effects_cache);
 }

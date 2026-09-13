@@ -265,7 +265,8 @@ pub(super) async fn stage_artifact(
     }
     for file in &artifact.payload.manifest.added {
         let (path, info) =
-            stage_artifact_blob(context, artifact, file, &mut stored, &mut downloaded).await?;
+            stage_artifact_blob(context, artifact, file, &mut stored, &mut downloaded)
+                .await?;
         overlay.insert(file.path.clone(), path);
         added.insert(file.path.clone(), info);
     }

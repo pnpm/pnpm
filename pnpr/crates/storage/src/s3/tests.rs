@@ -349,7 +349,8 @@ async fn concurrent_revision_ref_claims_survive_other_owner_removal() {
         let digest = digest.clone();
         let ref_id = ref_id.clone();
         tokio::spawn(async move {
-            store.write_revision_ref(&digest, &ref_id, "owner-a", b"record").await
+            store.write_revision_ref(&digest, &ref_id, "owner-a", b"record")
+                .await
         })
     };
     let second = {
@@ -357,7 +358,8 @@ async fn concurrent_revision_ref_claims_survive_other_owner_removal() {
         let digest = digest.clone();
         let ref_id = ref_id.clone();
         tokio::spawn(async move {
-            store.write_revision_ref(&digest, &ref_id, "owner-b", b"record").await
+            store.write_revision_ref(&digest, &ref_id, "owner-b", b"record")
+                .await
         })
     };
 
@@ -437,7 +439,8 @@ async fn concurrent_revision_ref_writes_cannot_exceed_the_limit() {
         let store = store.clone();
         let digest = digest.clone();
         writes.push(tokio::spawn(async move {
-            store.write_revision_ref(&digest, &format!("{index:064x}"), "owner-a", b"{}").await
+            store.write_revision_ref(&digest, &format!("{index:064x}"), "owner-a", b"{}")
+                .await
         }));
     }
 

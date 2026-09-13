@@ -177,7 +177,9 @@ pub fn try_lockfile_verification_cache(
 
     CacheLookupResult {
         hit: true,
-        verified_at: (!refreshed.verified_at.is_empty()).then(|| refreshed.verified_at.clone()),
+        verified_at: (!refreshed.verified_at.is_empty()).then(|| {
+            refreshed.verified_at.clone()
+        }),
         precomputed: CachePrecomputed {
             stat: Some(stat),
             hash: Some(hash),
@@ -347,7 +349,9 @@ fn inode_of(_metadata: &fs::Metadata) -> String {
 }
 
 fn stat_matches(stat: &LockfileStat, lockfile: &CacheLockfile) -> bool {
-    stat.size == lockfile.size && stat.mtime_ns == lockfile.mtime_ns && stat.inode == lockfile.inode
+    stat.size == lockfile.size
+        && stat.mtime_ns == lockfile.mtime_ns
+        && stat.inode == lockfile.inode
 }
 
 fn every_verifier_trusts_cached_run(
@@ -483,7 +487,9 @@ fn cached_stat_result(
     let hit = every_verifier_trusts_cached_run(record, verifiers);
     CacheLookupResult {
         hit,
-        verified_at: (hit && !record.verified_at.is_empty()).then(|| record.verified_at.clone()),
+        verified_at: (hit && !record.verified_at.is_empty()).then(|| {
+            record.verified_at.clone()
+        }),
         precomputed: CachePrecomputed {
             stat: Some(stat),
             hash: Some(record.lockfile.hash.clone()),

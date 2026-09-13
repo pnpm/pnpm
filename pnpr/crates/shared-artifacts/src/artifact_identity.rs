@@ -155,5 +155,7 @@ pub(super) fn artifact_matches_candidate(
     candidate: &ArtifactCandidate,
 ) -> bool {
     let ArtifactCandidate { key: input_key, subject, owner } = candidate;
-    payload.input_key == *input_key && payload.subject == *subject && payload.owner == *owner
+    payload.input_key == *input_key
+        && payload.subject == *subject
+        && payload.owner == *owner
 }

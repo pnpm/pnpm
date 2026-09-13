@@ -173,8 +173,8 @@ impl OciPublication {
                     ),
                 ));
             }
-            let stored =
-                storage.open_hosted_blob(&self.key, &descriptor.digest.blob_filename()).await?;
+            let stored = storage.open_hosted_blob(&self.key, &descriptor.digest.blob_filename())
+                .await?;
             match stored {
                 Some((_, Some(size))) if size != descriptor.size => {
                     return Err(Refusal::new(

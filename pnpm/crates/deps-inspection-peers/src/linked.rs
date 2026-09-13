@@ -32,7 +32,8 @@ pub(super) fn resolve_link_version(
     lockfile_dir: &Path,
     link_target: &str,
 ) -> Option<String> {
-    let target_dir = canonical_path_within(&base_dir.join(link_target), lockfile_dir)?.path;
+    let target_dir = canonical_path_within(&base_dir.join(link_target), lockfile_dir)?
+        .path;
     let manifest = PackageManifest::from_path(target_dir.join("package.json")).ok()?;
     package_manifest_version(&manifest)
 }

@@ -30,7 +30,8 @@ async fn selected_add_merges_catalog_updates_in_command_order() {
     let packages = ["foo".to_string()];
     let (add, owned) = test_add(config, &http_client, &packages, Some("default"));
     let prepared =
-        prepare_selected_manifests::<SilentReporter>(&mut projects, &indices, add, &owned).await
+        prepare_selected_manifests::<SilentReporter>(&mut projects, &indices, add, &owned)
+            .await
             .expect("prepare selected manifests");
 
     assert_eq!(

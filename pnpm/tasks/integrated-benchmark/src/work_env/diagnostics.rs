@@ -43,7 +43,8 @@ impl WorkEnv {
     }
     pub(super) fn collect_benchmark_diagnostics(&self) -> BenchmarkDiagnostics {
         let hyperfine = read_hyperfine_report(&self.root().join("BENCHMARK_REPORT.json"));
-        let commands_by_name: HashMap<String, HyperfineCommand> = hyperfine.results
+        let commands_by_name: HashMap<String, HyperfineCommand> = hyperfine
+            .results
             .into_iter()
             .map(|command| (command.name().to_string(), command))
             .collect();

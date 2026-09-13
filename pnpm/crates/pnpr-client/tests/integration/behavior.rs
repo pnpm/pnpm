@@ -135,7 +135,8 @@ async fn publishes_resolves_and_verifies_an_organization_artifact() {
     assert!(untrusted.is_empty());
 
     let mut mismatched_candidate = candidate.clone();
-    let ArtifactSubject::DependencySideEffects { package, .. } = &mut mismatched_candidate.subject
+    let ArtifactSubject::DependencySideEffects { package, .. } =
+        &mut mismatched_candidate.subject
     else {
         unreachable!()
     };
@@ -283,7 +284,8 @@ async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time()
         let (publish, _, _) = signed_artifact_fixture_for_platform(index);
         publications.push(tokio::spawn(async move {
             barrier.wait().await;
-            PnprClient::new(pnpr_url).publish_artifact(&publish, Some(&pnpr_auth)).await
+            PnprClient::new(pnpr_url).publish_artifact(&publish, Some(&pnpr_auth))
+                .await
         }));
     }
     barrier.wait().await;

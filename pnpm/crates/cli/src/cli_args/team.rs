@@ -288,7 +288,8 @@ async fn team_ls(context: &TeamContext<'_>, params: &[String]) -> miette::Result
     let auth_header = auth_header_for_registry(context, &st.scope)?;
 
     if let Some(team) = &st.team {
-        let members = fetch_team_members(context, &st.scope, team, Some(&auth_header)).await?;
+        let members = fetch_team_members(context, &st.scope, team, Some(&auth_header))
+            .await?;
         render_members(&st.scope, team, &members, context.parseable, context.json)
     } else {
         let teams = fetch_teams(context, &st.scope, Some(&auth_header)).await?;

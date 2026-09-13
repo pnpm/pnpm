@@ -43,7 +43,10 @@ pub(super) async fn get_org_package_list(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<ScopePath>,
 ) -> Response {
-    private_no_cache(serve_org_packages(&state, &identity, registry.as_deref(), &path.scope).await)
+    private_no_cache(
+        serve_org_packages(&state, &identity, registry.as_deref(), &path.scope)
+            .await,
+    )
 }
 
 /// `PUT {base}/-/org/{scope}/team`.

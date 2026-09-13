@@ -42,7 +42,9 @@ async fn execute_switch(plan: SwitchPlan, child_argv: &[OsString]) -> miette::Re
     let SwitchPlan { config, target } = plan;
     let SwitchTarget { spec, source } = target;
     let config = Config::leak(config);
-    let Some((version, bin_dir)) = install_switch_target(config, &spec, source).await? else {
+    let Some((version, bin_dir)) = install_switch_target(config, &spec, source)
+        .await?
+    else {
         return Ok(false);
     };
 

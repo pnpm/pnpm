@@ -276,7 +276,9 @@ async fn falls_back_when_two_catalogs_move_the_same_alias() {
     ]);
 
     assert!(
-        try_update(&subject, &catalogs, manifest_requiring_child("^1.0.0")).await.is_none(),
+        try_update(&subject, &catalogs, manifest_requiring_child("^1.0.0"))
+            .await
+            .is_none(),
         "no single catalog is the sole reference once both name it",
     );
 }
@@ -302,7 +304,8 @@ async fn absorbs_a_range_only_entry_alongside_an_exact_move() {
         ]),
     )]);
 
-    let updated = try_update(&subject, &catalogs, manifest_requiring_child("^1.0.0")).await
+    let updated = try_update(&subject, &catalogs, manifest_requiring_child("^1.0.0"))
+        .await
         .expect("the range-only entry rides along with the exact move");
 
     let recorded = &updated.catalogs.as_ref().expect("catalogs")["default"];

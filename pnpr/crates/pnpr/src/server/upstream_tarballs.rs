@@ -78,11 +78,13 @@ pub(super) async fn serve_authorized_upstream_tarball(
     // below. A `cache: false` upstream skips the cache and streams through.
     if upstream.caches()
         && state.inner.osv_index.is_none()
-        && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await
+        && let Some(response) = cached_upstream_tarball(state, namespace, name, filename)
+            .await
     {
         return response;
     }
-    let dist = bind_tarball_to_packument(state, upstream, namespace, name, filename, ttl).await;
+    let dist = bind_tarball_to_packument(state, upstream, namespace, name, filename, ttl)
+        .await;
     let TarballDist { version, integrity } = match dist {
         Ok(Some(dist)) => dist,
         Ok(None) => return not_found(),
@@ -93,7 +95,8 @@ pub(super) async fn serve_authorized_upstream_tarball(
     }
     if upstream.caches()
         && state.inner.osv_index.is_some()
-        && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await
+        && let Some(response) = cached_upstream_tarball(state, namespace, name, filename)
+            .await
     {
         return response;
     }
@@ -216,12 +219,15 @@ pub(super) async fn fetch_upstream_tarball(
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let write = match state.inner.storage.open_upstream_blob_tmp(namespace, name, filename).await {
+    let write = match state.inner.storage.open_upstream_blob_tmp(namespace, name, filename)
+        .await
+    {
         Ok(write) => write,
         Err(err) => return err.into_response(),
     };
     if !upstream.caches() {
-        return stream_verified_without_caching(response, write, integrity, name, filename).await;
+        return stream_verified_without_caching(response, write, integrity, name, filename)
+            .await;
     }
     // The entry is promoted only on an SRI match (see
     // `stream_verified_to_cache`). No `Content-Length` is set: the upstream's
@@ -243,7 +249,8 @@ pub(super) async fn stream_verified_without_caching(
     filename: &str,
 ) -> Response {
     let downloaded =
-        streaming::download_verified_to_temp(response, write, integrity, MAX_TARBALL_BYTES).await;
+        streaming::download_verified_to_temp(response, write, integrity, MAX_TARBALL_BYTES)
+            .await;
     match downloaded {
         Ok((file, len, tmp_path)) => {
             tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))

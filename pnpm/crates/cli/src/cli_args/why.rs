@@ -88,7 +88,8 @@ impl WhyArgs {
             },
         );
 
-        let searcher = self.searcher(&env, &graph, state.config, &lockfile_dir).await?;
+        let searcher = self.searcher(&env, &graph, state.config, &lockfile_dir)
+            .await?;
 
         let trees = build_dependents_tree(&BuildDependentsOptions {
             env: &env,
@@ -135,7 +136,8 @@ impl WhyArgs {
     ) -> miette::Result<Searcher> {
         let mut searcher = Searcher::from_queries(&self.packages)?;
         if !self.find_by.is_empty() {
-            let finders = resolve_finders(config, lockfile_dir, &self.find_by).await?;
+            let finders = resolve_finders(config, lockfile_dir, &self.find_by)
+                .await?;
             let candidates = finder_candidates(env, graph);
             let results = evaluate_finders(env, &finders, candidates).await?;
             searcher.set_finder_results(results);

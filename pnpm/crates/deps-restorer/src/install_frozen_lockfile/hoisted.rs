@@ -138,7 +138,10 @@ fn included_lockfile<'l>(inputs: &HoistedLinkerInputs<'l>) -> std::borrow::Cow<'
             &DependencyGroup::Optional,
         ),
     };
-    if included.dependencies && included.dev_dependencies && included.optional_dependencies {
+    if included.dependencies
+        && included.dev_dependencies
+        && included.optional_dependencies
+    {
         std::borrow::Cow::Borrowed(inputs.graph.lockfile)
     } else {
         std::borrow::Cow::Owned(exclude_importer_groups(inputs.graph.lockfile, included))
@@ -297,7 +300,9 @@ fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
     // allowed outside the lockfile dir (see the isolated-path use).
     // Ids are lockfile-dir-relative, so derive them against
     // `walker_lockfile_dir`.
-    let trusted_importer_ids: std::collections::HashSet<String> = inputs.projects.manifests
+    let trusted_importer_ids: std::collections::HashSet<String> = inputs
+        .projects
+        .manifests
         .iter()
         .map(|(project_dir, _)| {
             pnpm_workspace::importer_id_from_root_dir(

@@ -127,7 +127,8 @@ fn a_canonical_short_inside_an_attached_value_is_not_the_option() {
         ["pnpm", "-rCcanonical", "install"],
     );
     assert_eq!(
-        parse(&["pnpm", "-rCcanonical", "--prefix", "here", "install"]).paths.dir,
+        parse(&["pnpm", "-rCcanonical", "--prefix", "here", "install"]).paths
+            .dir,
         Path::new("canonical"),
     );
 }

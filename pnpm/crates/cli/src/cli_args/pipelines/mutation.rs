@@ -21,7 +21,8 @@ pub(crate) struct AddPipeline {
 
 impl AddPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
+        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false)
+            .await?;
         if !self.package_specifier_plan.ecosystem_packages.is_empty() {
             return run_add_with_ecosystems::<Reporter>(
                 self.args,
@@ -84,7 +85,8 @@ impl AddPipeline {
                 let cfg: &'static Config = self.cfg;
                 let state =
                     State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(self.args.run_selected::<Reporter>(state, *selection)).await
+                Box::pin(self.args.run_selected::<Reporter>(state, *selection))
+                    .await
             }
             InstallFamilyPlan::Single => self.run_single::<Reporter>().await,
         }
@@ -102,7 +104,8 @@ impl AddPipeline {
         }
         let cfg: &'static Config = self.cfg;
         let state = State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
-        Box::pin(self.args.run::<Reporter>(state, self.config_dependencies)).await
+        Box::pin(self.args.run::<Reporter>(state, self.config_dependencies))
+            .await
     }
 }
 
@@ -183,7 +186,8 @@ pub(crate) struct UpdatePipeline {
 
 impl UpdatePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
+        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false)
+            .await?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
             &self.prefix,
@@ -247,7 +251,8 @@ impl UpdatePipeline {
                 let cfg: &'static Config = self.cfg;
                 let state =
                     State::init(self.manifest_path, cfg, false).wrap_err("initialize the state")?;
-                Box::pin(self.args.run_selected::<Reporter>(state, *selection)).await?;
+                Box::pin(self.args.run_selected::<Reporter>(state, *selection))
+                    .await?;
             }
             InstallFamilyPlan::Single => {
                 let cfg: &'static Config = self.cfg;
@@ -271,7 +276,8 @@ pub(crate) struct RemovePipeline {
 
 impl RemovePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
+        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false)
+            .await?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
             &self.prefix,

@@ -104,7 +104,8 @@ async fn unresolved_range_stays_in_the_satisfies_check() {
 #[tokio::test]
 async fn silent_when_no_declared_range_was_collected() {
     let overrides = converge_override("foo", "4.0.6");
-    let stale = find_stale_convergence_overrides(&overrides, &HashMap::new(), canned(&[])).await;
+    let stale = find_stale_convergence_overrides(&overrides, &HashMap::new(), canned(&[]))
+        .await;
 
     assert!(
         stale.is_empty(),

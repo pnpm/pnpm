@@ -140,7 +140,9 @@ impl VersionsOverrider {
     /// `true` when the hook has no entries and can be skipped.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.parent_scoped.is_empty() && self.generic.is_empty() && self.converge.is_empty()
+        self.parent_scoped.is_empty()
+            && self.generic.is_empty()
+            && self.converge.is_empty()
     }
 
     /// Snapshot of every declared range recorded so far for packages

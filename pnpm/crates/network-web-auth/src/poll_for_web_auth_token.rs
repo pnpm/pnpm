@@ -66,7 +66,8 @@ impl WebAuthFetchResponse {
             #[serde(default)]
             token: Option<String>,
         }
-        serde_json::from_str::<TokenBody>(&decode_token_body(&self.body)).map(|body| body.token)
+        serde_json::from_str::<TokenBody>(&decode_token_body(&self.body))
+            .map(|body| body.token)
     }
 }
 
@@ -135,7 +136,8 @@ where
         };
         if response.status == 202 && response.ok {
             // Registry is still waiting for authentication.
-            wait_for_retry_after::<Sys>(&response, start_time, timeout_ms).await?;
+            wait_for_retry_after::<Sys>(&response, start_time, timeout_ms)
+                .await?;
             continue;
         }
         if let Some(token) = issued_token(&response) {

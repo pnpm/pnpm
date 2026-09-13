@@ -59,7 +59,9 @@ pub(super) fn declaring_manifest_dir(
     ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Option<Arc<Path>> {
-    let pnpm_lockfile::LockfileResolution::Directory(resolution) = &result.resolution else {
+    let pnpm_lockfile::LockfileResolution::Directory(resolution) =
+        &result.resolution
+    else {
         return None;
     };
     if !result.id.as_str().starts_with("file:") {
@@ -306,7 +308,8 @@ impl TreeCtx {
     pub fn resolve_new_direct_deps_as_subdeps(&mut self) {
         self.options.direct = ResolveOptions {
             project: pnpm_resolving_resolver_base::ResolverProjectOptions {
-                link_workspace_packages: self.options.direct.project.link_workspace_packages,
+                link_workspace_packages: self.options.direct.project
+                    .link_workspace_packages,
                 ..self.options.subdep.project.clone()
             },
             ..self.options.subdep.clone()
@@ -527,9 +530,10 @@ impl TreeCtx {
 fn create_subdep_options(base_opts: &ResolveOptions) -> ResolveOptions {
     ResolveOptions {
         project: pnpm_resolving_resolver_base::ResolverProjectOptions {
-            link_workspace_packages: if base_opts.project.link_workspace_packages.enabled_at_depth(
-                1,
-            ) {
+            link_workspace_packages: if base_opts.project
+                .link_workspace_packages
+                .enabled_at_depth(1)
+            {
                 base_opts.project.link_workspace_packages
             } else {
                 LinkWorkspacePackages::Off

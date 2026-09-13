@@ -55,7 +55,8 @@ async fn fetch_from_registry_attaches_authorization_header() {
         "Bearer top-secret".to_owned(),
     )]);
 
-    let pkg = Package::fetch_from_registry("acme", &client, &registry, &auth_headers).await
+    let pkg = Package::fetch_from_registry("acme", &client, &registry, &auth_headers)
+        .await
         .expect("server should accept the request once the bearer header is attached");
     assert_eq!(pkg.name, "acme");
     mock.assert_async().await;

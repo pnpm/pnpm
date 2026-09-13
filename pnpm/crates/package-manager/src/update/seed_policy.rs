@@ -94,7 +94,8 @@ pub(super) async fn select_seed_policy<Reporter: self::Reporter>(
     if scope.use_name_matcher() {
         return Ok(Some(name_matched_seed_policy(scope, plan)));
     }
-    selector_seed_policy::<Reporter>(scope, plan, rewrite_ctx, latest_chain, catalog_ctx).await
+    selector_seed_policy::<Reporter>(scope, plan, rewrite_ctx, latest_chain, catalog_ctx)
+        .await
 }
 /// `--workspace`: every matched dependency is relinked to the workspace
 /// project that provides it.
@@ -174,7 +175,8 @@ pub(super) async fn record_direct_update(
     if scope.version.latest
         && scope.version.save
         && let Some(specifier) =
-            latest_specifier(rewrite_ctx, latest_chain, catalog_ctx, name, previous).await?
+            latest_specifier(rewrite_ctx, latest_chain, catalog_ctx, name, previous)
+                .await?
     {
         plan.rewrites.push((name.clone(), group, specifier));
     }

@@ -580,7 +580,8 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
         .lock()
         .unwrap()
         .clear();
-    download_body::<RecordingReporter>(incompressible_tarball(16 * 1024), store_path).await;
+    download_body::<RecordingReporter>(incompressible_tarball(16 * 1024), store_path)
+        .await;
     assert_eq!(
         in_progress_count(),
         0,

@@ -59,7 +59,9 @@ impl ChangeArgs {
         let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
         let engine_projects = to_engine_projects(&projects);
 
-        if self.run_diagnostic_form(&workspace_dir, &projects, &engine_projects, config).await? {
+        if self.run_diagnostic_form(&workspace_dir, &projects, &engine_projects, config)
+            .await?
+        {
             return Ok(());
         }
 
@@ -68,15 +70,7 @@ impl ChangeArgs {
             return Err(ChangeError::NoPackages.into());
         }
         self.check_params_releasable(&releasable, &engine_projects, &workspace_dir)?;
-        let bump = self.bump
-            .as_ref()
-            .map(|bump| {
-                parse_bump(bump)
-                    .ok_or_else(|| ChangeError::InvalidBump {
-                        bump: bump.clone(),
-                    })
-            })
-            .transpose()?;
+        let bump = self.requested_bump()?;
 
         // For a name shared by several projects the interactive picker offers
         // each project under its directory reference, so the written intent
@@ -103,6 +97,18 @@ impl ChangeArgs {
         println!("Recorded change intent .changeset/{id}.md");
         Ok(())
     }
+    fn requested_bump(&self) -> Result<Option<IntentBumpType>, ChangeError> {
+        self.bump
+            .as_ref()
+            .map(|bump| {
+                parse_bump(bump)
+                    .ok_or_else(|| ChangeError::InvalidBump {
+                        bump: bump.clone(),
+                    })
+            })
+            .transpose()
+    }
+
     fn change_summary(&self) -> miette::Result<String> {
         match &self.summary {
             Some(summary) => Ok(summary.clone()),
@@ -147,7 +153,8 @@ impl ChangeArgs {
         match self.params[0].as_str() {
             "status" => {
                 let names = published_names(projects);
-                let output = render_status(workspace_dir, engine_projects, &names, config).await?;
+                let output = render_status(workspace_dir, engine_projects, &names, config)
+                    .await?;
                 println!("{output}");
             }
             "check" => run_check(workspace_dir, engine_projects, config)?,

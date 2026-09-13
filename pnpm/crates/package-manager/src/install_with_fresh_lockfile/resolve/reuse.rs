@@ -168,7 +168,8 @@ pub(in super::super) struct ReuseSeedInputs<'a> {
 }
 impl ReuseSeedInputs<'_> {
     fn package_settings_match(&self, lockfile: &Lockfile) -> bool {
-        lockfile.package_extensions_checksum.as_deref() == self.lockfile.extensions_checksum
+        lockfile.package_extensions_checksum.as_deref()
+            == self.lockfile.extensions_checksum
             && super::super::ignored_optional_dependencies_match(
                 lockfile.ignored_optional_dependencies.as_deref(),
                 self.config.ignored_optional_dependencies.as_deref(),
@@ -187,7 +188,8 @@ impl ReuseSeedInputs<'_> {
             manifest_hook,
             registries: self.registries,
             registry_options_by_url: &self.config.registry_options_by_url,
-            lockfile_include_tarball_url: self.config.lockfile_include_tarball_url,
+            lockfile_include_tarball_url: self.config
+                .lockfile_include_tarball_url,
         }
     }
 }

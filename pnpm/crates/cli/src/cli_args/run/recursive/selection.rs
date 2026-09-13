@@ -230,7 +230,11 @@ pub(super) fn report_run_outcome(
     // skipped every requested task must report that failure instead of
     // claiming the script does not exist.
     let failures = count_failures(result);
-    if script_name != "test" && !reporting.ran_a_command && failures == 0 && !args.if_present {
+    if script_name != "test"
+        && !reporting.ran_a_command
+        && failures == 0
+        && !args.if_present
+    {
         task_run_state.finish()?;
         return Err(no_requested_script_error(script_name, reporting.all_packages_selected).into());
     }
@@ -275,21 +279,22 @@ pub(super) fn build_run_task_graph(
     selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
     emit: fn(&LogEvent),
 ) -> miette::Result<TaskGraph> {
-    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = if args.workspace.sort {
-        filtered_projects_dependencies(
-            graph,
-            selection.full_graph(),
-            selection.prod_all.as_ref(),
-            &selection.prod_only_selected,
-        )
-    } else {
-        warn_ignored_task_declarations(config, emit);
-        graph
-            .keys()
-            .cloned()
-            .map(|root| (root, Vec::new()))
-            .collect()
-    };
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> =
+        if args.workspace.sort {
+            filtered_projects_dependencies(
+                graph,
+                selection.full_graph(),
+                selection.prod_all.as_ref(),
+                &selection.prod_only_selected,
+            )
+        } else {
+            warn_ignored_task_declarations(config, emit);
+            graph
+                .keys()
+                .cloned()
+                .map(|root| (root, Vec::new()))
+                .collect()
+        };
     let select_scripts = |project: &Path, task_name: &str| -> Vec<String> {
         let manifest = graph[project].package.project.manifest.value();
         if task_name == script_name {

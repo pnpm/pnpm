@@ -62,8 +62,8 @@ async fn compiler_cache_failed_writes_reconcile_quota_even_after_remote_commit()
         let directory = TempDir::new().unwrap();
         let store = SharedArtifactStore::new(&hosted, directory.path()).unwrap();
         let key = CompilerCacheKey::try_from("cache-key".to_string()).unwrap();
-        let result =
-            store.publish_compiler_cache("acme", &key, bytes::Bytes::from_static(b"a")).await;
+        let result = store.publish_compiler_cache("acme", &key, bytes::Bytes::from_static(b"a"))
+            .await;
         assert!(result.is_err(), "write failure must surface: {result:?}");
         let usage = store.load_usage().await.unwrap().0;
         assert_eq!(usage.global_bytes, if commit_before_error { 65 } else { 0 });

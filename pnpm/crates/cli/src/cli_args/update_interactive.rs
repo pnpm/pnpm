@@ -238,7 +238,8 @@ async fn append_github_actions<Reporter: self::Reporter>(
     server_url: Option<&str>,
 ) -> miette::Result<()> {
     choices.extend(
-        github_actions::find_outdated::<Reporter>(root, !latest, None, server_url).await?
+        github_actions::find_outdated::<Reporter>(root, !latest, None, server_url)
+            .await?
             .into_iter()
             .map(OutdatedPackage::from),
     );

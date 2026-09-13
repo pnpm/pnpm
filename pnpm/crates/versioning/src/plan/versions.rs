@@ -333,8 +333,9 @@ pub(super) fn enforce_epic_bands(
             let Some(member_version) = new_versions.get(member_dir) else {
                 continue;
             };
-            let member_major =
-                Version::parse(member_version).expect("participants have valid versions").major;
+            let member_major = Version::parse(member_version)
+                .expect("participants have valid versions")
+                .major;
             if !band.contains(member_major) {
                 return Err(VersioningError::EpicOutOfBand {
                     pkg_name: participants[member_dir.as_str()].name.to_string(),

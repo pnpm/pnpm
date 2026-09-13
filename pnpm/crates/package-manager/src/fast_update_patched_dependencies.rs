@@ -78,7 +78,8 @@ pub(crate) fn apply_patched_update(
         return false;
     };
     apply_rekeys(candidate, &rekeys);
-    candidate.patched_dependencies = (!plan.current.is_empty()).then(|| plan.current.clone());
+    candidate.patched_dependencies =
+        (!plan.current.is_empty()).then(|| plan.current.clone());
     true
 }
 

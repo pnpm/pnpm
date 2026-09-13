@@ -414,9 +414,11 @@ impl<'a> HoistPass<'a> {
     fn finish(self) -> HoistResult {
         HoistResult {
             hoisted_dependencies: self.hoisted_dependencies,
-            hoisted_dependencies_by_node_id: self.hoisted_dependencies_by_node_id,
+            hoisted_dependencies_by_node_id: self
+                .hoisted_dependencies_by_node_id,
             hoisted_aliases_with_bins: self.bins.hoisted_aliases_with_bins,
-            publicly_hoisted_aliases_with_bins: self.bins.publicly_hoisted_aliases_with_bins,
+            publicly_hoisted_aliases_with_bins: self.bins
+                .publicly_hoisted_aliases_with_bins,
             hoisted_workspace_aliases: self.hoisted_workspace_aliases,
         }
     }

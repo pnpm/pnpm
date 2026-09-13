@@ -137,7 +137,8 @@ impl<'a> OnDiskInputs<'a> {
             selection: pnpm_deps_restorer::SnapshotSelection {
                 skipped,
                 include_optional: self.include_transitive_optional_dependencies,
-                supported_architectures: self.install.projects.supported_architectures,
+                supported_architectures: self.install.projects
+                    .supported_architectures,
             },
             ctx: self.ctx,
 
@@ -207,23 +208,29 @@ impl<'a> OnDiskInputs<'a> {
                     package_map_manifests: &package_map_project_manifests,
                     dependency_groups: self.install.projects.dependency_groups,
                     symlink_root: self.symlink_root(),
-                    trusted_importer_ids: self.projects.project_anchor_importer_ids,
+                    trusted_importer_ids: self.projects
+                        .project_anchor_importer_ids,
                     root_component_importers: &root_component_importers,
                 },
                 ctx: self.ctx,
 
                 host_node: self.runtime.host_node,
-                supported_architectures: self.install.projects.supported_architectures,
+                supported_architectures: self.install.projects
+                    .supported_architectures,
             },
             skipped,
         )
         .map_err(InstallWithFreshLockfileError::LinkPhase)?;
+        self.report_importing_done::<Reporter>();
+        Ok(linked)
+    }
+
+    fn report_importing_done<Reporter: self::Reporter>(&self) {
         Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
             prefix: self.ctx.requester.to_string(),
             stage: Stage::ImportingDone,
         }));
-        Ok(linked)
     }
 
     /// Run lifecycle scripts, report ignored builds, and re-link top-level
@@ -248,7 +255,8 @@ impl<'a> OnDiskInputs<'a> {
         // value when the probe wasn't deferred.
         let top_level_bin_root = self.symlink_root();
         let engine_name =
-            settle_engine_name(self.runtime.deferred_engine_name, self.runtime.engine_name).await;
+            settle_engine_name(self.runtime.deferred_engine_name, self.runtime.engine_name)
+                .await;
         let extra_env = build_extra_env(
             self.ctx.config,
             self.ctx.linker.kind,

@@ -374,7 +374,8 @@ async fn verified_fetch_does_not_cache_an_unverified_body() {
     let url = format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url());
 
     for _ in 0..2 {
-        fetch_verified_node_shasums_file_cached(&client, &url, Some(cache_dir.path())).await
+        fetch_verified_node_shasums_file_cached(&client, &url, Some(cache_dir.path()))
+            .await
             .expect_err("missing signature must fail");
     }
     signature.assert_async().await;
@@ -394,9 +395,11 @@ async fn plain_fetch_caches_the_body() {
     let client = pnpm_network::ThrottledClient::new_for_installs();
     let url = format!("{}/download/v1.2.3/SHASUMS256.txt", server.url());
 
-    let fetched = fetch_shasums_file_cached(&client, &url, Some(cache_dir.path())).await
+    let fetched = fetch_shasums_file_cached(&client, &url, Some(cache_dir.path()))
+        .await
         .expect("fetch the body");
-    let cached = fetch_shasums_file_cached(&client, &url, Some(cache_dir.path())).await
+    let cached = fetch_shasums_file_cached(&client, &url, Some(cache_dir.path()))
+        .await
         .expect("serve from cache");
 
     assert_eq!(fetched, cached);
@@ -470,7 +473,8 @@ async fn authenticated_plain_fetch_reselects_auth_after_redirects() {
     let auth_headers =
         AuthHeaders::from_creds_map([(nerf_dart(&url), "Bearer mirror-token".to_string())]);
 
-    fetch_shasums_file_cached_with_auth_headers(&client, &url, None, &auth_headers).await
+    fetch_shasums_file_cached_with_auth_headers(&client, &url, None, &auth_headers)
+        .await
         .expect("fetch redirected checksums");
 
     redirect.assert_async().await;

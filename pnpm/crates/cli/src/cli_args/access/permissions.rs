@@ -19,7 +19,8 @@ pub(super) async fn get_status(
         escaped_package_name(package_name),
     );
 
-    let (_guard, response) = send_get(context, &url, auth_header.as_deref()).await
+    let (_guard, response) = send_get(context, &url, auth_header.as_deref())
+        .await
         .map_err(reqwest::Error::without_url)
         .into_diagnostic()
         .wrap_err("requesting the registry access status endpoint")?;
@@ -139,7 +140,8 @@ pub(super) async fn set_mfa(
 
     if !response.status().is_success() {
         return Err(
-            write_error_from_response(response, "set MFA for".to_string(), package_name).await,
+            write_error_from_response(response, "set MFA for".to_string(), package_name)
+                .await,
         );
     }
 
@@ -210,7 +212,8 @@ pub(super) async fn revoke_access(
     let body = serde_json::json!({ "package": package_name });
 
     let (_guard, response) =
-        send_json(context, Method::DELETE, &url, auth_header.as_deref(), &body).await
+        send_json(context, Method::DELETE, &url, auth_header.as_deref(), &body)
+            .await
             .map_err(reqwest::Error::without_url)
             .into_diagnostic()
             .wrap_err("requesting the registry revoke access endpoint")?;

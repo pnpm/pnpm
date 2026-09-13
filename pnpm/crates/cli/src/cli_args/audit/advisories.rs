@@ -108,7 +108,8 @@ pub(super) async fn correct_inferred_patched_versions(
             async move {
                 (
                     name.to_string(),
-                    fetch_publish_times(name, &registry, config, http_client).await,
+                    fetch_publish_times(name, &registry, config, http_client)
+                        .await,
                 )
             }
         });
@@ -154,7 +155,9 @@ impl<'a> AuditGraph<'a> {
                     .collect(),
             });
         }
-        if let Some(package_manager_dependencies) = &importer.package_manager_dependencies {
+        if let Some(package_manager_dependencies) =
+            &importer.package_manager_dependencies
+        {
             let package_manager_roots = env_roots(package_manager_dependencies);
             if !package_manager_roots.is_empty() {
                 importers.push(GraphImporter {

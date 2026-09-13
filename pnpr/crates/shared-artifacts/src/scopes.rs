@@ -36,10 +36,12 @@ impl SharedArtifactStore {
         self.backfill_scopes(publication).await?;
         let claimed = match compatibility_scopes(&payload.compatibility) {
             CompatibilityScopes::Every => {
-                self.claim_universal_scope(owner, entry, envelope_digest, created).await
+                self.claim_universal_scope(owner, entry, envelope_digest, created)
+                    .await
             }
             CompatibilityScopes::These(scopes) => {
-                self.claim_tagged_scopes(owner, entry, envelope_digest, &scopes, created).await
+                self.claim_tagged_scopes(owner, entry, envelope_digest, &scopes, created)
+                    .await
             }
         };
         let claimed = match claimed {
@@ -52,7 +54,9 @@ impl SharedArtifactStore {
         // The scopes belong to this artifact either way. Whether *this* envelope
         // is the one already stored for them is the variant's own question, and
         // a stored one under a different envelope means two builds share a slot.
-        match self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64).await {
+        match self.read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64)
+            .await
+        {
             Ok(Some(stored)) if &stored == envelope_bytes => Ok(SlotClaim::Held),
             Ok(Some(_)) => Ok(SlotClaim::HeldByAnother),
             Ok(None) => Ok(SlotClaim::Free),
@@ -104,7 +108,8 @@ impl SharedArtifactStore {
                 }
             }
             CompatibilityScopes::These(_) => {
-                if self.scope_marker(owner, entry, UNIVERSAL_SCOPE, envelope_digest).await?
+                if self.scope_marker(owner, entry, UNIVERSAL_SCOPE, envelope_digest)
+                    .await?
                     == ScopeMarker::Another
                 {
                     return Ok(false);
@@ -125,7 +130,9 @@ impl SharedArtifactStore {
         holder: &str,
         created: &mut Vec<String>,
     ) -> Result<bool> {
-        if !self.claim_scope(owner, entry, UNIVERSAL_SCOPE, holder, created).await? {
+        if !self.claim_scope(owner, entry, UNIVERSAL_SCOPE, holder, created)
+            .await?
+        {
             return Ok(false);
         }
         self.tagged_scopes_are_free(owner, entry).await
@@ -162,7 +169,8 @@ impl SharedArtifactStore {
         holder: &str,
         created: &mut Vec<String>,
     ) -> Result<bool> {
-        match self.create_object(&scope_marker_path(owner, entry, scope), holder.to_string()).await
+        match self.create_object(&scope_marker_path(owner, entry, scope), holder.to_string())
+            .await
         {
             Ok(true) => {
                 created.push(scope.to_string());
@@ -280,8 +288,8 @@ impl SharedArtifactStore {
         let Some(relative) = self.relative_path(location).map(str::to_string) else {
             return Ok(None);
         };
-        let Some(bytes) =
-            self.read_object_bounded(&relative, MAX_RESOLVE_RESPONSE_SIZE as u64).await?
+        let Some(bytes) = self.read_object_bounded(&relative, MAX_RESOLVE_RESPONSE_SIZE as u64)
+            .await?
         else {
             return Ok(None);
         };
@@ -315,7 +323,8 @@ impl SharedArtifactStore {
     ) -> Result<()> {
         let bytes = digest.len() as u64;
         self.reserve_quota(owner, bytes).await?;
-        match self.create_object(&scope_marker_path(owner, entry, scope), digest.to_string()).await
+        match self.create_object(&scope_marker_path(owner, entry, scope), digest.to_string())
+            .await
         {
             Ok(true) => Ok(()),
             Ok(false) => self.release_uncommitted(owner, bytes, 0).await,

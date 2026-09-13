@@ -124,7 +124,8 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     // progress emitted by resolve-time prefetches: `CreateVirtualStore`
     // still emits `resolved` later, but skips duplicate `fetched` /
     // `found_in_store` statuses for keys already reported here.
-    let stores = resolver_setup::open_store_index_handles(install.drivers.config, store_dir).await;
+    let stores = resolver_setup::open_store_index_handles(install.drivers.config, store_dir)
+        .await;
 
     let chain = build_fresh_resolver_chain::<Reporter>(
         install,
@@ -318,7 +319,9 @@ impl UpdateReuseScopes {
         wanted_lockfile: Option<&Lockfile>,
     ) -> Result<Self, InstallWithFreshLockfileError> {
         let (mut scope, mut by_importer) = update_reuse_scopes(update_seed_policy);
-        if custom_resolver_forces_resolve(custom_resolvers, wanted_lockfile).await? {
+        if custom_resolver_forces_resolve(custom_resolvers, wanted_lockfile)
+            .await?
+        {
             scope = pnpm_resolving_deps_resolver::UpdateReuseScope::None;
             by_importer.clear();
         }
@@ -366,7 +369,8 @@ pub(super) async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
     // the `afterAllResolved` hook can transform the lockfile before it is
     // written.
     let hooks = PnpmfileHooks::load::<Reporter>(setup.chain.pnpmfile_hook.take(), lockfile_dir);
-    hooks.run_pre_resolution::<Reporter>(config, lockfile_dir, wanted_lockfile).await;
+    hooks.run_pre_resolution::<Reporter>(config, lockfile_dir, wanted_lockfile)
+        .await;
     let reuse = UpdateReuseScopes::settle(
         &owned.resolution.update_seed_policy,
         &setup.chain.custom_resolvers,

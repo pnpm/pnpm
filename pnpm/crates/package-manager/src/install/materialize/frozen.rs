@@ -37,7 +37,9 @@ impl<'a> MaterializationInputs<'a, '_> {
         let seed = pnpm_deps_restorer::FrozenInstallSeed {
             early_host_detection: self.execution.early_host_detection.take(),
             node_version: self.execution.effective_node_version.take(),
-            skipped: self.modules.modules_manifest.map(|manifest| manifest.skipped.clone()),
+            skipped: self.modules.modules_manifest.map(|manifest| {
+                manifest.skipped.clone()
+            }),
             lockfile_verification_override: frozen_verification_override,
         };
         InstallFrozenLockfile {

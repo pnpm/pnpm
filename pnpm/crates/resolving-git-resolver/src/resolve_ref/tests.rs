@@ -58,7 +58,9 @@ async fn full_commit_returns_unchanged_without_network() {
 #[tokio::test]
 async fn branch_lookup_uses_refs_heads() {
     let stub = stub("4c39fbc124cd4944ee51cb082ad49320fab58121\trefs/heads/canary\n");
-    let commit = resolve_ref(&stub, "https://example.com/repo.git", "canary", None).await.unwrap();
+    let commit = resolve_ref(&stub, "https://example.com/repo.git", "canary", None)
+        .await
+        .unwrap();
     assert_eq!(commit, "4c39fbc124cd4944ee51cb082ad49320fab58121");
 }
 
@@ -159,7 +161,8 @@ fn assert_repo_redacted(err: &GitResolveRefError) {
 
 #[tokio::test]
 async fn an_unknown_ref_redacts_the_credentials_the_repository_url_carries() {
-    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "no-such-branch", None).await
+    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "no-such-branch", None)
+        .await
         .expect_err("unknown ref");
 
     assert_repo_redacted(&err);
@@ -167,7 +170,8 @@ async fn an_unknown_ref_redacts_the_credentials_the_repository_url_carries() {
 
 #[tokio::test]
 async fn an_unparsable_range_redacts_the_credentials_the_repository_url_carries() {
-    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "HEAD", Some("not-a-range")).await
+    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "HEAD", Some("not-a-range"))
+        .await
         .expect_err("unparsable range");
 
     assert_repo_redacted(&err);
@@ -175,7 +179,8 @@ async fn an_unparsable_range_redacts_the_credentials_the_repository_url_carries(
 
 #[tokio::test]
 async fn a_range_matching_no_tag_redacts_the_credentials_the_repository_url_carries() {
-    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "HEAD", Some("^1.0.0")).await
+    let err = resolve_ref(&stub(""), AUTHENTICATED_REPO, "HEAD", Some("^1.0.0"))
+        .await
         .expect_err("no matching tag");
 
     assert_repo_redacted(&err);

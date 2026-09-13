@@ -107,7 +107,8 @@ async fn referrer_pages_bound_migration_and_keep_filter_and_registry() {
         let path = format!(
             "/oci/~images/v2/acme/paged/referrers/{subject}?artifactType=application%2Fexample%2Bjson",
         );
-        let (received, pages) = collect_filtered_referrer_pages(&app, path).await;
+        let (received, pages) = collect_filtered_referrer_pages(&app, path)
+            .await;
         expected.sort();
         assert_eq!(received, expected);
         assert_eq!(pages, 2);

@@ -142,7 +142,8 @@ async fn run_tarball_download(
         },
     };
     if download.package.revision_addressed {
-        ingest.run_revision_addressed_with_mem_cache::<SilentReporter>(&download.mem_cache).await
+        ingest.run_revision_addressed_with_mem_cache::<SilentReporter>(&download.mem_cache)
+            .await
     } else {
         ingest.run_with_mem_cache::<SilentReporter>(&download.mem_cache).await
     }
@@ -320,7 +321,8 @@ impl TarballPrefetcher {
     /// missing index row only costs the next install a re-download.
     pub async fn shutdown(self) {
         drop(self.store.index_writer);
-        StoreIndexWriter::drain(self.writer_task, "; some rows may not be persisted").await;
+        StoreIndexWriter::drain(self.writer_task, "; some rows may not be persisted")
+            .await;
     }
 }
 

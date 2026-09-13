@@ -200,7 +200,8 @@ impl Walker<'_> {
             if peers.is_empty() {
                 continue;
             }
-            let pkg_id = &*self.tree.dependencies_tree[node_id].resolved_package_id;
+            let pkg_id =
+                &*self.tree.dependencies_tree[node_id].resolved_package_id;
             let edges = edges_of_pkg.entry(pkg_id).or_default();
             for peer_alias in peers.keys() {
                 edges.insert(peer_alias.as_str());

@@ -36,7 +36,8 @@ async fn should_throw_in_non_interactive_terminal_when_web_login_is_unsupported(
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     login_mock.assert_async().await;

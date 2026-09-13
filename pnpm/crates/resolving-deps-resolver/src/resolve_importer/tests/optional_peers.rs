@@ -729,8 +729,9 @@ async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
         table,
         calls: Mutex::new(Vec::new()),
     };
-    let result =
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], dedupe_only).await.unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], dedupe_only)
+        .await
+        .unwrap();
     assert_eq!(
         result.peers_result.direct_dependencies_by_alias.get("abc"),
         Some(&DepPath::from("abc@1.0.0(peer-c@1.0.0)".to_string())),

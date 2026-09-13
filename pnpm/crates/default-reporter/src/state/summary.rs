@@ -31,8 +31,8 @@ impl ReporterState {
         if !self.is_current_prefix(prefix) {
             return;
         }
-        let should_render_after_update =
-            matches!(message, PackageManifestMessage::Updated { .. }) && self.summary.seen;
+        let should_render_after_update = matches!(message, PackageManifestMessage::Updated { .. })
+            && self.summary.seen;
         {
             let diff = self.summary.manifest_diffs
                 .entry(prefix.clone())

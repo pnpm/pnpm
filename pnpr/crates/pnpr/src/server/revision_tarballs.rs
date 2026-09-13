@@ -23,14 +23,16 @@ pub(super) async fn serve_revision_tarball(
         Some(Registry::Upstream { .. }),
     ) {
         let response =
-            serve_upstream_revision_tarball(state, identity, registry, digest, &integrity).await;
+            serve_upstream_revision_tarball(state, identity, registry, digest, &integrity)
+                .await;
         return if revision_registry_is_private(state, registry) {
             private_no_cache(response)
         } else {
             response
         };
     }
-    serve_hosted_revision_tarball(state, identity, registry, digest, &integrity).await
+    serve_hosted_revision_tarball(state, identity, registry, digest, &integrity)
+        .await
 }
 
 pub(super) async fn serve_upstream_revision_tarball(
@@ -47,7 +49,8 @@ pub(super) async fn serve_upstream_revision_tarball(
     let namespace = upstream_cache_namespace(state, registry);
     if upstream.caches()
         && let Some(response) =
-            cached_revision_tarball(state, &namespace, registry, digest, integrity).await
+            cached_revision_tarball(state, &namespace, registry, digest, integrity)
+                .await
     {
         return response;
     }
@@ -56,13 +59,15 @@ pub(super) async fn serve_upstream_revision_tarball(
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let write = match state.inner.storage.open_upstream_revision_blob_tmp(&namespace, digest).await
+    let write = match state.inner.storage.open_upstream_revision_blob_tmp(&namespace, digest)
+        .await
     {
         Ok(write) => write,
         Err(err) => return err.into_response(),
     };
     if !upstream.caches() {
-        return uncached_revision_tarball(response, write, digest, integrity).await;
+        return uncached_revision_tarball(response, write, digest, integrity)
+            .await;
     }
     match streaming::stream_verified_to_cache(response, write, integrity, MAX_TARBALL_BYTES) {
         Ok(body) => revision_tarball_response(body, None, digest, integrity),
@@ -271,7 +276,9 @@ pub(super) async fn cached_revision_tarball(
     digest: &str,
     integrity: &Integrity,
 ) -> Option<Response> {
-    match state.inner.storage.open_upstream_revision_blob(namespace, digest).await {
+    match state.inner.storage.open_upstream_revision_blob(namespace, digest)
+        .await
+    {
         Ok(Some((file, len))) => {
             return Some(revision_tarball_response(
                 streaming::stream_file(file),
@@ -294,7 +301,8 @@ pub(super) async fn uncached_revision_tarball(
     digest: &str,
     integrity: &Integrity,
 ) -> Response {
-    match streaming::download_verified_to_temp(response, write, integrity, MAX_TARBALL_BYTES).await
+    match streaming::download_verified_to_temp(response, write, integrity, MAX_TARBALL_BYTES)
+        .await
     {
         Ok((file, len, tmp_path)) => revision_tarball_response(
             streaming::stream_file_and_remove(file, tmp_path),

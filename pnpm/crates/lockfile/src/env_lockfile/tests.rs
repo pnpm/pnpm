@@ -74,7 +74,8 @@ fn reads_non_numeric_lockfile_version() {
     let env = EnvLockfile::read(dir.path()).unwrap().expect("env document parses");
     assert_eq!(env.lockfile_version, "env-1.0");
     assert_eq!(
-        env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["typescript"].version,
+        env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["typescript"]
+            .version,
         "5.0.0",
     );
 }

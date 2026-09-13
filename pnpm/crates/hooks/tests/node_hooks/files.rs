@@ -35,7 +35,8 @@ fn test_find_pnpmfile_none_when_missing() {
 
 #[tokio::test]
 async fn read_package_fails_when_pnpmfile_requires_missing_module() {
-    let err = read_package_err("module.exports = require('./this-does-not-exist')").await;
+    let err = read_package_err("module.exports = require('./this-does-not-exist')")
+        .await;
     eprintln!("err = {err}");
     assert!(err.contains("Error during pnpmfile execution"));
 }

@@ -339,7 +339,8 @@ async fn auto_installs_missing_required_peer() {
     .await
     .unwrap();
 
-    let direct_aliases: Vec<&str> = result.peers_result.direct_dependencies_by_alias
+    let direct_aliases: Vec<&str> = result.peers_result
+        .direct_dependencies_by_alias
         .keys()
         .map(String::as_str)
         .collect();
@@ -558,8 +559,9 @@ async fn keeps_locked_optional_peer_over_lower_sibling_version() {
     seeded.insert("peer-c".to_string(), peer_c_selectors);
     opts.resolution.all_preferred_versions = Arc::new(seeded);
 
-    let result =
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+        .await
+        .unwrap();
 
     assert_eq!(
         result.peers_result.direct_dependencies_by_alias.get("peer-c"),

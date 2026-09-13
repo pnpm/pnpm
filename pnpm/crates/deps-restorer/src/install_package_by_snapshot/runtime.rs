@@ -286,7 +286,8 @@ impl BinaryArchiveFetch<'_> {
                 index: self.store.store_index.cloned(),
                 index_writer: self.store.store_index_writer.cloned(),
                 verify_integrity: self.config.verify_store_integrity,
-                strict_pkg_content_check: self.config.strict_store_pkg_content_check,
+                strict_pkg_content_check: self.config
+                    .strict_store_pkg_content_check,
                 verified_files_cache: Arc::clone(self.store.verified_files_cache),
                 prefetched_cas_paths: self.store.prefetched_cas_paths,
             },
@@ -326,7 +327,8 @@ impl BinaryArchiveFetch<'_> {
                 index: self.store.store_index.cloned(),
                 index_writer: self.store.store_index_writer.cloned(),
                 verify_integrity: self.config.verify_store_integrity,
-                strict_pkg_content_check: self.config.strict_store_pkg_content_check,
+                strict_pkg_content_check: self.config
+                    .strict_store_pkg_content_check,
                 verified_files_cache: Arc::clone(self.store.verified_files_cache),
                 prefetched_cas_paths: self.store.prefetched_cas_paths,
             },

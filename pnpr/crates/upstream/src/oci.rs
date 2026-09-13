@@ -21,7 +21,8 @@ impl Upstream {
         endpoint: &str,
         accept: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
-        self.fetch_oci_request(repository, endpoint, accept, reqwest::Method::GET).await
+        self.fetch_oci_request(repository, endpoint, accept, reqwest::Method::GET)
+            .await
     }
 
     /// Read OCI object headers without transferring the body.
@@ -31,7 +32,8 @@ impl Upstream {
         endpoint: &str,
         accept: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
-        self.fetch_oci_request(repository, endpoint, accept, reqwest::Method::HEAD).await
+        self.fetch_oci_request(repository, endpoint, accept, reqwest::Method::HEAD)
+            .await
     }
 
     async fn fetch_oci_request(

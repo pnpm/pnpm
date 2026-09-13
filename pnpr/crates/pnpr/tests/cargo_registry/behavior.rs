@@ -78,7 +78,8 @@ async fn search_lists_hosted_crates_by_newest_version_and_description() {
     assert_eq!(body["crates"][0]["name"], "inflector");
 
     for (page, name) in [(1, "demo"), (2, "inflector")] {
-        let body = search(app.clone(), &format!("browse=true&per_page=1&page={page}")).await;
+        let body = search(app.clone(), &format!("browse=true&per_page=1&page={page}"))
+            .await;
         assert_eq!(body["meta"]["total"], 2);
         assert_eq!(
             body["crates"]

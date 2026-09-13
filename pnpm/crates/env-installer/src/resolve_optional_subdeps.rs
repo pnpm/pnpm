@@ -40,7 +40,8 @@ pub async fn resolve_optional_subdeps(
         validate_optional_specifier(parent_name, subdep_name, subdep_spec)?;
 
         let (subdep_version, result) =
-            resolve_subdep(resolver, opts, parent_name, subdep_name, subdep_spec).await?;
+            resolve_subdep(resolver, opts, parent_name, subdep_name, subdep_spec)
+                .await?;
         record_optional_subdep(env_lockfile, opts, subdep_name, &subdep_version, &result)?;
 
         let ver_peer = subdep_version

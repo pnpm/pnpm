@@ -74,7 +74,8 @@ async fn commit_and_reinstall<Reporter: pnpm_reporter::Reporter + 'static>(
     state: &(dyn Fn(bool) -> miette::Result<crate::State> + Sync),
 ) -> miette::Result<()> {
     if Box::pin(args.run::<Reporter>(dir, state(false)?)).await? {
-        Box::pin(InstallArgs::for_reresolving_install().run::<Reporter>(state(false)?)).await?;
+        Box::pin(InstallArgs::for_reresolving_install().run::<Reporter>(state(false)?))
+            .await?;
     }
     Ok(())
 }

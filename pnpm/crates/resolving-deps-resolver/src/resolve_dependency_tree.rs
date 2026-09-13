@@ -550,8 +550,8 @@ where
     let children_pkg_aliases = parent_pkg_aliases.extend(level_aliases(&seeds));
     // Phase 2: settle this level's children ownership and walk the tree
     // below it a level at a time.
-    let direct =
-        walk_from_seeds(ctx, resolver, seeds, children_overlay, children_pkg_aliases).await?;
+    let direct = walk_from_seeds(ctx, resolver, seeds, children_overlay, children_pkg_aliases)
+        .await?;
     ctx.workspace.versions.record_preferred_version_roots(
         direct
             .iter()

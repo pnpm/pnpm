@@ -118,7 +118,8 @@ pub(super) async fn record_direct_publish_dates<Chain>(
         return;
     };
     let mut direct_opts = opts.base_opts.clone();
-    direct_opts.version.pick_lowest_version = settings.version.pick_lowest_direct;
+    direct_opts.version.pick_lowest_version = settings.version
+        .pick_lowest_direct;
     for spec in specs {
         let Ok(Some(result)) = resolver.resolve(
             &crate::resolve_dependency_tree::wanted_from_spec(spec),

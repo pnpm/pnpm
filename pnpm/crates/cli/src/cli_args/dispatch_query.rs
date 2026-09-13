@@ -93,13 +93,7 @@ pub(super) fn outdated<'a>(
     if args.global {
         let config = (ctx.loaders.global_config)()?;
         return Ok(Box::pin(async move {
-            if args.run_global(config).await? == OutdatedOutcome::Outdated {
-                #[expect(
-                    clippy::exit,
-                    reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"
-                )]
-                std::process::exit(1);
-            }
+            exit_if_outdated(args.run_global(config).await?);
             Ok(())
         }));
     }
@@ -115,16 +109,14 @@ pub(super) fn outdated<'a>(
             ReporterType::Default | ReporterType::AppendOnly => {
                 args.run::<DefaultReporter>(command_state).await?
             }
-            ReporterType::Ndjson => args.run::<NdjsonReporter>(command_state).await?,
-            ReporterType::Silent => args.run::<SilentReporter>(command_state).await?,
+            ReporterType::Ndjson => {
+                args.run::<NdjsonReporter>(command_state).await?
+            }
+            ReporterType::Silent => {
+                args.run::<SilentReporter>(command_state).await?
+            }
         };
-        if outcome == OutdatedOutcome::Outdated {
-            #[expect(
-                clippy::exit,
-                reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"
-            )]
-            std::process::exit(1);
-        }
+        exit_if_outdated(outcome);
         Ok(())
     }))
 }
@@ -231,8 +223,12 @@ pub(super) fn version<'a>(
             ReporterType::Default | ReporterType::AppendOnly => {
                 args.run::<DefaultReporter>(cfg, dir, recursive).await
             }
-            ReporterType::Ndjson => args.run::<NdjsonReporter>(cfg, dir, recursive).await,
-            ReporterType::Silent => args.run::<SilentReporter>(cfg, dir, recursive).await,
+            ReporterType::Ndjson => {
+                args.run::<NdjsonReporter>(cfg, dir, recursive).await
+            }
+            ReporterType::Silent => {
+                args.run::<SilentReporter>(cfg, dir, recursive).await
+            }
         }
     }))
 }
@@ -264,8 +260,12 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<Comma
                 ReporterType::Default | ReporterType::AppendOnly => {
                     run::<DefaultReporter>(args, dir, config, recursive).await?
                 }
-                ReporterType::Ndjson => run::<NdjsonReporter>(args, dir, config, recursive).await?,
-                ReporterType::Silent => run::<SilentReporter>(args, dir, config, recursive).await?,
+                ReporterType::Ndjson => {
+                    run::<NdjsonReporter>(args, dir, config, recursive).await?
+                }
+                ReporterType::Silent => {
+                    run::<SilentReporter>(args, dir, config, recursive).await?
+                }
             }
         };
         if !output.is_empty() {
@@ -340,7 +340,9 @@ pub(super) fn stage<'a>(
         } else {
             Vec::new()
         };
-        if let Some(output) = args.run::<Reporter>(dir, config, recursive, hooks).await? {
+        if let Some(output) = args.run::<Reporter>(dir, config, recursive, hooks)
+            .await?
+        {
             let output = super::sanitize::sanitize(&output);
             if !output.is_empty() {
                 println!("{output}");
@@ -378,3 +380,13 @@ pub(super) fn pack_app<'a>(
 mod registry;
 
 mod maintenance;
+
+fn exit_if_outdated(outcome: OutdatedOutcome) {
+    if outcome == OutdatedOutcome::Outdated {
+        #[expect(
+            clippy::exit,
+            reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"
+        )]
+        std::process::exit(1);
+    }
+}

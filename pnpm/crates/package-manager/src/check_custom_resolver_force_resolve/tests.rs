@@ -104,8 +104,9 @@ fn resolvers(items: Vec<MockResolver>) -> Vec<Arc<dyn CustomResolver>> {
 
 #[tokio::test]
 async fn returns_false_when_no_custom_resolvers() {
-    let result =
-        check_custom_resolver_force_resolve(&[], &lockfile_with_one_package()).await.unwrap();
+    let result = check_custom_resolver_force_resolve(&[], &lockfile_with_one_package())
+        .await
+        .unwrap();
     assert!(!result);
 }
 
@@ -126,8 +127,9 @@ async fn skips_resolvers_without_the_hook() {
     let resolver = Arc::new(MockResolver::without_hook());
     let list: Vec<Arc<dyn CustomResolver>> = vec![Arc::clone(&resolver) as _];
 
-    let result =
-        check_custom_resolver_force_resolve(&list, &lockfile_with_one_package()).await.unwrap();
+    let result = check_custom_resolver_force_resolve(&list, &lockfile_with_one_package())
+        .await
+        .unwrap();
 
     assert!(!result);
     assert_eq!(resolver.call_count.load(Ordering::SeqCst), 0);

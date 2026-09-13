@@ -56,7 +56,8 @@ impl Resolver for LocalSchemeResolver {
                 return Ok(None);
             };
             let local_opts = local_options(opts);
-            let Some(result) = resolve_from_local_scheme(&self.ctx, &wd, &local_opts).await
+            let Some(result) = resolve_from_local_scheme(&self.ctx, &wd, &local_opts)
+                .await
                 .map_err(|err| Box::new(err) as ResolveError)?
             else {
                 return Ok(None);
@@ -110,7 +111,8 @@ impl Resolver for LocalPathResolver {
                 return Ok(None);
             };
             let local_opts = local_options(opts);
-            let Some(result) = resolve_from_local_path(&self.ctx, &wd, &local_opts).await
+            let Some(result) = resolve_from_local_path(&self.ctx, &wd, &local_opts)
+                .await
                 .map_err(|err| Box::new(err) as ResolveError)?
             else {
                 return Ok(None);
@@ -177,13 +179,15 @@ impl LocalResolver {
         };
         let local_opts = local_options(opts);
 
-        if let Some(result) = resolve_from_local_scheme(&self.ctx, &wd, &local_opts).await
+        if let Some(result) = resolve_from_local_scheme(&self.ctx, &wd, &local_opts)
+            .await
             .map_err(|err| Box::new(err) as ResolveError)?
         {
             return Ok(Some(into_chain_result(result, wanted_dependency)));
         }
 
-        if let Some(result) = resolve_from_local_path(&self.ctx, &wd, &local_opts).await
+        if let Some(result) = resolve_from_local_path(&self.ctx, &wd, &local_opts)
+            .await
             .map_err(|err| Box::new(err) as ResolveError)?
         {
             return Ok(Some(into_chain_result(result, wanted_dependency)));

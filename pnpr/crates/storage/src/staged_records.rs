@@ -5,7 +5,8 @@ use super::{
 
 impl Storage {
     pub async fn read_staged_meta(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
-        self.hosted.read_record(STAGED_DIR, &staged_meta_object(stage_id)?).await
+        self.hosted.read_record(STAGED_DIR, &staged_meta_object(stage_id)?)
+            .await
     }
 
     pub async fn create_staged_meta(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
@@ -40,7 +41,8 @@ impl Storage {
     }
 
     pub async fn read_staged_body(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
-        self.hosted.read_record(STAGED_DIR, &staged_body_object(stage_id)?).await
+        self.hosted.read_record(STAGED_DIR, &staged_body_object(stage_id)?)
+            .await
     }
 
     pub async fn create_staged_body(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
@@ -60,9 +62,10 @@ impl Storage {
     /// reader, and an error here would misreport that while leaving nothing
     /// for a retry to find (bodies are only discovered through metadata).
     pub async fn remove_staged(&self, stage_id: &str) -> Result<bool> {
-        let removed = self.hosted.remove_record(STAGED_DIR, &staged_meta_object(stage_id)?).await?;
-        if let Err(err) =
-            self.hosted.remove_record(STAGED_DIR, &staged_body_object(stage_id)?).await
+        let removed = self.hosted.remove_record(STAGED_DIR, &staged_meta_object(stage_id)?)
+            .await?;
+        if let Err(err) = self.hosted.remove_record(STAGED_DIR, &staged_body_object(stage_id)?)
+            .await
         {
             tracing::warn!(error = %err, stage_id, "staged body cleanup failed after removing its metadata");
         }
@@ -85,7 +88,8 @@ impl Storage {
         workspace: &str,
         run_id: &str,
     ) -> Result<Option<Vec<u8>>> {
-        self.hosted.read_record(PIPELINE_RUNS_DIR, &pipeline_run_key(workspace, run_id)?).await
+        self.hosted.read_record(PIPELINE_RUNS_DIR, &pipeline_run_key(workspace, run_id)?)
+            .await
     }
 
     /// Record a run, reporting `false` when that workspace already has one

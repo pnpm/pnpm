@@ -70,7 +70,8 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
         .collect::<Result<Vec<_>>>();
     drop(store);
     drop(store_index_writer);
-    StoreIndexWriter::drain(writer_task, "; some Cargo rows may not be persisted").await;
+    StoreIndexWriter::drain(writer_task, "; some Cargo rows may not be persisted")
+        .await;
     slots
 }
 

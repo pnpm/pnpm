@@ -150,14 +150,16 @@ impl UnpublishArgs {
         let mut mutation = MutationContext::new(&context, auth_header.as_deref(), config);
 
         let Some(range) = version_range else {
-            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg).await;
+            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg)
+                .await;
         };
 
         let versions_to_unpublish = require_matching_versions(&pkg.versions, &range)?;
 
         // Removing every version is a full unpublish, protections included.
         if versions_to_unpublish.len() == pkg.versions.len() {
-            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg).await;
+            return self.unpublish_all::<Sys, Reporter>(&mut mutation, &package_url, &pkg)
+                .await;
         }
 
         unpublish_versions::<Sys, Reporter>(
@@ -205,7 +207,9 @@ impl UnpublishArgs {
             if response.status() == StatusCode::METHOD_NOT_ALLOWED {
                 return Err(UnpublishError::CompletelyForbidden.into());
             }
-            return Err(registry_write_error(response, "unpublish".to_string()).await.into());
+            return Err(registry_write_error(response, "unpublish".to_string())
+                .await
+                .into());
         }
 
         Ok(format!(
@@ -403,7 +407,9 @@ async fn delete_unpublished_tarballs<Sys: UnpublishHost, Reporter: self::Reporte
         )
         .await?;
         if !response.status().is_success() && response.status() != StatusCode::NOT_FOUND {
-            return Err(registry_write_error(response, "unpublish".to_string()).await.into());
+            return Err(registry_write_error(response, "unpublish".to_string())
+                .await
+                .into());
         }
     }
     Ok(())

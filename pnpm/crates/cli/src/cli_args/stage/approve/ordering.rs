@@ -21,7 +21,10 @@ pub(super) async fn read_stage_approval_order(
     let mut projects = Vec::with_capacity(items.len());
     let mut stage_id_by_package_version: HashMap<(String, String), String> = HashMap::new();
     for item in items {
-        projects.push(staged_project(context, item, &mut stage_id_by_package_version).await?);
+        projects.push(
+            staged_project(context, item, &mut stage_id_by_package_version)
+                .await?,
+        );
     }
     let graph = create_projects_graph(
         projects

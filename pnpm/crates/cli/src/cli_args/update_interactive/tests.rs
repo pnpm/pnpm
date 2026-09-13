@@ -918,7 +918,8 @@ async fn interactive_update_leaves_without_an_error_when_the_prompt_is_canceled(
 
     let scripted = scripted_prompts();
     scripted.cancel_next();
-    fixture.update_reporting::<RecordingReporter>(&["update", "--interactive"]).await;
+    fixture.update_reporting::<RecordingReporter>(&["update", "--interactive"])
+        .await;
 
     assert_eq!(scripted.seen().len(), 1);
     assert_eq!(fixture.lockfile_packages(), [format!("{MULTI_A}@1.0.0")]);

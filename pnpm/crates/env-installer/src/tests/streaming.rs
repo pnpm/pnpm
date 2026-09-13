@@ -16,7 +16,8 @@ async fn takes_old_format_tarball_url_from_the_packument() {
     let root = TempDir::new().unwrap();
 
     let integrity = integrity_of(&resolver, "@pnpm.e2e/foo", "100.0.0").await;
-    let advertised_tarball = tarball_url_of(&resolver, "@pnpm.e2e/foo", "100.0.0").await;
+    let advertised_tarball = tarball_url_of(&resolver, "@pnpm.e2e/foo", "100.0.0")
+        .await;
     let mut config_deps = BTreeMap::new();
     config_deps.insert(
         "@pnpm.e2e/foo".to_string(),
@@ -27,7 +28,8 @@ async fn takes_old_format_tarball_url_from_the_packument() {
     let mut opts = options(&harness, root.path(), false);
     opts.registries = &registries;
 
-    resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &opts).await
+    resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &opts)
+        .await
         .unwrap();
 
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");

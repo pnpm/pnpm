@@ -350,7 +350,9 @@ impl Storage {
             let Some(new_bytes) = build(existing_bytes.as_deref())? else {
                 return Ok(DocumentUpdate::NotFound);
             };
-            match self.write_hosted_document_if_current(name, &new_bytes, version.as_ref()).await? {
+            match self.write_hosted_document_if_current(name, &new_bytes, version.as_ref())
+                .await?
+            {
                 DocumentWrite::Written => return Ok(DocumentUpdate::Written),
                 DocumentWrite::Conflict => {
                     if attempt + 1 < retries {
@@ -442,7 +444,8 @@ impl Storage {
     /// Promote a tmp blob written by the publish flow to its final
     /// home: a rename on the fs backend, an upload on the S3 backend.
     pub async fn finalize_blob_slot(&self, slot: BlobSlot) -> Result<BlobFinalize> {
-        self.hosted.finalize_blob(&slot.tmp_path, &slot.name, &slot.filename).await
+        self.hosted.finalize_blob(&slot.tmp_path, &slot.name, &slot.filename)
+            .await
     }
 
     /// Where the hosted backend stages locally: the store root on the fs

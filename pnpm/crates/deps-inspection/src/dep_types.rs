@@ -38,7 +38,8 @@ pub fn detect_dep_types(lockfile: &Lockfile) -> DepTypes {
     };
 
     let dev_dep_paths = group_dep_paths(|importer| importer.dev_dependencies.as_ref());
-    let optional_dep_paths = group_dep_paths(|importer| importer.optional_dependencies.as_ref());
+    let optional_dep_paths =
+        group_dep_paths(|importer| importer.optional_dependencies.as_ref());
     let prod_dep_paths = group_dep_paths(|importer| importer.dependencies.as_ref());
 
     detect_in_subgraph(&mut ctx, &dev_dep_paths, true);

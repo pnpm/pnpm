@@ -135,7 +135,8 @@ pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     }
 
     let lockfile_dir = pnpr_lockfile_dir(state, &link);
-    let session = prepare_pnpr_session::<Reporter>(state, selection, &link, lockfile_dir).await?;
+    let session = prepare_pnpr_session::<Reporter>(state, selection, &link, lockfile_dir)
+        .await?;
     let inputs = pnpr_request_inputs(state, &link, lockfile_dir).await?;
 
     if (session.satisfied_without_server
@@ -468,7 +469,10 @@ async fn streaming_prefetcher(
     state: &State,
     streaming: &ResolveStreaming<'_>,
 ) -> Option<TarballPrefetcher> {
-    if streaming.lockfile_only || streaming.partial_selection || !streaming.prefetch_allowed {
+    if streaming.lockfile_only
+        || streaming.partial_selection
+        || !streaming.prefetch_allowed
+    {
         None
     } else {
         Some(

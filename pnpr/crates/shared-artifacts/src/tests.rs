@@ -341,7 +341,8 @@ impl ObjectStore for FailArtifactWrites {
             return claimed;
         }
         if self.fail_only.is_some() {
-            return self.put_with_targeted_failure(location, payload, options).await;
+            return self.put_with_targeted_failure(location, payload, options)
+                .await;
         }
         if !self.fail_scope_writes && location.as_ref().contains("/scopes/") {
             return self.inner.put_opts(location, payload, options).await;

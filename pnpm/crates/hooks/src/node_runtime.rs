@@ -382,7 +382,8 @@ impl crate::CustomFetcher for NodeJsCustomFetcher {
     }
 
     async fn can_fetch(&self, pkg_id: &str, resolution: Value) -> Result<bool, HookError> {
-        let (can_fetch, _) = self.can_fetch_with_resolution(pkg_id, resolution).await?;
+        let (can_fetch, _) = self.can_fetch_with_resolution(pkg_id, resolution)
+            .await?;
         Ok(can_fetch)
     }
 

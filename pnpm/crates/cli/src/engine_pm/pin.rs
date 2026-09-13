@@ -121,7 +121,9 @@ pub(crate) async fn resolve_project_pin(
         .filter(|spec| !spec.is_empty());
     let spec = version_spec.unwrap_or("latest");
     let reference = match pm.channel(spec) {
-        Channel::Registry { package } => resolve_release(config, pm, package, spec).await?.version,
+        Channel::Registry { package } => {
+            resolve_release(config, pm, package, spec).await?.version
+        }
         Channel::Binary(BinaryChannel::Bun | BinaryChannel::Yarn) => {
             resolve_yarn_binary_version(config, spec).await?
         }

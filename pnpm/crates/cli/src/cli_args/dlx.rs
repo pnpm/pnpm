@@ -127,7 +127,8 @@ impl DlxArgs {
         let spawn = env.spawn(self.shell_mode);
 
         if let Some(tool) = provisioned_tool(&self.package, bin_command) {
-            return run_provisioned::<Reporter>(tool, config, bin_command, args, &spawn).await;
+            return run_provisioned::<Reporter>(tool, config, bin_command, args, &spawn)
+                .await;
         }
 
         // `pkgs = package ?? [command]`. With `--package`, the command
@@ -219,7 +220,8 @@ async fn run_provisioned<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<()> {
     match tool {
         ProvisionedTool::PackageManager { pm, version_spec, spec, bin } => {
-            run_package_manager::<Reporter>(config, pm, version_spec, spec, bin, args, spawn).await
+            run_package_manager::<Reporter>(config, pm, version_spec, spec, bin, args, spawn)
+                .await
         }
         ProvisionedTool::Runtime { name, version_spec } => {
             run_runtime(

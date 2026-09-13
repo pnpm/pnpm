@@ -206,7 +206,8 @@ where
 {
     let (workspace, settings) = opts.split();
     let sorted = sorted_importers(importers, per_importer_options, &settings);
-    let cutoff = time_cutoff(resolver, &sorted, dependency_groups, &settings).await;
+    let cutoff = time_cutoff(resolver, &sorted, dependency_groups, &settings)
+        .await;
     let mut initialized = init_importers(
         resolver,
         sorted,
@@ -288,7 +289,8 @@ where
         .map(|importer| {
             let mut opts = per_importer_options(importer);
             opts.peers.auto_install_peers = settings.peers.auto_install_peers;
-            opts.peers.dedupe_peer_dependents = settings.peers.dedupe_peer_dependents;
+            opts.peers.dedupe_peer_dependents = settings.peers
+                .dedupe_peer_dependents;
             (importer, opts)
         })
         .collect();
@@ -338,7 +340,8 @@ where
         .zip(sorted.opts)
         .enumerate()
     {
-        importer_opts.resolution.pick_lowest_direct = settings.version.pick_lowest_direct;
+        importer_opts.resolution.pick_lowest_direct = settings.version
+            .pick_lowest_direct;
         importer_opts.resolution.subdep_published_by = cutoff.published_by;
         input_dirs.push((
             importer_opts.base_opts.project.project_dir.clone(),
@@ -400,7 +403,8 @@ where
     Chain: Resolver + ?Sized,
 {
     let mut peer_discovery = PeerHoistDiscovery::new();
-    run_initial_required_rounds(resolver, states, workspace, &mut peer_discovery).await?;
+    run_initial_required_rounds(resolver, states, workspace, &mut peer_discovery)
+        .await?;
     run_hoist_barrier(resolver, states, &mut peer_discovery).await
 }
 
@@ -475,7 +479,8 @@ fn resolve_workspace_peers(
             dedupe_peers: settings.peers.dedupe_peers,
             project_dir: None,
             links: crate::PeerLinkOptions {
-                exclude_links_from_lockfile: settings.peers.exclude_links_from_lockfile,
+                exclude_links_from_lockfile: settings.peers
+                    .exclude_links_from_lockfile,
                 lockfile_dir: Some(settings.peers.lockfile_dir.clone()),
                 // Per-importer; resolve_peers_workspace swaps the
                 // ImporterPeerInput's modules_dir into walker.opts before each
@@ -521,7 +526,8 @@ where
         .zip(rounds)
         .filter_map(|(state, round)| round.map(|round| (state, round)))
     {
-        state.complete_initial_required_round(resolver, round, peer_discovery).await?;
+        state.complete_initial_required_round(resolver, round, peer_discovery)
+            .await?;
     }
     Ok(())
 }

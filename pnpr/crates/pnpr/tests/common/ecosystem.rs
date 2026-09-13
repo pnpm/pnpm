@@ -60,7 +60,8 @@ pub fn mixed_router_config(
             PackagePattern::parse(name, ecosystem).expect("package name is a valid pattern")
         })
         .collect();
-    let mut graph: indexmap::IndexMap<String, Registry> = config.routing.registries
+    let mut graph: indexmap::IndexMap<String, Registry> = config.routing
+        .registries
         .names()
         .map(|name| {
             (

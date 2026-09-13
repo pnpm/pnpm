@@ -355,11 +355,13 @@ fn parses_inline_ca_from_ini() {
 #[test]
 fn parses_strict_ssl_true_and_false() {
     assert_eq!(
-        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=true\n", Path::new("")).tls.strict_ssl,
+        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=true\n", Path::new("")).tls
+            .strict_ssl,
         Some(true),
     );
     assert_eq!(
-        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\n", Path::new("")).tls.strict_ssl,
+        NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\n", Path::new("")).tls
+            .strict_ssl,
         Some(false),
     );
 }

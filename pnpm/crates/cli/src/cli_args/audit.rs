@@ -215,8 +215,8 @@ impl AuditArgs {
             .clone()
             .unwrap_or_else(|| lockfile_dir.clone());
 
-        let Some(mut report) =
-            self.fetch_report(&state, include, audit_level, &lockfile_dir).await?
+        let Some(mut report) = self.fetch_report(&state, include, audit_level, &lockfile_dir)
+            .await?
         else {
             return Ok(AuditOutcome::Clean);
         };
@@ -256,7 +256,9 @@ impl AuditArgs {
         settings_dir: &Path,
         audit_level: ConfigAuditLevel,
     ) -> miette::Result<AuditOutcome> {
-        if !self.advisories.ignore.is_empty() || self.advisories.ignore_unfixable {
+        if !self.advisories.ignore.is_empty()
+            || self.advisories.ignore_unfixable
+        {
             let output = ignore_vulnerabilities(
                 &report,
                 config,

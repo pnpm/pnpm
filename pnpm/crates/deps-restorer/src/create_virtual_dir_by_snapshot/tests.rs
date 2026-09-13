@@ -217,7 +217,9 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
             let LogEvent::Progress(log) = event else {
                 return None;
             };
-            let ProgressMessage::Imported { method, requester, to } = &log.message else {
+            let ProgressMessage::Imported { method, requester, to } =
+                &log.message
+            else {
                 return None;
             };
             Some((*method, requester.clone(), to.clone()))

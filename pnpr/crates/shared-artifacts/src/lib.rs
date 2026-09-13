@@ -332,11 +332,14 @@ fn stored_object_too_large(size: u64, max_size: u64) -> RegistryError {
 }
 
 async fn acquire_artifact_lock(path: PathBuf) -> Result<File> {
-    let file = tokio::task::spawn_blocking(move || open_lock_file(&path)).await??;
+    let file = tokio::task::spawn_blocking(move || open_lock_file(&path))
+        .await??;
     loop {
         match file.try_lock() {
             Ok(()) => return Ok(file),
-            Err(TryLockError::WouldBlock) => sleep(ARTIFACT_LOCK_POLL_INTERVAL).await,
+            Err(TryLockError::WouldBlock) => {
+                sleep(ARTIFACT_LOCK_POLL_INTERVAL).await;
+            }
             Err(TryLockError::Error(error)) => return Err(error.into()),
         }
     }

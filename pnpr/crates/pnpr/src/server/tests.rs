@@ -527,7 +527,8 @@ async fn cidr_token_is_allowed_from_inside_the_range() {
     let tmp = TempDir::new().unwrap();
     let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
     assert_eq!(
-        status(app, with_peer(signed(Method::GET, "/foo", "pinned"), PEER)).await,
+        status(app, with_peer(signed(Method::GET, "/foo", "pinned"), PEER))
+            .await,
         StatusCode::NOT_FOUND,
     );
 }

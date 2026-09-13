@@ -107,15 +107,7 @@ pub(super) fn resolve_projects_options(
             ignore_manifest_check: link.lockfile.ignore_manifest_check,
             trust_lockfile: link.lockfile.trust,
         },
-        verification: pnpm_pnpr_client::VerificationPolicy {
-            minimum_release_age: state.config.minimum_release_age,
-            minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
-            minimum_release_age_ignore_missing_time: state.config
-                .minimum_release_age_ignore_missing_time,
-            trust_policy: state.config.trust_policy,
-            trust_policy_exclude: state.config.trust_policy_exclude.clone(),
-            trust_policy_ignore_after: state.config.trust_policy_ignore_after,
-        },
+        verification: verification_policy(state.config),
     }
 }
 
@@ -327,5 +319,19 @@ pub(super) fn rewrite_resolution_registry(
         | LockfileResolution::Git(_)
         | LockfileResolution::Registry(_)
         | LockfileResolution::Custom(_) => {}
+    }
+}
+
+pub(super) fn verification_policy(
+    config: &pnpm_config::Config,
+) -> pnpm_pnpr_client::VerificationPolicy {
+    pnpm_pnpr_client::VerificationPolicy {
+        minimum_release_age: config.minimum_release_age,
+        minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
+        minimum_release_age_ignore_missing_time: config
+            .minimum_release_age_ignore_missing_time,
+        trust_policy: config.trust_policy,
+        trust_policy_exclude: config.trust_policy_exclude.clone(),
+        trust_policy_ignore_after: config.trust_policy_ignore_after,
     }
 }

@@ -450,7 +450,9 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     let find_optional = |scope: &str, bare: &str| -> Option<bool> {
         snapshots
             .iter()
-            .find(|(key, _)| key.name.scope.as_deref() == Some(scope) && key.name.bare == bare)
+            .find(|(key, _)| {
+                key.name.scope.as_deref() == Some(scope) && key.name.bare == bare
+            })
             .map(|(_, entry)| entry.optional)
     };
 

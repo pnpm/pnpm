@@ -70,7 +70,8 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
 
     let up_to_date = frozen_tree_inputs(&inputs, modules_manifest);
     if let Some((wanted_lockfile, modules)) = frozen_tree_up_to_date(&up_to_date) {
-        report_prepared_up_to_date::<Reporter>(inputs, wanted_lockfile, modules).await?;
+        report_prepared_up_to_date::<Reporter>(inputs, wanted_lockfile, modules)
+            .await?;
         return Ok(None);
     }
 

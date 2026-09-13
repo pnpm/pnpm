@@ -644,7 +644,8 @@ fn hoist_into_root(
     opts: &HoistOpts,
     used: &HashMap<String, Rc<HoisterResult>>,
 ) {
-    let mut root_index: HashMap<String, RcByPtr<HoisterResult>> = root.dependencies
+    let mut root_index: HashMap<String, RcByPtr<HoisterResult>> = root
+        .dependencies
         .borrow()
         .iter()
         .map(|dep| (dep.0.name.clone(), dep.clone()))

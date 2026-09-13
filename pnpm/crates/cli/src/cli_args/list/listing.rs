@@ -99,7 +99,8 @@ impl ListArgs {
                 only_projects: self.graph.only_projects,
             },
         );
-        let searcher = self.build_searcher(config, env, &graph, lockfile_dir, params).await?;
+        let searcher = self.build_searcher(config, env, &graph, lockfile_dir, params)
+            .await?;
         build_dependencies_tree(
             state,
             env,
@@ -133,7 +134,8 @@ impl ListArgs {
         }
         let mut searcher = Searcher::from_queries(params)?;
         if !self.find_by.is_empty() {
-            let finders = resolve_finders(config, lockfile_dir, &self.find_by).await?;
+            let finders = resolve_finders(config, lockfile_dir, &self.find_by)
+                .await?;
             let candidates = finder_candidates(env, graph);
             let results = evaluate_finders(env, &finders, candidates).await?;
             searcher.set_finder_results(results);

@@ -202,7 +202,8 @@ impl DeployArgs {
             );
         }
 
-        self.run_legacy_deploy::<ReporterT>(config, &selected, &deploy_dir, source_hooks).await
+        self.run_legacy_deploy::<ReporterT>(config, &selected, &deploy_dir, source_hooks)
+            .await
     }
 
     async fn run_legacy_deploy<ReporterT: Reporter + 'static>(

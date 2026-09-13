@@ -43,7 +43,8 @@ fn tri_ecosystem_config(storage: PathBuf) -> Config {
             },
         );
     }
-    let mut graph: indexmap::IndexMap<String, Registry> = config.routing.registries
+    let mut graph: indexmap::IndexMap<String, Registry> = config.routing
+        .registries
         .names()
         .map(|name| {
             (

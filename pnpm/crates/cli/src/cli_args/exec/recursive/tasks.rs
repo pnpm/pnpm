@@ -32,8 +32,8 @@ pub(crate) struct ExecTaskOutput {
 pub(super) fn run_exec_task(context: &ExecTaskContext<'_>, node: &TaskNode) -> TaskCompletion {
     let root = node.project.as_path();
     let prefix = root.to_string_lossy().into_owned();
-    context.progress.result.lock().expect("summary lock is not poisoned")[&prefix].status =
-        Status::Running;
+    context.progress.result.lock().expect("summary lock is not poisoned")[&prefix]
+        .status = Status::Running;
     let start = Instant::now();
     let outcome = spawn_exec_task(context, root);
     let execution = project_execution(start, outcome);
@@ -76,20 +76,21 @@ pub(super) fn build_exec_task_graph(
     selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
     command_name: &str,
 ) -> TaskGraph {
-    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = if args.workspace.sort {
-        filtered_projects_dependencies(
-            graph,
-            selection.full_graph(),
-            selection.prod_all.as_ref(),
-            &selection.prod_only_selected,
-        )
-    } else {
-        graph
-            .keys()
-            .cloned()
-            .map(|root| (root, Vec::new()))
-            .collect()
-    };
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> =
+        if args.workspace.sort {
+            filtered_projects_dependencies(
+                graph,
+                selection.full_graph(),
+                selection.prod_all.as_ref(),
+                &selection.prod_only_selected,
+            )
+        } else {
+            graph
+                .keys()
+                .cloned()
+                .map(|root| (root, Vec::new()))
+                .collect()
+        };
     let task_graph = task_graph_from_dependencies(&project_dependencies, command_name);
     if args.workspace.reverse {
         reverse_task_graph(&task_graph)

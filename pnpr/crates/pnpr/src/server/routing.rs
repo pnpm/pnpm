@@ -204,7 +204,11 @@ fn surface_routes(state: &AppState, surfaces: EnabledSurfaces) -> Router<AppStat
     // expects the "no pnpr protocols here" 404. The `/-/pnpr/v0/*` endpoints
     // carry no capability probe, so they are left unmounted rather than
     // stubbed.
-    if surfaces.resolver || surfaces.artifacts || surfaces.registry || surfaces.pipeline {
+    if surfaces.resolver
+        || surfaces.artifacts
+        || surfaces.registry
+        || surfaces.pipeline
+    {
         router = router.route("/-/pnpr", get(serve_pnpr_handshake));
     } else {
         router = router.route("/-/pnpr", any(pnpr_protocols_disabled));

@@ -43,7 +43,8 @@ pub(super) async fn run_callback<Reporter: self::Reporter>(
         .get("lockfileDir")
         .and_then(Value::as_str)
         .map_or(lockfile_dir, Path::new);
-    let tarball = fetch_location::<Reporter>(download, location, lockfile_dir).await
+    let tarball = fetch_location::<Reporter>(download, location, lockfile_dir)
+        .await
         .map_err(|error| error.fetch_error_details())?;
     let result = serde_json::json!({
         "filesMap": tarball.files_map,

@@ -459,11 +459,14 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
         assert_eq!(deleted.status(), StatusCode::ACCEPTED);
         published
     };
-    let published = tokio::time::timeout(std::time::Duration::from_secs(5), update).await;
+    let published = tokio::time::timeout(std::time::Duration::from_secs(5), update)
+        .await;
     objects.resume.notify_one();
     let published = published.expect("manifest reads must not hold the package writer lock");
-    let response =
-        tokio::time::timeout(std::time::Duration::from_secs(5), read).await.unwrap().unwrap();
+    let response = tokio::time::timeout(std::time::Duration::from_secs(5), read)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let document = pnpr_oci::ImageDocument::parse(
         &storage

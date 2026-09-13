@@ -131,13 +131,16 @@ pub(in super::super) fn repo<'a>(
     let dir = ctx.locations.dir;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
-            args.run::<pnpm_network_web_auth::Host, DefaultReporter>(cfg, dir).await
+            args.run::<pnpm_network_web_auth::Host, DefaultReporter>(cfg, dir)
+                .await
         }),
         ReporterType::Ndjson => Box::pin(async move {
-            args.run::<pnpm_network_web_auth::Host, NdjsonReporter>(cfg, dir).await
+            args.run::<pnpm_network_web_auth::Host, NdjsonReporter>(cfg, dir)
+                .await
         }),
         ReporterType::Silent => Box::pin(async move {
-            args.run::<pnpm_network_web_auth::Host, SilentReporter>(cfg, dir).await
+            args.run::<pnpm_network_web_auth::Host, SilentReporter>(cfg, dir)
+                .await
         }),
     })
 }
@@ -260,7 +263,8 @@ pub(in super::super) fn ignored_builds<'a>(
     ctx: &RunCtx<'a>,
     _args: IgnoredBuildsArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let output = super::super::ignored_builds::render_ignored_builds((ctx.loaders.config)()?)?;
+    let output =
+        super::super::ignored_builds::render_ignored_builds((ctx.loaders.config)()?)?;
     print!("{output}");
     Ok(Box::pin(std::future::ready(Ok(()))))
 }

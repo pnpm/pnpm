@@ -180,8 +180,9 @@ fn report_key_issues(
     if input.key_issues == KeyIssueReporting::Skip {
         return Ok(());
     }
-    let strict =
-        input.key_issues == KeyIssueReporting::Enforce && running_matches_pin && !input.global;
+    let strict = input.key_issues == KeyIssueReporting::Enforce
+        && running_matches_pin
+        && !input.global;
     report_workspace_key_issues(&config.workspace_key_issues, strict)?;
     Ok(())
 }

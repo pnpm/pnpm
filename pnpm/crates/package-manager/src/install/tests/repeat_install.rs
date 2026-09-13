@@ -598,7 +598,8 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
 }
 #[tokio::test]
 async fn fresh_install_applies_builtin_compatibility_db_to_dependency_manifest() {
-    let (_dir, lockfile) = fresh_lockfile_only_with_compatibility_db(false).await;
+    let (_dir, lockfile) = fresh_lockfile_only_with_compatibility_db(false)
+        .await;
     let metadata = lockfile.packages
         .as_ref()
         .and_then(|packages| packages.get(&"debug@4.0.0".parse().unwrap()))

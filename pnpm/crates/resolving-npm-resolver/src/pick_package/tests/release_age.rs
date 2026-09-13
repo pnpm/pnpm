@@ -35,7 +35,8 @@ async fn invalid_package_name_errors_synchronously() {
         },
     };
 
-    let err = pick_package(&ctx, &range_spec("foo/bar", "*"), &default_opts(&registry)).await
+    let err = pick_package(&ctx, &range_spec("foo/bar", "*"), &default_opts(&registry))
+        .await
         .expect_err("invalid name");
     assert!(
         matches!(err, PickPackageError::InvalidPackageName { .. }),
@@ -377,7 +378,8 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
             },
         },
     };
-    let _ = pick_package(&next_install_ctx, &range_spec("acme", "^1.0.0"), &opts).await
+    let _ = pick_package(&next_install_ctx, &range_spec("acme", "^1.0.0"), &opts)
+        .await
         .expect("next install pick");
 
     // One request for each install: the repeat pick in the first install is
@@ -529,7 +531,8 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_document() {
         },
         ..opts
     };
-    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &update_opts).await
+    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &update_opts)
+        .await
         .expect("checksum-refresh pick");
 
     first_full_mock.assert_async().await;

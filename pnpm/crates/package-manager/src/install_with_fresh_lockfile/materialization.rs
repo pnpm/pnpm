@@ -82,11 +82,13 @@ pub(super) fn finish_resolved_install<'a, Reporter: self::Reporter + 'static>(
             install,
             resources: MaterializationResources {
                 tarball_mem_cache: owned.fetching.tarball_mem_cache,
-                lockfile_specifier_manifests: owned.projects.lockfile_specifier_manifests,
+                lockfile_specifier_manifests: owned.projects
+                    .lockfile_specifier_manifests,
                 catalogs: owned.projects.catalogs,
                 node_version: owned.node_version,
                 early_host_detection: owned.early_host_detection,
-                deps_requiring_build_sink: owned.resolution.deps_requiring_build_sink,
+                deps_requiring_build_sink: owned.resolution
+                    .deps_requiring_build_sink,
                 lockfile_verification_gate: owned.lockfile_verification_gate,
             },
             shape: setup.shape,
@@ -136,7 +138,9 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     .as_ref()
                     .or(self.install.lockfiles.wanted),
                 catalogs: &self.resources.catalogs,
-                lockfile_specifier_manifests: self.resources.lockfile_specifier_manifests.as_ref(),
+                lockfile_specifier_manifests: self.resources
+                    .lockfile_specifier_manifests
+                    .as_ref(),
             },
             self.shape.verify_filtered_repair,
         )
@@ -212,8 +216,8 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             self.install.drivers.logged_methods,
         )
         .await;
-        let on_disk =
-            self.run_on_disk(&built_lockfile, &scope, &mut plan, &allow_build_policy).await?;
+        let on_disk = self.run_on_disk(&built_lockfile, &scope, &mut plan, &allow_build_policy)
+            .await?;
         self.persist_result(built_lockfile, on_disk).await
     }
 
@@ -238,7 +242,8 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
 
             peer_issue_importer_ids: self.resolved.graph.peer_issue_importer_ids,
             wanted_lockfile: persisted.lockfile,
-            can_record_lockfile_verification: persisted.can_record_lockfile_verification,
+            can_record_lockfile_verification: persisted
+                .can_record_lockfile_verification,
             ignored_builds: on_disk.ignored_builds,
             deferred_builds: on_disk.deferred_builds,
             skipped: on_disk.skipped,
@@ -266,7 +271,9 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                 ),
                 include_transitive_optional_dependencies: self.shape
                     .include_transitive_optional_dependencies,
-                deps_requiring_build_sink: self.resources.deps_requiring_build_sink.take(),
+                deps_requiring_build_sink: self.resources
+                    .deps_requiring_build_sink
+                    .take(),
                 patched_dependencies: self.resolved.patches.record.as_deref(),
                 store: crate::install_with_fresh_lockfile::on_disk::OnDiskStore {
                     tarball_mem_cache: &self.resources.tarball_mem_cache,
@@ -281,11 +288,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     engine_name: plan.engine_name.take(),
                     deferred_engine_name: plan.deferred_engine_name.take(),
                 },
-                projects: crate::install_with_fresh_lockfile::on_disk::OnDiskProjects {
-                    materialization_lockfile: scope.lockfile(built_lockfile),
-                    importer_manifests: &self.resolved.importer_manifests,
-                    project_anchor_importer_ids: &scope.project_anchor_importer_ids,
-                },
+                projects: scope.on_disk_projects(built_lockfile, &self.resolved.importer_manifests),
             },
             &mut plan.skipped,
             &mut self.resources.lockfile_verification_gate,
@@ -314,5 +317,19 @@ pub(super) fn fresh_install_context<'b>(
 
         logged_methods: install.drivers.logged_methods,
         git_source_cache: &caches.git_source_cache,
+    }
+}
+
+impl FinalScope {
+    fn on_disk_projects<'a>(
+        &'a self,
+        built_lockfile: &'a Lockfile,
+        importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
+    ) -> crate::install_with_fresh_lockfile::on_disk::OnDiskProjects<'a> {
+        crate::install_with_fresh_lockfile::on_disk::OnDiskProjects {
+            materialization_lockfile: self.lockfile(built_lockfile),
+            importer_manifests,
+            project_anchor_importer_ids: &self.project_anchor_importer_ids,
+        }
     }
 }

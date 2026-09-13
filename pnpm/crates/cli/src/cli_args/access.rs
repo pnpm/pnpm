@@ -233,7 +233,8 @@ async fn list_collaborators(
         params.get(1).map(String::as_str),
     );
 
-    let (_guard, response) = send_get(context, &url, auth_header.as_deref()).await
+    let (_guard, response) = send_get(context, &url, auth_header.as_deref())
+        .await
         .map_err(reqwest::Error::without_url)
         .into_diagnostic()
         .wrap_err("requesting the registry collaborators endpoint")?;

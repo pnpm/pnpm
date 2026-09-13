@@ -54,7 +54,8 @@ where
     if !claim.owns_children {
         return Ok((lazy_children(context.ancestry.ancestor_ids), false));
     }
-    let child_results = resolve_snapshot_children(ctx, resolver, &context).await?;
+    let child_results = resolve_snapshot_children(ctx, resolver, &context)
+        .await?;
     if !is_current_children_owner(ctx, context.id, &claim.owner) {
         return Ok((lazy_children(context.ancestry.ancestor_ids), false));
     }

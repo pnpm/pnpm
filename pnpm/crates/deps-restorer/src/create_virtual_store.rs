@@ -148,7 +148,9 @@ impl CasPrefetch {
         // progress with cache misses.
         let store_index = match store_context.and_then(|context| context.index) {
             Some(index) => Some(Arc::clone(index)),
-            None => StoreIndex::open_shared(store_dir, config.frozen_store).await,
+            None => {
+                StoreIndex::open_shared(store_dir, config.frozen_store).await
+            }
         };
         // Install-scoped `verifiedFilesCache`: one `Arc<DashSet>` for
         // the duration of the install, so a CAFS path verified for one

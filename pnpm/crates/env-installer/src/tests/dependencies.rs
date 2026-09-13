@@ -95,7 +95,8 @@ async fn resolves_package_manager_dependencies_graph() {
     .unwrap();
 
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
-    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY].package_manager_dependencies
+    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
         .as_ref()
         .expect("package manager deps recorded");
     assert_eq!(pm_deps["pnpm"].specifier, "^11.0.0");
@@ -185,7 +186,8 @@ async fn resolves_package_manager_dependencies_without_exe_from_v12() {
     .unwrap();
 
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
-    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY].package_manager_dependencies
+    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
         .as_ref()
         .expect("package manager deps recorded");
     assert_eq!(pm_deps.len(), 1);
@@ -229,7 +231,8 @@ async fn resolves_package_manager_dependencies_without_exe_before_it_was_publish
     .unwrap();
 
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
-    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY].package_manager_dependencies
+    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
         .as_ref()
         .expect("package manager deps recorded");
     assert_eq!(pm_deps.len(), 1);
@@ -279,7 +282,8 @@ async fn resolves_package_manager_dependencies_with_exe_at_first_published_versi
     .unwrap();
 
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
-    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY].package_manager_dependencies
+    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
         .as_ref()
         .expect("package manager deps recorded");
     assert_eq!(pm_deps.len(), 2);

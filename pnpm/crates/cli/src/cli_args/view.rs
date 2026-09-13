@@ -94,7 +94,8 @@ impl ViewArgs {
             .unwrap_or(&[]);
 
         let (meta, picked) =
-            fetch_package_metadata(config, self.registry.as_deref(), &package_spec, "view").await?;
+            fetch_package_metadata(config, self.registry.as_deref(), &package_spec, "view")
+                .await?;
         let info = assemble_info(&meta, &picked);
 
         if !fields.is_empty() {

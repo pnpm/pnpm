@@ -63,7 +63,8 @@ impl Registry<'_> {
             &self.interpreter.target,
         )?;
         if !self.config.offline {
-            tokio::fs::create_dir_all(cache.parent().expect("cache file has a parent")).await
+            tokio::fs::create_dir_all(cache.parent().expect("cache file has a parent"))
+                .await
                 .into_diagnostic()?;
             let contents = serde_json::to_vec(&cached).into_diagnostic()?;
             if contents.len() > MAX_CACHE_BYTES {

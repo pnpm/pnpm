@@ -106,7 +106,9 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         };
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        let picked = match self.pick_from_registry(registry, &spec, opts, optional).await? {
+        let picked = match self.pick_from_registry(registry, &spec, opts, optional)
+            .await?
+        {
             RegistryPick::Picked(picked) => picked,
             RegistryPick::NoMatchingVersion(meta) => {
                 return Err(no_matching_version(wanted_dependency, registry, &meta));

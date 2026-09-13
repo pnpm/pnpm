@@ -162,3 +162,16 @@ pub enum MirrorPersistError {
         error: String,
     },
 }
+
+pub(super) fn metadata_directory(
+    full_metadata: bool,
+    use_filtered_full_metadata: bool,
+) -> &'static str {
+    if !full_metadata {
+        super::ABBREVIATED_META_DIR
+    } else if use_filtered_full_metadata {
+        super::FULL_FILTERED_META_DIR
+    } else {
+        super::FULL_META_DIR
+    }
+}

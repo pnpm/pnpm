@@ -90,7 +90,8 @@ async fn a_recorded_checksum_is_still_answered_from_the_pnpmfile() {
 
     assert_eq!(current_pnpmfile_checksum(Some(&hooks), None).await, None);
 
-    let against_recorded = current_pnpmfile_checksum(Some(&hooks), Some("sha256-recorded")).await;
+    let against_recorded = current_pnpmfile_checksum(Some(&hooks), Some("sha256-recorded"))
+        .await;
     assert_eq!(
         against_recorded,
         pnpm_crypto_hash::create_hash_from_file(&pnpmfile).ok(),

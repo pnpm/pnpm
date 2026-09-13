@@ -85,7 +85,8 @@ impl DenoResolver {
         };
         let version_spec = normalize_runtime_spec(version_spec);
 
-        let version = self.resolve_version(wanted_dependency, version_spec).await?;
+        let version = self.resolve_version(wanted_dependency, version_spec)
+            .await?;
 
         let variants = read_deno_assets(&self.http_client, &version).await
             .map_err(|err| Box::new(DenoResolverError::ReadAssets(err)) as ResolveError)?;

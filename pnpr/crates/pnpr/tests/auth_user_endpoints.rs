@@ -302,11 +302,13 @@ async fn profile_returns_401_when_unauthenticated() {
 async fn token_list_returns_only_callers_tokens() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret")
+        .await;
     let (app, _bob_token) = add_user_and_get_token(app, "bob", "secret").await;
 
     // Issue a second token to alice so the listing has more than one.
-    let (app, _alice_token_2) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, _alice_token_2) = add_user_and_get_token(app, "alice", "secret")
+        .await;
 
     let response = app
         .oneshot(get_with_bearer("/-/npm/v1/tokens", &alice_token))
@@ -357,8 +359,10 @@ async fn token_list_returns_401_when_unauthenticated() {
 async fn revoke_token_by_key_removes_the_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, victim_token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret")
+        .await;
+    let (app, victim_token) = add_user_and_get_token(app, "alice", "secret")
+        .await;
 
     // Read the key for the victim token via the list endpoint.
     let response = app
@@ -438,7 +442,8 @@ async fn revoke_token_by_key_404s_for_unknown_key() {
 async fn revoke_token_by_key_rejects_revoking_someone_elses_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret")
+        .await;
     let (app, bob_token) = add_user_and_get_token(app, "bob", "secret").await;
 
     // Pull bob's key out of bob's listing.
@@ -527,7 +532,8 @@ async fn logout_returns_404_for_unknown_token() {
 async fn logout_requires_caller_to_own_the_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret")
+        .await;
     let (app, bob_token) = add_user_and_get_token(app, "bob", "secret").await;
 
     // Alice asks to log out using bob's token — forbidden.
@@ -571,7 +577,8 @@ async fn logout_requires_auth() {
 async fn auth_endpoints_set_private_no_cache_headers() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret")
+        .await;
     let (app, bob_token) = add_user_and_get_token(app, "bob", "secret").await;
 
     // Bob's key — used to drive the 403 cross-user revoke branch below.
@@ -680,8 +687,9 @@ async fn revocation_survives_restart() {
         htpasswd.clone(),
         tokens_db.clone(),
     );
-    let auth =
-        AuthState::load(&config.identity.auth, &config.identity.backend).await.expect("first boot");
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .expect("first boot");
     let app = router_with_auth(config.clone(), auth);
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
@@ -695,7 +703,8 @@ async fn revocation_survives_restart() {
     assert_eq!(response.status(), StatusCode::OK);
 
     drop(app);
-    let auth = AuthState::load(&config.identity.auth, &config.identity.backend).await
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
         .expect("reload after restart");
     let app = router_with_auth(config, auth);
 

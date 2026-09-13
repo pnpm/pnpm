@@ -149,7 +149,8 @@ pub fn create_configured_npm_resolver(
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             offline: config.offline,
             prefer_offline: config.prefer_offline,
-            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+            ignore_missing_time_field: config
+                .minimum_release_age_ignore_missing_time,
         },
     })
 }
@@ -175,7 +176,8 @@ pub(crate) fn pick_package_context<'a>(
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             offline: config.offline,
             prefer_offline: config.prefer_offline,
-            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+            ignore_missing_time_field: config
+                .minimum_release_age_ignore_missing_time,
         },
         metadata: pnpm_resolving_npm_resolver::MetadataRequestContext {
             meta_cache,

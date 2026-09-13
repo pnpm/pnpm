@@ -91,11 +91,14 @@ impl StageArgs {
     ) -> miette::Result<Option<String>> {
         match self.params.first().map(String::as_str) {
             Some("publish") => {
-                self.stage_publish::<Reporter>(dir, config, recursive, before_packing_hooks).await
+                self.stage_publish::<Reporter>(dir, config, recursive, before_packing_hooks)
+                    .await
             }
             Some("list") => self.stage_list(config).await,
             Some("view") => self.stage_view(config).await,
-            Some("approve") => approve::stage_approve::<Reporter>(&self, config).await,
+            Some("approve") => {
+                approve::stage_approve::<Reporter>(&self, config).await
+            }
             Some("reject") => self.stage_reject::<Reporter>(config).await,
             Some("download") => self.stage_download(dir, config).await,
             None => Err(StageError::SubcommandRequired.into()),
@@ -150,7 +153,8 @@ impl StageArgs {
     async fn stage_list(&self, config: &Config) -> miette::Result<Option<String>> {
         let package_filter = parse_package_filter(self.params.get(1))?;
         let context = self.stage_context(config, package_filter.as_deref())?;
-        let items = fetch_stage_items(&context, package_filter.as_deref()).await?;
+        let items = fetch_stage_items(&context, package_filter.as_deref())
+            .await?;
 
         if self.flags.output.json {
             return Ok(Some(json_pretty(&Value::Array(items))?));

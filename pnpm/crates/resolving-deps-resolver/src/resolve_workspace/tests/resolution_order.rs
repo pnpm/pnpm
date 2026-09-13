@@ -20,8 +20,8 @@ async fn importer_scoped_update_drop_only_is_order_independent() {
 #[tokio::test]
 async fn importer_scoped_update_drop_all_is_order_independent() {
     for order in [["selected", "unselected"], ["unselected", "selected"]] {
-        let direct =
-            resolve_importer_scoped_update_direct(order, crate::UpdateReuseScope::None).await;
+        let direct = resolve_importer_scoped_update_direct(order, crate::UpdateReuseScope::None)
+            .await;
         assert_eq!(direct["selected"], "pkg@100.1.0");
         assert_eq!(direct["unselected"], "pkg@100.0.0");
     }

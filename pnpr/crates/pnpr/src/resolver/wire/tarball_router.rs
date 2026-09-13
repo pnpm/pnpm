@@ -118,7 +118,9 @@ impl TarballRouter {
             return upstream;
         };
         for metadata in packages.values_mut() {
-            let LockfileResolution::Tarball(resolution) = &mut metadata.resolution else {
+            let LockfileResolution::Tarball(resolution) =
+                &mut metadata.resolution
+            else {
                 continue;
             };
             if let Some(tarball_url) = self.upstream_endpoint_tarball_url(&resolution.tarball) {

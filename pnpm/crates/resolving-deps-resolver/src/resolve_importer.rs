@@ -416,12 +416,14 @@ impl ResolveImporterOptions {
                 auto_install_peers: self.peers.auto_install_peers,
                 auto_install_peers_from_highest_match: self.peers
                     .auto_install_peers_from_highest_match,
-                resolve_peers_from_workspace_root: self.peers.resolve_peers_from_workspace_root,
+                resolve_peers_from_workspace_root: self.peers
+                    .resolve_peers_from_workspace_root,
                 dedupe_peers: self.peers.dedupe_peers,
                 dedupe_peer_dependents: self.peers.dedupe_peer_dependents,
             },
             links: crate::PeerLinkOptions {
-                exclude_links_from_lockfile: self.links.exclude_links_from_lockfile,
+                exclude_links_from_lockfile: self.links
+                    .exclude_links_from_lockfile,
                 lockfile_dir: self.links.lockfile_dir,
                 modules_dir: self.links.modules_dir,
             },
@@ -500,13 +502,15 @@ impl ImporterHoistState {
             dedupe_peers: self.policy.peers.dedupe_peers,
             project_dir: Some(self.project_dir.clone()),
             links: crate::PeerLinkOptions {
-                exclude_links_from_lockfile: self.links.exclude_links_from_lockfile,
+                exclude_links_from_lockfile: self.links
+                    .exclude_links_from_lockfile,
                 lockfile_dir: self.links.lockfile_dir.clone(),
                 modules_dir: self.links.modules_dir.clone(),
             },
             scope: crate::PeerResolutionScope {
                 hoist_missing_scope: None,
-                hoisted_peer_provider_node_ids: self.dependencies.hoisted_peer_provider_node_ids
+                hoisted_peer_provider_node_ids: self.dependencies
+                    .hoisted_peer_provider_node_ids
                     .clone(),
                 ..Default::default()
             },

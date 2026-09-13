@@ -32,7 +32,8 @@ fn bundled_dependencies_are_kept_out_of_the_lockfile() {
 
     let lockfile = read_wanted_lockfile(&workspace);
     assert_eq!(
-        package(&lockfile, "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0").bundled_dependencies,
+        package(&lockfile, "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0")
+            .bundled_dependencies,
         Some(BundledDependencies::Names(vec![
             "@pnpm.e2e/hello-world-js-bin".to_string()
         ])),
@@ -66,7 +67,8 @@ fn bundle_dependencies_spelling_is_kept_out_of_the_lockfile() {
 
     let lockfile = read_wanted_lockfile(&workspace);
     assert_eq!(
-        package(&lockfile, "@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0").bundled_dependencies,
+        package(&lockfile, "@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0")
+            .bundled_dependencies,
         Some(BundledDependencies::Names(vec![
             "@pnpm.e2e/hello-world-js-bin".to_string()
         ])),
@@ -226,7 +228,8 @@ fn bundled_dependencies_survive_a_lockfile_rewrite() {
 
     let lockfile = read_wanted_lockfile(&workspace);
     assert_eq!(
-        package(&lockfile, "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0").bundled_dependencies,
+        package(&lockfile, "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0")
+            .bundled_dependencies,
         Some(BundledDependencies::Names(vec![
             "@pnpm.e2e/hello-world-js-bin".to_string()
         ])),

@@ -457,7 +457,8 @@ impl ThrottledClient {
         url: &str,
         priority: u64,
     ) -> ThrottledClientGuard<'_> {
-        self.acquire_for_url_with_priority_and_redirects(url, priority, true).await
+        self.acquire_for_url_with_priority_and_redirects(url, priority, true)
+            .await
     }
 
     /// [`Self::acquire_for_url_with_priority`] using a client that returns the
@@ -467,7 +468,8 @@ impl ThrottledClient {
         url: &str,
         priority: u64,
     ) -> ThrottledClientGuard<'_> {
-        self.acquire_for_url_with_priority_and_redirects(url, priority, false).await
+        self.acquire_for_url_with_priority_and_redirects(url, priority, false)
+            .await
     }
 }
 

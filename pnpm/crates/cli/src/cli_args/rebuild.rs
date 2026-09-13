@@ -68,7 +68,8 @@ impl RebuildArgs {
         if !cfg.shares_one_lockfile()
             && let Some(workspace_selection) = workspace_selection
         {
-            return self.run_per_project::<Reporter>(cfg, workspace_selection, no_bail).await;
+            return self.run_per_project::<Reporter>(cfg, workspace_selection, no_bail)
+                .await;
         }
 
         let state = State::init(manifest_path, cfg, true).wrap_err("initialize the rebuild state")?;
@@ -108,7 +109,8 @@ impl RebuildArgs {
             );
             let first_error = &first_error;
             async move {
-                let result = args.rebuild_project::<Reporter>(project_config, &project_dir).await;
+                let result = args.rebuild_project::<Reporter>(project_config, &project_dir)
+                    .await;
                 match result {
                     Ok(()) => TaskCompletion::Passed,
                     Err(error) => {
@@ -191,7 +193,8 @@ fn resolve_selection(
                 .join("package.json")
                 .is_file()
     };
-    let (projects, dep_paths): (Vec<&String>, Vec<&String>) = modules.pending_builds
+    let (projects, dep_paths): (Vec<&String>, Vec<&String>) = modules
+        .pending_builds
         .iter()
         .partition(|entry| is_project(entry));
     Ok(RebuildSelection {

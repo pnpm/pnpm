@@ -54,7 +54,9 @@ pub(crate) async fn handle_verify_lockfile(
     let tarball_router = super::request_tarball_router(runtime, &identity, config);
     let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
 
-    match verify_input_lockfile(runtime, config, &request_auth, &input_lockfile).await {
+    match verify_input_lockfile(runtime, config, &request_auth, &input_lockfile)
+        .await
+    {
         // The dist stats the verifier observed feed `/-/pnpr/v0/resolve`'s sized
         // `package` frames; this endpoint's client prefetches from its own
         // lockfile before the verdict arrives, so only the verdict is sent.
@@ -116,7 +118,8 @@ pub(super) async fn verify_input_lockfile(
     // A transport failure verifying an entry (the upstream registry couldn't be
     // reached/authorized) is a gateway error, not a policy violation — surface
     // the registry's own (credential-redacted) message to the client.
-    let violations = collect_resolution_policy_violations(lockfile, &verifiers, None).await
+    let violations = collect_resolution_policy_violations(lockfile, &verifiers, None)
+        .await
         .map_err(|message| {
             VerifyFailure::Internal(json_error(StatusCode::BAD_GATEWAY, &message))
         })?;

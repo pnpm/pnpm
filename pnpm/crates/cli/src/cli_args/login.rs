@@ -66,8 +66,8 @@ impl LoginArgs {
         )
         .into_diagnostic()?;
 
-        let message =
-            login::<Sys, Reporter>(&http_client, self.login_options(config, config_dir)).await?;
+        let message = login::<Sys, Reporter>(&http_client, self.login_options(config, config_dir))
+            .await?;
         Ok(message)
     }
 

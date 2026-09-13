@@ -168,7 +168,8 @@ async fn fetch_registry_config(
                 )
             })?
     } else {
-        download_registry_config(config, http_client, auth_headers, &cache_path).await?
+        download_registry_config(config, http_client, auth_headers, &cache_path)
+            .await?
     };
     serde_json::from_slice(&bytes)
         .into_diagnostic()
@@ -280,7 +281,8 @@ pub(super) async fn registry_download_config(
     http_client: &ThrottledClient,
 ) -> Result<(RegistryConfig, Arc<AuthHeaders>)> {
     let cargo_auth_headers = cargo_auth_headers(config)?;
-    let registry_config = fetch_registry_config(config, http_client, &cargo_auth_headers).await?;
+    let registry_config = fetch_registry_config(config, http_client, &cargo_auth_headers)
+        .await?;
     let auth_headers = download_auth_headers(config, &registry_config);
     Ok((registry_config, auth_headers))
 }

@@ -140,7 +140,8 @@ pub(crate) async fn send_metadata_request<'a>(
         });
     }
     let validators = Validators::for_request(opts);
-    let (client, response) = send_once(opts, &validators, opts.bypass_cache).await?;
+    let (client, response) = send_once(opts, &validators, opts.bypass_cache)
+        .await?;
     if response.status() != StatusCode::NOT_MODIFIED || validators.any() {
         return Ok((client, response));
     }
@@ -373,8 +374,8 @@ async fn fetch_full_metadata_once(
     // and stall every socket it pumps (see
     // `fetch_full_metadata_cached` for the cold-install numbers).
     drop(client);
-    let (meta, elapsed) =
-        decode_full_metadata(url, raw_body, normalize_to_abbreviated, started_at).await?;
+    let (meta, elapsed) = decode_full_metadata(url, raw_body, normalize_to_abbreviated, started_at)
+        .await?;
     warn_if_request_is_slow(opts.http.http_client, elapsed, url);
     Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
 }

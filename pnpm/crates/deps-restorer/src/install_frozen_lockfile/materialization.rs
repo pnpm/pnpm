@@ -31,8 +31,8 @@ impl<'a> InstallFrozenLockfile<'a> {
             // overlapped with install I/O. Falls back to the synchronous
             // value when the spawn was never deferred (GVS on, or host
             // already detected for the installability check).
-            let engine_name =
-                resolve_build_engine(phase.deferred_engine_name, phase.engine_name).await;
+            let engine_name = resolve_build_engine(phase.deferred_engine_name, phase.engine_name)
+                .await;
 
             let build_extra_env = build_extra_env(
                 install.drivers.config,
@@ -52,9 +52,12 @@ impl<'a> InstallFrozenLockfile<'a> {
                     workspace_root: install.projects.workspace_root,
                     top_level_bin_root: install.projects.workspace_root,
                     layout: ctx.linker.layout,
-                    hoisted_pkg_roots_by_key: phase.linked.hoisted_pkg_roots_by_key.as_ref(),
+                    hoisted_pkg_roots_by_key: phase.linked
+                        .hoisted_pkg_roots_by_key
+                        .as_ref(),
                     is_hoisted: ctx.is_hoisted(),
-                    publicly_hoisted_for_post_build: &phase.linked.publicly_hoisted_for_post_build,
+                    publicly_hoisted_for_post_build: &phase.linked
+                        .publicly_hoisted_for_post_build,
                     logged_methods: ctx.logged_methods,
                     link_options: ctx.linker.bin_options,
                 },
@@ -112,7 +115,8 @@ impl<'a> InstallFrozenLockfile<'a> {
                 prior: install.prior.link_state(),
                 projects: crate::LinkProjects {
                     manifests: install.projects.manifests,
-                    package_map_manifests: install.projects.package_map_manifests,
+                    package_map_manifests: install.projects
+                        .package_map_manifests,
                     dependency_groups: install.projects.dependency_groups,
                     symlink_root: install.projects.workspace_root,
                     trusted_importer_ids: &trusted_importer_ids,
@@ -121,7 +125,8 @@ impl<'a> InstallFrozenLockfile<'a> {
                 ctx,
 
                 host_node: phase.host_node,
-                supported_architectures: install.platform.supported_architectures,
+                supported_architectures: install.platform
+                    .supported_architectures,
             },
             skipped,
         )
@@ -146,8 +151,8 @@ impl<'a> InstallFrozenLockfile<'a> {
             // leaves every warm package reported as `found_in_store`.
             let progress_reported = SharedReportedProgressKeys::default();
 
-            let custom_fetcher_session =
-                load_custom_fetcher_session(install.drivers.pnpmfile_hook).await?;
+            let custom_fetcher_session = load_custom_fetcher_session(install.drivers.pnpmfile_hook)
+                .await?;
             // Timed from here: a pnpmfile's fetcher setup is hook work, not
             // materialization, and the integrated benchmark reads this phase.
             let phase_start = std::time::Instant::now();
@@ -254,7 +259,8 @@ impl<'a> InstallFrozenLockfile<'a> {
             // the probe finishes in the background and its result goes
             // unused.
             let (host_detection, needs_installability_check) =
-                detect_install_host(install, early_host_detection, node_version).await;
+                detect_install_host(install, early_host_detection, node_version)
+                    .await;
 
             // `engine_name` feeds two sites:
             //
@@ -293,7 +299,8 @@ impl<'a> InstallFrozenLockfile<'a> {
             //   `CreateVirtualStore::run`'s I/O, and is awaited right
             //   before `BuildModules`.
             let engine =
-                plan_engine_name(install.drivers.config, &host_detection, entries.snapshots).await;
+                plan_engine_name(install.drivers.config, &host_detection, entries.snapshots)
+                    .await;
 
             let layout = install.verified_layout(allow_build_policy, engine.name.as_deref())?;
 

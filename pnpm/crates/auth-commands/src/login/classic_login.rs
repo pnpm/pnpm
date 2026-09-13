@@ -48,8 +48,10 @@ where
         return Err(LoginError::NonInteractive);
     }
 
-    let username = read_credential(prompt_line::<Sys>("Username:", Masking::Visible)).await?;
-    let password = read_credential(prompt_line::<Sys>("Password:", Masking::Masked)).await?;
+    let username = read_credential(prompt_line::<Sys>("Username:", Masking::Visible))
+        .await?;
+    let password = read_credential(prompt_line::<Sys>("Password:", Masking::Masked))
+        .await?;
     let email = read_credential(prompt_line::<Sys>(
         "Email (this IS public):",
         Masking::Visible,

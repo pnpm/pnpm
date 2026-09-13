@@ -156,7 +156,8 @@ async fn get_index_file(
     };
     let index = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
         RegistrySource::Hosted(source) => {
-            read_hosted_document::<CrateDocument>(&state, &identity, &source, &key).await
+            read_hosted_document::<CrateDocument>(&state, &identity, &source, &key)
+                .await
                 .map(|document| document.map(|document| document.render_index()))
         }
         source @ RegistrySource::Upstream(_) => {
@@ -230,11 +231,13 @@ async fn get_download(
     };
     let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
         RegistrySource::Hosted(source) => {
-            download_hosted_crate(&state, &identity, &source, &key, version).await
+            download_hosted_crate(&state, &identity, &source, &key, version)
+                .await
                 .unwrap_or_else(error_response)
         }
         source @ RegistrySource::Upstream(_) => {
-            download_via_upstream(&state, &identity, &source, &key, name, version).await
+            download_via_upstream(&state, &identity, &source, &key, name, version)
+                .await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
     };
@@ -254,7 +257,8 @@ async fn download_hosted_crate(
     key: &CanonicalPackageName,
     version: &str,
 ) -> Result<Response, RegistryError> {
-    let document = read_hosted_document::<CrateDocument>(state, identity, source, key).await?
+    let document = read_hosted_document::<CrateDocument>(state, identity, source, key)
+        .await?
         .ok_or(RegistryError::NotFound)?;
     let entry = document.version(version).ok_or(RegistryError::NotFound)?;
     let filename = crate_filename(&entry.name, &entry.vers);
@@ -276,12 +280,13 @@ async fn download_via_upstream(
         Ok(upstream) => upstream,
         Err(err) => return error_response(err),
     };
-    let index =
-        match load_upstream_index(state, identity, source, key, &sparse_index_path(name)).await {
-            Ok(Some(bytes)) => bytes,
-            Ok(None) => return not_found(),
-            Err(err) => return error_response(err),
-        };
+    let index = match load_upstream_index(state, identity, source, key, &sparse_index_path(name))
+        .await
+    {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return not_found(),
+        Err(err) => return error_response(err),
+    };
     let entries = match parse_upstream_index(&index, name) {
         Ok(entries) => entries,
         Err(err) => return error_response(err),

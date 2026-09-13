@@ -44,14 +44,13 @@ pub(in super::super) async fn collect_resolution<'m, Reporter: self::Reporter + 
     pass: ResolvePass<'m>,
 ) -> Result<Resolved<'m, Reporter>, InstallWithFreshLockfileError> {
     let workspace_result = pass.result;
-    enforce_resolution_policies::<Reporter>(install, &prep, &workspace_result).await?;
-    let peer_issues = &workspace_result.peers.peer_dependency_issues_by_importer;
-    let mut peer_issue_importer_ids: HashSet<String> = peer_issues
-        .keys()
-        .cloned()
-        .collect();
-    peer_issue_importer_ids.extend(pass.linked_peer_importers);
-    report_peer_issues(peer_issues_sink, peer_issues);
+    enforce_resolution_policies::<Reporter>(install, &prep, &workspace_result)
+        .await?;
+    let peer_issue_importer_ids = collect_peer_issue_importers(
+        &workspace_result,
+        pass.linked_peer_importers,
+        peer_issues_sink,
+    );
     report_resolve_phase(
         pass.started,
         &workspace_result,
@@ -78,7 +77,8 @@ pub(in super::super) async fn collect_resolution<'m, Reporter: self::Reporter + 
         graph: crate::install_with_fresh_lockfile::resolution::ResolvedGraph {
             peer_issue_importer_ids,
             merged_graph: workspace_result.peers.graph,
-            direct_by_importer: workspace_result.peers.direct_dependencies_by_importer,
+            direct_by_importer: workspace_result.peers
+                .direct_dependencies_by_importer,
             time: workspace_result.time,
         },
     })
@@ -97,4 +97,19 @@ pub(in super::super) fn report_resolve_phase(
         nodes = workspace_result.peers.graph.len(),
         "phase complete",
     );
+}
+
+fn collect_peer_issue_importers(
+    workspace_result: &pnpm_resolving_deps_resolver::ResolveWorkspaceResult,
+    linked_peer_importers: HashSet<String>,
+    peer_issues_sink: Option<&crate::PeerIssuesSink>,
+) -> HashSet<String> {
+    let peer_issues = &workspace_result.peers.peer_dependency_issues_by_importer;
+    let mut peer_issue_importer_ids: HashSet<String> = peer_issues
+        .keys()
+        .cloned()
+        .collect();
+    peer_issue_importer_ids.extend(linked_peer_importers);
+    report_peer_issues(peer_issues_sink, peer_issues);
+    peer_issue_importer_ids
 }

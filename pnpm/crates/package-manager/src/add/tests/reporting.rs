@@ -158,7 +158,8 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
         ready.notify_all();
         let (mut requests, wait) = ready
             .wait_timeout_while(requests, OVERLAP_BARRIER_TIMEOUT, |requests| {
-                requests.started < expected_requests && !requests.barrier_expired
+                requests.started < expected_requests
+                    && !requests.barrier_expired
             })
             .unwrap();
         // `wait_timeout_while` re-checks the predicate before it

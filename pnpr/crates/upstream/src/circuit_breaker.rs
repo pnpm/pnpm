@@ -64,7 +64,8 @@ impl CircuitBreaker {
         // lapses. (`failed_requests >= max_fails` always implies a
         // recorded `last_failure`, so the `None` arm is unreachable; it
         // fails open for safety.)
-        let cooled_down = state.last_failure.is_none_or(|at| at.elapsed() >= self.fail_timeout);
+        let cooled_down =
+            state.last_failure.is_none_or(|at| at.elapsed() >= self.fail_timeout);
         if !cooled_down {
             return false;
         }

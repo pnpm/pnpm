@@ -165,14 +165,9 @@ impl Manifest {
             });
         }
 
-        let top: Option<IndexMap<String, serde::de::IgnoredAny>> =
-            serde_saphyr::from_str(&text).map_err(Box::new)?;
-        let top_level_keys: Vec<String> = top
-            .map(|map| map.into_keys().collect())
-            .unwrap_or_default();
-        let blank_line_style = crate::edit::uses_blank_line_style(&text, &top_level_keys);
+        let document = parse_document(text)?;
 
-        let data: CatalogData = serde_saphyr::from_str(&text).map_err(Box::new)?;
+        let data: CatalogData = serde_saphyr::from_str(&document.text).map_err(Box::new)?;
         let (overrides, non_scalar_overrides) = split_overrides(data.overrides);
 
         Ok(Manifest {
@@ -181,17 +176,15 @@ impl Manifest {
             patched_dependencies: data.patched_dependencies,
             overrides,
             non_scalar_overrides,
-            document: crate::model::ManifestDocument {
-                text,
-                keys: top_level_keys,
-                blank_lines: blank_line_style,
-            },
+            document,
             catalogs: crate::model::CatalogEntries {
                 default: data.catalog,
                 named: data.catalogs,
             },
             exceptions: crate::model::SecurityExceptions {
-                legacy_audit_ghsas: data.audit_config.and_then(|config| config.ignore_ghsas),
+                legacy_audit_ghsas: data.audit_config.and_then(|config| {
+                    config.ignore_ghsas
+                }),
                 audit: data.audit.and_then(|audit| audit.ignore),
                 release_age: data.minimum_release_age_exclude,
                 trust_policy: data.trust_policy_exclude,
@@ -258,4 +251,19 @@ impl ManifestDocument {
     pub(crate) fn into_text(self) -> String {
         self.text
     }
+}
+
+fn parse_document(text: String) -> Result<ManifestDocument, Box<serde_saphyr::Error>> {
+    let top: Option<IndexMap<String, serde::de::IgnoredAny>> =
+        serde_saphyr::from_str(&text).map_err(Box::new)?;
+    let top_level_keys: Vec<String> = top
+        .map(|map| map.into_keys().collect())
+        .unwrap_or_default();
+    let blank_line_style = crate::edit::uses_blank_line_style(&text, &top_level_keys);
+
+    Ok(ManifestDocument {
+        text,
+        keys: top_level_keys,
+        blank_lines: blank_line_style,
+    })
 }

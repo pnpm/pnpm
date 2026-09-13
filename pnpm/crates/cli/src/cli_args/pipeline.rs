@@ -407,8 +407,8 @@ impl TaskRunner<'_, '_> {
             task_name: node.task_name.clone(),
         };
         let summary_key = format_task(&key, self.run.workspace_root);
-        self.results.statuses.lock().expect("status lock is not poisoned")[&summary_key].status =
-            Status::Skipped;
+        self.results.statuses.lock().expect("status lock is not poisoned")[&summary_key]
+            .status = Status::Skipped;
         self.report.task_skipped(&summary_key);
     }
 

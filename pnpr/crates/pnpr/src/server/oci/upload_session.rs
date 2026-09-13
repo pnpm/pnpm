@@ -25,8 +25,8 @@ impl Request {
         let Some(source_storage) = self.mount_source_storage(&source, &source_key)? else {
             return Ok(None);
         };
-        let Some((body, _)) =
-            source_storage.open_hosted_blob(&source_key, &digest.blob_filename()).await?
+        let Some((body, _)) = source_storage.open_hosted_blob(&source_key, &digest.blob_filename())
+            .await?
         else {
             return Ok(None);
         };
@@ -103,7 +103,9 @@ impl Request {
             return refusal.respond();
         }
         match self.digest.as_deref() {
-            Some(digest) => self.finish_upload(&storage, upload, &key, digest).await,
+            Some(digest) => {
+                self.finish_upload(&storage, upload, &key, digest).await
+            }
             None => self.upload_progress(&key, &upload).await,
         }
     }
@@ -118,7 +120,8 @@ impl Request {
         // two chunks appending at once, or a chunk landing between the hash
         // and the promotion, would store bytes that are not the digest they
         // are stored under.
-        let _guard = self.state.inner.locks.packages.lock(&upload_lock_key(id)).await;
+        let _guard = self.state.inner.locks.packages.lock(&upload_lock_key(id))
+            .await;
         let storage = self.state.inner.storage.for_hosted(&org);
         let upload = match storage.open_blob_upload(&key, id).await {
             Ok(Some(upload)) => upload,
@@ -126,8 +129,12 @@ impl Request {
             Err(err) => return registry_error(err),
         };
         match self.method {
-            Method::PATCH => self.append_chunk(&storage, &key, &upload, body).await,
-            Method::PUT => self.complete_upload(&storage, key, upload, body).await,
+            Method::PATCH => {
+                self.append_chunk(&storage, &key, &upload, body).await
+            }
+            Method::PUT => {
+                self.complete_upload(&storage, key, upload, body).await
+            }
             Method::GET => self.upload_progress(&key, &upload).await,
             Method::DELETE => match storage.abort_blob_upload(upload.id()).await {
                 Ok(_) => no_content(StatusCode::NO_CONTENT),
@@ -305,7 +312,9 @@ impl Request {
             }
             Err(err) => return registry_error(err),
         }
-        match storage.finalize_uploaded_blob(upload, key, &digest.blob_filename()).await {
+        match storage.finalize_uploaded_blob(upload, key, &digest.blob_filename())
+            .await
+        {
             Ok(pnpr_storage::BlobFinalize::Conflict) => error(
                 ErrorCode::DigestInvalid,
                 "stored blob conflicts with the uploaded content",

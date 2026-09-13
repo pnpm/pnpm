@@ -331,7 +331,8 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
         false,
     )
     .await?;
-    let buffer = download_zip_body::<Reporter>(response_head, package_url, package_id).await?;
+    let buffer = download_zip_body::<Reporter>(response_head, package_url, package_id)
+        .await?;
     drop(client);
 
     let post_download_permit = post_download_semaphore()

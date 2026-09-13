@@ -309,7 +309,9 @@ async fn approve_staged_packages<Reporter: self::Reporter>(
             ));
             continue;
         }
-        match approve_staged_package::<Reporter>(context, &mut session, item).await {
+        match approve_staged_package::<Reporter>(context, &mut session, item)
+            .await
+        {
             Ok(()) => {
                 approved += 1;
                 global_info::<Reporter>(&format!("Approved {}", item.label()));

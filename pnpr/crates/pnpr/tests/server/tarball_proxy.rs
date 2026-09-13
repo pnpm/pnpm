@@ -90,7 +90,8 @@ async fn upstream_auth_and_custom_headers_are_forwarded_upstream() {
 async fn tarball_is_proxied_and_cached() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"fake-tarball-bytes";
-    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
+    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes)
+        .await;
     let mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
@@ -532,7 +533,8 @@ async fn osv_tarball_screening_preserves_access_gate() {
 async fn osv_refuses_vulnerable_tarball_from_cache() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"cached vulnerable tarball";
-    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
+    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes)
+        .await;
     let mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
@@ -850,8 +852,8 @@ async fn non_canonical_upstream_tarball_basename_is_served() {
 async fn scoped_tarball_is_proxied() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"scoped-tarball-bytes";
-    let _packument_mock =
-        mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes).await;
+    let _packument_mock = mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes)
+        .await;
     let mock = upstream
         .mock("GET", "/@types/node/-/node-20.0.0.tgz")
         .with_status(200)
@@ -880,8 +882,8 @@ async fn scoped_tarball_is_proxied() {
 async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"scoped-tarball-full-name";
-    let packument_mock =
-        mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes).await;
+    let packument_mock = mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes)
+        .await;
     let mock = upstream
         .mock("GET", "/@types/node/-/node-20.0.0.tgz")
         .with_status(200)

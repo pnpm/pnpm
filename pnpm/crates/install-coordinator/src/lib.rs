@@ -93,7 +93,8 @@ impl<'a> InstallPlan<'a> {
             .map(|task| (task.metadata, task.prepare))
             .unzip();
         let mutation =
-            MetadataMutation::capture(self.transaction_root, metadata.into_iter().flatten()).await?;
+            MetadataMutation::capture(self.transaction_root, metadata.into_iter().flatten())
+                .await?;
         let results = join_all(preparations).await;
         let outcome = results
             .into_iter()

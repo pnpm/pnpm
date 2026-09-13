@@ -148,10 +148,12 @@ pub async fn send_with_retry_at_priority<'client>(
 ) -> Result<(ThrottledClientGuard<'client>, Response), reqwest::Error> {
     let mut attempt = 0;
     loop {
-        let client = http_client.acquire_for_url_with_priority(url, priority).await;
+        let client = http_client.acquire_for_url_with_priority(url, priority)
+            .await;
         match build_request(&client).send().await {
             Ok(response)
-                if should_retry_status(response.status()) && attempt < retry_opts.retries =>
+                if should_retry_status(response.status())
+                    && attempt < retry_opts.retries =>
             {
                 let status = response.status();
                 drop(response);

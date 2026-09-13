@@ -152,7 +152,9 @@ async fn attempt_signature_verification(
     // Registry URLs may carry inline `user:pass@` credentials, and the
     // reasons built here end up in error messages and warnings.
     let display_registry = redact_and_sanitize(registry);
-    let packument = match fetch_packument(component, registry, client, retry_opts, config).await {
+    let packument = match fetch_packument(component, registry, client, retry_opts, config)
+        .await
+    {
         Ok(Some(packument)) => packument,
         Ok(None) => {
             return Some((

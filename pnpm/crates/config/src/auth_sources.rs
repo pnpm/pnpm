@@ -105,8 +105,8 @@ fn env_json_auth_source<Sys: EnvVar>(
         .map_err(|source| LoadWorkspaceYamlError::InvalidJsonAuth {
             source,
         })?;
-    let json_auth_has_content =
-        !json_auth.creds_by_scope_by_uri.is_empty() || !json_auth.routes.json_env.is_empty();
+    let json_auth_has_content = !json_auth.creds_by_scope_by_uri.is_empty()
+        || !json_auth.routes.json_env.is_empty();
     Ok(json_auth_has_content.then_some(json_auth))
 }
 

@@ -163,25 +163,10 @@ impl PublishMetadata {
     pub fn into_index_entry(self, cksum: String) -> IndexEntry {
         let deps = self.deps
             .into_iter()
-            .map(|dep| {
-                let (name, package) = match dep.explicit_name_in_toml {
-                    Some(alias) => (alias, Some(dep.name)),
-                    None => (dep.name, None),
-                };
-                IndexDependency {
-                    name,
-                    req: dep.version_req,
-                    features: dep.features,
-                    optional: dep.optional,
-                    default_features: dep.default_features,
-                    target: dep.target,
-                    kind: dep.kind,
-                    registry: dep.registry,
-                    package,
-                }
-            })
+            .map(PublishDependency::into_index_dependency)
             .collect();
-        let (features, features2): (BTreeMap<_, _>, BTreeMap<_, _>) = self.features
+        let (features, features2): (BTreeMap<_, _>, BTreeMap<_, _>) = self
+            .features
             .into_iter()
             .partition(|(_, values)| {
                 !values
@@ -370,4 +355,24 @@ pub(super) fn validate_crate_manifest<Reader: io::Read>(
         name: name.to_string(),
         version: version.to_string(),
     })
+}
+
+impl PublishDependency {
+    fn into_index_dependency(self) -> IndexDependency {
+        let (name, package) = match self.explicit_name_in_toml {
+            Some(alias) => (alias, Some(self.name)),
+            None => (self.name, None),
+        };
+        IndexDependency {
+            name,
+            req: self.version_req,
+            features: self.features,
+            optional: self.optional,
+            default_features: self.default_features,
+            target: self.target,
+            kind: self.kind,
+            registry: self.registry,
+            package,
+        }
+    }
 }

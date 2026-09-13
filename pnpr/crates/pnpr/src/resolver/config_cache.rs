@@ -59,13 +59,21 @@ impl EffectiveResolverSettings {
 
         EffectiveResolverSettings {
             auto_install_peers: request.auto_install_peers
-                .or_else(|| lockfile_settings.map(|settings| settings.auto_install_peers))
+                .or_else(|| {
+                    lockfile_settings.map(|settings| settings.auto_install_peers)
+                })
                 .unwrap_or(DEFAULTS.auto_install_peers),
             dedupe_peers: request.dedupe_peers
-                .or_else(|| lockfile_settings.and_then(|settings| settings.dedupe_peers))
+                .or_else(|| {
+                    lockfile_settings.and_then(|settings| settings.dedupe_peers)
+                })
                 .unwrap_or(DEFAULTS.dedupe_peers),
             exclude_links_from_lockfile: request.exclude_links_from_lockfile
-                .or_else(|| lockfile_settings.map(|settings| settings.exclude_links_from_lockfile))
+                .or_else(|| {
+                    lockfile_settings.map(|settings| {
+                        settings.exclude_links_from_lockfile
+                    })
+                })
                 .unwrap_or(DEFAULTS.exclude_links_from_lockfile),
         }
     }
@@ -126,7 +134,8 @@ pub(super) fn intern_config(
     apply_request_policy(&mut config, request);
     config.auto_install_peers = resolver_settings.auto_install_peers;
     config.dedupe_peers = resolver_settings.dedupe_peers;
-    config.exclude_links_from_lockfile = resolver_settings.exclude_links_from_lockfile;
+    config.exclude_links_from_lockfile = resolver_settings
+        .exclude_links_from_lockfile;
     let config: &'static PacquetConfig = config.leak();
     configs.insert(key, config);
     Some(config)
@@ -187,7 +196,9 @@ pub(super) fn apply_request_policy(config: &mut PacquetConfig, request: &Resolve
     config.resolution_mode = request.resolution_mode;
     config.minimum_release_age = request.minimum_release_age;
     config.minimum_release_age_exclude.clone_from(&request.minimum_release_age_exclude);
-    if let Some(ignore_missing_time) = request.minimum_release_age_ignore_missing_time {
+    if let Some(ignore_missing_time) = request
+        .minimum_release_age_ignore_missing_time
+    {
         config.minimum_release_age_ignore_missing_time = ignore_missing_time;
     }
     config.trust_policy = request.trust_policy;

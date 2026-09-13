@@ -153,8 +153,9 @@ impl<'a> InstallWorkspace<'a> {
         // An embedder that supplies its importers in memory
         // (`workspace_projects_override`) bypasses the on-disk walk
         // entirely; the override's `Vec` is used verbatim.
-        let workspace_projects_are_overridden =
-            owned.projects.workspace_projects_override.is_some();
+        let workspace_projects_are_overridden = owned.projects
+            .workspace_projects_override
+            .is_some();
         let loaded_workspace_projects = discovered_workspace_projects(
             options.selection.is_some(),
             owned.projects.workspace_projects_override.take(),
@@ -241,7 +242,8 @@ impl<'w> InstallScope<'w> {
             selection: options.selection.as_ref(),
             workspace_root,
             workspace_projects,
-            root_manifest_as_workspace_root: options.root_manifest_as_workspace_root,
+            root_manifest_as_workspace_root: options
+                .root_manifest_as_workspace_root,
             workspace_projects_are_overridden,
             config: install.context.config,
         });
@@ -320,13 +322,16 @@ impl<'w> InstallScope<'w> {
                 layout: crate::RepeatInstallLayout {
                     node_linker: install.execution.node_linker,
                     included: mode.included,
-                    supported_architectures: owned.projects.supported_architectures.as_ref(),
+                    supported_architectures: owned.projects
+                        .supported_architectures
+                        .as_ref(),
                 },
             },
             mutation: install.execution.mutation,
             update_seed_policy: &owned.resolution.update_seed_policy,
             frozen_lockfile: install.lockfile_policy.frozen,
-            disable_optimistic_repeat_install: install.lockfile_policy.disable_optimistic_repeat,
+            disable_optimistic_repeat_install: install.lockfile_policy
+                .disable_optimistic_repeat,
             effective_node_version: mode.effective_node_version.as_deref(),
             prefix: &workspace.prefix,
         })

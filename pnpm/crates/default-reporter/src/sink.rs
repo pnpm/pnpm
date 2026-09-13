@@ -108,7 +108,9 @@ impl Sink {
         // elapsed. State is already folded, so the next non-coalesceable
         // event (stats, summary, importing-done, the footer) renders the
         // latest counts.
-        if coalesceable && self.last_write.is_some_and(|last| last.elapsed() < self.throttle) {
+        if coalesceable
+            && self.last_write.is_some_and(|last| last.elapsed() < self.throttle)
+        {
             return;
         }
         let wrote = self.write_output(output, out);

@@ -132,7 +132,8 @@ impl PackAppArgs {
         // the serialized format has changed across Node.js minor releases,
         // so a blob produced by a builder of a different version than the
         // embedded runtime fails deserialization at startup.
-        let target_version = resolve_version(config, &requested_node_spec).await?;
+        let target_version = resolve_version(config, &requested_node_spec)
+            .await?;
         let build = SeaBuild {
             builder_bin: resolve_builder_binary(&build_root, &target_version)?,
             pacquet_bin: std::env::current_exe()

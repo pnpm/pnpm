@@ -326,7 +326,8 @@ async fn re_resolves_when_config_dep_version_changes() {
     .unwrap();
 
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
-    let entry = &env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["@pnpm.e2e/foo"];
+    let entry =
+        &env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["@pnpm.e2e/foo"];
     assert_eq!(entry.version, "100.1.0", "version bump is reflected");
     let old_key = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
     assert!(

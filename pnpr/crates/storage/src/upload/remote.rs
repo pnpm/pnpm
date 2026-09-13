@@ -265,8 +265,8 @@ impl RemoteUpload {
         }
         let mut record = state.record.clone();
         record.completion = Some(filename.to_string());
-        let version =
-            self.backend.write(&self.id, &record, PutMode::Update(state.version.clone())).await?;
+        let version = self.backend.write(&self.id, &record, PutMode::Update(state.version.clone()))
+            .await?;
         *state = VersionedRecord {
             record,
             version,
@@ -278,8 +278,8 @@ impl RemoteUpload {
         let mut state = self.state.lock().await;
         let mut record = state.record.clone();
         record.closed = true;
-        let version =
-            self.backend.write(&self.id, &record, PutMode::Update(state.version.clone())).await?;
+        let version = self.backend.write(&self.id, &record, PutMode::Update(state.version.clone()))
+            .await?;
         *state = VersionedRecord {
             record,
             version,
@@ -294,7 +294,9 @@ impl RemoteUpload {
 impl RemoteChunk {
     async fn unchanged_offset(&self) -> Result<u64> {
         let current = self.upload.backend.read(&self.upload.id).await?;
-        if current.is_none_or(|current| current.record.closed || current.version != self.version) {
+        if current.is_none_or(|current| {
+            current.record.closed || current.version != self.version
+        }) {
             return Err(RegistryError::BlobUploadConflict {
                 id: self.upload.id.clone(),
             });

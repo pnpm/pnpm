@@ -184,7 +184,9 @@ fn merge_importers(
                 specifiers: None,
                 dependencies: group(|importer| importer.dependencies.as_ref()),
                 dev_dependencies: group(|importer| importer.dev_dependencies.as_ref()),
-                optional_dependencies: group(|importer| importer.optional_dependencies.as_ref()),
+                optional_dependencies: group(|importer| {
+                    importer.optional_dependencies.as_ref()
+                }),
                 dependencies_meta: None,
                 publish_directory: None,
                 link_directory: None,

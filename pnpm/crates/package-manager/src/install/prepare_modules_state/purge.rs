@@ -192,7 +192,9 @@ pub(super) fn prune_excluded_direct_deps(
     let Some(current) = context.current_lockfile else {
         return Ok(());
     };
-    if !context.eligibility.filtered_install && modules.included == context.included {
+    if !context.eligibility.filtered_install
+        && modules.included == context.included
+    {
         return Ok(());
     }
     let selected_prune_importer_ids = context.requested_importer_ids.map(|requested| {

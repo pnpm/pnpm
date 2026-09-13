@@ -50,7 +50,8 @@ async fn resolve_directory() {
         injected: false,
     };
 
-    let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&project_dir)).await
+    let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&project_dir))
+        .await
         .expect("resolve")
         .expect("claims");
 
@@ -86,7 +87,8 @@ async fn resolve_directory_specified_using_absolute_path() {
         bare_specifier: format!("link:{}", linked_dir.display()),
         injected: false,
     };
-    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&project_dir)).await
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&project_dir))
+        .await
         .expect("resolve")
         .expect("claims");
 
@@ -158,7 +160,8 @@ async fn resolve_injected_directory() {
         injected: true,
     };
 
-    let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&project_dir)).await
+    let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&project_dir))
+        .await
         .expect("resolve")
         .expect("claims");
 
@@ -178,7 +181,8 @@ async fn resolve_workspace_directory() {
         injected: false,
     };
 
-    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&project_dir)).await
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&project_dir))
+        .await
         .expect("resolve")
         .expect("claims");
 
@@ -194,7 +198,8 @@ async fn resolve_directory_specified_using_the_file_protocol() {
         injected: false,
     };
 
-    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&project_dir)).await
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&project_dir))
+        .await
         .expect("resolve")
         .expect("claims");
 
@@ -214,7 +219,8 @@ async fn resolve_directory_specified_using_the_link_protocol() {
         injected: false,
     };
 
-    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&project_dir)).await
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&project_dir))
+        .await
         .expect("resolve")
         .expect("claims");
 
@@ -256,7 +262,8 @@ async fn fail_when_a_tarball_manifest_names_no_package() {
             bare_specifier: "file:./nameless-1.0.0.tgz".to_string(),
             injected: false,
         };
-        let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir)).await
+        let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir))
+            .await
             .expect_err(&format!("a nameless manifest must be refused: {manifest}"));
         match err {
             ResolveLocalError::MissingPackageName { specifier } => {
@@ -296,7 +303,8 @@ async fn fail_when_a_tarball_manifest_name_is_not_a_valid_npm_name() {
             bare_specifier: "file:./bad-1.0.0.tgz".to_string(),
             injected: false,
         };
-        let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir)).await
+        let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir))
+            .await
             .expect_err(&format!(
                 "an invalid package name must be refused: {name:?}",
             ));
@@ -328,7 +336,8 @@ async fn resolve_tarball_without_a_bundled_manifest() {
         bare_specifier: "file:./no-manifest-1.0.0.tgz".to_string(),
         injected: false,
     };
-    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir)).await
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir))
+        .await
         .expect("an archive without a manifest still resolves")
         .expect("claims");
 
@@ -347,7 +356,8 @@ async fn resolve_file() {
         bare_specifier: "./pnpm-local-resolver-0.1.1.tgz".to_string(),
         injected: false,
     };
-    let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&test_dir)).await
+    let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&test_dir))
+        .await
         .expect("resolve")
         .expect("claims");
 
@@ -408,7 +418,9 @@ async fn resolve_file_when_lockfile_directory_differs_from_the_packages_dir() {
         result.normalized_bare_specifier.as_deref(),
         Some("file:pnpm-local-resolver-0.1.1.tgz"),
     );
-    let LockfileResolution::Tarball(TarballResolution { tarball, .. }) = &result.resolution else {
+    let LockfileResolution::Tarball(TarballResolution { tarball, .. }) =
+        &result.resolution
+    else {
         panic!("expected tarball resolution");
     };
     assert_eq!(tarball, "file:tgz/pnpm-local-resolver-0.1.1.tgz");
@@ -426,7 +438,8 @@ async fn resolve_tarball_specified_with_file_protocol() {
         bare_specifier: "file:./pnpm-local-resolver-0.1.1.tgz".to_string(),
         injected: false,
     };
-    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir)).await
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir))
+        .await
         .expect("resolve")
         .expect("claims");
 
@@ -469,7 +482,8 @@ async fn resolve_file_with_different_integrity_force_fetch() {
         .expect("resolve")
         .expect("claims");
 
-    let LockfileResolution::Tarball(TarballResolution { integrity, .. }) = &result.resolution
+    let LockfileResolution::Tarball(TarballResolution { integrity, .. }) =
+        &result.resolution
     else {
         panic!("expected tarball resolution");
     };
@@ -494,7 +508,8 @@ async fn fail_when_resolving_tarball_specified_with_the_link_protocol() {
         bare_specifier: "link:./pnpm-local-resolver-0.1.1.tgz".to_string(),
         injected: false,
     };
-    let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir)).await
+    let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&test_dir))
+        .await
         .expect_err("expected NOT_PACKAGE_DIRECTORY");
     assert!(
         matches!(err, ResolveLocalError::NotPackageDirectory { .. }),
@@ -511,7 +526,8 @@ async fn fail_when_resolving_from_not_existing_directory_an_injected_dependency(
         bare_specifier: "file:./dir-does-not-exist".to_string(),
         injected: false,
     };
-    let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir)).await
+    let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
+        .await
         .expect_err("expected LINKED_PKG_DIR_NOT_FOUND");
     let expected = project_dir
         .join("dir-does-not-exist")
@@ -537,7 +553,8 @@ async fn fail_when_resolving_missing_tarball_with_file_protocol() {
         bare_specifier: "file:./missing.tgz".to_string(),
         injected: false,
     };
-    let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir)).await
+    let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
+        .await
         .expect_err("expected LINKED_PKG_DIR_NOT_FOUND");
     let expected = project_dir
         .join("missing.tgz")
@@ -569,7 +586,8 @@ async fn do_not_fail_when_resolving_from_not_existing_directory() {
         bare_specifier: "link:./dir-does-not-exist".to_string(),
         injected: false,
     };
-    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir)).await
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
+        .await
         .expect("resolve")
         .expect("claims");
     let manifest = result.manifest.as_ref().expect("manifest");
@@ -596,7 +614,8 @@ async fn throw_error_when_the_path_protocol_is_used() {
         bare_specifier: "path:..".to_string(),
         injected: false,
     };
-    let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir)).await
+    let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
+        .await
         .expect_err("expected PATH_IS_UNSUPPORTED_PROTOCOL");
     match err {
         ResolveLocalError::Spec(
@@ -619,7 +638,8 @@ async fn resolve_from_local_path_ignores_explicit_local_schemes() {
             bare_specifier: bare.to_string(),
             injected: false,
         };
-        let outcome = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir)).await
+        let outcome = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
+            .await
             .expect("resolve_from_local_scheme should not fail on bare specifier");
         assert!(outcome.is_none(), "scheme parser should defer on '{bare}'");
     }
@@ -628,7 +648,8 @@ async fn resolve_from_local_path_ignores_explicit_local_schemes() {
             bare_specifier: bare.to_string(),
             injected: false,
         };
-        let outcome = resolve_from_local_path(&ctx_default(), &wd, &opts(project_dir)).await
+        let outcome = resolve_from_local_path(&ctx_default(), &wd, &opts(project_dir))
+            .await
             .expect("resolve_from_local_path should not fail on scheme prefix");
         assert!(outcome.is_none(), "path parser should defer on '{bare}'");
     }

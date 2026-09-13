@@ -332,7 +332,9 @@ pub(crate) async fn handle_resolve(
     }
     match probe.ecosystem {
         Ecosystem::Npm => handle_npm_resolve(runtime, identity, &body).await,
-        Ecosystem::Cargo => cargo::handle_resolve(runtime, identity, &body).await,
+        Ecosystem::Cargo => {
+            cargo::handle_resolve(runtime, identity, &body).await
+        }
         // Listed rather than caught, so an ecosystem added to the shared
         // enum stops here for a decision instead of being refused silently.
         Ecosystem::Pypi => pypi::handle_resolve(runtime, identity, &body).await,
@@ -440,7 +442,9 @@ async fn verify_request_lockfile(
         return Ok(None);
     };
     let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
-    match verify_input_lockfile(runtime, config, request_auth, &input_lockfile).await {
+    match verify_input_lockfile(runtime, config, request_auth, &input_lockfile)
+        .await
+    {
         Ok(stats) => Ok(stats),
         Err(VerifyFailure::Internal(response)) => Err(response),
         Err(VerifyFailure::Violations(violations)) => {

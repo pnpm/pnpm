@@ -219,7 +219,8 @@ async fn full_metadata_cache_loss_after_304_retries_once_without_validators() {
 
 #[tokio::test]
 async fn abbreviated_metadata_cache_loss_after_304_retries_once_without_validators() {
-    assert_cache_loss_after_304_recovers(false, ABBREVIATED_META_DIR, false).await;
+    assert_cache_loss_after_304_recovers(false, ABBREVIATED_META_DIR, false)
+        .await;
 }
 
 #[tokio::test]

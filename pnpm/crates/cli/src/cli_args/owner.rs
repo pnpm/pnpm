@@ -179,7 +179,10 @@ async fn owner_ls(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
         .into());
     }
     if !response.status().is_success() {
-        return Err(write_error_from_response(response, "fetch owners of".to_string()).await);
+        return Err(
+            write_error_from_response(response, "fetch owners of".to_string())
+                .await,
+        );
     }
 
     let body = read_limited_body(response, OWNER_BODY_LIMIT).await
@@ -228,7 +231,10 @@ async fn owner_add(context: &OwnerContext<'_>, params: &[String]) -> miette::Res
     if response.status().is_success() {
         return Ok(format!("+{owner}: {package_name}"));
     }
-    Err(write_error_from_response(response, format!(r#"add owner "{owner}" to"#)).await)
+    Err(
+        write_error_from_response(response, format!(r#"add owner "{owner}" to"#))
+            .await,
+    )
 }
 
 async fn owner_rm(context: &OwnerContext<'_>, params: &[String]) -> miette::Result<String> {
@@ -258,7 +264,10 @@ async fn owner_rm(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
     if response.status().is_success() {
         return Ok(format!("-{owner}: {package_name}"));
     }
-    Err(write_error_from_response(response, format!(r#"remove owner "{owner}" from"#)).await)
+    Err(
+        write_error_from_response(response, format!(r#"remove owner "{owner}" from"#))
+            .await,
+    )
 }
 
 /// The package's `owners` route on its registry, with the credential

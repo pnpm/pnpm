@@ -390,47 +390,42 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
     inputs: &mut LinkPhaseInputs<'_>,
     skipped: &mut SkippedSnapshots,
 ) -> Result<crate::HoistedLinkerOutput, LinkPhaseError> {
+    if !inputs.ctx.is_hoisted() {
+        return Ok(crate::HoistedLinkerOutput::default());
+    }
     let config = inputs.ctx.config;
-    let hoisted = inputs.ctx
-        .is_hoisted()
-        .then(|| {
-            run_hoisted_linker::<Reporter>(
-                &HoistedLinkerInputs {
-                    graph: crate::HoistedLinkGraph {
-                        lockfile: inputs.graph.lockfile,
-                        layout: inputs.ctx.linker.layout,
-                        cas_paths_by_pkg_id: inputs.packages.cas_paths_by_pkg_id.take(),
-                    },
-                    prior: crate::PriorHoistedState {
-                        current_lockfile: inputs.graph.current_lockfile,
-                        current_hoisted_locations: inputs.prior.hoisted_locations,
-                        unbuilt_builds: inputs.prior.unbuilt_builds,
-                        build_present_packages: inputs.prior.build_present_packages,
-                    },
-                    projects: crate::HoistedProjects {
-                        importers: &inputs.graph.lockfile.importers,
-                        dependency_groups: inputs.projects.dependency_groups,
-                        manifests: inputs.projects.manifests,
-                        package_map_manifests: inputs.projects.package_map_manifests,
-                        walker_lockfile_dir: inputs.ctx.workspace_root,
-                        symlink_workspace_root: inputs.projects.symlink_root,
-                    },
-                    config,
+    run_hoisted_linker::<Reporter>(
+        &HoistedLinkerInputs {
+            graph: crate::HoistedLinkGraph {
+                lockfile: inputs.graph.lockfile,
+                layout: inputs.ctx.linker.layout,
+                cas_paths_by_pkg_id: inputs.packages.cas_paths_by_pkg_id.take(),
+            },
+            prior: crate::PriorHoistedState {
+                current_lockfile: inputs.graph.current_lockfile,
+                current_hoisted_locations: inputs.prior.hoisted_locations,
+                unbuilt_builds: inputs.prior.unbuilt_builds,
+                build_present_packages: inputs.prior.build_present_packages,
+            },
+            projects: crate::HoistedProjects {
+                importers: &inputs.graph.lockfile.importers,
+                dependency_groups: inputs.projects.dependency_groups,
+                manifests: inputs.projects.manifests,
+                package_map_manifests: inputs.projects.package_map_manifests,
+                walker_lockfile_dir: inputs.ctx.workspace_root,
+                symlink_workspace_root: inputs.projects.symlink_root,
+            },
+            config,
 
-                    host_node: inputs.host_node,
-                    supported_architectures: inputs.supported_architectures,
+            host_node: inputs.host_node,
+            supported_architectures: inputs.supported_architectures,
 
-                    logged_methods: inputs.ctx.logged_methods,
-                    requester: inputs.ctx.requester,
-                },
-                skipped,
-            )
-            .map_err(LinkPhaseError::from)
-        })
-        .transpose()?
-        .unwrap_or_default();
-
-    Ok(hoisted)
+            logged_methods: inputs.ctx.logged_methods,
+            requester: inputs.ctx.requester,
+        },
+        skipped,
+    )
+    .map_err(LinkPhaseError::from)
 }
 
 /// Publicly hoisted *workspace* packages are the one source of root

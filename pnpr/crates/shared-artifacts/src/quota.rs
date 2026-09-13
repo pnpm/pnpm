@@ -15,7 +15,8 @@ impl SharedArtifactStore {
     /// the decision unwritten whenever the refusal happens, so a registration
     /// nobody keeps would be re-stamped on every read and outlive every pass.
     pub(super) async fn expire_publications(&self) -> Result<()> {
-        self.mutate_usage(|usage| Ok(expire_stranded_publications(usage))).await?;
+        self.mutate_usage(|usage| Ok(expire_stranded_publications(usage)))
+            .await?;
         Ok(())
     }
 
@@ -37,7 +38,8 @@ impl SharedArtifactStore {
     /// the usage document. A write that fails but landed anyway counts as
     /// registered, so the caller is not told a registration it now has failed.
     pub(super) async fn try_begin_publication(&self, publication: &str) -> Result<bool> {
-        let registered = self.mutate_usage(|usage| register_publication(usage, publication)).await;
+        let registered = self.mutate_usage(|usage| register_publication(usage, publication))
+            .await;
         match registered {
             Ok(begun) => Ok(begun),
             Err(error) => {
@@ -71,7 +73,8 @@ impl SharedArtifactStore {
                 Err(error) => error,
             };
             let Some(retry_error) =
-                self.publication_finish_retry_error(publication, reclamation_needed, error).await?
+                self.publication_finish_retry_error(publication, reclamation_needed, error)
+                    .await?
             else {
                 return Ok(());
             };
@@ -149,7 +152,9 @@ impl SharedArtifactStore {
             QuotaCoordination::Local { lock_path } => {
                 self.mutate_usage_under_lock(lock_path.clone(), mutation).await
             }
-            QuotaCoordination::Conditional => self.mutate_usage_conditionally(mutation).await,
+            QuotaCoordination::Conditional => {
+                self.mutate_usage_conditionally(mutation).await
+            }
         }
     }
 

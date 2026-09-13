@@ -75,7 +75,9 @@ impl ArchiveIngestion<'_> {
                 );
                 return Ok(cas_paths);
             }
-            if let Some(cas_paths) = self.load_legacy_cache::<Reporter>(progress_key).await? {
+            if let Some(cas_paths) = self.load_legacy_cache::<Reporter>(progress_key)
+                .await?
+            {
                 return Ok(cas_paths);
             }
         }

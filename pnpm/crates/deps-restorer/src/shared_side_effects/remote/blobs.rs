@@ -27,7 +27,9 @@ pub(in super::super) async fn stage_artifact_blob(
         return Ok((path.clone(), info(digest)));
     }
     if !downloaded.contains_key(&file.integrity) {
-        if let Some(path) = stored_blob_path(context.config, file, &digest).await? {
+        if let Some(path) = stored_blob_path(context.config, file, &digest)
+            .await?
+        {
             stored.insert(storage_key, path.clone());
             return Ok((path, info(digest)));
         }
@@ -93,7 +95,9 @@ pub(in super::super) async fn stored_blob_path(
     if !store_holds(&path, digest).await.map_err(|error| (error, false))? {
         return Ok(None);
     }
-    if !tokio::fs::metadata(&path).await.is_ok_and(|metadata| metadata.len() == file.size) {
+    if !tokio::fs::metadata(&path).await
+        .is_ok_and(|metadata| metadata.len() == file.size)
+    {
         return Err((
             "stored shared artifact blob does not match its declared size".to_string(),
             true,

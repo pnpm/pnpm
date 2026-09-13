@@ -83,7 +83,8 @@ async fn plan_workspace_release(
         )
     };
     let unpublished_dirs =
-        unpublished_release_dirs(config, &assemble(HashSet::new())?, &published_names).await?;
+        unpublished_release_dirs(config, &assemble(HashSet::new())?, &published_names)
+            .await?;
     let plan = assemble(unpublished_dirs)?;
 
     Ok(PlannedWorkspaceRelease {
@@ -118,7 +119,8 @@ impl PlannedWorkspaceRelease {
             // outside the filter.
             if !args.dry_run && unfiltered {
                 let confirmed =
-                    confirmed_published_versions(config, workspace_dir, &published_names).await?;
+                    confirmed_published_versions(config, workspace_dir, &published_names)
+                        .await?;
                 apply_release_plan(
                     &plan,
                     workspace_dir,
@@ -136,8 +138,8 @@ impl PlannedWorkspaceRelease {
             return Ok(());
         }
 
-        let confirmed =
-            confirmed_published_versions(config, workspace_dir, &published_names).await?;
+        let confirmed = confirmed_published_versions(config, workspace_dir, &published_names)
+            .await?;
         let applied = apply_release_plan(
             &plan,
             workspace_dir,

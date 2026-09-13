@@ -19,7 +19,8 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
         });
     }
     let client = if revision_addressed {
-        http_client.acquire_for_url_without_redirects_with_priority(package_url, priority).await
+        http_client.acquire_for_url_without_redirects_with_priority(package_url, priority)
+            .await
     } else {
         http_client.acquire_for_url_with_priority(package_url, priority).await
     };

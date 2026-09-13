@@ -26,8 +26,9 @@ async fn does_not_hoist_when_disabled() {
 
     let mut opts = default_opts();
     opts.peers.auto_install_peers = false;
-    let result =
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+        .await
+        .unwrap();
 
     #[expect(
         clippy::needless_collect,
@@ -196,8 +197,9 @@ async fn auto_install_from_highest_match_installs_on_conflict() {
 
     let mut opts = default_opts();
     opts.peers.auto_install_peers_from_highest_match = true;
-    let result =
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+    let result = resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+        .await
+        .unwrap();
 
     let direct: Vec<&str> = result.peers_result.direct_dependencies_by_alias
         .keys()

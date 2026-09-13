@@ -114,7 +114,8 @@ impl GitHostedTarballFetcher<'_> {
         // `cas_paths` covers the whole monorepo while `files` covers
         // only the sub-package — the count match is a coincidence
         // there, not equivalence.
-        let fast_path_eligible = self.path.is_none() && files.len() == self.cas_paths.len();
+        let fast_path_eligible =
+            self.path.is_none() && files.len() == self.cas_paths.len();
         if fast_path_eligible && !should_be_built {
             // Synthesize the row from `cas_paths`: pacquet's tarball
             // download doesn't write a `\traw` row at the same key, so

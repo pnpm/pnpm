@@ -226,7 +226,8 @@ impl Update<'_> {
         }
         let mut latest_chain = None;
         let Some(prepared) =
-            prepare_manifest::<Reporter>(manifest, update, &owned, None, &mut latest_chain).await?
+            prepare_manifest::<Reporter>(manifest, update, &owned, None, &mut latest_chain)
+                .await?
         else {
             return nothing_to_update(
                 update.selection.depth,
@@ -234,7 +235,8 @@ impl Update<'_> {
                 update.version.latest,
             );
         };
-        run_prepared_update::<Reporter>(update, owned, manifest, site, unsaved, prepared).await
+        run_prepared_update::<Reporter>(update, owned, manifest, site, unsaved, prepared)
+            .await
     }
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
@@ -410,7 +412,8 @@ impl UpdateSite {
         let workspace_root =
             crate::install::lockfile_root_dir(update.config, manifest_dir(manifest))
                 .map_err(UpdateError::FindWorkspaceDir)?;
-        let read_package_hook = (!update.version.save && !update.config.ignore_pnpmfile)
+        let read_package_hook = (!update.version.save
+            && !update.config.ignore_pnpmfile)
             .then(|| update_read_package_hook::<Reporter>(&workspace_root, update.config))
             .transpose()?
             .flatten();
@@ -433,7 +436,8 @@ impl UpdateSite {
     ) -> Result<UnsavedManifests, UpdateError> {
         let mut hooked_paths = HashSet::new();
         if let Some((hook, log)) = self.read_package_hook.as_ref() {
-            apply_read_package_hook_to_update_manifest(manifest, hook, log).await?;
+            apply_read_package_hook_to_update_manifest(manifest, hook, log)
+                .await?;
             hooked_paths.insert(manifest.path().to_path_buf());
         }
         Ok(UnsavedManifests {
@@ -453,7 +457,8 @@ impl UpdateSite {
     ) -> Result<UnsavedManifests, UpdateError> {
         let mut hooked_paths = HashSet::new();
         if let Some((hook, log)) = self.read_package_hook.as_ref() {
-            hook_selected_manifests(projects, manifest, hook, log, &mut hooked_paths).await?;
+            hook_selected_manifests(projects, manifest, hook, log, &mut hooked_paths)
+                .await?;
         }
         Ok(UnsavedManifests {
             hooked_paths,

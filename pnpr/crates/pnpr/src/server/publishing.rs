@@ -141,16 +141,17 @@ pub(super) fn registry_visible_to_caller(
     identity: &Identity,
     name: &str,
 ) -> bool {
-    let concrete_visible = |name: &str| match state.inner.config.routing.registries.get(name) {
-        // The name being probed is unclaimed, so there is no per-package
-        // entry to consult: the registry-level default `access:` decides
-        // whether the caller may learn the registry exists at all.
-        Some(Registry::Hosted { .. }) => state.inner.config.routing.hosted
-            .get(name)
-            .is_some_and(|hosted| hosted.rules.default_access().allows(identity)),
-        Some(Registry::Upstream { .. }) => true,
-        Some(Registry::Router { .. }) | None => false,
-    };
+    let concrete_visible =
+        |name: &str| match state.inner.config.routing.registries.get(name) {
+            // The name being probed is unclaimed, so there is no per-package
+            // entry to consult: the registry-level default `access:` decides
+            // whether the caller may learn the registry exists at all.
+            Some(Registry::Hosted { .. }) => state.inner.config.routing.hosted
+                .get(name)
+                .is_some_and(|hosted| hosted.rules.default_access().allows(identity)),
+            Some(Registry::Upstream { .. }) => true,
+            Some(Registry::Router { .. }) | None => false,
+        };
     match state.inner.config.routing.registries.get(name) {
         Some(Registry::Router { sources }) => sources
             .iter()
@@ -199,19 +200,23 @@ pub(super) async fn publish_package(
     // Routing, masking, and the publish rule all run inside
     // `validate_publish_doc`: the write resolves to a hosted registry (or
     // fails closed), and that registry's `packages:` rules authorize it.
-    let (validated, target) =
-        match validate_publish_doc(state, identity, registry, name, incoming).await {
-            Ok(validated) => validated,
-            Err(err) => return err.into_response(),
-        };
+    let (validated, target) = match validate_publish_doc(state, identity, registry, name, incoming)
+        .await
+    {
+        Ok(validated) => validated,
+        Err(err) => return err.into_response(),
+    };
 
     // Serialize the read-merge-write against other writers of this same
     // package on this instance, so a concurrent publish can't read the
     // same `existing`, merge a different version, and overwrite ours.
     // Held until this function returns, past the packument write below.
-    let _packument_guard = state.inner.locks.packages.lock(validated.name.as_str()).await;
+    let _packument_guard = state.inner.locks.packages.lock(validated.name.as_str())
+        .await;
 
-    let staged = match stage_publish(state, validated, &now_iso(), Some(&target.org)).await {
+    let staged = match stage_publish(state, validated, &now_iso(), Some(&target.org))
+        .await
+    {
         Ok(staged) => staged,
         Err(err) => return err.into_response(),
     };

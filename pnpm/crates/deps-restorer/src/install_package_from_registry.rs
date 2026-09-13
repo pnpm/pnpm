@@ -201,7 +201,8 @@ impl InstallPackageFromRegistry<'_> {
             )
             .await
         } else {
-            download.run_with_mem_cache::<Reporter>(self.fetching.tarball_mem_cache).await
+            download.run_with_mem_cache::<Reporter>(self.fetching.tarball_mem_cache)
+                .await
         }
         .map_err(InstallPackageFromRegistryError::IngestTarballToStore)?;
 

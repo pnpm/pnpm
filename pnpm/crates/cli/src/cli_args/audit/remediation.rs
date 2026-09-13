@@ -14,7 +14,9 @@ fn prune_ignored_advisories(
     report: &AuditReport,
     settings_dir: &std::path::Path,
 ) -> miette::Result<()> {
-    if !config.audit_ignore_prune.unwrap_or(false) || config.audit_config.ignore_ghsas.is_empty() {
+    if !config.audit_ignore_prune.unwrap_or(false)
+        || config.audit_config.ignore_ghsas.is_empty()
+    {
         return Ok(());
     }
     let configured_ghsas = &config.audit_config.ignore_ghsas;

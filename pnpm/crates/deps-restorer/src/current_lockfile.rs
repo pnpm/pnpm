@@ -156,9 +156,11 @@ fn resolution_inputs_match(previous: &Lockfile, fresh: &Lockfile) -> bool {
         && previous.settings == fresh.settings
         && previous.catalogs == fresh.catalogs
         && previous.overrides == fresh.overrides
-        && previous.package_extensions_checksum == fresh.package_extensions_checksum
+        && previous.package_extensions_checksum
+            == fresh.package_extensions_checksum
         && previous.pnpmfile_checksum == fresh.pnpmfile_checksum
-        && previous.ignored_optional_dependencies == fresh.ignored_optional_dependencies
+        && previous.ignored_optional_dependencies
+            == fresh.ignored_optional_dependencies
         && previous.patched_dependencies == fresh.patched_dependencies
 }
 

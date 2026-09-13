@@ -145,7 +145,9 @@ where
         return Ok(None);
     };
 
-    let auth_token = match fetch_auth_token::<Sys>(&id_token, package_name, registry, http).await {
+    let auth_token = match fetch_auth_token::<Sys>(&id_token, package_name, registry, http)
+        .await
+    {
         Ok(token) => token,
         Err(error) => {
             global_warn::<Reporter>(&format!("Skipped OIDC: {}", display_diagnostic(&error)));
@@ -160,7 +162,9 @@ where
         }));
     }
 
-    match determine_provenance::<Sys>(&auth_token, &id_token, package_name, registry, http).await {
+    match determine_provenance::<Sys>(&auth_token, &id_token, package_name, registry, http)
+        .await
+    {
         Ok(provenance) => Ok(Some(OidcTokenProvenance {
             auth_token,
             provenance,

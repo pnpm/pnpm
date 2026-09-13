@@ -93,7 +93,9 @@ pub(super) fn installability_skip(
         current_os: &state.opts.installability.current_os,
         current_cpu: &state.opts.installability.current_cpu,
         current_libc: &state.opts.installability.current_libc,
-        supported_architectures: state.opts.installability.supported_architectures.as_ref(),
+        supported_architectures: state.opts.installability
+            .supported_architectures
+            .as_ref(),
     };
     match package_is_installable(&pkg_key.to_string(), &manifest, &install_opts) {
         Ok(

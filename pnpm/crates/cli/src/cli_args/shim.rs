@@ -229,7 +229,8 @@ async fn bins_of(config: &'static Config, package: &str) -> miette::Result<Vec<S
             .map(|bin| (*bin).to_string())
             .collect());
     }
-    let resolved = config_deps::resolve_engine_version(config, package, "latest").await?;
+    let resolved = config_deps::resolve_engine_version(config, package, "latest")
+        .await?;
     let manifest = resolved
         .and_then(|resolved| resolved.manifest)
         .ok_or_else(|| ShimError::NoBins {

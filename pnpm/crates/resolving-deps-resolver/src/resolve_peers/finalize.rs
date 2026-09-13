@@ -433,7 +433,9 @@ impl Walker<'_> {
                 children,
                 optional_children: record.optional_child_aliases.clone(),
                 peer_dependencies: pkg.peer_dependencies.clone(),
-                transitive_peer_dependencies: record.transitive_peer_dependencies.clone(),
+                transitive_peer_dependencies: record
+                    .transitive_peer_dependencies
+                    .clone(),
                 resolved_peer_names,
             },
         }

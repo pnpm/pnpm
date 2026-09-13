@@ -331,8 +331,9 @@ impl Walker<'_> {
             ));
         }
         let dep_path = self.caches.pure_pkgs.get(&*tree_node.resolved_package_id)?;
-        let own_peers_bind =
-            !self.tree.packages[&tree_node.resolved_package_id].peer_dependencies.is_empty();
+        let own_peers_bind = !self.tree.packages[&tree_node.resolved_package_id]
+            .peer_dependencies
+            .is_empty();
         if own_peers_bind
             || (!self.traversal.discovery
                 && self.output.graph

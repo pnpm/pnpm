@@ -53,7 +53,8 @@ pub async fn compose_registry_changelog(
     let Some(section) = read_pending_changelog(workspace_dir, &name, &version)? else {
         return Ok(None);
     };
-    let previous = fetch_changelog(config, &published, VersionPick::PreviousTo(&version)).await;
+    let previous = fetch_changelog(config, &published, VersionPick::PreviousTo(&version))
+        .await;
     Ok(Some(
         render_changelog(previous.as_deref(), &published, &section).into_bytes(),
     ))
@@ -84,7 +85,8 @@ pub async fn confirmed_published_versions(
             let probe = published_names
                 .get(&name)
                 .map_or(name.as_str(), String::as_str);
-            let changelog = fetch_changelog(config, probe, VersionPick::Exact(&version)).await?;
+            let changelog = fetch_changelog(config, probe, VersionPick::Exact(&version))
+                .await?;
             changelog
                 .contains(section.trim())
                 .then(|| format!("{name}@{version}"))
@@ -143,7 +145,8 @@ pub async fn unpublished_release_dirs(
                 .map_or(release.name.as_str(), String::as_str);
             async move {
                 let published =
-                    is_version_published(client, config, probe, &release.version.current).await?;
+                    is_version_published(client, config, probe, &release.version.current)
+                        .await?;
                 Ok::<_, miette::Report>((release.dir.clone(), published))
             }
         });
@@ -201,8 +204,9 @@ enum VersionPick<'a> {
 async fn fetch_changelog(config: &Config, name: &str, pick: VersionPick<'_>) -> Option<String> {
     let client = build_registry_client(config).ok()?;
     let registry = registry_for(config, name);
-    let package =
-        Package::fetch_from_registry(name, &client, &registry, &config.auth_headers).await.ok()?;
+    let package = Package::fetch_from_registry(name, &client, &registry, &config.auth_headers)
+        .await
+        .ok()?;
     let version = match pick {
         VersionPick::Exact(version) => package.versions
             .contains_key(version)

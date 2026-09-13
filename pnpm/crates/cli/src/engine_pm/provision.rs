@@ -68,9 +68,12 @@ pub(crate) async fn provision<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<ProvisionedEngine> {
     match pm.channel(version_spec) {
         Channel::Registry { package } => {
-            provision_from_registry::<Reporter>(config, pm, package, version_spec).await
+            provision_from_registry::<Reporter>(config, pm, package, version_spec)
+                .await
         }
-        Channel::Binary(binary) => provision_binary(config, binary, version_spec).await,
+        Channel::Binary(binary) => {
+            provision_binary(config, binary, version_spec).await
+        }
     }
 }
 

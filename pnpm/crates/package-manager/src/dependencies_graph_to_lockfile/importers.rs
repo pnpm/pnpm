@@ -39,7 +39,8 @@ pub(super) fn build_importers(
                 input,
                 opts.graph,
                 &ImporterLockfileFlags {
-                    exclude_links_from_lockfile: opts.settings.exclude_links_from_lockfile,
+                    exclude_links_from_lockfile: opts.settings
+                        .exclude_links_from_lockfile,
                     auto_install_peers: opts.settings.auto_install_peers,
                 },
                 opts.reuse.previous_importers.and_then(|importers| importers.get(id)),
@@ -372,7 +373,9 @@ pub(super) fn self_aliased_file_ver<'a>(
         Some(scope) => alias
             .strip_prefix('@')
             .and_then(|unscoped| unscoped.split_once('/'))
-            .is_some_and(|(alias_scope, bare)| alias_scope == scope && bare == key.name.bare),
+            .is_some_and(|(alias_scope, bare)| {
+                alias_scope == scope && bare == key.name.bare
+            }),
         None => alias == key.name.bare,
     };
     (aliased_to_own_name && matches!(key.suffix.version(), VersionPart::File(_))).then_some(

@@ -480,7 +480,8 @@ impl NpmResolutionVerifier {
             return violation;
         }
 
-        self.run_policy_checks(&registry, &ctx, age_applies, trust_applies).await
+        self.run_policy_checks(&registry, &ctx, age_applies, trust_applies)
+            .await
     }
 
     /// A registry entry that pins an explicit tarball URL must point at the
@@ -527,12 +528,14 @@ impl NpmResolutionVerifier {
     ) -> ResolutionVerification {
         if age_applies
             && let Some(violation) =
-                self.run_age_check(registry, ctx.name, ctx.version, ctx.registry_name).await
+                self.run_age_check(registry, ctx.name, ctx.version, ctx.registry_name)
+                    .await
         {
             return violation;
         }
         if trust_applies
-            && let Some(violation) = self.run_trust_check(registry, ctx.name, ctx.version).await
+            && let Some(violation) = self.run_trust_check(registry, ctx.name, ctx.version)
+                .await
         {
             return violation;
         }

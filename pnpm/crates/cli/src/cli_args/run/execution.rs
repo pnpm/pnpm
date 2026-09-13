@@ -91,7 +91,9 @@ pub(super) fn run_selected_scripts(
     let run_script = |name: String| run_one_script(ctx, outcome, &name, args);
     if concurrency == 1 || tasks.len() == 1 {
         for name in tasks.keys() {
-            if !matches!(run_script(name.clone()), TaskCompletion::Passed) && outcome.bail {
+            if !matches!(run_script(name.clone()), TaskCompletion::Passed)
+                && outcome.bail
+            {
                 break;
             }
         }

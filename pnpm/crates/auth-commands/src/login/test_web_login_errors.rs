@@ -35,7 +35,8 @@ async fn should_throw_when_web_login_returns_invalid_response() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     assert!(matches!(err, LoginError::InvalidResponse), "got {err:?}");
@@ -73,7 +74,8 @@ async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
     let registry = server.url();
     let config_dir = Path::new("/broken/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     let LoginError::ReadConfigYaml { error, .. } = &err else {
@@ -114,7 +116,8 @@ async fn should_surface_a_non_404_web_login_http_error_as_web_login_failed() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     login_mock.assert_async().await;
@@ -169,7 +172,8 @@ async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
         build_client(reqwest::redirect::Policy::none()),
     );
 
-    let err = login::<FakeHost, RecordingReporter>(&http_client, opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&http_client, opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     assert!(matches!(err, LoginError::Request { .. }), "got {err:?}");
@@ -210,7 +214,8 @@ async fn should_fall_back_to_url_only_display_when_the_login_url_exceeds_qr_capa
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .expect("the login should succeed without a QR code");
 
     assert!(
@@ -253,7 +258,8 @@ async fn should_time_out_when_the_web_auth_poll_never_completes() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     assert!(matches!(err, LoginError::WebAuthTimeout(_)), "got {err:?}");
@@ -294,7 +300,8 @@ async fn should_treat_a_non_string_login_url_as_an_invalid_response() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     assert!(matches!(err, LoginError::InvalidResponse), "got {err:?}");
@@ -333,7 +340,8 @@ async fn rejects_a_login_url_containing_control_characters() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");
@@ -377,7 +385,8 @@ async fn rejects_a_done_url_containing_control_characters() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .unwrap_err();
 
     assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");

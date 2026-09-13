@@ -730,7 +730,8 @@ async fn read_local_tarball_buffer_rejects_growth_past_checked_size() {
     std::fs::write(&tarball_path, b"abcd").unwrap();
     let file = tokio::fs::File::open(&tarball_path).await.unwrap();
 
-    let err = read_local_tarball_buffer(file, &tarball_path, "file:pkg.tgz", 3).await
+    let err = read_local_tarball_buffer(file, &tarball_path, "file:pkg.tgz", 3)
+        .await
         .expect_err("local tarball reads must be capped at the checked size");
     match err {
         TarballError::ReadLocalTarball { path, source } => {

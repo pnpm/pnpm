@@ -11,7 +11,8 @@ pub(in super::super) fn canonical_workspace_resolution(
     if result.resolved_via != "workspace" {
         return None;
     }
-    let pnpm_lockfile::LockfileResolution::Directory(directory_resolution) = &result.resolution
+    let pnpm_lockfile::LockfileResolution::Directory(directory_resolution) =
+        &result.resolution
     else {
         return None;
     };

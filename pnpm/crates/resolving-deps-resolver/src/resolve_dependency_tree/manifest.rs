@@ -326,7 +326,8 @@ fn insert_declared_peers(
         };
         let version = match catalogs {
             Some(catalogs) => {
-                resolve_catalog_specifier(name.clone(), range_str.to_string(), catalogs)?.1
+                resolve_catalog_specifier(name.clone(), range_str.to_string(), catalogs)?
+                    .1
             }
             None => range_str.to_string(),
         };

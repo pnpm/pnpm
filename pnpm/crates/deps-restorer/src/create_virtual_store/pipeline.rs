@@ -88,7 +88,8 @@ impl<'a> CreateVirtualStore<'a> {
             &mut indexes,
         )
         .await?;
-        self.apply_side_effects(wanted, &mut partition, &indexes.shared_base).await;
+        self.apply_side_effects(wanted, &mut partition, &indexes.shared_base)
+            .await;
 
         // The writer is owned by the caller now. They drop their
         // sender and await the join handle after the build phase
@@ -98,7 +99,8 @@ impl<'a> CreateVirtualStore<'a> {
 
         Ok(CreateVirtualStoreOutput {
             package_manifests: partition.package_manifests,
-            side_effects_maps_by_snapshot: partition.side_effects_maps_by_snapshot,
+            side_effects_maps_by_snapshot: partition
+                .side_effects_maps_by_snapshot,
             requires_build_by_snapshot: partition.requires_build_by_snapshot,
             materialized_snapshots: plan.materialized_keys(),
             fetch_failed,
@@ -231,7 +233,8 @@ impl<'a> CreateVirtualStore<'a> {
             );
             PrefetchResult::default()
         });
-        let prefetched = self.verify_imported_rows(prefetched, verified_files_cache, plan).await;
+        let prefetched = self.verify_imported_rows(prefetched, verified_files_cache, plan)
+            .await;
         enforce_cached_git_prepare_policy(
             &mut plan.survivors,
             packages,
@@ -380,7 +383,8 @@ impl<'a> CreateVirtualStore<'a> {
             },
             &mut ColdBatchState {
                 fetch_failed: &mut fetch_failed,
-                requires_build_by_snapshot: &mut partition.requires_build_by_snapshot,
+                requires_build_by_snapshot: &mut partition
+                    .requires_build_by_snapshot,
                 shared_base_cas_paths: &mut indexes.shared_base,
             },
             &mut cold_cas_paths,
@@ -433,16 +437,20 @@ impl<'a> CreateVirtualStore<'a> {
                 cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
                     base_cas_paths,
                     by_snapshot: &partition.side_effects_by_snapshot,
-                    quarantine_by_snapshot: &partition.remote_side_effects_quarantine_by_snapshot,
-                    store_index_keys_by_snapshot: &partition.store_index_keys_by_snapshot,
+                    quarantine_by_snapshot: &partition
+                        .remote_side_effects_quarantine_by_snapshot,
+                    store_index_keys_by_snapshot: &partition
+                        .store_index_keys_by_snapshot,
                 },
                 config: self.ctx.config,
                 snapshots: wanted.snapshots,
                 packages: wanted.packages,
-                requires_build_by_snapshot: &partition.requires_build_by_snapshot,
+                requires_build_by_snapshot: &partition
+                    .requires_build_by_snapshot,
                 allow_build_policy: self.ctx.allow_build_policy,
 
-                side_effects_maps_by_snapshot: &mut partition.side_effects_maps_by_snapshot,
+                side_effects_maps_by_snapshot: &mut partition
+                    .side_effects_maps_by_snapshot,
 
                 store_index_writer: self.fetching.store_index_writer,
             },

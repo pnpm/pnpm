@@ -106,7 +106,8 @@ async fn token_scopes_ignore_unknown_resources_and_count_distinct_repositories()
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    let response = get(&app, "/v2/token?scope=repository(plugin):acme/app:pull").await;
+    let response = get(&app, "/v2/token?scope=repository(plugin):acme/app:pull")
+        .await;
     assert_eq!(response.status(), StatusCode::OK);
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     let response = app

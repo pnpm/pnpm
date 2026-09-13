@@ -70,8 +70,12 @@ pub(in super::super) fn dedupe<'a>(
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(dedupe.run::<DefaultReporter>()).await?;
             }
-            ReporterType::Ndjson => Box::pin(dedupe.run::<NdjsonReporter>()).await?,
-            ReporterType::Silent => Box::pin(dedupe.run::<SilentReporter>()).await?,
+            ReporterType::Ndjson => {
+                Box::pin(dedupe.run::<NdjsonReporter>()).await?;
+            }
+            ReporterType::Silent => {
+                Box::pin(dedupe.run::<SilentReporter>()).await?;
+            }
         }
         Ok(())
     }))
@@ -139,8 +143,12 @@ pub(in super::super) fn import<'a>(
             ReporterType::Default | ReporterType::AppendOnly => {
                 args.run::<DefaultReporter>(command_state).await
             }
-            ReporterType::Ndjson => args.run::<NdjsonReporter>(command_state).await,
-            ReporterType::Silent => args.run::<SilentReporter>(command_state).await,
+            ReporterType::Ndjson => {
+                args.run::<NdjsonReporter>(command_state).await
+            }
+            ReporterType::Silent => {
+                args.run::<SilentReporter>(command_state).await
+            }
         }
     }))
 }
@@ -159,8 +167,12 @@ pub(in super::super) fn link<'a>(
             ReporterType::Default | ReporterType::AppendOnly => {
                 args.run::<DefaultReporter>(config, manifest_path).await
             }
-            ReporterType::Ndjson => args.run::<NdjsonReporter>(config, manifest_path).await,
-            ReporterType::Silent => args.run::<SilentReporter>(config, manifest_path).await,
+            ReporterType::Ndjson => {
+                args.run::<NdjsonReporter>(config, manifest_path).await
+            }
+            ReporterType::Silent => {
+                args.run::<SilentReporter>(config, manifest_path).await
+            }
         }
     }))
 }
@@ -203,8 +215,12 @@ pub(in super::super) fn unlink<'a>(
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(pipeline.run::<DefaultReporter>()).await?;
             }
-            ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
-            ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
+            ReporterType::Ndjson => {
+                Box::pin(pipeline.run::<NdjsonReporter>()).await?;
+            }
+            ReporterType::Silent => {
+                Box::pin(pipeline.run::<SilentReporter>()).await?;
+            }
         }
         Ok(())
     }))
@@ -332,13 +348,16 @@ pub(in super::super) fn approve_builds<'a>(
     };
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
-            rebuild::run_rebuild::<DefaultReporter>(&rebuild_state, selected, None).await
+            rebuild::run_rebuild::<DefaultReporter>(&rebuild_state, selected, None)
+                .await
         }),
         ReporterType::Ndjson => Box::pin(async move {
-            rebuild::run_rebuild::<NdjsonReporter>(&rebuild_state, selected, None).await
+            rebuild::run_rebuild::<NdjsonReporter>(&rebuild_state, selected, None)
+                .await
         }),
         ReporterType::Silent => Box::pin(async move {
-            rebuild::run_rebuild::<SilentReporter>(&rebuild_state, selected, None).await
+            rebuild::run_rebuild::<SilentReporter>(&rebuild_state, selected, None)
+                .await
         }),
     })
 }

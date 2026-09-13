@@ -45,7 +45,8 @@ fn resolved_config_applies_allow_unused_patches() {
         options.allow_unused_patches = allow_unused_patches;
         let overlay = build_overlay(&options, false).expect("overlay");
         assert_eq!(
-            resolve_config(dir.path(), &overlay).expect("config").allow_unused_patches,
+            resolve_config(dir.path(), &overlay).expect("config")
+                .allow_unused_patches,
             expected,
         );
     }

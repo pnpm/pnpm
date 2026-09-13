@@ -47,7 +47,11 @@ pub(crate) type PendingUpdateCheck = Option<JoinHandle<()>>;
 /// `--offline` and `--prefer-offline` are among the things that call the
 /// check off.
 pub(crate) fn spawn(config: &Config, emit: fn(&LogEvent)) -> PendingUpdateCheck {
-    if !config.update_notifier || config.ci || config.offline || config.prefer_offline {
+    if !config.update_notifier
+        || config.ci
+        || config.offline
+        || config.prefer_offline
+    {
         return None;
     }
     let state_file = config.state_dir.join(STATE_FILE_NAME);

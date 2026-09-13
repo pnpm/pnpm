@@ -201,7 +201,8 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     addition: Document,
 ) -> Result<(), RegistryError> {
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
-    let staged = stage_hosted_artifact(state, org, key, filename, bytes, &refuse, addition).await?;
+    let staged = stage_hosted_artifact(state, org, key, filename, bytes, &refuse, addition)
+        .await?;
     let outcome = commit_publishes(state, vec![staged]).await?;
     if outcome.lost_blobs
         .iter()

@@ -186,7 +186,8 @@ impl<'a> PriorMaterialization<'a> {
             prune_orphans: self.prune_orphans,
             hoisted_dependencies: self.hoisted_dependencies,
             hoisted_locations: self.hoisted_locations,
-            build_present_packages: self.rebuild.is_some() || self.allow_builds_changed,
+            build_present_packages: self.rebuild.is_some()
+                || self.allow_builds_changed,
             unbuilt_builds: self.unbuilt_builds,
         }
     }

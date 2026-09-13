@@ -385,7 +385,9 @@ fn current_pkg_routes_a_scoped_package_to_its_scope_registry() {
 fn current_pkg_materializes_a_revision_from_the_registry_prefix_declaration() {
     let key: PkgNameVerPeer = "pkg@work:1.0.0".parse().expect("parse key");
     let mut metadata = registry_metadata();
-    let LockfileResolution::Registry(registry_resolution) = &mut metadata.resolution else {
+    let LockfileResolution::Registry(registry_resolution) =
+        &mut metadata.resolution
+    else {
         unreachable!("registry_metadata returns a registry resolution");
     };
     registry_resolution.integrity =

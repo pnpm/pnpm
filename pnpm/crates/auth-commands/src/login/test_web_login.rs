@@ -37,7 +37,8 @@ async fn should_use_web_login_when_registry_supports_it() {
     let registry = server.url();
     let config_dir = Path::new("/custom/config");
 
-    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .expect("web login succeeds");
 
     login_mock.assert_async().await;
@@ -91,7 +92,8 @@ async fn should_complete_web_login_without_an_interactive_terminal() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .expect("web login succeeds without a TTY");
 
     login_mock.assert_async().await;
@@ -128,7 +130,8 @@ async fn should_log_in_to_a_registry_under_a_subpath_without_a_trailing_slash() 
     let registry = format!("{}/npm/registry", server.url());
     let config_dir = Path::new("/mock/config");
 
-    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .expect("web login succeeds on a subpath registry");
 
     login_mock.assert_async().await;
@@ -162,7 +165,8 @@ async fn should_succeed_when_config_file_does_not_exist() {
     let registry = server.url();
     let config_dir = Path::new("/nonexistent/config");
 
-    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .expect("login succeeds despite a missing config.yaml");
 
     assert_eq!(result, format!("Logged in on {registry}/"));

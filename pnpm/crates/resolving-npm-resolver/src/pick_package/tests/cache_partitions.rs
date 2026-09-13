@@ -238,8 +238,9 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
         },
         ..default_opts(&registry)
     };
-    let second =
-        pick_package(&ctx, &version_spec("acme", "1.0.0"), &update_opts).await.expect("ok");
+    let second = pick_package(&ctx, &version_spec("acme", "1.0.0"), &update_opts)
+        .await
+        .expect("ok");
     assert_eq!(
         second.picked_package.expect("picked").version.to_string(),
         "1.0.0",

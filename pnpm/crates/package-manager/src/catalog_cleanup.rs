@@ -160,7 +160,8 @@ pub(crate) fn post_install_prune(
     update_workspace_manifest(
         &workspace_dir,
         &UpdateWorkspaceManifestOptions {
-            prune_minimum_release_age_excludes: config.minimum_release_age_exclude_prune,
+            prune_minimum_release_age_excludes: config
+                .minimum_release_age_exclude_prune,
             prune_trust_policy_excludes: config.trust_policy_exclude_prune,
             prune_allow_builds: true,
             resolved_package_versions: Some(&resolved),

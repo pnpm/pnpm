@@ -852,7 +852,8 @@ async fn warm_up_skips_dependencies_a_package_declares_as_its_own_peers() {
     let mut opts = workspace_opts(false, false);
     opts.peers.auto_install_peers = true;
     let result =
-        resolve_single_importer(&resolver, serde_json::json!({ "a": "^1.0.0" }), opts, None).await
+        resolve_single_importer(&resolver, serde_json::json!({ "a": "^1.0.0" }), opts, None)
+            .await
             .expect("resolve");
     assert_eq!(graph_versions_of(&result, "q"), ["1.0.0"]);
     assert_eq!(resolver.calls_for("q", "^2.0.0"), 0);

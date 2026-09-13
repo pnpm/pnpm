@@ -218,7 +218,8 @@ pub async fn read_local_tarball_metadata(
     // it reports a bad tarball, so the manifest error quotes the same.
     let tarball_path = path.display().to_string();
     let (file, size) = open_local_tarball(path).await?;
-    let buffer = read_local_tarball_buffer(file, path, &package_url, size).await?;
+    let buffer = read_local_tarball_buffer(file, path, &package_url, size)
+        .await?;
 
     let post_download_permit = post_download_semaphore()
         .acquire()

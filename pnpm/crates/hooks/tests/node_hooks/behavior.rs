@@ -6,7 +6,8 @@ use pnpm_hooks::PnpmfileHooks as _;
 
 #[tokio::test]
 async fn read_package_fails_when_hook_returns_undefined() {
-    let err = read_package_err("module.exports = { hooks: { readPackage (pkg) {} } }").await;
+    let err = read_package_err("module.exports = { hooks: { readPackage (pkg) {} } }")
+        .await;
     eprintln!("err = {err}");
     assert!(err.contains("readPackage hook did not return a package manifest object."));
 }

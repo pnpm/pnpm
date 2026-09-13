@@ -249,7 +249,9 @@ impl VirtualStoreLayout {
         allow_build_policy: Option<&AllowBuildPolicy>,
         lockfile_dir: Option<&Path>,
     ) -> Self {
-        let Some(snapshots) = snapshots.filter(|_| config.enable_global_virtual_store) else {
+        let Some(snapshots) =
+            snapshots.filter(|_| config.enable_global_virtual_store)
+        else {
             return Self::new(
                 config,
                 engine,

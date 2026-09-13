@@ -413,7 +413,8 @@ mod restore {
     /// return the path the resulting overlay maps the built file to.
     async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> PathBuf {
         let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
-        let side_effects = apply(store_dir, built_manifest(), expected_downloads).await;
+        let side_effects = apply(store_dir, built_manifest(), expected_downloads)
+            .await;
         let maps = side_effects.get(&snapshot_key).expect("the snapshot must be restored");
         let [overlay] = maps.values().collect::<Vec<_>>()[..] else {
             panic!("expected one cache key, got {}", maps.len());

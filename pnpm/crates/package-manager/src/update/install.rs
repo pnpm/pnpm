@@ -225,7 +225,9 @@ where
             .await
         }
         None => match bumps {
-            Some(bumps) => install.run_with_manifest_spec_bumps::<Reporter>(bumps).await,
+            Some(bumps) => {
+                install.run_with_manifest_spec_bumps::<Reporter>(bumps).await
+            }
             None => install.run::<Reporter>().await,
         },
     }
@@ -243,7 +245,8 @@ pub(super) async fn hook_selected_manifests(
 ) -> Result<(), UpdateError> {
     for project in projects.iter_mut() {
         if hooked_paths.insert(project.manifest.path().to_path_buf()) {
-            apply_read_package_hook_to_update_manifest(&mut project.manifest, hook, log).await?;
+            apply_read_package_hook_to_update_manifest(&mut project.manifest, hook, log)
+                .await?;
         }
     }
     if hooked_paths.insert(manifest.path().to_path_buf()) {
@@ -272,7 +275,8 @@ where
         }
         None => match bumps {
             Some(bumps) => {
-                install.run_selected_with_manifest_spec_bumps::<Reporter>(selection, bumps).await
+                install.run_selected_with_manifest_spec_bumps::<Reporter>(selection, bumps)
+                    .await
             }
             None => install.run_selected::<Reporter>(selection).await,
         },

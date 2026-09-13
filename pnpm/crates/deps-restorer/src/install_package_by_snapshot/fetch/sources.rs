@@ -42,8 +42,8 @@ impl InstallPackageBySnapshot<'_> {
                 false, package_id, !config.ignore_scripts,
             ),
         });
-        let outcome =
-            session.fetch::<Reporter>(download.clone(), &metadata.resolution, opts).await?;
+        let outcome = session.fetch::<Reporter>(download.clone(), &metadata.resolution, opts)
+            .await?;
         Ok(custom_fetched(outcome))
     }
 
@@ -152,7 +152,8 @@ impl InstallPackageBySnapshot<'_> {
         .map_err(InstallPackageBySnapshotError::DownloadTarball)?;
         match fetch.resolution {
             LockfileResolution::Tarball(tarball) if tarball.is_git_hosted() => {
-                self.prepare_git_hosted::<Reporter>(&fetch, tarball, raw_cas_paths).await
+                self.prepare_git_hosted::<Reporter>(&fetch, tarball, raw_cas_paths)
+                    .await
             }
             _ => Ok(raw_cas_paths),
         }

@@ -147,7 +147,8 @@ pub(super) async fn post_staged_publish(
     Path(path): Path<StagePackagePath>,
     body: axum::body::Bytes,
 ) -> Response {
-    serve_staged_publish(&state, &identity, registry.as_deref(), &path.name, &body).await
+    serve_staged_publish(&state, &identity, registry.as_deref(), &path.name, &body)
+        .await
 }
 
 pub(super) async fn list_staged(
@@ -166,7 +167,10 @@ pub(super) async fn get_staged(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<StageIdPath>,
 ) -> Response {
-    private_no_cache(serve_staged_view(&state, &identity, registry.as_deref(), &path.id).await)
+    private_no_cache(
+        serve_staged_view(&state, &identity, registry.as_deref(), &path.id)
+            .await,
+    )
 }
 
 pub(super) async fn reject_staged(
@@ -193,7 +197,10 @@ pub(super) async fn get_staged_tarball(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<StageIdPath>,
 ) -> Response {
-    private_no_cache(serve_staged_tarball(&state, &identity, registry.as_deref(), &path.id).await)
+    private_no_cache(
+        serve_staged_tarball(&state, &identity, registry.as_deref(), &path.id)
+            .await,
+    )
 }
 
 // ---------------------------------------------------------------------
@@ -233,11 +240,12 @@ async fn serve_staged_publish(
     // The same routing + `publish`-rule + attachment validation a direct
     // publish runs; conflicts with already-published versions are checked
     // when the stage is approved, against the registry state at that time.
-    let (validated, _target) =
-        match validate_publish_doc(state, identity, registry, name, incoming).await {
-            Ok(validated) => validated,
-            Err(err) => return err.into_response(),
-        };
+    let (validated, _target) = match validate_publish_doc(state, identity, registry, name, incoming)
+        .await
+    {
+        Ok(validated) => validated,
+        Err(err) => return err.into_response(),
+    };
 
     let stage_id = generate_stage_id();
     let record = staged_record(&validated, identity, registry, &stage_id);
@@ -306,7 +314,9 @@ async fn store_staged(
 ) -> Result<(), RegistryError> {
     state.inner.storage.create_staged_body(stage_id, body).await?;
     let meta_bytes = serde_json::to_vec(record).expect("a staged record serializes");
-    if let Err(err) = state.inner.storage.create_staged_meta(stage_id, &meta_bytes).await {
+    if let Err(err) = state.inner.storage.create_staged_meta(stage_id, &meta_bytes)
+        .await
+    {
         let _ = state.inner.storage.remove_staged(stage_id).await;
         return Err(err);
     }
@@ -321,7 +331,9 @@ async fn serve_staged_reject(
     registry: Option<&str>,
     stage_id: &str,
 ) -> Response {
-    if let Err(response) = load_authorized_record(state, identity, registry, stage_id).await {
+    if let Err(response) = load_authorized_record(state, identity, registry, stage_id)
+        .await
+    {
         return response.into_response();
     }
     match state.inner.storage.remove_staged(stage_id).await {

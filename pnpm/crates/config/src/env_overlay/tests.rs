@@ -195,7 +195,8 @@ fn workspace_concurrency_env_var_parses_signed_number() {
         }
     }
     assert_eq!(
-        WorkspaceSettings::from_pnpm_config_env::<EnvPositive>().workspace_concurrency,
+        WorkspaceSettings::from_pnpm_config_env::<EnvPositive>()
+            .workspace_concurrency,
         Some(6),
     );
 
@@ -206,7 +207,8 @@ fn workspace_concurrency_env_var_parses_signed_number() {
         }
     }
     assert_eq!(
-        WorkspaceSettings::from_pnpm_config_env::<EnvNegative>().workspace_concurrency,
+        WorkspaceSettings::from_pnpm_config_env::<EnvNegative>()
+            .workspace_concurrency,
         Some(-2),
     );
 }
@@ -293,15 +295,18 @@ fn virtual_store_type_env_var_parses_its_two_values() {
     env_with_virtual_store_type!(EnvNonsense, "shared");
 
     assert_eq!(
-        WorkspaceSettings::from_pnpm_config_env::<EnvGlobal>().virtual_store_type,
+        WorkspaceSettings::from_pnpm_config_env::<EnvGlobal>()
+            .virtual_store_type,
         Some(VirtualStoreType::Global),
     );
     assert_eq!(
-        WorkspaceSettings::from_pnpm_config_env::<EnvProject>().virtual_store_type,
+        WorkspaceSettings::from_pnpm_config_env::<EnvProject>()
+            .virtual_store_type,
         Some(VirtualStoreType::Project),
     );
     assert_eq!(
-        WorkspaceSettings::from_pnpm_config_env::<EnvNonsense>().virtual_store_type,
+        WorkspaceSettings::from_pnpm_config_env::<EnvNonsense>()
+            .virtual_store_type,
         None,
     );
 }

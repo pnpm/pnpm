@@ -389,7 +389,8 @@ async fn run_opens_bugs_url_from_local_manifest_bugs_object() {
 #[tokio::test]
 async fn run_opens_bugs_url_from_local_manifest_bugs_string() {
     recording_browser!(run_bugs_in_project);
-    run_bugs_in_project(r#"{"name":"test-pkg","bugs":"https://github.com/test/pkg/issues"}"#).await
+    run_bugs_in_project(r#"{"name":"test-pkg","bugs":"https://github.com/test/pkg/issues"}"#)
+        .await
         .expect("bugs must succeed");
     assert_eq!(opened_urls(), ["https://github.com/test/pkg/issues"]);
 }
@@ -397,7 +398,8 @@ async fn run_opens_bugs_url_from_local_manifest_bugs_string() {
 #[tokio::test]
 async fn run_opens_repository_issues_url_when_bugs_is_missing() {
     recording_browser!(run_bugs_in_project);
-    run_bugs_in_project(r#"{"name":"test-pkg","repository":"https://github.com/test/pkg"}"#).await
+    run_bugs_in_project(r#"{"name":"test-pkg","repository":"https://github.com/test/pkg"}"#)
+        .await
         .expect("bugs must succeed");
     assert_eq!(opened_urls(), ["https://github.com/test/pkg/issues"]);
 }

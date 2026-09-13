@@ -38,7 +38,8 @@ impl SealedTxn {
         };
         let mut lost_tmp_paths = Vec::new();
         for (index, package) in manifest.packages.iter().enumerate() {
-            self.apply_package(index, package, storage, &mut context, &mut lost_tmp_paths).await?;
+            self.apply_package(index, package, storage, &mut context, &mut lost_tmp_paths)
+                .await?;
         }
         // Remove the journal before cleaning lost tmp files so an interruption
         // cannot leave a retry that has lost the evidence needed to detect the
@@ -49,7 +50,8 @@ impl SealedTxn {
             Some(parent) => sync_dir(parent).await.is_ok(),
             None => false,
         };
-        cleanup_lost_tmp_paths(&lost_tmp_paths, journal_removal_is_durable).await;
+        cleanup_lost_tmp_paths(&lost_tmp_paths, journal_removal_is_durable)
+            .await;
         Ok(())
     }
 
@@ -74,7 +76,8 @@ impl SealedTxn {
             store,
             name,
         };
-        let mut lost_blobs = promote_blobs(&target, package, lost_tmp_paths).await?;
+        let mut lost_blobs = promote_blobs(&target, package, lost_tmp_paths)
+            .await?;
         let claimed = self.claim_revision_refs(
             &target,
             package,
@@ -82,7 +85,8 @@ impl SealedTxn {
             &mut context.progress.outcome,
         )
         .await?;
-        self.write_package_document(&target, package, index, &lost_blobs, context).await?;
+        self.write_package_document(&target, package, index, &lost_blobs, context)
+            .await?;
         for revision_ref in claimed.into_values().flatten() {
             target.store.commit_hosted_revision_ref(
                 &revision_ref.digest,

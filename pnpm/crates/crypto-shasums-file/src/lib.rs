@@ -176,7 +176,8 @@ pub async fn fetch_verified_node_shasums(
     shasums_url: &str,
 ) -> Result<String, FetchVerifiedNodeShasumsError> {
     let (body, _signature) =
-        fetch_verified_node_shasums_with_signature(http_client, shasums_url, None).await?;
+        fetch_verified_node_shasums_with_signature(http_client, shasums_url, None)
+            .await?;
     Ok(body)
 }
 
@@ -189,7 +190,8 @@ async fn fetch_verified_node_shasums_with_signature(
     auth_headers: Option<&AuthHeaders>,
 ) -> Result<(String, Vec<u8>), FetchVerifiedNodeShasumsError> {
     let shasums_bytes =
-        fetch_node_shasums_bytes(http_client, shasums_url, "SHASUMS256.txt", auth_headers).await?;
+        fetch_node_shasums_bytes(http_client, shasums_url, "SHASUMS256.txt", auth_headers)
+            .await?;
     let signature_url = format!("{shasums_url}.sig");
     let signature_bytes = fetch_node_shasums_bytes(
         http_client,
@@ -219,7 +221,8 @@ pub async fn fetch_verified_node_shasums_file(
     http_client: &ThrottledClient,
     shasums_url: &str,
 ) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
-    fetch_verified_node_shasums_file_cached(http_client, shasums_url, None).await
+    fetch_verified_node_shasums_file_cached(http_client, shasums_url, None)
+        .await
 }
 
 /// Like [`fetch_verified_node_shasums_file`], backed by the disk cache
@@ -235,7 +238,8 @@ pub async fn fetch_verified_node_shasums_file_cached(
     shasums_url: &str,
     cache_dir: Option<&Path>,
 ) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
-    fetch_verified_node_shasums_file_cached_inner(http_client, shasums_url, cache_dir, None).await
+    fetch_verified_node_shasums_file_cached_inner(http_client, shasums_url, cache_dir, None)
+        .await
 }
 
 /// Like [`fetch_verified_node_shasums_file_cached`], selecting URL-scoped
@@ -277,7 +281,8 @@ async fn fetch_verified_node_shasums_file_cached_inner(
         return Ok(parse_shasums_file(&body));
     }
     let (body, signature) =
-        fetch_verified_node_shasums_with_signature(http_client, shasums_url, auth_headers).await?;
+        fetch_verified_node_shasums_with_signature(http_client, shasums_url, auth_headers)
+            .await?;
     write_cached_shasums(
         cache_dir,
         ShasumsTrust::Verified,
@@ -303,7 +308,8 @@ pub async fn fetch_shasums_file_cached(
     shasums_url: &str,
     cache_dir: Option<&Path>,
 ) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
-    fetch_shasums_file_cached_inner(http_client, shasums_url, cache_dir, None).await
+    fetch_shasums_file_cached_inner(http_client, shasums_url, cache_dir, None)
+        .await
 }
 
 /// Like [`fetch_shasums_file_cached`], selecting URL-scoped authorization for
@@ -315,7 +321,8 @@ pub async fn fetch_shasums_file_cached_with_auth_headers(
     cache_dir: Option<&Path>,
     auth_headers: &AuthHeaders,
 ) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
-    fetch_shasums_file_cached_inner(http_client, shasums_url, cache_dir, Some(auth_headers)).await
+    fetch_shasums_file_cached_inner(http_client, shasums_url, cache_dir, Some(auth_headers))
+        .await
 }
 
 async fn fetch_shasums_file_cached_inner(
@@ -332,7 +339,8 @@ async fn fetch_shasums_file_cached_inner(
     if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Unverified, shasums_url) {
         return Ok(parse_shasums_file(&body));
     }
-    let body = fetch_shasums_file_raw_with_auth(http_client, shasums_url, auth_headers).await?;
+    let body = fetch_shasums_file_raw_with_auth(http_client, shasums_url, auth_headers)
+        .await?;
     write_cached_shasums(
         cache_dir,
         ShasumsTrust::Unverified,

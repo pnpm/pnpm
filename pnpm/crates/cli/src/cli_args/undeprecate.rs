@@ -32,7 +32,8 @@ impl UndeprecateArgs {
         let spec = &self.params[0];
         let PackageSpec { name: package_name, version } = parse_package_spec(spec)?;
 
-        let output = update_deprecation(&context, None, &package_name, version.as_deref()).await?;
+        let output = update_deprecation(&context, None, &package_name, version.as_deref())
+            .await?;
         Ok(Some(output))
     }
 }

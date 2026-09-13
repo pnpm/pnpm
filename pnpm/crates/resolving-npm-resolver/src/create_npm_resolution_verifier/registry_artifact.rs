@@ -23,10 +23,11 @@ impl NpmResolutionVerifier {
         resolution: &LockfileResolution,
         lockfile_tarball: Option<&str>,
     ) -> Option<ResolutionVerification> {
-        let artifact = match self.published_artifact(registry, name, version).await {
-            Ok(artifact) => artifact,
-            Err(violation) => return Some(violation),
-        };
+        let artifact =
+            match self.published_artifact(registry, name, version).await {
+                Ok(artifact) => artifact,
+                Err(violation) => return Some(violation),
+            };
         let Some(artifact) = artifact else {
             return missing_artifact_violation(resolution, lockfile_tarball);
         };

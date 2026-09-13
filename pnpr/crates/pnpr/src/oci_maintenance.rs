@@ -82,7 +82,8 @@ async fn collect(
     let (mut removed, mut bytes) =
         remove_unreferenced_blobs(storage, &mut inventory, dry_run).await?;
     if !dry_run {
-        let (deleted, deleted_bytes) = finish_pending_deletions(storage, &mut inventory).await?;
+        let (deleted, deleted_bytes) = finish_pending_deletions(storage, &mut inventory)
+            .await?;
         removed += deleted;
         bytes += deleted_bytes;
     }

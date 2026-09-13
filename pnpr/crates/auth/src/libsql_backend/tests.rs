@@ -25,7 +25,8 @@ async fn with_auth_timeout_surfaces_auth_database_timeout_when_a_read_stalls() {
 #[tokio::test]
 async fn with_auth_timeout_passes_a_fast_read_through() {
     let result: Result<u32> =
-        with_auth_timeout(Duration::from_secs(30), async { Ok::<_, RegistryError>(7) }).await;
+        with_auth_timeout(Duration::from_secs(30), async { Ok::<_, RegistryError>(7) })
+            .await;
     assert_eq!(result.unwrap(), 7);
 }
 

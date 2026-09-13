@@ -146,7 +146,8 @@ async fn quota_rejects_new_entries_but_allows_hits_and_retries() {
             .unwrap(),
         "a retry must work at the quota limit",
     );
-    let rejected = store.publish_compiler_cache("ci", &key("two"), Bytes::from_static(b"b")).await;
+    let rejected = store.publish_compiler_cache("ci", &key("two"), Bytes::from_static(b"b"))
+        .await;
     assert!(
         rejected.is_err(),
         "quota accepted a second entry: {rejected:?}",

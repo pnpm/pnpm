@@ -44,7 +44,8 @@ pub(super) async fn update_project_pin(
         .is_some();
 
     if has_dev_engines {
-        update_dev_engines_pin(config, dir, pm, &mut manifest, target_version).await?;
+        update_dev_engines_pin(config, dir, pm, &mut manifest, target_version)
+            .await?;
     } else if let Some(object) = manifest.value_mut().as_object_mut() {
         object.insert(
             "packageManager".to_string(),

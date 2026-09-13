@@ -149,7 +149,9 @@ pub(super) async fn issue(
     OriginalUri(uri): OriginalUri,
     headers: HeaderMap,
 ) -> Response {
-    match issue_token(&state, &identity, registry.as_deref(), &uri, &headers).await {
+    match issue_token(&state, &identity, registry.as_deref(), &uri, &headers)
+        .await
+    {
         Ok(response) => response,
         Err(err) => super::registry_error(err),
     }
@@ -181,7 +183,9 @@ async fn issue_token(
         .as_ref()
         .map(|raw| sha256_hex(raw.as_bytes()));
     let record = match &parent {
-        Some(parent) => state.inner.identity.auth.tokens.find_by_key(parent).await?,
+        Some(parent) => {
+            state.inner.identity.auth.tokens.find_by_key(parent).await?
+        }
         None => None,
     };
     let readonly = record.is_some_and(|record| record.readonly);
@@ -220,7 +224,9 @@ pub(super) fn challenge(
     scope: Option<(&str, &str)>,
     mut response: Response,
 ) -> Response {
-    if response.status() != StatusCode::UNAUTHORIZED || !state.inner.config.http.oci.bearer_auth {
+    if response.status() != StatusCode::UNAUTHORIZED
+        || !state.inner.config.http.oci.bearer_auth
+    {
         return response;
     }
     let realm = format!(

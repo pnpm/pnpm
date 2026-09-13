@@ -32,7 +32,8 @@ impl DedupePipeline {
         let guard =
             self.args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
 
-        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false).await?;
+        config_deps::prepare::<Reporter>(self.cfg, &self.config_root, false)
+            .await?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
             &self.prefix,
@@ -108,7 +109,8 @@ async fn dedupe_dedicated_project<Reporter: self::Reporter + 'static>(
         None
     };
     let guard = args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
-    Box::pin(args.run::<Reporter>(state, existing, guard, &lockfile_path, None)).await
+    Box::pin(args.run::<Reporter>(state, existing, guard, &lockfile_path, None))
+        .await
 }
 
 /// The reporter-generic body of `pacquet prune`: runs config-deps and

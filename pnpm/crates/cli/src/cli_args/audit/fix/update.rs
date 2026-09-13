@@ -78,7 +78,8 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     // picker may install them.
     let age_excludes = persist_age_excludes(state, advisories, settings_dir, publish_infos)?;
 
-    update_non_vulnerable::<Reporter>(state, &classification, &age_excludes).await?;
+    update_non_vulnerable::<Reporter>(state, &classification, &age_excludes)
+        .await?;
 
     // A missing lockfile here means the update couldn't be verified; mirror
     // pnpm's `fixWithUpdate`, which errors rather than reporting everything

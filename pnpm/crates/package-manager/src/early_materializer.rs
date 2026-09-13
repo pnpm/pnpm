@@ -180,7 +180,9 @@ struct SlotJob {
 
 impl SlotJob {
     async fn run<Reporter: pnpm_reporter::Reporter>(mut self, shared: &Arc<Shared>) {
-        let Some(cas_paths) = wait_for_cas_paths(shared, &self.package_url).await else {
+        let Some(cas_paths) = wait_for_cas_paths(shared, &self.package_url)
+            .await
+        else {
             return;
         };
         let Ok(_permit) = shared.permits.acquire().await else {
@@ -271,7 +273,8 @@ async fn wait_for_cas_paths(
         // A bounded wait rather than a bare `notified()`: the owner
         // notifies only once, on the flip, and this wait registers after
         // the read above, so the flip may already have happened.
-        let _ = tokio::time::timeout(CACHE_POLL_INTERVAL * 5, notify.notified()).await;
+        let _ = tokio::time::timeout(CACHE_POLL_INTERVAL * 5, notify.notified())
+            .await;
         if shared.closing.load(Ordering::Acquire) {
             return None;
         }

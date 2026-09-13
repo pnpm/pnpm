@@ -578,7 +578,8 @@ async fn frozen_wheel_downloads_replenish_slots_and_settle_before_reporting_fail
         let rendezvous = Arc::new((Mutex::new(0), Condvar::new()));
         let sibling_finished = Arc::new(AtomicBool::new(false));
         let downloads =
-            mock_wheel_downloads(&mut server, archives, fail, &rendezvous, &sibling_finished).await;
+            mock_wheel_downloads(&mut server, archives, fail, &rendezvous, &sibling_finished)
+                .await;
         let mut command = pacquet_in(root.path());
         command
             .env("PNPM_CONFIG_STORE_DIR", root.path().join("cold-store"))

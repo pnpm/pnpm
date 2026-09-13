@@ -127,8 +127,8 @@ impl SelfUpdateArgs {
         config: &'static Config,
         dir: &Path,
     ) -> miette::Result<()> {
-        if let Some(message) =
-            Box::pin(handler::<Reporter>(self.version.as_deref(), config, dir)).await?
+        if let Some(message) = Box::pin(handler::<Reporter>(self.version.as_deref(), config, dir))
+            .await?
         {
             println!("{message}");
         }
@@ -182,7 +182,8 @@ async fn handler<Reporter: self::Reporter + 'static>(
         return Ok(Some(message));
     }
 
-    switch_global_pnpm::<Reporter>(config, &target_version, &prefix, bare_specifier).await
+    switch_global_pnpm::<Reporter>(config, &target_version, &prefix, bare_specifier)
+        .await
 }
 
 /// Resolve the target engine's integrities into the env lockfile and verify
@@ -224,8 +225,8 @@ async fn verify_target_engine<Reporter: self::Reporter + 'static>(
             verify_engine::PlatformBinaries::None
         },
     };
-    if let Some(warning) =
-        Box::pin(verify_engine::verify_engine_identity(&env, &engine, config)).await?
+    if let Some(warning) = Box::pin(verify_engine::verify_engine_identity(&env, &engine, config))
+        .await?
     {
         warn::<Reporter>(prefix, &warning);
     }

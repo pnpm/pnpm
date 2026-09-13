@@ -36,7 +36,9 @@ impl Request {
         let _guard = self.state.inner.locks.packages.lock(key.as_str()).await;
         let result = async {
             for _ in 0..DOCUMENT_WRITE_RETRIES {
-                let Some(response) = self.try_delete_blob(&storage, &key, digest).await? else {
+                let Some(response) = self.try_delete_blob(&storage, &key, digest)
+                    .await?
+                else {
                     continue;
                 };
                 return Ok(response);

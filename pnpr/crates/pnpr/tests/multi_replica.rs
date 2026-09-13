@@ -94,7 +94,8 @@ impl Replica {
     }
 
     async fn packument(&self, name: &str) -> Value {
-        let (status, document) = self.send("GET", &format!("/{name}"), Body::empty()).await;
+        let (status, document) = self.send("GET", &format!("/{name}"), Body::empty())
+            .await;
         assert_eq!(
             status,
             StatusCode::OK,
@@ -249,8 +250,8 @@ async fn a_rejection_stops_an_approval_that_has_not_committed() {
     });
 
     objects.started.notified().await;
-    let (rejected, _) =
-        rejecting.send("DELETE", &format!("/-/stage/{stage_id}"), Body::empty()).await;
+    let (rejected, _) = rejecting.send("DELETE", &format!("/-/stage/{stage_id}"), Body::empty())
+        .await;
     assert_eq!(rejected, StatusCode::NO_CONTENT);
     objects.resume.notify_one();
 
@@ -290,7 +291,8 @@ async fn a_dist_tag_written_on_one_replica_is_served_by_the_other() {
     .await;
     assert_eq!(status, StatusCode::CREATED);
 
-    let (status, tags) = second.send("GET", "/-/package/tagged-pkg/dist-tags", Body::empty()).await;
+    let (status, tags) = second.send("GET", "/-/package/tagged-pkg/dist-tags", Body::empty())
+        .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(tags["next"], "2.0.0");
 }

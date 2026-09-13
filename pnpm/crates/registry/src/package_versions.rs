@@ -285,7 +285,8 @@ impl PackageVersions {
         if !json.contains(r#""deprecated""#) {
             return false;
         }
-        serde_json::from_str::<DeprecatedProbe>(&json).is_ok_and(|probe| probe.deprecated.is_some())
+        serde_json::from_str::<DeprecatedProbe>(&json)
+            .is_ok_and(|probe| probe.deprecated.is_some())
     }
 
     /// Version strings in lexical order. Never hydrates.

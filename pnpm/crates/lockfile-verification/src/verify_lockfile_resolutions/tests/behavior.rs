@@ -379,7 +379,8 @@ async fn cache_hit_with_no_policy_verifiers_stays_silent() {
     )
     .await
     .expect("first run");
-    verify_lockfile_resolutions::<RecordingReporter>(&lockfile, &[], &opts).await
+    verify_lockfile_resolutions::<RecordingReporter>(&lockfile, &[], &opts)
+        .await
         .expect("second run");
 
     let captured = EVENTS.lock().unwrap();

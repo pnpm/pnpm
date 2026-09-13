@@ -202,7 +202,8 @@ impl NodeResolver {
         picked: &PickedNodeVersion,
         version_spec: &str,
     ) -> Result<Vec<PlatformAssetResolution>, ResolveError> {
-        match self.read_node_assets(&picked.mirror, &picked.version, &picked.release_channel).await
+        match self.read_node_assets(&picked.mirror, &picked.version, &picked.release_channel)
+            .await
         {
             Ok(variants) => Ok(variants),
             Err(error) if picked.resolved_without_index => {

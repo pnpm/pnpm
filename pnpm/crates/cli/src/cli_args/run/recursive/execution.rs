@@ -112,7 +112,8 @@ impl RunOutcome<'_> {
         let failed = execution.status.status == Status::Failure;
         let cancelled = execution.cancelled;
         let recursion_guarded = execution.recursion_guarded;
-        self.result.lock().expect("summary lock is not poisoned")[summary_key] = execution.status;
+        self.result.lock().expect("summary lock is not poisoned")[summary_key] = execution
+            .status;
         if cancelled {
             return TaskCompletion::Cancelled;
         }

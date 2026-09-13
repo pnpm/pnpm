@@ -123,7 +123,9 @@ async fn rejects_an_input_lockfile_that_violates_the_clients_policy() {
     opts.verification.minimum_release_age = Some(60 * 24 * 365 * 100);
     opts.verification.minimum_release_age_ignore_missing_time = false;
 
-    let Err(PnprClientError::Verification(verify_err)) = client.resolve(opts).await else {
+    let Err(PnprClientError::Verification(verify_err)) = client.resolve(opts)
+        .await
+    else {
         panic!("expected a verification error rejecting the input lockfile");
     };
     assert!(
@@ -187,7 +189,8 @@ async fn verify_lockfile_endpoint_rejects_policy_violation() {
     let verify_opts =
         VerifyLockfileOptions::from_resolve_options(&opts).expect("lockfile is present");
 
-    let Err(PnprClientError::Verification(verify_err)) = client.verify_lockfile(verify_opts).await
+    let Err(PnprClientError::Verification(verify_err)) = client.verify_lockfile(verify_opts)
+        .await
     else {
         panic!("expected a verification error rejecting the input lockfile");
     };
@@ -248,7 +251,8 @@ async fn verify_lockfile_endpoint_uses_upstreams() {
 
     // A pnpr without the upstream has no credential to select, so the gated
     // entry's metadata fetch must fail closed.
-    let (plain_pnpr_url, plain_auth, _plain_storage) = start_pnpr(&registry.url()).await;
+    let (plain_pnpr_url, plain_auth, _plain_storage) = start_pnpr(&registry.url())
+        .await;
     let mut plain_opts = resolve_opts.clone();
     plain_opts.routing.authorization = Some(plain_auth);
     let plain_verify_opts =

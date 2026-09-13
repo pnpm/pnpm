@@ -200,11 +200,12 @@ pub fn dependencies_graph_to_lockfile(
         settings: Some(opts.settings),
         catalogs: build_catalog_snapshots(&importers, opts.catalogs),
         overrides: opts.manifest_settings.overrides.filter(|map| !map.is_empty()),
-        package_extensions_checksum: opts.manifest_settings.package_extensions_checksum,
+        package_extensions_checksum: opts.manifest_settings
+            .package_extensions_checksum,
         pnpmfile_checksum: opts.manifest_settings.pnpmfile_checksum,
-        ignored_optional_dependencies: opts.manifest_settings.ignored_optional_dependencies.filter(
-            |list| !list.is_empty(),
-        ),
+        ignored_optional_dependencies: opts.manifest_settings
+            .ignored_optional_dependencies
+            .filter(|list| !list.is_empty()),
         patched_dependencies: opts.manifest_settings.patched_dependencies.filter(|map| {
             !map.is_empty()
         }),

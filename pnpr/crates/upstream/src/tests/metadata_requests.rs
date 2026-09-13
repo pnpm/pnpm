@@ -231,7 +231,8 @@ async fn fetch_packument_304_without_validators_is_an_error() {
 
     let upstream = upstream(server.url(), HeaderMap::new());
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
-    let result = upstream.fetch_packument(&name, &CacheValidators::default()).await;
+    let result = upstream.fetch_packument(&name, &CacheValidators::default())
+        .await;
 
     assert!(
         result.is_err(),

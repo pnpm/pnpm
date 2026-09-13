@@ -640,7 +640,9 @@ fn task_concurrency_does_not_block_an_independent_task_group() {
                     state.0 = true;
                     progress.notify_all();
                     let (_state, timeout) = progress
-                        .wait_timeout_while(state, Duration::from_secs(5), |state| !state.1)
+                        .wait_timeout_while(state, Duration::from_secs(5), |state| {
+                            !state.1
+                        })
                         .unwrap();
                     assert!(
                         !timeout.timed_out(),
@@ -650,7 +652,9 @@ fn task_concurrency_does_not_block_an_independent_task_group() {
                     let (state, progress) = &first_build;
                     let state = state.lock().unwrap();
                     let (mut state, timeout) = progress
-                        .wait_timeout_while(state, Duration::from_secs(5), |state| !state.0)
+                        .wait_timeout_while(state, Duration::from_secs(5), |state| {
+                            !state.0
+                        })
                         .unwrap();
                     assert!(!timeout.timed_out(), "the first build task did not run");
                     ran

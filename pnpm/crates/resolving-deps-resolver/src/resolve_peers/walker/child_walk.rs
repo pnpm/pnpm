@@ -19,7 +19,8 @@ impl Walker<'_> {
         if !self.traversal.discovery {
             return None;
         }
-        let TreeChildren::Lazy { parent_ids } = &self.tree.dependencies_tree[node_id].children
+        let TreeChildren::Lazy { parent_ids } =
+            &self.tree.dependencies_tree[node_id].children
         else {
             return None;
         };

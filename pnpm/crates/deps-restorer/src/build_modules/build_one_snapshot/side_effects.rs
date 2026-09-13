@@ -207,7 +207,9 @@ pub(super) fn upload_side_effects_cache(
     snapshot_key: &PackageKey,
     upload: &SideEffectsUpload<'_>,
 ) {
-    if (!upload.is_patched && !upload.has_side_effects) || context.cache.frozen_store {
+    if (!upload.is_patched && !upload.has_side_effects)
+        || context.cache.frozen_store
+    {
         return;
     }
     let (Some(writer), Some(store), Some(cache_key), Some(packages)) = (

@@ -150,7 +150,8 @@ async fn should_not_write_a_scope_mapping_when_scope_is_omitted() {
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
-    login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir)).await
+    login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
         .expect("login");
 
     let document = written_document(&login_writes());

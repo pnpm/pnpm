@@ -126,7 +126,8 @@ impl PackArgs {
         before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<String> {
         if recursive {
-            self.run_recursive::<Reporter>(dir, config, before_packing_hooks).await
+            self.run_recursive::<Reporter>(dir, config, before_packing_hooks)
+                .await
         } else {
             let mut options = self.pack_options(
                 dir.to_path_buf(),
@@ -329,7 +330,8 @@ pub(crate) async fn set_injected_changelog(
     project_dir: &Path,
 ) -> miette::Result<()> {
     if let Some(changelog) =
-        crate::cli_args::changelog::compose_registry_changelog(config, project_dir).await?
+        crate::cli_args::changelog::compose_registry_changelog(config, project_dir)
+            .await?
     {
         options.output.injected_files = vec![("package/CHANGELOG.md".to_string(), changelog)];
     }

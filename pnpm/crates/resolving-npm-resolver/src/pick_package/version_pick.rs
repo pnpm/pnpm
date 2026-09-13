@@ -125,7 +125,8 @@ pub(super) fn pick_matching_version_final(
         {
             warn_missing_time_once(&pkg_name, SkippedTimeCheck::MinimumReleaseAge);
             let fallback = PickerOpts {
-                preferred_version_selectors: picker_opts.preferred_version_selectors,
+                preferred_version_selectors: picker_opts
+                    .preferred_version_selectors,
                 published_by: None,
                 published_by_exclude: None,
                 pick_lowest_version: picker_opts.pick_lowest_version,

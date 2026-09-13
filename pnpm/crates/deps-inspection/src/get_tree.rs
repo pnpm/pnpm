@@ -233,7 +233,10 @@ fn record_materialized_edge(
     }
     annotate_search(&mut entry, search_match, &subtree, result);
 
-    if entry.status.is_peer && opts.exclude_peer_dependencies && entry.dependencies.is_empty() {
+    if entry.status.is_peer
+        && opts.exclude_peer_dependencies
+        && entry.dependencies.is_empty()
+    {
         return;
     }
     result.count += 1 + if entry.dependencies.is_empty() {

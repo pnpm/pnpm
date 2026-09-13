@@ -15,10 +15,14 @@ impl PickState<'_> {
         opts: &PickPackageOptions<'_>,
         disk_meta: &mut Option<Arc<Package>>,
     ) -> Option<PickPackageResult> {
-        if let Some(result) = self.version_spec_pick(ctx, spec, opts, disk_meta).await {
+        if let Some(result) = self.version_spec_pick(ctx, spec, opts, disk_meta)
+            .await
+        {
             return Some(result);
         }
-        if let Some(result) = self.dominant_version_pick(ctx, spec, opts, disk_meta).await {
+        if let Some(result) = self.dominant_version_pick(ctx, spec, opts, disk_meta)
+            .await
+        {
             return Some(result);
         }
         self.published_by_pick(ctx, spec, opts, disk_meta).await

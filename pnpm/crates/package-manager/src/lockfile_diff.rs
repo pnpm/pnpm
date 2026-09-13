@@ -216,7 +216,8 @@ fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut Loc
 /// Compares only `dependencies` / `optionalDependencies`, matching pnpm's
 /// `PACKAGE_SNAPSHOT_DEP_FIELDS`.
 fn snapshot_wiring_differs(old: &SnapshotEntry, new: &SnapshotEntry) -> bool {
-    old.dependencies != new.dependencies || old.optional_dependencies != new.optional_dependencies
+    old.dependencies != new.dependencies
+        || old.optional_dependencies != new.optional_dependencies
 }
 
 /// Diff one `snapshots:` entry's dependency wiring, over `dependencies` /

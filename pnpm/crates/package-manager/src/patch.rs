@@ -137,8 +137,8 @@ impl WritePackageForPatch<'_> {
 
         validate_patch_destination(self.dest)?;
 
-        let store_index =
-            StoreIndex::open_shared(&self.config.store_dir, self.config.frozen_store).await;
+        let store_index = StoreIndex::open_shared(&self.config.store_dir, self.config.frozen_store)
+            .await;
         let (store_index_writer, writer_task) =
             StoreIndexWriter::spawn_for(&self.config.store_dir, self.config.frozen_store);
 
@@ -152,7 +152,8 @@ impl WritePackageForPatch<'_> {
         )
         .await;
 
-        shutdown_store_index_writer_for_patch(store_index_writer, writer_task).await;
+        shutdown_store_index_writer_for_patch(store_index_writer, writer_task)
+            .await;
         result
     }
     async fn import_for_patch<Reporter: self::Reporter>(
@@ -219,7 +220,8 @@ impl WritePackageForPatch<'_> {
                 index: store_index,
                 index_writer: Some(Arc::clone(store_index_writer)),
                 verify_integrity: self.config.verify_store_integrity,
-                strict_pkg_content_check: self.config.strict_store_pkg_content_check,
+                strict_pkg_content_check: self.config
+                    .strict_store_pkg_content_check,
                 verified_files_cache: SharedVerifiedFilesCache::default(),
                 prefetched_cas_paths: None,
             },
@@ -310,7 +312,8 @@ async fn shutdown_store_index_writer_for_patch(
     writer_task: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
 ) {
     drop(store_index_writer);
-    StoreIndexWriter::drain(writer_task, "; some rows may not be persisted").await;
+    StoreIndexWriter::drain(writer_task, "; some rows may not be persisted")
+        .await;
 }
 
 fn git_tarball_url(resolution: &LockfileResolution) -> Option<String> {

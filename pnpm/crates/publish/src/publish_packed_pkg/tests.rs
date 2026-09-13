@@ -40,7 +40,8 @@ fn body() -> bytes::Bytes {
 }
 
 fn registry() -> crate::registry_config_keys::NormalizedRegistryUrl {
-    parse_supported_registry_url("https://registry.example/").unwrap().normalized_url
+    parse_supported_registry_url("https://registry.example/").unwrap()
+        .normalized_url
 }
 
 fn hashes() -> DistHashes<'static> {
@@ -212,7 +213,8 @@ async fn put_publish_reports_a_non_success_status_without_erroring() {
 
     // A 5xx is a completed response (`ok: false`), not a transport error — the
     // caller inspects `ok` and raises `FailedToPublishError`, matching pnpm.
-    let response = put_publish(&client, &url, None, "publish", body(), None, false).await
+    let response = put_publish(&client, &url, None, "publish", body(), None, false)
+        .await
         .expect("the PUT completes");
     assert!(!response.ok);
     assert_eq!(response.status, 500);
@@ -231,7 +233,8 @@ async fn put_publish_maps_a_www_authenticate_otp_to_a_challenge() {
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
-    let err = put_publish(&client, &url, None, "publish", body(), None, false).await
+    let err = put_publish(&client, &url, None, "publish", body(), None, false)
+        .await
         .expect_err("a 401 OTP challenge is an error the OTP flow handles");
     assert!(matches!(err, PublishHttpError::Otp { .. }));
 }
@@ -249,7 +252,8 @@ async fn put_publish_maps_a_one_time_pass_body_to_a_web_auth_challenge() {
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
-    let err = put_publish(&client, &url, None, "publish", body(), None, false).await
+    let err = put_publish(&client, &url, None, "publish", body(), None, false)
+        .await
         .expect_err("a one-time-pass body is an OTP challenge");
     let PublishHttpError::Otp { challenge } = err else {
         panic!("expected an OTP challenge, got {err:?}");
@@ -286,12 +290,14 @@ async fn put_publish_extracts_a_stage_id_only_for_a_staged_publish() {
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
-    let staged = put_publish(&client, &url, None, "stage", body(), None, true).await
+    let staged = put_publish(&client, &url, None, "stage", body(), None, true)
+        .await
         .expect("the POST completes");
     assert_eq!(staged.stage_id.as_deref(), Some("stage-1"));
 
     // Without `is_stage` the same body must not yield a stage id.
-    let unstaged = put_publish(&client, &url, None, "publish", body(), None, false).await
+    let unstaged = put_publish(&client, &url, None, "publish", body(), None, false)
+        .await
         .expect("the PUT completes");
     assert_eq!(unstaged.stage_id, None);
 }
@@ -774,7 +780,8 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
         auth_headers: &auth_headers,
     };
 
-    let summary = publish_packed_pkg::<OfflineSys, SilentReporter>(&pkg, &opts, &network).await
+    let summary = publish_packed_pkg::<OfflineSys, SilentReporter>(&pkg, &opts, &network)
+        .await
         .expect("a dry run succeeds offline");
 
     assert_eq!(summary.id, "@scope/pkg@1.2.3");
@@ -890,7 +897,8 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
         auth_headers: &auth_headers,
     };
 
-    let summary = publish_packed_pkg::<ProvenanceSys, SilentReporter>(&pkg, &opts, &network).await
+    let summary = publish_packed_pkg::<ProvenanceSys, SilentReporter>(&pkg, &opts, &network)
+        .await
         .expect("a provenance publish succeeds");
 
     assert_eq!(summary.name, "pkg");

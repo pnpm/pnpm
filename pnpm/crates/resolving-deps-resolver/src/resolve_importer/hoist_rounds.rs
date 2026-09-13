@@ -76,7 +76,8 @@ impl ImporterHoistState {
     where
         Chain: Resolver + ?Sized,
     {
-        self.complete_required_round(resolver, Some(round), peer_discovery).await
+        self.complete_required_round(resolver, Some(round), peer_discovery)
+            .await
     }
 
     pub(super) fn begin_required_round(&mut self) {

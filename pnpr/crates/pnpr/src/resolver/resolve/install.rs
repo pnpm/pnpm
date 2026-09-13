@@ -63,7 +63,8 @@ impl<'a> ResolutionInstall<'a> {
         );
         install.lockfile_policy.frozen = request.frozen_lockfile;
         install.lockfile_policy.prefer_frozen = prefer_frozen_lockfile(request);
-        install.lockfile_policy.ignore_manifest_check = request.ignore_manifest_check;
+        install.lockfile_policy.ignore_manifest_check = request
+            .ignore_manifest_check;
         install.lockfile_policy.trust = true;
         install.lockfile_policy.update_checksums = request.update_patches;
         install.execution.skip_runtimes = false;

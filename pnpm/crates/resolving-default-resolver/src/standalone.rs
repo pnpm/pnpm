@@ -153,7 +153,8 @@ fn build_npm_resolver(
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             offline: config.offline,
             prefer_offline: config.prefer_offline,
-            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+            ignore_missing_time_field: config
+                .minimum_release_age_ignore_missing_time,
         },
     }
 }
@@ -181,7 +182,8 @@ fn build_named_registry_resolver(
         full_metadata,
         filter_metadata,
     } = opts;
-    let user_registries_by_prefix: HashMap<String, String> = config.registries_by_prefix
+    let user_registries_by_prefix: HashMap<String, String> = config
+        .registries_by_prefix
         .iter()
         .map(|(name, url)| (name.clone(), url.clone()))
         .collect();
@@ -209,7 +211,8 @@ fn build_named_registry_resolver(
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
             offline: config.offline,
             prefer_offline: config.prefer_offline,
-            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+            ignore_missing_time_field: config
+                .minimum_release_age_ignore_missing_time,
         },
     })
 }

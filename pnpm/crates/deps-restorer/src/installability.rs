@@ -230,7 +230,9 @@ impl SkippedSnapshots {
 
     #[must_use]
     pub fn len(&self) -> usize {
-        self.installability.len() + self.fetch_failed.len() + self.optional_excluded.len()
+        self.installability.len()
+            + self.fetch_failed.len()
+            + self.optional_excluded.len()
     }
 
     #[must_use]

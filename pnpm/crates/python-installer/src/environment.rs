@@ -72,7 +72,8 @@ pub(super) async fn resolve_via_pnpr(
         return Ok(None);
     };
     let client = PnprClient::new(pnpr_server);
-    if !pnpm_pnpr_client::server_resolves(&client, pnpr_server, PYPI_ECOSYSTEM).await
+    if !pnpm_pnpr_client::server_resolves(&client, pnpr_server, PYPI_ECOSYSTEM)
+        .await
         .wrap_err("negotiate Python resolution with the pnpr server")?
     {
         return Ok(None);

@@ -37,7 +37,8 @@ impl Upstream {
             return Ok(FetchOutcome::NotFound);
         }
         let response = self.checked(response, &url).await?;
-        let body = read_limited_body(response, UPSTREAM_DISCOVERY_BODY_LIMIT).await
+        let body = read_limited_body(response, UPSTREAM_DISCOVERY_BODY_LIMIT)
+            .await
             .map_err(|err| {
                 self.breaker.record_failure();
                 RegistryError::UpstreamResponse {

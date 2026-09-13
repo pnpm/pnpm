@@ -95,7 +95,8 @@ pub async fn resolve_node_version_with_auth(
     version_spec: &str,
     node_mirror_base_url: Option<&str>,
 ) -> Result<Option<String>, ResolveNodeVersionError> {
-    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
+    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url)
+        .await?;
     if is_latest_selector(version_spec) {
         return Ok(all_versions
             .first()
@@ -132,7 +133,8 @@ pub async fn resolve_node_versions_with_auth(
     version_spec: Option<&str>,
     node_mirror_base_url: Option<&str>,
 ) -> Result<Vec<String>, ResolveNodeVersionError> {
-    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
+    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url)
+        .await?;
     let Some(version_spec) = version_spec else {
         return Ok(all_versions
             .into_iter()

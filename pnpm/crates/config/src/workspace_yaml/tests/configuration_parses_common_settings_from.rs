@@ -364,7 +364,8 @@ fn the_remote_tier_reads_both_environment_spellings() {
     for prefixes in [vec![CANONICAL], vec![OLDER], vec![CANONICAL, OLDER]] {
         let config = read(&prefixes, "PUBLISH", "true");
         assert_eq!(
-            config.remote_side_effects_cache.expect("shared cache config").publish,
+            config.remote_side_effects_cache.expect("shared cache config")
+                .publish,
             Some(true),
             "PUBLISH under {prefixes:?}",
         );

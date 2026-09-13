@@ -83,7 +83,8 @@ pub(crate) async fn apply_shared_side_effects(mut options: ApplySharedSideEffect
             packages: options.packages,
             setup: &setup,
             side_effects_by_snapshot: options.cached.by_snapshot,
-            store_index_keys_by_snapshot: options.cached.store_index_keys_by_snapshot,
+            store_index_keys_by_snapshot: options.cached
+                .store_index_keys_by_snapshot,
         },
         roots,
         persisted_remote,
@@ -285,7 +286,9 @@ fn artifact_upload(
 }
 
 fn dependency_package(candidate: &ArtifactCandidate) -> &PackageIdentity {
-    let ArtifactSubject::DependencySideEffects { package, .. } = &candidate.subject else {
+    let ArtifactSubject::DependencySideEffects { package, .. } =
+        &candidate.subject
+    else {
         unreachable!("dependency side-effects candidates have dependency subjects")
     };
     package

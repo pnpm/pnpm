@@ -218,7 +218,8 @@ registries:
         access: platform
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let access = config.routing.hosted["local"].rules.for_package("@team/x").access;
+    let access = config.routing.hosted["local"].rules.for_package("@team/x")
+        .access;
     assert!(access.allows(&Identity::user("platform")));
     assert!(!access.allows(&Identity::user("alice")));
 }
@@ -251,7 +252,8 @@ registries:
 #[test]
 fn rule_scalar_access_value_is_one_token() {
     let config = hosted_rules_config("      '@team/*':\n        access: alice\n");
-    let access = config.routing.hosted["local"].rules.for_package("@team/x").access;
+    let access = config.routing.hosted["local"].rules.for_package("@team/x")
+        .access;
     assert!(access.allows(&user("alice")));
     assert!(!access.allows(&user("bob")));
 }

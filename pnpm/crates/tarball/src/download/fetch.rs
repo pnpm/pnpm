@@ -63,7 +63,8 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
         revision_addressed,
     )
     .await?;
-    download.extract_response::<Reporter, _>(client, response_head, attempt).await
+    download.extract_response::<Reporter, _>(client, response_head, attempt)
+        .await
 }
 
 pub(super) struct TarballDownload<'a> {
@@ -199,7 +200,8 @@ impl TarballDownload<'_> {
             http_client: self.http_client,
         })
         .await?;
-        self.finish_body::<Reporter, _, _>(buffered, stream, progress, client).await
+        self.finish_body::<Reporter, _, _>(buffered, stream, progress, client)
+            .await
     }
 
     pub(super) async fn finish_body<Reporter, Body, Guard>(

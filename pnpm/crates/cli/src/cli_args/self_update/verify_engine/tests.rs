@@ -490,7 +490,8 @@ async fn reports_unreachable_when_neither_registry_can_provide_a_signature() {
     let _mirror = mock_packument(&mut mirror, "[]").await;
 
     // Nothing listens on the fallback address, so consulting it fails.
-    let failure = find_failure_with_fallback(&component, "http://127.0.0.1:9/").await
+    let failure = find_failure_with_fallback(&component, "http://127.0.0.1:9/")
+        .await
         .expect("failure expected");
     assert!(matches!(failure.category, FailureCategory::Unreachable));
     assert!(
@@ -601,7 +602,8 @@ async fn reports_a_non_sha512_integrity_as_uncovered_without_consulting_any_regi
         integrity: "sha1-i+4AKGoXwAoTx+bm3ZqbOJIg7n8=".to_string(),
         ..component()
     };
-    let failure = find_failure_with_fallback(&component, "http://127.0.0.1:9/").await
+    let failure = find_failure_with_fallback(&component, "http://127.0.0.1:9/")
+        .await
         .expect("failure expected");
     assert!(matches!(failure.category, FailureCategory::Uncovered));
 }

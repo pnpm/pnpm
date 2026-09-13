@@ -151,7 +151,8 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
         ("read-only", StatusCode::FORBIDDEN),
     ] {
         assert_eq!(
-            publish(json!({"workspace": workspace, "runId": "100-default", "summary": {}})).await
+            publish(json!({"workspace": workspace, "runId": "100-default", "summary": {}}))
+                .await
                 .status(),
             expected,
         );

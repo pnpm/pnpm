@@ -420,8 +420,8 @@ async fn spawn_truncated_upstream(expected_integrity: String) -> SocketAddr {
                     let _ = socket.write_all(&[0xAA; 100]).await;
                     return;
                 }
-                let _ =
-                    socket.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n").await;
+                let _ = socket.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
+                    .await;
             });
         }
     });

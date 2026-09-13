@@ -170,7 +170,8 @@ pub(super) async fn require_resolver_caller(
     request: Request,
     next: Next,
 ) -> Response {
-    require_protocol_caller(&state, request, next, "dependency resolution").await
+    require_protocol_caller(&state, request, next, "dependency resolution")
+        .await
 }
 
 pub(super) async fn require_artifact_caller(

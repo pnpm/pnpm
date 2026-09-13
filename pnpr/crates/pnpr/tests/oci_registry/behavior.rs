@@ -83,10 +83,12 @@ async fn an_image_pushed_in_one_request_each_pulls_back() {
         image_manifest("config", &["layer"]),
     );
 
-    let response = get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}")).await;
+    let response = get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}"))
+        .await;
     assert_eq!(response.status(), StatusCode::OK);
 
-    let response = get(&app, &format!("/v2/acme/app/blobs/{}", digest_of(b"layer"))).await;
+    let response = get(&app, &format!("/v2/acme/app/blobs/{}", digest_of(b"layer")))
+        .await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, b"layer".as_slice());
 }
@@ -427,7 +429,8 @@ async fn protocol_surface_on_object_store() {
     let hosted = config.routing.hosted.get_mut("images").unwrap();
     hosted.rules = std::mem::take(&mut hosted.rules)
         .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
-    check_protocol_surface(router_with_auth(config, AuthState::in_memory())).await;
+    check_protocol_surface(router_with_auth(config, AuthState::in_memory()))
+        .await;
 }
 
 #[tokio::test]

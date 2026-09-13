@@ -93,7 +93,8 @@ pub(super) struct Registries {
 pub(super) fn resolve_registries(
     config: &Config,
 ) -> Result<Registries, InstallWithFreshLockfileError> {
-    let user_registries_by_prefix: HashMap<String, String> = config.registries_by_prefix
+    let user_registries_by_prefix: HashMap<String, String> = config
+        .registries_by_prefix
         .iter()
         .map(|(name, url)| (name.clone(), url.clone()))
         .collect();
@@ -285,7 +286,8 @@ impl ResolverChainInputs<'_> {
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
                 offline: self.config.offline,
                 prefer_offline: self.config.prefer_offline,
-                ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
+                ignore_missing_time_field: self.config
+                    .minimum_release_age_ignore_missing_time,
             },
         })
     }
@@ -380,7 +382,8 @@ impl ResolverChainInputs<'_> {
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
                 offline: self.config.offline,
                 prefer_offline: self.config.prefer_offline,
-                ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
+                ignore_missing_time_field: self.config
+                    .minimum_release_age_ignore_missing_time,
             },
         }
     }

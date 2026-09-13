@@ -92,7 +92,8 @@ pub(super) async fn run<Reporter: self::Reporter>(
 
     // Both halves honour `frozenStore`, so a read-only store root gains
     // neither an `index.db` write nor its WAL / SHM sidecars.
-    let store_index = StoreIndex::open_shared(&config.store_dir, config.frozen_store).await;
+    let store_index = StoreIndex::open_shared(&config.store_dir, config.frozen_store)
+        .await;
     let (store_index_writer, writer_task) =
         StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
     let verified_files_cache = SharedVerifiedFilesCache::default();
@@ -119,7 +120,8 @@ pub(super) async fn run<Reporter: self::Reporter>(
     }
 
     drop(store_index_writer);
-    StoreIndexWriter::drain(writer_task, "; some rows may not be persisted").await;
+    StoreIndexWriter::drain(writer_task, "; some rows may not be persisted")
+        .await;
 
     if has_failures {
         Err(StoreAddFailureError.into())

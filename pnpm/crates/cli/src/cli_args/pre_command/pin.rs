@@ -166,7 +166,8 @@ pub(super) fn switch_target(
     // `lockfile: false` opts the project out of `pnpm-lock.yaml`, so the pin
     // has nowhere in the project to persist to. The switch still happens —
     // through the global env below (pnpm/pnpm#14728).
-    let persist_lockfile = should_persist_package_manager_lockfile(&pm) && config.lockfile;
+    let persist_lockfile =
+        should_persist_package_manager_lockfile(&pm) && config.lockfile;
     if persist_lockfile
         && let Some(env) = read_env_lockfile(&roots.env)?
         && let Some(version) = locked_package_manager_version(&env, &spec)?

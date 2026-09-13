@@ -19,7 +19,9 @@ pub(super) async fn forward_hook_stdout(
     logger: &crate::PreResolutionHookLogger,
 ) {
     let mut reader = BufReader::new(stdout);
-    while let Ok(Some(line)) = next_line_bounded(&mut reader, STDOUT_LINE_LIMIT).await {
+    while let Ok(Some(line)) = next_line_bounded(&mut reader, STDOUT_LINE_LIMIT)
+        .await
+    {
         let line = line.trim();
         if line.is_empty() {
             continue;

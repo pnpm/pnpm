@@ -47,7 +47,8 @@ async fn verify_skips_age_check_when_package_matches_exclude_pattern() {
     let verifier = create_npm_resolution_verifier(opts);
     let name: PkgName = "acme-widget".parse().expect("parse");
 
-    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.0.0")).await;
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.0.0"))
+        .await;
 
     assert_eq!(result, ResolutionVerification::Ok);
 }
@@ -62,7 +63,8 @@ async fn verify_skips_age_check_for_an_exact_version_in_a_union() {
     let verifier = create_npm_resolution_verifier(opts);
     let name: PkgName = "acme".parse().expect("parse");
 
-    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0")).await;
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0"))
+        .await;
 
     assert_eq!(result, ResolutionVerification::Ok);
 }

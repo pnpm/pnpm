@@ -208,10 +208,12 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         if let Some(bare) = wanted_dependency.bare_specifier.as_deref()
             && bare.starts_with("jsr:")
         {
-            return self.resolve_jsr_impl(wanted_dependency, opts, bare, default_tag).await;
+            return self.resolve_jsr_impl(wanted_dependency, opts, bare, default_tag)
+                .await;
         }
 
-        self.resolve_registry_dependency(wanted_dependency, opts, default_tag).await
+        self.resolve_registry_dependency(wanted_dependency, opts, default_tag)
+            .await
     }
 
     async fn resolve_registry_dependency(
@@ -243,7 +245,9 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             return Ok(Some(result));
         }
 
-        let picked = match self.pick_from_registry(&registry, &spec, opts, optional).await {
+        let picked = match self.pick_from_registry(&registry, &spec, opts, optional)
+            .await
+        {
             Ok(RegistryPick::Picked(picked)) => picked,
             outcome => {
                 return workspace_fallback_for(
@@ -380,7 +384,8 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let registry = self.registries.get("@jsr").map_or(DEFAULT_JSR_REGISTRY, String::as_str);
 
         let optional = wanted_dependency.optional.unwrap_or(false);
-        let picked = match self.pick_from_registry(registry, &jsr_spec.spec, opts, optional).await?
+        let picked = match self.pick_from_registry(registry, &jsr_spec.spec, opts, optional)
+            .await?
         {
             RegistryPick::Picked(picked) => picked,
             RegistryPick::NoMatchingVersion(meta) => {
