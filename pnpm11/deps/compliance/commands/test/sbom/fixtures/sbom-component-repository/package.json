@@ -1,0 +1,9 @@
+{
+  "name": "sbom-component-repository-test",
+  "version": "1.0.0",
+  "description": "Test fixture for SBOM component repository field normalization",
+  "license": "ISC",
+  "dependencies": {
+    "@pnpm.e2e/sbom-shorthand-repo": "1.0.0"
+  }
+}

@@ -189,7 +189,7 @@ function setManifestAuthor (manifestPath: string, author: string): void {
   fs.writeFileSync(manifestPath, JSON.stringify(manifest))
 }
 
-function spdxPackage (document: { packages: Array<{ name: string, supplier?: string }> }, name: string): { supplier?: string } {
+function spdxPackage (document: { packages: Array<{ name: string, supplier?: string, homepage?: string }> }, name: string): { supplier?: string, homepage?: string } {
   const pkg = document.packages.find((item) => item.name === name)
   if (!pkg) throw new Error(`the SPDX document has no ${name} package`)
   return pkg
@@ -1162,6 +1162,187 @@ test('pnpm sbom --split --out without %s throws', async () => {
       lockfileOnly: true,
     })
   ).rejects.toThrow('must contain %s')
+})
+
+test('pnpm sbom expands the root repository owner/repo shorthand to a GitHub URL', async () => {
+  const workspaceDir = tempDir()
+  f.copy('sbom-repository', workspaceDir)
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  const extRefs = parsed.metadata.component.externalReferences ?? []
+  const vcs = extRefs.find((ref: { type: string }) => ref.type === 'vcs')
+  expect(vcs?.url).toBe('git+https://github.com/acme/sbom-repository-test.git')
+})
+
+test('pnpm sbom spdx expands the root repository shorthand into the root package homepage', async () => {
+  const workspaceDir = tempDir()
+  f.copy('sbom-repository', workspaceDir)
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'spdx',
+    lockfileOnly: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  const rootPkg = parsed.packages.find(
+    (p: { name: string }) => p.name === 'sbom-repository-test'
+  )
+  expect(rootPkg).toBeDefined()
+  expect(rootPkg.homepage).toBe('git+https://github.com/acme/sbom-repository-test.git')
+})
+
+test('pnpm sbom --filter keeps a non-URL project repository from inheriting the workspace repository', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom', workspaceDir)
+
+  setManifestRepository(path.join(workspaceDir, 'package.json'), 'acme/workspace-repo')
+  setManifestRepository(path.join(workspaceDir, 'app-a', 'package.json'), 'git@github.com:acme/app-a.git')
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const sbomOpts = {
+    ...DEFAULT_OPTS,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }
+  const onlyProject = (projectDir: string): typeof selectedProjectsGraph =>
+    Object.fromEntries(
+      Object.entries(selectedProjectsGraph).filter(([dir]) => dir === projectDir)
+    ) as typeof selectedProjectsGraph
+
+  const appADir = path.join(workspaceDir, 'app-a')
+  const declaredCycloneDx = JSON.parse((await sbom.handler({
+    ...sbomOpts,
+    dir: appADir,
+    sbomFormat: 'cyclonedx',
+    selectedProjectsGraph: onlyProject(appADir),
+  })).output)
+  expect(declaredCycloneDx.metadata.component.name).toBe('app-a')
+  const declaredVcs = (declaredCycloneDx.metadata.component.externalReferences ?? [])
+    .find((ref: { type: string }) => ref.type === 'vcs')
+  expect(declaredVcs).toBeUndefined()
+  const declaredSpdx = JSON.parse((await sbom.handler({
+    ...sbomOpts,
+    dir: appADir,
+    sbomFormat: 'spdx',
+    selectedProjectsGraph: onlyProject(appADir),
+  })).output)
+  expect(spdxPackage(declaredSpdx, '@test/app-a').homepage).toBeUndefined()
+
+  const appBDir = path.join(workspaceDir, 'app-b')
+  const inheritedCycloneDx = JSON.parse((await sbom.handler({
+    ...sbomOpts,
+    dir: appBDir,
+    sbomFormat: 'cyclonedx',
+    selectedProjectsGraph: onlyProject(appBDir),
+  })).output)
+  const inheritedVcs = (inheritedCycloneDx.metadata.component.externalReferences ?? [])
+    .find((ref: { type: string }) => ref.type === 'vcs')
+  expect(inheritedVcs?.url).toBe('git+https://github.com/acme/workspace-repo.git')
+  const inheritedSpdx = JSON.parse((await sbom.handler({
+    ...sbomOpts,
+    dir: appBDir,
+    sbomFormat: 'spdx',
+    selectedProjectsGraph: onlyProject(appBDir),
+  })).output)
+  expect(spdxPackage(inheritedSpdx, 'app-b').homepage).toBe('git+https://github.com/acme/workspace-repo.git')
+})
+
+function setManifestRepository (manifestPath: string, repository: string): void {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  manifest.repository = repository
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest))
+}
+
+test('pnpm sbom omits a root repository value that is not a URL', async () => {
+  const workspaceDir = tempDir()
+  f.copy('sbom-repository', workspaceDir)
+  const manifest = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'package.json'), 'utf8'))
+  manifest.repository = 'git@github.com:foo/bar.git'
+  fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify(manifest))
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    lockfileOnly: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  const extRefs = parsed.metadata.component.externalReferences ?? []
+  expect(extRefs.some((ref: { type: string }) => ref.type === 'vcs')).toBe(false)
+})
+
+test('pnpm sbom expands a component repository owner/repo shorthand to a GitHub URL', async () => {
+  const workspaceDir = tempDir()
+  f.copy('sbom-component-repository', workspaceDir)
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    registriesByScope: { default: REGISTRY_URL },
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  const { output, exitCode } = await sbom.handler({
+    ...DEFAULT_OPTS,
+    registriesByScope: { default: REGISTRY_URL },
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx',
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  })
+
+  expect(exitCode).toBe(0)
+
+  const parsed = JSON.parse(output)
+  const component = parsed.components.find(
+    (c: { purl?: string }) => c.purl === 'pkg:npm/%40pnpm.e2e/sbom-shorthand-repo@1.0.0'
+  )
+  expect(component).toBeDefined()
+  const vcs = component.externalReferences.find(
+    (ref: { type: string }) => ref.type === 'vcs'
+  )
+  expect(vcs?.url).toBe('git+https://github.com/pnpm/sbom-shorthand-repo.git')
 })
 
 test('pnpm sbom excludes platform-incompatible optional packages instead of emitting them without licenses', async () => {

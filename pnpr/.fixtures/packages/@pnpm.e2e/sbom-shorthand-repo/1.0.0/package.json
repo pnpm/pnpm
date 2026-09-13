@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/sbom-shorthand-repo",
+  "version": "1.0.0",
+  "description": "SBOM test fixture whose repository field is an npm org/repo shorthand",
+  "license": "MIT",
+  "repository": "pnpm/sbom-shorthand-repo"
+}
