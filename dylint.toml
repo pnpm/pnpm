@@ -41,7 +41,7 @@ ignore = [
 ]
 
 [perfectionist]
-enable = ["unordered_derives", "core_instead_of_std"]
+enable = ["unordered_derives", "core_instead_of_std", "overly_long_method_chain"]
 disable = ["needless_borrowed_parameters"]
 
 # Code spans read fine in `--help` and stay useful as `cargo doc` docs, so
@@ -128,3 +128,7 @@ exempt_tests = true
 ["perfectionist::too_many_struct_fields"]
 max_fields = 8
 exempt_tests = false
+
+["perfectionist::overly_long_method_chain"]
+max_calls = 9
+exempt_tests = true
