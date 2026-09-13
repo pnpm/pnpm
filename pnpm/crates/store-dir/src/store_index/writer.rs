@@ -260,13 +260,7 @@ fn apply_write_msg(
             }
         }
         WriteMsg::InvalidateSideEffects { key, cache_key } => {
-            if let Some(row) = pending.get_mut(&key) {
-                remove_side_effects(row, &cache_key);
-            } else if let Some(mut row) = load_index_row(index, &key)
-                && remove_side_effects(&mut row, &cache_key)
-            {
-                pending.insert(key, row);
-            }
+            invalidate_side_effects(index, pending, key, &cache_key);
         }
         WriteMsg::QuarantineRemoteSideEffects { key, channel, envelope_digest } => {
             if let Some(row) = load_pending_row(index, pending, &key) {
@@ -311,6 +305,21 @@ fn quarantine_digest(row: &mut PackageFilesIndex, channel: String, envelope_dige
     }
     if digests.len() > MAX_QUARANTINED_REMOTE_SIDE_EFFECTS {
         digests.drain(..digests.len() - MAX_QUARANTINED_REMOTE_SIDE_EFFECTS);
+    }
+}
+
+fn invalidate_side_effects(
+    index: &StoreIndex,
+    pending: &mut HashMap<String, PackageFilesIndex>,
+    key: String,
+    cache_key: &str,
+) {
+    if let Some(row) = pending.get_mut(&key) {
+        remove_side_effects(row, cache_key);
+    } else if let Some(mut row) = load_index_row(index, &key)
+        && remove_side_effects(&mut row, cache_key)
+    {
+        pending.insert(key, row);
     }
 }
 
