@@ -262,6 +262,11 @@ pub(super) struct SwitchInput {
     /// The install-family options the pin record reads.
     pub(super) pin_flags: PinFlags,
     pub(super) color: Option<ColorMode>,
+    /// `--ignore-workspace` as typed on the command line. It suppresses
+    /// the workspace search for this pass as it does for the install, so
+    /// no `pnpm-workspace.yaml` is read at all and the `packageManager`
+    /// pin comes from the project's own `package.json`.
+    pub(super) ignore_workspace: bool,
 }
 
 impl SwitchInput {
@@ -274,6 +279,7 @@ impl SwitchInput {
             frozen_lockfile: frozen_lockfile_flag(&args.command),
             pin_flags: PinFlags::of(&args.command),
             color: args.color.or_else(|| args.no_color.then_some(ColorMode::Never)),
+            ignore_workspace: args.ignore_workspace,
         }
     }
 
@@ -298,6 +304,7 @@ impl SwitchInput {
             frozen_lockfile: None,
             pin_flags: PinFlags::default(),
             color: None,
+            ignore_workspace: false,
         };
         let mut index = 1;
         while index < argv.len() {
@@ -342,6 +349,10 @@ impl SwitchInput {
             self.state_dir = Some(PathBuf::from(value));
             return width;
         }
+        if let Some(set) = boolean_flag(token, "ignore-workspace") {
+            self.ignore_workspace = set;
+            return 1;
+        }
         if let Some((value, width)) = long_value(token, "npmrc-auth-file", next)
             .or_else(|| long_value(token, "userconfig", next))
         {
@@ -361,6 +372,18 @@ fn short_value<'a>(token: &'a str, option: &str, next: Option<&'a OsStr>) -> Opt
         return next;
     }
     token.strip_prefix(option).filter(|value| !value.is_empty()).map(OsStr::new)
+}
+
+/// Read a bare boolean global flag, in the two spellings that reach this
+/// scan: `--<option>` and `--<option>=<bool>`, which
+/// [`resolve_boolean_values`](crate::boolean_values::resolve_boolean_values)
+/// has already folded into `--<option>` or `--no-<option>`.
+fn boolean_flag(token: &str, option: &str) -> Option<bool> {
+    let name = token.strip_prefix("--")?;
+    if name == option {
+        return Some(true);
+    }
+    (name.strip_prefix("no-") == Some(option)).then_some(false)
 }
 
 fn long_value<'a>(

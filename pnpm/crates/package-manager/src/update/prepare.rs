@@ -183,7 +183,7 @@ pub(super) async fn decide_update<Reporter: self::Reporter>(
     // Catalogs stay lazy unless an earlier selected project already produced
     // the complete in-memory catalog set for this batch.
     let mut catalog_ctx = catalogs_seed
-        .map(|catalogs| read_catalog_ctx_with_catalogs(manifest, catalogs.clone()))
+        .map(|catalogs| read_catalog_ctx_with_catalogs(manifest, update.config, catalogs.clone()))
         .transpose()?;
     let scope = update_scope(update, owned, &selectors, &direct);
     let mut plan = UpdatePlan::default();

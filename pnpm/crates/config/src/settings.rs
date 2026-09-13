@@ -124,6 +124,17 @@ pub struct Config {
     /// `handleIgnoredBuilds`.
     pub ignore_workspace: bool,
 
+    /// Whether [`Self::current`] skipped the workspace search, which it
+    /// does exactly when [`Self::ignore_workspace`] was already set when
+    /// the search ran.
+    ///
+    /// A consumer that re-derives the workspace root reads this to tell
+    /// a deliberately suppressed search from an unresolved one. Reading
+    /// [`Self::ignore_workspace`] there would be wrong: the layers it
+    /// also collects land after discovery, and must not retroactively
+    /// turn the project standalone.
+    pub workspace_search_skipped: bool,
+
     /// Glob patterns selecting the workspace's projects, from
     /// `--workspace-packages` or `pnpm-workspace.yaml`'s `packages`.
     /// `None` outside a workspace.

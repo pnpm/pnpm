@@ -1,4 +1,4 @@
-pub(super) use configuration::apply_update_config;
+pub(super) use configuration::{apply_update_config, seed_config};
 
 use super::{
     cli_command::{CliArgs, CliCommand},
@@ -20,7 +20,7 @@ use crate::{
 
 use configuration::{
     OutputOverrides, ProjectSelectors, RunAnchors, RunSetup, apply_color_override,
-    apply_location_overrides, apply_output_overrides, apply_project_selectors, seed_config,
+    apply_location_overrides, apply_output_overrides, apply_project_selectors,
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};
@@ -141,11 +141,14 @@ impl CliArgs {
     /// same check.
     ///
     /// Mirrors the install arm of [`Self::run`]'s dispatch: the same
-    /// canonicalized `--dir`, the same config layering (`.npmrc` auth
-    /// file seed + `--config.<key>` overrides). Filtered installs always
-    /// take the full path; an unfiltered recursive one does not — inside
-    /// a workspace every install is recursive, and the up-to-date check
-    /// speaks for the whole workspace.
+    /// canonicalized `--dir`, the same config seed (`--npmrc-auth-file`
+    /// and `--ignore-workspace`), the same `--config.<key>` overrides. A
+    /// config loaded any other way would answer for a different project.
+    ///
+    /// Filtered installs always take the full path; an unfiltered
+    /// recursive one does not — inside a workspace every install is
+    /// recursive, and the up-to-date check speaks for the whole
+    /// workspace.
     pub fn finished_via_install_fast_path(&self, config_overrides: &ConfigOverrides) -> bool {
         let started_at = now_millis();
         let CliCommand::Install(install_args) = &self.command else {
@@ -157,7 +160,7 @@ impl CliArgs {
         let Ok(dir) = dunce::canonicalize(&self.dir) else {
             return false;
         };
-        let loaded = Config { npmrc_auth_file: self.npmrc_auth_file.clone(), ..Config::default() }
+        let loaded = seed_config(self.npmrc_auth_file.as_deref(), self.ignore_workspace)
             .current::<Host>(&dir);
         let Ok(mut config) = loaded else {
             return false;

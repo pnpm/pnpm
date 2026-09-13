@@ -104,7 +104,10 @@ impl RunSetup {
 /// turbofish `Host` explicitly so the dependency-injection plumbing is
 /// visible at the call site. See
 /// [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
-pub(super) fn seed_config(npmrc_auth_file: Option<&Path>, ignore_workspace: bool) -> Config {
+pub(in crate::cli_args) fn seed_config(
+    npmrc_auth_file: Option<&Path>,
+    ignore_workspace: bool,
+) -> Config {
     Config {
         npmrc_auth_file: npmrc_auth_file.map(Path::to_path_buf),
         ignore_workspace,

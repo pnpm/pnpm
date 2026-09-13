@@ -147,7 +147,12 @@ impl CliArgs {
             .or_else(|_| std::path::absolute(&self.dir))
             .unwrap_or_else(|_| self.dir.clone())
             .pipe_deref(pnpm_fs::lexical_normalize);
+        // `--ignore-workspace` runs the project standalone, so there is no
+        // workspace to be recursive over: promoting anyway makes the
+        // selection discover the project's own subdirectories as if they
+        // were workspace projects.
         if !self.recursive
+            && !self.ignore_workspace
             && self.command.recursive_by_default()
             && pnpm_workspace::find_workspace_dir(&dir).is_ok_and(|dir| dir.is_some())
         {

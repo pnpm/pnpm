@@ -18,8 +18,8 @@ use pnpm_lockfile::{LoadLockfileError, Lockfile};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{
     FindWorkspaceDirError, FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project,
-    ReadWorkspaceManifestError, find_workspace_dir, find_workspace_projects,
-    read_workspace_manifest, workspace_package_patterns,
+    ReadWorkspaceManifestError, find_workspace_projects, read_workspace_manifest,
+    workspace_package_patterns,
 };
 use pnpm_workspace_manifest_writer::{
     ResolvedPackageVersions, UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions,
@@ -62,7 +62,7 @@ pub(crate) fn write_workspace_catalogs(
     }
     let workspace_dir = match workspace_dir {
         Some(dir) => dir.to_path_buf(),
-        None => derive_workspace_dir(current_manifest)?,
+        None => derive_workspace_dir(config, current_manifest)?,
     };
     let projects =
         if config.catalog_prune { load_cleanup_projects(&workspace_dir)? } else { Vec::new() };
@@ -105,6 +105,7 @@ pub(crate) fn write_workspace_catalogs_selected(
 }
 
 fn derive_workspace_dir(
+    config: &Config,
     current_manifest: &PackageManifest,
 ) -> Result<PathBuf, WriteWorkspaceCatalogsError> {
     let manifest_dir = current_manifest
@@ -112,9 +113,10 @@ fn derive_workspace_dir(
         .parent()
         .expect("manifest path always has a parent dir")
         .to_path_buf();
-    let workspace_dir = find_workspace_dir(&manifest_dir)
-        .map_err(WriteWorkspaceCatalogsError::FindWorkspaceDir)?
-        .unwrap_or(manifest_dir);
+    let workspace_dir =
+        crate::install::configured_or_discovered_workspace_dir(config, &manifest_dir)
+            .map_err(WriteWorkspaceCatalogsError::FindWorkspaceDir)?
+            .unwrap_or(manifest_dir);
     Ok(workspace_dir)
 }
 
@@ -141,7 +143,7 @@ pub(crate) fn post_install_prune(
     }
     let workspace_dir = match workspace_dir {
         Some(dir) => dir.to_path_buf(),
-        None => derive_workspace_dir(current_manifest)?,
+        None => derive_workspace_dir(config, current_manifest)?,
     };
     // The entries live in the workspace's `pnpm-workspace.yaml`; the
     // lockfile that proves what still resolves sits wherever

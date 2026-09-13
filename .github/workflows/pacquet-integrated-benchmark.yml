@@ -57,7 +57,6 @@ concurrency:
 # the base-repo privilege context via `workflow_run`.
 permissions:
   contents: read
-  checks: write
 
 jobs:
   revisions:
@@ -644,6 +643,13 @@ jobs:
     needs: [revisions, benchmark]
     name: Combine benchmark results
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Only this job touches the Checks API, and only on `push` /
+    # `workflow_dispatch`, where `bencher run --github-actions` reports
+    # threshold results. The other jobs — which run benchmark code from
+    # fork PRs — inherit `contents: read` alone.
+    permissions:
+      contents: read
+      checks: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -305,7 +305,8 @@ pub(super) fn read_catalog_ctx(
     let manifest_dir =
         manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
     let workspace_dir_opt =
-        pnpm_workspace::find_workspace_dir(&manifest_dir).map_err(AddError::FindWorkspaceDir)?;
+        crate::install::configured_or_discovered_workspace_dir(config, &manifest_dir)
+            .map_err(AddError::FindWorkspaceDir)?;
     let catalogs = if let Some(catalogs) = config.catalogs.clone() {
         catalogs
     } else {
