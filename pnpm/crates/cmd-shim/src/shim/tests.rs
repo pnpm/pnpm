@@ -620,11 +620,7 @@ fn generate_pwsh_shim_emits_direct_exec_when_no_runtime() {
 #[cfg(unix)]
 #[test]
 fn shim_execution_resolves_symlink_chain() {
-    use std::{
-        fs,
-        os::unix::fs::{PermissionsExt, symlink},
-        process::Command,
-    };
+    use std::{fs, os::unix::fs::symlink, process::Command};
     use tempfile::tempdir;
 
     let tmp = tempdir().unwrap();
@@ -639,19 +635,12 @@ fn shim_execution_resolves_symlink_chain() {
     fs::create_dir_all(&target_dir).unwrap();
 
     let target_path = target_dir.join("tsc");
-    fs::write(&target_path, "#!/bin/sh\necho \"tsc-output\"\n").unwrap();
-    let mut perms = fs::metadata(&target_path).unwrap().permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(&target_path, perms).unwrap();
+    write_executable(&target_path, "#!/bin/sh\necho \"tsc-output\"\n");
 
     let shim_path = bin_dir.join("tsc");
-    let shim_body = generate_sh_shim(&target_path, &shim_path, None, &[]);
-    fs::write(&shim_path, &shim_body).unwrap();
-    let mut perms = fs::metadata(&shim_path).unwrap().permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(&shim_path, perms).unwrap();
+    write_executable(&shim_path, &generate_sh_shim(&target_path, &shim_path, None, &[]));
 
-    // hop2's relative target exercises the shim's dirname-composition
+    // hop2's relative target exercises the shim's directory-composition
     // branch; hop1's absolute target exercises the other.
     let hop1 = tmp_path.join("symlink_hop_1");
     symlink(&shim_path, &hop1).unwrap();
@@ -676,11 +665,31 @@ fn shim_execution_resolves_symlink_chain() {
 #[cfg(unix)]
 #[test]
 fn shim_execution_ignores_helpers_from_the_callers_path() {
-    use std::{os::unix::fs::symlink, process::Command};
-
     let tmp = tempfile::tempdir().unwrap();
-    let bin_dir = tmp.path().join("node_modules").join(".bin");
-    let target = tmp.path().join("node_modules").join("typescript").join("bin").join("tsc.js");
+    let bin_dir = plant_shimmed_tool(tmp.path());
+    let mut command = std::process::Command::new(bin_dir.join("tsc-link"));
+    assert_shim_reaches_its_target(tmp.path(), &mut command);
+}
+
+/// The kernel and `execvp` hand the interpreter the path they resolved, so `$0`
+/// is bare only when a shell is given the name itself.
+#[cfg(unix)]
+#[test]
+fn shim_execution_normalizes_a_bare_name() {
+    let tmp = tempfile::tempdir().unwrap();
+    let bin_dir = plant_shimmed_tool(tmp.path());
+    let mut command = std::process::Command::new("sh");
+    command.arg("tsc-link").current_dir(&bin_dir);
+    assert_shim_reaches_its_target(tmp.path(), &mut command);
+}
+
+/// A shimmed tool plus a relative symlink to it in the same directory, so the
+/// walk composes a directory with the link target instead of taking one
+/// straight from `readlink`. Returns the bin directory.
+#[cfg(unix)]
+fn plant_shimmed_tool(root: &Path) -> PathBuf {
+    let bin_dir = root.join("node_modules").join(".bin");
+    let target = root.join("node_modules").join("typescript").join("bin").join("tsc.js");
     std::fs::create_dir_all(&bin_dir).unwrap();
     std::fs::create_dir_all(target.parent().unwrap()).unwrap();
     std::fs::write(&target, "console.log('tsc-output')\n").unwrap();
@@ -691,14 +700,17 @@ fn shim_execution_ignores_helpers_from_the_callers_path() {
     let shim = bin_dir.join("tsc");
     let runtime = ScriptRuntime { prog: Some("node".into()), args: String::new() };
     write_executable(&shim, &generate_sh_shim(&target, &shim, Some(&runtime), &[]));
-    // Relative and in the shim's own directory, so the walk composes a directory
-    // with the link target instead of taking one straight from `readlink`.
-    let link = bin_dir.join("tsc-link");
-    symlink("tsc", &link).unwrap();
+    std::os::unix::fs::symlink("tsc", bin_dir.join("tsc-link")).unwrap();
+    bin_dir
+}
 
-    let decoy_dir = plant_hijack_tree_and_decoys(tmp.path());
+/// Run `command` with the decoys first on `PATH` and require the real target's
+/// output.
+#[cfg(unix)]
+fn assert_shim_reaches_its_target(root: &Path, command: &mut std::process::Command) {
+    let decoy_dir = plant_hijack_tree_and_decoys(root);
     let path = format!("{}:{}", decoy_dir.display(), std::env::var("PATH").unwrap_or_default());
-    let output = Command::new(&link).env("PATH", path).output().expect("run the shim");
+    let output = command.env("PATH", path).output().expect("run the shim");
 
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
     let stdout = String::from_utf8_lossy(&output.stdout);
