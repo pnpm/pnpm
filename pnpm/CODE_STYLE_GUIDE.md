@@ -52,6 +52,12 @@ Keep function and method bodies within three levels of nesting, including tests.
 
 Keep iterator closures simple. A single expression can make a chain easy to follow. When a closure needs several statements, prefer an explicit loop or a named helper. Preserve lazy evaluation, allocation behavior, and short-circuiting when choosing between them.
 
+### Method chains
+
+Keep production method chains within nine calls. Consecutive calls to the same method count once; `.await` and `?` do not add to the count. Tests are exempt.
+
+`perfectionist::overly_long_method_chain` enforces this through [`dylint.toml`](../dylint.toml). When a chain exceeds the limit, name an intermediate value or extract a helper for a distinct operation.
+
 ### File length
 
 Keep production Rust files within 400 lines of code and test-only Rust files within 800. Count nonblank lines containing code, including multiline string content, and exclude comment-only lines. Split files into modules around distinct responsibilities or test scenarios. Keep tests in their existing test binary.

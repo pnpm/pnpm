@@ -10,7 +10,7 @@ pub(super) fn find_changed_catalog_entries(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .filter_map(|catalog_name| {
-            let changed = before
+            let dependency_names: BTreeSet<_> = before
                 .get(catalog_name)
                 .into_iter()
                 .flatten()
@@ -22,7 +22,8 @@ pub(super) fn find_changed_catalog_entries(
                         .flatten()
                         .map(|(name, _)| name),
                 )
-                .collect::<BTreeSet<_>>()
+                .collect();
+            let changed = dependency_names
                 .into_iter()
                 .filter(|dependency_name| {
                     before
