@@ -220,14 +220,16 @@ search. An empty search without `browse=true` still returns no results.
 To bound work from a single browser request, pnpr retains at most 2,000
 upstream results per search and spends at most eight budgeted page fetches
 across all sources. Separately from those budgets, every search-enabled
-upstream is guaranteed one request even after they are spent, sized to
-whatever result budget remains — down to a single entry — so a source listed
-after a large one is never silently dropped from the results or the total. A
-source that advertises more than the budget allows (the public npm registry
-does for almost any term) is truncated rather than rejected: the requested
-page is served from what was downloaded, every downloaded result keeps its
-position, and the rest only counts toward the estimated total — pages beyond
-the downloaded results come back empty.
+upstream whose access and package rules admit the caller gets one request
+even after they are spent, sized to whatever result budget remains, down to
+a single entry, so a source listed after a large one is never silently
+dropped from the results or the total. An upstream the caller may not reach
+is skipped and never queried at all. A source that advertises more than the
+budget allows (the public npm registry does for almost any term) is
+truncated rather than rejected: the requested page is served from what was
+downloaded, every downloaded result keeps its position, and the rest only
+counts toward the estimated total. Pages beyond the downloaded results come
+back empty.
 
 ## Cargo and Python registries
 

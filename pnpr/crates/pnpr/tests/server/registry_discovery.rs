@@ -195,14 +195,13 @@ async fn upstream_search_exhausts_results_to_return_an_exact_total() {
     last.assert_async().await;
 }
 
-/// A huge `from` may not force an unbounded upstream walk: the fetch
-/// budgets (8 pages / 2000 results) bound the cost, and the response is a
-/// 200 with an empty window and an approximate `total` — never a refusal.
+/// A huge `from` may not force an unbounded upstream walk.
 #[tokio::test]
 async fn upstream_search_bounds_the_walk_for_a_huge_offset() {
     let mut upstream = mockito::Server::new_async().await;
-    let objects: Vec<_> =
-        (0..250).map(|i| json!({ "package": { "name": format!("remote-{i}") } })).collect();
+    let objects: Vec<_> = (0..250)
+        .map(|i| json!({ "package": { "name": format!("remote-{i}") } }))
+        .collect();
     let pages = upstream
         .mock("GET", "/-/v1/search")
         .match_query(mockito::Matcher::Any)
@@ -218,21 +217,24 @@ async fn upstream_search_bounds_the_walk_for_a_huge_offset() {
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/-/v1/search?text=remote&from=2001").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=remote&from=2001")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
     assert_eq!(body["objects"], json!([]));
-    // The 8000 results the budget left unscanned keep `total` in the
-    // advertised ballpark (the scanned pages dedup to 250 names).
-    assert!(body["total"].as_u64().unwrap() >= 8_000, "total {}", body["total"]);
+    // 250 deduplicated names from the eight budgeted pages, plus the 8,000
+    // results past the 2,000 the budget walked.
+    assert_eq!(body["total"], json!(8_250));
     pages.assert_async().await;
 }
 
-/// An upstream that dribbles short pages is cut off by the page budget:
-/// eight fetches, then the walk truncates into an approximate `total`
-/// instead of erroring.
+/// An upstream that dribbles short pages is cut off by the page budget
+/// rather than erroring.
 #[tokio::test]
 async fn upstream_search_stops_after_eight_short_pages() {
     let mut upstream = mockito::Server::new_async().await;
@@ -267,13 +269,15 @@ async fn upstream_search_stops_after_eight_short_pages() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
-    assert_eq!(body["objects"].as_array().unwrap().len(), 1);
+    let objects = body["objects"].as_array().unwrap();
+    assert_eq!(objects.len(), 1);
+    // One deduplicated name plus the ninth result the walk never reached.
+    assert_eq!(body["total"], json!(2));
     short_page.assert_async().await;
 }
 
 /// An upstream that reports more results but returns an empty page is
-/// misbehaving; that surfaces as a gateway error rather than looping or
-/// silently under-reporting.
+/// misbehaving, so the search fails rather than looping.
 #[tokio::test]
 async fn upstream_search_reporting_results_but_returning_none_is_a_gateway_error() {
     let mut upstream = mockito::Server::new_async().await;
@@ -292,7 +296,11 @@ async fn upstream_search_reporting_results_but_returning_none_is_a_gateway_error
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/-/v1/search?text=remote").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=remote")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -300,8 +308,7 @@ async fn upstream_search_reporting_results_but_returning_none_is_a_gateway_error
     lying_page.assert_async().await;
 }
 
-/// An upstream without a search endpoint (404) contributes nothing; the
-/// search still answers with what the other sources hold.
+/// An upstream without a search endpoint contributes nothing.
 #[tokio::test]
 async fn upstream_without_a_search_endpoint_is_skipped() {
     let mut upstream = mockito::Server::new_async().await;
@@ -319,7 +326,11 @@ async fn upstream_without_a_search_endpoint_is_skipped() {
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/-/v1/search?text=ajv").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=ajv")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -419,10 +430,8 @@ async fn registry_directory_describes_oci_only_named_endpoints() {
 }
 
 /// A caller denied by any of an upstream's package access refinements is
-/// excluded from that upstream's search entirely — its advertised totals
-/// never reach the caller-visible `total`. This is the property that makes
-/// folding the raw unscanned remainder into `total` safe: only callers the
-/// whole source admits ever see its counts.
+/// excluded from that upstream's search entirely, which is what makes
+/// folding its raw unscanned remainder into `total` safe.
 #[tokio::test]
 async fn search_excludes_an_upstream_with_a_denying_package_rule() {
     let mut upstream = mockito::Server::new_async().await;
@@ -441,7 +450,11 @@ async fn search_excludes_an_upstream_with_a_denying_package_rule() {
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/-/v1/search?text=ajv").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=ajv")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);

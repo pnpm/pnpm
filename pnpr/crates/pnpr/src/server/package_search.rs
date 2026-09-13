@@ -20,19 +20,12 @@ pub(super) struct SearchPage<Item> {
     pub(super) names: HashSet<String>,
     pub(super) from: usize,
     pub(super) size: usize,
-    /// Results a fetch budget left undownloaded: the source's reported
-    /// total minus what was walked. They keep `total` an
-    /// over-approximation instead of turning a big source into an error;
-    /// they are not deduplicated against `names`.
-    ///
-    /// They sit at the very end of the served sequence, after every
-    /// downloaded result from every source. Example: source A holds 10
-    /// results but the budget only downloaded 8, and source B holds 1 —
-    /// the sequence is A's 8, then B's 1, then 2 empty slots (`total`
-    /// 11). Seating A's missing entries before B would show nothing
-    /// extra (their contents are unknown) and would bury B's real result
-    /// behind empty slots. The walk is the same for every request
-    /// whatever `from` asks for, so pages never overlap or shift.
+    /// Results a fetch budget never downloaded: a source's reported total
+    /// minus what was walked, not deduplicated against `names`. They keep
+    /// `total` an over-approximation instead of turning a large source into
+    /// an error, and they occupy the tail of the served sequence, behind
+    /// every downloaded result of every source, so a source walked after a
+    /// truncated one is never buried under slots nobody can fill.
     pub(super) unscanned: usize,
 }
 
@@ -72,6 +65,10 @@ pub(super) const MAX_UPSTREAM_SEARCH_RESULTS: usize = 2_000;
 
 pub(super) const MAX_UPSTREAM_SEARCH_PAGES: usize = 8;
 
+/// What one search may download from its upstreams. The budgets bound
+/// pnpr's own fetching, never what an upstream advertises: npmjs's loose
+/// full-text search reports five-digit totals for almost any term, so a
+/// search that refused those would refuse almost every term.
 #[derive(Default)]
 pub(super) struct UpstreamSearchBudget {
     pub(super) pages: usize,
@@ -92,11 +89,8 @@ impl UpstreamSearchBudget {
         MAX_UPSTREAM_SEARCH_RESULTS.saturating_sub(self.results)
     }
 
-    /// Charge one upstream page against the budget. `false` means the
-    /// budget is spent — the caller stops fetching and truncates, it is
-    /// never an error: the budget bounds what pnpr downloads, not what
-    /// the upstream advertises (npmjs's loose full-text search reports
-    /// five-digit totals for almost any term).
+    /// Charge one upstream page against the budget. `false` means the page
+    /// budget is spent, which truncates the walk rather than failing it.
     pub(super) fn try_take_page(&mut self) -> bool {
         if self.pages == MAX_UPSTREAM_SEARCH_PAGES {
             return false;
@@ -114,13 +108,10 @@ impl UpstreamSearchBudget {
 /// `GET /-/v1/search?text=...&from=...&size=...` — npm search v1 endpoint.
 /// Hosted results are counted after routing and access filters, then optional
 /// upstream results are appended in registry-source order. An upstream only
-/// participates when its `search` setting is enabled. A small upstream is
-/// exhausted, so `total` is the exact deduplicated count; a source the fetch
-/// budgets cut short (npmjs's loose full-text search reports five-digit
-/// totals for almost any term) still serves the requested window, with the
-/// unscanned remainder folded into `total` as an over-approximation. Every
-/// admitted source is fetched at least once, so a source starved by the ones
-/// before it still reaches `objects` or, at minimum, `total`.
+/// participates when its `search` setting is enabled. An upstream small
+/// enough to exhaust makes `total` the exact deduplicated count; one the
+/// [`UpstreamSearchBudget`] cuts short still serves the requested window and
+/// folds its unscanned remainder into `total`.
 pub(super) async fn serve_search(
     state: &AppState,
     identity: &Identity,
@@ -294,14 +285,10 @@ pub(super) async fn append_upstream_search(
     const FETCH_SIZE: usize = 250;
 
     let resolved = RegistrySource::Upstream(context.source.to_string());
-    // Every admitted source gets its first fetch even when earlier sources
-    // spent the shared budgets: that page serves whatever the result budget
-    // still allows and, at minimum, reports the source's size — so a source
-    // never silently vanishes from `objects` and `total` at once. The page
-    // is charged when shared capacity remains; only pages past the first
-    // require it. Each request is sized to the remaining result budget, so
-    // that post-budget guaranteed fetch shrinks to a one-entry probe that
-    // only learns the source's total instead of a full page per source.
+    // The first fetch is not conditional on the shared budgets, so a source
+    // routed after a large one still reaches `objects` or, at minimum,
+    // `total`. Sizing every request to the result budget keeps that
+    // guarantee cheap: once the budget is spent it is a one-entry probe.
     budget.try_take_page();
     let mut from = 0usize;
     loop {
@@ -325,12 +312,8 @@ pub(super) enum PageOutcome {
     More,
 }
 
-/// Fold one fetched upstream page into the result set. A source small
-/// enough to exhaust keeps `total` exact; when a fetch budget runs out the
-/// walk truncates and the remainder inflates `total` approximately — the
-/// budgets bound what pnpr downloads, never what the upstream advertises
-/// (npmjs's loose full-text search reports five-digit totals for almost
-/// any term).
+/// Fold one fetched upstream page into the result set, advancing `from` by
+/// what the result budget let it keep.
 pub(super) fn consume_upstream_page(
     context: &UpstreamSearchContext<'_>,
     resolved: &RegistrySource,
@@ -356,13 +339,10 @@ pub(super) fn consume_upstream_page(
         });
     }
     if budget.remaining_results() == 0 || !budget.try_take_page() {
-        // Folding the raw advertised remainder into the caller-visible total
-        // is safe: [`upstream_search_admits`] only lets a caller search a
-        // source when its default access and every per-package refinement
-        // admit them, so a caller denied any package never receives this
-        // source's counts at all. For an admitted caller the remainder can
-        // include entries the registry graph routes elsewhere — a count of
-        // names, never their contents, from a source they may query freely.
+        // The remainder is raw, unfiltered by `search_result_is_visible`,
+        // yet it leaks nothing: `upstream_search_admits` withholds a source
+        // from any caller its access or package rules deny, so only a caller
+        // free to query the source in full ever sees its counts.
         page.unscanned = page.unscanned.saturating_add(response.total.saturating_sub(*from));
         return Ok(PageOutcome::Done);
     }

@@ -90,15 +90,13 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
 }
 
 /// npmjs's loose full-text search advertises five-digit totals for almost
-/// any term. The fetch budget must bound what pnpr downloads and then
-/// truncate — serving the requested window with an approximate `total` —
-/// never refuse the search over the advertised size.
+/// any term, so a source larger than the fetch budget is truncated, never
+/// refused.
 #[tokio::test]
 async fn search_truncates_a_huge_upstream_instead_of_refusing() {
     let mut upstream = mockito::Server::new_async().await;
-    // Every page (whatever `from`) returns the same three results while
-    // advertising tens of thousands, like npmjs does for a broad term. The
-    // page budget (8) bounds the walk.
+    // Every page returns the same three results while advertising tens of
+    // thousands, like npmjs does for a broad term.
     let pages = upstream
         .mock("GET", "/-/v1/search")
         .match_query(mockito::Matcher::UrlEncoded("text".into(), "jquery".into()))
@@ -124,7 +122,11 @@ async fn search_truncates_a_huge_upstream_instead_of_refusing() {
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/-/v1/search?text=jquery&size=20").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=jquery&size=20")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -132,23 +134,23 @@ async fn search_truncates_a_huge_upstream_instead_of_refusing() {
     let objects = body["objects"].as_array().unwrap();
     assert_eq!(objects.len(), 3);
     assert_eq!(objects[0]["package"]["name"], json!("jquery"));
-    // The unscanned remainder keeps `total` in the advertised ballpark
-    // instead of collapsing to the three deduplicated names.
-    assert!(body["total"].as_u64().unwrap() > 20_000, "total {}", body["total"]);
+    // Three deduplicated names plus everything past the 24 results the
+    // eight budgeted pages walked.
+    assert_eq!(body["total"], json!(23_526));
     pages.assert_async().await;
 }
 
 /// With several search-enabled upstreams, a source the earlier ones starved
-/// still gets one fetch: its matches serve whatever the result budget allows
-/// and, at minimum, its reported size folds into the approximate `total` — a
-/// later source never silently vanishes from both `objects` and `total`.
+/// still gets one fetch, so it never vanishes from both `objects` and
+/// `total` at once.
 #[tokio::test]
 async fn starved_upstream_still_counts_toward_the_search_total() {
     // `corp` is routed first and burns the whole shared budget: 8 pages of
     // 250 results while advertising 23,547.
     let mut corp = mockito::Server::new_async().await;
-    let corp_objects: Vec<_> =
-        (0..250).map(|i| json!({ "package": { "name": format!("@corp/widget-{i}") } })).collect();
+    let corp_objects: Vec<_> = (0..250)
+        .map(|i| json!({ "package": { "name": format!("@corp/widget-{i}") } }))
+        .collect();
     let corp_pages = corp
         .mock("GET", "/-/v1/search")
         .match_query(mockito::Matcher::UrlEncoded("text".into(), "widget".into()))
@@ -158,10 +160,10 @@ async fn starved_upstream_still_counts_toward_the_search_total() {
         .expect(8)
         .create_async()
         .await;
-    // `npmjs` comes after the budget is spent, with one match of its own.
-    // The guaranteed fetch it receives must be the one-entry probe, not a
-    // full page — the budgets bound downloads even for post-budget sources.
+    // `npmjs` comes after the budget is spent, so the fetch it is guaranteed
+    // must be the one-entry probe rather than a full page.
     let mut npmjs = mockito::Server::new_async().await;
+    let npmjs_body = json!({ "objects": [{ "package": { "name": "widget-solo" } }], "total": 1 });
     let npmjs_page = npmjs
         .mock("GET", "/-/v1/search")
         .match_query(mockito::Matcher::AllOf(vec![
@@ -170,10 +172,7 @@ async fn starved_upstream_still_counts_toward_the_search_total() {
         ]))
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(
-            json!({ "objects": [{ "package": { "name": "widget-solo" } }], "total": 1 })
-                .to_string(),
-        )
+        .with_body(npmjs_body.to_string())
         .expect(1)
         .create_async()
         .await;
@@ -184,7 +183,11 @@ async fn starved_upstream_still_counts_toward_the_search_total() {
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/-/v1/search?text=widget&size=20").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=widget&size=20")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
