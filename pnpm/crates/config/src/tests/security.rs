@@ -33,8 +33,7 @@ pub fn prefer_symlinked_executables_exports_the_virtual_store_node_path() {
     assert_eq!(
         config.extra_env.get("NODE_PATH"),
         Some(
-            &tmp
-                .path()
+            &tmp.path()
                 .join("node_modules/.pnpm/node_modules")
                 .display()
                 .to_string()

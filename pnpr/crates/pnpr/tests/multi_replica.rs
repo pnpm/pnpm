@@ -203,9 +203,7 @@ async fn a_rejection_stops_an_approval_that_has_not_committed() {
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap();
-            app
-                .oneshot(request)
-                .await
+            app.oneshot(request).await
                 .unwrap()
                 .status()
         }

@@ -417,8 +417,7 @@ fn node_shasums_network_error(
 /// network request.
 #[must_use]
 pub fn parse_shasums_file(body: &str) -> Vec<ShasumsFileItem> {
-    body
-        .lines()
+    body.lines()
         .filter_map(|line| {
             if line.is_empty() {
                 return None;

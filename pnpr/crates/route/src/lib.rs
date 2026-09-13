@@ -149,8 +149,7 @@ impl fmt::Debug for ResolvedAlias {
     /// Redacts [`Self::authorization`] — it carries the upstream's server-owned
     /// upstream credential, which must never reach a log line or panic dump.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f
-            .debug_struct("ResolvedAlias")
+        f.debug_struct("ResolvedAlias")
             .field("name", &self.name)
             .field("credential_digest", &self.credential_digest)
             .field("registry", &self.registry)
@@ -519,8 +518,7 @@ impl RouteContext {
                     .iter()
                     .find(|candidate| candidate.name == alias.as_str())
                     .is_some_and(|candidate| {
-                        self
-                            .select_alias(identity, &candidate.origin, package.as_deref())
+                        self.select_alias(identity, &candidate.origin, package.as_deref())
                             .is_some_and(|selected| {
                                 selected.name == alias.as_str()
                                     && selected.credential_digest == *credential_digest

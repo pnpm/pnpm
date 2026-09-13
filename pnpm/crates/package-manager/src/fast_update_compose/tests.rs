@@ -424,8 +424,7 @@ fn patch_config(workspace_dir: &Path, keys: &[&str]) -> Config {
         workspace_dir: Some(workspace_dir.to_path_buf()),
         allow_unused_patches: true,
         patched_dependencies: (!keys.is_empty()).then(|| {
-            keys
-                .iter()
+            keys.iter()
                 .map(|key| (key.to_string(), format!("patches/{}", patch_file_name(key))))
                 .collect::<IndexMap<_, _>>()
         }),

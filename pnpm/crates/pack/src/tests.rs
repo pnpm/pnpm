@@ -242,8 +242,7 @@ fn scoped_name_normalizes_the_tarball_filename() {
     let result = api::<SilentReporter, Host>(&opts).unwrap();
     assert_eq!(result.tarball_path, "scope-foo-0.1.0.tgz");
     assert!(
-        dir
-            .path()
+        dir.path()
             .join("scope-foo-0.1.0.tgz")
             .is_file(),
     );
@@ -256,8 +255,7 @@ fn build_metadata_is_stripped_from_the_packed_version() {
     assert_eq!(result.published_manifest["version"], json!("1.0.0"));
     assert_eq!(result.tarball_path, "foo-1.0.0.tgz");
     assert!(
-        dir
-            .path()
+        dir.path()
             .join("foo-1.0.0.tgz")
             .is_file(),
     );
@@ -336,8 +334,7 @@ fn dry_run_reports_without_writing_a_tarball() {
     let result = api::<SilentReporter, Host>(&opts).unwrap();
 
     assert!(
-        !dir
-            .path()
+        !dir.path()
             .join("foo-1.0.0.tgz")
             .exists(),
         "dry run must not write a tarball",
@@ -797,8 +794,7 @@ fn runs_prepack_prepare_and_postpack() {
     api::<SilentReporter, Host>(&opts).unwrap();
 
     assert!(
-        dir
-            .path()
+        dir.path()
             .join("foo-1.0.0.tgz")
             .is_file(),
     );
@@ -830,14 +826,12 @@ fn includes_prepack_generated_files_removed_by_postpack() {
 
     assert_eq!(result.contents, vec!["generated.txt".to_string(), "package.json".into()]);
     assert!(
-        dir
-            .path()
+        dir.path()
             .join("foo-1.0.0.tgz")
             .is_file(),
     );
     assert!(
-        !dir
-            .path()
+        !dir.path()
             .join("generated.txt")
             .exists(),
         "postpack should clean the generated file",
@@ -881,8 +875,7 @@ fn pack_succeeds_when_scripts_enabled_but_absent() {
 
     assert_eq!(result.tarball_path, "foo-1.0.0.tgz");
     assert!(
-        dir
-            .path()
+        dir.path()
             .join("foo-1.0.0.tgz")
             .is_file(),
     );

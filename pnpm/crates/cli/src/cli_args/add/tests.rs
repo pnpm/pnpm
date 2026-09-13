@@ -40,16 +40,14 @@ fn allow_build_rejects_an_argument_that_names_no_package() {
         let err = apply_allow_build(&mut config, allow_build, dir.path())
             .expect_err("an empty package name is rejected");
         assert_eq!(
-            err
-                .code()
+            err.code()
                 .map(|code| code.to_string())
                 .as_deref(),
             Some("ERR_PNPM_ALLOW_BUILD_MISSING_PACKAGE"),
         );
         assert!(config.allow_builds.is_empty());
         assert!(
-            !dir
-                .path()
+            !dir.path()
                 .join("pnpm-workspace.yaml")
                 .exists(),
             "a rejected apply persists nothing",
@@ -66,15 +64,13 @@ fn allow_build_rejects_a_package_the_root_disallows() {
     let err = apply_allow_build(&mut config, &["esbuild".to_string()], dir.path())
         .expect_err("disallowed package is rejected");
     assert_eq!(
-        err
-            .code()
+        err.code()
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_OVERRIDING_IGNORED_BUILT_DEPENDENCIES"),
     );
     assert!(
-        !dir
-            .path()
+        !dir.path()
             .join("pnpm-workspace.yaml")
             .exists(),
         "a rejected apply persists nothing",
@@ -88,8 +84,7 @@ fn allow_build_is_a_noop_when_empty() {
     apply_allow_build(&mut config, &[], dir.path()).expect("empty allow-build is a no-op");
     assert!(config.allow_builds.is_empty());
     assert!(
-        !dir
-            .path()
+        !dir.path()
             .join("pnpm-workspace.yaml")
             .exists(),
     );

@@ -243,8 +243,7 @@ fn read_fills_pruned_at_from_clock_when_missing() {
     }
     impl Clock for FakeClock {
         fn now() -> SystemTime {
-            Utc
-                .with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+            Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
                 .unwrap()
                 .into()
         }

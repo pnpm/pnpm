@@ -302,8 +302,7 @@ fn parse_error_does_not_include_lockfile_content() {
     assert!(
         message.starts_with(&format!(
             r#"The lockfile at "{}" is broken: "#,
-            dir
-                .path()
+            dir.path()
                 .join(Lockfile::FILE_NAME)
                 .display()
         )),

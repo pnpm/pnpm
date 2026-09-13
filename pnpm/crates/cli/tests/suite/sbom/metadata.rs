@@ -166,8 +166,7 @@ fn sbom_spdx_describes_relationship() {
     let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
     let rels = parsed["relationships"].as_array().expect("relationships");
     assert!(
-        rels
-            .iter()
+        rels.iter()
             .any(|rel| rel["relationshipType"] == "DESCRIBES"),
     );
 }

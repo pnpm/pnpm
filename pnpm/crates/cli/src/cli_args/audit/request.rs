@@ -74,8 +74,7 @@ pub(crate) fn append_importer_edges(
 }
 
 pub(crate) fn env_roots(deps: &BTreeMap<String, SpecifierAndResolution>) -> Vec<Edge> {
-    deps
-        .iter()
+    deps.iter()
         .filter_map(|(name, spec)| {
             let name = name.parse::<PkgName>().ok()?;
             let version = spec.version.parse::<ImporterDepVersion>().ok()?;

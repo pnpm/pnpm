@@ -268,8 +268,7 @@ fn remove_protocol(url: &str) -> &str {
     ["https://", "http://"]
         .into_iter()
         .find_map(|scheme| {
-            url
-                .get(..scheme.len())
+            url.get(..scheme.len())
                 .filter(|head| head.eq_ignore_ascii_case(scheme))
                 .map(|_| &url[scheme.len()..])
         })

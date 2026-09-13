@@ -428,8 +428,7 @@ fn read_directory_record(entry_path: &Path) -> Result<Vec<u8>, RegistryError> {
         )));
     }
     let mut bytes = Vec::new();
-    file
-        .take(MAX_OSV_RECORD_BYTES + 1)
+    file.take(MAX_OSV_RECORD_BYTES + 1)
         .read_to_end(&mut bytes)
         .map_err(|err| {
             invalid_config(format!("failed to read OSV record {}: {err}", entry_path.display()))

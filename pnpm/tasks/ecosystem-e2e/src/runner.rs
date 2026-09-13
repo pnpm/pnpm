@@ -422,8 +422,7 @@ fn run(label: &str, command: &mut Command, log_path: &Path) -> Result<(), String
 }
 
 fn clone_handle(log: &File, log_path: &Path) -> Result<File, String> {
-    log
-        .try_clone()
+    log.try_clone()
         .map_err(|error| format!("clone log handle {log_path:?}: {error}"))
 }
 

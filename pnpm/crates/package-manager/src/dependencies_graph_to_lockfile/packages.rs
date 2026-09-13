@@ -201,8 +201,7 @@ pub(super) fn read_engines(manifest: Option<&Value>) -> Option<HashMap<String, S
         .and_then(|manifest| manifest.get("engines"))
         .and_then(|value| match value {
             Value::Object(map) => Some(
-                map
-                    .iter()
+                map.iter()
                     .filter_map(|(name, value)| Some((name.clone(), value.as_str()?)))
                     .collect::<Vec<(String, &str)>>(),
             ),

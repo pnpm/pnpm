@@ -97,8 +97,7 @@ pub struct ResolveDependencyTreeOptions {
 
 impl std::fmt::Debug for ResolveDependencyTreeOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f
-            .debug_struct("ResolveDependencyTreeOptions")
+        f.debug_struct("ResolveDependencyTreeOptions")
             .field("base_opts", &self.base_opts)
             .field("patched_dependencies", &self.patched_dependencies)
             .field("manifest_hook", &self.manifest_hook.as_ref().map(|_| "<hook>"))
@@ -412,8 +411,7 @@ fn injected_dependency_names(manifest: &Value) -> HashSet<String> {
     let Some(meta) = manifest.get("dependenciesMeta").and_then(Value::as_object) else {
         return HashSet::default();
     };
-    meta
-        .iter()
+    meta.iter()
         .filter(|(_, entry)| dependency_meta_is_injected(entry))
         .map(|(name, _)| name.clone())
         .collect()
@@ -428,8 +426,7 @@ fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
 }
 
 fn dependency_meta_is_injected(meta: &Value) -> bool {
-    meta
-        .get("injected")
+    meta.get("injected")
         .and_then(Value::as_bool)
         .unwrap_or(false)
 }

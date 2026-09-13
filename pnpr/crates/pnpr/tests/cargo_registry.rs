@@ -75,12 +75,10 @@ fn crate_archive(name: &str, version: &str) -> Vec<u8> {
 fn publish_body(metadata: &Value, archive: &[u8]) -> Vec<u8> {
     let metadata = serde_json::to_vec(metadata).unwrap();
     let mut body = Vec::new();
-    body
-        .write_all(&(metadata.len() as u32).to_le_bytes())
+    body.write_all(&(metadata.len() as u32).to_le_bytes())
         .unwrap();
     body.write_all(&metadata).unwrap();
-    body
-        .write_all(&(archive.len() as u32).to_le_bytes())
+    body.write_all(&(archive.len() as u32).to_le_bytes())
         .unwrap();
     body.write_all(archive).unwrap();
     body

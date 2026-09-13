@@ -33,8 +33,7 @@ impl MetadataMutation {
             pnpm_crypto_hash::create_hex_hash(&transaction_key.to_string_lossy()),
         ));
         let lock = open_metadata_lock(&lock_path)?;
-        lock
-            .lock()
+        lock.lock()
             .into_diagnostic()
             .wrap_err_with(|| {
                 format!("acquire metadata transaction lock {}", lock_path.display())
@@ -52,8 +51,7 @@ impl MetadataMutation {
         let Err(operation_error) = outcome else {
             return Ok(());
         };
-        self
-            .restore()
+        self.restore()
             .map_err(|restore_error| {
                 restore_error.wrap_err(format!(
                     "restore project metadata after dependency operation failed: {operation_error}",

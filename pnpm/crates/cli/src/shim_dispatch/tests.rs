@@ -217,8 +217,7 @@ fn managed_runtime_must_resolve_inside_the_global_store() {
 
     assert_eq!(
         managed_runtime_bin(
-            root
-                .path()
+            root.path()
                 .join("state/environment")
                 .as_path(),
             "node",
@@ -236,8 +235,7 @@ fn managed_runtime_must_resolve_inside_the_global_store() {
     std::os::unix::fs::symlink(outside, environment_modules.join("node")).unwrap();
     assert_eq!(
         managed_runtime_bin(
-            root
-                .path()
+            root.path()
                 .join("state/environment")
                 .as_path(),
             "node",

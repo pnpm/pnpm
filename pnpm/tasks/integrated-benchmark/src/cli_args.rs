@@ -350,8 +350,7 @@ impl BenchmarkScenario {
         Text: Into<String>,
         LoadLockfile: FnOnce() -> Text,
     {
-        self
-            .seeds_lockfile()
+        self.seeds_lockfile()
             .then(|| load_lockfile().into())
     }
 

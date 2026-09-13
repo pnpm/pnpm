@@ -247,8 +247,7 @@ fn temporary_filtered_dir(src: &Path) -> PathBuf {
     let name = src
         .file_name()
         .map_or_else(|| String::from("patch"), |name| name.to_string_lossy().into_owned());
-    src
-        .parent()
+    src.parent()
         .unwrap_or_else(|| Path::new("."))
         .join(format!("{name}_tmp_{}", std::process::id()))
 }

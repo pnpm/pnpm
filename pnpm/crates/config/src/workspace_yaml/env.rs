@@ -75,8 +75,7 @@ impl WorkspaceSettings {
             let Some(relative) = dir
                 .as_deref()
                 .and_then(|dir| {
-                    dir
-                        .strip_prefix("~/")
+                    dir.strip_prefix("~/")
                         .or_else(|| dir.strip_prefix(r"~\"))
                 })
             else {

@@ -378,8 +378,7 @@ async fn workspace_version_mismatch_surfaces_for_exact_request_on_registry_404()
         .await
         .expect_err("workspace can't satisfy 2.0.0; workspace version mismatch must surface");
     assert!(
-        err
-            .downcast_ref::<ResolveFromWorkspaceError>()
+        err.downcast_ref::<ResolveFromWorkspaceError>()
             .is_some_and(|ws_err| matches!(
                 ws_err,
                 ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace { .. }

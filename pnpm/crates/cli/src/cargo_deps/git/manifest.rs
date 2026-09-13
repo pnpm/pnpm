@@ -163,8 +163,7 @@ fn workspace_manifest<'a>(
         let root = pnpm_fs::lexical_normalize(&dir.join(path.as_str()?));
         return Some(&manifests.get(&root)?.document);
     }
-    dir
-        .ancestors()
+    dir.ancestors()
         .skip(1)
         .find_map(|ancestor| {
             let document = &manifests.get(ancestor)?.document;

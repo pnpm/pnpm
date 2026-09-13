@@ -206,12 +206,10 @@ pub(crate) fn subcommand_option_names(argv: &[OsString]) -> HashSet<&'static str
         return subcommand
             .get_arguments()
             .flat_map(|arg| {
-                arg
-                    .get_long()
+                arg.get_long()
                     .into_iter()
                     .chain(
-                        arg
-                            .get_all_aliases()
+                        arg.get_all_aliases()
                             .into_iter()
                             .flatten(),
                     )
@@ -267,8 +265,7 @@ fn next_positional(argv: &[OsString], from: usize, arity: &ArgTable) -> Option<u
 
 /// The token after the one at `index`, as far as it can be classified.
 fn next_token(argv: &[OsString], index: usize) -> Option<&str> {
-    argv
-        .get(index + 1)
+    argv.get(index + 1)
         .and_then(|token| token.to_str())
 }
 

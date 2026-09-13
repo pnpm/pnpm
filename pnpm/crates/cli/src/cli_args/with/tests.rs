@@ -39,8 +39,7 @@ fn command_env_value<'command>(command: &'command Command, name: &str) -> Option
 
 #[cfg(windows)]
 fn env_key_matches(key: &OsStr, name: &str) -> bool {
-    key
-        .to_str()
+    key.to_str()
         .is_some_and(|key| key.eq_ignore_ascii_case(name))
 }
 

@@ -77,8 +77,7 @@ fn chcp_prefers_chcp_com_when_available() {
     let res = run_capture_chcp_with(&["65001"], |prog, args| {
         calls.push((
             prog.to_string(),
-            args
-                .iter()
+            args.iter()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>(),
         ));
@@ -96,8 +95,7 @@ fn chcp_falls_back_to_chcp_when_chcp_com_not_found() {
     let res = run_capture_chcp_with(&["65001"], |prog, args| {
         calls.push((
             prog.to_string(),
-            args
-                .iter()
+            args.iter()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>(),
         ));
@@ -122,8 +120,7 @@ fn chcp_propagates_non_not_found_errors_without_fallback() {
     let res = run_capture_chcp_with(&["65001"], |prog, args| {
         calls.push((
             prog.to_string(),
-            args
-                .iter()
+            args.iter()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>(),
         ));

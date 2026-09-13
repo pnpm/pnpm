@@ -191,8 +191,7 @@ fn add_parent_rule(by_parent: &mut AllowByParentMatcher, parent: &str, target: &
 }
 
 fn split_ranges(spec: &str) -> Vec<String> {
-    spec
-        .split("||")
+    spec.split("||")
         .map(|seg| seg.trim().to_string())
         .collect()
 }

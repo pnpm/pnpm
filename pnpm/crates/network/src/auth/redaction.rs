@@ -84,8 +84,7 @@ pub fn redact_url_for_display(url: &str) -> String {
 }
 
 fn sanitize_control_characters(text: &str) -> String {
-    text
-        .chars()
+    text.chars()
         .filter(|character| !character.is_control())
         .collect()
 }

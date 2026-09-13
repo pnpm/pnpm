@@ -333,8 +333,7 @@ fn fixture_manifests(root: &Path) -> Vec<PathBuf> {
         .into_iter()
         .map(walkdir::DirEntry::into_path)
         .filter(|path| {
-            path
-                .file_name()
+            path.file_name()
                 .is_some_and(|name| name == "package.json")
                 && is_version_dir(path.parent())
         })
@@ -381,15 +380,13 @@ fn with_dist(mut packument_manifest: Value, tarball_url: &str, integrity: &str) 
 // dependencies like `has-local-dep/local-dep`) are package contents, not
 // separate packages.
 fn is_version_dir(dir: Option<&Path>) -> bool {
-    dir
-        .and_then(Path::file_name)
+    dir.and_then(Path::file_name)
         .and_then(|name| name.to_str())
         .is_some_and(|name| Version::parse(name).is_ok())
 }
 
 fn tarball_basename(name: &str) -> String {
-    name
-        .rsplit('/')
+    name.rsplit('/')
         .next()
         .unwrap_or(name)
         .to_string()

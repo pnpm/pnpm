@@ -164,8 +164,7 @@ pub struct IndexParseError {
 }
 
 pub fn parse_index(text: &str) -> Result<Vec<IndexEntry>, IndexParseError> {
-    text
-        .lines()
+    text.lines()
         .enumerate()
         .filter(|(_, line)| !line.trim().is_empty())
         .map(|(index, line)| {

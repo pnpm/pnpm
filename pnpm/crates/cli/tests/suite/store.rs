@@ -257,8 +257,7 @@ fn store_add_fetches_a_package_without_touching_the_project() {
         .expect("open the store index store add just wrote");
     let keys = store_index.keys().expect("read the store index keys");
     assert!(
-        keys
-            .iter()
+        keys.iter()
             .any(|key| key.contains("is-odd@3.0.1")),
         "store add must record is-odd@3.0.1 in the store index, got {keys:?}",
     );

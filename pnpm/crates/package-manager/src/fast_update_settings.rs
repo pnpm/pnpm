@@ -242,8 +242,7 @@ fn declares_injected_dependency(manifest: &PackageManifest) -> bool {
             entries
                 .values()
                 .any(|meta| {
-                    meta
-                        .get("injected")
+                    meta.get("injected")
                         .and_then(serde_json::Value::as_bool)
                         .unwrap_or(false)
                 })

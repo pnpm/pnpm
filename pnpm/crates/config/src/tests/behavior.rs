@@ -90,8 +90,7 @@ pub fn global_dirs_expand_a_leading_tilde() {
                     .expect("home path")
                     .join("xdg");
                 return Some(
-                    xdg
-                        .to_str()
+                    xdg.to_str()
                         .expect("utf-8 home path")
                         .to_string(),
                 );
@@ -118,8 +117,7 @@ pub fn global_dirs_expand_a_leading_tilde() {
     assert_eq!(
         config.global_pkg_dir,
         Some(
-            home
-                .path()
+            home.path()
                 .join("global")
                 .join(GLOBAL_LAYOUT_VERSION)
         ),

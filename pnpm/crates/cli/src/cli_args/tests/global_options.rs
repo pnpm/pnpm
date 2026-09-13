@@ -608,8 +608,7 @@ fn workspace_root_is_allowed_for_subcommands_without_global() {
                 .expect("utf-8 tmp dir")])
             .chain(subcommand.iter().copied());
         let mut args = CliArgs::try_parse_from(argv).expect("parses");
-        args
-            .apply_workspace_root()
+        args.apply_workspace_root()
             .unwrap_or_else(|error| {
                 panic!("{subcommand:?} should accept -w: {error}");
             });

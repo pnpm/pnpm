@@ -474,15 +474,13 @@ fn cafile_reads_and_splits_into_per_cert_pems() {
     use std::io::Write;
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
     let bundle = format!("{TEST_CA_PEM}\n{TEST_CA_PEM}\n");
-    tmp
-        .as_file()
+    tmp.as_file()
         .write_all(bundle.as_bytes())
         .expect("write bundle");
     let auth = NpmrcAuth {
         tls: crate::npmrc_auth::NpmrcTls {
             cafile: Some(
-                tmp
-                    .path()
+                tmp.path()
                     .to_string_lossy()
                     .into_owned(),
             ),

@@ -30,8 +30,7 @@ fn order(stage_ids: &[&str], dependencies: &[(&str, &[&str])]) -> StageApprovalO
             .map(|(stage_id, deps)| {
                 (
                     (*stage_id).to_owned(),
-                    deps
-                        .iter()
+                    deps.iter()
                         .map(|dep| (*dep).to_owned())
                         .collect(),
                 )

@@ -39,8 +39,7 @@ use std::{fs, path::Path, process::Command};
 /// registry, without installing anything. Pacquet then consumes that
 /// lockfile via `--frozen-lockfile` to drive the hoist pass.
 fn generate_lockfile(pnpm: Command) {
-    pnpm
-        .with_args(["install", "--lockfile-only", "--ignore-scripts"])
+    pnpm.with_args(["install", "--lockfile-only", "--ignore-scripts"])
         .assert()
         .success();
 }

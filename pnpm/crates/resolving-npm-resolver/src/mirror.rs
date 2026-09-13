@@ -539,8 +539,7 @@ pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError
             .create_new(true)
             .open(&temp)
             .map_err(|error| SaveMetaError::WriteTemp { temp: temp.clone(), error })?;
-        file
-            .write_all(contents)
+        file.write_all(contents)
             .map_err(|error| SaveMetaError::WriteTemp { temp: temp.clone(), error })?;
     }
     fs::rename(&temp, pkg_mirror)

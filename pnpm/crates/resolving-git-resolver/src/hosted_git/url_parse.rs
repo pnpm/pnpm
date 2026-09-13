@@ -259,8 +259,7 @@ pub(super) fn extract_github(parsed: &ParsedUrl) -> Option<Segments> {
         committish = parsed.hash
             .as_deref()
             .map(|hash| {
-                hash
-                    .strip_prefix('#')
+                hash.strip_prefix('#')
                     .unwrap_or(hash)
                     .to_string()
             });
@@ -297,8 +296,7 @@ pub(super) fn extract_bitbucket(parsed: &ParsedUrl) -> Option<Segments> {
     let committish = parsed.hash
         .as_deref()
         .map(|hash| {
-            hash
-                .strip_prefix('#')
+            hash.strip_prefix('#')
                 .unwrap_or(hash)
                 .to_string()
         })
@@ -324,8 +322,7 @@ pub(super) fn extract_gitlab(parsed: &ParsedUrl) -> Option<Segments> {
     let committish = parsed.hash
         .as_deref()
         .map(|hash| {
-            hash
-                .strip_prefix('#')
+            hash.strip_prefix('#')
                 .unwrap_or(hash)
                 .to_string()
         })

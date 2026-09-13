@@ -204,8 +204,7 @@ pub(super) async fn fetch_stage_items(
     let mut page: usize = 0;
     loop {
         let mut url = stage_endpoint_url(&context.registry, "-/stage")?;
-        url
-            .query_pairs_mut()
+        url.query_pairs_mut()
             .append_pair("page", &page.to_string())
             .append_pair("perPage", &PER_PAGE.to_string());
         if let Some(package) = package_filter {
@@ -301,8 +300,7 @@ fn parse_stage_otp_challenge(www_authenticate: Option<&str>, body: &[u8]) -> Opt
         parsed
             .as_ref()
             .and_then(|json| {
-                json
-                    .get(field)?
+                json.get(field)?
                     .as_str()
                     .map(str::to_owned)
             })

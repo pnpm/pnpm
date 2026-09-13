@@ -53,8 +53,7 @@ pub fn resolve_inputs(metadata: &str) -> Result<String> {
             members
                 .iter()
                 .filter_map(|member| {
-                    ids
-                        .get(member.as_str()?)
+                    ids.get(member.as_str()?)
                         .map(String::as_str)
                 })
                 .collect::<Vec<_>>()
@@ -96,8 +95,7 @@ fn retained_keys(
     value: &serde_json::Value,
     keys: &[&str],
 ) -> serde_json::Map<String, serde_json::Value> {
-    keys
-        .iter()
+    keys.iter()
         .filter_map(|key| Some(((*key).to_string(), value.get(key)?.clone())))
         .collect()
 }

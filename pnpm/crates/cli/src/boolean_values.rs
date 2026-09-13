@@ -159,12 +159,10 @@ impl BooleanFlags {
 
 /// The long spellings `arg` answers to: its own, plus its aliases.
 fn spellings(arg: &Arg) -> impl Iterator<Item = &str> {
-    arg
-        .get_long()
+    arg.get_long()
         .into_iter()
         .chain(
-            arg
-                .get_all_aliases()
+            arg.get_all_aliases()
                 .into_iter()
                 .flatten(),
         )

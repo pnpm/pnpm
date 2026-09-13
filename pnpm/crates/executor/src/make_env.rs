@@ -149,8 +149,7 @@ fn build_env_for_platform(
 ///
 /// [`Command::env`]: https://doc.rust-lang.org/std/process/struct.Command.html#method.env
 fn filter_parent_env(env: HashMap<String, String>, is_windows: bool) -> HashMap<String, String> {
-    env
-        .into_iter()
+    env.into_iter()
         .filter(|(k, _)| !is_stamping_key(k, is_windows))
         .collect()
 }
@@ -224,8 +223,7 @@ fn strip_env_prefix<'key>(key: &'key str, prefix: &str, is_windows: bool) -> Opt
 /// returning the value here lets the rest of [`build_env`] stay
 /// independent of casing.
 pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
-    env
-        .iter()
+    env.iter()
         .find_map(|(k, v)| k.eq_ignore_ascii_case("PATH").then(|| v.clone()))
 }
 
@@ -346,8 +344,7 @@ fn stamps_manifest_field(prefix: &str, key: &str) -> bool {
 /// Replace every character that is not `[a-zA-Z0-9_]` with `_`, the
 /// sanitization an env key derived from a manifest field needs.
 fn sanitize_env_key(raw: &str) -> String {
-    raw
-        .chars()
+    raw.chars()
         .map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' { ch } else { '_' })
         .collect()
 }

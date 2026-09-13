@@ -372,8 +372,7 @@ pub fn lockfile_dir_env_var_overrides_yaml() {
     assert_eq!(config.lockfile_dir.as_deref(), Some(tmp.path().join("from-env").as_path()));
     assert_eq!(
         config.modules_dir,
-        tmp
-            .path()
+        tmp.path()
             .join("from-env")
             .join("node_modules"),
     );

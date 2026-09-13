@@ -326,8 +326,7 @@ fn install_emits_canonical_prefix_in_ndjson_events() {
         .lines()
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
         .filter_map(|val| {
-            val
-                .get("prefix")
+            val.get("prefix")
                 .and_then(|p| p.as_str())
                 .map(str::to_owned)
         })

@@ -67,8 +67,7 @@ async fn republish_via_a_smuggled_version_entry_without_an_attachment_is_rejecte
         .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(first)
             .await
             .unwrap()
@@ -91,9 +90,7 @@ async fn republish_via_a_smuggled_version_entry_without_an_attachment_is_rejecte
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .oneshot(smuggle)
-            .await
+        app.oneshot(smuggle).await
             .unwrap()
             .status(),
         StatusCode::CONFLICT,
@@ -115,8 +112,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_integrity()
         ))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(publish)
             .await
             .unwrap()
@@ -148,8 +144,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_integrity()
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(tamper)
             .await
             .unwrap()
@@ -182,8 +177,7 @@ async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
         .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real")).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(publish)
             .await
             .unwrap()
@@ -211,8 +205,7 @@ async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -247,8 +240,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
         ))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(publish)
             .await
             .unwrap()
@@ -279,8 +271,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(tamper)
             .await
             .unwrap()
@@ -315,8 +306,7 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
         ))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(publish)
             .await
             .unwrap()
@@ -353,8 +343,7 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -389,8 +378,7 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
         ))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(publish)
             .await
             .unwrap()
@@ -416,9 +404,7 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
         .body(Body::from(serde_json::to_vec(&tampered).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .oneshot(request)
-            .await
+        app.oneshot(request).await
             .unwrap()
             .status(),
         StatusCode::BAD_REQUEST,
@@ -441,9 +427,7 @@ async fn update_packument_rejects_seeding_a_package_with_no_published_packument(
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .oneshot(request)
-            .await
+        app.oneshot(request).await
             .unwrap()
             .status(),
         StatusCode::BAD_REQUEST,
@@ -471,8 +455,7 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
         .body(Body::from(serde_json::to_vec(&publish_body).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(first)
             .await
             .unwrap()
@@ -481,8 +464,7 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
     );
 
     let hosted = body_json(
-        app
-            .clone()
+        app.clone()
             .oneshot(
                 Request::get("/mypkg")
                     .body(Body::empty())
@@ -514,8 +496,7 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
     // The PUT is accepted (integrity unchanged) but the dependency change is
     // not applied: the published version's metadata is immutable.
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(tamper)
             .await
             .unwrap()
@@ -523,15 +504,14 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
         StatusCode::CREATED,
     );
     let after = body_json(
-        app
-            .oneshot(
-                Request::get("/mypkg")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap()
-            .into_body(),
+        app.oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+        .into_body(),
     )
     .await;
     assert_eq!(after["versions"]["1.0.0"]["dependencies"], json!({ "lodash": "^4.0.0" }));
@@ -555,8 +535,7 @@ async fn published_package_survives_wiping_the_proxy_cache() {
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -847,8 +826,7 @@ async fn dist_tag_set_works_with_url_encoded_scoped_path() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    app
-        .clone()
+    app.clone()
         .oneshot(request)
         .await
         .unwrap();

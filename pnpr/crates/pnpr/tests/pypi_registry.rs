@@ -113,8 +113,7 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert!(
-        tmp
-            .path()
+        tmp.path()
             .join("python/demo-pkg")
             .join(filename)
             .is_file(),
@@ -588,9 +587,7 @@ async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_stag
         "winning artifact",
     );
     assert_eq!(
-        app
-            .oneshot(get("/pypi/simple/demo-pkg/", Some(JSON)))
-            .await
+        app.oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await
             .unwrap()
             .status(),
         StatusCode::NOT_FOUND,

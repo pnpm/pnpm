@@ -49,8 +49,7 @@ fn generated_changesets(workspace: &Path) -> Vec<std::path::PathBuf> {
     let mut paths = entries
         .map(|entry| entry.expect("read changeset entry").path())
         .filter(|path| {
-            path
-                .file_name()
+            path.file_name()
                 .and_then(OsStr::to_str)
                 .is_some_and(|name| name.starts_with("pnpm-update-") && name.ends_with(".md"))
         })

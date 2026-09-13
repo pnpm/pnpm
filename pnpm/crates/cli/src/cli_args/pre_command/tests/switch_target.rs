@@ -229,8 +229,7 @@ fn switch_target_respects_pm_on_fail_ignore() {
         &Config {
             pm_on_fail: Some(PmOnFail::Ignore),
             global_pkg_dir: Some(
-                root
-                    .path()
+                root.path()
                     .join("pnpm-home")
                     .join("global"),
             ),

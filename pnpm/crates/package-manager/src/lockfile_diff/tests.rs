@@ -104,8 +104,7 @@ fn lockfile(root: ProjectSnapshot, snapshots: &[(&str, SnapshotEntry)]) -> Lockf
 fn snapshot(deps: &[(&str, &str)]) -> SnapshotEntry {
     SnapshotEntry {
         dependencies: Some(
-            deps
-                .iter()
+            deps.iter()
                 .map(|(alias, version)| (pkg(alias), SnapshotDepRef::Plain(ver(version))))
                 .collect(),
         ),

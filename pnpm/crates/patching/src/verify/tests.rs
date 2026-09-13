@@ -12,8 +12,7 @@ fn input(hash: &str) -> PatchInput {
 }
 
 fn entries(keys: &[&str]) -> Vec<(String, PatchInput)> {
-    keys
-        .iter()
+    keys.iter()
         .map(|key| (key.to_string(), input(ZERO_HASH)))
         .collect()
 }

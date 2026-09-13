@@ -124,8 +124,7 @@ fn completion_server_treats_pn_as_the_pnpm_binary() {
 
     assert_eq!(pnpm, pn);
     assert!(
-        pn
-            .iter()
+        pn.iter()
             .any(|completion| completion == "install"),
         "{pn:?}",
     );

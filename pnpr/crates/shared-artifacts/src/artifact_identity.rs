@@ -35,8 +35,7 @@ pub(super) fn owner_key(username: &str, owner: &OwnerScope) -> Result<String> {
 }
 
 pub(super) fn object_name(path: &ObjectPath) -> &str {
-    path
-        .as_ref()
+    path.as_ref()
         .rsplit('/')
         .next()
         .unwrap_or_default()

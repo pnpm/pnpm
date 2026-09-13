@@ -195,8 +195,7 @@ fn annotate_unknown_settings(keys: &[String]) -> Option<String> {
         return None;
     }
     Some(
-        keys
-            .iter()
+        keys.iter()
             .map(|key| annotate_unknown_setting(&redact_and_sanitize(key)))
             .collect::<Vec<_>>()
             .join(", "),

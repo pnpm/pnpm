@@ -54,8 +54,7 @@ fn recursive_pack_filter_packs_only_selected_project() {
     assert!(out.join("project-1-1.0.0.tgz").exists(), "the selected project-1 should be packed");
     for name in ["project-2", "project-3"] {
         assert!(
-            !out
-                .join(format!("{name}-1.0.0.tgz"))
+            !out.join(format!("{name}-1.0.0.tgz"))
                 .exists(),
             "{name} is not selected by --filter and must not be packed",
         );
@@ -87,8 +86,7 @@ fn filter_without_recursive_flag_enters_recursive_pack() {
     assert!(out.join("project-1-1.0.0.tgz").exists(), "the selected project-1 should be packed");
     for name in ["project-2", "project-3"] {
         assert!(
-            !out
-                .join(format!("{name}-1.0.0.tgz"))
+            !out.join(format!("{name}-1.0.0.tgz"))
                 .exists(),
             "a bare --filter (no -r) should still scope the pack to the selection",
         );
@@ -138,8 +136,7 @@ fn recursive_pack_includes_workspace_root() {
     );
     for name in ["project-1", "project-2"] {
         assert!(
-            out
-                .join(format!("{name}-1.0.0.tgz"))
+            out.join(format!("{name}-1.0.0.tgz"))
                 .exists(),
             "{name} should be packed",
         );

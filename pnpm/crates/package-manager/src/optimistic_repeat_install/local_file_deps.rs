@@ -330,8 +330,7 @@ pub(crate) fn has_local_file_package_extension(
                 .into_iter()
                 .flatten()
                 .any(|deps| {
-                    deps
-                        .iter()
+                    deps.iter()
                         .any(|(alias, spec)| {
                             is_local_file_spec(spec)
                                 || catalog_resolves_to_local_file(catalogs, alias, spec)

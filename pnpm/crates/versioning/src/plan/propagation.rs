@@ -322,8 +322,7 @@ pub(super) fn collect_pending_intents<'i>(
         let pkg_intents: Vec<&ChangeIntent> = ctx.intents
             .iter()
             .filter(|intent| {
-                ctx
-                    .intent_bump_for(intent, dir)
+                ctx.intent_bump_for(intent, dir)
                     .is_some_and(|bump| bump != IntentBumpType::None)
                     && !consumed.all_ids.contains(&intent.id)
             })
@@ -353,8 +352,7 @@ pub(super) fn collect_lane_consumed_intents<'i>(
         let pkg_intents: Vec<&ChangeIntent> = ctx.intents
             .iter()
             .filter(|intent| {
-                ctx
-                    .intent_bump_for(intent, dir)
+                ctx.intent_bump_for(intent, dir)
                     .is_some_and(|bump| bump != IntentBumpType::None)
                     && consumed.prerelease_only_ids.contains(&intent.id)
             })

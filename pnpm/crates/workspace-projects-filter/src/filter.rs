@@ -253,8 +253,7 @@ where
             .map(|(id, node)| (id.clone(), node.package.manifest_name().map(str::to_string)))
             .collect();
     };
-    ids
-        .iter()
+    ids.iter()
         .map(|id| (id.clone(), name_of(id)))
         .collect()
 }
@@ -284,8 +283,7 @@ fn match_projects(candidates: &[(PathBuf, Option<String>)], pattern: &str) -> Ve
     let matches: Vec<PathBuf> = candidates
         .iter()
         .filter(|(_, name)| {
-            name
-                .as_deref()
+            name.as_deref()
                 .is_some_and(|name| matcher.matches(name))
         })
         .map(|(id, _)| id.clone())

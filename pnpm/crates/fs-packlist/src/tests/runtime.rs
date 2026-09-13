@@ -84,8 +84,7 @@ fn escaping_main_and_bin_fields_are_not_force_included() {
     let out = packlist(&root, &manifest).unwrap();
 
     assert!(
-        !out
-            .iter()
+        !out.iter()
             .any(|path| path.contains("secret")),
         "`..`-escaping main/bin must not be force-included: {out:?}",
     );

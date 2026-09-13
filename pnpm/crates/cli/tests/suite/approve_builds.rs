@@ -132,8 +132,7 @@ fn allow_builds_placeholder_does_not_block_commands() {
     // satisfy a `contains` on the prefix while still reading as a
     // string, leaving the package undecided.
     assert!(
-        yaml
-            .lines()
+        yaml.lines()
             .any(|line| line.trim() == r#""@pnpm.e2e/install-script-example": true"#),
         "the decided entry is replaced cleanly: {yaml}",
     );

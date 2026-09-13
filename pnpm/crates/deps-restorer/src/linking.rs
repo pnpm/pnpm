@@ -472,15 +472,14 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
 /// Collected before [`write_hoist_links`] consumes the plan; shimmed after
 /// the hoist symlinks land.
 fn public_workspace_bin_deps(plan: Option<&HoistPlan>) -> Vec<(String, PathBuf)> {
-    plan
-        .map(|plan| {
-            plan.result.hoisted_workspace_aliases
-                .iter()
-                .filter(|(_, kind, _)| matches!(kind, pnpm_modules_yaml::HoistKind::Public))
-                .map(|(alias, _, project_dir)| (alias.clone(), project_dir.clone()))
-                .collect()
-        })
-        .unwrap_or_default()
+    plan.map(|plan| {
+        plan.result.hoisted_workspace_aliases
+            .iter()
+            .filter(|(_, kind, _)| matches!(kind, pnpm_modules_yaml::HoistKind::Public))
+            .map(|(alias, _, project_dir)| (alias.clone(), project_dir.clone()))
+            .collect()
+    })
+    .unwrap_or_default()
 }
 
 /// Symlink the hoist plan's aliases into the private

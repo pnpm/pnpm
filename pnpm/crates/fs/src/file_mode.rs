@@ -22,8 +22,7 @@ pub fn is_executable(mode: u32) -> bool {
 /// mode may have lost its exec bit on a copy / reflink fallback.
 #[must_use]
 pub fn cas_path_is_executable(path: &Path) -> bool {
-    path
-        .file_name()
+    path.file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| name.ends_with("-exec"))
 }

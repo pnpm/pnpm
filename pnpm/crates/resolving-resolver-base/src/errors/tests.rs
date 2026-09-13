@@ -286,8 +286,7 @@ fn an_unreachable_remote_redacts_the_credentials_git_echoes_back() {
 
     assert!(!err.to_string().contains("hunter2"), "{err}");
     assert!(
-        !err
-            .help()
+        !err.help()
             .expect("help")
             .to_string()
             .contains("hunter2"),

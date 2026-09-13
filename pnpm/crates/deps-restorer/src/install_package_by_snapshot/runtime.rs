@@ -140,15 +140,13 @@ pub(super) fn bundled_tooling_module(path: &str) -> bool {
     ["npm", "corepack"]
         .into_iter()
         .any(|name| {
-            rest
-                .strip_prefix(name)
+            rest.strip_prefix(name)
                 .is_some_and(|tail| tail.is_empty() || tail.starts_with('/'))
         })
 }
 /// `^bin/(?:npm|npx|corepack)$`
 pub(super) fn bundled_tooling_bin(path: &str) -> bool {
-    path
-        .strip_prefix("bin/")
+    path.strip_prefix("bin/")
         .is_some_and(|rest| matches!(rest, "npm" | "npx" | "corepack"))
 }
 /// `^(?:npm|npx|corepack)(?:\.(?:cmd|ps1))?$`

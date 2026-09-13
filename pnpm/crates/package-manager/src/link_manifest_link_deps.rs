@@ -196,8 +196,7 @@ fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> bool {
         .into_iter()
         .filter_map(|group| snapshot.get_map_by_group(group))
         .any(|deps| {
-            deps
-                .keys()
+            deps.keys()
                 .any(|name| name.to_string() == alias)
         })
 }

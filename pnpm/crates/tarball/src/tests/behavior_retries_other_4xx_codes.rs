@@ -254,8 +254,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
         })
         .expect("spawn regression-test thread");
 
-    rx
-        .recv_timeout(TEST_TIMEOUT)
+    rx.recv_timeout(TEST_TIMEOUT)
         .expect(
             "run_with_mem_cache deadlocked on DashMap shard contention; \
          single-worker runtime did not finish within the timeout",

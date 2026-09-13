@@ -236,8 +236,7 @@ fn join_setting_path_ignores_root_and_current_dir_components() {
 
     assert_eq!(
         join_setting_path(tmp.path(), "./patches/./nested"),
-        tmp
-            .path()
+        tmp.path()
             .join("patches")
             .join("nested"),
     );

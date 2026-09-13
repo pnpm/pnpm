@@ -564,8 +564,7 @@ fn empty_root_component_set_is_a_no_op() {
 /// Build the flagged-importer set the linker gates on, from a slice of
 /// importer ids.
 fn id_set(ids: &[&str]) -> std::collections::HashSet<String> {
-    ids
-        .iter()
+    ids.iter()
         .map(|id| (*id).to_string())
         .collect()
 }

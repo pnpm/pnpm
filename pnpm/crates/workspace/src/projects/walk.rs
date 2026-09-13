@@ -146,8 +146,7 @@ fn is_ignored_manifest(
 /// match without running the glob engine once per candidate.
 fn has_always_ignored_component(path: &Path) -> bool {
     use std::path::Component;
-    path
-        .components()
+    path.components()
         .any(|component| {
             matches!(
                 component,

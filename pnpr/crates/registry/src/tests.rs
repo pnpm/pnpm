@@ -7,8 +7,7 @@ fn pattern(raw: &str) -> PackagePattern {
 }
 
 fn patterns(raws: &[&str]) -> Vec<PackagePattern> {
-    raws
-        .iter()
+    raws.iter()
         .map(|raw| pattern(raw))
         .collect()
 }

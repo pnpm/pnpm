@@ -520,8 +520,7 @@ async fn cached_metadata_is_refused_once_the_index_publishes_another_digest() {
     let index_url = format!("{}/simple/", index.url());
 
     resolved_lockfile(
-        app
-            .clone()
+        app.clone()
             .oneshot(resolve_request(&index_url, &token, &json!(["demo"])))
             .await
             .unwrap(),
@@ -598,8 +597,7 @@ async fn metadata_read_from_a_wheel_is_not_reused_for_the_wheel_that_replaces_it
     let index_url = format!("{}/simple/", index.url());
 
     let locked = resolved_lockfile(
-        app
-            .clone()
+        app.clone()
             .oneshot(resolve_request(&index_url, &token, &json!(["demo"])))
             .await
             .unwrap(),
@@ -641,9 +639,7 @@ async fn metadata_read_from_a_wheel_is_not_reused_for_the_wheel_that_replaces_it
         .await;
 
     let locked = resolved_lockfile(
-        app
-            .oneshot(resolve_request(&index_url, &token, &json!(["demo"])))
-            .await
+        app.oneshot(resolve_request(&index_url, &token, &json!(["demo"]))).await
             .unwrap(),
     )
     .await;

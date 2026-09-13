@@ -384,8 +384,7 @@ fn long_value<'a>(
     if name == option {
         return next.map(|value| (value, 2));
     }
-    name
-        .strip_prefix(option)
+    name.strip_prefix(option)
         .and_then(|rest| rest.strip_prefix('='))
         .map(OsStr::new)
         .map(|value| (value, 1))

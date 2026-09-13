@@ -128,8 +128,7 @@ impl Resolver for OverlayPickResolver {
             })
             .collect();
         let highest = |from: Vec<&ResolveResult>| {
-            from
-                .into_iter()
+            from.into_iter()
                 .max_by(|left, right| {
                     version_of(left)
                         .partial_cmp(version_of(right))

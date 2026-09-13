@@ -40,8 +40,7 @@ impl<'a> ScriptSelector<'a> {
         scripts
             .iter()
             .filter(|(script, body)| {
-                body
-                    .as_str()
+                body.as_str()
                     .is_some_and(|body| !body.is_empty())
                     && pattern.is_match(script)
             })

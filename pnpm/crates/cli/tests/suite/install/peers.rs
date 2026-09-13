@@ -47,8 +47,7 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
     let pnpm_dir = workspace.join("node_modules/.pnpm");
     let entries: Vec<String> = fs::read_dir(&pnpm_dir)
         .map(|dir| {
-            dir
-                .filter_map(Result::ok)
+            dir.filter_map(Result::ok)
                 .map(|entry| {
                     entry
                         .file_name()

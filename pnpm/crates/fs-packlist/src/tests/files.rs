@@ -83,8 +83,7 @@ fn question_mark_does_not_cross_directory() {
     let out = packlist(root, &manifest).unwrap();
 
     assert!(
-        !out
-            .iter()
+        !out.iter()
             .any(|path| path == "a/b/index.js"),
         "`?` must not match `/`; received {out:?}",
     );
@@ -126,8 +125,7 @@ fn npmignore_excludes_listed_paths() {
     assert!(out.contains(&"index.js".to_string()));
     assert!(out.contains(&"package.json".to_string()));
     assert!(
-        !out
-            .iter()
+        !out.iter()
             .any(|p| p.starts_with("test/")),
         "`.npmignore` must exclude `test/`; received {out:?}",
     );
@@ -148,8 +146,7 @@ fn gitignore_excludes_when_no_npmignore() {
 
     assert!(out.contains(&"index.js".to_string()));
     assert!(
-        !out
-            .iter()
+        !out.iter()
             .any(|p| p.starts_with("build/")),
         "`.gitignore` must exclude `build/` when no `.npmignore` exists; received {out:?}",
     );
@@ -236,8 +233,7 @@ fn always_excluded_dir_segments_only_match_vcs() {
 
     assert!(out.contains(&"lib/cvs-tools.txt".to_string()));
     assert!(
-        !out
-            .iter()
+        !out.iter()
             .any(|p| p.starts_with("lib/CVS/")),
         "CVS/ subdirectory must be excluded at any depth: {out:?}",
     );
@@ -308,8 +304,7 @@ fn npmignore_disables_gitignore_in_same_directory() {
         "`.npmignore` must supersede `.gitignore`; `build/` should be included: {out:?}",
     );
     assert!(
-        !out
-            .iter()
+        !out.iter()
             .any(|p| p.starts_with("test/")),
         "`.npmignore` must exclude `test/`: {out:?}",
     );

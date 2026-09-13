@@ -44,8 +44,7 @@ impl<'a> MissingNames<'a> {
             MissingNames::One(names) => (Some(*names), None),
             MissingNames::Union(all) => (None, Some(all)),
         };
-        one
-            .into_iter()
+        one.into_iter()
             .chain(union.into_iter().flatten().copied())
             .flat_map(|names| names.iter().map(String::as_str))
     }

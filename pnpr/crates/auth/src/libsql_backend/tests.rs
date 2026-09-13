@@ -439,8 +439,7 @@ async fn reject_remote_transaction(
 
 async fn begin_registration_transaction(conn: &libsql::Connection) -> Result<libsql::Transaction> {
     retry_database_conflicts(|| async {
-        conn
-            .transaction_with_behavior(libsql::TransactionBehavior::Immediate)
+        conn.transaction_with_behavior(libsql::TransactionBehavior::Immediate)
             .await
             .map_err(RegistryError::from)
     })

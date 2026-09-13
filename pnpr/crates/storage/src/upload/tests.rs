@@ -384,8 +384,7 @@ async fn an_upload_does_not_cross_between_organizations() {
 
 fn uploads_left(tmp: &TempDir) -> Vec<std::ffi::OsString> {
     std::fs::read_dir(
-        tmp
-            .path()
+        tmp.path()
             .join("storage")
             .join(".pnpr-uploads"),
     )

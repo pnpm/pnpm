@@ -385,8 +385,7 @@ fn is_safe_overlay_path(filename: &str) -> bool {
         return false;
     }
     let path = Path::new(filename);
-    path
-        .components()
+    path.components()
         .all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
 }
 

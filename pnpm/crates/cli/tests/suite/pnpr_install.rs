@@ -335,8 +335,7 @@ fn workspace_snapshot_entries(lockfile: &Lockfile, name: &str) -> Vec<(String, S
         .into_iter()
         .flatten()
         .filter(|(key, _)| {
-            key
-                .to_string()
+            key.to_string()
                 .starts_with(&format!("{name}@"))
         })
         .map(|(key, entry)| (key.to_string(), entry.clone()))
@@ -624,8 +623,7 @@ fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
     let lockfile = fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo lockfile");
     assert!(lockfile.contains(&format!(r#"source = "sparse+{registry_url}index/""#)), "{lockfile}");
     assert!(
-        root
-            .path()
+        root.path()
             .join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs")
             .is_file(),
     );

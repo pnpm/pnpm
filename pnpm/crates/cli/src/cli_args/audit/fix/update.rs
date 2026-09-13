@@ -208,8 +208,7 @@ pub(crate) fn report_fixed_remaining(
             .flat_map(|(_, ids)| ids.iter().copied()),
     );
     fixed.extend(
-        gone
-            .into_iter()
+        gone.into_iter()
             .flat_map(|(_, ids)| ids.iter().copied()),
     );
     // Advisories with an unparsable vulnerable range can't be proven fixed.

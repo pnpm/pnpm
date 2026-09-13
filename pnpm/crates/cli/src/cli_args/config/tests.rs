@@ -82,8 +82,7 @@ fn set_scoped_registry_project_creates_npmrc() {
         Some("https://test-registry.example.com/"),
     );
     assert!(
-        !tmp
-            .path()
+        !tmp.path()
             .join("pnpm-workspace.yaml")
             .exists(),
     );
@@ -396,8 +395,7 @@ fn delete_last_yaml_key_removes_file() {
     )
     .unwrap();
     assert!(
-        tmp
-            .path()
+        tmp.path()
             .join("pnpm-workspace.yaml")
             .exists(),
     );
@@ -411,8 +409,7 @@ fn delete_last_yaml_key_removes_file() {
     )
     .unwrap();
     assert!(
-        !tmp
-            .path()
+        !tmp.path()
             .join("pnpm-workspace.yaml")
             .exists(),
     );

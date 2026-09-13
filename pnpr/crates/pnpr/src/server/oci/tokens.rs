@@ -59,8 +59,7 @@ fn verify_claims(key: &SigningKey, token: &str, now: u64) -> Result<Claims, Regi
     let bytes = URL_SAFE_NO_PAD.decode(payload).map_err(|_| invalid())?;
     let signature = URL_SAFE_NO_PAD.decode(signature).map_err(|_| invalid())?;
     let signature = Signature::from_slice(&signature).map_err(|_| invalid())?;
-    key
-        .verifying_key()
+    key.verifying_key()
         .verify(&bytes, &signature)
         .map_err(|_| invalid())?;
     let claims: Claims = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
@@ -198,8 +197,7 @@ async fn issue_token(
     let readonly = record.is_some_and(|record| record.readonly);
     let scopes = granted_scopes(state, identity, &target, &GrantQuery { uri, readonly })?;
     let audience = pnpr_search::percent_decode(
-        uri
-            .path()
+        uri.path()
             .strip_suffix("/v2/token")
             .ok_or(RegistryError::NotFound)?,
     );

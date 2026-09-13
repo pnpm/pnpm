@@ -25,8 +25,7 @@ pub fn get_filenames_in_folder(path: &Path) -> Vec<String> {
 }
 
 fn normalized_suffix(path: &Path, prefix: &Path) -> String {
-    path
-        .strip_prefix(prefix)
+    path.strip_prefix(prefix)
         .expect("strip prefix from path")
         .to_str()
         .expect("convert suffix to UTF-8")
@@ -183,8 +182,7 @@ pub fn bump_mtime(path: &Path) {
 /// baseline to push past, and a test that carried on would assert against a
 /// freshness verdict reached for the wrong reason.
 fn recorded_validation_timestamp(path: &Path) -> i64 {
-    path
-        .ancestors()
+    path.ancestors()
         .skip(1)
         .find_map(|dir| load_workspace_state(dir).expect("read the workspace state"))
         .unwrap_or_else(|| panic!("no workspace state above {path:?} to bump the mtime past"))

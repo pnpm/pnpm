@@ -293,8 +293,7 @@ fn acquisition_failures_are_shared_and_cleaned_and_a_new_install_retries() {
     next_install.get(&opts).unwrap_err();
     assert_eq!(log.acquisitions().len(), 2);
     assert!(
-        log
-            .acquisitions()
+        log.acquisitions()
             .iter()
             .all(|path| !path.exists()),
         "failed checkouts survived",

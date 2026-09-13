@@ -150,8 +150,7 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
     .expect("loose mode lets the immature pick through");
 
     assert!(
-        dir
-            .path()
+        dir.path()
             .join("pnpm-lock.yaml")
             .exists(),
     );
@@ -292,8 +291,7 @@ async fn install_writes_workspace_state() {
             // that loses them (e.g. switching to a non-string serde
             // shape) trips here.
             name: Some(
-                dirs
-                    .path()
+                dirs.path()
                     .file_name()
                     .and_then(|n| n.to_str())
                     .expect("tmpdir has a UTF-8 basename")

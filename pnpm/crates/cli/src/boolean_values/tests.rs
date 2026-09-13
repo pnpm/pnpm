@@ -152,8 +152,7 @@ fn every_opposite_names_a_real_flag() {
     let command = with_boolean_negations(CliArgs::command());
     let known = |long: &str| {
         let declares = |cmd: &clap::Command| {
-            cmd
-                .get_arguments()
+            cmd.get_arguments()
                 .flat_map(spellings)
                 .any(|name| name == long)
         };

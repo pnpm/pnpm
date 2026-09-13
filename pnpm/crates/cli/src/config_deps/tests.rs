@@ -224,8 +224,7 @@ async fn update_config_can_extend_extra_bin_paths() {
     assert_eq!(
         seeded,
         vec![
-            root
-                .path()
+            root.path()
                 .join("node_modules")
                 .join(".bin")
         ],
@@ -302,8 +301,7 @@ async fn update_config_hook_reads_resolved_script_shell_value() {
     let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
     let expected = format!(
         "{}-from-hook",
-        root
-            .path()
+        root.path()
             .join("manifest-shell.sh")
             .display(),
     );

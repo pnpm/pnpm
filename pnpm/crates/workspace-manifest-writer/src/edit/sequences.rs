@@ -55,8 +55,7 @@ fn item_layout(text: &str, key: &str, current: &[String]) -> Option<ItemLayout> 
     let (indent, item_idxs) = item_lines(&all, key_idx + 1..block_end_idx, current)?;
     let block_items_end = blank_run_start(
         text,
-        all
-            .get(leading_comment_start(&all, key_idx + 1, block_end_idx))
+        all.get(leading_comment_start(&all, key_idx + 1, block_end_idx))
             .map_or(text.len(), |line| line.start),
     );
     let starts: Vec<usize> =
@@ -68,7 +67,19 @@ fn item_layout(text: &str, key: &str, current: &[String]) -> Option<ItemLayout> 
             })
             .collect();
     Some(ItemLayout {
-        spans: item_spans(&starts, block_items_end),
+        spans: starts
+            .iter()
+            .enumerate()
+            .map(|(position, &start)| {
+                (
+                    start,
+                    starts
+                        .get(position + 1)
+                        .copied()
+                        .unwrap_or(block_items_end),
+                )
+            })
+            .collect(),
         indent,
         newline: if text[all[key_idx].start..block_items_end].contains("\r\n") {
             "\r\n"
@@ -76,22 +87,6 @@ fn item_layout(text: &str, key: &str, current: &[String]) -> Option<ItemLayout> 
             "\n"
         },
     })
-}
-
-fn item_spans(starts: &[usize], end: usize) -> Vec<(usize, usize)> {
-    starts
-        .iter()
-        .enumerate()
-        .map(|(position, &start)| {
-            (
-                start,
-                starts
-                    .get(position + 1)
-                    .copied()
-                    .unwrap_or(end),
-            )
-        })
-        .collect()
 }
 
 /// The indentation of `body`'s block-sequence item lines and their indices,

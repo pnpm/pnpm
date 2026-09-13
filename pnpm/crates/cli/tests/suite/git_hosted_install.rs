@@ -750,8 +750,7 @@ fn a_git_dependency_is_indexed_under_the_bare_resolution_id() {
         .expect("read the store index keys");
     let pkg_id = repo.git_url_at(&commit);
     assert!(
-        keys
-            .iter()
+        keys.iter()
             .any(|key| key == &format!("{pkg_id}\tbuilt")),
         "no store-index row keyed by the bare resolution id {pkg_id:?}: {keys:?}",
     );

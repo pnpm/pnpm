@@ -45,8 +45,7 @@ impl ImporterAnchor {
         ImporterAnchor {
             rel_components: importer_rel_dir(project_dir, lockfile_dir)
                 .and_then(|rel| {
-                    rel
-                        .components()
+                    rel.components()
                         .map(|component| {
                             component
                                 .as_os_str()
@@ -185,8 +184,7 @@ impl ImporterRelativeScan {
 /// including the empty ones a repeated separator produces.
 fn path_segments(path: &str) -> impl Iterator<Item = (usize, &str)> {
     let mut pos = 0;
-    path
-        .split(SEPARATORS)
+    path.split(SEPARATORS)
         .map(move |segment| {
             let start = pos;
             pos += segment.len() + 1;
@@ -306,8 +304,7 @@ fn is_clean_absolute(path: &Path) -> bool {
 }
 
 fn all_normal(path: &Path) -> bool {
-    path
-        .components()
+    path.components()
         .all(|component| matches!(component, Component::Normal(_)))
 }
 

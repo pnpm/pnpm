@@ -24,8 +24,7 @@ fn read_elf_interpreter(file: &mut (impl Read + Seek)) -> Option<String> {
     if table_size > MAX_PROGRAM_HEADERS_SIZE {
         return None;
     }
-    file
-        .seek(SeekFrom::Start(layout.phoff))
+    file.seek(SeekFrom::Start(layout.phoff))
         .ok()?;
     let mut program_headers = vec![0_u8; table_size];
     file.read_exact(&mut program_headers).ok()?;

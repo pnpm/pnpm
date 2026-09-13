@@ -167,8 +167,7 @@ async fn capture_one_request_with_response(listener: TcpListener, response: Stri
             .lines()
             .find_map(|line| {
                 let (name, value) = line.split_once(':')?;
-                name
-                    .trim()
+                name.trim()
                     .eq_ignore_ascii_case("content-length")
                     .then(|| value.trim().parse::<usize>().ok())
                     .flatten()

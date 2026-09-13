@@ -135,8 +135,7 @@ fn gvs_version_dir_requires_exact_name_and_version_components() {
     assert_eq!(
         global_virtual_store_version_dir(&root, &scoped, None),
         Some(
-            root
-                .join("@scope")
+            root.join("@scope")
                 .join("foo")
                 .join("1.2.3")
         ),

@@ -186,8 +186,7 @@ fn lookup_config(config: &Config, key: &str, is_scoped: bool) -> Option<Value> {
         let path = config.config_dir
             .as_ref()
             .map(|dir| {
-                dir
-                    .join(GLOBAL_CONFIG_YAML_FILENAME)
+                dir.join(GLOBAL_CONFIG_YAML_FILENAME)
                     .to_string_lossy()
                     .into_owned()
             })

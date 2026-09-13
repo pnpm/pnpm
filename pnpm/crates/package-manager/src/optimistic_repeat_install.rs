@@ -470,8 +470,7 @@ fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
         .into_iter()
         .flatten()
         .any(|deps| {
-            deps
-                .as_object()
+            deps.as_object()
                 .is_some_and(|map| !map.is_empty())
         })
 }

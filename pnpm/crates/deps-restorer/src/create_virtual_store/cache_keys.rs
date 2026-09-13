@@ -43,8 +43,7 @@ pub(super) fn prefetch_keys(
         .collect();
     refs.sort_unstable();
     refs.dedup();
-    refs
-        .into_iter()
+    refs.into_iter()
         .map(String::from)
         .collect()
 }

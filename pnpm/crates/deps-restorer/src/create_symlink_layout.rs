@@ -38,8 +38,7 @@ pub fn create_symlink_layout(
         .filter(|_| include_optional_dependencies)
         .into_iter()
         .flatten();
-    deps
-        .chain(opt_deps)
+    deps.chain(opt_deps)
         .try_for_each(|(alias_name, dep_ref)| {
             if alias_name == self_name {
                 return Ok(());

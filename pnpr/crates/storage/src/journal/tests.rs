@@ -314,9 +314,7 @@ async fn commit_only_removes_transaction_owned_references_for_a_dropped_version(
         .commit_hosted_revision_ref(&previously_owned_digest, &ref_id, "previous-owner")
         .await
         .unwrap();
-    txn
-        .apply(&storage, &NpmDocuments, &mut ApplyProgress::default())
-        .await
+    txn.apply(&storage, &NpmDocuments, &mut ApplyProgress::default()).await
         .unwrap();
 
     assert_eq!(
@@ -604,8 +602,7 @@ async fn commit_keeps_the_journal_entry_when_the_retry_fails_too() {
     assert_eq!(documents.merges.load(Ordering::Relaxed), 2);
     assert!(err.to_string().contains("attempt 0"), "{err}");
     let journal_entries: Vec<_> = std::fs::read_dir(
-        tmp
-            .path()
+        tmp.path()
             .join("cache")
             .join(JOURNAL_DIR),
     )

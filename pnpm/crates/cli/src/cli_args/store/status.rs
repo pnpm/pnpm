@@ -127,8 +127,7 @@ fn find_modified(
     Ok(packages
         .par_iter()
         .filter(|package| {
-            rows
-                .get(&package.store_index_key)
+            rows.get(&package.store_index_key)
                 .is_some_and(|row| !package_dir_matches_index(&package.package_dir, row))
         })
         .map(|package| package.dep_path.clone())

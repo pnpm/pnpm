@@ -144,8 +144,7 @@ fn handles_multiple_placeholders() {
     struct StaticEnv;
     impl EnvVar for StaticEnv {
         fn var(name: &str) -> Option<String> {
-            ENV
-                .iter()
+            ENV.iter()
                 .find(|(key, _)| *key == name)
                 .map(|(_, value)| (*value).to_owned())
         }

@@ -116,8 +116,7 @@ where
     cmd.args(args);
     configure_pnpm_environment(&mut cmd, bin_dirs, package_manager_check)?;
 
-    cmd
-        .status()
+    cmd.status()
         .into_diagnostic()
         .wrap_err("run the requested pnpm version")
 }

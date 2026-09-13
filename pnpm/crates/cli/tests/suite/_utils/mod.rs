@@ -363,8 +363,7 @@ fn insert_dependency_group(manifest: &mut Map<String, Value>, group: &str, deps:
     manifest.insert(
         group.to_string(),
         Value::Object(
-            deps
-                .iter()
+            deps.iter()
                 .map(|(name, spec)| (name.to_string(), Value::String(spec.to_string())))
                 .collect(),
         ),
@@ -409,8 +408,7 @@ pub fn set_version(project: &Path, version: &str) {
 pub fn replace_dependencies(project: &Path, deps: &[(&str, &str)]) {
     let mut manifest = read_manifest(project);
     manifest["dependencies"] = Value::Object(
-        deps
-            .iter()
+        deps.iter()
             .map(|(name, spec)| (name.to_string(), Value::String(spec.to_string())))
             .collect(),
     );
@@ -557,8 +555,7 @@ pub fn snapshot_entries(lockfile: &Lockfile, name: &str) -> Vec<(String, Snapsho
         .into_iter()
         .flatten()
         .filter(|(key, _)| {
-            key
-                .to_string()
+            key.to_string()
                 .starts_with(&format!("{name}@"))
         })
         .map(|(key, snapshot)| (key.to_string(), snapshot.clone()))
@@ -596,8 +593,7 @@ pub fn canonical_path(path: &Path) -> String {
 pub fn assert_full_wanted(lockfile: &Lockfile, ids: &[&str]) {
     assert_eq!(
         importer_ids(lockfile),
-        ids
-            .iter()
+        ids.iter()
             .map(ToString::to_string)
             .collect(),
         "wanted lockfile must retain every real importer",

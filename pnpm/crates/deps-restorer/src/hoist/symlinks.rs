@@ -233,8 +233,7 @@ pub(super) fn update_stale_hoist_symlink(
         return Ok(());
     };
     let existing = if existing_raw.is_relative() {
-        dest
-            .parent()
+        dest.parent()
             .unwrap_or_else(|| std::path::Path::new(""))
             .join(&existing_raw)
     } else {

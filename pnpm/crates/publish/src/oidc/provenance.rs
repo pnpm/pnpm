@@ -147,16 +147,14 @@ impl ProvenanceError {
         let code = parsed
             .as_ref()
             .and_then(|json| {
-                json
-                    .get("code")?
+                json.get("code")?
                     .as_str()
                     .map(str::to_owned)
             });
         let detail = parsed
             .as_ref()
             .and_then(|json| {
-                json
-                    .get("message")?
+                json.get("message")?
                     .as_str()
                     .map(str::to_owned)
             });

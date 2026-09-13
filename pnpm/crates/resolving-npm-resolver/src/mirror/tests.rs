@@ -481,8 +481,7 @@ fn load_meta_past_the_hold_cap_ignores_a_sparse_tail() {
         .open(&mirror)
         .expect("open");
     let size = file.metadata().expect("metadata").len();
-    file
-        .set_len(size + 64 * 1024 * 1024)
+    file.set_len(size + 64 * 1024 * 1024)
         .expect("extend sparsely");
     let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
     let manifest = loaded.versions.get("1.0.0").expect("hydrate from buffered fragment");
@@ -507,8 +506,7 @@ fn load_meta_past_the_hold_cap_skips_a_sparse_gap_between_spans() {
         .write(true)
         .open(&mirror)
         .expect("open");
-    file
-        .set_len(contents.len() as u64 + far_offset + 16)
+    file.set_len(contents.len() as u64 + far_offset + 16)
         .expect("extend sparsely");
     let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
     let manifest = loaded.versions.get("1.0.0").expect("hydrate the near fragment");
@@ -539,8 +537,7 @@ fn load_meta_treats_an_oversized_fragment_span_as_absent() {
         .write(true)
         .open(&mirror)
         .expect("open");
-    file
-        .set_len(contents.len() as u64 + 64 * 1024 * 1024)
+    file.set_len(contents.len() as u64 + 64 * 1024 * 1024)
         .expect("extend sparsely");
     let loaded = load_meta(&mirror).expect("read full back");
     assert!(loaded.versions.get("9.9.9").is_none(), "oversized span must read as absent");

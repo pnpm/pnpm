@@ -227,15 +227,13 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
 
     // It physically lands in the org's storage namespace, not the flat root.
     assert!(
-        tmp
-            .path()
+        tmp.path()
             .join("acme/@acme/widget/package.json")
             .exists(),
         "published packument should be in the org namespace",
     );
     assert!(
-        !tmp
-            .path()
+        !tmp.path()
             .join("@acme/widget/package.json")
             .exists(),
         "nothing should be written to the flat hosted root",
@@ -628,8 +626,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
         assert_eq!(rejected.status(), StatusCode::BAD_REQUEST, "publish {url} must be rejected");
     }
     assert!(
-        !tmp
-            .path()
+        !tmp.path()
             .join("acme/@typo/widget/package.json")
             .exists(),
         "an off-pattern publish must write nothing",
@@ -824,8 +821,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .unwrap();
     assert_eq!(denied.status(), StatusCode::NOT_FOUND);
     assert!(
-        !tmp
-            .path()
+        !tmp.path()
             .join("corp/@corp/tool/package.json")
             .exists(),
         "a denied publish must write nothing",
@@ -839,8 +835,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .unwrap();
     assert_eq!(allowed.status(), StatusCode::CREATED);
     assert!(
-        tmp
-            .path()
+        tmp.path()
             .join("corp/@corp/tool/package.json")
             .exists(),
     );
@@ -865,8 +860,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .unwrap();
     assert_eq!(unpublish_denied.status(), StatusCode::NOT_FOUND);
     assert!(
-        tmp
-            .path()
+        tmp.path()
             .join("corp/@corp/tool/package.json")
             .exists(),
         "a denied unpublish must remove nothing",

@@ -58,12 +58,11 @@ impl LazyLockfile {
     #[must_use]
     pub fn preloaded(lockfile: Option<Lockfile>) -> Self {
         let cell = OnceLock::new();
-        cell
-            .set(LoadedWantedLockfile {
-                lockfile: lockfile.map(Arc::new),
-                pre_merge_importers: None,
-            })
-            .expect("a fresh OnceLock accepts the first set");
+        cell.set(LoadedWantedLockfile {
+            lockfile: lockfile.map(Arc::new),
+            pre_merge_importers: None,
+        })
+        .expect("a fresh OnceLock accepts the first set");
         LazyLockfile { source: None, cell, fix_cell: OnceLock::new(), prefetch: Mutex::new(None) }
     }
 

@@ -924,8 +924,7 @@ fn a_shim_without_a_project_target_reports_it() {
         .unwrap();
     assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
     let output = Command::new(
-        root
-            .path()
+        root.path()
             .join("pnpm-home")
             .join("bin")
             .join("yarn"),

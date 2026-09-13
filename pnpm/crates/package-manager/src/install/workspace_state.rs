@@ -218,8 +218,7 @@ pub fn build_workspace_packages_map(
                 version.to_string()
             }
         };
-        map
-            .entry(name)
+        map.entry(name)
             .or_default()
             .insert(
                 version,

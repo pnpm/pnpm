@@ -53,8 +53,7 @@ fn strict_errors_on_a_concrete_version_mismatch() {
         },
     );
     assert_eq!(
-        err
-            .code()
+        err.code()
             .expect("error carries a diagnostic code")
             .to_string(),
         "ERR_PNPM_CATALOG_VERSION_MISMATCH",

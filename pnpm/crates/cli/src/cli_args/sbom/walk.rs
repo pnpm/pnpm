@@ -347,8 +347,7 @@ fn importer_dependency_names(
     let dev_dep_names: HashSet<String> = importer.dev_dependencies
         .as_ref()
         .map(|deps| {
-            deps
-                .keys()
+            deps.keys()
                 .map(ToString::to_string)
                 .collect()
         })

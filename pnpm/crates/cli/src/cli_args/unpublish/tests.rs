@@ -8,8 +8,7 @@ use pnpm_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
 use serde_json::{Map, Value, json};
 
 fn versions(keys: &[&str]) -> Map<String, Value> {
-    keys
-        .iter()
+    keys.iter()
         .map(|key| ((*key).to_string(), json!({})))
         .collect()
 }

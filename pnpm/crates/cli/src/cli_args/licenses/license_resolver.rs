@@ -106,8 +106,7 @@ async fn read_license_file(path: &Path) -> Option<Vec<u8>> {
         return None;
     }
     let mut contents = Vec::with_capacity(metadata.len() as usize);
-    file
-        .take((MAX_LICENSE_FILE_SIZE + 1) as u64)
+    file.take((MAX_LICENSE_FILE_SIZE + 1) as u64)
         .read_to_end(&mut contents)
         .await
         .ok()?;

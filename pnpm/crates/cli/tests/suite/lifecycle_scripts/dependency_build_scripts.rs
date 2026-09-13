@@ -23,8 +23,7 @@ fn ignored_scripts_package_names(output: &std::process::Output) -> Vec<String> {
                 .expect("packageNames is an array")
                 .iter()
                 .map(|name| {
-                    name
-                        .as_str()
+                    name.as_str()
                         .expect("package name is a string")
                         .to_string()
                 })

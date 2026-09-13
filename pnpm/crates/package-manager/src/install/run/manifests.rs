@@ -66,8 +66,7 @@ pub(super) fn read_package_log<Reporter: self::Reporter>(
     hook: &Arc<dyn pnpm_hooks::PnpmfileHooks>,
     workspace_root: &Path,
 ) -> pnpm_hooks::LogFn {
-    hook
-        .source_path()
+    hook.source_path()
         .map_or_else(
             || Arc::new(|_| {}) as pnpm_hooks::LogFn,
             |from| {

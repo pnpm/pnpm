@@ -182,6 +182,8 @@ impl OutdatedArgs {
 
         let config = state.config;
         let manifest = &state.manifest;
+        let root = config.workspace_dir.as_deref().unwrap_or_else(|| project_dir(manifest));
+        let importer_id = state.active_importer_id();
         let lockfile = loaded_lockfile(&state)?;
         let package_patterns = self.package_patterns();
         let check_packages = self.checks_packages(manifest, &package_patterns);
@@ -195,7 +197,7 @@ impl OutdatedArgs {
             collect_outdated_for_importer(
                 manifest,
                 lockfile,
-                &state.active_importer_id(),
+                &importer_id,
                 config,
                 &state.http_client,
                 &query,
@@ -205,16 +207,15 @@ impl OutdatedArgs {
             Vec::new()
         };
         outdated.extend(
-            self
-                .outdated_actions::<Reporter>(
-                    config,
-                    config.workspace_dir.as_deref().unwrap_or_else(|| project_dir(manifest)),
-                    &filters.include,
-                    github_actions::selector_matcher(&self.packages).as_ref(),
-                )
-                .await?
-                .into_iter()
-                .map(OutdatedPackage::from),
+            self.outdated_actions::<Reporter>(
+                config,
+                root,
+                &filters.include,
+                github_actions::selector_matcher(&self.packages).as_ref(),
+            )
+            .await?
+            .into_iter()
+            .map(OutdatedPackage::from),
         );
 
         self.report_outdated(&mut outdated)

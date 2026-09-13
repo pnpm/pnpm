@@ -22,8 +22,7 @@ async fn parallel_uploads_are_rejected_before_buffering_and_cancellation_release
     for _ in 0..2 {
         let body = pending_upload(started.clone());
         uploads.push(tokio::spawn(
-            app
-                .clone()
+            app.clone()
                 .oneshot(request(Method::PUT, ENTRY, body)),
         ));
     }

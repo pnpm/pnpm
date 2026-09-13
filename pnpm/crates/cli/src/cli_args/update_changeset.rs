@@ -314,8 +314,7 @@ fn write_changeset(changeset_dir: &Path, content: &str) -> Result<PathBuf, Updat
                 return Err(UpdateChangesetError::WriteChangeset { path: changeset_path, source });
             }
         };
-        file
-            .write_all(content.as_bytes())
+        file.write_all(content.as_bytes())
             .map_err(|source| UpdateChangesetError::WriteChangeset {
                 path: changeset_path.clone(),
                 source,
@@ -352,8 +351,7 @@ fn dependency_map(value: &Value, field: &str) -> Option<BTreeMap<String, String>
             dependencies
                 .iter()
                 .filter_map(|(name, spec)| {
-                    spec
-                        .as_str()
+                    spec.as_str()
                         .map(|spec| (name.clone(), spec.to_string()))
                 })
                 .collect()

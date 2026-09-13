@@ -101,8 +101,7 @@ impl<Element: PartialEq> SharedChain<Element> {
     where
         Element: AsRef<str>,
     {
-        self
-            .iter()
+        self.iter()
             .any(|item| item.as_ref() == value)
     }
 }

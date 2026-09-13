@@ -60,12 +60,11 @@ fn a_corrupt_policy_row_is_evicted_on_lookup() {
     // Write a row whose policy blob isn't valid JSON, behind the cache's back.
     {
         let conn = rusqlite::Connection::open(&path).expect("open raw conn");
-        conn
-            .execute(
-                "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
-                rusqlite::params!["corrupt", "not json", 0_i64],
-            )
-            .expect("insert corrupt row");
+        conn.execute(
+            "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
+            rusqlite::params!["corrupt", "not json", 0_i64],
+        )
+        .expect("insert corrupt row");
     }
 
     assert!(!cache.is_verified("corrupt", |_| true), "an unparsable policy is a miss");

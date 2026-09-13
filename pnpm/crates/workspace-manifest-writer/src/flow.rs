@@ -65,8 +65,7 @@ impl Collection {
     /// Byte offset where `key`'s value starts, for descending into a
     /// collection nested in this one.
     pub(crate) fn value_start(&self, key: &str) -> Option<usize> {
-        self
-            .position_of(key)
+        self.position_of(key)
             .map(|position| self.entries[position].value.start)
     }
 }

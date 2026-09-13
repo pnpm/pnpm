@@ -398,8 +398,7 @@ fn run_in_shell<Reporter: self::Reporter>(
     // (see [`push_script_arg`]) — a branch the method chain can't
     // express.
     push_script_arg(&mut cmd, script, shell.windows_verbatim_args);
-    cmd
-        .current_dir(opts.pkg_root)
+    cmd.current_dir(opts.pkg_root)
         // Stripping inherited env so leftover npm_* keys from a wrapping
         // invocation cannot leak in. `build_env` already folded the
         // surviving parent keys into `built.env`.

@@ -141,8 +141,7 @@ pub(super) async fn load_local_meta_time(
     let mirror_path = crate::mirror::get_pkg_mirror_path(cache_dir, &meta_dir, registry, name).ok();
     let pkg = crate::mirror::load_meta_async(mirror_path.as_deref()).await?;
     let raw = pkg.time.as_ref()?;
-    raw
-        .iter()
+    raw.iter()
         .filter_map(|(version, value)| {
             value
                 .as_str()

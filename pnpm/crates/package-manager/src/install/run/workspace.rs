@@ -114,8 +114,7 @@ pub(super) fn importer_ids<'d>(
     workspace_root: &Path,
     dirs: impl Iterator<Item = &'d Path>,
 ) -> HashSet<String> {
-    dirs
-        .map(|project_dir| pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
+    dirs.map(|project_dir| pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
         .collect()
 }
 impl<'a> InstallWorkspace<'a> {

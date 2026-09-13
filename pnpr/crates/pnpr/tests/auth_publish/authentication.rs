@@ -169,8 +169,7 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -184,8 +183,7 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
         .body(Body::empty())
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -199,8 +197,7 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
         .body(Body::empty())
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -231,8 +228,7 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -246,8 +242,7 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
         .body(Body::empty())
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -261,8 +256,7 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
         .body(Body::empty())
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()

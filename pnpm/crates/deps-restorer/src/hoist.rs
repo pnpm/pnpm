@@ -409,8 +409,7 @@ impl<'a> HoistPass<'a> {
             hoisted_aliases: input.direct_deps_by_importer
                 .get(".")
                 .map(|map| {
-                    map
-                        .keys()
+                    map.keys()
                         .map(|alias| alias.to_lowercase())
                         .collect()
                 })

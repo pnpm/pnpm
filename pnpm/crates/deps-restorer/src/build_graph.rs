@@ -54,8 +54,7 @@ pub fn build_graph(
             let edges = children
                 .get(key)
                 .map(|cs| {
-                    cs
-                        .iter()
+                    cs.iter()
                         .filter(|child| nodes_to_build_set.contains(child))
                         .cloned()
                         .collect()

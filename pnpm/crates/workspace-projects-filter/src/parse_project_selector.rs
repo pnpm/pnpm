@@ -188,8 +188,7 @@ fn name_candidate_lengths(input: &str) -> Vec<usize> {
 fn match_groups(rest: &str) -> Option<(Option<&str>, Option<&str>)> {
     let (brace_inner, rest) = match_delimited(rest, '{', '}')?;
     let (bracket_inner, rest) = match_delimited(rest, '[', ']')?;
-    rest
-        .is_empty()
+    rest.is_empty()
         .then_some((brace_inner, bracket_inner))
 }
 

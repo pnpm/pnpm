@@ -290,14 +290,12 @@ fn dependencies_of(manifest: &Value) -> Vec<(String, String)> {
         .get("dependencies")
         .and_then(Value::as_object)
         .map(|deps| {
-            deps
-                .iter()
+            deps.iter()
                 .filter(|(alias, _)| is_valid_dependency_alias(alias))
                 .map(|(alias, spec)| {
                     (
                         alias.clone(),
-                        spec
-                            .as_str()
+                        spec.as_str()
                             .unwrap_or_default()
                             .to_string(),
                     )

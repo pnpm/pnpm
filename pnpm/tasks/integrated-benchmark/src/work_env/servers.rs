@@ -134,8 +134,7 @@ impl WorkEnv {
     /// guards keep the servers alive and kill them on drop; the vec is
     /// empty when no target is a pnpr target.
     pub(super) fn start_pnpr_servers(&self, pnpr_server_registry: &str) -> Vec<PnprServer> {
-        self
-            .benchmarked_ids()
+        self.benchmarked_ids()
             .filter(|id| id.is_pnpr())
             .map(|id| self.start_pnpr_server(id, pnpr_server_registry))
             .collect()

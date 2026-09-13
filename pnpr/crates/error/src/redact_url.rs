@@ -115,8 +115,7 @@ pub(super) fn redact_url_query(url: &mut url::Url) -> bool {
         })
         .collect::<Vec<_>>();
     if changed {
-        url
-            .query_pairs_mut()
+        url.query_pairs_mut()
             .clear()
             .extend_pairs(
                 pairs

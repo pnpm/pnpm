@@ -120,8 +120,7 @@ fn patch_remove_rejects_traversal_before_deleting_any_patch() {
     assert!(stderr.contains("ERR_PNPM_PATCH_FILE_OUTSIDE_PATCHES_DIR"), "stderr: {stderr}");
     assert!(workspace.join("patches/good.patch").exists(), "good patch must remain");
     assert!(
-        root
-            .path()
+        root.path()
             .join("outside.patch")
             .exists(),
         "outside patch must remain",

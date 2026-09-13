@@ -113,8 +113,7 @@ fn parse_search_query(query: &str) -> miette::Result<ParsedQuery> {
     let match_version = match spec {
         None => None,
         Some(spec) => Some(
-            spec
-                .parse::<Range>()
+            spec.parse::<Range>()
                 .map_err(|_| {
                     miette::miette!(
                         "Invalid query - {query}. List can search only by version or range"

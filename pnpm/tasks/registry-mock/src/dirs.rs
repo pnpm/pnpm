@@ -64,8 +64,7 @@ pub fn runtime_storage() -> &'static Path {
             .or_else(|| {
                 home::home_dir()
                     .map(|home| {
-                        home
-                            .join(".cache")
+                        home.join(".cache")
                             .join("pnpm-registry")
                             .join("storage")
                     })

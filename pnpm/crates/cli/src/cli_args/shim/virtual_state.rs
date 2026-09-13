@@ -16,8 +16,7 @@ pub(super) fn read_virtual_shim_state(path: &Path) -> miette::Result<Option<Virt
         }
     };
     let mut bytes = Vec::new();
-    file
-        .take(MAX_VIRTUAL_SHIM_METADATA_BYTES + 1)
+    file.take(MAX_VIRTUAL_SHIM_METADATA_BYTES + 1)
         .read_to_end(&mut bytes)
         .into_diagnostic()
         .wrap_err_with(|| format!("read virtual shim state from {}", path.display()))?;

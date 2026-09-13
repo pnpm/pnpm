@@ -88,8 +88,7 @@ fn mixed_add_updates_node_and_cargo_projects_together() {
         std::fs::read_to_string(root.path().join("Cargo.toml")).expect("read Cargo manifest");
     assert!(cargo_manifest.contains(r#"foo = "1""#), "{cargo_manifest}");
     assert!(
-        root
-            .path()
+        root.path()
             .join("pnpm-lock.yaml")
             .is_file(),
     );
@@ -127,8 +126,7 @@ fn mixed_add_restores_metadata_when_an_ecosystem_fails() {
     assert_eq!(std::fs::read(cargo_lock_path).unwrap(), cargo_lock);
     eprintln!(
         "wanted lockfile after rollback: {}",
-        root
-            .path()
+        root.path()
             .join("pnpm-lock.yaml")
             .display(),
     );
@@ -140,8 +138,7 @@ fn mixed_add_restores_metadata_when_an_ecosystem_fails() {
     );
     eprintln!(
         "current lockfile after rollback: {}",
-        root
-            .path()
+        root.path()
             .join("node_modules/.pnpm/lock.yaml")
             .display(),
     );
@@ -153,8 +150,7 @@ fn mixed_add_restores_metadata_when_an_ecosystem_fails() {
     );
     eprintln!(
         "modules manifest after rollback: {}",
-        root
-            .path()
+        root.path()
             .join("node_modules/.modules.yaml")
             .display(),
     );
@@ -274,14 +270,12 @@ fn install_discovers_multiple_nested_cargo_workspaces() {
         .success();
 
     assert!(
-        root
-            .path()
+        root.path()
             .join("rust-a/Cargo.lock")
             .is_file(),
     );
     assert!(
-        root
-            .path()
+        root.path()
             .join("rust-b/Cargo.lock")
             .is_file(),
     );

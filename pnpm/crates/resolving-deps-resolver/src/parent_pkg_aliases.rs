@@ -71,8 +71,7 @@ pub(crate) fn peer_shadowed_dependencies(
     let (Some(peers), Some(deps)) = (object("peerDependencies"), object("dependencies")) else {
         return HashSet::default();
     };
-    deps
-        .keys()
+    deps.keys()
         .filter(|name| peers.contains_key(*name))
         .filter(|name| auto_install_peers || parent_pkg_aliases.contains(name))
         .cloned()

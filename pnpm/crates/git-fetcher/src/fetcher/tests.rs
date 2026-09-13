@@ -251,8 +251,7 @@ pub(crate) fn parse_shim_log(log_path: &Path) -> Vec<Vec<String>> {
         .unwrap()
         .lines()
         .map(|line| {
-            line
-                .split('\t')
+            line.split('\t')
                 .filter(|part| !part.is_empty())
                 .map(str::to_string)
                 .collect::<Vec<_>>()

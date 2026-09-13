@@ -208,11 +208,9 @@ fn build_policy_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> Con
 
 fn package_extension(input: &PackageExtensionInput) -> pnpm_config::PackageExtension {
     let to_sorted = |map: &Option<HashMap<String, String>>| {
-        map
-            .as_ref()
+        map.as_ref()
             .map(|map| {
-                map
-                    .iter()
+                map.iter()
                     .map(|(k, v)| (k.clone(), v.clone()))
                     .collect()
             })
@@ -224,8 +222,7 @@ fn package_extension(input: &PackageExtensionInput) -> pnpm_config::PackageExten
         peer_dependencies_meta: input.peer_dependencies_meta
             .as_ref()
             .map(|meta| {
-                meta
-                    .iter()
+                meta.iter()
                     .map(|(name, entry)| {
                         (name.clone(), pnpm_config::PeerDependencyMeta { optional: entry.optional })
                     })

@@ -80,8 +80,7 @@ fn builds_snapshot_with_resolved_dependencies() {
     assert_eq!(deps.len(), 1);
     let react_key = PkgName::parse("react").unwrap();
     assert_eq!(
-        deps
-            .get(&react_key)
+        deps.get(&react_key)
             .unwrap()
             .to_string(),
         "17.0.2",

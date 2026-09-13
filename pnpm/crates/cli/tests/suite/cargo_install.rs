@@ -107,8 +107,7 @@ fn install_resolves_and_downloads_through_the_configured_registry() {
         std::fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo.lock");
     assert!(lockfile.contains(&format!(r#"source = "sparse+{}/""#, registry.url())), "{lockfile}");
     assert!(
-        root
-            .path()
+        root.path()
             .join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs")
             .is_file(),
     );
@@ -222,20 +221,17 @@ fn install_vendors_a_git_patched_crate_beside_the_registry_crates() {
 
     assert_eq!(fs::read_to_string(root.path().join("Cargo.lock")).unwrap(), lockfile);
     assert!(
-        root
-            .path()
+        root.path()
             .join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs")
             .is_file(),
     );
     assert!(
-        root
-            .path()
+        root.path()
             .join(".pnpm/crates/git/patched-1.0.0/src/lib.rs")
             .is_file(),
     );
     assert!(
-        root
-            .path()
+        root.path()
             .join(".pnpm/crates/git/sibling-1.0.0/src/lib.rs")
             .is_file(),
     );
@@ -374,8 +370,7 @@ fn install_does_not_parse_or_modify_excluded_cargo_workspaces() {
     install_in(&root, &args);
     eprintln!("The selected Cargo workspace must receive source configuration");
     assert!(
-        root
-            .path()
+        root.path()
             .join(".cargo/config.toml")
             .is_file(),
     );

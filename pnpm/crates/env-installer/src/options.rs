@@ -55,8 +55,7 @@ impl ConfigDepsInstallOptions<'_> {
 /// Byte offset just past the `@scope` of a scoped package name, or
 /// `None` for an unscoped name.
 fn scope_of(name: &str) -> Option<usize> {
-    name
-        .starts_with('@')
+    name.starts_with('@')
         .then(|| name.find('/'))
         .flatten()
 }

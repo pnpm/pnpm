@@ -113,8 +113,7 @@ fn dependency_value_range(line: &str, name: &str) -> Option<Range<usize>> {
         .strip_prefix('"')
         .and_then(|key| key.strip_suffix('"'))
         .or_else(|| {
-            key
-                .strip_prefix('\'')
+            key.strip_prefix('\'')
                 .and_then(|key| key.strip_suffix('\''))
         })
         .unwrap_or(key);
@@ -127,8 +126,7 @@ fn dependency_value_range(line: &str, name: &str) -> Option<Range<usize>> {
     let end = comment_start(&line[start..])
         .map_or_else(
             || {
-                line
-                    .trim_end_matches(['\r', '\n'])
+                line.trim_end_matches(['\r', '\n'])
                     .len()
             },
             |comment| start + comment,

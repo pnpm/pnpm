@@ -10,8 +10,7 @@ use std::{
 impl WorkEnv {
     /// Source-tree location for a pacquet revision: `<bench_dir>/pacquet`.
     fn pacquet_source_dir(&self, revision: &str) -> PathBuf {
-        self
-            .bench_dir(BenchId::PacquetRevision(revision))
+        self.bench_dir(BenchId::PacquetRevision(revision))
             .join("pacquet")
     }
     /// Source-tree location for a pnpr revision: `<bench_dir>/pacquet`.
@@ -19,14 +18,12 @@ impl WorkEnv {
     /// target (the `pacquet` and `pnpr` crates share one workspace), so
     /// the layout matches [`Self::pacquet_source_dir`].
     fn pnpr_source_dir(&self, revision: &str) -> PathBuf {
-        self
-            .bench_dir(BenchId::PnprRevision(revision))
+        self.bench_dir(BenchId::PnprRevision(revision))
             .join("pacquet")
     }
     /// Source-tree location for a pnpm revision: `<bench_dir>/pnpm-source`.
     fn pnpm_source_dir(&self, revision: &str) -> PathBuf {
-        self
-            .bench_dir(BenchId::PnpmRevision(revision))
+        self.bench_dir(BenchId::PnpmRevision(revision))
             .join("pnpm-source")
     }
     pub(super) fn resolve_revision(repository: &Path, revision: &str) -> String {
@@ -101,8 +98,7 @@ impl WorkEnv {
     }
     /// The `pnpr` server binary a `pnpr@<rev>` build produces.
     pub(super) fn pnpr_server_binary(&self, revision: &str) -> PathBuf {
-        self
-            .pnpr_source_dir(revision)
+        self.pnpr_source_dir(revision)
             .join("target")
             .join("release")
             .join("pnpr")

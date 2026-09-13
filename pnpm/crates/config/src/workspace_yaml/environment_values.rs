@@ -54,8 +54,7 @@ pub(super) fn substitute_registry_entries<Sys: EnvVar>(
 ) {
     let Some(map) = value.take() else { return };
     *value = Some(
-        map
-            .into_iter()
+        map.into_iter()
             .map(|(key, entry)| match entry {
                 RegistryEntry::ScopeRoute(url) => {
                     let (substituted, _) = env_replace_lossy::<Sys>(&url);

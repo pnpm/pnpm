@@ -149,8 +149,7 @@ fn create_version_spec_from_resolved_version(
 /// declares it. `None` when no field declares the alias.
 fn find_spec(alias: &str, root: &Value) -> Option<String> {
     let field = guess_dependency_type(alias, root)?;
-    root
-        .get(field)?
+    root.get(field)?
         .get(alias)?
         .as_str()
         .map(ToString::to_string)
@@ -162,8 +161,7 @@ fn guess_dependency_type(alias: &str, root: &Value) -> Option<&'static str> {
     DEPENDENCIES_OR_PEER_FIELDS
         .into_iter()
         .find(|field| {
-            root
-                .get(*field)
+            root.get(*field)
                 .and_then(Value::as_object)
                 .and_then(|deps| deps.get(alias))
                 .is_some_and(Value::is_string)

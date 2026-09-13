@@ -241,8 +241,7 @@ impl std::fmt::Debug for PackageVersionPolicy {
     // most useful thing the debug rendering can show is the rule
     // count and each rule's exact-versions list.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f
-            .debug_struct("PackageVersionPolicy")
+        f.debug_struct("PackageVersionPolicy")
             .field(
                 "rules",
                 &self.rules

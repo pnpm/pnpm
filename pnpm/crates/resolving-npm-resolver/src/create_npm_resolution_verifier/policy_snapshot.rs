@@ -118,14 +118,3 @@ pub(super) fn policy_patterns_json(patterns: &[String]) -> JsonValue {
             .collect(),
     )
 }
-
-impl super::NpmResolutionVerifier {
-    /// Whether the maturity and trust policies apply to this entry.
-    pub(super) fn policies_for(&self, ctx: &super::VerifyCtx<'_>) -> (bool, bool) {
-        let age_applies = self.release_age.age_check_active()
-            && !super::is_excluded(self.release_age.exclude.as_ref(), ctx.name, ctx.version);
-        let trust_applies = self.trust.trust_check_active()
-            && !super::is_excluded(self.trust.exclude.as_ref(), ctx.name, ctx.version);
-        (age_applies, trust_applies)
-    }
-}

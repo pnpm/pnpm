@@ -218,8 +218,7 @@ fn split_key_and_value(content: &str) -> Option<(&str, &str)> {
 /// `@`, which keeps a scope's leading `@` and drops yarn berry's
 /// protocol along with the range (`minimatch@npm:^3.0.4`).
 fn descriptor_package_names(key: &str) -> impl Iterator<Item = &str> {
-    key
-        .split(',')
+    key.split(',')
         .filter_map(|descriptor| {
             let descriptor = descriptor.trim().trim_matches(QUOTES);
             let name = &descriptor[..descriptor.rfind('@')?];

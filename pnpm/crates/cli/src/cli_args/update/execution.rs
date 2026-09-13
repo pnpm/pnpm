@@ -287,8 +287,7 @@ impl UpdateArgs {
         update_actions: bool,
         include_direct: &[DependencyGroup],
     ) -> Option<&'config str> {
-        self
-            .can_delegate_patch_refresh(update_actions, include_direct)
+        self.can_delegate_patch_refresh(update_actions, include_direct)
             .then_some(config.pnpr_server.as_deref())
             .flatten()
     }

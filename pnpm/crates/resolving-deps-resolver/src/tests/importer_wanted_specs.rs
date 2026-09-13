@@ -10,8 +10,7 @@ fn manifest_with(groups: serde_json::Value) -> (tempfile::TempDir, PackageManife
     let tmp = tempfile::tempdir().expect("tempdir");
     let path = tmp.path().join("package.json");
     let mut json = serde_json::json!({ "name": "root", "version": "0.0.0" });
-    json
-        .as_object_mut()
+    json.as_object_mut()
         .unwrap()
         .extend(groups.as_object().unwrap().clone());
     std::fs::write(&path, serde_json::to_string(&json).unwrap()).expect("write package.json");

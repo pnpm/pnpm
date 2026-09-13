@@ -16,8 +16,7 @@ pub fn sanitize(text: &str) -> Cow<'_, str> {
         .any(|ch| is_format_character(ch) || ch.is_control() && ch != '\n' && ch != '\t')
     {
         Cow::Owned(
-            text
-                .chars()
+            text.chars()
                 .filter(|ch| {
                     !is_format_character(*ch) && (!ch.is_control() || *ch == '\n' || *ch == '\t')
                 })
@@ -37,8 +36,7 @@ pub fn sanitize_inline(text: &str) -> Cow<'_, str> {
         .any(|ch| ch.is_control() || is_format_character(ch))
     {
         Cow::Owned(
-            text
-                .chars()
+            text.chars()
                 .filter(|ch| !ch.is_control() && !is_format_character(*ch))
                 .collect(),
         )

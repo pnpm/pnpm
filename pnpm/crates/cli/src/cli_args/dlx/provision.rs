@@ -50,8 +50,7 @@ pub(super) fn provisioned_tool<'a>(
     // says which of its bins to run: `pnx --package npm@11 npx`.
     let [spec] = package else { return None };
     let (pm, version_spec) = parse_package_manager_spec(spec)?;
-    pm
-        .bins()
+    pm.bins()
         .contains(&bin_command)
         .then_some(ProvisionedTool::PackageManager {
             pm,

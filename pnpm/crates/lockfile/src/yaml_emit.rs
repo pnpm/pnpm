@@ -166,8 +166,7 @@ fn map_values(
             .map(|(key, value)| (key, transform(value)))
             .collect();
     }
-    map
-        .into_iter()
+    map.into_iter()
         .collect::<Vec<_>>()
         .into_par_iter()
         .map(|(key, value)| (key, transform(value)))

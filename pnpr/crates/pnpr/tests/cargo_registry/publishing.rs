@@ -70,14 +70,12 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
 
     // Storage layout: the hosted org namespace, keyed by the lowercase name.
     assert!(
-        tmp
-            .path()
+        tmp.path()
             .join("crates/demo/demo-0.1.0.crate")
             .is_file(),
     );
     assert!(
-        tmp
-            .path()
+        tmp.path()
             .join("crates/demo/package.json")
             .is_file(),
     );
@@ -189,8 +187,7 @@ async fn publish_requires_a_token_and_refuses_duplicates_and_bad_archives() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     assert!(
-        !tmp
-            .path()
+        !tmp.path()
             .join("crates/demo/demo-0.2.0.crate")
             .exists(),
     );

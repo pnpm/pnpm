@@ -185,9 +185,7 @@ async fn concurrent_chunks_of_one_upload_neither_lose_nor_duplicate_bytes() {
                 .header(header::AUTHORIZATION, &auth)
                 .body(Body::from(chunk))
                 .unwrap();
-            app
-                .oneshot(request)
-                .await
+            app.oneshot(request).await
                 .unwrap()
                 .status()
         }

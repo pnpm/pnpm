@@ -219,8 +219,7 @@ async fn an_index_over_pushed_children_publishes() {
         .body(Body::from(index))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()

@@ -417,8 +417,7 @@ fn collect_glob_manifests(
         let ignores =
             manifest_walk_ignores(normalized, dot_pruning_ignore_template).map_err(invalid_glob)?;
         collect_walk_manifests(
-            glob
-                .walk(walk_root)
+            glob.walk(walk_root)
                 .not(ignores)
                 .map_err(invalid_glob)?,
             walk_root,

@@ -282,8 +282,7 @@ pub(super) fn registry_access_list(
     spec: Option<&AccessSpec>,
     teams: &Teams,
 ) -> Result<Option<AccessList>, RegistryError> {
-    spec
-        .map(|spec| spec.to_access_list(teams))
+    spec.map(|spec| spec.to_access_list(teams))
         .transpose()
         .map_err(|reason| RegistryError::InvalidConfig {
             reason: format!("registry {name:?} has an invalid `access` list: {reason}"),

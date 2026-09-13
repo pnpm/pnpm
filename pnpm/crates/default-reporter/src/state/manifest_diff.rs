@@ -84,8 +84,7 @@ pub(super) fn manifest_dep_versions(manifest: &Value, prop: &str) -> HashMap<Str
         .get(prop)
         .and_then(Value::as_object)
         .map(|obj| {
-            obj
-                .iter()
+            obj.iter()
                 .map(|(name, value)| {
                     (
                         name.clone(),

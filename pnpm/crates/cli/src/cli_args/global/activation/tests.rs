@@ -637,8 +637,7 @@ fn resolved_hash_target(link: &Path) -> PathBuf {
     let target = if target.is_absolute() {
         target
     } else {
-        link
-            .parent()
+        link.parent()
             .expect("hash link parent")
             .join(target)
     };

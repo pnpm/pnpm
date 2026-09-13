@@ -263,8 +263,7 @@ impl SbomArgs {
         self.document.authors
             .as_deref()
             .map(|csv| {
-                csv
-                    .split(',')
+                csv.split(',')
                     .map(|author| author.trim().to_string())
                     .filter(|author| !author.is_empty())
                     .collect()

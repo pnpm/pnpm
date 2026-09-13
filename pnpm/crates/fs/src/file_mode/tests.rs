@@ -51,13 +51,11 @@ fn make_file_executable_fills_partial_bits_and_preserves_full() {
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
     let file = tmp.as_file();
 
-    file
-        .set_permissions(std::fs::Permissions::from_mode(0o744))
+    file.set_permissions(std::fs::Permissions::from_mode(0o744))
         .expect("seed 0o744");
     make_file_executable(file).expect("fill partial exec bits");
     assert_eq!(
-        file
-            .metadata()
+        file.metadata()
             .unwrap()
             .permissions()
             .mode()
@@ -67,8 +65,7 @@ fn make_file_executable_fills_partial_bits_and_preserves_full() {
 
     make_file_executable(file).expect("already executable");
     assert_eq!(
-        file
-            .metadata()
+        file.metadata()
             .unwrap()
             .permissions()
             .mode()

@@ -49,8 +49,7 @@ pub struct S3Settings {
 /// credential must never reach a log line, span, or diagnostic dump.
 impl fmt::Debug for S3Settings {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f
-            .debug_struct("S3Settings")
+        f.debug_struct("S3Settings")
             .field("bucket", &self.bucket)
             .field("region", &self.region)
             .field("endpoint", &self.endpoint.as_deref().map(redact_url_credentials))

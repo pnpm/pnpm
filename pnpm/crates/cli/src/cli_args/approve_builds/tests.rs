@@ -9,8 +9,7 @@ fn pending(names: &[&str]) -> Vec<String> {
 }
 
 fn params(args: &[&str]) -> Vec<String> {
-    args
-        .iter()
+    args.iter()
         .map(|arg| (*arg).to_string())
         .collect()
 }

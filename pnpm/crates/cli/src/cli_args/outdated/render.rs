@@ -376,8 +376,7 @@ pub(super) fn red(text: &str) -> String {
 
 fn red_bold(text: &str) -> String {
     let style = owo_colors::Style::new().red().bold();
-    text
-        .if_supports_color(Stream::Stdout, |t| t.style(style))
+    text.if_supports_color(Stream::Stdout, |t| t.style(style))
         .to_string()
 }
 

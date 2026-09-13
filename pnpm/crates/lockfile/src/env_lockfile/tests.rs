@@ -27,9 +27,7 @@ fn pkg_metadata(integrity_source: &[u8]) -> PackageMetadata {
 
 fn sample_env_lockfile() -> EnvLockfile {
     let mut env = EnvLockfile::create();
-    env
-        .root_importer_mut()
-        .config_dependencies
+    env.root_importer_mut().config_dependencies
         .insert(
             "@pnpm.e2e/foo".to_string(),
             SpecifierAndResolution {

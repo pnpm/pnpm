@@ -155,8 +155,7 @@ impl NpmResolutionVerifier {
                     .or_insert_with(|| Arc::new(OnceCell::new())),
             )
         };
-        cell
-            .get_or_init(|| async { self.resolve_published_at(registry, name, version).await })
+        cell.get_or_init(|| async { self.resolve_published_at(registry, name, version).await })
             .await
             .clone()
     }

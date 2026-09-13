@@ -623,8 +623,7 @@ fn parse_storage_access(
         .map(|(name, policy)| {
             validate_registry_name(&name)?;
             let parse = |spec: &AccessSpec| {
-                spec
-                    .to_access_list(&Teams::default())
+                spec.to_access_list(&Teams::default())
                     .map_err(|reason| RegistryError::InvalidConfig {
                         reason: format!("storage namespace {name:?}: {reason}"),
                     })

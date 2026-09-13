@@ -195,8 +195,7 @@ fn for_installs_ignores_ca_entries_that_carry_no_certificate() {
     // alongside its unreadable neighbours would break the install a
     // different way.
     assert_eq!(
-        ca
-            .iter()
+        ca.iter()
             .flat_map(|pem| crate::certificates::parse_ca_bundle(pem.as_bytes()))
             .count(),
         1,

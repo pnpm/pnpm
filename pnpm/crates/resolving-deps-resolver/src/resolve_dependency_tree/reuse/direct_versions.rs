@@ -120,8 +120,7 @@ pub(super) fn reused_parent_has_changed_direct_child(
     };
     let depends_on = |map: Option<&std::collections::HashMap<PkgName, SnapshotDepRef>>| {
         map.is_some_and(|deps| {
-            deps
-                .keys()
+            deps.keys()
                 .any(|name| importer_changed.contains(name))
         })
     };

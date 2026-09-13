@@ -152,11 +152,10 @@ pub fn wheel_identity(
                             .any(|supported| supported == actual)
                     })
         });
-    rank
-        .map(|rank| {
-            Ok((parts[0].parse().into_diagnostic()?, parts[1].parse().into_diagnostic()?, rank))
-        })
-        .transpose()
+    rank.map(|rank| {
+        Ok((parts[0].parse().into_diagnostic()?, parts[1].parse().into_diagnostic()?, rank))
+    })
+    .transpose()
 }
 
 /// Refuse a URL a Python artifact must not be fetched from: a scheme

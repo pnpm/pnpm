@@ -322,9 +322,7 @@ fn with_peer(mut request: Request<Body>, addr: SocketAddr) -> Request<Body> {
 }
 
 async fn status(app: axum::Router, request: Request<Body>) -> StatusCode {
-    app
-        .oneshot(request)
-        .await
+    app.oneshot(request).await
         .unwrap()
         .status()
 }

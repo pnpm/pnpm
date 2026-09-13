@@ -185,8 +185,7 @@ impl fmt::Debug for AuthHeaders {
         // Header values carry credentials, so the maps' *contents* must
         // never reach a log line; show only key counts plus whether a
         // server route hook is overriding lookup.
-        f
-            .debug_struct("AuthHeaders")
+        f.debug_struct("AuthHeaders")
             .field("by_uri", &self.by_uri.len())
             .field("scoped_by_scope", &self.scoped_by_scope.len())
             .field("has_token_helpers", &self.has_token_helpers)

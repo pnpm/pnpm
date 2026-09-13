@@ -62,8 +62,7 @@ fn ledger(entries: &[(&str, &[&str])]) -> Ledger {
             (
                 (*key).to_string(),
                 LedgerEntry::Ids(
-                    ids
-                        .iter()
+                    ids.iter()
                         .map(|id| (*id).to_string())
                         .collect(),
                 ),

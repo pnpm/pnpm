@@ -76,12 +76,11 @@ impl AuthSqlBackend for MysqlDatabase {
             .bind(username)
             .fetch_optional(&self.pool)
             .await?;
-        row
-            .map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
-                Ok(StoredUser { username: row.try_get(0)?, bcrypt_hash: row.try_get(1)? })
-            })
-            .transpose()
-            .map_err(RegistryError::from)
+        row.map(|row| -> std::result::Result<StoredUser, sqlx::Error> {
+            Ok(StoredUser { username: row.try_get(0)?, bcrypt_hash: row.try_get(1)? })
+        })
+        .transpose()
+        .map_err(RegistryError::from)
     }
 
     async fn user_count(&self) -> Result<u64> {
@@ -161,8 +160,7 @@ impl AuthSqlBackend for MysqlDatabase {
             .bind(token_hash)
             .fetch_optional(&self.pool)
             .await?;
-        row
-            .map(|row| row.try_get(0))
+        row.map(|row| row.try_get(0))
             .transpose()
             .map_err(RegistryError::from)
     }
@@ -186,8 +184,7 @@ impl AuthSqlBackend for MysqlDatabase {
         .bind(username)
         .fetch_all(&self.pool)
         .await?;
-        rows
-            .into_iter()
+        rows.into_iter()
             .map(|row| keyed_token_record_from_row(&row))
             .collect()
     }
@@ -335,18 +332,15 @@ fn token_record_from_offset(
 }
 
 fn is_unique_violation(err: &sqlx::Error) -> bool {
-    err
-        .as_database_error()
+    err.as_database_error()
         .is_some_and(|err| {
-            err
-                .code()
+            err.code()
                 .is_some_and(|code| code.as_ref() == "23000" || code.as_ref() == "1062")
         })
 }
 
 fn is_duplicate_index(err: &sqlx::Error) -> bool {
-    err
-        .as_database_error()
+    err.as_database_error()
         .and_then(|err| err.try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>())
         .is_some_and(|err| err.number() == 1061)
 }

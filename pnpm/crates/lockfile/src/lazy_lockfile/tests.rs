@@ -56,8 +56,7 @@ fn preloaded_repair_preserves_the_merge_view() {
 fn preloaded_none_reports_absent() {
     let lazy = LazyLockfile::preloaded(None);
     assert!(
-        lazy
-            .get()
+        lazy.get()
             .expect("preloaded lockfile loads infallibly")
             .is_none(),
     );
@@ -68,8 +67,7 @@ fn preloaded_none_reports_absent() {
 fn disabled_never_touches_the_filesystem() {
     let lazy = LazyLockfile::disabled();
     assert!(
-        lazy
-            .get()
+        lazy.get()
             .expect("disabled load is infallible")
             .is_none(),
     );
@@ -85,8 +83,7 @@ fn deferred_loads_from_the_given_dir_not_the_process_cwd() {
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
     assert!(lazy.is_loaded_or_on_disk(), "probe must find the dir-addressed lockfile");
     assert!(
-        lazy
-            .get()
+        lazy.get()
             .expect("deferred load succeeds")
             .is_some(),
     );
@@ -96,15 +93,13 @@ fn deferred_loads_from_the_given_dir_not_the_process_cwd() {
         LazyLockfile::deferred(empty.path().to_path_buf(), WantedLockfileSelection::default());
     assert!(!lazy.is_loaded_or_on_disk());
     assert!(
-        lazy
-            .get_for_fix()
+        lazy.get_for_fix()
             .expect("absent repair load succeeds")
             .is_none(),
     );
     assert!(!lazy.is_loaded_or_on_disk(), "the empty repair cache must report no lockfile");
     assert!(
-        lazy
-            .get()
+        lazy.get()
             .expect("absent lockfile loads as None")
             .is_none(),
     );
@@ -253,8 +248,7 @@ fn repair_views_stay_on_the_same_file_generation() {
     .expect("write first lockfile generation");
 
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
-    lazy
-        .get_for_fix()
+    lazy.get_for_fix()
         .expect("repair load succeeds")
         .expect("repair lockfile");
 
@@ -307,8 +301,7 @@ fn a_failed_repair_load_is_retried_rather_than_cached() {
     )
     .expect("write repaired lockfile");
     assert!(
-        lazy
-            .get_for_fix()
+        lazy.get_for_fix()
             .expect("the failed load was not cached")
             .is_some(),
     );
@@ -330,8 +323,7 @@ fn repair_views_fold_branch_lockfiles_together() {
     )
     .expect("write base lockfile");
     fs::write(
-        dir
-            .path()
+        dir.path()
             .join(Lockfile::git_branch_file_name("feature")),
         text_block! {
             "lockfileVersion: '9.0'"
@@ -385,8 +377,7 @@ fn empty_and_env_only_files_count_as_absent() {
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
     assert!(!lazy.is_loaded_or_on_disk(), "an env-only document must count as absent");
     assert!(
-        lazy
-            .get()
+        lazy.get()
             .expect("env-only lockfile loads as None")
             .is_none(),
     );
@@ -459,14 +450,12 @@ fn prefetch_hands_get_the_background_parse() {
     }
     fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).expect("remove pnpm-lock.yaml");
     assert!(
-        lazy
-            .get()
+        lazy.get()
             .expect("prefetched load succeeds")
             .is_some(),
     );
     assert!(
-        lazy
-            .get()
+        lazy.get()
             .expect("cached load succeeds")
             .is_some(),
     );
@@ -477,8 +466,7 @@ fn prefetch_on_a_disabled_lockfile_is_a_noop() {
     let lazy = LazyLockfile::disabled();
     lazy.prefetch();
     assert!(
-        lazy
-            .get()
+        lazy.get()
             .expect("disabled lockfile loads as None")
             .is_none(),
     );
@@ -498,8 +486,7 @@ fn a_failed_prefetch_is_surfaced_and_then_retried() {
     fs::write(dir.path().join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
         .expect("repair pnpm-lock.yaml");
     assert!(
-        lazy
-            .get()
+        lazy.get()
             .expect("retried load succeeds")
             .is_some(),
     );

@@ -49,8 +49,7 @@ fn libc_shape_is_preserved() {
         let metadata: PackageMetadata = serde_saphyr::from_str(&make_metadata(input)).unwrap();
         let yaml = serialize_yaml::to_string(&metadata).unwrap();
         assert!(
-            yaml
-                .lines()
+            yaml.lines()
                 .any(|line| line.trim_start() == input.trim()),
             "{yaml}",
         );

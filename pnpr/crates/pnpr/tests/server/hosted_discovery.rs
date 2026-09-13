@@ -270,8 +270,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         .unwrap();
     assert_eq!(delete_tar.status(), StatusCode::CREATED);
     assert!(
-        !tmp
-            .path()
+        !tmp.path()
             .join("acme/@acme/widget/widget-1.0.0.tgz")
             .exists(),
     );
@@ -286,8 +285,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         .unwrap();
     assert_eq!(delete_pkg.status(), StatusCode::CREATED);
     assert!(
-        !tmp
-            .path()
+        !tmp.path()
             .join("acme/@acme/widget")
             .exists(),
     );

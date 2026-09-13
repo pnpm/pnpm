@@ -434,8 +434,7 @@ impl From<HashMap<String, PackageVersion>> for PackageVersions {
 
 impl FromIterator<(String, PackageVersion)> for PackageVersions {
     fn from_iter<Iter: IntoIterator<Item = (String, PackageVersion)>>(iter: Iter) -> Self {
-        iter
-            .into_iter()
+        iter.into_iter()
             .collect::<HashMap<_, _>>()
             .into()
     }

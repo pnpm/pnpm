@@ -113,8 +113,7 @@ impl Package {
         let complete = self.versions
             .keys()
             .all(|version| {
-                time
-                    .get(version)
+                time.get(version)
                     .and_then(serde_json::Value::as_str)
                     .is_some_and(|at| !at.is_empty())
             });
@@ -211,8 +210,7 @@ impl DerivedPackuments {
 }
 
 fn find(memo: &DerivedMemo, policy_key: &str) -> Option<Arc<Package>> {
-    memo
-        .iter()
+    memo.iter()
         .find(|(key, _)| key == policy_key)
         .map(|(_, derived)| Arc::clone(derived))
 }
@@ -262,8 +260,7 @@ impl Package {
         let mut satisfying = self.versions
             .keys()
             .filter_map(|key| {
-                key
-                    .parse::<node_semver::Version>()
+                key.parse::<node_semver::Version>()
                     .ok()
                     .filter(|version| version.satisfies(&range))
                     .map(|version| (version, key))

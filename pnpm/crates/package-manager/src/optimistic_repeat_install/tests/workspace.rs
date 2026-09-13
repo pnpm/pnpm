@@ -236,15 +236,13 @@ fn returns_skipped_when_workspace_project_set_changes() {
         current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
-        dir
-            .path()
+        dir.path()
             .to_string_lossy()
             .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     projects.insert(
-        dir
-            .path()
+        dir.path()
             .join("pkg-a")
             .to_string_lossy()
             .into_owned(),
@@ -377,8 +375,7 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
         current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
-        dir
-            .path()
+        dir.path()
             .to_string_lossy()
             .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },

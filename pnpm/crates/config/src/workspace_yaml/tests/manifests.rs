@@ -10,8 +10,7 @@ use super::{
 #[test]
 fn find_propagates_when_manifest_path_is_a_directory() {
     let tmp = tempfile::tempdir().unwrap();
-    tmp
-        .path()
+    tmp.path()
         .join(WORKSPACE_MANIFEST_FILENAME)
         .pipe(fs::create_dir)
         .unwrap();

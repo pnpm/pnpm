@@ -55,8 +55,7 @@ pub(super) fn build_rewrite_plan(
 ) -> Option<RewritePlan> {
     let old_overrides = lockfile.overrides.as_ref();
     if old_overrides.is_some_and(|old| {
-        old
-            .keys()
+        old.keys()
             .any(|selector| !resolved_overrides.contains_key(selector))
     }) {
         return None;
@@ -356,8 +355,7 @@ pub(super) fn package_metadata(
         version: None,
         engines: string_map(manifest, "engines")
             .map(|map| {
-                map
-                    .into_iter()
+                map.into_iter()
                     .filter(|(_, range)| range != "*")
                     .collect()
             })
@@ -382,8 +380,7 @@ pub(super) fn package_metadata(
 pub(super) fn string_map(manifest: &Value, key: &str) -> Option<HashMap<String, String>> {
     let map = manifest.get(key)?.as_object()?;
     Some(
-        map
-            .iter()
+        map.iter()
             .filter_map(|(name, value)| Some((name.clone(), value.as_str()?.to_string())))
             .collect(),
     )

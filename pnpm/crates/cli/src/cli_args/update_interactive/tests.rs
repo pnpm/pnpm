@@ -560,9 +560,7 @@ impl ScriptedPrompts {
             .iter()
             .map(|package| (*package).to_string())
             .collect();
-        self
-            .claimed()
-            .answers
+        self.claimed().answers
             .push_back(ScriptedAnswer::Check(answer));
     }
 

@@ -88,8 +88,7 @@ impl Registry {
     }
 
     pub(crate) fn package(&self, name: &str) -> Result<&[RegistryVersion]> {
-        self
-            .versions(name)
+        self.versions(name)
             .ok_or_else(|| {
                 miette::miette!("sparse index metadata for crate {name} was not fetched")
             })
@@ -189,8 +188,7 @@ fn same_registry(left: &str, right: &str) -> bool {
 }
 
 fn strip_source_kind(url: &str) -> &str {
-    url
-        .strip_prefix("sparse+")
+    url.strip_prefix("sparse+")
         .or_else(|| url.strip_prefix("registry+"))
         .unwrap_or(url)
         .trim_end_matches('/')

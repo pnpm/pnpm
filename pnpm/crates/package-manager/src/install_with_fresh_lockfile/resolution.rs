@@ -226,8 +226,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
                     .cloned()
                     .or_else(|| self.prep.wanted_lockfile_shared.clone())
                     .or_else(|| {
-                        self
-                            .wanted_lockfile()
+                        self.wanted_lockfile()
                             .cloned()
                             .map(Arc::new)
                     }),

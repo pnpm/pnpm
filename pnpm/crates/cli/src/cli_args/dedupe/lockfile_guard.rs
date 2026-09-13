@@ -12,17 +12,14 @@ fn atomic_write(path: &Path, content: &[u8]) -> miette::Result<()> {
     let mut tmp = NamedTempFile::new_in(dir)
         .into_diagnostic()
         .wrap_err("creating temp file for atomic write")?;
-    tmp
-        .write_all(content)
+    tmp.write_all(content)
         .into_diagnostic()
         .wrap_err("writing temp file")?;
-    tmp
-        .as_file()
+    tmp.as_file()
         .sync_all()
         .into_diagnostic()
         .wrap_err("syncing temp file")?;
-    tmp
-        .persist(path)
+    tmp.persist(path)
         .into_diagnostic()
         .wrap_err("renaming temp file into place")?;
     Ok(())

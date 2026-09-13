@@ -171,8 +171,7 @@ async fn push_image(app: &Router, auth: &str, repository: &str, reference: &str)
 }
 
 async fn get(app: &Router, path: &str) -> axum::response::Response {
-    app
-        .clone()
+    app.clone()
         .oneshot(
             Request::get(path)
                 .body(Body::empty())

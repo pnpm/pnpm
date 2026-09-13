@@ -251,8 +251,7 @@ fn app_targets(raw: &serde_json::Map<String, Value>) -> Result<Vec<String>, Pack
         Some(Value::Array(items)) => items
             .iter()
             .map(|item| {
-                item
-                    .as_str()
+                item.as_str()
                     .map(ToString::to_string)
                     .ok_or_else(|| PackAppError::InvalidConfig {
                         message: r#""pnpm.app.targets" must be an array of strings."#.to_string(),

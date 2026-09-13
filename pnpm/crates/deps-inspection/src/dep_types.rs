@@ -30,8 +30,7 @@ pub fn detect_dep_types(lockfile: &Lockfile) -> DepTypes {
             .values()
             .filter_map(group)
             .flat_map(|deps| {
-                deps
-                    .iter()
+                deps.iter()
                     .filter_map(|(alias, spec)| spec.version.resolved_key(alias))
             })
             .collect::<Vec<_>>()

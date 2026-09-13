@@ -447,8 +447,7 @@ fn regenerates_missing_wanted_lockfile_when_touched_manifest_satisfies_current()
         content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
     assert_eq!(decision, Decision::UpToDate);
     assert!(
-        dir
-            .path()
+        dir.path()
             .join(Lockfile::FILE_NAME)
             .exists(),
         "pnpm-lock.yaml must be regenerated",
@@ -474,8 +473,7 @@ fn returns_skipped_when_missing_wanted_lockfile_and_manifest_adds_a_dependency()
         "expected Skipped(no longer satisfied), got {decision:?}",
     );
     assert!(
-        !dir
-            .path()
+        !dir.path()
             .join(Lockfile::FILE_NAME)
             .exists(),
         "must not regenerate on a failed check",
@@ -499,8 +497,7 @@ fn workspace_regenerates_missing_wanted_lockfile_and_bumps_state() {
         content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
     assert_eq!(decision, Decision::UpToDate);
     assert!(
-        dir
-            .path()
+        dir.path()
             .join(Lockfile::FILE_NAME)
             .exists(),
         "pnpm-lock.yaml must be regenerated",
@@ -534,8 +531,7 @@ fn does_not_regenerate_wanted_lockfile_when_lockfile_writing_disabled() {
     );
     assert_eq!(decision, Decision::UpToDate);
     assert!(
-        !dir
-            .path()
+        !dir.path()
             .join(Lockfile::FILE_NAME)
             .exists(),
         "lockfile: false must skip the write",

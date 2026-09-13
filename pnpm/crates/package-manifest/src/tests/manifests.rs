@@ -71,8 +71,7 @@ fn bundle_dependencies() {
         List: IntoIterator,
         List::Item: Into<String>,
     {
-        list
-            .into_iter()
+        list.into_iter()
             .map(Into::into)
             .collect::<Vec<_>>()
             .pipe(BundleDependencies::List)
@@ -242,8 +241,7 @@ fn a_bom_after_the_start_of_the_manifest_is_still_a_parse_error() {
         "the offending manifest path must be reported, got {err:?}",
     );
     assert!(
-        err
-            .to_string()
+        err.to_string()
             .contains(&path.display().to_string()),
     );
 }

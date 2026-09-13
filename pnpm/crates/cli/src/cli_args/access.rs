@@ -256,8 +256,7 @@ fn parse_access_action(
 }
 
 fn access_args(lead: Option<String>, second: Option<String>, params: Vec<String>) -> Vec<String> {
-    lead
-        .into_iter()
+    lead.into_iter()
         .chain(second)
         .chain(params)
         .collect()

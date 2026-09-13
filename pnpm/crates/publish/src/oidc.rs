@@ -100,8 +100,7 @@ where
     let json: Value = serde_json::from_str(&response.body)
         .map_err(|source| GitHubRequestTokenError::JsonParse(source.to_string()))?;
 
-    json
-        .get("value")
+    json.get("value")
         .and_then(Value::as_str)
         .map(ToOwned::to_owned)
         .ok_or(GitHubRequestTokenError::MissingValue)

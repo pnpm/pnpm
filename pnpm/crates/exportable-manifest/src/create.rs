@@ -361,8 +361,7 @@ fn read_regular_file(path: &Path) -> io::Result<Option<String>> {
 /// Clone `map` without the entries named in `keys`, preserving the
 /// order of the surviving entries.
 fn omit_keys(map: &Map<String, Value>, keys: &[&str]) -> Map<String, Value> {
-    map
-        .iter()
+    map.iter()
         .filter(|(key, _)| !keys.contains(&key.as_str()))
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect()

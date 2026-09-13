@@ -119,8 +119,7 @@ pub fn named_registry_tarball_prefixes(
         })
         .collect();
     prefixes.sort_by(|a, b| {
-        b
-            .len()
+        b.len()
             .cmp(&a.len())
             .then_with(|| a.cmp(b))
     });

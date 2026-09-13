@@ -47,12 +47,10 @@ pub(crate) fn has_unsupported_inline_value(text: &str, path: &[&str]) -> bool {
 /// at all, so neither the splices here nor a new top-level block can
 /// address them.
 pub(crate) fn document_root_is_inline(text: &str) -> bool {
-    text
-        .lines()
+    text.lines()
         .find(|line| structural_indent(line).is_some())
         .is_some_and(|line| {
-            line
-                .trim_start()
+            line.trim_start()
                 .starts_with(['{', '['])
         })
 }
@@ -383,8 +381,7 @@ pub(super) fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
 
 /// Index of the line declaring the top-level key `key`.
 pub(super) fn top_level_key_line(all: &[Line<'_>], key: &str) -> Option<usize> {
-    all
-        .iter()
+    all.iter()
         .position(|line| {
             structural_indent(line.content) == Some(0)
                 && line_key(line.content).as_deref() == Some(key)
@@ -400,8 +397,7 @@ fn inline_value_last_line(text: &str, all: &[Line<'_>], key_idx: usize) -> Optio
         return None;
     }
     let close = flow::closing_bracket_across_lines(text, open)?;
-    all
-        .iter()
+    all.iter()
         .position(|line| line.start <= close && close < line.end)
 }
 

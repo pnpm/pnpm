@@ -115,16 +115,15 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
         let app = app.clone();
         let token = token.clone();
         async move {
-            app
-                .oneshot(
-                    Request::put("/-/pnpr/v0/pipeline/runs")
-                        .header(header::AUTHORIZATION, format!("Bearer {token}"))
-                        .header("content-type", "application/json")
-                        .body(Body::from(serde_json::to_vec(&body).unwrap()))
-                        .unwrap(),
-                )
-                .await
-                .unwrap()
+            app.oneshot(
+                Request::put("/-/pnpr/v0/pipeline/runs")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
         }
     };
     assert_eq!(publish(run.clone()).await.status(), StatusCode::CREATED);
@@ -261,8 +260,7 @@ async fn cors_allows_only_configured_origins_and_handles_preflight() {
         .to_str()
         .unwrap();
     assert!(
-        vary
-            .split(',')
+        vary.split(',')
             .any(|header| header.trim().eq_ignore_ascii_case("origin")),
     );
 

@@ -71,8 +71,7 @@ pub(crate) fn parse_no_proxy(raw: &str) -> NoProxySetting {
         return NoProxySetting::Bypass;
     }
     NoProxySetting::List(
-        raw
-            .split(',')
+        raw.split(',')
             .map(str::trim)
             .filter(|item| !item.is_empty())
             .map(String::from)

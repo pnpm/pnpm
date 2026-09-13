@@ -85,8 +85,7 @@ fn shim_target_and_hash(bin: &Path, name: &str) -> Option<(PathBuf, String)> {
 }
 
 pub(super) fn project_lockfile_hash(path: &Path) -> String {
-    path
-        .ancestors()
+    path.ancestors()
         .find_map(|dir| create_hex_hash_from_file(&dir.join("pnpm-lock.yaml")).ok())
         .unwrap_or_else(|| "none".to_string())
 }

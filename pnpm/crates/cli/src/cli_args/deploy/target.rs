@@ -286,8 +286,7 @@ fn path_components_match(left: &Path, right: &Path) -> bool {
 }
 
 fn comparable_path_components(path: &Path) -> Vec<String> {
-    path
-        .components()
+    path.components()
         .map(|component| {
             comparison_component(
                 component

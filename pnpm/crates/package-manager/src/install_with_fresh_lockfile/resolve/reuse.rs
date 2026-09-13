@@ -132,8 +132,7 @@ pub(super) fn merge_preferred_versions(
 ) {
     let Some(overrides) = overrides else { return };
     for (name, selectors) in overrides {
-        seed
-            .entry(name.clone())
+        seed.entry(name.clone())
             .or_default()
             .extend(selectors.clone());
     }

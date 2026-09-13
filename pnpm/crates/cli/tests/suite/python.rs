@@ -211,8 +211,7 @@ async fn discovers_independent_python_projects_and_ignores_environment_manifests
             .assert()
             .success();
         assert!(
-            root
-                .path()
+            root.path()
                 .join(directory)
                 .join("pylock.toml")
                 .exists(),
@@ -764,14 +763,12 @@ async fn installs_node_cargo_and_python_through_the_real_coordinator() {
         .assert()
         .success();
     assert!(
-        root
-            .path()
+        root.path()
             .join("node_modules/local-node/package.json")
             .exists(),
     );
     assert!(
-        root
-            .path()
+        root.path()
             .join("pnpm-lock.yaml")
             .exists(),
     );

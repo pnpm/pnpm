@@ -467,8 +467,7 @@ fn is_main_or_bin(rel: &str, main: Option<&str>, bins: &[&str]) -> bool {
     {
         return true;
     }
-    bins
-        .iter()
+    bins.iter()
         .any(|bin| normalize_field_path(bin) == rel)
 }
 
@@ -550,8 +549,7 @@ fn io_error(pkg_dir: &Path, source: std::io::Error) -> PacklistError {
 }
 
 fn into_io(err: ignore::Error) -> std::io::Error {
-    err
-        .into_io_error()
+    err.into_io_error()
         .unwrap_or_else(|| std::io::Error::other("ignore walker produced a non-io error"))
 }
 

@@ -136,8 +136,7 @@ fn deploy_from_shared_lockfile_follows_a_pinned_lockfile_dir() {
         .assert()
         .success();
     assert!(
-        root
-            .path()
+        root.path()
             .join("pnpm-lock.yaml")
             .is_file(),
         "the install must have written the lockfile at the pin",

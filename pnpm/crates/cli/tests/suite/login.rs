@@ -169,8 +169,7 @@ fn a_scoped_login_records_the_token_and_route_in_config_yaml() {
     {
         use std::os::unix::fs::PermissionsExt as _;
         let mode = fs::metadata(
-            root
-                .path()
+            root.path()
                 .join("pnpm")
                 .join("config.yaml"),
         )

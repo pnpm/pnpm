@@ -14,8 +14,7 @@ fn returns_skipped_when_a_pnpmfile_is_modified() {
     fs::write(&pnpmfile, "module.exports = {}\n").expect("write pnpmfile");
     let mut projects = BTreeMap::new();
     projects.insert(
-        dir
-            .path()
+        dir.path()
             .to_string_lossy()
             .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },

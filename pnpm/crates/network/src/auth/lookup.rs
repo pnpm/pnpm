@@ -144,23 +144,22 @@ impl TokenHelpers {
                         .unwrap_or_else(std::sync::PoisonError::into_inner);
                     Arc::clone(cache.entry(cache_key).or_default())
                 };
-                cell
-                    .get_or_init(|| {
-                        let runner = self.token_helper_runner.unwrap_or(run_token_helper_command);
-                        match execute_token_helper(command, runner) {
-                            Ok(header) => Some(header),
-                            Err(error) => {
-                                let program = command.first().map_or("", String::as_str);
-                                tracing::error!(
-                                    target: "pacquet::auth",
-                                    "token helper {program:?} failed; the request will be sent \
-                                     without authentication: {error}",
-                                );
-                                None
-                            }
+                cell.get_or_init(|| {
+                    let runner = self.token_helper_runner.unwrap_or(run_token_helper_command);
+                    match execute_token_helper(command, runner) {
+                        Ok(header) => Some(header),
+                        Err(error) => {
+                            let program = command.first().map_or("", String::as_str);
+                            tracing::error!(
+                                target: "pacquet::auth",
+                                "token helper {program:?} failed; the request will be sent \
+                                 without authentication: {error}",
+                            );
+                            None
                         }
-                    })
-                    .clone()
+                    }
+                })
+                .clone()
             }
         }
     }

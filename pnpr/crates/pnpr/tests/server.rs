@@ -422,8 +422,7 @@ async fn spawn_truncated_upstream(expected_integrity: String) -> SocketAddr {
 }
 
 fn is_tarball_tmp(name: &str) -> bool {
-    name
-        .split_once(".tgz.tmp.")
+    name.split_once(".tgz.tmp.")
         .is_some_and(|(_, suffix)| !suffix.is_empty())
 }
 
@@ -431,8 +430,7 @@ fn tarball_cache_entries(dir: &std::path::Path) -> Vec<String> {
     let mut entries = dir
         .read_dir()
         .map(|iter| {
-            iter
-                .filter_map(Result::ok)
+            iter.filter_map(Result::ok)
                 .map(|entry| {
                     entry
                         .file_name()

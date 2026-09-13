@@ -303,8 +303,7 @@ pub(super) fn package_is_reusable(
             locations
                 .get(reference)
                 .is_some_and(|dirs| {
-                    dirs
-                        .iter()
+                    dirs.iter()
                         .any(|dir| dir == dep_location)
                 })
         })
@@ -396,8 +395,7 @@ pub(super) fn graph_node(
         optional_dependencies: resolved.snapshot
             .and_then(|snap| snap.optional_dependencies.as_ref())
             .map(|map| {
-                map
-                    .keys()
+                map.keys()
                     .map(std::string::ToString::to_string)
                     .collect()
             })

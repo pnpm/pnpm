@@ -148,8 +148,7 @@ async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
         let state = init_shared_state(manifest_path, cfg, false, None, http_client)?;
         Box::pin(node_args.run::<Reporter>(state, None)).await
     };
-    plan
-        .with_task(pnpm_install_coordinator::InstallTask::in_place(metadata, node_install))
+    plan.with_task(pnpm_install_coordinator::InstallTask::in_place(metadata, node_install))
         .run()
         .await
 }

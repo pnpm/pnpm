@@ -97,8 +97,7 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
         ))
     ));
     assert!(
-        !dir
-            .path()
+        !dir.path()
             .join("pnpm-lock.yaml")
             .exists(),
     );

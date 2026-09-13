@@ -63,8 +63,7 @@ impl CompilerSession {
 
     async fn build(&self, project: &Path, extra: &[&str]) {
         successful(
-            self
-                .command("cargo")
+            self.command("cargo")
                 .current_dir(project)
                 .env("CARGO_TARGET_DIR", project.join("target"))
                 .args(["build", "--offline"])
@@ -78,8 +77,7 @@ impl CompilerSession {
 
     async fn stats(&self) -> Value {
         let output = successful(
-            self
-                .command("sccache")
+            self.command("sccache")
                 .args(["--show-stats", "--stats-format", "json"])
                 .output()
                 .await

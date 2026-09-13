@@ -290,8 +290,7 @@ pub(crate) fn bare_setting_flag_width(flag: &str, next: Option<&str>) -> usize {
 }
 
 pub(super) fn scoped_registry_key(key: &str) -> Option<&str> {
-    key
-        .strip_suffix(":registry")
+    key.strip_suffix(":registry")
         .filter(|scope| scope.starts_with('@') && scope.len() > 1 && !scope.contains('/'))
 }
 

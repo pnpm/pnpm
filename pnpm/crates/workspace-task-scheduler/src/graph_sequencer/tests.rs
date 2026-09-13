@@ -8,8 +8,7 @@ fn graph(edges: &[(&str, &[&str])]) -> HashMap<String, Vec<String>> {
         .map(|(k, vs)| {
             (
                 (*k).to_string(),
-                vs
-                    .iter()
+                vs.iter()
                     .map(|s| (*s).to_string())
                     .collect(),
             )

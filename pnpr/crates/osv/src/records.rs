@@ -151,8 +151,7 @@ pub(super) fn semver_range_from_osv(range: OsvRange) -> Option<SemverRange> {
     // order-sensitive. OSV expects events sorted by version bound; sort
     // here so a malformed or reordered events array can't flip a verdict.
     events.sort_by(|a, b| {
-        a
-            .bound()
+        a.bound()
             .partial_cmp(b.bound())
             .unwrap_or(std::cmp::Ordering::Equal)
             .then_with(|| a.sort_rank().cmp(&b.sort_rank()))

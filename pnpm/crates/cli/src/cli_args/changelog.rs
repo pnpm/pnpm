@@ -237,8 +237,7 @@ fn previous_version(package: &Package, version: &str) -> Option<String> {
     package.versions
         .keys()
         .filter_map(|key| {
-            key
-                .parse::<node_semver::Version>()
+            key.parse::<node_semver::Version>()
                 .ok()
                 .map(|parsed| (parsed, key))
         })

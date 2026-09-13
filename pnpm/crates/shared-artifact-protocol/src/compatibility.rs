@@ -243,8 +243,7 @@ pub fn compatibility_scopes(constraints: &CompatibilityConstraints) -> Compatibi
     match constraints {
         CompatibilityConstraints::Universal => CompatibilityScopes::Every,
         CompatibilityConstraints::Tagged { tags } => CompatibilityScopes::These(
-            tags
-                .iter()
+            tags.iter()
                 .filter_map(|tag| {
                     let parts = applicable_dimensions(tag)?;
                     Some(format!("{}-{}-node{}", parts.os, parts.architecture, parts.node_major))

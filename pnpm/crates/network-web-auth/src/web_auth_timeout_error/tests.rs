@@ -15,8 +15,7 @@ fn stores_end_time_start_time_and_timeout() {
 fn has_webauth_timeout_code() {
     let err = WebAuthTimeoutError::new(0, 0, 0);
     assert_eq!(
-        err
-            .code()
+        err.code()
             .expect("a diagnostic code")
             .to_string(),
         "ERR_PNPM_WEBAUTH_TIMEOUT",

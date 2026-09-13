@@ -31,8 +31,7 @@ where
 
     let json = serde_json::from_str::<Value>(&response.body).unwrap_or(Value::Null);
     let read = |field: &str| {
-        json
-            .get(field)
+        json.get(field)
             .and_then(Value::as_str)
             .filter(|value| !value.is_empty())
             .map(str::to_owned)

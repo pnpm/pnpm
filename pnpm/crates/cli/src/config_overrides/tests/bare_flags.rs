@@ -221,12 +221,10 @@ fn no_bare_setting_flag_shadows_a_global_option() {
     let declared: Vec<&str> = grammar
         .get_arguments()
         .flat_map(|arg| {
-            arg
-                .get_long()
+            arg.get_long()
                 .into_iter()
                 .chain(
-                    arg
-                        .get_all_aliases()
+                    arg.get_all_aliases()
                         .into_iter()
                         .flatten(),
                 )

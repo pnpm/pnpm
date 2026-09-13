@@ -478,8 +478,7 @@ fn runs_the_publish_lifecycle_scripts() {
 
     assert_success(&publish(dir.path(), &[]));
     assert!(
-        dir
-            .path()
+        dir.path()
             .join("prepublish-ran.txt")
             .exists(),
         "prepublishOnly should have run and written its marker",
@@ -513,8 +512,7 @@ fn ignore_scripts_skips_the_publish_lifecycle_scripts() {
 
     assert_success(&publish(dir.path(), &["--ignore-scripts"]));
     assert!(
-        !dir
-            .path()
+        !dir.path()
             .join("prepublish-ran.txt")
             .exists(),
         "prepublishOnly must not run under --ignore-scripts",

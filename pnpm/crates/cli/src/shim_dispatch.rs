@@ -327,8 +327,7 @@ fn find_candidate(cwd: &Path, name: &str, package: &str) -> Option<Candidate> {
     let pnpm_home = default_pnpm_home_dir::<Host>();
     let runtime = is_runtime_alias(name);
     let package_manager = PackageManager::parse(package);
-    cwd
-        .ancestors()
+    cwd.ancestors()
         .filter(|dir| {
             !pnpm_home
                 .as_deref()

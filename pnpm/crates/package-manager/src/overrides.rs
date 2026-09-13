@@ -237,11 +237,9 @@ impl VersionsOverrider {
         let key: &'static str = group.into();
         let Some(map) = value.get(key).and_then(Value::as_object) else { return false };
 
-        map
-            .iter()
+        map.iter()
             .any(|(name, spec)| {
-                spec
-                    .as_str()
+                spec.as_str()
                     .is_some_and(|spec| {
                         self.choose_override(applicable_parent_scoped, name, spec).is_some()
                             || self.converge_applies(name, spec)
@@ -289,8 +287,7 @@ impl VersionsOverrider {
         let entries: Vec<(String, String)> = map
             .iter()
             .filter_map(|(name, spec)| {
-                spec
-                    .as_str()
+                spec.as_str()
                     .map(|spec_str| (name.clone(), spec_str.to_string()))
             })
             .collect();
@@ -329,11 +326,9 @@ impl VersionsOverrider {
             .get("peerDependencies")
             .and_then(Value::as_object)
             .map(|map| {
-                map
-                    .iter()
+                map.iter()
                     .filter_map(|(name, spec)| {
-                        spec
-                            .as_str()
+                        spec.as_str()
                             .map(|spec_str| (name.clone(), spec_str.to_string()))
                     })
                     .collect()
@@ -410,8 +405,7 @@ impl VersionsOverrider {
                     ),
             );
         }
-        self
-            .converge_applies(dep_name, dep_spec)
+        self.converge_applies(dep_name, dep_spec)
             .then(|| self.converge[dep_name].new_bare_specifier.clone())
     }
 

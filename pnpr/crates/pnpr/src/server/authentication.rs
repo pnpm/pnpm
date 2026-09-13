@@ -342,8 +342,7 @@ fn is_image_upload_path(path: &str) -> bool {
     let Some(rest) = path.trim_end_matches('/').strip_suffix("/blobs/uploads") else {
         return false;
     };
-    rest
-        .split('/')
+    rest.split('/')
         .any(|segment| segment == pnpr_oci::API_SEGMENT)
 }
 

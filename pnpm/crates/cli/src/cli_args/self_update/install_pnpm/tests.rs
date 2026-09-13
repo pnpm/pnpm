@@ -228,8 +228,7 @@ fn links_native_binary_from_a_sibling_global_virtual_store_slot() {
     let platform_dir = exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
     std::os::unix::fs::symlink(
         &native_pkg_dir,
-        slot
-            .join("node_modules")
+        slot.join("node_modules")
             .join("@pnpm")
             .join(platform_dir),
     )
@@ -252,8 +251,7 @@ fn links_native_binary_from_a_sibling_slot_into_the_scoped_wrapper() {
     let platform_dir = exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
     std::os::unix::fs::symlink(
         &native_pkg_dir,
-        slot
-            .join("node_modules")
+        slot.join("node_modules")
             .join("@pnpm")
             .join(platform_dir),
     )
@@ -279,8 +277,7 @@ fn rejects_native_binary_that_escapes_the_global_virtual_store() {
     fs::write(outside_pkg_dir.join("pnpm"), b"outside").expect("write outside binary");
     std::os::unix::fs::symlink(
         &outside_pkg_dir,
-        slot
-            .join("node_modules")
+        slot.join("node_modules")
             .join("@pnpm")
             .join(platform_dir),
     )
@@ -301,8 +298,7 @@ fn rejects_wrapper_symlink_that_escapes_the_install_dir() {
     fs::write(outside_wrapper.join("pnpm"), b"outside").expect("write outside placeholder");
 
     fs::create_dir_all(
-        temp
-            .path()
+        temp.path()
             .join("node_modules")
             .join("@pnpm"),
     )
@@ -356,8 +352,7 @@ fn rejects_native_binary_scope_symlink_that_escapes_the_install_dir() {
     fs::write(outside_platform_dir.join("pnpm"), b"outside").expect("write outside binary");
     std::os::unix::fs::symlink(
         &outside_scope,
-        temp
-            .path()
+        temp.path()
             .join("node_modules")
             .join("@pnpm"),
     )
@@ -438,8 +433,7 @@ fn reuse_cached_engine_rejects_a_wrapper_that_escapes_the_slot() {
         .expect("write outside wrapper manifest");
 
     fs::create_dir_all(
-        temp
-            .path()
+        temp.path()
             .join("node_modules")
             .join("@pnpm"),
     )

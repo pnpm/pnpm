@@ -100,8 +100,7 @@ impl UpstreamConfig {
 
 impl fmt::Debug for UpstreamConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f
-            .debug_struct("UpstreamConfig")
+        f.debug_struct("UpstreamConfig")
             .field("url", &self.url)
             .field("headers", &RedactedHeaders(&self.headers))
             .field("maxage", &self.maxage)
@@ -124,8 +123,7 @@ pub struct RedactedHeaders<'a>(pub &'a HeaderMap);
 
 impl fmt::Debug for RedactedHeaders<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f
-            .debug_map()
+        f.debug_map()
             .entries(
                 self.0
                     .keys()
@@ -283,8 +281,7 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
     // falling back to the default.
     let parse_field =
         |field: &str, raw: &Option<Interval>| -> Result<Option<Duration>, RegistryError> {
-            raw
-                .as_ref()
+            raw.as_ref()
                 .map(|Interval(value)| {
                     parse_interval(value)
                         .ok_or_else(|| RegistryError::InvalidConfig {

@@ -126,14 +126,13 @@ pub(super) fn merge_ranges(
 pub(super) fn intersect_ranges(ranges: &[&str]) -> Option<String> {
     let mut iter = ranges.iter();
     let first = Range::parse(iter.next()?).ok()?;
-    iter
-        .try_fold(first, |acc, range| {
-            Range::parse(range)
-                .ok()
-                .and_then(|range| acc.intersect(&range))
-                .map(|intersection| collapse_covered_alternatives(&intersection))
-        })
-        .map(|range| range.to_string())
+    iter.try_fold(first, |acc, range| {
+        Range::parse(range)
+            .ok()
+            .and_then(|range| acc.intersect(&range))
+            .map(|intersection| collapse_covered_alternatives(&intersection))
+    })
+    .map(|range| range.to_string())
 }
 
 /// Drop the alternatives of a union that another alternative already

@@ -74,8 +74,7 @@ fn sanitize_for_terminal(text: &str) -> std::borrow::Cow<'_, str> {
         .any(|character| character.is_control() && character != '\n' && character != '\t')
     {
         std::borrow::Cow::Owned(
-            text
-                .chars()
+            text.chars()
                 .filter(|character| {
                     !character.is_control() || *character == '\n' || *character == '\t'
                 })

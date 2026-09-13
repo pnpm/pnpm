@@ -255,8 +255,7 @@ async fn passes_done_url_and_fetch_options_to_fetch() {
     let captured = Rc::new(RefCell::new(Vec::<(String, WebAuthFetchOptions)>::new()));
     let sink = Rc::clone(&captured);
     set_fetch(Box::new(move |url, options| {
-        sink
-            .borrow_mut()
+        sink.borrow_mut()
             .push((url.to_owned(), options.clone()));
         Ok(ok_token("tok"))
     }));

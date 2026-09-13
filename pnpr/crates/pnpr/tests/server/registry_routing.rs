@@ -53,14 +53,13 @@ async fn every_address_of_one_scoped_package_reaches_it() {
         let app = app.clone();
         let path = path.to_string();
         async move {
-            app
-                .oneshot(
-                    Request::get(path.as_str())
-                        .body(Body::empty())
-                        .unwrap(),
-                )
-                .await
-                .unwrap()
+            app.oneshot(
+                Request::get(path.as_str())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
         }
     };
 

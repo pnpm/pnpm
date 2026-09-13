@@ -23,8 +23,7 @@ impl fmt::Debug for RouteHook {
     /// Redacts `Self::secret` — the descriptor-HMAC key must never reach a
     /// log line or panic dump, or the private namespace becomes correlatable.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f
-            .debug_struct("RouteHook")
+        f.debug_struct("RouteHook")
             .field("context", &self.context)
             .field("identity", &self.identity)
             .field("footprint", &self.footprint)

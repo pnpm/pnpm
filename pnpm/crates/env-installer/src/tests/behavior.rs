@@ -77,9 +77,7 @@ fn prune_drops_orphan_packages_and_snapshots() {
     // A config dep with one optional subdep — both reachable.
     let parent: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
     let subdep: PackageKey = "@pnpm.e2e/bar@1.0.0".parse().unwrap();
-    env
-        .root_importer_mut()
-        .config_dependencies
+    env.root_importer_mut().config_dependencies
         .insert(
             "@pnpm.e2e/foo".to_string(),
             SpecifierAndResolution {

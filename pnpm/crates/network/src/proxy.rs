@@ -196,8 +196,7 @@ impl NoProxyMatcher {
 /// [`NoProxyMatcher::matches_host`] go through this, so the entry and
 /// the host are always segmented the same way.
 fn reverse_dot_segments(host: &str) -> impl Iterator<Item = &str> {
-    host
-        .split('.')
+    host.split('.')
         .filter(|segment| !segment.is_empty())
         .rev()
 }

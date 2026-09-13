@@ -448,8 +448,7 @@ fn collect_invalid_dependency_names(lockfile: &Lockfile) -> std::collections::BT
             [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
         {
             push_invalid_aliases(
-                deps
-                    .iter()
+                deps.iter()
                     .flatten()
                     .map(|(alias, _)| alias),
                 &mut invalid,
@@ -461,8 +460,7 @@ fn collect_invalid_dependency_names(lockfile: &Lockfile) -> std::collections::BT
         push_invalid_aliases(std::iter::once(&key.name), &mut invalid);
         for deps in [&snapshot.dependencies, &snapshot.optional_dependencies] {
             push_invalid_aliases(
-                deps
-                    .iter()
+                deps.iter()
                     .flatten()
                     .map(|(alias, _)| alias),
                 &mut invalid,

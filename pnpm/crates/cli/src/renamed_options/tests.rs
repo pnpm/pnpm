@@ -33,8 +33,7 @@ fn parse(tokens: &[&str]) -> CliArgs {
     );
     let argv = drop_shadowed_aliases(&cmd, argv);
     let argv = relocate_pre_subcommand_flags(&cmd, argv);
-    cmd
-        .try_get_matches_from(argv)
+    cmd.try_get_matches_from(argv)
         .and_then(|matches| CliArgs::from_arg_matches(&matches))
         .expect("parses after the pre-parse pipeline")
 }

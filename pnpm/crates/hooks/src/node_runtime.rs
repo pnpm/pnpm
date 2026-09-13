@@ -163,9 +163,7 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         pkg: Value,
         ctx: crate::HookContext,
     ) -> Result<crate::ReadPackageResult, HookError> {
-        self
-            .worker()
-            .await?
+        self.worker().await?
             .call("readPackage", pkg, ctx.log)
             .await
             .map(Arc::new)
@@ -197,9 +195,7 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         dir: &std::path::Path,
         ctx: crate::HookContext,
     ) -> Result<Value, HookError> {
-        self
-            .worker()
-            .await?
+        self.worker().await?
             .call_before_packing(manifest, &dir.to_string_lossy(), ctx.log)
             .await
     }

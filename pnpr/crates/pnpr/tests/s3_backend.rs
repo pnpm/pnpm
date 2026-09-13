@@ -185,8 +185,7 @@ async fn unpublish_removes_the_package_from_the_bucket() {
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -200,9 +199,7 @@ async fn unpublish_removes_the_package_from_the_bucket() {
         .body(Body::empty())
         .unwrap();
     assert_eq!(
-        app
-            .oneshot(request)
-            .await
+        app.oneshot(request).await
             .unwrap()
             .status(),
         StatusCode::CREATED,
@@ -314,8 +311,7 @@ async fn a_caller_supplied_prefix_is_normalized_before_it_reaches_the_keys() {
         .collect()
         .await;
     assert!(
-        keys
-            .iter()
+        keys.iter()
             .any(|key| key.starts_with("packages/mypkg/")),
         "objects should be keyed under `packages/`, got {keys:?}",
     );

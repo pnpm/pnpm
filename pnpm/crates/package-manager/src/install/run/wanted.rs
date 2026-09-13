@@ -41,8 +41,7 @@ impl WantedLockfile<'_> {
     /// a superseded document.
     pub(super) fn loader_handle(&self, shared: Option<Arc<Lockfile>>) -> Option<Arc<Lockfile>> {
         shared.filter(|shared| {
-            self
-                .get()
+            self.get()
                 .is_some_and(|lockfile| std::ptr::eq(lockfile, Arc::as_ptr(shared)))
         })
     }

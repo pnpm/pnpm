@@ -450,8 +450,7 @@ fn check_overrides(
     let lockfile_overrides: BTreeMap<String, String> = lockfile.overrides
         .as_ref()
         .map(|map| {
-            map
-                .iter()
+            map.iter()
                 .map(|(key, value)| (key.clone(), value.clone()))
                 .collect()
         })

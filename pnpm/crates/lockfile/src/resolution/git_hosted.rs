@@ -73,8 +73,7 @@ fn is_gitlab_archive(path: &str, query: Option<&str>) -> bool {
 }
 
 fn path_segments(path: &str) -> Vec<&str> {
-    path
-        .split('/')
+    path.split('/')
         .filter(|segment| !segment.is_empty())
         .collect()
 }

@@ -57,8 +57,7 @@ pub fn detect_node_major() -> Option<u32> {
 pub fn detect_node_version() -> Option<String> {
     let raw = detect_node_version_raw()?;
     Some(
-        raw
-            .strip_prefix('v')
+        raw.strip_prefix('v')
             .unwrap_or(&raw)
             .to_string(),
     )

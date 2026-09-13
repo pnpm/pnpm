@@ -79,8 +79,7 @@ pub struct Upstream {
 
 impl fmt::Debug for Upstream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f
-            .debug_struct("Upstream")
+        f.debug_struct("Upstream")
             .field("client", &self.http.client)
             .field("fetch_guard", &self.http.fetch_guard.is_some())
             .field("base", &self.base)

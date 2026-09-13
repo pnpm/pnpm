@@ -274,15 +274,13 @@ fn values_with_line_breaks_are_rejected_inside_github_actions() {
 
     assert_eq!(err.to_string(), "PNPM_HOME cannot contain newline or NUL characters");
     assert_eq!(
-        err
-            .downcast_ref::<BadGhActionsEnvFileValue>()
+        err.downcast_ref::<BadGhActionsEnvFileValue>()
             .map(BadGhActionsEnvFileValue::to_string)
             .as_deref(),
         Some("PNPM_HOME cannot contain newline or NUL characters"),
     );
     assert_eq!(
-        err
-            .code()
+        err.code()
             .expect("diagnostic code")
             .to_string(),
         "ERR_PNPM_BAD_GITHUB_ACTIONS_ENVIRONMENT_VALUE",

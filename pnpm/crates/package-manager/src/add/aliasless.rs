@@ -201,8 +201,7 @@ pub(super) fn url_token_len(text: &str) -> usize {
             character.is_whitespace() || matches!(character, ')' | ']' | '"' | '\'')
         })
         .unwrap_or(text.len());
-    text
-        .find(": ")
+    text.find(": ")
         .map_or(wrapped, |punctuated| wrapped.min(punctuated))
 }
 /// One URL token cut at its query or fragment, or `[hidden]` when the cut

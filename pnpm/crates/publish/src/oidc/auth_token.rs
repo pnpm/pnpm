@@ -62,8 +62,7 @@ fn auth_token_from_response(
             .pipe_as_ref(serde_json::from_str::<Value>)
             .ok()
             .and_then(|json| {
-                json
-                    .get("body")?
+                json.get("body")?
                     .get("message")?
                     .as_str()
                     .map(str::to_owned)

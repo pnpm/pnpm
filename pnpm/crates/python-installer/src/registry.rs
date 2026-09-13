@@ -201,8 +201,7 @@ async fn read_cached_index(cache: &std::path::Path, name: &PackageName) -> Resul
             format!("Python index for {name} is not cached for offline resolution")
         })?;
     let mut contents = Vec::new();
-    file
-        .take(MAX_CACHE_BYTES as u64 + 1)
+    file.take(MAX_CACHE_BYTES as u64 + 1)
         .read_to_end(&mut contents)
         .await
         .into_diagnostic()?;

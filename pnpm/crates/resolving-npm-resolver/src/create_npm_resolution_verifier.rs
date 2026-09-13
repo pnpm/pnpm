@@ -265,8 +265,7 @@ struct VerificationRegistryRoutes {
 
 impl std::fmt::Debug for NpmResolutionVerifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f
-            .debug_struct("NpmResolutionVerifier")
+        f.debug_struct("NpmResolutionVerifier")
             .field("minimum_release_age_minutes", &self.release_age.minimum_minutes)
             .field("cutoff", &self.release_age.cutoff)
             .field("ignore_missing_time_field", &self.metadata.ignore_missing_time_field)
@@ -495,6 +494,15 @@ impl NpmResolutionVerifier {
         }
         self.run_registry_artifact_check(registry, ctx.name, ctx.version, resolution, tarball_url)
             .await
+    }
+
+    /// Whether the maturity and trust policies apply to this entry.
+    fn policies_for(&self, ctx: &VerifyCtx<'_>) -> (bool, bool) {
+        let age_applies = self.release_age.age_check_active()
+            && !is_excluded(self.release_age.exclude.as_ref(), ctx.name, ctx.version);
+        let trust_applies = self.trust.trust_check_active()
+            && !is_excluded(self.trust.exclude.as_ref(), ctx.name, ctx.version);
+        (age_applies, trust_applies)
     }
 
     /// The maturity and trust policies, each skipped when it does not apply

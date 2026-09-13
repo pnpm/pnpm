@@ -72,8 +72,7 @@ fn invalidate_local_fingerprints(fingerprint_dir: &Path, packages: &[String]) ->
             .collect::<io::Result<Vec<_>>>()?
             .iter()
             .any(|file| {
-                file
-                    .file_name()
+                file.file_name()
                     .to_string_lossy()
                     .starts_with("run-build-script")
             });

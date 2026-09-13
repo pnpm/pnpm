@@ -319,8 +319,7 @@ fn gitlab_tarball_repo_url(tarball_url: &str) -> Option<String> {
 /// `[^/]+/` ref anchor of the TypeScript matcher.
 fn gitlab_archive_project(path: &str) -> Option<&str> {
     const ARCHIVE_MARKER: &str = "/-/archive/";
-    path
-        .match_indices(ARCHIVE_MARKER)
+    path.match_indices(ARCHIVE_MARKER)
         .find_map(|(marker_index, _)| {
             let project = &path[..marker_index];
             let after_marker = &path[marker_index + ARCHIVE_MARKER.len()..];

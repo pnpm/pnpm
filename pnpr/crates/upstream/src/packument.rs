@@ -197,8 +197,7 @@ pub fn tarball_basename(url: &str) -> Option<&str> {
         .split(['?', '#'])
         .next()
         .unwrap_or(url);
-    path
-        .rsplit('/')
+    path.rsplit('/')
         .next()
         .filter(|segment| !segment.is_empty())
 }

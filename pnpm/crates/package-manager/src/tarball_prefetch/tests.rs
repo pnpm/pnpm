@@ -47,8 +47,7 @@ async fn without_store_hits_drops_entries_with_an_index_row() {
     let cold = pending("@foo/cold@1.0.0", "sha512-d29ybGQ=");
     {
         let idx = StoreIndex::open(store.path()).unwrap();
-        idx
-            .set(&warm.store_key, &sample_index())
+        idx.set(&warm.store_key, &sample_index())
             .unwrap();
     }
     let index = StoreIndex::open_readonly(store.path())

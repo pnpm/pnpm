@@ -388,8 +388,7 @@ fn project_dependencies(
         .cloned()
         .collect::<Vec<_>>();
     dirs.sort();
-    dirs
-        .into_iter()
+    dirs.into_iter()
         .map(|dir| (dir, Vec::new()))
         .collect()
 }

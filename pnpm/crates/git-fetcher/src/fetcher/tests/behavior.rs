@@ -769,8 +769,7 @@ async fn a_failed_clone_over_ssh_names_the_package_and_how_to_re_record_it() {
     assert_eq!(stderr, "ssh: connect to host port 22: Connection refused");
 
     assert_eq!(
-        err
-            .code()
+        err.code()
             .expect("a diagnostic code")
             .to_string(),
         "ERR_PNPM_GIT_FETCH_FAILED",
@@ -809,8 +808,7 @@ async fn a_failed_clone_over_https_carries_no_ssh_remediation() {
 
     assert!(matches!(err, GitFetcherError::Fetch { .. }), "{err:?}");
     assert_eq!(
-        err
-            .code()
+        err.code()
             .expect("a diagnostic code")
             .to_string(),
         "ERR_PNPM_GIT_FETCH_FAILED",

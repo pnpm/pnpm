@@ -124,8 +124,7 @@ impl NpmResolutionVerifier {
         let name_string = name.to_string();
         let url = crate::registry_url::to_registry_url(registry, &name_string);
         let scope = self.metadata.auth_headers.metadata_scope(&url, Some(&name_string));
-        cell
-            .get_or_init(|| load_local_meta_time(cache_dir, &scope, registry, &name_string))
+        cell.get_or_init(|| load_local_meta_time(cache_dir, &scope, registry, &name_string))
             .await
             .clone()
     }
@@ -162,25 +161,23 @@ impl NpmResolutionVerifier {
                     .or_insert_with(|| Arc::new(OnceCell::new())),
             )
         };
-        cell
-            .get_or_init(|| async {
-                let pkg = self.metadata.fetch_full_meta(registry, name).await?;
-                let time_map = pkg.time
-                    .as_ref()
-                    .map(|raw| {
-                        raw
-                            .iter()
-                            .filter_map(|(version, value)| {
-                                let timestamp = value.as_str()?;
-                                Some((version.clone(), timestamp.to_string()))
-                            })
-                            .collect::<PublishedAtTimeMap>()
-                            .pipe(Arc::new)
-                    });
-                Ok(time_map)
-            })
-            .await
-            .clone()
+        cell.get_or_init(|| async {
+            let pkg = self.metadata.fetch_full_meta(registry, name).await?;
+            let time_map = pkg.time
+                .as_ref()
+                .map(|raw| {
+                    raw.iter()
+                        .filter_map(|(version, value)| {
+                            let timestamp = value.as_str()?;
+                            Some((version.clone(), timestamp.to_string()))
+                        })
+                        .collect::<PublishedAtTimeMap>()
+                        .pipe(Arc::new)
+                });
+            Ok(time_map)
+        })
+        .await
+        .clone()
     }
 
     pub(super) async fn fetch_full_meta_for_trust(
@@ -197,43 +194,42 @@ impl NpmResolutionVerifier {
                     .or_insert_with(|| Arc::new(OnceCell::new())),
             )
         };
-        cell
-            .get_or_init(|| async {
-                // Fast path: if the resolver already pulled the full packument
-                // during the same install (`{registry}\x00{name}:full` or
-                // `...:full:filtered` key in the shared metaCache, populated
-                // when `pick_package` upgrades for `minimumReleaseAge`),
-                // reuse it. The filtered form is accepted: `clear_meta`
-                // keeps `time`, per-version `_npmUser`, and `dist`, which is
-                // everything `fail_if_trust_downgraded` reads. Abbreviated
-                // entries are rejected — they lack per-version `time` and
-                // trust evidence.
-                let shared = self.metadata.meta_cache
-                    .as_ref()
-                    .and_then(|cache| {
-                        cache
-                            .get(&format!("{key}:full"))
-                            .or_else(|| cache.get(&format!("{key}:full:filtered")))
-                    });
-                if let Some(cached) = shared {
-                    return Ok(Arc::new(project_trust_meta(cached.meta.as_ref())));
-                }
-                // Project the packument to just the fields `fail_if_trust_downgraded`
-                // reads before stashing in the cache. The full document — dependency
-                // graphs, dist-tags, scripts, READMEs for every version — would
-                // otherwise stay resident in this map for the entire install, which
-                // on multi-thousand-entry workspaces OOMs CI runners with a 2GB heap
-                // cap (see [#11860]).
-                //
-                // [#11860]: <https://github.com/pnpm/pnpm/issues/11860>
-                self.metadata
-                    .fetch_full_meta(registry, name)
-                    .await
-                    .map(|meta| project_trust_meta(&meta))
-                    .map(Arc::new)
-            })
-            .await
-            .clone()
+        cell.get_or_init(|| async {
+            // Fast path: if the resolver already pulled the full packument
+            // during the same install (`{registry}\x00{name}:full` or
+            // `...:full:filtered` key in the shared metaCache, populated
+            // when `pick_package` upgrades for `minimumReleaseAge`),
+            // reuse it. The filtered form is accepted: `clear_meta`
+            // keeps `time`, per-version `_npmUser`, and `dist`, which is
+            // everything `fail_if_trust_downgraded` reads. Abbreviated
+            // entries are rejected — they lack per-version `time` and
+            // trust evidence.
+            let shared = self.metadata.meta_cache
+                .as_ref()
+                .and_then(|cache| {
+                    cache
+                        .get(&format!("{key}:full"))
+                        .or_else(|| cache.get(&format!("{key}:full:filtered")))
+                });
+            if let Some(cached) = shared {
+                return Ok(Arc::new(project_trust_meta(cached.meta.as_ref())));
+            }
+            // Project the packument to just the fields `fail_if_trust_downgraded`
+            // reads before stashing in the cache. The full document — dependency
+            // graphs, dist-tags, scripts, READMEs for every version — would
+            // otherwise stay resident in this map for the entire install, which
+            // on multi-thousand-entry workspaces OOMs CI runners with a 2GB heap
+            // cap (see [#11860]).
+            //
+            // [#11860]: <https://github.com/pnpm/pnpm/issues/11860>
+            self.metadata
+                .fetch_full_meta(registry, name)
+                .await
+                .map(|meta| project_trust_meta(&meta))
+                .map(Arc::new)
+        })
+        .await
+        .clone()
     }
 }
 

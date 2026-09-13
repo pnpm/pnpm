@@ -218,8 +218,7 @@ fn unroute_scope(entry: &mut Value, scope: &str) {
 /// would leave it behind. Canonicalized the same way for the same reason, and
 /// the last match taken for the same reason.
 fn key_for_registry(auth: &Map<String, Value>, registry: &str) -> String {
-    auth
-        .keys()
+    auth.keys()
         .rfind(|key| validate_json_auth_registry(key).as_deref() == Ok(registry))
         .cloned()
         .unwrap_or_else(|| registry.to_owned())

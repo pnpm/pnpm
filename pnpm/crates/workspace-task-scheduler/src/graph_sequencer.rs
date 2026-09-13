@@ -255,8 +255,7 @@ impl<'graph, Node: Eq + Hash + Clone> Interner<'graph, Node> {
     }
 
     fn to_nodes(&self, ids: &[usize]) -> Vec<Node> {
-        ids
-            .iter()
+        ids.iter()
             .map(|&id| self.nodes[id].clone())
             .collect()
     }

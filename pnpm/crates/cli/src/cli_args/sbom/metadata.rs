@@ -9,8 +9,7 @@ pub(super) fn extract_repository(manifest: &serde_json::Value) -> Option<String>
     if let Some(s) = repo.as_str() {
         return Some(s.to_string());
     }
-    repo
-        .get("url")
+    repo.get("url")
         .and_then(|u| u.as_str())
         .map(ToString::to_string)
 }
@@ -256,8 +255,7 @@ pub(super) fn normalize_link_path(base_importer_id: &str, link_target: &str) -> 
 }
 
 pub(super) fn sanitize_package_name(name: &str) -> String {
-    name
-        .strip_prefix('@')
+    name.strip_prefix('@')
         .unwrap_or(name)
         .replace('/', "-")
 }

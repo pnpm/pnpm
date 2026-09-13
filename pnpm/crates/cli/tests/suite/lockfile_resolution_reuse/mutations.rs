@@ -404,8 +404,7 @@ fn moving_a_dependency_between_groups_skips_resolution() {
     let is_positive_snapshot = snapshots
         .iter()
         .find_map(|(key, snapshot)| {
-            key
-                .to_string()
+            key.to_string()
                 .starts_with("is-positive@")
                 .then_some(snapshot)
         })

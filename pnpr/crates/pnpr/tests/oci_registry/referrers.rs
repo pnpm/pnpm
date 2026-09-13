@@ -160,8 +160,7 @@ async fn large_referrer_annotations_stay_out_of_repository_documents() {
             .headers()
             .get(header::LINK)
             .map(|link| {
-                link
-                    .to_str()
+                link.to_str()
                     .unwrap()
                     .strip_prefix('<')
                     .unwrap()
@@ -212,8 +211,7 @@ async fn collect_filtered_referrer_pages(
                 let link = link.to_str().unwrap();
                 assert!(link.contains("artifactType=application%2Fexample%2Bjson"));
                 assert!(link.starts_with("</oci/~images/v2/"));
-                link
-                    .strip_prefix('<')
+                link.strip_prefix('<')
                     .unwrap()
                     .split_once('>')
                     .unwrap()

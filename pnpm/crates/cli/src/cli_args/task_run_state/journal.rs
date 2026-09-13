@@ -188,8 +188,7 @@ impl TaskRunStateContext {
                 return Err(StateStorageError::io(error, "checking", &lock_path));
             }
         }
-        self
-            .publish_journal(&header, &file_path, file)
+        self.publish_journal(&header, &file_path, file)
             .map(|file| {
                 self.cleanup_older_finished_state(&run);
                 (file_path, run, Some(file))

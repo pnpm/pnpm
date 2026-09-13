@@ -357,8 +357,7 @@ impl ArgTable {
                 .get_long()
                 .into_iter()
                 .chain(
-                    arg
-                        .get_all_aliases()
+                    arg.get_all_aliases()
                         .into_iter()
                         .flatten(),
                 )
@@ -369,8 +368,7 @@ impl ArgTable {
                 .get_short()
                 .into_iter()
                 .chain(
-                    arg
-                        .get_all_short_aliases()
+                    arg.get_all_short_aliases()
                         .into_iter()
                         .flatten(),
                 )

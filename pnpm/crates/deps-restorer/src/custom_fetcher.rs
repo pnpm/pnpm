@@ -41,8 +41,7 @@ impl CustomFetcherSession {
         opts: Value,
     ) -> Result<LockfileResolution, InstallPackageBySnapshotError> {
         let lockfile_dir = PathBuf::from(
-            opts
-                .get("lockfileDir")
+            opts.get("lockfileDir")
                 .and_then(Value::as_str)
                 .unwrap_or(download.requester),
         );
@@ -112,8 +111,7 @@ impl CustomFetcherSession {
         };
         let selected_resolution = selection.resolution;
         let lockfile_dir = PathBuf::from(
-            opts
-                .get("lockfileDir")
+            opts.get("lockfileDir")
                 .and_then(Value::as_str)
                 .unwrap_or(download.requester),
         );

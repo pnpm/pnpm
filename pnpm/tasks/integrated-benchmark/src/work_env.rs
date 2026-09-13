@@ -169,8 +169,7 @@ impl WorkEnv {
     /// Every bench dir the run will touch — every target plus, when
     /// requested, the system-pnpm sibling.
     fn benchmarked_ids(&self) -> impl Iterator<Item = BenchId<'_>> + '_ {
-        self
-            .target_ids()
+        self.target_ids()
             .chain(self.options.selection.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM))
     }
 

@@ -165,8 +165,7 @@ fn get_returns_none_for_missing_key() {
     let dir = tempdir().unwrap();
     let idx = StoreIndex::open(dir.path()).unwrap();
     assert!(
-        idx
-            .get("sha512-never\tnone@0.0.0")
+        idx.get("sha512-never\tnone@0.0.0")
             .unwrap()
             .is_none(),
     );
@@ -181,21 +180,18 @@ fn get_by_pkg_id_escapes_like_metacharacters() {
     let wildcard_neighbor_pkg_id = "pkgXYZname@1.0.0";
 
     let neighbor_payload = sample_index();
-    idx
-        .set(&store_index_key("sha512-neighbor", wildcard_neighbor_pkg_id), &neighbor_payload)
+    idx.set(&store_index_key("sha512-neighbor", wildcard_neighbor_pkg_id), &neighbor_payload)
         .unwrap();
 
     assert!(
-        idx
-            .get_by_pkg_id(exact_pkg_id)
+        idx.get_by_pkg_id(exact_pkg_id)
             .unwrap()
             .is_none(),
     );
 
     let mut exact_payload = sample_index();
     exact_payload.algo = "sha512-special".to_string();
-    idx
-        .set(&store_index_key("sha512-exact", exact_pkg_id), &exact_payload)
+    idx.set(&store_index_key("sha512-exact", exact_pkg_id), &exact_payload)
         .unwrap();
 
     assert_eq!(idx.get_by_pkg_id(exact_pkg_id).unwrap(), Some(exact_payload));
@@ -259,8 +255,7 @@ fn index_db_lives_at_store_dir_v11() {
     let root = tempdir().unwrap();
     let store = StoreDir::new(root.path());
     let idx = StoreIndex::open_in(&store).unwrap();
-    idx
-        .set("k\tv", &sample_index())
+    idx.set("k\tv", &sample_index())
         .unwrap();
     assert!(store.root().join("index.db").exists());
 }
@@ -308,8 +303,7 @@ fn get_decodes_msgpackr_records_rows() {
 fn get_many_returns_empty_for_empty_input() {
     let dir = tempdir().unwrap();
     let idx = StoreIndex::open(dir.path()).unwrap();
-    idx
-        .set(&store_index_key("sha512-a", "x@1.0.0"), &sample_index())
+    idx.set(&store_index_key("sha512-a", "x@1.0.0"), &sample_index())
         .unwrap();
 
     let out = idx.get_many(&[]).unwrap();
@@ -362,13 +356,12 @@ fn for_each_raw_visits_every_row() {
     }
 
     let mut visited = Vec::new();
-    idx
-        .for_each_raw(|key, data| {
-            assert!(!data.is_empty());
-            visited.push(key);
-            Ok::<(), StoreIndexError>(())
-        })
-        .unwrap();
+    idx.for_each_raw(|key, data| {
+        assert!(!data.is_empty());
+        visited.push(key);
+        Ok::<(), StoreIndexError>(())
+    })
+    .unwrap();
 
     keys.sort();
     visited.sort();
@@ -436,8 +429,7 @@ fn contains_many_handles_empty_input_and_more_keys_than_chunk_size() {
     let dir = tempdir().unwrap();
     let idx = StoreIndex::open(dir.path()).unwrap();
     assert!(
-        idx
-            .contains_many(&[])
+        idx.contains_many(&[])
             .unwrap()
             .is_empty(),
     );

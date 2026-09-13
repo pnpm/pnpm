@@ -537,8 +537,7 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
         Value::String(expected_filename.clone()),
     );
     assert!(
-        dir
-            .path()
+        dir.path()
             .join(&expected_filename)
             .exists(),
         "the tarball must be written",

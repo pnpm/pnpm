@@ -125,9 +125,8 @@ impl StoreIndex {
         // Busy-timeout FIRST so the internal busy handler is active during the
         // rest of the setup — on Windows file locking is mandatory and
         // concurrent pacquet / pnpm invocations can contend.
-        conn
-            .execute_batch(
-                "
+        conn.execute_batch(
+            "
             PRAGMA busy_timeout=5000;
             PRAGMA journal_mode=WAL;
             PRAGMA synchronous=NORMAL;
@@ -140,8 +139,8 @@ impl StoreIndex {
               data BLOB NOT NULL
             ) WITHOUT ROWID;
             ",
-            )
-            .map_err(|source| StoreIndexError::InitSchema { source })?;
+        )
+        .map_err(|source| StoreIndexError::InitSchema { source })?;
 
         Ok(StoreIndex { conn })
     }
@@ -169,8 +168,7 @@ impl StoreIndex {
         let db_path = store_dir.join("index.db");
         let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
             .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
-        conn
-            .busy_timeout(std::time::Duration::from_secs(5))
+        conn.busy_timeout(std::time::Duration::from_secs(5))
             .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
         Ok(StoreIndex { conn })
     }

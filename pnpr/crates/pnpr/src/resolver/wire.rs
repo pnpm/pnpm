@@ -464,9 +464,7 @@ pub(super) fn ndjson_stream_response(
     rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
 ) -> Response {
     let stream = futures_util::stream::unfold(rx, |mut rx| async move {
-        rx
-            .recv()
-            .await
+        rx.recv().await
             .map(|line| (Ok::<_, std::io::Error>(axum::body::Bytes::from(line)), rx))
     });
     Response::builder()

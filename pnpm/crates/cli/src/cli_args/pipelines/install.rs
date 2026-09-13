@@ -22,9 +22,7 @@ pub(crate) struct InstallPipeline {
 
 impl InstallPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        self
-            .run_with_config::<Reporter>()
-            .await
+        self.run_with_config::<Reporter>().await
             .map(|_| ())
     }
 

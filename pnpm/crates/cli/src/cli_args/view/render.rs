@@ -194,8 +194,7 @@ pub(super) fn bin_summary(info: &Value) -> Vec<String> {
         Some(Value::String(bin)) if !bin.is_empty() => match str_field(info, "name") {
             Some(name) if name.starts_with('@') => {
                 vec![
-                    name
-                        .split_once('/')
+                    name.split_once('/')
                         .map_or(name, |(_, rest)| rest)
                         .to_string(),
                 ]
@@ -328,23 +327,20 @@ pub(super) fn to_pretty(value: &Value) -> String {
 
 /// A field's string value, treating an empty string as absent.
 fn str_field<'a>(info: &'a Value, key: &str) -> Option<&'a str> {
-    info
-        .get(key)
+    info.get(key)
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
 }
 
 fn obj_str<'a>(map: &'a Map<String, Value>, key: &str) -> Option<&'a str> {
-    map
-        .get(key)
+    map.get(key)
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
 }
 
 /// A field's array value, treating an empty array as absent.
 fn array_field<'a>(info: &'a Value, key: &str) -> Option<&'a Vec<Value>> {
-    info
-        .get(key)
+    info.get(key)
         .and_then(Value::as_array)
         .filter(|array| !array.is_empty())
 }
@@ -374,7 +370,6 @@ fn dim(text: &str) -> String {
 }
 
 fn underline_blue(text: &str) -> String {
-    text
-        .if_supports_color(Stream::Stdout, |text| text.style(Style::new().blue().underline()))
+    text.if_supports_color(Stream::Stdout, |text| text.style(Style::new().blue().underline()))
         .to_string()
 }

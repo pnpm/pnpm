@@ -205,8 +205,7 @@ fn cyclonedx_dependencies(result: &SbomResult, root_purl: &str) -> Vec<serde_jso
     }
     let mut refs: Vec<&&str> = deps_map.keys().collect();
     refs.sort_unstable();
-    refs
-        .iter()
+    refs.iter()
         .map(|ref_purl| {
             let mut dep_list = deps_map[*ref_purl].clone();
             dep_list.sort_unstable();

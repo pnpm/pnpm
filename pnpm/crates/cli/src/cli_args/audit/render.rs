@@ -124,14 +124,12 @@ pub(crate) fn color_severity(level: ConfigAuditLevel, text: &str) -> String {
         ConfigAuditLevel::Low => text.if_supports_color(Stream::Stdout, |t| t.bold()).to_string(),
         ConfigAuditLevel::Moderate => {
             let style = owo_colors::Style::new().yellow().bold();
-            text
-                .if_supports_color(Stream::Stdout, |t| t.style(style))
+            text.if_supports_color(Stream::Stdout, |t| t.style(style))
                 .to_string()
         }
         ConfigAuditLevel::High | ConfigAuditLevel::Critical => {
             let style = owo_colors::Style::new().red().bold();
-            text
-                .if_supports_color(Stream::Stdout, |t| t.style(style))
+            text.if_supports_color(Stream::Stdout, |t| t.style(style))
                 .to_string()
         }
     }

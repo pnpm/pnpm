@@ -150,13 +150,11 @@ pub(super) fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
 }
 
 pub(super) fn compare_package_names(left: &str, right: &str) -> Ordering {
-    left
-        .bytes()
+    left.bytes()
         .map(package_name_collation_weight)
         .cmp(right.bytes().map(package_name_collation_weight))
         .then_with(|| {
-            left
-                .bytes()
+            left.bytes()
                 .zip(right.bytes())
                 .find_map(|(left, right)| {
                     if left == right || !left.eq_ignore_ascii_case(&right) {

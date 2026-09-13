@@ -209,8 +209,7 @@ fn run_in_shell(
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     push_script_arg(&mut cmd, command, shell.windows_verbatim_args);
-    cmd
-        .current_dir(opts.pkg_root)
+    cmd.current_dir(opts.pkg_root)
         .env_clear()
         .envs(child_env);
     let mut child = spawn_child(&mut cmd, opts.process_tracker)
@@ -234,8 +233,7 @@ fn run_piped(
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     push_script_arg(&mut cmd, command, shell.windows_verbatim_args);
-    cmd
-        .current_dir(pkg_root)
+    cmd.current_dir(pkg_root)
         .env_clear()
         .envs(child_env)
         .stdout(Stdio::piped())
@@ -262,14 +260,12 @@ fn build_command(script: &str, args: &[String], windows_shell: bool) -> String {
         return script.to_string();
     }
     let quoted = if windows_shell {
-        args
-            .iter()
+        args.iter()
             .map(|arg| Value::String(arg.clone()).to_string())
             .collect::<Vec<_>>()
             .join(" ")
     } else {
-        args
-            .iter()
+        args.iter()
             .map(|arg| posix_quote(arg))
             .collect::<Vec<_>>()
             .join(" ")

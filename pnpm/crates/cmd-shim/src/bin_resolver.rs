@@ -161,8 +161,7 @@ pub fn is_safe_bin_name(name: &str) -> bool {
     if name.is_empty() || name == "." || name == ".." {
         return false;
     }
-    name
-        .bytes()
+    name.bytes()
         .all(|byte| {
             byte.is_ascii_alphanumeric()
                 || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')

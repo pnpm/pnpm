@@ -230,8 +230,7 @@ impl SemState {
 impl std::fmt::Debug for PrioritySemaphore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let state = self.state.lock().expect("priority semaphore lock poisoned");
-        f
-            .debug_struct("PrioritySemaphore")
+        f.debug_struct("PrioritySemaphore")
             .field("free", &state.free)
             .field("latency", &state.in_flight.latency)
             .field("background", &state.in_flight.background)

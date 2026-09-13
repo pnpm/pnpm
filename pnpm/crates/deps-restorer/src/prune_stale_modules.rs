@@ -245,8 +245,7 @@ fn direct_deps_of<'a>(
     let mut push = |map: &'a Option<ResolvedDependencyMap>, group: DependencyGroup| {
         if let Some(map) = map {
             deps.extend(
-                map
-                    .iter()
+                map.iter()
                     .map(move |(alias, spec)| (alias, spec, group)),
             );
         }

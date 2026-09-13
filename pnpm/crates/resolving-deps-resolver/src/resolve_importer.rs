@@ -194,8 +194,7 @@ pub struct ManifestTransformHooks {
 
 impl std::fmt::Debug for ResolveImporterOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f
-            .debug_struct("ResolveImporterOptions")
+        f.debug_struct("ResolveImporterOptions")
             .field("auto_install_peers", &self.peers.auto_install_peers)
             .field(
                 "auto_install_peers_from_highest_match",

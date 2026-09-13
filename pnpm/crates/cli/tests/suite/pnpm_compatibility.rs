@@ -44,8 +44,7 @@ fn store_usable_by_pnpm_offline() {
     fs::remove_dir_all(workspace.join("node_modules")).expect("delete node_modules");
 
     eprintln!("pnpm install --offline --ignore-scripts");
-    pnpm
-        .with_args(["install", "--offline", "--ignore-scripts"])
+    pnpm.with_args(["install", "--offline", "--ignore-scripts"])
         .assert()
         .success();
 
@@ -123,8 +122,7 @@ fn same_file_structure() {
     cleanup();
 
     eprintln!("Installing with pnpm...");
-    pnpm
-        .with_args(["install", "--ignore-scripts"])
+    pnpm.with_args(["install", "--ignore-scripts"])
         .assert()
         .success();
     let pnpm_store_files = normalize(get_all_files(&store_dir));
@@ -189,8 +187,7 @@ fn same_index_file_contents() {
     cleanup();
 
     eprintln!("Installing with pnpm...");
-    pnpm
-        .with_args(["install", "--ignore-scripts"])
+    pnpm.with_args(["install", "--ignore-scripts"])
         .assert()
         .success();
     let pnpm_index_file_contents = store_dir
@@ -257,8 +254,7 @@ fn pnpm_reads_pacquet_written_rows() {
     fs::remove_dir_all(workspace.join("node_modules")).expect("delete node_modules");
 
     eprintln!("pnpm install --ignore-scripts (reads pacquet's index.db rows)...");
-    pnpm
-        .with_args(["install", "--ignore-scripts"])
+    pnpm.with_args(["install", "--ignore-scripts"])
         .assert()
         .success();
 
@@ -307,8 +303,7 @@ fn install_then_compare_gvs(
     let mut pnpm_args = vec!["install"];
     pnpm_args.extend_from_slice(pnpm_extra_args);
     eprintln!("Installing with pnpm (writes lockfile + pnpm-side GVS slots)...");
-    pnpm
-        .with_args(pnpm_args)
+    pnpm.with_args(pnpm_args)
         .assert()
         .success();
     let pnpm_gvs_paths = gvs_paths_only(get_all_files(store_dir));

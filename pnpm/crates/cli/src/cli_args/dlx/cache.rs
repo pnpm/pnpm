@@ -156,8 +156,7 @@ pub(super) fn resolve_catalog_specs(
         return Ok(pkgs.to_vec());
     }
     let catalogs = configured_catalogs(config)?;
-    pkgs
-        .iter()
+    pkgs.iter()
         .map(|pkg| {
             let parsed = parse_wanted_dependency(pkg);
             let (Some(alias), Some(bare_specifier)) = (parsed.alias, parsed.bare_specifier) else {

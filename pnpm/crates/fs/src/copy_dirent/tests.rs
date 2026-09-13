@@ -67,8 +67,7 @@ fn symlinks_are_recreated_rather_than_followed() {
     assert_eq!(fs::read_link(dst.join("link-to-dir")).unwrap().as_os_str(), "real");
     assert_eq!(fs::read_link(dst.join("dangling")).unwrap().as_os_str(), "nowhere");
     assert!(
-        !dst
-            .join("link-to-dir")
+        !dst.join("link-to-dir")
             .symlink_metadata()
             .unwrap()
             .is_dir(),

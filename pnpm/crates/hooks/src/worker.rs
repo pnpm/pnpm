@@ -197,8 +197,7 @@ impl NodeWorker {
     /// Whether the loaded pnpmfile exports a `hooks` object. Mirrors
     /// pnpm's `entry.hooks != null` gate for `pnpmfileChecksum`.
     pub async fn has_hooks(&self) -> bool {
-        self
-            .request("hasHooks", serde_json::json!({ "query": "hasHooks" }), Arc::new(|_| {}))
+        self.request("hasHooks", serde_json::json!({ "query": "hasHooks" }), Arc::new(|_| {}))
             .await
             .ok()
             .as_ref()
@@ -208,17 +207,16 @@ impl NodeWorker {
 
     /// Whether the loaded pnpmfile exports a callable `filterLog` hook.
     pub async fn has_filter_log(&self) -> bool {
-        self
-            .request(
-                "hasFilterLog",
-                serde_json::json!({ "query": "hasFilterLog" }),
-                Arc::new(|_| {}),
-            )
-            .await
-            .ok()
-            .as_ref()
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
+        self.request(
+            "hasFilterLog",
+            serde_json::json!({ "query": "hasFilterLog" }),
+            Arc::new(|_| {}),
+        )
+        .await
+        .ok()
+        .as_ref()
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
     }
 
     /// Call `method` on the custom resolver at `index` in the pnpmfile's

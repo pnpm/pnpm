@@ -185,8 +185,7 @@ pub fn colors_enabled(is_terminal: bool) -> bool {
 }
 
 fn cwd() -> String {
-    CWD
-        .get()
+    CWD.get()
         .cloned()
         .unwrap_or_else(|| {
             std::env::current_dir()

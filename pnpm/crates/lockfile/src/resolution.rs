@@ -416,8 +416,7 @@ impl LockfileResolution {
     /// all, and [`Integrity::check`] would panic on it.
     #[must_use]
     pub fn checkable_integrity(&self) -> Option<&'_ Integrity> {
-        self
-            .integrity()
+        self.integrity()
             .filter(|integrity| !integrity.hashes.is_empty())
     }
 

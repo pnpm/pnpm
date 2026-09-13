@@ -363,8 +363,7 @@ fn existing_symlink_up_to_date(wanted: &Path, link: &Path, existing_link_string:
     let existing_absolute = if existing_link_string.is_absolute() {
         existing_link_string.to_path_buf()
     } else {
-        link
-            .parent()
+        link.parent()
             .unwrap_or_else(|| Path::new(""))
             .join(existing_link_string)
     };

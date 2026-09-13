@@ -41,8 +41,7 @@ async fn should_throw_when_web_login_returns_invalid_response() {
 
     assert!(matches!(err, LoginError::InvalidResponse), "got {err:?}");
     assert_eq!(
-        err
-            .pipe_ref(miette::Diagnostic::code)
+        err.pipe_ref(miette::Diagnostic::code)
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_LOGIN_INVALID_RESPONSE"),
@@ -111,8 +110,7 @@ async fn should_surface_a_non_404_web_login_http_error_as_web_login_failed() {
     login_mock.assert_async().await;
     assert!(matches!(err, LoginError::WebLoginFailed { status: 500, .. }), "got {err:?}");
     assert_eq!(
-        err
-            .pipe_ref(miette::Diagnostic::code)
+        err.pipe_ref(miette::Diagnostic::code)
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_WEB_LOGIN_FAILED"),
@@ -154,8 +152,7 @@ async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
 
     assert!(matches!(err, LoginError::Request { .. }), "got {err:?}");
     assert_eq!(
-        err
-            .pipe_ref(miette::Diagnostic::code)
+        err.pipe_ref(miette::Diagnostic::code)
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_REQUEST_FAILED"),
@@ -234,8 +231,7 @@ async fn should_time_out_when_the_web_auth_poll_never_completes() {
 
     assert!(matches!(err, LoginError::WebAuthTimeout(_)), "got {err:?}");
     assert_eq!(
-        err
-            .pipe_ref(miette::Diagnostic::code)
+        err.pipe_ref(miette::Diagnostic::code)
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_WEBAUTH_TIMEOUT"),
@@ -273,8 +269,7 @@ async fn should_treat_a_non_string_login_url_as_an_invalid_response() {
 
     assert!(matches!(err, LoginError::InvalidResponse), "got {err:?}");
     assert_eq!(
-        err
-            .pipe_ref(miette::Diagnostic::code)
+        err.pipe_ref(miette::Diagnostic::code)
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_LOGIN_INVALID_RESPONSE"),
@@ -313,8 +308,7 @@ async fn rejects_a_login_url_containing_control_characters() {
 
     assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");
     assert_eq!(
-        err
-            .pipe_ref(miette::Diagnostic::code)
+        err.pipe_ref(miette::Diagnostic::code)
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL"),
@@ -358,8 +352,7 @@ async fn rejects_a_done_url_containing_control_characters() {
 
     assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");
     assert_eq!(
-        err
-            .pipe_ref(miette::Diagnostic::code)
+        err.pipe_ref(miette::Diagnostic::code)
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL"),

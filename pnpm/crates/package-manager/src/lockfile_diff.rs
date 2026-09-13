@@ -228,8 +228,7 @@ fn diff_snapshot_entry(key: String, old: &SnapshotEntry, new: &SnapshotEntry) ->
 /// One dependency group of a `snapshots:` entry as an
 /// `alias -> resolved reference` map.
 fn dep_refs(deps: Option<&HashMap<PkgName, SnapshotDepRef>>) -> BTreeMap<String, String> {
-    deps
-        .into_iter()
+    deps.into_iter()
         .flatten()
         .map(|(name, dep_ref)| (name.to_string(), dep_ref.to_string()))
         .collect()

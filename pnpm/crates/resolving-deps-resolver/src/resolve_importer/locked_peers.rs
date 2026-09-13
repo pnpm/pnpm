@@ -10,8 +10,7 @@ pub(super) struct LockedPeers {
 impl LockedPeers {
     pub(super) fn of(ctx: &TreeCtx, importer_id: &str) -> Self {
         let versions = Arc::new(importer_locked_peer_versions(
-            ctx
-                .workspace()
+            ctx.workspace()
                 .wanted_lockfile()
                 .map(AsRef::as_ref),
             importer_id,

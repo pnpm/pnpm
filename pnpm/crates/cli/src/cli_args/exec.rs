@@ -172,8 +172,7 @@ pub(super) fn spawn_in_dir(
     };
     let wd = dirs.run.to_string_lossy();
     let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
-    cmd
-        .stdout(Stdio::piped())
+    cmd.stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut child = spawn_child(&mut cmd, process_tracker)
         .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;

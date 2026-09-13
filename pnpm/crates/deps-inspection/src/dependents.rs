@@ -411,8 +411,7 @@ fn resolve_parent_name(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> String {
 fn dep_field_for_alias(alias: &str, importer: &ProjectSnapshot) -> Option<DepField> {
     let has = |group: Option<&pnpm_lockfile::ResolvedDependencyMap>| {
         group.is_some_and(|deps| {
-            deps
-                .keys()
+            deps.keys()
                 .any(|key| key.to_string() == alias)
         })
     };

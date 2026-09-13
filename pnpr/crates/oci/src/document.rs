@@ -282,8 +282,7 @@ impl ImageDocument {
     /// change, so re-applying the mapping already held costs no document
     /// write.
     fn tag_supersedes(&self, entry: &TagEntry) -> bool {
-        self
-            .tag(&entry.tag)
+        self.tag(&entry.tag)
             .is_none_or(|held| match held.updated.cmp(&entry.updated) {
                 Ordering::Less => true,
                 Ordering::Equal => held.digest != entry.digest,

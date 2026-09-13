@@ -420,8 +420,7 @@ pub fn lockfile_dir_from_workspace_yaml_moves_the_paths_anchored_on_it() {
     assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
     assert_eq!(
         config.virtual_store_dir,
-        tmp
-            .path()
+        tmp.path()
             .join("node_modules")
             .join(".pnpm"),
     );

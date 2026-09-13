@@ -232,8 +232,7 @@ fn assert_bin_linked(shim: &Path) {
     for extension in ["cmd", "ps1"] {
         let launcher = shim.with_file_name(format!(
             "{}.{extension}",
-            shim
-                .file_name()
+            shim.file_name()
                 .expect("bin shim has a file name")
                 .to_string_lossy(),
         ));

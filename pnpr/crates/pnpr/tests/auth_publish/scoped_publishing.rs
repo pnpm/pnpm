@@ -95,8 +95,7 @@ async fn unpublish_partial_writes_modified_packument() {
             .header("Authorization", format!("Bearer {token}"))
             .body(Body::from(serde_json::to_vec(&body).unwrap()))
             .unwrap();
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap();
@@ -196,8 +195,7 @@ async fn unpublish_tarball_also_clears_the_proxied_copy() {
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -216,8 +214,7 @@ async fn unpublish_tarball_also_clears_the_proxied_copy() {
         .body(Body::empty())
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -253,8 +250,7 @@ async fn unpublish_force_removes_entire_package() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    app
-        .clone()
+    app.clone()
         .oneshot(request)
         .await
         .unwrap();
@@ -297,8 +293,7 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    app
-        .clone()
+    app.clone()
         .oneshot(request)
         .await
         .unwrap();
@@ -335,8 +330,7 @@ async fn missing_unpublish_policy_denies_destructive_writes() {
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -349,8 +343,7 @@ async fn missing_unpublish_policy_denies_destructive_writes() {
         .body(Body::empty())
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -381,8 +374,7 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -401,8 +393,7 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
         .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -418,8 +409,7 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
         .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -453,9 +443,7 @@ async fn concurrent_publishes_of_distinct_versions_all_survive() {
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))
                 .unwrap();
-            app
-                .oneshot(request)
-                .await
+            app.oneshot(request).await
                 .unwrap()
                 .status()
         })

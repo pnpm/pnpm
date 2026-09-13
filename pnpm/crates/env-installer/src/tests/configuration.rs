@@ -236,9 +236,7 @@ async fn rejects_config_dep_with_path_traversal_version() {
 
     let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
     let malicious_version = "../../../PWNED";
-    env
-        .root_importer_mut()
-        .config_dependencies
+    env.root_importer_mut().config_dependencies
         .get_mut("@pnpm.e2e/foo")
         .unwrap()
         .version = malicious_version.to_string();
@@ -399,8 +397,7 @@ async fn removed_config_dep_is_pruned_from_lockfile_and_pnpm_config() {
     .await
     .unwrap();
     assert!(
-        root
-            .path()
+        root.path()
             .join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json")
             .exists(),
     );

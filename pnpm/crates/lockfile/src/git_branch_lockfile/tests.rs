@@ -40,8 +40,7 @@ fn scanning_lists_only_the_branch_lockfiles_and_cleaning_removes_exactly_those()
         .unwrap()
         .iter()
         .map(|path| {
-            path
-                .file_name()
+            path.file_name()
                 .unwrap()
                 .to_string_lossy()
                 .into_owned()

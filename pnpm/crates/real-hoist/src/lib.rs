@@ -525,8 +525,7 @@ fn same_ident(left: &HoisterResult, right: &HoisterResult) -> bool {
 /// [`AbsorbDecision::PathShadow`](crate::absorption::AbsorbDecision::PathShadow)). `path[0]` is the hoist root —
 /// its slot is judged by the root-index decision, not here.
 fn path_shadowed(candidate: &HoisterResult, path: &[Rc<HoisterResult>]) -> bool {
-    path
-        .iter()
+    path.iter()
         .skip(1)
         .any(|ancestor| {
             ancestor.dependencies
@@ -799,8 +798,7 @@ fn hoist_subtree(
 /// removes them outright because its layout walkers require the result to be
 /// a DAG. The parent is decoupled, so the cut is per-path.
 fn is_cycle_edge(child: &Rc<HoisterResult>, path: &[Rc<HoisterResult>]) -> bool {
-    path
-        .iter()
+    path.iter()
         .any(|ancestor| ancestor.name == child.name && same_locator(ancestor, child))
 }
 

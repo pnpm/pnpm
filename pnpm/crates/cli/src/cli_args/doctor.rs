@@ -403,8 +403,7 @@ fn run_install_smoke_test(base: &Path) -> Result<(), String> {
 }
 
 fn last_line(text: &str) -> String {
-    text
-        .lines()
+    text.lines()
         .rfind(|line| !line.trim().is_empty())
         .unwrap_or_default()
         .to_owned()

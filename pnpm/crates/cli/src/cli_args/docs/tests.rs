@@ -89,9 +89,7 @@ async fn requested_version_uses_its_homepage() {
         .await;
     let args = DocsArgs { package: "is-negative@1.0.0".to_string() };
 
-    args
-        .run::<RecordingBrowser>(&config_for(&server.url()))
-        .await
+    args.run::<RecordingBrowser>(&config_for(&server.url())).await
         .expect("docs URL must open");
 
     mock.assert_async().await;

@@ -35,8 +35,7 @@ pub(super) struct ColdCapture<'a> {
 pub(super) fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<ColdCapture<'_>>) {
     map.reserve(cold_cas_paths.len());
     for ColdCapture { snapshot_key, cas_paths: paths, .. } in cold_cas_paths {
-        map
-            .entry(cas_paths_key(snapshot_key))
+        map.entry(cas_paths_key(snapshot_key))
             .or_insert(paths);
     }
 }

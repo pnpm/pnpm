@@ -364,8 +364,7 @@ impl PackageManifest {
             None => &[DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional],
         };
         let mut seen = std::collections::HashSet::new();
-        self
-            .dependencies(groups.iter().copied())
+        self.dependencies(groups.iter().copied())
             .filter(|(name, _)| seen.insert(*name))
             .map(|(name, _)| name.to_string())
             .collect()

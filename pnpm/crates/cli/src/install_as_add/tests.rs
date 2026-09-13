@@ -38,8 +38,7 @@ fn parse_argv(argv: Vec<OsString>) -> CliArgs {
     let cmd = with_boolean_negations(CliArgs::command());
     let argv = relocate_pre_subcommand_flags(&cmd, argv);
     let argv = rewrite(&cmd, argv);
-    cmd
-        .try_get_matches_from(argv)
+    cmd.try_get_matches_from(argv)
         .and_then(|matches| CliArgs::from_arg_matches(&matches))
         .expect("parses after the rewrite")
 }

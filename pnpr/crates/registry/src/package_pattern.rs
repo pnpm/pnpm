@@ -254,8 +254,7 @@ pub(super) fn reject_shadowed_source(
     if patterns
         .iter()
         .all(|pattern| {
-            seen
-                .iter()
+            seen.iter()
                 .any(|earlier| earlier.covers(pattern))
         })
     {

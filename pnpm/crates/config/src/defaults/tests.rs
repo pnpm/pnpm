@@ -433,8 +433,7 @@ fn user_agent_default_matches_pnpm_format() {
     let tail: Vec<&str> = ua[prefix.len()..].split(' ').collect();
     assert_eq!(tail.len(), 2, "expected `<platform> <arch>` tail, got {ua:?}");
     assert!(
-        tail
-            .iter()
+        tail.iter()
             .all(|token| !token.is_empty()),
         "platform/arch must be non-empty: {ua:?}",
     );

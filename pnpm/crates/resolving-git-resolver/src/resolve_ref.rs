@@ -216,8 +216,7 @@ fn resolve_range(
     let parsed_range = Range::parse(range).map_err(|_| unknown_range())?;
     resolve_v_tags(&v_tags, &parsed_range)
         .and_then(|tag| {
-            refs
-                .get(&format!("refs/tags/{tag}^{{}}"))
+            refs.get(&format!("refs/tags/{tag}^{{}}"))
                 .or_else(|| refs.get(&format!("refs/tags/{tag}")))
                 .cloned()
         })
@@ -227,8 +226,7 @@ fn resolve_range(
 /// The tag refs shaped like `v?<n.n.n>(-...|+...)?`, deduped and stripped of
 /// their `refs/tags/` prefix and `^{}` suffix.
 fn version_tags(refs: &HashMap<String, String>) -> BTreeSet<String> {
-    refs
-        .keys()
+    refs.keys()
         .filter(|key| looks_like_version_tag(key))
         .filter_map(|key| key.strip_prefix("refs/tags/"))
         .map(|tag| tag.strip_suffix("^{}").unwrap_or(tag))

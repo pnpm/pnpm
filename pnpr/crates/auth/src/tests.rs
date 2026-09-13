@@ -402,14 +402,13 @@ async fn tokens_clamp_negative_persisted_timestamps() {
     let path = tmp.path().join("tokens.db");
     let conn = rusqlite::Connection::open(&path).unwrap();
     super::token_store::init_tokens_schema(&conn).unwrap();
-    conn
-        .execute(
-            "INSERT INTO tokens
+    conn.execute(
+        "INSERT INTO tokens
          (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            rusqlite::params!["token-hash", "alice", -1_i64, -42_i64, 0_i64, "[]"],
-        )
-        .unwrap();
+        rusqlite::params!["token-hash", "alice", -1_i64, -42_i64, 0_i64, "[]"],
+    )
+    .unwrap();
     drop(conn);
 
     let store = TokenStore::open(path).unwrap();
@@ -517,14 +516,13 @@ async fn an_unreadable_cidr_whitelist_is_refused_rather_than_dropped() {
     let path = tmp.path().join("tokens.db");
     let conn = rusqlite::Connection::open(&path).unwrap();
     super::token_store::init_tokens_schema(&conn).unwrap();
-    conn
-        .execute(
-            "INSERT INTO tokens
+    conn.execute(
+        "INSERT INTO tokens
          (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            rusqlite::params!["token-hash", "alice", 0_i64, 0_i64, 0_i64, "{ not json"],
-        )
-        .unwrap();
+        rusqlite::params!["token-hash", "alice", 0_i64, 0_i64, 0_i64, "{ not json"],
+    )
+    .unwrap();
     drop(conn);
 
     let err = TokenStore::open(path).expect_err("a corrupt cidr_whitelist must not load");

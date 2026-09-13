@@ -273,8 +273,7 @@ async fn should_not_trigger_otp_for_non_401_errors() {
         .unwrap_err();
 
     assert_eq!(
-        err
-            .pipe_ref(miette::Diagnostic::code)
+        err.pipe_ref(miette::Diagnostic::code)
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_LOGIN_FAILED"),
@@ -312,8 +311,7 @@ async fn should_not_trigger_otp_for_401_without_www_authenticate_otp_header() {
         .unwrap_err();
 
     assert_eq!(
-        err
-            .pipe_ref(miette::Diagnostic::code)
+        err.pipe_ref(miette::Diagnostic::code)
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_LOGIN_FAILED"),
@@ -350,8 +348,7 @@ async fn should_throw_when_username_is_empty_in_classic_login() {
 
     assert!(matches!(err, LoginError::MissingCredentials), "got {err:?}");
     assert_eq!(
-        err
-            .pipe_ref(miette::Diagnostic::code)
+        err.pipe_ref(miette::Diagnostic::code)
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_LOGIN_MISSING_CREDENTIALS"),
@@ -393,8 +390,7 @@ async fn should_cancel_the_login_when_a_credential_prompt_is_interrupted() {
 
     assert!(matches!(err, LoginError::Canceled), "got {err:?}");
     assert_eq!(
-        err
-            .pipe_ref(miette::Diagnostic::code)
+        err.pipe_ref(miette::Diagnostic::code)
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_LOGIN_CANCELED"),
@@ -432,8 +428,7 @@ async fn should_throw_when_classic_login_returns_no_token() {
         .unwrap_err();
 
     assert_eq!(
-        err
-            .pipe_ref(miette::Diagnostic::code)
+        err.pipe_ref(miette::Diagnostic::code)
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_LOGIN_NO_TOKEN"),
@@ -473,8 +468,7 @@ async fn should_surface_a_non_interrupt_prompt_failure_as_a_prompt_error() {
 
     assert!(matches!(err, LoginError::Prompt { .. }), "got {err:?}");
     assert_eq!(
-        err
-            .pipe_ref(miette::Diagnostic::code)
+        err.pipe_ref(miette::Diagnostic::code)
             .map(|code| code.to_string())
             .as_deref(),
         Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_PROMPT_FAILED"),

@@ -57,8 +57,7 @@ fn links_absolute_relative_and_self_reference_specs() {
     assert!(is_symlink_or_junction(&modules.join("rel-linked")).unwrap());
     assert_eq!(
         fs::canonicalize(modules.join("rel-linked")).unwrap(),
-        dir
-            .path()
+        dir.path()
             .join("sibling")
             .canonicalize()
             .unwrap(),

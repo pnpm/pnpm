@@ -177,8 +177,7 @@ impl PackumentPublishInfo {
             .filter(|(_, version)| !self.deprecated.contains(version))
             .filter(|(_, version)| satisfies_including_prerelease(version, range))
             .min_by(|(_, a), (_, b)| {
-                a
-                    .is_prerelease()
+                a.is_prerelease()
                     .cmp(&b.is_prerelease())
                     .then_with(|| a.cmp(b))
             })

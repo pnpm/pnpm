@@ -64,8 +64,7 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result
     {
         use std::os::unix::fs::PermissionsExt as _;
         let mode = metadata.permissions().mode();
-        tmp
-            .as_file()
+        tmp.as_file()
             .set_permissions(std::fs::Permissions::from_mode(mode))?;
     }
     #[cfg(not(unix))]

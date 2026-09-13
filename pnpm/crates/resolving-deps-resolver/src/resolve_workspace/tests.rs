@@ -727,8 +727,7 @@ async fn announced_finalized_packages(
             .iter()
             .map(|child| child.pkg_id.to_string())
             .collect::<Vec<_>>();
-        sink
-            .lock()
+        sink.lock()
             .unwrap()
             .push((package.pkg_id.to_string(), children));
     }));

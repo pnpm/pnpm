@@ -173,8 +173,7 @@ fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceR
     let header = rows.next().expect("the header row is always pushed first");
     std::iter::once(header)
         .chain(
-            rows
-                .zip(choices)
+            rows.zip(choices)
                 .map(|(row, choice)| ChoiceRow {
                     value: Some(choice.package.alias.clone()),
                     ..row

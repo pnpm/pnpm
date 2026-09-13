@@ -747,8 +747,7 @@ fn run_prune_allow_builds(original: Option<&str>, resolved: &[&str]) -> Option<S
         },
     )
     .expect("update succeeds");
-    path
-        .exists()
+    path.exists()
         .then(|| std::fs::read_to_string(&path).expect("read manifest"))
 }
 

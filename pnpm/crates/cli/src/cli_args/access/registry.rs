@@ -30,8 +30,7 @@ pub(super) fn build_access_context<'a>(
                 reqwest::Url::parse(&registry)
                     .ok()
                     .and_then(|url| {
-                        url
-                            .host_str()
+                        url.host_str()
                             .map(|host| (url.scheme().to_string(), host.to_string(), url.port()))
                     });
             let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {

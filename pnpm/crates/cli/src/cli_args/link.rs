@@ -51,8 +51,7 @@ fn link_spec(base: &Path, target: &Path) -> String {
     let rel = pathdiff::diff_paths(target, base).unwrap_or_else(|| target.to_path_buf());
     format!(
         "link:{}",
-        rel
-            .display()
+        rel.display()
             .to_string()
             .replace('\\', "/"),
     )

@@ -221,8 +221,7 @@ fn main_document_of(content: &str) -> &str {
 
 fn env_document_of(content: &str) -> Option<&str> {
     let rest = content.strip_prefix(YAML_DOCUMENT_START)?;
-    rest
-        .find(YAML_DOCUMENT_SEPARATOR)
+    rest.find(YAML_DOCUMENT_SEPARATOR)
         .map(|idx| &rest[..idx])
 }
 

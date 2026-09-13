@@ -51,8 +51,7 @@ async fn tags_list_in_lexical_order_and_a_moved_tag_repoints() {
         .body(Body::from(moved.clone()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -82,8 +81,7 @@ async fn deleting_a_tag_keeps_the_manifest_and_deleting_the_manifest_drops_the_t
         .body(Body::empty())
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -101,8 +99,7 @@ async fn deleting_a_tag_keeps_the_manifest_and_deleting_the_manifest_drops_the_t
         .body(Body::empty())
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()

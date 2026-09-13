@@ -190,8 +190,7 @@ pub(in super::super) fn injected_source_paths(lockfile: &Lockfile) -> HashSet<St
         .chain(lockfile.packages.iter().flat_map(|packages| packages.keys()))
         .filter_map(|key| match key.suffix.version() {
             VersionPart::File(path) => Some(
-                path
-                    .strip_prefix("./")
+                path.strip_prefix("./")
                     .unwrap_or(path)
                     .to_string(),
             ),

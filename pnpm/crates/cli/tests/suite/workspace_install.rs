@@ -124,8 +124,7 @@ fn assert_workspace_links_above_root_resolve(workspace_depth: &str, node_linker:
             assert_eq!(
                 fs::canonicalize(&link).unwrap_or_else(|error| panic!("{link:?}: {error}")),
                 fs::canonicalize(
-                    link
-                        .parent()
+                    link.parent()
                         .unwrap()
                         .join(relative_target)
                 )

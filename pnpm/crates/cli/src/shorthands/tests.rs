@@ -33,8 +33,7 @@ fn parse(tokens: &[&str]) -> CliArgs {
             .collect(),
     );
     let argv = relocate_pre_subcommand_flags(&cmd, argv);
-    cmd
-        .try_get_matches_from(argv)
+    cmd.try_get_matches_from(argv)
         .and_then(|matches| CliArgs::from_arg_matches(&matches))
         .expect("parses after shorthand expansion")
 }

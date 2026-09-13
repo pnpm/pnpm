@@ -121,8 +121,7 @@ fn packed_contents(files_map: &indexmap::IndexMap<String, PathBuf>) -> Vec<Strin
             if is_manifest_entry(name) {
                 "package.json".to_string()
             } else {
-                name
-                    .strip_prefix("package/")
+                name.strip_prefix("package/")
                     .unwrap_or(name)
                     .to_string()
             }

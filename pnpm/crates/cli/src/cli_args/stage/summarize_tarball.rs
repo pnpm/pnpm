@@ -121,8 +121,7 @@ impl FileSummary {
     fn push_file(&mut self, path: &str, size: u64) {
         self.unpacked_size += size;
         self.files.push(
-            path
-                .strip_prefix("package/")
+            path.strip_prefix("package/")
                 .unwrap_or(path)
                 .to_owned(),
         );

@@ -137,8 +137,7 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
         .unwrap();
     assert_eq!(get.status(), StatusCode::OK);
     assert_eq!(
-        get
-            .headers()
+        get.headers()
             .get("last-modified")
             .and_then(|value| value.to_str().ok()),
         Some(expected),
@@ -159,8 +158,7 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
         .unwrap();
     assert_eq!(head.status(), StatusCode::OK);
     assert_eq!(
-        head
-            .headers()
+        head.headers()
             .get("last-modified")
             .and_then(|value| value.to_str().ok()),
         Some(expected),

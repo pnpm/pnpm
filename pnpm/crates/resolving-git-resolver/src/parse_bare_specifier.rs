@@ -155,8 +155,7 @@ fn has_scp_colon(auth: &str) -> bool {
     let host = auth.rsplit_once('@').map_or(auth, |(_, host)| host);
     // The colons of a bracketed IPv6 literal belong to the address.
     let after_host = if host.starts_with('[') {
-        host
-            .find(']')
+        host.find(']')
             .map_or(host, |idx| &host[idx + 1..])
     } else {
         host

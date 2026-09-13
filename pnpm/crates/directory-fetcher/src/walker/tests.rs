@@ -31,8 +31,7 @@ fn collect_rels(
                 .map_or_else(
                     |_| abs.display().to_string(),
                     |path| {
-                        path
-                            .display()
+                        path.display()
                             .to_string()
                             .replace('\\', "/")
                     },
@@ -101,8 +100,7 @@ fn walk_all_files_terminates_on_symlink_cycle() {
 
     assert!(rels.contains_key("real.txt"), "direct children must still be walked: {rels:?}");
     assert!(
-        rels
-            .keys()
+        rels.keys()
             .all(|key| !key.starts_with("loop/")),
         "cycle guard must short-circuit before any `loop/` descendant is recorded: {rels:?}",
     );

@@ -34,8 +34,7 @@ async fn update_packument_rejects_a_non_string_dist_integrity() {
         .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real")).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(publish)
             .await
             .unwrap()
@@ -62,9 +61,7 @@ async fn update_packument_rejects_a_non_string_dist_integrity() {
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .oneshot(request)
-            .await
+        app.oneshot(request).await
             .unwrap()
             .status(),
         StatusCode::BAD_REQUEST,
@@ -87,8 +84,7 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
         .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(first)
             .await
             .unwrap()
@@ -128,8 +124,7 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(deprecate)
             .await
             .unwrap()
@@ -138,15 +133,14 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
     );
 
     let after = body_json(
-        app
-            .oneshot(
-                Request::get("/mypkg")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap()
-            .into_body(),
+        app.oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+        .into_body(),
     )
     .await;
     assert_eq!(after["versions"]["1.0.0"]["deprecated"], "use 2.0.0 instead");
@@ -169,8 +163,7 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
         .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(first)
             .await
             .unwrap()
@@ -179,8 +172,7 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
     );
 
     let before = body_json(
-        app
-            .clone()
+        app.clone()
             .oneshot(
                 Request::get("/mypkg")
                     .body(Body::empty())
@@ -200,8 +192,7 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
         .unwrap();
     // Accepted (no integrity change to reject) but the malformed entry is ignored.
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(malformed)
             .await
             .unwrap()
@@ -211,15 +202,14 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
 
     // The hosted version is intact — its `dist` was not erased.
     let after = body_json(
-        app
-            .oneshot(
-                Request::get("/mypkg")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap()
-            .into_body(),
+        app.oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+        .into_body(),
     )
     .await;
     assert_eq!(after["versions"]["1.0.0"], before["versions"]["1.0.0"]);
@@ -242,8 +232,7 @@ async fn metadata_put_cannot_inject_a_tarball_less_version() {
         .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(first)
             .await
             .unwrap()
@@ -272,8 +261,7 @@ async fn metadata_put_cannot_inject_a_tarball_less_version() {
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(squat)
             .await
             .unwrap()
@@ -283,15 +271,14 @@ async fn metadata_put_cannot_inject_a_tarball_less_version() {
 
     // 9.9.9 was never added.
     let after = body_json(
-        app
-            .oneshot(
-                Request::get("/mypkg")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap()
-            .into_body(),
+        app.oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+        .into_body(),
     )
     .await;
     assert!(after["versions"].get("9.9.9").is_none());
@@ -314,8 +301,7 @@ async fn hosted_tarball_is_preferred_over_a_cached_copy() {
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     assert_eq!(
-        app
-            .clone()
+        app.clone()
             .oneshot(request)
             .await
             .unwrap()
@@ -530,8 +516,7 @@ async fn publish_followed_by_dist_tag_set_works() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    app
-        .clone()
+    app.clone()
         .oneshot(request)
         .await
         .unwrap();
@@ -544,8 +529,7 @@ async fn publish_followed_by_dist_tag_set_works() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    app
-        .clone()
+    app.clone()
         .oneshot(request)
         .await
         .unwrap();
@@ -641,8 +625,7 @@ async fn dist_tag_mutations_refresh_time_modified() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    app
-        .clone()
+    app.clone()
         .oneshot(request)
         .await
         .unwrap();

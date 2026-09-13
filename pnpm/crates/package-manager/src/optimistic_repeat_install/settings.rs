@@ -106,8 +106,7 @@ struct SettingsComparison<'a> {
 
 impl SettingsComparison<'_> {
     fn first_drift(&self) -> Option<&'static str> {
-        self
-            .installation_drift()
+        self.installation_drift()
             .or_else(|| self.linking_drift())
             .or_else(|| self.resolution_drift())
             .or_else(|| self.workspace_policy_drift())
@@ -461,8 +460,7 @@ fn recorded_overrides(config: &Config) -> Option<std::collections::BTreeMap<Stri
     config.overrides
         .as_ref()
         .map(|map| {
-            map
-                .iter()
+            map.iter()
                 .map(|(key, value)| (key.clone(), value.clone()))
                 .collect()
         })

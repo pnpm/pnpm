@@ -70,9 +70,7 @@ snapshots:
 
 fn fixture_env_lockfile() -> EnvLockfile {
     let mut env = EnvLockfile::create();
-    env
-        .root_importer_mut()
-        .config_dependencies
+    env.root_importer_mut().config_dependencies
         .insert(
             "config-dep".to_string(),
             SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
@@ -118,8 +116,7 @@ fn path_info<'a>(index: &'a AuditPathIndex, name: &str, version: &str) -> &'a Pa
 fn snapshot(deps: &[(&str, &str)], optional_deps: &[(&str, &str)]) -> SnapshotEntry {
     SnapshotEntry {
         dependencies: (!deps.is_empty()).then(|| {
-            deps
-                .iter()
+            deps.iter()
                 .map(|(name, version)| {
                     ((*name).parse().unwrap(), (*version).parse::<SnapshotDepRef>().unwrap())
                 })

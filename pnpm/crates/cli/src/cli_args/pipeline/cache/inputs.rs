@@ -23,8 +23,7 @@ fn input_globs(inputs: Option<&[String]>) -> miette::Result<(Vec<Glob<'_>>, Vec<
     Ok((
         compile_globs_ref(&replace)?,
         compile_globs_owned(
-            &add
-                .iter()
+            &add.iter()
                 .map(|pattern| pattern[1..].to_string())
                 .collect::<Vec<_>>(),
         )?,

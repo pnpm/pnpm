@@ -609,8 +609,7 @@ fn task_waiting_for_a_concurrency_permit_stays_undispatched_after_bail() {
             concurrency: 3,
             bail: true,
             run_task: &|node| {
-                ran
-                    .lock()
+                ran.lock()
                     .unwrap()
                     .push(node.project.clone());
                 TaskCompletion::Failed
@@ -719,8 +718,7 @@ fn scheduler_without_bail_skips_transitive_dependents_of_a_failure() {
             concurrency: 1,
             bail: false,
             run_task: &|node| {
-                ran
-                    .lock()
+                ran.lock()
                     .unwrap()
                     .push(node.project.to_string_lossy().into_owned());
                 if node.project == dir("b") {
@@ -762,8 +760,7 @@ fn scheduler_with_bail_dispatches_nothing_after_a_failure() {
             concurrency: 1,
             bail: true,
             run_task: &|node| {
-                ran
-                    .lock()
+                ran.lock()
                     .unwrap()
                     .push(node.project.to_string_lossy().into_owned());
                 if node.project == dir("a") {

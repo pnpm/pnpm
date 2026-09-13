@@ -418,8 +418,7 @@ fn manifest_dependency_map(manifest: &Value, key: &str) -> Option<HashMap<PkgNam
         return Some(HashMap::new());
     };
     let map = value.as_object()?;
-    map
-        .iter()
+    map.iter()
         .map(|(name, spec)| Some((PkgName::parse(name).ok()?, spec.as_str()?.to_string())))
         .collect()
 }

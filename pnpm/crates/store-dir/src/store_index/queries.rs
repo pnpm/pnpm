@@ -293,13 +293,11 @@ impl StoreIndex {
                 .prepare_cached("INSERT OR REPLACE INTO package_index (key, data) VALUES (?1, ?2)")
                 .map_err(|source| StoreIndexError::Write { source })?;
             for (key, buf) in &encoded {
-                stmt
-                    .execute(rusqlite::params![key, buf])
+                stmt.execute(rusqlite::params![key, buf])
                     .map_err(|source| StoreIndexError::Write { source })?;
             }
         }
-        tx
-            .commit()
+        tx.commit()
             .map_err(|source| StoreIndexError::Write { source })
     }
 

@@ -185,8 +185,7 @@ pub(super) fn parse_otp_challenge(body: &str) -> OtpChallenge {
         parsed
             .as_ref()
             .and_then(|json| {
-                json
-                    .get(field)?
+                json.get(field)?
                     .as_str()
                     .map(str::to_owned)
             })
@@ -200,8 +199,7 @@ fn stage_id_from_body(body: &str) -> Option<String> {
     serde_json::from_str::<Value>(body)
         .ok()
         .and_then(|json| {
-            json
-                .get("stageId")?
+            json.get("stageId")?
                 .as_str()
                 .map(str::to_owned)
         })

@@ -119,9 +119,7 @@ snapshots:
 fn lockfile_to_audit_request_includes_optional_dependencies_from_env_snapshots() {
     let lockfile = empty_lockfile();
     let mut env = EnvLockfile::create();
-    env
-        .root_importer_mut()
-        .config_dependencies
+    env.root_importer_mut().config_dependencies
         .insert(
             "my-tool".to_string(),
             SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
@@ -148,9 +146,7 @@ fn lockfile_to_audit_request_includes_optional_dependencies_from_env_snapshots()
 fn lockfile_to_audit_request_ignores_unreachable_env_packages() {
     let lockfile = empty_lockfile();
     let mut env = EnvLockfile::create();
-    env
-        .root_importer_mut()
-        .config_dependencies
+    env.root_importer_mut().config_dependencies
         .insert(
             "my-config".to_string(),
             SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },

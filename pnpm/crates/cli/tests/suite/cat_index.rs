@@ -135,8 +135,7 @@ fn should_fail_on_missing_package() {
 }
 
 fn files_from_cat_index(json: &serde_json::Value) -> &serde_json::Map<String, serde_json::Value> {
-    json
-        .get("files")
+    json.get("files")
         .expect("has 'files' object")
         .as_object()
         .expect("'files' is an object")

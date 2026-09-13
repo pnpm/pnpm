@@ -149,8 +149,7 @@ pub fn relative(base: &str, target: &str) -> String {
 }
 
 fn split_components(path: &str) -> Vec<&str> {
-    path
-        .split(['/', '\\'])
+    path.split(['/', '\\'])
         .filter(|component| !component.is_empty())
         .collect()
 }

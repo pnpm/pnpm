@@ -249,14 +249,13 @@ pub(super) fn parse_backend_interval(
     field: &str,
     raw: Option<&Interval>,
 ) -> Result<Option<Duration>, RegistryError> {
-    raw
-        .map(|Interval(value)| {
-            parse_interval(value)
-                .ok_or_else(|| RegistryError::InvalidConfig {
-                    reason: format!("backend.{backend}.{field} has an invalid interval {value:?}"),
-                })
-        })
-        .transpose()
+    raw.map(|Interval(value)| {
+        parse_interval(value)
+            .ok_or_else(|| RegistryError::InvalidConfig {
+                reason: format!("backend.{backend}.{field} has an invalid interval {value:?}"),
+            })
+    })
+    .transpose()
 }
 
 pub(super) fn resolve_libsql_paths(settings: &mut LibsqlSettings, base_dir: &Path) {

@@ -121,8 +121,7 @@ async fn read_project_manifests(
         let manifest = manifest::Manifest::parse(&contents)?;
         if manifest.project.is_some() {
             roots.push((
-                path
-                    .parent()
+                path.parent()
                     .expect("manifest has a parent")
                     .to_path_buf(),
                 manifest,

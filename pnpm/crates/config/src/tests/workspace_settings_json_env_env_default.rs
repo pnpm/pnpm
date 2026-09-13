@@ -336,14 +336,12 @@ pub fn gvs_enabled_exposes_hoisted_dependencies_through_node_path_and_the_esm_lo
         config.extra_env.get("NODE_PATH"),
         Some(&format!(
             "{}{path_delimiter}{}",
-            tmp
-                .path()
+            tmp.path()
                 .join("node_modules")
                 .join(".pnpm")
                 .join("node_modules")
                 .display(),
-            tmp
-                .path()
+            tmp.path()
                 .join("node_modules")
                 .display(),
         )),
@@ -370,8 +368,7 @@ pub fn prefer_symlinked_executables_node_path_anchors_at_the_workspace_root() {
     assert_eq!(
         config.extra_env.get("NODE_PATH"),
         Some(
-            &tmp
-                .path()
+            &tmp.path()
                 .join("node_modules/.pnpm/node_modules")
                 .display()
                 .to_string()
