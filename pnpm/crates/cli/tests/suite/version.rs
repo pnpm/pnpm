@@ -805,4 +805,40 @@ fn pacquet_version_assuming_published(workspace: &Path, args: &[&str]) -> std::p
     command.output().expect("run pacquet version")
 }
 
+#[test]
+#[cfg(unix)]
+fn version_flag_succeeds_on_read_only_filesystem() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let pinned = pnpm_config::PNPM_VERSION;
+    fs::write(
+        workspace.join("package.json"),
+        format!(r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{pinned}"}}}}}}"#),
+    )
+    .expect("write package.json");
+
+    let mut permissions =
+        fs::metadata(&workspace).expect("get workspace permissions").permissions();
+    permissions.set_readonly(true);
+    let _ = fs::set_permissions(&workspace, permissions.clone());
+
+    let output = test_command(pacquet, root.path())
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .args(["--version"])
+        .output()
+        .expect("run pacquet --version");
+
+    permissions.set_mode(0o755);
+    let _ = fs::set_permissions(&workspace, permissions);
+
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet --version should succeed on read-only filesystem");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{pinned}\n"));
+
+    drop((root, mock_instance));
+}
+
 mod git;

@@ -121,6 +121,35 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         OsString::from("--version"),
     ]);
     assert_eq!(input.state_dir.as_deref(), Some(Path::new("/tmp/state")));
+
+    let input = SwitchInput::from_version_argv(&[
+        OsString::from("pnpm"),
+        OsString::from("--store-dir"),
+        OsString::from("/tmp/store"),
+        OsString::from("--version"),
+    ]);
+    assert_eq!(input.store_dir.as_deref(), Some(Path::new("/tmp/store")));
+}
+
+#[test]
+fn pre_command_plan_for_version_flag_skips_sync_plan() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(
+        root.path(),
+        &format!(r#"{{"packageManager":"pnpm@{}"}}"#, pnpm_config::PNPM_VERSION),
+    );
+
+    let argv = vec![
+        OsString::from("pnpm"),
+        OsString::from("-C"),
+        root.path().as_os_str().to_os_string(),
+        OsString::from("--version"),
+    ];
+
+    let plan = super::pre_command_plan_for_version_flag(&argv, &ConfigOverrides::default())
+        .expect("pre_command_plan_for_version_flag");
+
+    assert!(plan.is_none(), "version flag should skip env lockfile sync");
 }
 
 #[test]
@@ -515,6 +544,7 @@ fn pre_command_input(dir: &Path) -> PreCommandInput {
         switch: SwitchInput {
             dir: dir.to_path_buf(),
             state_dir: None,
+            store_dir: None,
             npmrc_auth_file: None,
             command: Some("run".to_string()),
             frozen_lockfile: None,

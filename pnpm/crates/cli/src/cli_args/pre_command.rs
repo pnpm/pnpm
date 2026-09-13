@@ -208,6 +208,9 @@ fn load_pre_command_config(
     if let Some(state_dir) = switch.state_dir.as_deref() {
         apply_state_dir_override::<Host>(&mut config, state_dir, dir);
     }
+    if let Some(store_dir) = switch.store_dir.as_deref() {
+        config.store_dir = pnpm_store_dir::StoreDir::from(store_dir.to_path_buf());
+    }
     // `--lockfile-dir` moves the lockfile the pin is recorded in, and
     // `--offline` governs how that record is resolved. Both are
     // install-family flags, and the record below is made for every

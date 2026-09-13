@@ -137,12 +137,15 @@ fn print_version(
     child_argv: &[OsString],
     config_overrides: &ConfigOverrides,
 ) -> miette::Result<()> {
-    if let Some(plan) =
-        cli_args::pre_command::pre_command_plan_for_version_flag(argv, config_overrides)?
-        && block_on_runtime(
-            "pacquet-pre-command",
-            cli_args::pre_command::execute_plan(plan, child_argv),
-        )?
+    if let Ok(Some(plan)) =
+        cli_args::pre_command::pre_command_plan_for_version_flag(argv, config_overrides)
+        && matches!(
+            block_on_runtime(
+                "pacquet-pre-command",
+                cli_args::pre_command::execute_plan(plan, child_argv),
+            ),
+            Ok(true),
+        )
     {
         return Ok(());
     }
