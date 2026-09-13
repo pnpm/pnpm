@@ -1,4 +1,4 @@
-use super::{WriteMsg, apply_write_msg};
+use super::{WriteMsg, apply_write_msg, invalidate_side_effects};
 use crate::store_index::{SideEffectsDiff, StoreIndex, tests::sample_index};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
@@ -21,16 +21,11 @@ fn side_effects_invalidation_does_not_queue_unchanged_rows() {
         row.side_effects = side_effects;
         index.set(key, &row).unwrap();
         let mut pending = HashMap::new();
-        apply_write_msg(
-            &index,
-            &mut pending,
-            WriteMsg::InvalidateSideEffects {
-                key: key.to_string(),
-                cache_key: "test-engine".to_string(),
-            },
-        );
+        let writes = index.conn.total_changes();
+        invalidate_side_effects(&index, &mut pending, key, "test-engine").unwrap();
         dbg!(&row, &pending);
         assert!(pending.is_empty());
+        assert_eq!(index.conn.total_changes(), writes);
 
         row.requires_build = Some(true);
         let mut replacement = index.get(key).unwrap().unwrap();
@@ -40,16 +35,10 @@ fn side_effects_invalidation_does_not_queue_unchanged_rows() {
             &mut pending,
             WriteMsg::Replace { key: key.to_string(), value: replacement },
         );
-        apply_write_msg(
-            &index,
-            &mut pending,
-            WriteMsg::InvalidateSideEffects {
-                key: key.to_string(),
-                cache_key: "test-engine".to_string(),
-            },
-        );
+        invalidate_side_effects(&index, &mut pending, key, "test-engine").unwrap();
         dbg!(&pending);
-        assert_eq!(pending.remove(key).unwrap(), row);
+        assert!(pending.is_empty());
+        assert_eq!(index.get(key).unwrap().unwrap(), row);
     }
 }
 
@@ -76,15 +65,9 @@ fn side_effects_invalidation_preserves_pending_uploads_and_ignores_algorithm_mis
             },
         );
     }
-    apply_write_msg(
-        &index,
-        &mut pending,
-        WriteMsg::InvalidateSideEffects {
-            key: key.to_string(),
-            cache_key: "test-engine".to_string(),
-        },
-    );
-    let mut row = pending.remove(key).unwrap();
+    invalidate_side_effects(&index, &mut pending, key, "test-engine").unwrap();
+    assert!(pending.is_empty());
+    let mut row = index.get(key).unwrap().unwrap();
     let side_effects = row.side_effects.as_ref().unwrap();
     assert_eq!(side_effects.len(), 1);
     assert!(side_effects.contains_key("other-engine"));
@@ -92,24 +75,11 @@ fn side_effects_invalidation_preserves_pending_uploads_and_ignores_algorithm_mis
 
     row.algo = "sha256".to_string();
     index.set(key, &row).unwrap();
-    apply_write_msg(
-        &index,
-        &mut pending,
-        WriteMsg::InvalidateSideEffects {
-            key: key.to_string(),
-            cache_key: "other-engine".to_string(),
-        },
-    );
+    invalidate_side_effects(&index, &mut pending, key, "other-engine").unwrap();
     row.side_effects = None;
-    assert_eq!(pending.remove(key).unwrap(), row);
+    assert!(pending.is_empty());
+    assert_eq!(index.get(key).unwrap().unwrap(), row);
 
-    apply_write_msg(
-        &index,
-        &mut pending,
-        WriteMsg::InvalidateSideEffects {
-            key: "missing-package".to_string(),
-            cache_key: "test-engine".to_string(),
-        },
-    );
+    invalidate_side_effects(&index, &mut pending, "missing-package", "test-engine").unwrap();
     assert!(pending.is_empty());
 }
