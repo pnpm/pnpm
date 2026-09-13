@@ -128,6 +128,83 @@ fn injected_files_are_packed_and_supersede_an_on_disk_entry() {
     assert_eq!(tarball_entry_content(&tarball, "package/CHANGELOG.md").as_deref(), Some(composed));
 }
 
+/// Tar entries must be written in npm-packlist's compression order —
+/// extension, then basename, then full path — no matter the order the
+/// maps happen to carry. Entries that join the pack late — a
+/// workspace-root LICENSE or an injected file such as the composed
+/// CHANGELOG.md — used to trail the archive out of order. The expected
+/// order is not the byte order: byte order would put `B.txt` before
+/// `a.txt` and `LICENSE` before `dir/`.
+#[test]
+fn tarball_entries_are_written_in_compression_order() {
+    let workspace = tempdir().unwrap();
+    std::fs::write(workspace.path().join("LICENSE"), "MIT").unwrap();
+    let (dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
+    touch(dir.path(), "zzz.txt", "z\n");
+    touch(dir.path(), "dir/x.js", "x\n");
+    touch(dir.path(), "B.txt", "B\n");
+    touch(dir.path(), "a.txt", "a\n");
+    opts.workspace_dir = Some(workspace.path().to_path_buf());
+    opts.injected_files = vec![("package/mmm.txt".to_string(), b"m\n".to_vec())];
+
+    api::<SilentReporter, Host>(&opts).unwrap();
+
+    let names = tarball_entry_names(&dir.path().join("foo-1.0.0.tgz"));
+    assert_eq!(
+        names,
+        vec![
+            "package/LICENSE".to_string(),
+            "package/dir/x.js".into(),
+            "package/package.json".into(),
+            "package/a.txt".into(),
+            "package/B.txt".into(),
+            "package/mmm.txt".into(),
+            "package/zzz.txt".into(),
+        ],
+    );
+}
+
+/// Template collections and generated trees carry the same file names in
+/// many directories with identical or near-identical contents. Extension
+/// grouping keeps those duplicates adjacent, so DEFLATE's window dedupes
+/// them instead of storing each copy in full — the regression behind
+/// pnpm/pnpm#14766, where a full-path order packed a template repo at
+/// nine times its published size.
+#[test]
+fn duplicate_named_files_are_adjacent_for_compression() {
+    let (dir, opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
+    touch(dir.path(), "template-a/hero.png", "png-bytes");
+    touch(dir.path(), "template-b/hero.png", "png-bytes");
+    touch(dir.path(), "template-a/index.html", "<html>a</html>\n");
+    touch(dir.path(), "template-b/index.html", "<html>b</html>\n");
+
+    api::<SilentReporter, Host>(&opts).unwrap();
+
+    let names = tarball_entry_names(&dir.path().join("foo-1.0.0.tgz"));
+    assert_eq!(
+        names,
+        vec![
+            "package/template-a/index.html".to_string(),
+            "package/template-b/index.html".into(),
+            "package/package.json".into(),
+            "package/template-a/hero.png".into(),
+            "package/template-b/hero.png".into(),
+        ],
+    );
+}
+
+/// The case-only tiebreak is unreachable through fixtures on a
+/// case-insensitive filesystem, so it is pinned directly.
+#[test]
+fn compare_paths_en_locale_orders_case_insensitively() {
+    use std::cmp::Ordering;
+
+    assert_eq!(super::contents::compare_paths_en_locale("B.txt", "a.txt"), Ordering::Greater);
+    assert_eq!(super::contents::compare_paths_en_locale("a.txt", "A.txt"), Ordering::Less);
+    assert_eq!(super::contents::compare_paths_en_locale("dir/x.js", "LICENSE"), Ordering::Less);
+    assert_eq!(super::contents::compare_paths_en_locale("a.txt", "a.txt"), Ordering::Equal);
+}
+
 /// A `publishConfig.name` rename has to reach the tarball filename and the
 /// packed manifest together — the registry derives the published package from
 /// the manifest, so a filename naming the workspace package would name a

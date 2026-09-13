@@ -134,6 +134,18 @@ pub fn sort_paths_en_locale(paths: &mut Vec<String>) {
     *paths = decorated.into_iter().map(|(_, item)| item).collect();
 }
 
+/// Order two path strings the way [`sort_paths_en_locale`] orders a list:
+/// case-insensitively, with lowercase given precedence over uppercase on
+/// case-only ties. Sorts over structured entry lists (e.g. the tar's write
+/// order) compare through this; plain string lists use
+/// [`sort_paths_en_locale`], which decorates the lowercase keys once
+/// instead of recomputing them on every comparison.
+pub(super) fn compare_paths_en_locale(left: &str, right: &str) -> Ordering {
+    left.to_lowercase()
+        .cmp(&right.to_lowercase())
+        .then_with(|| case_precedence_tiebreak(left, right))
+}
+
 /// Tie-breaker for [`sort_paths_en_locale`]'s `localeCompare(b, 'en')`
 /// approximation: once two ASCII path strings compare equal
 /// case-insensitively, give a lowercase character precedence over its
