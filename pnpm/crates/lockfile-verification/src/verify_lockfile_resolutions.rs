@@ -13,7 +13,15 @@
 //! emit boundaries — is in place so the cache slice only needs to
 //! plug into the existing call sites.
 
-use std::{collections::BTreeMap, path::Path, sync::Arc, time::Instant};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
+};
 
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
@@ -38,6 +46,11 @@ use crate::{
 /// Default concurrency cap for the per-candidate fan-out: `64`, the
 /// floor of the `package-requester` network-concurrency formula.
 const DEFAULT_CONCURRENCY: usize = 64;
+
+/// Wall-clock spacing between throttled `Progress` events during the
+/// fan-out: frequent enough for live feedback, sparse enough that
+/// append-only output and CI logs don't fill with per-completion lines.
+const PROGRESS_REPORT_INTERVAL: Duration = Duration::from_millis(250);
 
 /// Options bundle for [`verify_lockfile_resolutions`].
 #[derive(Debug, Default, Clone)]
@@ -200,28 +213,80 @@ async fn verify_candidates<Reporter: self::Reporter>(
         LockfileVerificationMessage::Started { entries, lockfile_path: lockfile_path_str.clone() },
     );
 
-    // The drop guard fires `Failed` for early-return / panic paths.
-    // The success path replaces it with the `Done` payload before
-    // returning, so the guard's drop only fires on a panic or on the
-    // throw-violations branch.
     let mut emit_guard =
         TerminalEmitGuard::<Reporter>::failed(entries, started_at, lockfile_path_str.clone());
 
-    let violations = match run_fan_out(candidates, verifiers, concurrency).await {
-        Ok(violations) => violations,
-        // The registry couldn't be reached to verify an entry: abort with its
-        // own error (already credential-redacted) instead of a policy batch.
-        // `emit_guard` is still armed to emit `failed` on drop.
-        Err(message) => return Err(VerifyError::RegistryMetaFetchFailed { message }),
-    };
+    let observed_checked = AtomicU64::new(0u64);
+    let mut on_entry_checked = progress_reporter::<Reporter>(
+        entries,
+        started_at,
+        lockfile_path_str.clone(),
+        &observed_checked,
+    );
+
+    let violations =
+        match run_fan_out(candidates, verifiers, concurrency, Some(&mut on_entry_checked)).await {
+            Ok(violations) => violations,
+            // The registry couldn't be reached to verify an entry: abort with
+            // its own error (already credential-redacted) instead of a policy
+            // batch. The terminal event preserves how far the pass got.
+            Err(message) => {
+                emit_guard.fail(
+                    entries,
+                    observed_checked.load(Ordering::Relaxed),
+                    lockfile_path_str.clone(),
+                );
+                return Err(VerifyError::RegistryMetaFetchFailed { message });
+            }
+        };
     if violations.is_empty() {
         emit_guard.cancel(LockfileVerificationMessage::Done {
             entries,
+            checked: entries,
             elapsed_ms: started_at.elapsed().as_millis() as u64,
             lockfile_path: lockfile_path_str,
         });
+    } else {
+        // The fan-out processed every candidate before collecting
+        // violations, so the terminal event reports the full count.
+        emit_guard.fail(entries, entries, lockfile_path_str);
     }
     Ok(violations)
+}
+
+/// Live progress for [`verify_candidates`]: each completed entry is
+/// reported as a `Progress` event, throttled to at most one per
+/// [`PROGRESS_REPORT_INTERVAL`]. The count reaching `entries` is not
+/// reported — the terminal `Done`/`Failed` carries the final count, and
+/// in append-only output an extra event would be a redundant line.
+/// Every reported count is mirrored into `observed`, so the caller can
+/// surface how far an aborted pass got.
+fn progress_reporter<Reporter: self::Reporter>(
+    entries: u64,
+    started_at: Instant,
+    lockfile_path: Option<String>,
+    observed: &AtomicU64,
+) -> impl FnMut(u64) + Send {
+    let mut last_reported_at = started_at;
+    move |checked: u64| {
+        observed.store(checked, Ordering::Relaxed);
+        if checked == entries {
+            return;
+        }
+        let now = Instant::now();
+        if now.duration_since(last_reported_at) < PROGRESS_REPORT_INTERVAL {
+            return;
+        }
+        last_reported_at = now;
+        emit::<Reporter>(
+            LogLevel::Debug,
+            LockfileVerificationMessage::Progress {
+                entries,
+                checked,
+                lockfile_path: lockfile_path.clone(),
+            },
+        );
+    }
 }
 
 /// What the verification cache had to say about this lockfile.
@@ -309,7 +374,7 @@ pub async fn collect_resolution_policy_violations(
     let (candidates, _shape_violations) = collect_candidates(lockfile);
     // `Err(message)` is a transport failure the caller must surface rather than
     // treat as "no violations" — see [`run_fan_out`].
-    run_fan_out(candidates, verifiers, concurrency).await
+    run_fan_out(candidates, verifiers, concurrency, None).await
 }
 
 pub const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE: &str = "RESOLUTION_SHAPE_MISMATCH";
@@ -490,9 +555,11 @@ fn emit<Reporter: self::Reporter>(level: LogLevel, message: LockfileVerification
 }
 
 /// Drop guard that fires the terminal `Failed` payload when the
-/// runner panics or returns early through `?`. On the success path
-/// the runner calls [`Self::cancel`] with the `Done` payload, which
-/// replaces the queued message and emits it on drop instead.
+/// runner panics or returns early through `?`. Paths that know their
+/// outcome call [`Self::cancel`] with the terminal payload (`Done` on
+/// success, `Failed` with the real checked count after a completed
+/// fan-out), which replaces the queued message and emits it on drop
+/// instead.
 struct TerminalEmitGuard<Reporter: self::Reporter> {
     pending: Option<LockfileVerificationMessage>,
     /// `Started` instant captured at runner entry. The Drop impl uses
@@ -509,6 +576,10 @@ impl<Reporter: self::Reporter> TerminalEmitGuard<Reporter> {
         Self {
             pending: Some(LockfileVerificationMessage::Failed {
                 entries,
+                // Zero is only correct on a panic path — the only one
+                // that reaches the Drop without a prior cancel — where
+                // the checked count is unknown.
+                checked: 0,
                 // Placeholder; the Drop impl overwrites this with
                 // the real elapsed when the guard actually fires.
                 elapsed_ms: 0,
@@ -519,8 +590,21 @@ impl<Reporter: self::Reporter> TerminalEmitGuard<Reporter> {
         }
     }
 
-    fn cancel(&mut self, success: LockfileVerificationMessage) {
-        self.pending = Some(success);
+    fn cancel(&mut self, message: LockfileVerificationMessage) {
+        self.pending = Some(message);
+    }
+
+    /// Queue the terminal `Failed` payload with an explicit checked
+    /// count. The Drop impl refreshes `elapsed_ms` if it ends up
+    /// emitting the queued message.
+    fn fail(&mut self, entries: u64, checked: u64, lockfile_path: Option<String>) {
+        self.cancel(LockfileVerificationMessage::Failed {
+            entries,
+            checked,
+            // Refreshed by the Drop impl.
+            elapsed_ms: 0,
+            lockfile_path,
+        });
     }
 }
 
@@ -531,9 +615,10 @@ impl<Reporter: self::Reporter> Drop for TerminalEmitGuard<Reporter> {
             // success branch already filled the up-to-date value via
             // `cancel(Done { elapsed_ms: <now> })`.
             let message = match message {
-                LockfileVerificationMessage::Failed { entries, lockfile_path, .. } => {
+                LockfileVerificationMessage::Failed { entries, checked, lockfile_path, .. } => {
                     LockfileVerificationMessage::Failed {
                         entries,
+                        checked,
                         elapsed_ms: self.started_at.elapsed().as_millis() as u64,
                         lockfile_path,
                     }

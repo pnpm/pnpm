@@ -452,8 +452,8 @@ fn lifecycle_ids(message: &LifecycleMessage) -> (&str, &str, &str) {
     }
 }
 
-fn entries_label(entries: u64) -> String {
-    if entries == 1 { "1 entry".to_string() } else { format!("{entries} entries") }
+fn progress_label(checked: u64, entries: u64) -> String {
+    if entries == 1 { format!("{checked}/1 entry") } else { format!("{checked}/{entries} entries") }
 }
 
 /// How a cache-satisfied verification verdict is dated: relative to `now`
