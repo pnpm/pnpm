@@ -246,13 +246,20 @@ fn expand_braced_parameters(script: &str, rewrite: Rewrite<'_>) -> String {
             .expect("index sits on a character boundary");
         let next = bytes.get(index + 1).copied();
         index += character.len_utf8();
+        // A `word` carries no quoting of its own at this point, so POSIX reads
+        // its operators and backslashes as the text they are rather than as
+        // the syntax the parser would make of them.
+        let is_bare_word_text = rewrite.landing != Landing::Script && quote.is_none();
 
-        match next_step(character, next, quote) {
-            Step::Copy => push_plain(&mut expanded, character, rewrite.landing, quote),
-            Step::KeepEscapedPair(escaped) => {
-                expanded.push('\\');
-                expanded.push(escaped);
-                index += 1;
+        match next_step(character, next, quote, is_bare_word_text) {
+            Step::Copy => push_plain(&mut expanded, character, is_bare_word_text),
+            Step::KeepEscapedPair => {
+                let escaped = script[index..]
+                    .chars()
+                    .next()
+                    .expect("a character follows the backslash");
+                push_escaped(&mut expanded, escaped, is_bare_word_text);
+                index += escaped.len_utf8();
             }
             Step::Quote(now_inside) => {
                 quote = now_inside;
@@ -344,10 +351,35 @@ impl Landing {
 /// from a literal pair would mean tracking the substitution itself. A literal
 /// `(` in a `word` is still read as syntax, which fails loudly rather than
 /// quietly running something.
-fn push_plain(expanded: &mut String, character: char, landing: Landing, quote: Option<char>) {
-    let is_word_text = landing == Landing::UnquotedWord && quote.is_none();
-    if is_word_text && matches!(character, ';' | '&' | '|' | '<' | '>') {
+/// Append the character a backslash escaped. In a `word` POSIX makes it the
+/// plain character, and single quotes are the one form the parser reads as
+/// literal whatever it holds; a backslash of its own would be read by the
+/// parser's own rules for a run of them before an operator.
+fn push_escaped(expanded: &mut String, escaped: char, is_bare_word_text: bool) {
+    if !is_bare_word_text {
         expanded.push('\\');
+        expanded.push(escaped);
+        return;
+    }
+    // The one character single quotes cannot hold is quoted the other way.
+    if escaped == '\'' {
+        expanded.push_str(r#""'""#);
+        return;
+    }
+    expanded.push('\'');
+    expanded.push(escaped);
+    expanded.push('\'');
+}
+
+fn push_plain(expanded: &mut String, character: char, is_bare_word_text: bool) {
+    if is_bare_word_text && matches!(character, ';' | '&' | '|' | '<' | '>') {
+        // Double quotes rather than a backslash: the parser reads a run of
+        // backslashes before an operator by its own rules, so an escape here
+        // would depend on what the word happens to put in front of it.
+        expanded.push('"');
+        expanded.push(character);
+        expanded.push('"');
+        return;
     }
     expanded.push(character);
 }
@@ -356,7 +388,7 @@ fn push_plain(expanded: &mut String, character: char, landing: Landing, quote: O
 enum Step {
     Copy,
     /// A backslash and the character it escapes, which go through as they are.
-    KeepEscapedPair(char),
+    KeepEscapedPair,
     /// Carries the quote the rest of the text now sits in, `None` outside one.
     Quote(Option<char>),
     Expand,
@@ -364,15 +396,23 @@ enum Step {
 
 /// Read `character` in the light of the quote it sits in. `next` is the byte
 /// after it.
-fn next_step(character: char, next: Option<u8>, quote: Option<char>) -> Step {
+fn next_step(
+    character: char,
+    next: Option<u8>,
+    quote: Option<char>,
+    is_bare_word_text: bool,
+) -> Step {
     // A single-quoted run is literal all the way to its own closing quote.
     if quote == Some('\'') {
         return if character == '\'' { Step::Quote(None) } else { Step::Copy };
     }
 
     match (character, next) {
+        // In a word a backslash escapes whatever follows, and the pair has to
+        // stay one escape rather than be escaped a second time below.
+        ('\\', Some(_)) if is_bare_word_text => Step::KeepEscapedPair,
         // An escaped quote is text, so it must not read as opening a quoted run.
-        ('\\', Some(escaped @ (b'$' | b'"'))) => Step::KeepEscapedPair(char::from(escaped)),
+        ('\\', Some(b'$' | b'"')) => Step::KeepEscapedPair,
         ('\'', _) if quote.is_none() => Step::Quote(Some('\'')),
         ('"', _) if quote.is_none() => Step::Quote(Some('"')),
         ('"', _) => Step::Quote(None),

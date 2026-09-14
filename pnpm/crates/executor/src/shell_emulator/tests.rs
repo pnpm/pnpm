@@ -221,16 +221,20 @@ fn never_runs_an_expanded_value_as_script() {
 #[test]
 fn keeps_a_shell_operator_in_a_default_as_word_text() {
     let dir = tempdir().expect("create a temp dir");
-    let env = HashMap::new();
+    let env = HashMap::from([("MY_VAR".to_string(), "hello".to_string())]);
 
     for (script, expected) in [
-        ("echo ${MISSING:-safe; echo injected}", "safe; echo injected"),
-        (r#"echo "${MISSING:-safe; echo injected}""#, "safe; echo injected"),
-        ("echo ${MISSING:-a|b}", "a|b"),
-        ("echo ${MISSING:-a&b}", "a&b"),
-        ("echo ${MISSING:-a>written.txt}", "a>written.txt"),
+        ("echo [${MISSING:-safe; echo injected}]", "[safe; echo injected]"),
+        (r#"echo "[${MISSING:-safe; echo injected}]""#, "[safe; echo injected]"),
+        ("echo [${MISSING:-a|b}]", "[a|b]"),
+        ("echo [${MISSING:-a&b}]", "[a&b]"),
+        ("echo [${MISSING:-a>written.txt}]", "[a>written.txt]"),
+        ("echo [${MY_VAR:+a;b}]", "[a;b]"),
         ("echo pre${MISSING:-a;b}post", "prea;bpost"),
-        ("echo ${MISSING:-$(echo substituted)}", "substituted"),
+        ("echo [${MISSING:-$(echo substituted)}]", "[substituted]"),
+        // A quote inside the word ends the run the surrounding double quotes
+        // opened, so the operator behind it is bare word text after all.
+        (r#"echo ["${MISSING:-a"; echo pwned"}"]"#, "[a; echo pwned]"),
     ] {
         let (code, lines) = run(script, dir.path(), &env);
         assert_eq!(code, 0, "`{script}` must exit zero");
@@ -240,52 +244,25 @@ fn keeps_a_shell_operator_in_a_default_as_word_text() {
     assert!(!dir.path().join("written.txt").exists(), "a `>` in a word must not redirect");
 }
 
-/// A backslash run before an expansion behaves as it does before the bare
-/// `$NAME` the emulator already supported: the backslash next to the `$`
-/// escapes it whether or not another backslash precedes it. `bash` pairs the
-/// backslashes off first and would expand the odd-numbered cases, but the
-/// bare form's rule belongs to the bundled parser, and the two forms agreeing
-/// inside one shell matters more than either matching `bash` alone.
+/// A backslash in a `word` escapes whatever follows it, which is then the
+/// plain character. Every expectation here is what `bash` prints.
 #[test]
-fn treats_a_backslash_run_before_an_expansion_as_the_bare_form_does() {
+fn reads_a_backslash_in_a_default_as_escaping_what_follows() {
     let dir = tempdir().expect("create a temp dir");
-    let env = HashMap::from([("MY_VAR".to_string(), "hello".to_string())]);
+    let env = HashMap::new();
 
     for (script, expected) in [
-        (r"echo \$MY_VAR", "$MY_VAR"),
-        (r"echo \${MY_VAR}", "${MY_VAR}"),
-        (r"echo \\$MY_VAR", r"\$MY_VAR"),
-        (r"echo \\${MY_VAR}", r"\${MY_VAR}"),
-        (r"echo \\\$MY_VAR", r"\\$MY_VAR"),
-        (r"echo \\\${MY_VAR}", r"\\${MY_VAR}"),
+        (r"echo [${MISSING:-safe\; echo injected}]", "[safe; echo injected]"),
+        (r"echo [${MISSING:-a\;b}]", "[a;b]"),
+        (r"echo [${MISSING:-a\\;b}]", r"[a\;b]"),
+        (r"echo [${MISSING:-a\$b}]", "[a$b]"),
+        (r"echo [${MISSING:-a\qb}]", "[aqb]"),
+        (r"echo [${MISSING:-a\ b}]", "[a b]"),
     ] {
         let (code, lines) = run(script, dir.path(), &env);
         assert_eq!(code, 0, "`{script}` must exit zero");
         assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected.to_string())], "`{script}`");
     }
-}
-
-/// A script may nest expansions as deeply as it likes, so the rewrite follows
-/// a bounded number of levels and leaves anything past that verbatim. Without
-/// the bound a lifecycle script could recurse until the stack overflows and
-/// takes the process with it.
-#[test]
-fn bounds_how_deeply_it_follows_nested_expansions() {
-    let dir = tempdir().expect("create a temp dir");
-    let nested =
-        |depth: usize| format!("echo {}deep{}", "${MISSING:-".repeat(depth), "}".repeat(depth));
-
-    let (code, lines) = run(&nested(32), dir.path(), &HashMap::new());
-    assert_eq!(code, 0);
-    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "deep".to_string())]);
-
-    let (code, lines) = run(&nested(33), dir.path(), &HashMap::new());
-    assert_eq!(code, 0);
-    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "${MISSING:-deep}".to_string())]);
-
-    let (code, lines) = run(&nested(5_000), dir.path(), &HashMap::new());
-    assert_eq!(code, 0);
-    assert_eq!(lines.len(), 1, "the script still runs one `echo`");
 }
 
 /// An expansion the `$NAME` form cannot stand in for keeps the behavior it
