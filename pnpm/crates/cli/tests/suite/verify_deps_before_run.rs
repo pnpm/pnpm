@@ -789,3 +789,78 @@ fn silent_recursive_run_suppresses_verifier_output() {
 
     drop(root);
 }
+
+/// Issue #14891: When a `pnpm-lock.yaml` contains an unreachable snapshot (a snapshot
+/// entry no importer references anymore), frozen installs and `verifyDepsBeforeRun`
+/// must not re-materialize packages or fail in a non-convergence loop.
+#[test]
+fn unreachable_lockfile_snapshots_do_not_trigger_reinstall_loop() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "repro",
+            "version": "1.0.0",
+            "dependencies": {
+                "is-odd": "3.0.1",
+                "is-even": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    // Remove is-even from package.json and lockfile importer section,
+    // leaving is-even@1.0.0 as an unreachable snapshot in pnpm-lock.yaml.
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "repro",
+            "version": "1.0.0",
+            "dependencies": {
+                "is-odd": "3.0.1"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write updated package.json");
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("load lockfile")
+        .expect("lockfile exists");
+
+    if let Some(importer) = lockfile.importers.get_mut(".") {
+        if let Some(deps) = &mut importer.dependencies {
+            deps.remove(&"is-even".parse().unwrap());
+        }
+        if let Some(specs) = &mut importer.specifiers {
+            specs.remove("is-even");
+        }
+    }
+
+    pnpm_lockfile::save_value_to_path(&lockfile, &lockfile_path).expect("save lockfile");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    let output2 = pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .expect("frozen install pass 2");
+    assert!(output2.status.success(), "frozen install pass 2 failed");
+
+    pacquet_in(&workspace)
+        .with_args(["--config.verify-deps-before-run=error", "exec", "node", "-e", "0"])
+        .assert()
+        .success();
+
+    drop(root);
+}

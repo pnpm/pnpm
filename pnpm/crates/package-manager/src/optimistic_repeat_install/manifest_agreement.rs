@@ -256,7 +256,16 @@ pub(crate) fn assert_wanted_lockfile_equals_current(
             if &current == wanted {
                 Ok(())
             } else {
-                Err("the installed dependencies are not up to date with the lockfile")
+                let filtered = pnpm_deps_restorer::filter_lockfile_for_current(
+                    wanted,
+                    pnpm_modules_yaml::IncludedDependencies::default(),
+                    &pnpm_deps_restorer::SkippedSnapshots::new(),
+                );
+                if current == filtered {
+                    Ok(())
+                } else {
+                    Err("the installed dependencies are not up to date with the lockfile")
+                }
             }
         }
     }
