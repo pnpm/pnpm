@@ -116,16 +116,12 @@ where
     store_dir_for_os(&home_dir, env::consts::OS).into()
 }
 
-/// The OS-dependent tail of [`default_store_dir`], with the OS as a
-/// parameter so unit tests can drive the Unix fallback for platforms
-/// no CI runner builds on, such as FreeBSD.
+/// The OS-dependent tail of [`default_store_dir`], which documents the
+/// layout this implements. The OS is a parameter so unit tests can drive
+/// platforms no CI runner builds on, such as FreeBSD.
 ///
-/// pnpm treats every non-Windows platform as Unix here, mirroring
-/// [`default_pnpm_home_dir`] and [`default_cache_dir`]: the store
-/// lands in `~/.local/share/pnpm/store` everywhere except macOS.
-/// Windows never reaches this helper — [`default_store_dir`] returns
-/// through the drive-letter logic before the fall-through.
-#[must_use]
+/// Windows never reaches here: [`default_store_dir`] returns through the
+/// drive-letter logic first.
 fn store_dir_for_os(home_dir: &Path, os: &str) -> PathBuf {
     match os {
         "macos" => home_dir.join("Library/pnpm/store"),

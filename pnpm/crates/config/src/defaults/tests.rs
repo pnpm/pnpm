@@ -139,26 +139,24 @@ fn test_default_store_dir_falls_back_to_home_dir() {
     }
     let store_dir = default_store_dir::<NoEnvWithHome>();
     let expected = match std::env::consts::OS {
-        "linux" => format!("/home/test-user/.local/share/pnpm/store/{STORE_VERSION}"),
         "macos" => format!("/home/test-user/Library/pnpm/store/{STORE_VERSION}"),
-        other => panic!("unexpected target OS in test: {other}"),
+        _ => format!("/home/test-user/.local/share/pnpm/store/{STORE_VERSION}"),
     };
     assert_eq!(display_store_dir(&store_dir), expected);
 }
 
-/// Every non-Windows, non-macOS OS string takes the Unix fallback.
-/// Driven through the pure `store_dir_for_os` helper, so the FreeBSD
-/// startup panic is pinned on any test host without needing a
-/// FreeBSD runner.
+/// Calls [`store_dir_for_os`] rather than [`default_store_dir`] so the
+/// Unix fallback is pinned for OS strings no CI runner builds on.
 #[test]
 fn test_store_dir_for_os_unix_fallback_covers_freebsd() {
     let home = PathBuf::from("/home/test-user");
-    assert_eq!(store_dir_for_os(&home, "freebsd"), home.join(".local/share/pnpm/store"));
-    assert_eq!(store_dir_for_os(&home, "netbsd"), home.join(".local/share/pnpm/store"));
-    assert_eq!(store_dir_for_os(&home, "linux"), home.join(".local/share/pnpm/store"));
+    let unix = home.join(".local/share/pnpm/store");
+    assert_eq!(store_dir_for_os(&home, "freebsd"), unix);
+    assert_eq!(store_dir_for_os(&home, "netbsd"), unix);
+    assert_eq!(store_dir_for_os(&home, "linux"), unix);
 }
 
-/// macOS keeps its Library-based layout.
+/// macOS is the one arm the Unix fallback must not swallow.
 #[test]
 fn test_store_dir_for_os_macos_keeps_library_layout() {
     let home = PathBuf::from("/home/test-user");
