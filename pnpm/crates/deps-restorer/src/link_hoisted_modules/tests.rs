@@ -32,7 +32,10 @@ pub(super) fn make_node(
     pkg_id: &str,
     dir: PathBuf,
 ) -> DependenciesGraphNode {
-    let modules = dir.parent().expect("dir has parent").to_path_buf();
+    let modules = dir
+        .parent()
+        .expect("dir has parent")
+        .to_path_buf();
     DependenciesGraphNode {
         package: crate::HoistedPackageMetadata {
             dep_path: DepPath::from(dep_path.to_string()),

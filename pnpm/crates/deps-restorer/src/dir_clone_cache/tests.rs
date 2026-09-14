@@ -16,6 +16,7 @@ fn eligible_for_clone_capable_local_materialization() {
         assert_eq!(
             DirCloneCache::eligible(&config, NodeLinker::Hoisted),
             cfg!(target_os = "macos"),
+            "the hoisted linker clones into `node_modules` with {method:?}",
         );
     }
     for method in [PackageImportMethod::Hardlink, PackageImportMethod::Copy] {

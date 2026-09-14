@@ -205,8 +205,14 @@ fn cloned_hoisted_aliases_reuse_canonical_content_and_remain_independent() {
         fs::write(&blob, b"original").expect("CAS");
         let cas = HashMap::from([("package.json".to_string(), blob.clone())]);
         let logged = AtomicU8::new(0);
-        let first =
-            make_node(alias, package, package, temp.path().join("first/node_modules").join(alias));
+        let first = make_node(
+            alias,
+            package,
+            package,
+            temp.path()
+                .join("first/node_modules")
+                .join(alias),
+        );
         assert!(cache.try_import::<SilentReporter>(&first, import(&logged), &cas));
         fs::remove_file(&blob).expect("remove CAS to prove reuse");
         fs::write(first.dir.join("package.json"), b"project change").expect("edit first clone");

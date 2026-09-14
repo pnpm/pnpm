@@ -1,5 +1,7 @@
 mod cas_paths;
 
+mod dir_clone;
+
 mod integrity;
 
 mod store;

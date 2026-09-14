@@ -167,7 +167,10 @@ pub(super) fn lay_out_slots<'l>(
         Some(allow_build_policy),
         Some(install.projects.lockfile_dir),
     );
-    // Fresh hoisted installs do not consume the cache, so avoid its filesystem probe.
+    // On this path only the isolated linker reaches the cache:
+    // `fresh_install_context` hands the hoisted linker `None`. Building
+    // one for a fresh hoisted install would pay for the capability
+    // probe and never clone.
     let dir_clone_cache = (install.execution.node_linker == NodeLinker::Isolated)
         .then(|| {
             pnpm_deps_restorer::DirCloneCache::build(

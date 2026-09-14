@@ -315,10 +315,9 @@ fn import_node<Reporter: self::Reporter>(
         });
     };
 
-    if !opts
-        .dir_clone_cache
-        .is_some_and(|cache| cache.try_import::<Reporter>(node, opts.import, cas_paths))
-    {
+    if !opts.dir_clone_cache.is_some_and(|cache| {
+        cache.try_import::<Reporter>(node, opts.import, cas_paths)
+    }) {
         import_indexed_dir::<Reporter>(
             opts.import.logged_methods,
             opts.import.method,
