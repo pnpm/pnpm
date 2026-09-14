@@ -4,11 +4,11 @@ exports[`batch script > shim files > bat.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -132,11 +132,11 @@ exports[`custom node executable > shim files > env.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -218,11 +218,11 @@ exports[`env shebang > shim files > env.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -330,11 +330,11 @@ exports[`env shebang with NODE_PATH > shim files > env.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -465,11 +465,11 @@ exports[`env shebang with PATH extending > shim files > env.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -589,11 +589,11 @@ exports[`env shebang with args > shim files > env.args.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -701,11 +701,11 @@ exports[`env shebang with default args > shim files > env.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -813,11 +813,11 @@ exports[`env shebang with no NODE_PATH > shim files > env.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -925,11 +925,11 @@ exports[`explicit shebang > shim files > sh.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1037,11 +1037,11 @@ exports[`explicit shebang with args > shim files > sh.args.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1149,11 +1149,11 @@ exports[`explicit shebang with args, linking to another drive on Windows > shim 
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1261,11 +1261,11 @@ exports[`explicit shebang with prog args > shim files > sh.args.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1373,11 +1373,11 @@ exports[`no cmd file > shim files > exe.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1452,11 +1452,11 @@ exports[`no shebang > shim files > exe.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -1538,11 +1538,11 @@ exports[`shebang with -S > shim files > from.env.s.shim 1`] = `
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so every helper it
-# calls goes through \`command -p\`, which searches the system default path
-# instead. A dependency's bin cannot stand in for one of them and take over the
-# shim before it reaches its target. Directories come from \`\${link%/*}\`, which
-# needs no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed,
+# uname, and printf go through \`command -p\`, which searches the system default
+# path instead. A dependency's bin cannot stand in for one of them and take over
+# the shim before it reaches its target. Directories come from \`\${link%/*}\`,
+# which needs no helper at all.
 link="$0"
 # \`\${link%/*}\` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
