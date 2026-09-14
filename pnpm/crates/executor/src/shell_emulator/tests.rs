@@ -148,6 +148,31 @@ fn keeps_an_apostrophe_literal_inside_a_double_quoted_default() {
     assert_eq!(lines, vec![(LifecycleStdio::Stdout, "it's fine".to_string())]);
 }
 
+/// A default may itself be a parameter expansion, to any depth, and the
+/// parameter that wins still reaches the script as a `$NAME` reference.
+#[test]
+fn expands_a_default_that_is_itself_an_expansion() {
+    let dir = tempdir().expect("create a temp dir");
+    let first = ("FIRST".to_string(), "first".to_string());
+    let second = ("SECOND".to_string(), "second".to_string());
+
+    for (env, expected) in [
+        (HashMap::from([first.clone(), second.clone()]), "prefirstpost"),
+        (HashMap::from([second]), "presecondpost"),
+        (HashMap::from([first]), "prefirstpost"),
+        (HashMap::new(), "prefallbackpost"),
+    ] {
+        let script = "echo pre${FIRST:-${SECOND:-fallback}}post";
+        let (code, lines) = run(script, dir.path(), &env);
+        assert_eq!(code, 0, "`{script}` must exit zero for {env:?}");
+        assert_eq!(
+            lines,
+            vec![(LifecycleStdio::Stdout, expected.to_string())],
+            "`{script}` for {env:?}",
+        );
+    }
+}
+
 /// Values reach the script as word text, never as script text, so shell
 /// punctuation in an environment variable stays an argument.
 #[test]
