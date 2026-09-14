@@ -92,6 +92,97 @@ fn expands_variables_from_the_supplied_env() {
 }
 
 #[test]
+fn expands_braced_parameters() {
+    let dir = tempdir().expect("create a temp dir");
+    let env = HashMap::from([
+        ("MY_VAR".to_string(), "hello".to_string()),
+        ("EMPTY".to_string(), String::new()),
+    ]);
+
+    for (script, expected) in [
+        ("echo ${MY_VAR}", "hello"),
+        ("echo ${MY_VAR:-fallback}", "hello"),
+        ("echo ${MISSING:-fallback}", "fallback"),
+        ("echo ${EMPTY:-fallback}", "fallback"),
+        ("echo [${EMPTY-fallback}]", "[]"),
+        ("echo ${MY_VAR:+set}", "set"),
+        ("echo [${MISSING:+set}]", "[]"),
+        ("echo pre${MY_VAR}post", "prehellopost"),
+        (r#"echo "${MY_VAR}""#, "hello"),
+        (r#"echo "pre${MY_VAR}post""#, "prehellopost"),
+        ("echo '${MY_VAR}'", "${MY_VAR}"),
+        (r"echo \${MY_VAR}", "${MY_VAR}"),
+        ("echo ${MISSING:-${MY_VAR}}", "hello"),
+        ("echo ${MISSING:-pre${MY_VAR}post}", "prehellopost"),
+    ] {
+        let (code, lines) = run(script, dir.path(), &env);
+        assert_eq!(code, 0, "`{script}` must exit zero");
+        assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected.to_string())], "`{script}`");
+    }
+}
+
+/// A quoted or escaped `}` inside the expansion belongs to the default
+/// value, not to the expansion, so the closing brace is the one after it.
+#[test]
+fn reads_past_a_quoted_closing_brace_in_a_default() {
+    let dir = tempdir().expect("create a temp dir");
+    let env = HashMap::new();
+
+    let (code, lines) = run(r#"echo ${MISSING:-"}"}!"#, dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "}!".to_string())]);
+
+    let (code, lines) = run(r"echo ${MISSING:-'}'}!", dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "}!".to_string())]);
+}
+
+/// Inside a double-quoted word an apostrophe is an ordinary character, so it
+/// does not hide the brace that closes the expansion.
+#[test]
+fn keeps_an_apostrophe_literal_inside_a_double_quoted_default() {
+    let dir = tempdir().expect("create a temp dir");
+
+    let (code, lines) = run(r#"echo "${MISSING:-it's fine}""#, dir.path(), &HashMap::new());
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "it's fine".to_string())]);
+}
+
+/// Values reach the script as word text, never as script text, so shell
+/// punctuation in an environment variable stays an argument.
+#[test]
+fn never_runs_an_expanded_value_as_script() {
+    let dir = tempdir().expect("create a temp dir");
+    let env = HashMap::from([
+        ("INJECTED".to_string(), "; echo pwned".to_string()),
+        ("SUBSTITUTED".to_string(), "$(echo pwned)".to_string()),
+    ]);
+
+    let (code, lines) = run("echo ${INJECTED}", dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "; echo pwned".to_string())]);
+
+    let (code, lines) = run(r#"echo "${SUBSTITUTED}""#, dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "$(echo pwned)".to_string())]);
+}
+
+/// An expansion the `$NAME` form cannot stand in for keeps the behavior it
+/// has today: the emulator hands it to the script as literal text.
+#[test]
+fn leaves_unsupported_parameter_forms_alone() {
+    let dir = tempdir().expect("create a temp dir");
+    let env = HashMap::from([("MY_VAR".to_string(), "hello".to_string())]);
+
+    for script in ["echo ${MY_VAR:=x}", "echo ${MY_VAR=x}", "echo ${#MY_VAR}", "echo ${MY_VAR"] {
+        let expected = script.trim_start_matches("echo ").to_string();
+        let (code, lines) = run(script, dir.path(), &env);
+        assert_eq!(code, 0, "`{script}` must exit zero");
+        assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected)], "`{script}`");
+    }
+}
+
+#[test]
 fn runs_in_the_given_directory() {
     let dir = tempdir().expect("create a temp dir");
     let (code, _) = run("echo hello > written.txt", dir.path(), &HashMap::new());
