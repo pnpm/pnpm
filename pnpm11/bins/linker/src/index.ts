@@ -389,13 +389,15 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   }
 }
 
-// The line the POSIX shim header resolves readlink through. A shim written
-// before the helpers moved to `command -p` still points at its target, so this
-// is what tells a warm install to replace it. pnpm 12 looks for the same line.
+// A warm install rewrites a POSIX shim that is missing either the
+// `command -p` readlink lookup or the printf path conversion. The target
+// marker does not describe the header. pnpm 12 looks for the same two lines.
 const SH_SHIM_HARDENED_HELPER_LINE = '  target=$(command -p readlink "$link")\n'
+const SH_SHIM_PATH_PRINTF_LINE = String.raw`basedir=$(printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')` + '\n'
 
 function isShimHardened (content: string): boolean {
-  return content.includes(SH_SHIM_HARDENED_HELPER_LINE)
+  return content.includes(SH_SHIM_HARDENED_HELPER_LINE) &&
+    content.includes(SH_SHIM_PATH_PRINTF_LINE)
 }
 
 // Reports whether two paths refer to the same file. A matching inode/device
