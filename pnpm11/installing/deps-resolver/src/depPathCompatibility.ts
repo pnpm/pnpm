@@ -23,23 +23,27 @@ export function nodeDepsCount (node: GenericDependenciesGraphNodeWithResolvedChi
 // Compares dependency/peer *sets* only, not package identity, so callers must
 // pass depPaths already known to share a `pkgIdWithPatchHash` — otherwise two
 // unrelated leaf packages (both with empty sets) would count as compatible.
+// Every pair must hold, so the walk is a conjunction and the first incompatible
+// pair settles it. Pairs are visited at most once, which both terminates
+// dependency cycles — a pair reached again is taken as compatible — and keeps
+// the walk linear in the pairs it reaches. The queue is explicit so the depth of
+// the graph cannot overflow the call stack.
 export function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraphWithResolvedChildren<T>,
   depPath1: DepPath,
   depPath2: DepPath
 ): boolean {
-  // Pairs are recorded on entry, so a dependency cycle assumes compatibility
-  // instead of recursing forever. The assumption is never observed by a `true`
-  // result: an incompatible pair anywhere aborts the whole check.
   const visited = new Map<DepPath, Set<DepPath>>()
-  const isSuperset = (supersetDepPath: DepPath, subsetDepPath: DepPath): boolean => {
-    if (supersetDepPath === subsetDepPath) return true
+  const pending: Array<[DepPath, DepPath]> = [[depPath1, depPath2]]
+  while (pending.length > 0) {
+    const [supersetDepPath, subsetDepPath] = pending.pop()!
+    if (supersetDepPath === subsetDepPath) continue
     let subsets = visited.get(supersetDepPath)
     if (subsets == null) {
       subsets = new Set()
       visited.set(supersetDepPath, subsets)
     }
-    if (subsets.has(subsetDepPath)) return true
+    if (subsets.has(subsetDepPath)) continue
     subsets.add(subsetDepPath)
 
     const supersetNode = depGraph[supersetDepPath]
@@ -51,17 +55,21 @@ export function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
       if (!supersetNode.resolvedPeerNames.has(peerName)) return false
     }
 
-    return Object.entries(subsetNode.children!).every(([alias, subsetChildDepPath]) => {
+    for (const [alias, subsetChildDepPath] of Object.entries(subsetNode.children!)) {
       const supersetChildDepPath = supersetNode.children![alias]
       if (supersetChildDepPath == null) return false
-      if (supersetChildDepPath === subsetChildDepPath) return true
+      if (supersetChildDepPath === subsetChildDepPath) continue
       const supersetChildNode = depGraph[supersetChildDepPath]
       const subsetChildNode = depGraph[subsetChildDepPath]
-      return supersetChildNode != null &&
-        subsetChildNode != null &&
-        supersetChildNode.pkgIdWithPatchHash === subsetChildNode.pkgIdWithPatchHash &&
-        isSuperset(supersetChildDepPath, subsetChildDepPath)
-    })
+      if (
+        supersetChildNode == null ||
+        subsetChildNode == null ||
+        supersetChildNode.pkgIdWithPatchHash !== subsetChildNode.pkgIdWithPatchHash
+      ) {
+        return false
+      }
+      pending.push([supersetChildDepPath, subsetChildDepPath])
+    }
   }
-  return isSuperset(depPath1, depPath2)
+  return true
 }

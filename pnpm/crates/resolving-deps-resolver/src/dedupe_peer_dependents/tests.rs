@@ -304,3 +304,32 @@ fn parent_collapses_when_its_child_carries_a_peer_suffix_the_other_lacks() {
     assert_eq!(direct["project-bare"]["parent"], dp(PARENT_WITH_OTHER));
     assert!(!graph.contains_key(&dp(PARENT_BARE)));
 }
+
+/// Chain longer than any thread's stack budget, diverging at every level
+/// so the compatibility walk has to reach the bottom. A recursive walk
+/// takes one frame per level and aborts here.
+#[test]
+fn deep_divergent_chain_does_not_overflow_the_stack() {
+    const DEPTH: usize = 30_000;
+
+    let mut graph = DependenciesGraph::default();
+    for level in 0..DEPTH {
+        let pkg = format!("pkg{level}@1.0.0");
+        let larger = format!("pkg{level}@1.0.0(peer@1.0.0)");
+        let child = format!("pkg{}@1.0.0", level + 1);
+        let larger_child = format!("pkg{}@1.0.0(peer@1.0.0)", level + 1);
+        let last = level + 1 == DEPTH;
+        let larger_children: Vec<(&str, &str)> =
+            if last { vec![] } else { vec![("next", larger_child.as_str())] };
+        let children: Vec<(&str, &str)> =
+            if last { vec![] } else { vec![("next", child.as_str())] };
+        graph.insert(dp(&larger), make_node(&pkg, &larger, &larger_children, &["peer"]));
+        graph.insert(dp(&pkg), make_node(&pkg, &pkg, &children, &[]));
+    }
+
+    let larger = dp("pkg0@1.0.0(peer@1.0.0)");
+    let smaller = dp("pkg0@1.0.0");
+    assert!(crate::dep_path_compatibility::is_compatible_and_has_more_deps(
+        &graph, &larger, &smaller
+    ));
+}

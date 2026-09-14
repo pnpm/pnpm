@@ -17,36 +17,43 @@ pub(crate) fn node_deps_count(node: &DependenciesGraphNode) -> usize {
 /// deps, every peer `smaller` resolved must also be resolved by `larger`,
 /// and each of `smaller`'s child aliases must resolve either to the same
 /// depPath or to a variant of the same package that `larger`'s child can
-/// absorb in turn. The recursive case is what lets a package whose child
+/// absorb in turn. That last case is what lets a package whose child
 /// carries a peer suffix absorb the variant whose child does not.
 ///
 /// Compares dependency/peer *sets* only, not package identity, so callers
 /// must pass depPaths already known to share a `pkgIdWithPatchHash` —
 /// otherwise two unrelated leaf packages (both with empty sets) would
 /// count as compatible.
-pub(crate) fn is_compatible_and_has_more_deps(
-    graph: &DependenciesGraph,
-    larger: &DepPath,
-    smaller: &DepPath,
-) -> bool {
-    let mut visited = HashSet::default();
-    is_compatible_and_has_more_deps_helper(graph, larger, smaller, &mut visited)
-}
-
-/// Pairs are recorded on entry, so a dependency cycle assumes
-/// compatibility instead of recursing forever. The assumption is never
-/// observed by a `true` result: an incompatible pair anywhere aborts the
-/// whole check.
-fn is_compatible_and_has_more_deps_helper<'a>(
+///
+/// Every child pair must hold, so the walk is a conjunction and the first
+/// incompatible pair settles it. Pairs are visited at most once, which
+/// both terminates dependency cycles — a pair reached again is taken as
+/// compatible — and keeps the walk linear in the pairs it reaches.
+pub(crate) fn is_compatible_and_has_more_deps<'a>(
     graph: &'a DependenciesGraph,
     larger: &'a DepPath,
     smaller: &'a DepPath,
-    visited: &mut HashSet<(&'a DepPath, &'a DepPath)>,
 ) -> bool {
-    if larger == smaller || !visited.insert((larger, smaller)) {
-        return true;
+    let mut visited = HashSet::default();
+    let mut pending = vec![(larger, smaller)];
+    while let Some((larger, smaller)) = pending.pop() {
+        if larger == smaller || !visited.insert((larger, smaller)) {
+            continue;
+        }
+        if !pair_is_compatible(graph, larger, smaller, &mut pending) {
+            return false;
+        }
     }
+    true
+}
 
+/// Checks one pair and queues the child pairs whose depPaths differ.
+fn pair_is_compatible<'a>(
+    graph: &'a DependenciesGraph,
+    larger: &DepPath,
+    smaller: &DepPath,
+    pending: &mut Vec<(&'a DepPath, &'a DepPath)>,
+) -> bool {
     let (Some(larger_node), Some(smaller_node)) = (graph.get(larger), graph.get(smaller)) else {
         return false;
     };
@@ -59,7 +66,11 @@ fn is_compatible_and_has_more_deps_helper<'a>(
         return false;
     }
 
-    child_deps_are_compatible(graph, larger_node, smaller_node, visited)
+    smaller_node.edges.children
+        .iter()
+        .all(|(alias, smaller_child)| {
+            queue_child_pair(graph, larger_node, alias, smaller_child, pending)
+        })
 }
 
 fn has_all_resolved_peers(
@@ -71,25 +82,12 @@ fn has_all_resolved_peers(
         .all(|peer| larger_node.edges.resolved_peer_names.contains(peer))
 }
 
-fn child_deps_are_compatible<'a>(
-    graph: &'a DependenciesGraph,
-    larger_node: &'a DependenciesGraphNode,
-    smaller_node: &'a DependenciesGraphNode,
-    visited: &mut HashSet<(&'a DepPath, &'a DepPath)>,
-) -> bool {
-    smaller_node.edges.children
-        .iter()
-        .all(|(alias, smaller_child)| {
-            are_child_deps_compatible(graph, larger_node, alias, smaller_child, visited)
-        })
-}
-
-fn are_child_deps_compatible<'a>(
+fn queue_child_pair<'a>(
     graph: &'a DependenciesGraph,
     larger_node: &'a DependenciesGraphNode,
     alias: &str,
     smaller_child: &'a DepPath,
-    visited: &mut HashSet<(&'a DepPath, &'a DepPath)>,
+    pending: &mut Vec<(&'a DepPath, &'a DepPath)>,
 ) -> bool {
     let Some(larger_child) = larger_node.edges.children.get(alias) else {
         return false;
@@ -105,5 +103,6 @@ fn are_child_deps_compatible<'a>(
     if larger_child_node.resolved_package_id != smaller_child_node.resolved_package_id {
         return false;
     }
-    is_compatible_and_has_more_deps_helper(graph, larger_child, smaller_child, visited)
+    pending.push((larger_child, smaller_child));
+    true
 }

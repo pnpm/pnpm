@@ -1,6 +1,7 @@
 import { expect, test } from '@jest/globals'
-import type { PkgIdWithPatchHash, PkgResolutionId, ProjectRootDir } from '@pnpm/types'
+import type { DepPath, PkgIdWithPatchHash, PkgResolutionId, ProjectRootDir } from '@pnpm/types'
 
+import { isCompatibleAndHasMoreDeps } from '../lib/depPathCompatibility.js'
 import type { NodeId } from '../lib/nextNodeId.js'
 import type { DependenciesTreeNode } from '../lib/resolveDependencies.js'
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
@@ -287,4 +288,32 @@ test('a package whose child carries an optional peer suffix absorbs the variant 
   expect(dependenciesByProjectId.projectOptPeer.get('parent')).toBe('parent/1.0.0(optPeer/1.0.0)')
   expect(dependenciesByProjectId.projectOther.get('parent')).toBe('parent/1.0.0(other/1.0.0)')
   expect(dependenciesByProjectId.projectBare.get('parent')).toBe('parent/1.0.0(other/1.0.0)')
+})
+
+// Chain longer than the call stack's budget, diverging at every level so the
+// compatibility walk has to reach the bottom. A recursive walk takes one frame
+// per level and throws a RangeError here.
+test('a deep chain of peer-suffixed children does not overflow the call stack', () => {
+  const depth = 30_000
+  const depGraph: Record<string, unknown> = {}
+  for (let level = 0; level < depth; level++) {
+    const last = level + 1 === depth
+    const pkgIdWithPatchHash = `pkg${level}/1.0.0`
+    depGraph[`pkg${level}/1.0.0(peer/1.0.0)`] = {
+      pkgIdWithPatchHash,
+      children: last ? {} : { next: `pkg${level + 1}/1.0.0(peer/1.0.0)` },
+      resolvedPeerNames: new Set(['peer']),
+    }
+    depGraph[pkgIdWithPatchHash] = {
+      pkgIdWithPatchHash,
+      children: last ? {} : { next: `pkg${level + 1}/1.0.0` },
+      resolvedPeerNames: new Set(),
+    }
+  }
+
+  expect(isCompatibleAndHasMoreDeps(
+    depGraph as Parameters<typeof isCompatibleAndHasMoreDeps>[0],
+    'pkg0/1.0.0(peer/1.0.0)' as DepPath,
+    'pkg0/1.0.0' as DepPath
+  )).toBe(true)
 })
