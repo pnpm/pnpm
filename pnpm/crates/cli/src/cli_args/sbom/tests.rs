@@ -5,7 +5,7 @@ use super::{
 };
 use crate::cli_args::sbom::{
     cyclonedx::split_scoped_name,
-    metadata::{encode_purl_name, extract_bugs_url, is_simple_spdx_id, url_without_credentials},
+    metadata::{encode_purl_name, extract_bugs_url, url_without_credentials},
     spdx::sanitize_spdx_id,
 };
 use pnpm_lockfile::{PackageMetadata, RegistryResolution, StringOrList};
@@ -397,34 +397,56 @@ fn normalize_link_path_to_root() {
 }
 
 #[test]
-fn classify_license_spdx_id() {
-    let result = classify_license("MIT");
-    assert_eq!(result["license"]["id"], "MIT");
+fn classify_license_spdx_ids() {
+    for (license, id) in [
+        ("MIT", "MIT"),
+        ("mit", "MIT"),
+        ("GPL-2.0", "GPL-2.0"),
+        ("gpl-2.0", "GPL-2.0"),
+        ("WTFPL", "WTFPL"),
+    ] {
+        assert_eq!(classify_license(license), serde_json::json!({ "license": { "id": id } }));
+    }
 }
 
 #[test]
-fn classify_license_expression() {
-    let result = classify_license("MIT OR Apache-2.0");
-    assert_eq!(result["expression"], "MIT OR Apache-2.0");
+fn classify_license_spdx_2_3_expressions() {
+    for expression in [
+        "MIT OR Apache-2.0",
+        "mit OR apache-2.0",
+        "GPL-2.0+",
+        "LicenseRef-Proprietary",
+        "DocumentRef-doc:LicenseRef-Custom",
+        "GPL-2.0-only WITH Classpath-exception-2.0",
+        "gpl-2.0-only WITH classpath-exception-2.0",
+        "(MIT AND Apache-2.0) OR ISC",
+    ] {
+        assert_eq!(classify_license(expression), serde_json::json!({ "expression": expression }),);
+    }
 }
 
 #[test]
-fn classify_license_freetext() {
-    let result = classify_license("Proprietary License");
-    assert_eq!(result["license"]["name"], "Proprietary License");
-}
-
-#[test]
-fn is_simple_spdx_id_valid() {
-    assert!(is_simple_spdx_id("MIT"));
-    assert!(is_simple_spdx_id("Apache-2.0"));
-    assert!(is_simple_spdx_id("GPL-3.0-or-later"));
-}
-
-#[test]
-fn is_simple_spdx_id_invalid() {
-    assert!(!is_simple_spdx_id("Proprietary License"));
-    assert!(!is_simple_spdx_id(""));
+fn classify_license_free_form_names() {
+    for license in [
+        "BDS-3-Clause",
+        "UNLICENSED",
+        "Proprietary License",
+        "LLVM-exception",
+        "NONE",
+        "NOASSERTION",
+        "NOASSERTION OR MIT",
+        "MIT OR BDS-3-Clause",
+        "MIT or Apache-2.0",
+        "MIT WITH AdditionRef-Custom",
+        "MIT WITH Unknown-exception",
+        "MIT/Apache-2.0",
+        "MIT OR",
+    ] {
+        assert_eq!(
+            classify_license(license),
+            serde_json::json!({ "license": { "name": license } }),
+        );
+    }
 }
 
 #[test]
