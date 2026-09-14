@@ -669,8 +669,6 @@ fn keeps_the_fast_path_for_a_manifest_older_than_the_lockfile() {
 
     assert_eq!(decision, Decision::UpToDate);
 }
-/// With `pnpm-lock.yaml` gone the current lockfile stands in as the
-/// wanted one, so it is also what a manifest is measured against.
 #[test]
 fn detects_an_edit_during_install_against_the_current_lockfile_stand_in() {
     let (dir, config, manifest) = setup_edit_during_install();
