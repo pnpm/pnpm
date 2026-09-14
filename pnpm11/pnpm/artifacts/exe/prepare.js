@@ -20,10 +20,15 @@ for (const name of ['pnpm']) {
 // The Unix scripts hand over to the pnpm installed alongside them, found
 // relative to the script: a `PATH` lookup would run whatever other pnpm comes
 // first there, and would find nothing at all when the directory holding these
-// bins is not on `PATH`. On Windows setup.js hardlinks the binary onto
-// pn.exe/pnpx.exe/pnx.exe and points `bin` at them, so the .cmd and .ps1
-// wrappers below only run when setup.js did not — where there is no sibling
-// binary to resolve and `PATH` is all they have.
+// bins is not on `PATH`.
+//
+// The .cmd and .ps1 wrappers call a bare `pnpm` on purpose, and that is not the
+// same bug. `bin` is extensionless for every alias, so no install makes them a
+// shim target: with install scripts, setup.js hardlinks pn.exe/pnpx.exe/pnx.exe
+// and repoints `bin` at those; without them, `bin` still names the scripts
+// above. The wrappers run only where someone put this directory on `PATH`
+// themselves, and deferring to `PATH` is what serves that caller.
+// See https://github.com/pnpm/pnpm/issues/14885.
 for (const [name, subcommand] of [['pn', ''], ['pnpx', ' dlx'], ['pnx', ' dlx']]) {
   const file = path.join(ownDir, name)
   try {
