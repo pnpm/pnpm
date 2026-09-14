@@ -11,6 +11,9 @@ use std::{
 };
 use tokio::time::{Duration, sleep};
 
+#[cfg(test)]
+mod tests;
+
 /// Handler of a mocked registry server instance.
 ///
 /// The internal `pnpr` process is terminated on [drop](Drop).
@@ -95,10 +98,13 @@ impl MockInstanceOptions<'_> {
             .stderr(stderr)
             .spawn()
             .expect("spawn pnpr");
+        // Owning the child before the readiness wait is what lets a panicking
+        // or cancelled startup still run the kill-and-wait destructor.
+        let instance = MockInstance { process };
 
         self.wait_for_registry().await;
 
-        MockInstance { process }
+        instance
     }
 
     pub async fn spawn_if_necessary(self) -> Option<MockInstance> {
