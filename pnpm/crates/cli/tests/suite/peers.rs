@@ -5,6 +5,7 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
+    diagnostics::assert_diagnostic_contains,
 };
 use serde_json::Value;
 use std::{fs, process::Command};
@@ -796,6 +797,48 @@ fn a_filtered_install_only_reports_the_projects_it_installed() {
     assert!(filtered.status.success(), "the filtered install must succeed: {filtered:?}");
 
     drop((root, mock_instance));
+}
+
+/// The peer name has to be scoped: the resolver only reads a value as a
+/// directory path when it contains a separator, and it is that reading which
+/// produces the dangling symlink this test guards against. An unscoped
+/// `foo@1.0.0` fails the install through a different error and would pass
+/// here whether or not the validation runs.
+#[test]
+fn invalid_peer_dependency_specification_fails_install() {
+    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "proj",
+            "version": "1.0.0",
+            "peerDependencies": { "@scope/foo": "@scope/foo@1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pacquet
+        .arg("install")
+        .output()
+        .expect("run pnpm install");
+
+    assert!(
+        !output.status.success(),
+        "install should fail on an invalid peer specification: {output:?}",
+    );
+    let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+    assert!(
+        stderr.contains("ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION"),
+        "stderr should carry the error code:\n{stderr}",
+    );
+    assert_diagnostic_contains(
+        &stderr,
+        "The peerDependencies field named '@scope/foo' of package 'proj' has an invalid value: '@scope/foo@1.0.0'",
+    );
+    assert!(!workspace.join("node_modules").exists(), "nothing should have been linked");
+
+    drop(root);
 }
 
 mod catalogs;
