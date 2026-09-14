@@ -395,7 +395,8 @@ impl<'a> InstallFrozenLockfile<'a> {
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
         settled.skipped.add_fetch_failed_all(fetched.fetch_failed.drain());
 
-        let linked = self.link_fetched::<Reporter>(ctx, &mut fetched, &mut settled)?;
+        let (linked, injected_deps) =
+            self.link_fetched::<Reporter>(ctx, &mut fetched, &mut settled)?;
 
         let phase_start = std::time::Instant::now();
         let built = self.build::<Reporter>(
@@ -426,21 +427,9 @@ impl<'a> InstallFrozenLockfile<'a> {
         // awaited by the install driver after its own tail writes.
         drop(store_index_writer);
 
-        // The injectedDeps payload for `.modules.yaml`: every `file:`
-        // snapshot is a materialized copy of an injected workspace
-        // project; record the copies per source project so post-install
-        // tooling (Bit's build-artifact linker) can reach all of them.
-        // Under the hoisted linker the copies live at the walker's
-        // hoisted locations rather than in a virtual store.
         Ok(InstallFrozenLockfileOutput {
             hoisted: crate::InstalledHoistedState {
-                injected_deps: crate::collect_injected_deps(
-                    ctx.linker.layout,
-                    ctx.workspace_root,
-                    LockfileEntries::from(self.lockfiles.wanted),
-                    &settled.skipped,
-                    ctx.is_hoisted().then_some(&linked.hoisted_locations),
-                ),
+                injected_deps,
                 dependencies: linked.hoisted_dependencies,
                 locations: linked.hoisted_locations,
             },
@@ -452,17 +441,37 @@ impl<'a> InstallFrozenLockfile<'a> {
         })
     }
 
+    /// The wanted lockfile narrowed to what this install keeps: the
+    /// module-resolution sidecars describe it, and the virtual-store
+    /// sweep leaves exactly its snapshots on disk.
+    fn current_lockfile(&self, skipped: &SkippedSnapshots) -> Lockfile {
+        crate::filter_lockfile_for_current(self.lockfiles.wanted, self.inputs().included(), skipped)
+    }
+
+    /// The filtered lockfile that the sidecars and the `injectedDeps`
+    /// record share clones the whole graph, so it must not outlive this
+    /// call: the build phase that follows would hold it across every
+    /// lifecycle script it runs.
     fn link_fetched<Reporter: self::Reporter>(
         &self,
         ctx: &crate::InstallContext<'_>,
         fetched: &mut CreateVirtualStoreOutput,
         settled: &mut SkipSetPlan,
-    ) -> Result<crate::linking::LinkPhaseOutput, InstallFrozenLockfileError> {
+    ) -> Result<
+        (crate::linking::LinkPhaseOutput, BTreeMap<String, Vec<String>>),
+        InstallFrozenLockfileError,
+    > {
         let cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id.take();
         let phase_start = std::time::Instant::now();
+        let current_lockfile = self.current_lockfile(&settled.skipped);
         let linked = self.link::<Reporter>(
             ctx,
-            LinkInputs { fetched, cas_paths_by_pkg_id, host_node: settled.host_node.as_ref() },
+            LinkInputs {
+                fetched,
+                cas_paths_by_pkg_id,
+                host_node: settled.host_node.as_ref(),
+                current_lockfile: &current_lockfile,
+            },
             &mut settled.skipped,
         )?;
         tracing::info!(
@@ -471,6 +480,8 @@ impl<'a> InstallFrozenLockfile<'a> {
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             "phase complete",
         );
+        let injected_deps =
+            injected_deps(ctx, &current_lockfile, &settled.skipped, &linked.hoisted_locations);
 
         // `importing_done` fires once extraction and symlink linking
         // are complete, before any build phase. Reporters use it to
@@ -482,7 +493,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             stage: Stage::ImportingDone,
         }));
 
-        Ok(linked)
+        Ok((linked, injected_deps))
     }
 
     /// The borrowed inputs as one `Copy` value. See [`FrozenInputs`].
@@ -501,4 +512,29 @@ impl<'a> InstallFrozenLockfile<'a> {
     fn take_owned(&mut self) -> crate::FrozenInstallSeed<'a> {
         std::mem::take(&mut self.seed)
     }
+}
+
+/// The injectedDeps payload for `.modules.yaml`: every `file:` snapshot
+/// is a materialized copy of an injected workspace project, recorded
+/// per source project so post-install tooling (Bit's build-artifact
+/// linker) can reach all of them. Under the hoisted linker the copies
+/// live at the walker's hoisted locations rather than in a virtual
+/// store.
+///
+/// `current_lockfile` is what this install keeps. A snapshot outside it
+/// is swept right after it is materialized, so recording it would point
+/// `syncInjectedDepsAfterScripts` at a directory that is gone.
+fn injected_deps(
+    ctx: &crate::InstallContext<'_>,
+    current_lockfile: &Lockfile,
+    skipped: &SkippedSnapshots,
+    hoisted_locations: &BTreeMap<String, Vec<String>>,
+) -> BTreeMap<String, Vec<String>> {
+    crate::collect_injected_deps(
+        ctx.linker.layout,
+        ctx.workspace_root,
+        LockfileEntries::from(current_lockfile),
+        skipped,
+        ctx.is_hoisted().then_some(hoisted_locations),
+    )
 }
