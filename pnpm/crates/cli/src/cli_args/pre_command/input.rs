@@ -256,9 +256,9 @@ fn env_var_is_false(name: &str) -> bool {
         .is_some_and(|value| matches!(value.to_ascii_lowercase().as_str(), "false" | "0"))
 }
 
-/// Where this pass reads and writes, as the command line moved it.
-/// Mirrors the [`CliPathArgs`](super::super::cli_command::CliPathArgs)
-/// group a parsed command line carries.
+/// Mirrors [`CliPathArgs`](super::super::cli_command::CliPathArgs) for the
+/// `--version` path, which scans argv itself: clap answers that flag before
+/// there is a parsed command line to read the group from.
 pub(super) struct SwitchPaths {
     pub(super) dir: PathBuf,
     pub(super) state_dir: Option<PathBuf>,
