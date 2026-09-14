@@ -438,6 +438,7 @@ pub fn read_lockfile(path: &Path) -> Lockfile {
 /// lockfiles the upstream tests use to stage wanted/current divergence.
 /// `new_ref` takes any `snapshots:` dependency shape (`100.0.0`,
 /// `link:packages/foo`, ...).
+#[cfg(unix)]
 pub fn repin_snapshot_dependency(
     lockfile_path: &Path,
     snapshot_key: &str,
@@ -488,6 +489,7 @@ pub fn ndjson_records(output: &Output) -> Vec<Value> {
 
 /// The `name: "pnpm" / level: "info"` log pnpm's headless installer
 /// emits when it is entered with an up-to-date lockfile.
+#[cfg(unix)]
 #[must_use]
 pub fn has_up_to_date_log(records: &[Value]) -> bool {
     records

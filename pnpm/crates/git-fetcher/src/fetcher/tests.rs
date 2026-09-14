@@ -6,7 +6,6 @@ use crate::{
     error::{GitFetcherError, PreparePackageError},
     prepare_package::AllowBuildRef,
 };
-use miette::Diagnostic;
 use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreDir;

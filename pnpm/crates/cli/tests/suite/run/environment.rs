@@ -1,7 +1,9 @@
 #[cfg(unix)]
 use super::write_executable;
 use super::{CommandExtra, CommandTempCwd, fs, json};
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use assert_cmd::assert::OutputAssertExt;
+#[cfg(unix)]
+use assert_cmd::cargo::CommandCargoExt;
 
 /// The same local-prefix resolution as
 /// [pnpm/pnpm#14622](https://github.com/pnpm/pnpm/issues/14622), which

@@ -296,6 +296,7 @@ fn create_postinstall_modifies_source_fixture(
     (pkg_dir, actual_mode)
 }
 
+#[cfg(unix)]
 fn report_store_file_differences(
     before: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
     after: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
