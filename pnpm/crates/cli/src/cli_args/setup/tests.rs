@@ -78,6 +78,13 @@ fn alias_scripts_are_written_and_executable() {
             script.ends_with(&format!("exec \"${{self%/*}}/pnpm\"{subcommand} \"$@\"\n")),
             "{name} = {script}",
         );
+        // MSYS and Cygwin can hand the script a native Windows path, which has no
+        // slash for `${self%/*}` to strip. There is no POSIX shell on Windows to
+        // run this against, so pin the text, as the shim header's tests do.
+        assert!(
+            script.contains(r"    *\\*) self=${self%%\\*}/${self#*\\} ;;"),
+            "{name} = {script}",
+        );
     }
 
     #[cfg(unix)]

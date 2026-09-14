@@ -412,6 +412,12 @@ posixTest('the alias scripts run the pnpm beside them, not one earlier on PATH',
     writeStub(path.join(decoyDir, 'pnpm'), 'decoy')
 
     for (const [name, injected] of [['pn', ''], ['pnpx', 'dlx '], ['pnx', 'dlx ']]) {
+      // MSYS and Cygwin can hand the script a native Windows path, which has no
+      // slash for ${self%/*} to strip. There is no POSIX shell on Windows to run
+      // this against, so pin the text, as the shim header's tests do.
+      const script = actualFs.readFileSync(path.join(binDir, name), 'utf8')
+      expect(script).toContain('    *\\\\*) self=${self%%\\\\*}/${self#*\\\\} ;;')
+
       const result = actualChildProcess.spawnSync(path.join(binDir, name), ['add', 'foo'], {
         encoding: 'utf8',
         env: { ...process.env, PATH: `${decoyDir}:/usr/bin:/bin` },

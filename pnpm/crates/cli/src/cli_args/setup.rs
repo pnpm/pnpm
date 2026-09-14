@@ -208,27 +208,10 @@ fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::
 fn posix_alias_script(name: &str, subcommand: &str) -> String {
     format!(
         r#"#!/bin/sh
-# $0 is whatever shim or symlink `{name}` was launched through, so walk to the
-# file itself before looking beside it. The hop cap matches the kernel's ELOOP
-# limit, so a cycle cannot hang the script. Directories come from `${{self%/*}}`
-# and `readlink` runs through `command -p`, so the caller's `PATH` decides
-# nothing here.
-self=$0
-# `${{self%/*}}` needs a slash to strip. A bare name came from a `PATH` lookup
-# and stands for a file in the current directory.
-case $self in
-  */*) ;;
-  *) self=./$self ;;
-esac
-hops=0
-while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
-  hops=$((hops + 1))
-  link=$(command -p readlink "$self")
-  case $link in
-    /*) self=$link ;;
-    *) self=${{self%/*}}/$link ;;
-  esac
-done
+# `{name}` hands over to the pnpm installed beside it, found relative to this
+# file: a `PATH` lookup would run whatever other pnpm comes first there, and
+# would find nothing at all when the directory holding these bins is not on it.
+{RESOLVE_SELF}
 # The walk has to end at a regular file. Running out of hops leaves $self a
 # symlink; a chain that changed under us can leave it dangling or a directory, and
 # a failed readlink leaves a trailing slash. Each case would take `pnpm` from the
@@ -243,6 +226,39 @@ exec "${{self%/*}}/pnpm"{subcommand} "$@"
     )
 }
 
+/// The shell that walks `$0` to the alias's own file, shared by all three
+/// aliases because nothing in it depends on which one is being written.
+const RESOLVE_SELF: &str = r#"# $0 is whatever shim or symlink the alias was launched through, so walk to the
+# file itself before looking beside it. The hop cap matches the kernel's ELOOP
+# limit, so a cycle cannot hang the script. Directories come from `${self%/*}`
+# and `readlink` runs through `command -p`, so the caller's `PATH` decides
+# nothing here.
+self=$0
+# MSYS and Cygwin can launch this with a native Windows path, which has no slash
+# for `${self%/*}` to strip. The separators are swapped in the shell rather than
+# through `echo`, which mangles a `\t` or `\b` in a path under dash.
+while :; do
+  case $self in
+    *\\*) self=${self%%\\*}/${self#*\\} ;;
+    *) break ;;
+  esac
+done
+# `${self%/*}` needs a slash to strip. A bare name came from a `PATH` lookup
+# and stands for a file in the current directory.
+case $self in
+  */*) ;;
+  *) self=./$self ;;
+esac
+hops=0
+while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops + 1))
+  link=$(command -p readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=${self%/*}/$link ;;
+  esac
+done"#;
+
 /// The `cmd.exe` and PowerShell forms of an alias, each reaching the sibling
 /// shim written for its own shell.
 fn write_windows_alias_wrappers(
@@ -250,11 +266,13 @@ fn write_windows_alias_wrappers(
     name: &str,
     subcommand: &str,
 ) -> std::io::Result<()> {
-    // `call`, so control comes back and this script's exit code is the shim's.
-    // `%~dp0` already ends in a backslash.
+    // The sibling is invoked directly, the way the generated `.cmd` shims invoke
+    // theirs. Through `call` the forwarded arguments would take a second round of
+    // `%`-expansion, and the exit code is the shim's either way, since this is the
+    // last command this script runs. `%~dp0` already ends in a backslash.
     fs::write(
         target_dir.join(format!("{name}.cmd")),
-        format!("@echo off\r\ncall \"%~dp0pnpm.cmd\"{subcommand} %*\r\n"),
+        format!("@echo off\r\n\"%~dp0pnpm.cmd\"{subcommand} %*\r\n"),
     )?;
     // Also `pnpm.cmd`, not `pnpm.ps1`: the bin linker omits the PowerShell shim
     // for a package named `pnpm` (see `wants_powershell_shim`), so the sibling

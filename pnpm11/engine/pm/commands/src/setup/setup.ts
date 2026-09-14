@@ -172,6 +172,15 @@ function createShellScript (targetDir: string, name: string, subcommand: string)
 # limit, so a cycle cannot hang the script. Directories come from \`\${self%/*}\`
 # and \`readlink\` runs through \`command -p\`, so the caller's PATH decides nothing here.
 self=$0
+# MSYS and Cygwin can launch this with a native Windows path, which has no slash
+# for \`\${self%/*}\` to strip. The separators are swapped in the shell rather than
+# through \`echo\`, which mangles a \`\\t\` or \`\\b\` in a path under dash.
+while :; do
+  case $self in
+    *\\\\*) self=\${self%%\\\\*}/\${self#*\\\\} ;;
+    *) break ;;
+  esac
+done
 # \`\${self%/*}\` needs a slash to strip. A bare name came from a PATH lookup and
 # stands for a file in the current directory.
 case $self in
@@ -201,9 +210,11 @@ exec "\${self%/*}/pnpm"${subcommand} "$@"
   fs.writeFileSync(path.join(targetDir, name), shellScript, { mode: 0o755 })
 
   if (process.platform === 'win32') {
-    // `call`, so control comes back and this script's exit code is the shim's.
-    // `%~dp0` already ends in a backslash.
-    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\r\ncall "%~dp0pnpm.cmd"${subcommand} %*\r\n`)
+    // The sibling is invoked directly, the way the generated .cmd shims invoke
+    // theirs. Through `call` the forwarded arguments would take a second round of
+    // %-expansion, and the exit code is the shim's either way, since this is the
+    // last command this script runs. `%~dp0` already ends in a backslash.
+    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\r\n"%~dp0pnpm.cmd"${subcommand} %*\r\n`)
     // Also pnpm.cmd, not pnpm.ps1: the bin linker omits the PowerShell shim for a
     // package named `pnpm` (makePowerShellShim), so the sibling .ps1 may not exist
     // while the .cmd always does. $basedir is spelled the way the generated .ps1
