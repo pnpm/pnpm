@@ -2,7 +2,8 @@ use crate::_utils;
 
 use _utils::{
     append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
-    lockfile_package_keys, set_ignore_dependencies, set_minimum_release_age,
+    importer_specifier, importer_version, lockfile_package_keys, read_lockfile,
+    set_ignore_dependencies, set_minimum_release_age,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -357,6 +358,58 @@ fn update_rewrites_the_range_with_dedicated_lockfiles() {
     pacquet(&project, ["install", "--frozen-lockfile"]).assert().success();
 
     drop((root, anchor));
+}
+
+/// An override-applied importer specifier must survive an unrelated
+/// recursive no-save update, so the next frozen install still agrees with
+/// the manifest's effective declaration.
+#[test]
+fn update_no_save_preserves_an_override_specifier_for_an_unrelated_update() {
+    for override_key in [format!("{DEP}@>=100.0.0 <100.1.0"), DEP.to_string()] {
+        let (root, workspace, anchor) = setup();
+
+        write_manifest(
+            &workspace,
+            &format!(r#"{{ "{DEP}": "^100.0.0", "{BRAVO_DEP}": "1.0.0" }}"#),
+        );
+        set_overrides(&workspace, &[(override_key.as_str(), "100.1.0")]);
+        pacquet(&workspace, ["install", "--lockfile-only"]).assert().success();
+
+        // Widen the unrelated dependency after its initial exact install so
+        // update has a newer published fixture version to select.
+        write_manifest(
+            &workspace,
+            &format!(r#"{{ "{DEP}": "^100.0.0", "{BRAVO_DEP}": "^1.0.0" }}"#),
+        );
+        let before_packages = lockfile_package_keys(&workspace);
+        let before = fs::read_to_string(workspace.join("package.json")).expect("read package.json");
+        pacquet(&workspace, ["update", "--no-save", "--lockfile-only", "--recursive", BRAVO_DEP])
+            .assert()
+            .success();
+
+        assert_eq!(
+            fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+            before,
+            "--no-save must not rewrite package.json",
+        );
+        let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+        assert_eq!(importer_specifier(&lockfile, ".", DEP), "100.1.0");
+        assert_eq!(importer_version(&lockfile, ".", DEP), "100.1.0");
+
+        let after_packages = lockfile_package_keys(&workspace);
+        assert!(
+            after_packages.contains(&format!("{BRAVO_DEP}@1.1.0")),
+            "the requested unrelated update must resolve {BRAVO_DEP}@1.1.0: {after_packages:?}",
+        );
+        assert!(
+            !before_packages.contains(&format!("{BRAVO_DEP}@1.1.0")),
+            "{BRAVO_DEP}@1.1.0 must not already be installed: {before_packages:?}",
+        );
+        pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+        assert!(virtual_store_has(&workspace, "@pnpm.e2e+bravo-dep@1.1.0"));
+
+        drop((root, anchor));
+    }
 }
 
 /// `--no-save` keeps `package.json` authoritative, so the lockfile moves
