@@ -65,9 +65,13 @@ fn injected_dependency_names(manifest: &Value) -> HashSet<String> {
 /// see the identical direct-dep set — the importer-dep computation runs
 /// once before resolving an importer's deps.
 ///
-/// Every importer's `peerDependencies` values are checked here, whatever
-/// `auto_install_peers` and `dependency_groups` select, because this is the
-/// one place every importer manifest passes through.
+/// Fails with
+/// [`InvalidPeerDependencySpecification`](ResolveDependencyTreeError::InvalidPeerDependencySpecification)
+/// when the manifest declares a `peerDependencies` value that is not an
+/// acceptable peer spec, whatever `auto_install_peers` and
+/// `dependency_groups` select. Only a resolving install reaches this; an
+/// install served from an up-to-date lockfile validates nothing, as on
+/// pnpm v11.
 pub(crate) fn importer_direct_wanted_specs<DependencyGroupList>(
     manifest: &PackageManifest,
     dependency_groups: DependencyGroupList,
