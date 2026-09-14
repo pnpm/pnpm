@@ -58,6 +58,14 @@ pub struct HoistedLinkerInputs<'a> {
     /// path, and constraint-free frozen lockfiles).
     pub host_node: Option<&'a crate::materialization_plan::HostNode>,
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
+    pub materialization: HoistedMaterialization<'a>,
+}
+
+/// What the linker materializes a package directory with: the
+/// install-scoped import state every import reports through, and the
+/// reuse inputs that let a directory be cloned from its canonical slot
+/// instead of imported file by file.
+pub struct HoistedMaterialization<'a> {
     pub logged_methods: &'a AtomicU8,
     pub requester: &'a str,
     /// Prefetched build flags gate reuse of canonical package directories.
@@ -228,17 +236,17 @@ fn link_hoisted<Reporter: self::Reporter>(
         .expect("hoisted CreateVirtualStore populates cas_paths");
     let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
     let dir_clone_cache = crate::link_hoisted_modules::HoistedDirCloneCache::new(
-        inputs.dir_clone_cache,
+        inputs.materialization.dir_clone_cache,
         lockfile.packages.as_ref(),
         inputs.prior.current_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
-        inputs.requires_build_by_snapshot,
+        inputs.materialization.requires_build_by_snapshot,
         config.force,
     );
     link_hoisted_modules::<Reporter>(&LinkHoistedModulesOpts {
         import: crate::PackageImportOptions {
             method: config.package_import_method,
-            logged_methods: inputs.logged_methods,
-            requester: inputs.requester,
+            logged_methods: inputs.materialization.logged_methods,
+            requester: inputs.materialization.requester,
         },
         graph: &walked.graph,
         prev_graph: walked.prev_graph.as_ref(),
