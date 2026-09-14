@@ -206,7 +206,9 @@ pub(crate) fn get_hoistable_optional_peers_with_locked_versions(
 }
 
 /// The highest preferred version satisfying every range recorded for one
-/// missing optional peer, or `None` when no candidate qualifies.
+/// missing optional peer, or `None` when no candidate qualifies. A version
+/// the wanted lockfile locked for the importer wins whenever one of them
+/// still qualifies.
 fn max_hoistable_optional_version(
     selectors: &VersionSelectors,
     ranges: &[String],
@@ -239,25 +241,29 @@ fn max_hoistable_optional_version(
                 .all(|parsed| root.allows_any(parsed))
         });
 
-    let mut max_satisfying_version: Option<Version> = None;
-    for (version_str, entry) in selectors {
-        let Some(version) = hoistable_optional_candidate(
-            version_str,
-            entry,
-            locked_versions,
-            root_range.as_ref(),
-            &parsed_ranges,
-        ) else {
-            continue;
-        };
-        if max_satisfying_version
-            .as_ref()
-            .is_none_or(|current| version > *current)
-        {
-            max_satisfying_version = Some(version);
-        }
-    }
-    max_satisfying_version
+    let max_hoistable = |allowed_versions: Option<&HashSet<String>>| {
+        selectors
+            .iter()
+            .filter_map(|(version_str, entry)| {
+                hoistable_optional_candidate(
+                    version_str,
+                    entry,
+                    allowed_versions,
+                    root_range.as_ref(),
+                    &parsed_ranges,
+                )
+            })
+            .max()
+    };
+    let Some(locked_versions) = locked_versions else {
+        return max_hoistable(None);
+    };
+    // A pin no remaining candidate satisfies — its provider left the
+    // graph, or it fell outside the ranges — is stale, and must not veto
+    // the hoist: leaving the peer bare drops it from the direct
+    // dependency key, and the run after that re-attaches it from these
+    // very candidates. Picking from them here keeps one run enough.
+    max_hoistable(Some(locked_versions)).or_else(|| max_hoistable(None))
 }
 
 /// One preferred-version selector as an installable candidate, or `None` when

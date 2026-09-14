@@ -1093,6 +1093,29 @@ fn update_withholds_the_old_pin_of_an_auto_installed_peer() {
     drop((root, anchor));
 }
 
+/// Mirrors pnpm/pnpm#14895.
+#[test]
+fn update_re_keys_an_optional_peer_whose_locked_provider_left_in_one_pass() {
+    let (root, workspace, anchor) = setup();
+    let consumer = "@pnpm.e2e/depends-on-optional-peer-c-host";
+    let provider = "@pnpm.e2e/abc-regular-deps";
+    write_manifest(&workspace, &format!(r#"{{ "{consumer}": "1.0.0", "{PEER_C}": "1.0.1" }}"#));
+    pacquet(&workspace, ["install", "--lockfile-only"]).assert().success();
+    let lockfile = _utils::read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(_utils::importer_version(&lockfile, ".", consumer), "1.0.0(@pnpm.e2e/peer-c@1.0.1)");
+
+    write_manifest(&workspace, &format!(r#"{{ "{consumer}": "1.0.0", "{provider}": "1.0.0" }}"#));
+    pacquet(&workspace, ["update", "--lockfile-only"]).assert().success();
+    let first_pass = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    let lockfile = _utils::read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(_utils::importer_version(&lockfile, ".", consumer), "1.0.0(@pnpm.e2e/peer-c@1.0.0)");
+
+    pacquet(&workspace, ["update", "--lockfile-only"]).assert().success();
+    let second_pass = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert_eq!(second_pass, first_pass, "a second update must change nothing");
+    drop((root, anchor));
+}
+
 /// Ports `should not update tag version when --latest not set`.
 #[test]
 fn update_keeps_every_dist_tag_specifier_without_latest() {

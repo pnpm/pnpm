@@ -289,6 +289,26 @@ fn get_hoistable_optional_peers_preserves_the_importers_locked_version() {
     );
 }
 
+/// A locked version whose provider left the graph pins nothing (pnpm/pnpm#14895).
+#[test]
+fn get_hoistable_optional_peers_ignores_a_locked_version_no_longer_in_the_graph() {
+    let missing = BTreeMap::from([("peer".to_string(), vec!["*".to_string()])]);
+    let preferred = PreferredVersions::from([(
+        "peer".to_string(),
+        BTreeMap::from([(
+            "1.0.0".to_string(),
+            VersionSelectorEntry::Plain(VersionSelectorType::Version),
+        )]),
+    )]);
+    let locked =
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["2.0.0".to_string()]))]);
+
+    assert_eq!(
+        get_hoistable_optional_peers_with_locked_versions(&missing, &preferred, &[], &locked,),
+        BTreeMap::from([("peer".to_string(), "1.0.0".to_string())]),
+    );
+}
+
 #[test]
 fn get_hoistable_optional_peers_handles_version_selector_with_weight() {
     let preferred = preferred(&[(
