@@ -40,11 +40,9 @@ fn project_lifecycle_detection_includes_scripts_and_binding_gyp_fallback() {
     );
     assert!(project_requires_lifecycle_scripts(project_dir, &with_prepare));
 }
-/// The ancestor walk is suppressed by [`Config::workspace_search_skipped`]
-/// alone. `ignore_workspace` also collects the layers that land after the
-/// search — `pnpm-workspace.yaml` and `PNPM_CONFIG_IGNORE_WORKSPACE` —
-/// which must leave the discovered workspace in place. No CLI run produces
-/// that combination today, so only a direct call holds the two apart.
+/// [`Config::workspace_search_skipped`] alone suppresses the ancestor walk,
+/// never [`Config::ignore_workspace`]. No CLI run reaches the state where
+/// the two disagree, so only a direct call holds them apart.
 #[test]
 fn only_a_skipped_search_suppresses_the_ancestor_walk() {
     let dir = tempdir().unwrap();

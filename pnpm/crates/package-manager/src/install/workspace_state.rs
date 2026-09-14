@@ -139,8 +139,8 @@ fn ensure_gvs_builds_complete(
 /// Yields `None` under [`Config::workspace_search_skipped`], where the
 /// ancestor walk would re-adopt the very `pnpm-workspace.yaml` that
 /// `--ignore-workspace` asked to ignore. Only that walk is suppressed:
-/// a caller that pinned `workspace_dir` keeps it, which is how a global
-/// install anchors itself under the global packages dir.
+/// a caller that pinned [`Config::workspace_dir`] keeps it, which is how a
+/// global install anchors itself under the global packages dir.
 pub(crate) fn configured_or_discovered_workspace_dir(
     config: &Config,
     manifest_dir: &Path,

@@ -117,10 +117,8 @@ fn workspace_packages_overrides_the_manifest_patterns() {
 }
 
 /// A project nested under a workspace root but absent from its `packages`
-/// patterns is standalone under `--ignore-workspace`. The install-family
-/// commands must not re-discover the workspace through the ancestor walk:
-/// doing so anchors the lockfile and the importer ids on the workspace
-/// root and pulls in every sibling project.
+/// patterns is standalone under `--ignore-workspace`: the install-family
+/// commands must not re-discover that workspace through the ancestor walk.
 fn assert_only_the_nested_project_is_installed(subcommand: &str) {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["packages/*"], &["packages/alfa"]);
@@ -166,11 +164,9 @@ fn ignore_workspace_updates_only_the_nested_project() {
     assert_only_the_nested_project_is_installed("update");
 }
 
-/// An up-to-date workspace arms the repeat-install fast path, which loads
-/// a configuration of its own before the async runtime exists. Seeded
-/// without the flag it answers for the workspace, reports the command
-/// finished, and leaves the project without the standalone install it
-/// asked for.
+/// An up-to-date workspace arms the repeat-install fast path, which loads a
+/// configuration of its own before the async runtime exists. Seeded without
+/// the flag, it answers for the workspace and reports the command finished.
 #[test]
 fn ignore_workspace_survives_the_repeat_install_fast_path() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -273,8 +269,7 @@ fn ignore_workspace_keeps_the_pre_command_pass_off_the_workspace_manifest() {
 
 /// A directory below the ignored project is not a workspace project of it:
 /// nothing declares it as one. Recursive-by-default promotion must not
-/// consult the ancestor workspace either, or the selection discovers the
-/// subdirectory and installs it as an importer of its own lockfile.
+/// consult the ancestor workspace either.
 #[test]
 fn ignore_workspace_does_not_install_subdirectories_of_the_nested_project() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();

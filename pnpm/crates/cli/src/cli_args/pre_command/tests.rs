@@ -130,8 +130,9 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
 /// `pnpm --version` still reconciles the `packageManager` pin, so its argv
 /// scan has to see `--ignore-workspace` too — otherwise the pass reports
 /// the key issues of a `pnpm-workspace.yaml` the user asked it to ignore.
-/// `resolve_boolean_values` has already folded a `=<bool>` spelling into
-/// one of the bare forms by the time the scan runs.
+/// [`resolve_boolean_values`](crate::boolean_values::resolve_boolean_values)
+/// has already folded a `=<bool>` spelling into one of the bare forms by the
+/// time the scan runs.
 #[test]
 fn the_version_scan_reads_ignore_workspace_from_the_command_line() {
     let flag_of = |argv: &[&str]| {
