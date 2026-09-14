@@ -380,12 +380,14 @@ fn push_plain(expanded: &mut String, character: char, is_bare_word_text: bool) {
         // A newline ends a command, where POSIX only splits the word on it.
         // The character itself does not survive the split, so a space stands
         // in for it and leaves the same two fields behind.
-        '\n' | '\r' => expanded.push(' '),
+        '\n' => expanded.push(' '),
         // Double quotes rather than a backslash: the parser reads a run of
         // backslashes before an operator by its own rules, so an escape here
         // would depend on what the word happens to put in front of it. `#`
-        // joins them because it opens a comment at the start of a word.
-        ';' | '&' | '|' | '<' | '>' | '#' => {
+        // joins them because it opens a comment at the start of a word, and a
+        // carriage return because the parser splits the word on it where POSIX
+        // keeps it as the ordinary character it is.
+        ';' | '&' | '|' | '<' | '>' | '#' | '\r' => {
             expanded.push('"');
             expanded.push(character);
             expanded.push('"');

@@ -272,15 +272,19 @@ fn with_run_lengths(operator: char) -> impl Iterator<Item = (char, usize)> {
     (0..=3).map(move |backslashes| (operator, backslashes))
 }
 
-/// A newline in a `word` splits it, and a `#` starting one is text. The parser
-/// would otherwise end the command at the newline and read the `#` as opening
-/// a comment that swallows the rest of the line.
+/// A newline in a `word` splits it, a carriage return is an ordinary
+/// character, and a `#` starting a word is text. The parser would otherwise
+/// end the command at the newline, split the word on the carriage return, and
+/// read the `#` as opening a comment that swallows the rest of the line.
+/// Every expectation here is what `bash` prints.
 #[test]
 fn keeps_a_newline_and_a_comment_start_in_a_default_as_word_text() {
     let dir = tempdir().expect("create a temp dir");
 
     for (script, expected) in [
         ("echo [${MISSING:-a\nb}] && echo second", "[a b]"),
+        ("echo [${MISSING:-a\rb}] && echo second", "[a\rb]"),
+        ("echo [${MISSING:-a\r\nb}] && echo second", "[a\r b]"),
         ("echo ${MISSING:-#fallback} && echo second", "#fallback"),
         ("echo [${MISSING:-#fallback}] && echo second", "[#fallback]"),
     ] {
