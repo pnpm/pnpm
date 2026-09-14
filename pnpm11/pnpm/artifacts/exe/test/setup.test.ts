@@ -74,8 +74,6 @@ test('prepare writes correct content for all bin files', () => {
     }
   }
 
-  // Windows wrappers should resolve only the native binary beside them and
-  // report when setup.js was blocked instead of falling through to PATH.
   for (const { name, shell } of ALIASES) {
     const missingBinaryMessage = `${name}: pnpm's native binary was not installed next to this script.`
     expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off

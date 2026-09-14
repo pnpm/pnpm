@@ -16,11 +16,6 @@ for (const name of ['pnpm']) {
 }
 
 // pn, pnpx, and pnx — write the real shell scripts and Windows wrappers.
-//
-// Every script hands over to the pnpm installed alongside it. On Windows,
-// setup.js normally replaces the aliases with hardlinks to the native binary.
-// If that install script was blocked, the wrappers report the missing sibling
-// rather than running an unrelated pnpm from PATH.
 for (const [name, subcommand] of [['pn', ''], ['pnpx', ' dlx'], ['pnx', ' dlx']]) {
   const file = path.join(ownDir, name)
   try {
