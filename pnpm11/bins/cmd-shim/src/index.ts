@@ -1,13 +1,3 @@
-// On windows, create a .cmd file.
-// Read the #! in the file to see what it uses.  The vast majority
-// of the time, this will be either:
-// "#!/usr/bin/env <prog> <args...>"
-// or:
-// "#!<prog> <args...>"
-//
-// Write a bin/pkg.bin + ".cmd" file that has this line in it:
-// @<prog> <args...> %~dp0<target> %*
-
 import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
@@ -26,7 +16,7 @@ export interface Options {
   /**
    * If a Windows Command Prompt script should be created.
    *
-   * @default false
+   * @default true on Windows, false on other platforms
    */
   createCmdFile?: boolean
 
@@ -104,7 +94,6 @@ const isCygwin = () => isWindows && (process.env.TERM === 'CYGWIN' || process.en
 // eslint-disable-next-line regexp/no-super-linear-backtracking
 const shebangExpr = /^#!\s*(?:\/usr\/bin\/env(?:\s+-S)?\s*)?([^ \t]+)(.*)$/
 const DEFAULT_OPTIONS = {
-  // Create PowerShell file by default if the option hasn't been specified
   createPwshFile: true,
   createCmdFile: isWindows,
 }
@@ -124,7 +113,6 @@ const extensionToProgramMap = new Map([
 
 function ingestOptions (opts?: Options): InternalOptions {
   const opts_ = {...DEFAULT_OPTIONS, ...opts} as InternalOptions
-  // Tests and other callers may still inject a custom fs (e.g. memfs).
   opts_.fs_ = opts_.fs ? opts_.fs.promises : (gfsPromises as unknown as FsPromises)
   return opts_
 }
@@ -178,26 +166,12 @@ function rm (path: string, opts: InternalOptions): Promise<void> {
   return opts.fs_.unlink(path).catch(() => {})
 }
 
-/**
- * Try to create shims **even if `src` is missing**.
- *
- * @param src Path to program (executable or script).
- * @param to Path to shims.
- * Don't add an extension if you will create multiple types of shims.
- * @param opts Options.
- */
 async function cmdShim_ (src: string, to: string, opts: InternalOptions) {
   const srcRuntimeInfo = await searchScriptRuntime(src, opts)
   await writeShimsPreCommon(to, opts)
   return writeAllShims(src, to, srcRuntimeInfo, opts)
 }
 
-/**
- * Do processes before **all** shims are created.
- * This must be called **only once** for one call of `cmdShim(IfExists)`.
- *
- * @param target Path of shims that are going to be created.
- */
 function writeShimsPreCommon (target: string, opts: InternalOptions) {
   return opts.fs_.mkdir(path.dirname(target), { recursive: true })
 }
@@ -220,20 +194,10 @@ function writeAllShims (src: string, to: string, srcRuntimeInfo: RuntimeInfo, op
   )
 }
 
-/**
- * Do processes before writing shim.
- *
- * @param target Path to shim that is going to be created.
- */
 function writeShimPre (target: string, opts: InternalOptions) {
   return rm(target, opts)
 }
 
-/**
- * Do processes after writing the shim.
- *
- * @param target Path to just created shim.
- */
 function writeShimPost (target: string, opts: InternalOptions) {
   return chmodShim(target, opts)
 }
@@ -243,13 +207,6 @@ interface RuntimeInfo {
   additionalArgs: string
 }
 
-/**
- * Look into runtime (e.g. `node` & `sh` & `pwsh`) and its arguments
- * of the target program (script or executable).
- *
- * @param target Path to the executable or script.
- * @return Promise of information of runtime of `target`.
- */
 async function searchScriptRuntime (target: string, opts: InternalOptions): Promise<RuntimeInfo> {
   try {
     const data = await opts.fs_.readFile(target, 'utf8')
@@ -334,7 +291,6 @@ async function writeShim (src: string, to: string, srcRuntimeInfo: RuntimeInfo, 
  * @return The content of shim.
  */
 function generateCmdShim (src: string, to: string, opts: InternalOptions): string {
-  // `shTarget` is not used to generate the content.
   const shTarget = path.relative(path.dirname(to), src)
   let target = shTarget.split('/').join('\\')
   const quotedPathToTarget = path.isAbsolute(target) ? `"${target}"` : `"%~dp0\\${target}"`
@@ -357,13 +313,6 @@ function generateCmdShim (src: string, to: string, opts: InternalOptions): strin
 
   let progArgs = opts.progArgs ? `${opts.progArgs.join(' ')} ` : ''
 
-  // @IF EXIST "%~dp0\node.exe" (
-  //   "%~dp0\node.exe" "%~dp0\.\node_modules\npm\bin\npm-cli.js" %*
-  // ) ELSE (
-  //   SETLOCAL
-  //   SET PATHEXT=%PATHEXT:;.JS;=;%
-  //   node "%~dp0\.\node_modules\npm\bin\npm-cli.js" %*
-  // )
   let cmd = '@SETLOCAL\r\n'
   if (prependToPath) {
     cmd += `@SET "PATH=${prependToPath}:%PATH%"\r\n`
@@ -433,71 +382,6 @@ function generateShShim (src: string, to: string, opts: InternalOptions): string
   }
 
   let progArgs = opts.progArgs ? `${opts.progArgs.join(' ')} ` : ''
-
-  // #!/bin/sh
-  // # Resolve $0 through symlinks so basedir is the shim's real directory.
-  // # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
-  //
-  // # A shim runs with node_modules/.bin at the front of PATH, so readlink, sed, and
-  // # uname go through `command -p`, which searches the system default path instead.
-  // # A dependency's bin cannot stand in for one of them and take over the shim
-  // # before it reaches its target. Directories come from `${link%/*}`, which needs
-  // # no helper at all.
-  // link="$0"
-  // # `${link%/*}` needs a separator to strip. A bare name came from a PATH lookup
-  // # and stands for a file in the current directory.
-  // case "$link" in
-  //   */*|*\\*) ;;
-  //   *) link="./$link" ;;
-  // esac
-  // hops=0
-  // while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
-  //   hops=$((hops+1))
-  //   target=$(command -p readlink "$link")
-  //   case "$target" in
-  //     /*) link="$target" ;;
-  //     *)  link="${link%/*}/$target" ;;
-  //   esac
-  // done
-  // basedir=$(echo "$link" | command -p sed -e 's,\\,/,g')
-  // basedir="${basedir%/*}"
-  // basedir_win="$basedir"
-  // exe=""
-  // msys=""
-  //
-  // case `command -p uname -a` in
-  //   *CYGWIN*|*MINGW*|*MSYS*)
-  //     if command -v cygpath > /dev/null 2>&1; then
-  //       basedir_win=`cygpath -w "$basedir"`
-  //     fi
-  //     exe=".exe"
-  //     msys="true"
-  //   ;;
-  //   *WSL2*)
-  //     if command -v wslpath > /dev/null 2>&1; then
-  //       basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
-  //       if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
-  //         basedir_win="$basedir"
-  //       else
-  //         exe=".exe"
-  //       fi
-  //     fi
-  //   ;;
-  // esac
-  //
-  // export NODE_PATH="<nodepath>"
-  //
-  // if [ -x "$basedir/node.exe" ]; then
-  //   exec "$basedir/node.exe"  "$basedir_win/node_modules/npm/bin/npm-cli.js" "$@"
-  // elif [ -x "$basedir/node" ]; then
-  //   exec "$basedir/node"  "$basedir/node_modules/npm/bin/npm-cli.js" "$@"
-  // elif command -v node >/dev/null 2>&1; then
-  //   exec node  "$basedir/node_modules/npm/bin/npm-cli.js" "$@"
-  // elif [ -n "$exe" ] && command -v node.exe >/dev/null 2>&1; then
-  //   exec node.exe  "$basedir_win/node_modules/npm/bin/npm-cli.js" "$@"
-  // else
-  //   exec node  "$basedir/node_modules/npm/bin/npm-cli.js" "$@"
-  // fi
 
   let sh = `\
 #!/bin/sh
@@ -661,34 +545,6 @@ function generatePwshShim (src: string, to: string, opts: InternalOptions): stri
 
   let progArgs = opts.progArgs ? `${opts.progArgs.join(' ')} ` : ''
 
-  // #!/usr/bin/env pwsh
-  // $basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
-  //
-  // $ret=0
-  // $exe = ""
-  // if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
-  //   # Fix case when both the Windows and Linux builds of Node
-  //   # are installed in the same directory
-  //   $exe = ".exe"
-  // }
-  // if (Test-Path "$basedir/node") {
-  //   # Support pipeline input
-  //   if ($MyInvocation.ExpectingInput) {
-  //     $input | & "$basedir/node$exe" "$basedir/node_modules/npm/bin/npm-cli.js" $args
-  //   } else {
-  //     & "$basedir/node$exe" "$basedir/node_modules/npm/bin/npm-cli.js" $args
-  //   }
-  //   $ret=$LASTEXITCODE
-  // } else {
-  //   # Support pipeline input
-  //   if ($MyInvocation.ExpectingInput) {
-  //     $input | & "node$exe" "$basedir/node_modules/npm/bin/npm-cli.js" $args
-  //   } else {
-  //     & "node$exe" "$basedir/node_modules/npm/bin/npm-cli.js" $args
-  //   }
-  //   $ret=$LASTEXITCODE
-  // }
-  // exit $ret
   let pwsh = `\
 #!/usr/bin/env pwsh
 $basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
