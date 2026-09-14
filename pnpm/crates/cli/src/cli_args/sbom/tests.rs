@@ -238,10 +238,8 @@ fn extract_repository_expands_the_shorthands_hosted_git_info_knows() {
         ("github:vercel/ms", "git+https://github.com/vercel/ms.git"),
         ("gitlab:acme/widgets", "git+https://gitlab.com/acme/widgets.git"),
         ("bitbucket:acme/widgets", "git+https://bitbucket.org/acme/widgets.git"),
-        // A GitLab subgroup path and a committish are part of the shorthand.
         ("gitlab:foo/bar/baz", "git+https://gitlab.com/foo/bar/baz.git"),
         ("owner/repo#main", "git+https://github.com/owner/repo.git#main"),
-        // An scp-style remote names the same repository as its https URL.
         ("git@github.com:foo/bar.git", "git+https://github.com/foo/bar.git"),
     ] {
         let manifest = serde_json::json!({ "repository": value });
@@ -285,8 +283,6 @@ fn extract_repository_strips_credentials() {
 
 #[test]
 fn extract_repository_keeps_an_ssh_login() {
-    // The `git` of an ssh remote names the login the host is reached with,
-    // not a credential, so it stays.
     for url in ["ssh://git@github.com/foo/bar.git", "git+ssh://git@github.com/foo/bar.git"] {
         let manifest = serde_json::json!({ "repository": url });
         assert_eq!(extract_repository(&manifest), Some(url.to_string()));
@@ -295,13 +291,10 @@ fn extract_repository_keeps_an_ssh_login() {
 
 #[test]
 fn extract_repository_strips_a_username_only_authority() {
-    // Outside ssh a username with no password can itself be the secret:
-    // GitHub and GitLab both take a token in place of `user:password`.
     for (url, expected) in [
         ("https://token@github.com/foo/bar", "https://github.com/foo/bar"),
         ("git+https://token@github.com/foo/bar.git", "git+https://github.com/foo/bar.git"),
         ("ssh://git:token@github.com/foo/bar.git", "ssh://github.com/foo/bar.git"),
-        // A scheme that merely ends in `ssh` is not an ssh remote.
         ("not-ssh://token@example.com/foo/bar", "not-ssh://example.com/foo/bar"),
     ] {
         let manifest = serde_json::json!({ "repository": url });
@@ -319,10 +312,8 @@ fn extract_repository_drops_values_that_name_no_repository() {
         "owner/",
         "owner",
         "owner /repo",
-        // The shorthand names no owner, so the URL it would derive has an
-        // empty owner segment.
+        // Only a project name, with no owner.
         "github:owner",
-        // A URL with no host names no repository a consumer can reach.
         "mailto:bugs@example.com",
         "git+file:/tmp/repo",
         "",
@@ -333,10 +324,7 @@ fn extract_repository_drops_values_that_name_no_repository() {
     }
 }
 
-/// Neither pnpm version expands the ownerless `gist:<id>` shorthand: pnpm
-/// v12's parser does not recognise gists, so dropping it on both sides is
-/// what keeps the two publishing the same SBOM. A gist named by its URL is
-/// published like any other URL.
+/// Expanding the shorthand in one pnpm version alone would split the two.
 #[test]
 fn extract_repository_keeps_a_gist_url_and_drops_the_gist_shorthand() {
     let shorthand = serde_json::json!({ "repository": "gist:11081aaa281" });
@@ -370,9 +358,6 @@ fn extract_repository_percent_encodes_whitespace_in_urls() {
     assert_eq!(extract_repository(&manifest), Some("https://example.com/a%20b".to_string()));
 }
 
-/// Both parsers leave a malformed escape as the manifest wrote it, so the
-/// two pnpm versions publish the same value. The pnpm v11 test asserts the
-/// same string.
 #[test]
 fn extract_repository_leaves_a_malformed_percent_escape_alone() {
     let manifest = serde_json::json!({ "repository": "https://example.com/%zz" });

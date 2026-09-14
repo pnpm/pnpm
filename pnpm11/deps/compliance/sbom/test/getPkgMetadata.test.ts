@@ -198,10 +198,8 @@ describe('repositoryFromField', () => {
     expect(repositoryFromField('github:vercel/ms')).toBe('git+https://github.com/vercel/ms.git')
     expect(repositoryFromField('gitlab:acme/widgets')).toBe('git+https://gitlab.com/acme/widgets.git')
     expect(repositoryFromField('bitbucket:acme/widgets')).toBe('git+https://bitbucket.org/acme/widgets.git')
-    // A GitLab subgroup path and a committish are part of the shorthand.
     expect(repositoryFromField('gitlab:foo/bar/baz')).toBe('git+https://gitlab.com/foo/bar/baz.git')
     expect(repositoryFromField('owner/repo#main')).toBe('git+https://github.com/owner/repo.git#main')
-    // An scp-style remote names the same repository as its https URL.
     expect(repositoryFromField('git@github.com:foo/bar.git')).toBe('git+https://github.com/foo/bar.git')
   })
 
@@ -227,15 +225,11 @@ describe('repositoryFromField', () => {
     expect(repositoryFromField('git+https://token@github.com/foo/bar.git')).toBe('git+https://github.com/foo/bar.git')
     expect(repositoryFromField('git+ssh://git@github.com/foo/bar.git')).toBe('git+ssh://git@github.com/foo/bar.git')
     expect(repositoryFromField('ssh://git:token@github.com/foo/bar.git')).toBe('ssh://github.com/foo/bar.git')
-    // A scheme that merely ends in `ssh` is not an ssh remote.
     expect(repositoryFromField('not-ssh://token@example.com/foo/bar')).toBe('not-ssh://example.com/foo/bar')
     expect(repositoryFromField('https://github.com/foo/bar/baz@qux')).toBe('https://github.com/foo/bar/baz@qux')
   })
 
-  // Neither pnpm version expands the ownerless `gist:<id>` shorthand: pnpm v12's
-  // parser does not know gists, so dropping it on both sides is what keeps
-  // the two publishing the same SBOM. A gist named by its URL is published like
-  // any other URL.
+  // Expanding the shorthand in one pnpm version alone would split the two.
   it('keeps a gist URL and drops the gist shorthand', () => {
     expect(repositoryFromField('gist:11081aaa281')).toBeUndefined()
     expect(repositoryFromField('https://gist.github.com/11081aaa281')).toBe('https://gist.github.com/11081aaa281')
@@ -253,9 +247,6 @@ describe('repositoryFromField', () => {
     expect(repositoryFromField('https://example.com/a b')).toBe('https://example.com/a%20b')
   })
 
-  // Both parsers leave a malformed escape as the manifest wrote it, so the two
-  // pnpm versions publish the same value. The pnpm v12 test asserts the same
-  // string.
   it('leaves a malformed percent escape alone', () => {
     expect(repositoryFromField('https://example.com/%zz')).toBe('https://example.com/%zz')
   })
@@ -275,10 +266,8 @@ describe('repositoryFromField', () => {
       'owner/',
       'owner',
       'owner /repo',
-      // The shorthand names no owner, so the URL it would derive has an empty
-      // owner segment.
+      // Only a project name, with no owner.
       'github:owner',
-      // A URL with no host names no repository a consumer can reach.
       'mailto:bugs@example.com',
       'git+file:/tmp/repo',
       '',

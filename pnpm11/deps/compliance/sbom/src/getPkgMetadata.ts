@@ -96,45 +96,36 @@ export function authorNameFromField (field: unknown): string | undefined {
   return name
 }
 
-// `repository` may be a URL, an npm hosted shorthand, an scp-style git remote,
-// or `{ type, url }`. CycloneDX's `externalReferences[].url` is an
-// `iri-reference`, so a raw shorthand or remote fails schema validation in
-// consumers such as Dependency-Track. Absolute URLs are emitted in their
-// normalized form, a value naming a repository on a host hosted-git-info knows
-// is expanded to the `git+https` URL npm derives, and everything else is
-// dropped. Exported so the command's root-package handling uses the same rule.
+// `repository` may be a URL, an npm shorthand, an scp-style git remote, or
+// `{ type, url }`. CycloneDX requires an `iri-reference`, so a raw shorthand or
+// remote fails validation in consumers such as Dependency-Track. Exported so
+// the command's root-package handling uses the same rule.
 export function repositoryFromField (field: unknown): string | undefined {
   const raw = urlFieldValue(field)
   if (!raw) return undefined
   const absolute = absoluteUrl(raw)
   if (absolute) return absolute
   const hosted = HostedGit.fromUrl(raw)
-  // A shorthand that names no owner (`github:repo`) still parses, but the URL
-  // derived from it names `null` as the owner and points at nothing. This also
-  // keeps out the ownerless `gist:<id>` shorthand, which pnpm v12's parser does
-  // not know at all; dropping it in both is what keeps the two versions
-  // publishing the same SBOM. A gist named by its URL is published like any
-  // other URL.
+  // An ownerless shorthand derives a URL naming `null` as the owner.
+  // `gist:<id>` is ownerless too and pnpm v12's parser has no gist support, so
+  // dropping it here is what keeps the two versions in step.
   if (!hosted?.user) return undefined
   const expanded = hosted.https()
   return expanded ? urlWithoutCredentials(expanded)?.href : undefined
 }
 
-// The value as an absolute URL, or undefined when it is not one. A URL with no
-// host is not: `github:owner/repo` parses, but the repository the shorthand
-// names says more than the literal text does, and `mailto:` and `file:` values
-// name no repository an SBOM consumer can reach.
+// The value as an absolute URL. One with no host is not: `github:owner/repo`
+// belongs to the shorthand parser, and `mailto:` and `file:` values name no
+// repository a consumer can reach.
 function absoluteUrl (raw: string): string | undefined {
   const url = urlWithoutCredentials(raw)
   if (!url || url.host === '') return undefined
   return url.href
 }
 
-// `bugs` may be a URL string, a bare email, or `{ url, email }`. The CycloneDX
-// issue-tracker reference expects a URL, so keep the candidate only when it is
-// a well-formed http(s) URL — dropping email-only bug contacts and malformed
-// values like "https://". Exported so the command's root-package handling uses
-// the same rule.
+// `bugs` may be a URL string, a bare email, or `{ url, email }`. Only a
+// well-formed http(s) URL becomes the CycloneDX issue-tracker reference.
+// Exported so the command's root-package handling uses the same rule.
 export function bugsUrlFromField (field: unknown): string | undefined {
   const raw = urlFieldValue(field)
   if (!raw) return undefined
@@ -144,8 +135,6 @@ export function bugsUrlFromField (field: unknown): string | undefined {
   return url.href
 }
 
-// The string a `repository`- or `bugs`-shaped field holds: the field itself,
-// or the `url` of its object form.
 function urlFieldValue (field: unknown): string | undefined {
   let value: unknown = field
   if (field && typeof field === 'object' && 'url' in field) {
@@ -156,12 +145,10 @@ function urlFieldValue (field: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined
 }
 
-// An absolute URL validated and normalized by the WHATWG parser, with the
-// userinfo an SBOM must not publish removed, or undefined when the value does
-// not parse. Parsing is what makes the emitted form a valid iri-reference: the
-// serialized URL percent-encodes the whitespace and control characters a raw
-// passthrough would publish, and query or fragment text can never be mistaken
-// for userinfo.
+// An absolute URL in the WHATWG parser's normalized form, without the userinfo
+// an SBOM must not publish. Parsing is what makes the result a valid
+// iri-reference: it percent-encodes whitespace and control characters, and
+// query text can never be mistaken for userinfo.
 function urlWithoutCredentials (raw: string): URL | undefined {
   let url: URL
   try {
@@ -169,10 +156,10 @@ function urlWithoutCredentials (raw: string): URL | undefined {
   } catch {
     return undefined
   }
-  // An ssh remote addresses its host as `git@github.com`, so a username with
-  // no password there names the login, not a secret. Under any other scheme
-  // the username alone can be the secret: GitHub and GitLab both take a token
-  // in place of the whole `user:password`.
+  // `ssh:` and `git+ssh:` address their host as `git@github.com`, so a
+  // username with no password is part of the address there. Under any other
+  // scheme it can be the secret itself: GitHub and GitLab take a token in
+  // place of the whole `user:password`.
   const sshLogin = !url.password && (url.protocol === 'ssh:' || url.protocol === 'git+ssh:')
   if (!sshLogin) {
     url.username = ''

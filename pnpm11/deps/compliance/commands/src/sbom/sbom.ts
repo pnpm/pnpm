@@ -476,9 +476,8 @@ async function generateSbomForProject (
   const rootAuthor = authorNameFromField(
     manifest.author ?? (singleProject ? rootManifest.author : undefined)
   )
-  // As with the author above, only a project that declares no repository at
-  // all inherits the workspace root's; a declared value that cannot be
-  // published is dropped, not replaced.
+  // The fallback is on the raw field, as for `author` above: a declared value
+  // that cannot be published is dropped, not replaced by the workspace root's.
   const rootRepository = repositoryFromField(
     manifest.repository ?? (singleProject ? rootManifest.repository : undefined)
   )

@@ -737,9 +737,6 @@ fn parse_sbom_output(output: &std::process::Output) -> serde_json::Value {
     serde_json::from_slice(&output.stdout).expect("parse JSON output")
 }
 
-/// The npm `owner/repo` shorthand in the root manifest's `repository` field
-/// is not an iri-reference, so `CycloneDX` consumers such as Dependency-Track
-/// reject the SBOM. It is expanded to the GitHub URL npm derives for it.
 #[test]
 fn sbom_root_repository_shorthand_is_expanded_to_github_url() {
     let tmp = copy_fixture("sbom-repository");
@@ -753,8 +750,6 @@ fn sbom_root_repository_shorthand_is_expanded_to_github_url() {
     assert_eq!(vcs["url"], "git+https://github.com/acme/sbom-repository-test.git");
 }
 
-/// The same shorthand on the SPDX side lands in the root package's
-/// `homepage`, which SPDX also requires to be a valid URL.
 #[test]
 fn sbom_spdx_root_repository_shorthand_is_expanded_to_github_url() {
     let tmp = copy_fixture("sbom-repository");
@@ -763,8 +758,6 @@ fn sbom_spdx_root_repository_shorthand_is_expanded_to_github_url() {
     assert_eq!(root["homepage"], "git+https://github.com/acme/sbom-repository-test.git");
 }
 
-/// A `repository` value that names no repository (an email here) is dropped
-/// instead of published as a broken URL.
 #[test]
 fn sbom_root_repository_that_is_not_a_url_is_omitted() {
     let tmp = copy_fixture("sbom-repository");
@@ -792,8 +785,7 @@ fn sbom_root_repository_that_is_not_a_url_is_omitted() {
     );
 }
 
-/// A component's `repository` shorthand is expanded the same way: the
-/// fixture package's manifest carries `"repository": "pnpm/sbom-shorthand-repo"`.
+/// The fixture package's manifest carries `"repository": "pnpm/sbom-shorthand-repo"`.
 #[test]
 fn sbom_component_repository_shorthand_is_expanded_to_github_url() {
     let CommandTempCwd {
