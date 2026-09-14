@@ -95,6 +95,9 @@ if (!(Test-Path -LiteralPath $pnpm -PathType Leaf)) {
   exit 1
 }
 & $pnpm${shell} @args
+if ($null -eq $LastExitCode) {
+  exit 1
+}
 exit $LastExitCode
 `)
   }
@@ -253,6 +256,14 @@ const WINDOWS_WRAPPERS = [
 ] as const
 const WRAPPER_EXIT_CODE = 23
 
+interface WindowsWrapperRun {
+  wrapper: typeof WINDOWS_WRAPPERS[number]
+  script: string
+  args: string[]
+  /** Holds a `pnpm.cmd` stub that must never run: only this is on `PATH`. */
+  decoyDir: string
+}
+
 describe('prepared Windows alias wrappers', () => {
   for (const wrapper of WINDOWS_WRAPPERS) {
     winSetupTest(`.${wrapper.extension} wrappers use the sibling binary, forward arguments, and preserve its exit code`, () => {
@@ -263,7 +274,8 @@ describe('prepared Windows alias wrappers', () => {
         const args = ['probe.mjs', 'add', 'two words']
 
         for (const { name, argv } of ALIASES) {
-          const result = runWindowsWrapper(wrapper, path.join(sandbox, `${name}.${wrapper.extension}`), args, decoyDir)
+          const script = path.join(sandbox, `${name}.${wrapper.extension}`)
+          const result = runWindowsWrapper({ wrapper, script, args, decoyDir })
           if (result.error != null) throw result.error
           expect({
             name,
@@ -294,12 +306,12 @@ describe('prepared Windows alias wrappers', () => {
           writeWindowsCmdStub(path.join(decoyDir, 'pnpm.cmd'), 'decoy', 91)
 
           for (const { name } of ALIASES) {
-            const result = runWindowsWrapper(
+            const result = runWindowsWrapper({
               wrapper,
-              path.join(sandbox, `${name}.${wrapper.extension}`),
-              ['probe.mjs', 'add', 'two words'],
-              decoyDir
-            )
+              script: path.join(sandbox, `${name}.${wrapper.extension}`),
+              args: ['probe.mjs', 'add', 'two words'],
+              decoyDir,
+            })
             if (result.error != null) throw result.error
             expect({
               name,
@@ -319,6 +331,31 @@ describe('prepared Windows alias wrappers', () => {
         }
       })
     }
+
+    winSetupTest(`.${wrapper.extension} wrappers fail when the sibling binary cannot be launched`, () => {
+      const sandbox = buildWindowsAliasSandbox({ installBinary: false })
+      try {
+        fs.writeFileSync(path.join(sandbox, 'pnpm.exe'), 'not an executable')
+        const decoyDir = path.join(sandbox, 'decoy')
+        writeWindowsCmdStub(path.join(decoyDir, 'pnpm.cmd'), 'decoy', 91)
+
+        for (const { name } of ALIASES) {
+          const script = path.join(sandbox, `${name}.${wrapper.extension}`)
+          const result = runWindowsWrapper({ wrapper, script, args: ['add', 'left-pad'], decoyDir })
+          if (result.error != null) throw result.error
+          // Each shell words its own launch failure, so only the outcome is
+          // pinned: the decoy produced no output and the wrapper did not
+          // report success.
+          expect({ name, stdout: result.stdout, reportedSuccess: result.status === 0 }).toEqual({
+            name,
+            stdout: '',
+            reportedSuccess: false,
+          })
+        }
+      } finally {
+        fs.rmSync(path.dirname(sandbox), { recursive: true, force: true })
+      }
+    })
   }
 })
 
@@ -344,12 +381,7 @@ process.exit(Number(process.env.PNPM_TEST_WRAPPER_EXIT_CODE))
   return sandbox
 }
 
-function runWindowsWrapper (
-  wrapper: typeof WINDOWS_WRAPPERS[number],
-  script: string,
-  args: string[],
-  decoyDir: string
-) {
+function runWindowsWrapper ({ wrapper, script, args, decoyDir }: WindowsWrapperRun) {
   return spawnSync(wrapper.command, wrapper.argv(script, args), {
     cwd: path.dirname(script),
     encoding: 'utf8',

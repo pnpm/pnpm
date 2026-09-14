@@ -95,6 +95,9 @@ exit /b 1
 }
 
 function powershellScript (name, subcommand) {
+  // PowerShell leaves `$LastExitCode` unset when the call operator cannot start
+  // the process at all, and `exit $null` reports success. The guard keeps an
+  // unlaunchable sibling a failure, as it already is under cmd.exe.
   return `$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
 $pnpm="$basedir\\pnpm.exe"
 if (!(Test-Path -LiteralPath $pnpm -PathType Leaf)) {
@@ -103,6 +106,9 @@ if (!(Test-Path -LiteralPath $pnpm -PathType Leaf)) {
   exit 1
 }
 & $pnpm${subcommand} @args
+if ($null -eq $LastExitCode) {
+  exit 1
+}
 exit $LastExitCode
 `
 }
