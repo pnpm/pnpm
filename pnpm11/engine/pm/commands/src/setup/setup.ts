@@ -156,10 +156,7 @@ function createAliasScripts (targetDir: string): void {
  * Write one alias, `subcommand` being the shell text it appends to the pnpm call
  * (`' dlx'` for `pnpx` and `pnx`).
  *
- * All three forms hand over to the pnpm beside them rather than to whatever PATH
- * names first, so another pnpm earlier on PATH cannot take over the call.
- *
- * The sibling they reach is the bin `pnpm add -g` linked for the CLI this command
+ * The sibling each form reaches is the bin `pnpm add -g` linked for the CLI this command
  * just installed: a pnpm / pnpm.cmd / pnpm.ps1 shim trio, one per shell. The bin
  * linker writes a bare pnpm.exe only for the `node` bin name, so each form has
  * exactly one sibling to name.
@@ -173,14 +170,20 @@ function createShellScript (targetDir: string, name: string, subcommand: string)
 # and \`readlink\` runs through \`command -p\`, so the caller's PATH decides nothing here.
 self=$0
 # MSYS and Cygwin can launch this with a native Windows path, which has no slash
-# for \`\${self%/*}\` to strip. The separators are swapped in the shell rather than
-# through \`echo\`, which mangles a \`\\t\` or \`\\b\` in a path under dash.
-while :; do
-  case $self in
-    *\\\\*) self=\${self%%\\\\*}/\${self#*\\\\} ;;
-    *) break ;;
-  esac
-done
+# for \`\${self%/*}\` to strip. Only a drive letter or a UNC prefix marks one; a
+# backslash anywhere else is an ordinary character in a Unix file name, so the
+# path is left alone. The separators are swapped in the shell rather than through
+# \`echo\`, which mangles a \`\\t\` or \`\\b\` in a path under dash.
+case $self in
+  [A-Za-z]:\\\\*|\\\\\\\\*)
+    while :; do
+      case $self in
+        *\\\\*) self=\${self%%\\\\*}/\${self#*\\\\} ;;
+        *) break ;;
+      esac
+    done
+    ;;
+esac
 # \`\${self%/*}\` needs a slash to strip. A bare name came from a PATH lookup and
 # stands for a file in the current directory.
 case $self in

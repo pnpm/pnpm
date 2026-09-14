@@ -80,11 +80,10 @@ fn alias_scripts_are_written_and_executable() {
         );
         // MSYS and Cygwin can hand the script a native Windows path, which has no
         // slash for `${self%/*}` to strip. There is no POSIX shell on Windows to
-        // run this against, so pin the text, as the shim header's tests do.
-        assert!(
-            script.contains(r"    *\\*) self=${self%%\\*}/${self#*\\} ;;"),
-            "{name} = {script}",
-        );
+        // run this against, so pin the text, as the shim header's tests do. The
+        // gate is what keeps a Unix path holding a backslash off this branch;
+        // `alias_scripts_run_the_pnpm_beside_them` runs one.
+        assert!(script.contains(r"  [A-Za-z]:\\*|\\\\*)"), "{name} = {script}");
     }
 
     #[cfg(unix)]
@@ -106,9 +105,11 @@ fn alias_scripts_run_the_pnpm_beside_them() {
     use std::os::unix::fs::PermissionsExt;
 
     let dir = tempfile::tempdir().expect("create temp dir");
-    // The space is deliberate: the walk resolves directories with `${self%/*}`
-    // and matches with `case`, neither of which field-splits.
-    let bin_dir = dir.path().join("bin dir");
+    // Both oddities in the name are deliberate. The space, because the walk
+    // resolves directories with `${self%/*}` and matches with `case`, neither of
+    // which field-splits. The backslash, because it is an ordinary character
+    // here and the walk must leave it alone: only a Windows path is rewritten.
+    let bin_dir = dir.path().join(r"bin\dir with space");
     create_alias_scripts(&bin_dir).expect("write alias scripts");
 
     let write_stub = |path: &Path, label: &str| {
