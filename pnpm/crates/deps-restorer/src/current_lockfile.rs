@@ -56,11 +56,19 @@ pub fn materialization_closure(
         collect_reachable(lockfile, workspace_root, initial_importer_ids, included, |key| {
             skipped.contains(key)
         });
-    let metadata_reachable =
+    // Package metadata survives an installability skip and a failed fetch but
+    // not an optional exclusion, so it needs its own reachability walk —
+    // unless those two subsets are empty, in which case the second walk would
+    // retrace the first over the whole graph.
+    let metadata_walk = (!skipped.optional_exclusions_are_the_only_skips()).then(|| {
         collect_reachable(lockfile, workspace_root, initial_importer_ids, included, |key| {
             skipped.contains_optional_excluded(key)
-        });
-    let reachable_metadata = metadata_reachable.snapshot_keys
+        })
+    });
+    let reachable_metadata = metadata_walk
+        .as_ref()
+        .unwrap_or(&reachable)
+        .snapshot_keys
         .iter()
         .map(PackageKey::without_peer)
         .collect::<HashSet<_>>();

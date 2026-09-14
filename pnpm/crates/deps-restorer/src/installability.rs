@@ -185,6 +185,16 @@ impl SkippedSnapshots {
         self.optional_excluded.contains(key)
     }
 
+    /// Whether [`Self::contains`] and [`Self::contains_optional_excluded`]
+    /// answer alike for every key, which they do exactly when neither the
+    /// installability nor the fetch-failure subset holds anything. A caller
+    /// that would otherwise walk the graph once per predicate can then walk
+    /// it once.
+    #[must_use]
+    pub fn optional_exclusions_are_the_only_skips(&self) -> bool {
+        self.installability.is_empty() && self.fetch_failed.is_empty()
+    }
+
     /// The same set with the `installability` subset dropped — the
     /// skips a written current lockfile has to reflect.
     ///
