@@ -136,7 +136,11 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
 fn the_version_scan_reads_ignore_workspace_from_the_command_line() {
     let flag_of = |argv: &[&str]| {
         SwitchInput::from_version_argv(
-            &argv.iter().copied().map(OsString::from).collect::<Vec<_>>(),
+            &argv
+                .iter()
+                .copied()
+                .map(OsString::from)
+                .collect::<Vec<_>>(),
         )
         .ignore_workspace
     };

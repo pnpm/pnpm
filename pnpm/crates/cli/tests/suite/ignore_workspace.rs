@@ -175,7 +175,10 @@ fn ignore_workspace_updates_only_the_nested_project() {
 fn ignore_workspace_survives_the_repeat_install_fast_path() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["packages/*"], &["packages/alfa"]);
-    let output = pacquet.with_args(["install"]).output().expect("spawn pacquet");
+    let output = pacquet
+        .with_args(["install"])
+        .output()
+        .expect("spawn pacquet");
     assert!(output.status.success(), "the workspace install failed: {output:?}");
 
     let project = workspace.join("packages/alfa");
