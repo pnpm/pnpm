@@ -355,10 +355,10 @@ fn render_details(pkg: &OutdatedPackage) -> String {
     if let Some(reason) = &pkg.metadata.deprecated
         && !reason.is_empty()
     {
-        outputs.push(red(reason));
+        outputs.push(red(&sanitize_inline(reason)));
     }
     if let Some(homepage) = &pkg.metadata.homepage {
-        outputs.push(underline(homepage));
+        outputs.push(underline(&sanitize_inline(homepage)));
     }
     outputs.join("\n")
 }

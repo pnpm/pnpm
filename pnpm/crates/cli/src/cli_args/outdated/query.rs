@@ -27,6 +27,7 @@ impl OutdatedRun {
         if full_metadata {
             policy.full_metadata = true;
             policy.filter_metadata = false;
+            policy.needs_full_metadata_for = Arc::new(|_| true);
         }
         let resolver = create_configured_npm_resolver(config, http_client, &policy)
             .map_err(miette::Report::new)?;
@@ -135,12 +136,9 @@ pub struct OutdatedQuery<'a> {
     /// `update` does not (a deprecated-but-current dependency has no
     /// newer version to move to).
     pub include_deprecated: bool,
-    /// Fetch the full packument so the report can render the `--long`
-    /// details column. `homepage` is absent from the abbreviated install
-    /// metadata and dropped by the filtered full-metadata mirror, so a
-    /// details-rendering run must read the unfiltered document.
-    /// `outdated` sets this from `--long`; `update --interactive`
-    /// renders no details and leaves it off.
+    /// Fetch the full packument instead of the abbreviated install
+    /// metadata. The full document is the only source of `homepage`,
+    /// which the `--long` details column renders.
     pub full_metadata: bool,
 }
 
