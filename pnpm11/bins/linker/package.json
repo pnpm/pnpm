@@ -33,8 +33,8 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/bins.cmd-shim": "workspace:*",
     "@pnpm/bins.resolver": "workspace:*",
-    "@pnpm/cmd-shim": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",

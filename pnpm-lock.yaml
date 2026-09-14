@@ -1482,7 +1482,7 @@ importers:
         specifier: 'catalog:'
         version: 2.0.0
     devDependencies:
-      '@pnpm/cmd-shim':
+      '@pnpm/bins.cmd-shim':
         specifier: workspace:*
         version: 'link:'
       '@types/node':
@@ -1500,7 +1500,7 @@ importers:
       '@pnpm/bins.resolver':
         specifier: workspace:*
         version: link:../resolver
-      '@pnpm/cmd-shim':
+      '@pnpm/bins.cmd-shim':
         specifier: workspace:*
         version: link:../cmd-shim
       '@pnpm/error':
@@ -8254,7 +8254,7 @@ importers:
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.4.1(supports-color@10.2.2)
-      '@pnpm/cmd-shim':
+      '@pnpm/bins.cmd-shim':
         specifier: workspace:*
         version: link:../../../bins/cmd-shim
       '@pnpm/exe':

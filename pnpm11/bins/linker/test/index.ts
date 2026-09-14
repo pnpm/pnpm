@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { beforeEach, describe, expect, jest, test } from '@jest/globals'
-import { cmdShim } from '@pnpm/cmd-shim'
+import { cmdShim } from '@pnpm/bins.cmd-shim'
 import { fixtures } from '@pnpm/test-fixtures'
 import { cmdExtension as CMD_EXTENSION } from 'cmd-extension'
 import isWindows from 'is-windows'

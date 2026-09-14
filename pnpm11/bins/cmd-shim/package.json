@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/cmd-shim",
+  "name": "@pnpm/bins.cmd-shim",
   "version": "1100.0.0",
   "description": "Used in pnpm for command line application support",
   "keywords": [
@@ -7,11 +7,6 @@
     "pnpm11"
   ],
   "license": "BSD-2-Clause",
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "zoltan.kochan@gmail.com",
-    "url": "http://kochan.io"
-  },
   "funding": "https://opencollective.com/pnpm",
   "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/bins/cmd-shim",
   "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/bins/cmd-shim#readme",
@@ -40,7 +35,7 @@
     "cmd-extension": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/cmd-shim": "workspace:*",
+    "@pnpm/bins.cmd-shim": "workspace:*",
     "@types/node": "catalog:",
     "memfs": "catalog:",
     "tempy": "catalog:"

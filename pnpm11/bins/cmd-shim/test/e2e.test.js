@@ -8,7 +8,7 @@ snapshot.setDefaultSnapshotSerializers([
   (value) => typeof value === 'string' ? `\n${value.replaceAll('\r', '')}` : JSON.stringify(value),
 ])
 import { temporaryDirectory } from 'tempy'
-import { cmdShim } from '@pnpm/cmd-shim'
+import { cmdShim } from '@pnpm/bins.cmd-shim'
 
 const describeOnWindows = process.platform === 'win32' ? describe : describe.skip
 const describeOnPosix = process.platform === 'win32' ? describe.skip : describe

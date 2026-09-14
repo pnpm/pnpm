@@ -7,7 +7,7 @@ snapshot.setDefaultSnapshotSerializers([
 import path from 'node:path'
 import { cmdExtension } from 'cmd-extension'
 import { fixtures, fixtures2, fs, setupFixtures } from './setup.js'
-import { cmdShim, isShimPointingAt } from '@pnpm/cmd-shim'
+import { cmdShim, isShimPointingAt } from '@pnpm/bins.cmd-shim'
 
 /**
  * @param {import('node:test').TestContext} t

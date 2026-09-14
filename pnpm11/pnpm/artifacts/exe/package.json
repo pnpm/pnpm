@@ -49,7 +49,7 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/cmd-shim": "workspace:*",
+    "@pnpm/bins.cmd-shim": "workspace:*",
     "@pnpm/exe": "workspace:*",
     "@pnpm/jest-config": "workspace:*",
     "execa": "catalog:"

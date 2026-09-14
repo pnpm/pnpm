@@ -1,4 +1,4 @@
-# @pnpm/cmd-shim
+# @pnpm/bins.cmd-shim
 
 > Used in pnpm for command line application support
 
@@ -7,7 +7,7 @@ The cmd-shim used in [pnpm](https://github.com/pnpm/pnpm) to create executable s
 ## Installation
 
 ```sh
-npm install --save @pnpm/cmd-shim
+npm install --save @pnpm/bins.cmd-shim
 ```
 
 ## API
@@ -18,7 +18,7 @@ Create a cmd shim at `to` for the command line program at `src`.
 e.g.
 
 ```javascript
-import { cmdShim } from '@pnpm/cmd-shim'
+import { cmdShim } from '@pnpm/bins.cmd-shim'
 cmdShim('/path/to/cli.js', '/usr/bin/command-name')
   .catch(err => console.error(err))
 ```
@@ -38,7 +38,7 @@ The same as above, but will just continue if the file does not exist.
 - `opts.progArgs` - String - optional arguments that will be prepend to any CLI arguments
 
 ```javascript
-import { cmdShim } from '@pnpm/cmd-shim'
+import { cmdShim } from '@pnpm/bins.cmd-shim'
 cmdShim('/path/to/cli.js', '/usr/bin/command-name', { preserveSymlinks: true })
   .catch(err => console.error(err))
 ```
