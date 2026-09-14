@@ -448,9 +448,9 @@ async function tolerateWhenPrintingVersion (printingVersion: boolean, work: () =
  */
 function describeFailure (err: unknown): string {
   if (!utilTypes.isNativeError(err)) return redactAndSanitize(String(err))
-  const message = redactAndSanitize(err.message)
   const code = 'code' in err ? String(err.code) : ''
-  return code === '' || message.startsWith(code) ? message : `${code}: ${message}`
+  const described = code === '' || err.message.startsWith(code) ? err.message : `${code}: ${err.message}`
+  return redactAndSanitize(described)
 }
 
 function printError (message: string, hint?: string): void {
