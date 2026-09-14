@@ -3,9 +3,15 @@ import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
+import isWindows from 'is-windows'
+import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from './utils/index.js'
+
+// The read-only bit on a Windows directory does not stop a file from being
+// created in it, so the case below has nothing to observe there.
+const testOnPosix = isWindows() ? test.skip : test
 
 test('install should fail if the used pnpm version does not satisfy the pnpm version specified in engines', async () => {
   prepare({
@@ -855,3 +861,48 @@ describe('release-brittle: may fail until current version is published to npm', 
     expect(status).toBe(0)
   })
 })
+
+testOnPosix('pnpm --version reports a pin it cannot record instead of failing', () => {
+  prepare()
+  const projectDir = process.cwd()
+  const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
+  writeJsonFileSync('package.json', {
+    name: 'project',
+    version: '1.0.0',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: pnpmVersion,
+        onFail: 'error',
+      },
+    },
+  })
+
+  fs.chmodSync(projectDir, 0o555)
+  try {
+    // A test running as root writes through the read-only bit, leaving
+    // nothing for this case to observe.
+    if (canWriteTo(projectDir)) return
+
+    const { status, stdout, stderr } = execPnpmSync(['--version'])
+
+    expect(status).toBe(0)
+    expect(stdout.toString().trim()).toBe(pnpmVersion)
+    expect(stderr.toString()).toContain('Cannot use the pnpm version this project pins')
+    expect(stderr.toString()).toContain('permission denied')
+    expect(fs.existsSync(path.join(projectDir, 'pnpm-lock.yaml'))).toBe(false)
+  } finally {
+    fs.chmodSync(projectDir, 0o755)
+  }
+})
+
+function canWriteTo (dir: string): boolean {
+  const probe = path.join(dir, 'write-probe')
+  try {
+    fs.writeFileSync(probe, '')
+  } catch {
+    return false
+  }
+  fs.rmSync(probe)
+  return true
+}

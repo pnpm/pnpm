@@ -236,6 +236,93 @@ fn version_flag_switches_to_the_version_a_range_pin_resolved_to() {
     drop((root, mock_instance));
 }
 
+/// A sandbox that mounts the project read-only leaves the pin nowhere to be
+/// recorded. Reporting a version has to work there too, so the record is
+/// skipped and the reason is reported.
+#[test]
+#[cfg(unix)]
+fn version_flag_reports_a_pin_it_cannot_record() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let pinned = pnpm_config::PNPM_VERSION;
+    fs::write(
+        workspace.join("package.json"),
+        format!(r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{pinned}"}}}}}}"#),
+    )
+    .expect("write package.json");
+
+    let writable = fs::metadata(&workspace).expect("read the workspace permissions").permissions();
+    let mut read_only = writable.clone();
+    read_only.set_readonly(true);
+    fs::set_permissions(&workspace, read_only).expect("make the workspace read-only");
+    if !workspace_rejects_writes(&workspace) {
+        fs::set_permissions(&workspace, writable).expect("make the workspace writable again");
+        return;
+    }
+
+    let output = test_command(pacquet, root.path())
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .args(["--version"])
+        .output()
+        .expect("run pacquet --version");
+
+    fs::set_permissions(&workspace, writable).expect("make the workspace writable again");
+
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet --version should survive a read-only project");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{pinned}\n"));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Cannot use the pnpm version this project pins"), "{stderr}");
+    assert!(
+        EnvLockfile::read(&workspace).expect("read the env lockfile").is_none(),
+        "a read-only project cannot have recorded the pin",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Whether the read-only bit set above actually stops a write. It does not
+/// when the test runs as root, which leaves nothing for the case above to
+/// observe.
+#[cfg(unix)]
+fn workspace_rejects_writes(workspace: &Path) -> bool {
+    let probe = workspace.join("write-probe");
+    if fs::write(&probe, "").is_err() {
+        return true;
+    }
+    fs::remove_file(&probe).expect("remove the write probe");
+    false
+}
+
+/// Only the steps that write are skipped when the version is all that is
+/// wanted. A pin the running pnpm cannot stand in for still fails.
+#[test]
+fn version_flag_fails_when_the_project_pins_another_package_manager() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"yarn@4.0.0"}"#)
+        .expect("write package.json");
+
+    let output = test_command(pacquet, root.path())
+        .arg("--version")
+        .output()
+        .expect("run pacquet --version");
+
+    dbg!(&output);
+    assert!(!output.status.success(), "a pin naming another package manager must fail");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("This project is configured to use yarn"),
+        "{output:?}",
+    );
+
+    drop(root);
+}
+
 fn write_dev_engine_pin(workspace: &Path, version: &str) {
     fs::write(
         workspace.join("package.json"),
@@ -851,42 +938,6 @@ fn pacquet_version_assuming_published(workspace: &Path, args: &[&str]) -> std::p
         .env("PACQUET_ASSUME_VERSIONS_PUBLISHED", "1")
         .args(args);
     command.output().expect("run pacquet version")
-}
-
-#[test]
-#[cfg(unix)]
-fn version_flag_succeeds_on_read_only_filesystem() {
-    use std::os::unix::fs::PermissionsExt as _;
-
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    let pinned = pnpm_config::PNPM_VERSION;
-    fs::write(
-        workspace.join("package.json"),
-        format!(r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{pinned}"}}}}}}"#),
-    )
-    .expect("write package.json");
-
-    let mut permissions =
-        fs::metadata(&workspace).expect("get workspace permissions").permissions();
-    permissions.set_readonly(true);
-    let _ = fs::set_permissions(&workspace, permissions.clone());
-
-    let output = test_command(pacquet, root.path())
-        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .args(["--version"])
-        .output()
-        .expect("run pacquet --version");
-
-    permissions.set_mode(0o755);
-    let _ = fs::set_permissions(&workspace, permissions);
-
-    dbg!(&output);
-    assert!(output.status.success(), "pacquet --version should succeed on read-only filesystem");
-    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{pinned}\n"));
-
-    drop((root, mock_instance));
 }
 
 mod git;

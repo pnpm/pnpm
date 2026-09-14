@@ -29,7 +29,7 @@ use super::{
 use crate::{
     cli_args::{config_warnings::report_workspace_key_issues, dispatch::seed_config},
     config_deps,
-    config_overrides::{ConfigOverrides, apply_state_dir_override},
+    config_overrides::{ConfigOverrides, apply_state_dir_override, apply_store_dir_override},
     engine_pm::{
         channel::PackageManager,
         install::{install_engine_from_env, install_engine_to_store},
@@ -121,10 +121,10 @@ fn pre_command_plan_from_input(
     if input.switch.command.as_deref().is_some_and(should_skip_command_name) {
         return Ok(None);
     }
-    let dir = dunce::canonicalize(&input.switch.dir)
+    let dir = dunce::canonicalize(&input.switch.paths.dir)
         .into_diagnostic()
         .wrap_err_with(|| {
-            format!("canonicalizing the `--dir` argument: {}", input.switch.dir.display())
+            format!("canonicalizing the `--dir` argument: {}", input.switch.paths.dir.display())
         })?;
     let config = load_pre_command_config(&input.switch, config_overrides, &dir)?;
 
@@ -195,7 +195,7 @@ fn load_pre_command_config(
     config_overrides: &ConfigOverrides,
     dir: &Path,
 ) -> miette::Result<Config> {
-    let mut config = seed_config(switch.npmrc_auth_file.as_deref(), switch.ignore_workspace)
+    let mut config = seed_config(switch.paths.npmrc_auth_file.as_deref(), switch.ignore_workspace)
         .current::<Host>(dir)
         .map_err(miette::Report::new)
         .wrap_err("load configuration")?;
@@ -207,11 +207,11 @@ fn load_pre_command_config(
     if config.ci {
         pnpm_default_reporter::force_append_only();
     }
-    if let Some(state_dir) = switch.state_dir.as_deref() {
-        apply_state_dir_override::<Host>(&mut config, state_dir, dir);
+    if let Some(store_dir) = switch.paths.store_dir.as_deref() {
+        apply_store_dir_override::<Host>(&mut config, store_dir, dir)?;
     }
-    if let Some(store_dir) = switch.store_dir.as_deref() {
-        config.store_dir = pnpm_store_dir::StoreDir::from(store_dir.to_path_buf());
+    if let Some(state_dir) = switch.paths.state_dir.as_deref() {
+        apply_state_dir_override::<Host>(&mut config, state_dir, dir);
     }
     // `--lockfile-dir` moves the lockfile the pin is recorded in, and
     // `--offline` governs how that record is resolved. Both are
@@ -250,6 +250,36 @@ fn switch_or_sync(
 fn global_warn(emit: fn(&LogEvent), message: &str) {
     let message = sanitize_inline(message).into_owned();
     emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
+}
+
+/// Report a pinned pnpm that `pnpm --version` could not act on. Why the
+/// command carries on afterwards is documented on its caller in `lib.rs`.
+pub(crate) fn warn_pinned_pnpm_unusable(error: &miette::Report) {
+    let code = error
+        .code()
+        .map(|code| format!("{code}: "))
+        .unwrap_or_default();
+    global_warn(
+        DefaultReporter::emit,
+        &format!("Cannot use the pnpm version this project pins: {code}{}", error_causes(error)),
+    );
+}
+
+/// Every cause of `error`, in miette's order, dropping the ones an earlier
+/// cause already quotes — a wrapping error usually renders its source.
+fn error_causes(error: &miette::Report) -> String {
+    let mut causes = String::new();
+    for cause in error.chain() {
+        let cause = cause.to_string();
+        if causes.contains(cause.as_str()) {
+            continue;
+        }
+        if !causes.is_empty() {
+            causes.push_str(": ");
+        }
+        causes.push_str(&cause);
+    }
+    causes
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]

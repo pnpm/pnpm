@@ -1,11 +1,11 @@
 use super::{
     CliArgs, CliCommand, KeyIssueReporting, PackageManagerToSync, PinRoots, PreCommandInput,
-    PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource, pre_command_plan_from_input,
-    switch_target,
+    PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource, load_pre_command_config,
+    pre_command_plan_from_input, switch_target,
 };
 use crate::{
     boolean_negations::with_boolean_negations,
-    cli_args::pre_command::input::{PinFlags, frozen_lockfile_flag},
+    cli_args::pre_command::input::{PinFlags, SwitchPaths, frozen_lockfile_flag},
     config_overrides::ConfigOverrides,
 };
 use clap::{CommandFactory, FromArgMatches};
@@ -107,10 +107,10 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         let input = SwitchInput::from_version_argv(&argv);
 
         if let Some(dir) = case.dir {
-            assert_eq!(input.dir, PathBuf::from(dir), "case: {}", case.name);
+            assert_eq!(input.paths.dir, PathBuf::from(dir), "case: {}", case.name);
         }
         assert_eq!(
-            input.npmrc_auth_file,
+            input.paths.npmrc_auth_file,
             case.npmrc_auth_file.map(PathBuf::from),
             "case: {}",
             case.name,
@@ -124,7 +124,7 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         OsString::from("/tmp/state"),
         OsString::from("--version"),
     ]);
-    assert_eq!(input.state_dir.as_deref(), Some(Path::new("/tmp/state")));
+    assert_eq!(input.paths.state_dir.as_deref(), Some(Path::new("/tmp/state")));
 
     let input = SwitchInput::from_version_argv(&[
         OsString::from("pnpm"),
@@ -132,28 +132,30 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         OsString::from("/tmp/store"),
         OsString::from("--version"),
     ]);
-    assert_eq!(input.store_dir.as_deref(), Some(Path::new("/tmp/store")));
+    assert_eq!(input.paths.store_dir.as_deref(), Some(Path::new("/tmp/store")));
 }
 
+/// The pinned pnpm installs into the store the command line names, laid
+/// out the way every other command lays it out.
 #[test]
-fn pre_command_plan_for_version_flag_skips_sync_plan() {
+fn the_pre_command_config_resolves_the_store_dir_flag() {
     let root = TempDir::new().expect("tmp dir");
-    write_manifest(
-        root.path(),
-        &format!(r#"{{"packageManager":"pnpm@{}"}}"#, pnpm_config::PNPM_VERSION),
-    );
-
-    let argv = vec![
+    let dir = dunce::canonicalize(root.path()).expect("canonicalize the project directory");
+    let mut switch = SwitchInput::from_version_argv(&[
         OsString::from("pnpm"),
-        OsString::from("-C"),
-        root.path().as_os_str().to_os_string(),
+        OsString::from("--store-dir"),
+        OsString::from("relative-store"),
         OsString::from("--version"),
-    ];
+    ]);
+    switch.paths.dir = dir.clone();
 
-    let plan = super::pre_command_plan_for_version_flag(&argv, &ConfigOverrides::default())
-        .expect("pre_command_plan_for_version_flag");
+    let config = load_pre_command_config(&switch, &ConfigOverrides::default(), &dir)
+        .expect("load the pre-command config");
 
-    assert!(plan.is_none(), "version flag should skip env lockfile sync");
+    assert_eq!(
+        config.store_dir.root(),
+        dir.join("relative-store").join(pnpm_store_dir::STORE_VERSION),
+    );
 }
 
 /// `pnpm --version` still reconciles the `packageManager` pin, so its argv
@@ -573,10 +575,12 @@ fn config_overrides(argv: &[&str]) -> ConfigOverrides {
 fn pre_command_input(dir: &Path) -> PreCommandInput {
     PreCommandInput {
         switch: SwitchInput {
-            dir: dir.to_path_buf(),
-            state_dir: None,
-            store_dir: None,
-            npmrc_auth_file: None,
+            paths: SwitchPaths {
+                dir: dir.to_path_buf(),
+                state_dir: None,
+                store_dir: None,
+                npmrc_auth_file: None,
+            },
             command: Some("run".to_string()),
             frozen_lockfile: None,
             pin_flags: PinFlags::default(),

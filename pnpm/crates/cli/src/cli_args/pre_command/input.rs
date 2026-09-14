@@ -256,11 +256,18 @@ fn env_var_is_false(name: &str) -> bool {
         .is_some_and(|value| matches!(value.to_ascii_lowercase().as_str(), "false" | "0"))
 }
 
-pub(super) struct SwitchInput {
+/// Where this pass reads and writes, as the command line moved it.
+/// Mirrors the [`CliPathArgs`](super::super::cli_command::CliPathArgs)
+/// group a parsed command line carries.
+pub(super) struct SwitchPaths {
     pub(super) dir: PathBuf,
     pub(super) state_dir: Option<PathBuf>,
     pub(super) store_dir: Option<PathBuf>,
     pub(super) npmrc_auth_file: Option<PathBuf>,
+}
+
+pub(super) struct SwitchInput {
+    pub(super) paths: SwitchPaths,
     pub(super) command: Option<String>,
     /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
     /// line. `None` leaves the `frozenLockfile` setting to answer.
@@ -278,10 +285,12 @@ pub(super) struct SwitchInput {
 impl SwitchInput {
     pub(super) fn from_cli_args(args: &CliArgs) -> Self {
         Self {
-            dir: args.paths.dir.clone(),
-            state_dir: args.paths.state_dir.clone(),
-            store_dir: args.paths.store_dir.clone(),
-            npmrc_auth_file: args.paths.npmrc_auth_file.clone(),
+            paths: SwitchPaths {
+                dir: args.paths.dir.clone(),
+                state_dir: args.paths.state_dir.clone(),
+                store_dir: args.paths.store_dir.clone(),
+                npmrc_auth_file: args.paths.npmrc_auth_file.clone(),
+            },
             command: Some(command_name(&args.command).to_string()),
             frozen_lockfile: frozen_lockfile_flag(&args.command),
             pin_flags: PinFlags::of(&args.command),
@@ -306,10 +315,12 @@ impl SwitchInput {
     pub(super) fn from_version_argv(argv: &[OsString]) -> Self {
         let global_options = ArgTable::top_level(super::super::grammar());
         let mut input = Self {
-            dir: Self::local_prefix_or_cwd(),
-            state_dir: None,
-            store_dir: None,
-            npmrc_auth_file: None,
+            paths: SwitchPaths {
+                dir: Self::local_prefix_or_cwd(),
+                state_dir: None,
+                store_dir: None,
+                npmrc_auth_file: None,
+            },
             command: None,
             frozen_lockfile: None,
             pin_flags: PinFlags::default(),
@@ -347,35 +358,46 @@ impl SwitchInput {
         next: Option<&std::ffi::OsStr>,
         global_options: &ArgTable,
     ) -> usize {
-        if let Some(value) = short_value(token, "-C", next) {
-            self.dir = PathBuf::from(value);
-            return if token == "-C" { 2 } else { 1 };
-        }
-        if let Some((value, width)) =
-            long_value(token, "dir", next).or_else(|| long_value(token, "prefix", next))
-        {
-            self.dir = PathBuf::from(value);
-            return width;
-        }
-        if let Some((value, width)) = long_value(token, "state-dir", next) {
-            self.state_dir = Some(PathBuf::from(value));
-            return width;
-        }
-        if let Some((value, width)) = long_value(token, "store-dir", next) {
-            self.store_dir = Some(PathBuf::from(value));
+        if let Some(width) = self.paths.absorb_flag(token, next) {
             return width;
         }
         if let Some(set) = boolean_flag(token, "ignore-workspace") {
             self.ignore_workspace = set;
             return 1;
         }
+        if consumes_next_token(token, global_options) { 2 } else { 1 }
+    }
+}
+
+impl SwitchPaths {
+    /// Read one directory flag, returning how many argv tokens it
+    /// consumed, or `None` when the token names none of them.
+    fn absorb_flag(&mut self, token: &str, next: Option<&OsStr>) -> Option<usize> {
+        if let Some(value) = short_value(token, "-C", next) {
+            self.dir = PathBuf::from(value);
+            return Some(if token == "-C" { 2 } else { 1 });
+        }
+        if let Some((value, width)) =
+            long_value(token, "dir", next).or_else(|| long_value(token, "prefix", next))
+        {
+            self.dir = PathBuf::from(value);
+            return Some(width);
+        }
+        if let Some((value, width)) = long_value(token, "state-dir", next) {
+            self.state_dir = Some(PathBuf::from(value));
+            return Some(width);
+        }
+        if let Some((value, width)) = long_value(token, "store-dir", next) {
+            self.store_dir = Some(PathBuf::from(value));
+            return Some(width);
+        }
         if let Some((value, width)) = long_value(token, "npmrc-auth-file", next)
             .or_else(|| long_value(token, "userconfig", next))
         {
             self.npmrc_auth_file = Some(PathBuf::from(value));
-            return width;
+            return Some(width);
         }
-        if consumes_next_token(token, global_options) { 2 } else { 1 }
+        None
     }
 }
 
