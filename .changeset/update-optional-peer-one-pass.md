@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-`pnpm update` now attaches an optional peer to a direct dependency in one pass when the peer version the lockfile named is no longer in the graph. A second `pnpm update` no longer changes the lockfile [#14895](https://github.com/pnpm/pnpm/issues/14895).
+`pnpm update` now settles the lockfile in one run when an upgrade removes the package that provided an optional peer dependency. A second `pnpm update` used to change the lockfile again, with no version change in the diff [#14895](https://github.com/pnpm/pnpm/issues/14895).
