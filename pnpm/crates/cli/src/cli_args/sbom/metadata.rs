@@ -43,11 +43,14 @@ fn absolute_url(raw: &str) -> Option<String> {
 }
 
 /// An absolute URL in the WHATWG parser's normalized form, without the
-/// userinfo an SBOM must not publish. Parsing is what makes the result a valid
-/// iri-reference: it percent-encodes whitespace and control characters, and
-/// query text can never be mistaken for userinfo.
+/// userinfo an SBOM must not publish. Parsing is most of what makes the result
+/// a valid iri-reference: it percent-encodes whitespace and control
+/// characters, and query text can never be mistaken for userinfo.
 pub(super) fn url_without_credentials(raw: &str) -> Option<url::Url> {
     let mut url = url::Url::parse(raw).ok()?;
+    if !percent_escapes_are_complete(url.as_str()) {
+        return None;
+    }
     // `ssh` and `git+ssh` address their host as `git@github.com`, so a
     // username with no password is part of the address there. Under any other
     // scheme it can be the secret itself: GitHub and GitLab take a token in
@@ -58,6 +61,25 @@ pub(super) fn url_without_credentials(raw: &str) -> Option<url::Url> {
         url.set_password(None).ok()?;
     }
     Some(url)
+}
+
+/// Whether every `%` in the URL begins a `%XX` escape. The parser keeps a
+/// stray one as the manifest wrote it, and an iri-reference admits no such
+/// thing, so a URL carrying one cannot be published.
+fn percent_escapes_are_complete(url: &str) -> bool {
+    let bytes = url.as_bytes();
+    bytes
+        .iter()
+        .enumerate()
+        .all(|(index, byte)| {
+            *byte != b'%'
+                || bytes[index + 1..]
+                    .iter()
+                    .take(2)
+                    .filter(|byte| byte.is_ascii_hexdigit())
+                    .count()
+                    == 2
+        })
 }
 
 pub(super) fn extract_bugs_url(manifest: &serde_json::Value) -> Option<String> {

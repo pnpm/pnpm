@@ -146,7 +146,7 @@ function urlFieldValue (field: unknown): string | undefined {
 }
 
 // An absolute URL in the WHATWG parser's normalized form, without the userinfo
-// an SBOM must not publish. Parsing is what makes the result a valid
+// an SBOM must not publish. Parsing is most of what makes the result a valid
 // iri-reference: it percent-encodes whitespace and control characters, and
 // query text can never be mistaken for userinfo.
 function urlWithoutCredentials (raw: string): URL | undefined {
@@ -156,6 +156,9 @@ function urlWithoutCredentials (raw: string): URL | undefined {
   } catch {
     return undefined
   }
+  // The parser keeps a `%` that begins no `%XX` escape as the manifest wrote
+  // it, and an iri-reference admits no such thing.
+  if (/%(?![0-9a-f]{2})/i.test(url.href)) return undefined
   // `ssh:` and `git+ssh:` address their host as `git@github.com`, so a
   // username with no password is part of the address there. Under any other
   // scheme it can be the secret itself: GitHub and GitLab take a token in

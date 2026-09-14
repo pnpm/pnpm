@@ -247,8 +247,9 @@ describe('repositoryFromField', () => {
     expect(repositoryFromField('https://example.com/a b')).toBe('https://example.com/a%20b')
   })
 
-  it('leaves a malformed percent escape alone', () => {
-    expect(repositoryFromField('https://example.com/%zz')).toBe('https://example.com/%zz')
+  it('drops an incomplete percent escape', () => {
+    expect(repositoryFromField('https://example.com/%zz')).toBeUndefined()
+    expect(repositoryFromField('https://example.com/%')).toBeUndefined()
   })
 
   it('drops absolute URLs that do not parse', () => {

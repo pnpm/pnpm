@@ -359,9 +359,11 @@ fn extract_repository_percent_encodes_whitespace_in_urls() {
 }
 
 #[test]
-fn extract_repository_leaves_a_malformed_percent_escape_alone() {
-    let manifest = serde_json::json!({ "repository": "https://example.com/%zz" });
-    assert_eq!(extract_repository(&manifest), Some("https://example.com/%zz".to_string()));
+fn extract_repository_drops_an_incomplete_percent_escape() {
+    for value in ["https://example.com/%zz", "https://example.com/%"] {
+        let manifest = serde_json::json!({ "repository": value });
+        assert_eq!(extract_repository(&manifest), None, "value: {value:?}");
+    }
 }
 
 #[test]
