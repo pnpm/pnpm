@@ -97,11 +97,16 @@ function readOwningPackage (resolvedScript: string): OwningPackage | undefined {
       dir = parent
       continue
     }
+    let manifest: unknown
     try {
-      return { dir, manifest: JSON.parse(contents) as OwningPackage['manifest'] }
+      manifest = JSON.parse(contents)
     } catch {
       return undefined
     }
+    // `null`, a bare string and a number are all valid JSON, so parsing
+    // succeeding says nothing about there being fields to read.
+    if (typeof manifest !== 'object' || manifest === null) return undefined
+    return { dir, manifest: manifest as OwningPackage['manifest'] }
   }
 }
 
