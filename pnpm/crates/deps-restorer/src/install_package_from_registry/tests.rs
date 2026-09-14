@@ -47,6 +47,7 @@ fn create_config(
         reporter_hide_prefix: None,
         use_stderr: false,
         ignore_workspace: false,
+        workspace_search_skipped: false,
         workspace_package_patterns: None,
         shell_emulator: false,
         skip_manifest_obfuscation: false,
