@@ -23,8 +23,6 @@ impl fmt::Debug for HoistedDirCloneCache<'_> {
 }
 
 impl<'a> HoistedDirCloneCache<'a> {
-    /// Qualify every snapshot once, up front, so the per-node
-    /// [`Self::try_import`] on the link path is a set lookup.
     pub(crate) fn new(
         cache: Option<&'a DirCloneCache<'a>>,
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
