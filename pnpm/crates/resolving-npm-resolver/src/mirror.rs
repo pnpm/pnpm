@@ -371,14 +371,16 @@ fn raise_open_file_limit_once() {
                 return;
             }
             let request = libc::rlimit { rlim_cur: target, rlim_max: limit.rlim_max };
-            if libc::setrlimit(libc::RLIMIT_NOFILE, &raw const request) == 0
-                || !cfg!(target_os = "macos")
-            {
+            if libc::setrlimit(libc::RLIMIT_NOFILE, &raw const request) == 0 {
                 return;
             }
             // macOS rejects soft limits above `kern.maxfilesperproc`
             // even when the hard limit reads unlimited; 10240 is
-            // the historically safe `OPEN_MAX` ceiling there.
+            // the historically safe `OPEN_MAX` ceiling there. No other
+            // platform has a second ceiling worth retrying under.
+            if !cfg!(target_os = "macos") {
+                return;
+            }
             let fallback = limit.rlim_max.min(10240);
             if fallback > limit.rlim_cur {
                 let request = libc::rlimit { rlim_cur: fallback, rlim_max: limit.rlim_max };
