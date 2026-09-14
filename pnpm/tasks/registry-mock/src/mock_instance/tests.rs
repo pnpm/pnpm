@@ -28,15 +28,19 @@ fn processes() -> System {
     )
 }
 
+/// Last-resort kill for the registry child a test spawned, so a failing
+/// assertion never leaves the process behind.
 struct ChildCleanup(Option<Pid>);
 
 impl ChildCleanup {
+    /// Disarms once the child is confirmed gone, because the OS is free to
+    /// hand that PID to an unrelated process afterwards.
     fn assert_reaped(mut self) {
         let pid = self.0.expect("cleanup is armed");
-        let system = processes();
-        let child = system.process(pid);
-        eprintln!("registry child {pid} still exists: {}", child.is_some());
-        assert!(child.is_none(), "registry child must be stopped and reaped");
+        assert!(
+            processes().process(pid).is_none(),
+            "registry child {pid} must be stopped and reaped",
+        );
         self.0 = None;
     }
 }
@@ -49,6 +53,10 @@ impl Drop for ChildCleanup {
     }
 }
 
+/// Drive [`MockInstanceOptions::spawn`] up to its first readiness request,
+/// which a proxy that never answers parks indefinitely. The returned task is
+/// therefore suspended with a live registry child, which is the state both
+/// cleanup paths have to recover from.
 async fn pending_startup() -> (JoinHandle<MockInstance>, TcpStream, ChildCleanup) {
     let proxy = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let client = Client::builder()
@@ -81,8 +89,7 @@ async fn cancelled_startup_reaps_child() {
     let (startup, _connection, child) = pending_startup().await;
     startup.abort();
     let error = startup.await.unwrap_err();
-    eprintln!("startup result: {error}");
-    assert!(error.is_cancelled());
+    assert!(error.is_cancelled(), "aborting startup cancels it: {error}");
     child.assert_reaped();
 }
 
@@ -90,11 +97,12 @@ async fn cancelled_startup_reaps_child() {
 async fn failed_readiness_check_reaps_child() {
     let (startup, connection, child) = pending_startup().await;
     drop(connection);
-    let error = timeout(Duration::from_secs(10), startup).await
+    // Generous because a platform that reports the closed connection as a
+    // connect error sends startup around its whole retry budget first.
+    let error = timeout(Duration::from_secs(30), startup).await
         .expect("closed connection must fail the readiness check")
         .unwrap_err();
-    eprintln!("startup result: {error}");
-    assert!(error.is_panic());
+    assert!(error.is_panic(), "readiness failures panic: {error}");
     child.assert_reaped();
 }
 
@@ -104,14 +112,11 @@ async fn successful_startup_retains_owner_and_reuse_does_not_stop_registry() {
         .no_proxy()
         .build()
         .unwrap();
-    let options = options(&client, pick_unused_port().unwrap());
-    let instance = options.spawn().await;
+    let registry = options(&client, pick_unused_port().unwrap());
+    let instance = registry.spawn().await;
     let child = ChildCleanup(Some(Pid::from_u32(instance.process.id())));
-    let reused = options.spawn_if_necessary().await;
-    eprintln!("owner returned for existing registry: {reused:?}");
-    assert!(reused.is_none());
-    eprintln!("checking the owned registry still responds");
-    assert!(options.is_registry_ready().await);
+    assert!(registry.spawn_if_necessary().await.is_none(), "a ready registry is not respawned");
+    assert!(registry.is_registry_ready().await, "reuse must leave the registry serving");
     drop(instance);
     child.assert_reaped();
 }

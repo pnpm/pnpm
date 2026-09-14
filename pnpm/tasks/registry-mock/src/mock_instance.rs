@@ -98,6 +98,8 @@ impl MockInstanceOptions<'_> {
             .stderr(stderr)
             .spawn()
             .expect("spawn pnpr");
+        // Owning the child before the readiness wait is what lets a panicking
+        // or cancelled startup still run the kill-and-wait destructor.
         let instance = MockInstance { process };
 
         self.wait_for_registry().await;
