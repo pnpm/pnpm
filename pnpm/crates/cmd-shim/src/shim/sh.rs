@@ -106,12 +106,7 @@ struct ShExec<'a> {
 /// One `exec` block: a program that already names an executable runs directly,
 /// while a bare program name is probed in the bin directory, then on `PATH`.
 fn sh_exec_block(exec: &ShExec<'_>, exec_args: &str) -> String {
-    let ShExec {
-        prog,
-        prog_exe,
-        prog_has_exe,
-        quoted,
-    } = *exec;
+    let ShExec { prog, prog_exe, prog_has_exe, quoted } = *exec;
     let quoted_target = &quoted.posix;
     let quoted_target_win = &quoted.windows;
     let sh_long_prog_exe = format!(r#""$basedir/{prog_exe}""#);
@@ -140,8 +135,22 @@ const SH_SHIM_HEADER: &str = r#"#!/bin/sh
 # A shim runs with node_modules/.bin at the front of PATH, so readlink, sed, and
 # uname go through `command -p`, which searches the system default path instead.
 # A dependency's bin cannot stand in for one of them and take over the shim
-# before it reaches its target. Directories come from `${link%/*}`, which needs
-# no helper at all.
+# before it reaches its target. On Nix, `command -p` falls back to PATH, so
+# node_modules entries are stripped from PATH while resolving helpers.
+# Directories come from `${link%/*}`, which needs no helper at all.
+_PATH="$PATH"
+_path=""
+_old_ifs=${IFS+x}
+_saved_ifs="$IFS"
+IFS=":"
+for _dir in $PATH; do
+  case "$_dir" in
+    *node_modules*|"") ;;
+    /*) _path="${_path:+${_path}:}$_dir" ;;
+  esac
+done
+if [ -n "$_old_ifs" ]; then IFS="$_saved_ifs"; else unset IFS; fi
+PATH="$_path"
 link="$0"
 # `${link%/*}` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -183,6 +192,7 @@ case `command -p uname -a` in
     fi
   ;;
 esac
+PATH="$_PATH"
 
 "#;
 
@@ -203,7 +213,9 @@ pub(super) fn escape_msys_cmd_switches(args: &str) -> String {
         if ch == '/' && at_boundary {
             let mut lookahead = chars.clone();
             if let Some((_, switch @ ('C' | 'c' | 'K' | 'k'))) = lookahead.next()
-                && lookahead.next().is_none_or(|(_, next)| next.is_whitespace())
+                && lookahead
+                    .next()
+                    .is_none_or(|(_, next)| next.is_whitespace())
             {
                 escaped.push('/');
                 escaped.push('/');

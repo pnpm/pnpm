@@ -48,7 +48,9 @@ pub fn get_bins_from_package_manifest<Sys: FsWalkFiles>(
     manifest: &Value,
     pkg_path: &Path,
 ) -> Vec<Command> {
-    let pkg_name = manifest.get("name").and_then(Value::as_str);
+    let pkg_name = manifest
+        .get("name")
+        .and_then(Value::as_str);
     if let Some(bin) = manifest
         .get("bin")
         .filter(|bin| bin.as_str() != Some(""))
@@ -85,7 +87,10 @@ fn commands_from_directories_bin<Sys: FsWalkFiles>(
     };
     let mut commands = Vec::new();
     for path in paths {
-        let Some(name) = path.file_name().and_then(|s| s.to_str()) else {
+        let Some(name) = path
+            .file_name()
+            .and_then(|s| s.to_str())
+        else {
             continue;
         };
         // Same URL-safe-name guard as the keyed-bin path.
@@ -161,11 +166,10 @@ pub fn is_safe_bin_name(name: &str) -> bool {
     if name.is_empty() || name == "." || name == ".." {
         return false;
     }
-    name.bytes()
-        .all(|byte| {
-            byte.is_ascii_alphanumeric()
-                || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
-        })
+    name.bytes().all(|byte| {
+        byte.is_ascii_alphanumeric()
+            || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
+    })
 }
 
 #[cfg(test)]
