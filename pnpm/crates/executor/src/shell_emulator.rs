@@ -60,7 +60,8 @@ pub fn execute_emulated(
     output: EmulatedOutput<'_>,
     process_tracker: Option<&ProcessTracker>,
 ) -> Result<i32, ShellEmulatorError> {
-    let list = parser::parse(script)
+    let expanded_script = braced_parameters::expand(script, env);
+    let list = parser::parse(&expanded_script)
         .map_err(|error| ShellEmulatorError::Parse {
             script: script.to_string(),
             message: error.to_string(),
@@ -216,6 +217,10 @@ impl Write for LineWriter<'_> {
         Ok(())
     }
 }
+
+/// Rewriting `${...}` parameter expansions into the `$NAME` references the
+/// bundled parser understands.
+mod braced_parameters;
 
 #[cfg(test)]
 mod tests;

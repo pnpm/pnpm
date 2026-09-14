@@ -1,4 +1,7 @@
-use super::workspace_yaml::{allow_builds, append_workspace_yaml_key};
+use super::{
+    _utils,
+    workspace_yaml::{allow_builds, append_workspace_yaml_key},
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
@@ -73,6 +76,57 @@ fn runs_dependency_build_scripts() {
     );
     assert!(pkg_dir.join("generated-by-preinstall.js").exists());
     assert!(pkg_dir.join("generated-by-postinstall.js").exists());
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn expands_braced_parameter_expansions_in_scripts() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let package_json = serde_json::json!({
+        "name": "project-reading-a-braced-parameter",
+        "version": "1.0.0",
+        "scripts": {
+            "write-var": "node -e \"require('fs').writeFileSync('out.txt', process.argv[1])\" \
+                pre${MY_VAR:-fallback}post",
+        },
+    });
+    fs::write(workspace.join("package.json"), package_json.to_string())
+        .expect("write package.json");
+    emulate_instead_of(&workspace);
+
+    pacquet
+        .with_arg("run")
+        .with_arg("write-var")
+        .with_env("MY_VAR", "hello")
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("out.txt")).expect("read out.txt"),
+        "prehellopost",
+    );
+
+    // The fallback is only reached when the variable is unset, so the host's
+    // own environment must not decide it.
+    let mut without_the_var = _utils::pacquet_in(&workspace);
+    without_the_var.env_remove("MY_VAR");
+    without_the_var
+        .with_arg("run")
+        .with_arg("write-var")
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("out.txt")).expect("read out.txt"),
+        "prefallbackpost",
+    );
 
     drop((root, mock_instance));
 }
