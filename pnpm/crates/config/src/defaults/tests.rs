@@ -156,7 +156,6 @@ fn test_store_dir_for_os_unix_fallback_covers_freebsd() {
     assert_eq!(store_dir_for_os(&home, "linux"), unix);
 }
 
-/// macOS is the one arm the Unix fallback must not swallow.
 #[test]
 fn test_store_dir_for_os_macos_keeps_library_layout() {
     let home = PathBuf::from("/home/test-user");

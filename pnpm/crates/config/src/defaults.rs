@@ -116,9 +116,8 @@ where
     store_dir_for_os(&home_dir, env::consts::OS).into()
 }
 
-/// The OS-dependent tail of [`default_store_dir`], which documents the
-/// layout this implements. The OS is a parameter so unit tests can drive
-/// platforms no CI runner builds on, such as FreeBSD.
+/// Takes the OS as a parameter so unit tests can drive platforms no CI
+/// runner builds on, such as FreeBSD.
 ///
 /// Windows never reaches here: [`default_store_dir`] returns through the
 /// drive-letter logic first.
