@@ -247,8 +247,8 @@ export async function handler (
   const globalMessage = alreadyExisted
     ? `The ${bareSpecifier} version, v${targetVersion}, is already present on the system. It was activated by linking it from ${baseDir}.`
     : `Successfully updated pnpm to v${targetVersion}`
-  // Both outcomes are reported: a pin that was already up to date would
-  // otherwise hide the global switch that `self-update` was run for.
+  // A pin that was already up to date would otherwise hide the global switch
+  // that `self-update` was run for.
   return projectPinMessage != null ? `${projectPinMessage}\n${globalMessage}` : globalMessage
 }
 
