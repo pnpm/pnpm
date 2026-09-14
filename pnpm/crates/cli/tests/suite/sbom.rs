@@ -746,7 +746,10 @@ fn sbom_root_repository_shorthand_is_expanded_to_github_url() {
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
     let root = &parsed["metadata"]["component"];
     let ext_refs = root["externalReferences"].as_array().expect("root externalReferences");
-    let vcs = ext_refs.iter().find(|ext_ref| ext_ref["type"] == "vcs").expect("vcs reference");
+    let vcs = ext_refs
+        .iter()
+        .find(|ext_ref| ext_ref["type"] == "vcs")
+        .expect("vcs reference");
     assert_eq!(vcs["url"], "git+https://github.com/acme/sbom-repository-test.git");
 }
 
@@ -783,7 +786,9 @@ fn sbom_root_repository_that_is_not_a_url_is_omitted() {
         !root
             .get("externalReferences")
             .and_then(serde_json::Value::as_array)
-            .is_some_and(|ext_refs| ext_refs.iter().any(|ext_ref| ext_ref["type"] == "vcs")),
+            .is_some_and(|ext_refs| ext_refs
+                .iter()
+                .any(|ext_ref| ext_ref["type"] == "vcs")),
         "an scp-style remote is not an iri-reference and must not be published: {root}",
     );
 }
@@ -792,8 +797,13 @@ fn sbom_root_repository_that_is_not_a_url_is_omitted() {
 /// fixture package's manifest carries `"repository": "pnpm/sbom-shorthand-repo"`.
 #[test]
 fn sbom_component_repository_shorthand_is_expanded_to_github_url() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let registry = mock_instance.url();
     fs::write(
@@ -807,7 +817,11 @@ fn sbom_component_repository_shorthand_is_expanded_to_github_url() {
     )
     .expect("write package.json");
 
-    pacquet.with_args(["install"]).with_arg(format!("--registry={registry}")).assert().success();
+    pacquet
+        .with_args(["install"])
+        .with_arg(format!("--registry={registry}"))
+        .assert()
+        .success();
 
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
@@ -833,7 +847,10 @@ fn sbom_component_repository_shorthand_is_expanded_to_github_url() {
         .expect("@pnpm.e2e/sbom-shorthand-repo component");
     let ext_refs =
         component["externalReferences"].as_array().expect("component externalReferences");
-    let vcs = ext_refs.iter().find(|ext_ref| ext_ref["type"] == "vcs").expect("vcs reference");
+    let vcs = ext_refs
+        .iter()
+        .find(|ext_ref| ext_ref["type"] == "vcs")
+        .expect("vcs reference");
     assert_eq!(vcs["url"], "git+https://github.com/pnpm/sbom-shorthand-repo.git");
 
     drop((root, mock_instance));

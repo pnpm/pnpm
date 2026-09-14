@@ -197,6 +197,12 @@ describe('repositoryFromField', () => {
     expect(repositoryFromField('acme/widgets.git')).toBe('git+https://github.com/acme/widgets.git')
   })
 
+  it('expands the prefixed shorthand of every host npm supports', () => {
+    expect(repositoryFromField('github:vercel/ms')).toBe('git+https://github.com/vercel/ms.git')
+    expect(repositoryFromField('gitlab:acme/widgets')).toBe('git+https://gitlab.com/acme/widgets.git')
+    expect(repositoryFromField('bitbucket:acme/widgets')).toBe('git+https://bitbucket.org/acme/widgets.git')
+  })
+
   it('keeps absolute URLs of other schemes', () => {
     for (const url of [
       'https://github.com/foo/bar.git',
@@ -209,10 +215,12 @@ describe('repositoryFromField', () => {
     }
   })
 
-  it('strips user:password from the authority but keeps a bare username', () => {
+  it('strips the userinfo of an http(s) URL but keeps an ssh login', () => {
     expect(repositoryFromField('https://user:token@github.com/foo/bar')).toBe('https://github.com/foo/bar')
-    expect(repositoryFromField('https://user@github.com/foo/bar')).toBe('https://user@github.com/foo/bar')
+    expect(repositoryFromField('https://token@github.com/foo/bar')).toBe('https://github.com/foo/bar')
+    expect(repositoryFromField('git+https://token@github.com/foo/bar.git')).toBe('git+https://github.com/foo/bar.git')
     expect(repositoryFromField('git+ssh://git@github.com/foo/bar.git')).toBe('git+ssh://git@github.com/foo/bar.git')
+    expect(repositoryFromField('ssh://git:token@github.com/foo/bar.git')).toBe('ssh://github.com/foo/bar.git')
     expect(repositoryFromField('https://github.com/foo/bar/baz@qux')).toBe('https://github.com/foo/bar/baz@qux')
   })
 
@@ -244,7 +252,10 @@ describe('repositoryFromField', () => {
       'owner/',
       'owner',
       'owner/repo#main',
+      'owner/repo?%',
       'owner /repo',
+      'github:owner',
+      'github:owner/repo/extra',
       '',
       '   ',
     ]) {

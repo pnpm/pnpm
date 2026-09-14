@@ -239,6 +239,18 @@ fn extract_repository_expands_github_shorthand() {
 }
 
 #[test]
+fn extract_repository_expands_prefixed_shorthand_of_every_host() {
+    for (value, expected) in [
+        ("github:vercel/ms", "git+https://github.com/vercel/ms.git"),
+        ("gitlab:acme/widgets", "git+https://gitlab.com/acme/widgets.git"),
+        ("bitbucket:acme/widgets", "git+https://bitbucket.org/acme/widgets.git"),
+    ] {
+        let manifest = serde_json::json!({ "repository": value });
+        assert_eq!(extract_repository(&manifest), Some(expected.to_string()), "value: {value:?}");
+    }
+}
+
+#[test]
 fn extract_repository_expands_shorthand_in_object() {
     let manifest = serde_json::json!({ "repository": { "type": "git", "url": "acme/widgets" } });
     assert_eq!(
@@ -285,16 +297,26 @@ fn extract_repository_strips_credentials() {
 }
 
 #[test]
-fn extract_repository_keeps_bare_username() {
-    // A bare username is part of the URL, not a credential: the conventional
-    // `git` user in ssh remotes and a user-only `https://user@host` stay.
-    for url in [
-        "https://user@github.com/foo/bar",
-        "ssh://git@github.com/foo/bar.git",
-        "git+ssh://git@github.com/foo/bar.git",
-    ] {
+fn extract_repository_keeps_an_ssh_login() {
+    // The `git` of an ssh remote names the login the host is reached with,
+    // not a credential, so it stays.
+    for url in ["ssh://git@github.com/foo/bar.git", "git+ssh://git@github.com/foo/bar.git"] {
         let manifest = serde_json::json!({ "repository": url });
         assert_eq!(extract_repository(&manifest), Some(url.to_string()));
+    }
+}
+
+#[test]
+fn extract_repository_strips_a_username_only_authority() {
+    // Outside ssh a username with no password can itself be the secret:
+    // GitHub and GitLab both take a token in place of `user:password`.
+    for (url, expected) in [
+        ("https://token@github.com/foo/bar", "https://github.com/foo/bar"),
+        ("git+https://token@github.com/foo/bar.git", "git+https://github.com/foo/bar.git"),
+        ("ssh://git:token@github.com/foo/bar.git", "ssh://github.com/foo/bar.git"),
+    ] {
+        let manifest = serde_json::json!({ "repository": url });
+        assert_eq!(extract_repository(&manifest), Some(expected.to_string()), "url: {url:?}");
     }
 }
 
@@ -309,7 +331,10 @@ fn extract_repository_drops_non_url_values() {
         "owner/",
         "owner",
         "owner/repo#main",
+        "owner/repo?%",
         "owner /repo",
+        "github:owner",
+        "github:owner/repo/extra",
         "",
         "   ",
     ] {
@@ -406,6 +431,22 @@ fn is_simple_spdx_id_invalid() {
 fn url_without_credentials_removes_userinfo() {
     assert_eq!(
         url_without_credentials("https://user:token@github.com/foo/bar").map(|u| u.to_string()),
+        Some("https://github.com/foo/bar".to_string()),
+    );
+}
+
+#[test]
+fn url_without_credentials_keeps_an_ssh_login() {
+    assert_eq!(
+        url_without_credentials("git+ssh://git@github.com/foo/bar.git").map(|u| u.to_string()),
+        Some("git+ssh://git@github.com/foo/bar.git".to_string()),
+    );
+}
+
+#[test]
+fn url_without_credentials_removes_a_username_only_authority() {
+    assert_eq!(
+        url_without_credentials("https://token@github.com/foo/bar").map(|u| u.to_string()),
         Some("https://github.com/foo/bar".to_string()),
     );
 }
