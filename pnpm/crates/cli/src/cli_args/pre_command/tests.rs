@@ -126,13 +126,31 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
     ]);
     assert_eq!(input.paths.state_dir.as_deref(), Some(Path::new("/tmp/state")));
 
-    let input = SwitchInput::from_version_argv(&[
-        OsString::from("pnpm"),
-        OsString::from("--store-dir"),
-        OsString::from("/tmp/store"),
-        OsString::from("--version"),
-    ]);
-    assert_eq!(input.paths.store_dir.as_deref(), Some(Path::new("/tmp/store")));
+    for spelling in ["--store-dir", "--store"] {
+        let input = SwitchInput::from_version_argv(&[
+            OsString::from("pnpm"),
+            OsString::from(spelling),
+            OsString::from("/tmp/store"),
+            OsString::from("--version"),
+        ]);
+        assert_eq!(
+            input.paths.store_dir.as_deref(),
+            Some(Path::new("/tmp/store")),
+            "spelling: {spelling}",
+        );
+    }
+}
+
+/// A fetch that failed quotes the registry URL it was given, and that URL
+/// carries the credentials configured for the registry.
+#[test]
+fn the_reported_causes_redact_registry_credentials() {
+    let error = miette::miette!("fetch https://user:hunter2@registry.example.com/pnpm failed");
+
+    let causes = super::error_causes(&error);
+
+    assert!(!causes.contains("hunter2"), "credentials reached the warning: {causes}");
+    assert!(causes.contains("registry.example.com"), "the host should survive: {causes}");
 }
 
 /// The pinned pnpm installs into the store the command line names, laid

@@ -261,19 +261,18 @@ fn version_flag_reports_a_pin_it_cannot_record() {
     let mut read_only = writable.clone();
     read_only.set_readonly(true);
     fs::set_permissions(&workspace, read_only).expect("make the workspace read-only");
-    if !workspace_rejects_writes(&workspace) {
-        fs::set_permissions(&workspace, writable).expect("make the workspace writable again");
-        return;
-    }
-
-    let output = test_command(pacquet, root.path())
-        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .args(["--version"])
-        .output()
-        .expect("run pacquet --version");
-
+    let output = workspace_rejects_writes(&workspace)
+        .then(|| {
+            test_command(pacquet, root.path())
+                .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+                .args(["--version"])
+                .output()
+                .expect("run pacquet --version")
+        });
     fs::set_permissions(&workspace, writable).expect("make the workspace writable again");
 
+    let output =
+        output.expect("the read-only bit must reject writes; do not run this test as root");
     dbg!(&output);
     assert!(output.status.success(), "pacquet --version should survive a read-only project");
     assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{pinned}\n"));
@@ -288,8 +287,8 @@ fn version_flag_reports_a_pin_it_cannot_record() {
 }
 
 /// Whether the read-only bit set above actually stops a write. It does not
-/// when the test runs as root, which leaves nothing for the case above to
-/// observe.
+/// when the test runs as root, and the case above then has nothing to
+/// observe, so it fails rather than passing without having run.
 #[cfg(unix)]
 fn workspace_rejects_writes(workspace: &Path) -> bool {
     let probe = workspace.join("write-probe");

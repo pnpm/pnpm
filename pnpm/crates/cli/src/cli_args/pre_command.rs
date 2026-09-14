@@ -53,6 +53,7 @@ use pnpm_config::{ColorMode, Config, Host, PNPM_VERSION, PmOnFail};
 use pnpm_default_reporter::DefaultReporter;
 use pnpm_env_installer::is_package_manager_resolved;
 use pnpm_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
+use pnpm_network::redact_and_sanitize;
 use pnpm_package_manifest::{apply_runtime_on_fail_override, is_runtime_alias};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
 use runtime::{RUNTIME_ON_FAIL_HINT, check_runtimes};
@@ -266,11 +267,14 @@ pub(crate) fn warn_pinned_pnpm_unusable(error: &miette::Report) {
 }
 
 /// Every cause of `error`, in miette's order, dropping the ones an earlier
-/// cause already quotes — a wrapping error usually renders its source.
+/// cause already quotes — a wrapping error usually renders its source. A
+/// fetch that failed quotes the registry URL it was given, which carries
+/// the credentials configured for that registry, so each cause is redacted
+/// on its way to the terminal.
 fn error_causes(error: &miette::Report) -> String {
     let mut causes = String::new();
     for cause in error.chain() {
-        let cause = cause.to_string();
+        let cause = redact_and_sanitize(&cause.to_string());
         if causes.contains(cause.as_str()) {
             continue;
         }

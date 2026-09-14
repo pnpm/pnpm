@@ -387,7 +387,9 @@ impl SwitchPaths {
             self.state_dir = Some(PathBuf::from(value));
             return Some(width);
         }
-        if let Some((value, width)) = long_value(token, "store-dir", next) {
+        if let Some((value, width)) =
+            long_value(token, "store-dir", next).or_else(|| long_value(token, "store", next))
+        {
             self.store_dir = Some(PathBuf::from(value));
             return Some(width);
         }

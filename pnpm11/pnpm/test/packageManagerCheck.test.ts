@@ -879,21 +879,24 @@ testOnPosix('pnpm --version reports a pin it cannot record instead of failing', 
   })
 
   fs.chmodSync(projectDir, 0o555)
+  let result
   try {
-    // A test running as root writes through the read-only bit, leaving
-    // nothing for this case to observe.
-    if (canWriteTo(projectDir)) return
-
-    const { status, stdout, stderr } = execPnpmSync(['--version'])
-
-    expect(status).toBe(0)
-    expect(stdout.toString().trim()).toBe(pnpmVersion)
-    expect(stderr.toString()).toContain('Cannot use the pnpm version this project pins')
-    expect(stderr.toString()).toContain('permission denied')
-    expect(fs.existsSync(path.join(projectDir, 'pnpm-lock.yaml'))).toBe(false)
+    // A test running as root writes through the read-only bit, and this
+    // case then has nothing to observe, so it fails below rather than
+    // passing without having run.
+    if (!canWriteTo(projectDir)) result = execPnpmSync(['--version'])
   } finally {
     fs.chmodSync(projectDir, 0o755)
   }
+
+  if (result == null) {
+    throw new Error('the read-only bit must reject writes; do not run this test as root')
+  }
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString().trim()).toBe(pnpmVersion)
+  expect(result.stderr.toString()).toContain('Cannot use the pnpm version this project pins')
+  expect(result.stderr.toString()).toContain('permission denied')
+  expect(fs.existsSync(path.join(projectDir, 'pnpm-lock.yaml'))).toBe(false)
 })
 
 function canWriteTo (dir: string): boolean {
