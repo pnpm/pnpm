@@ -22,12 +22,13 @@ for (const name of ['pnpm']) {
 // first there, and would find nothing at all when the directory holding these
 // bins is not on `PATH`.
 //
-// The .cmd and .ps1 wrappers call a bare `pnpm` on purpose, and that is not the
-// same bug. `bin` is extensionless for every alias, so no install makes them a
-// shim target: with install scripts, setup.js hardlinks pn.exe/pnpx.exe/pnx.exe
-// and repoints `bin` at those; without them, `bin` still names the scripts
-// above. The wrappers run only where someone put this directory on `PATH`
-// themselves, and deferring to `PATH` is what serves that caller.
+// The .cmd and .ps1 wrappers resolve pnpm through the caller's `PATH` instead,
+// deliberately. `bin` is extensionless for every alias, so neither install
+// state makes them a shim target: with install scripts, setup.js hardlinks
+// pn.exe/pnpx.exe/pnx.exe and repoints `bin` at those; without them, `bin`
+// still names the scripts above. They run only for a caller who reaches this
+// file itself — this directory on `PATH`, or `./pn.cmd` — and the pnpm that
+// caller already has is the one to run.
 // See https://github.com/pnpm/pnpm/issues/14885.
 for (const [name, subcommand] of [['pn', ''], ['pnpx', ' dlx'], ['pnx', ' dlx']]) {
   const file = path.join(ownDir, name)
