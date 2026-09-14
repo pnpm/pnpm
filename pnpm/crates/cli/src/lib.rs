@@ -154,17 +154,38 @@ fn print_version(
     child_argv: &[OsString],
     config_overrides: &ConfigOverrides,
 ) -> miette::Result<()> {
-    if let Some(plan) =
-        cli_args::pre_command::pre_command_plan_for_version_flag(argv, config_overrides)?
-        && block_on_runtime(
-            "pacquet-pre-command",
-            cli_args::pre_command::execute_plan(plan, child_argv),
-        )?
-    {
+    // The version is the command's output, so every warning the checks
+    // below raise belongs on stderr, leaving stdout a bare version string.
+    pnpm_default_reporter::use_stderr();
+    if pinned_pnpm_printed_the_version(argv, child_argv, config_overrides)? {
         return Ok(());
     }
     println!("{}", pnpm_config::PNPM_VERSION);
     Ok(())
+}
+
+/// Whether the pinned pnpm answered `--version` for this one. Installing
+/// that pnpm, and recording the pin, both write, and a sandbox with a
+/// read-only home has nowhere to write — printing a version has to work
+/// there too, so the failure is reported and the running version answers.
+/// The checks themselves still fail the command: a project pinned to
+/// another package manager is not something a version string can stand in
+/// for.
+fn pinned_pnpm_printed_the_version(
+    argv: &[OsString],
+    child_argv: &[OsString],
+    config_overrides: &ConfigOverrides,
+) -> miette::Result<bool> {
+    let Some(plan) =
+        cli_args::pre_command::pre_command_plan_for_version_flag(argv, config_overrides)?
+    else {
+        return Ok(false);
+    };
+    block_on_runtime("pacquet-pre-command", cli_args::pre_command::execute_plan(plan, child_argv))
+        .or_else(|error| {
+            cli_args::pre_command::warn_pinned_pnpm_unusable(&error);
+            Ok(false)
+        })
 }
 
 /// Whether the pnpm the project pins took the command. When it did, it has

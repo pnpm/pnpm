@@ -236,6 +236,89 @@ fn version_flag_switches_to_the_version_a_range_pin_resolved_to() {
     drop((root, mock_instance));
 }
 
+#[test]
+#[cfg(unix)]
+fn version_flag_reports_a_pin_it_cannot_record() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let pinned = pnpm_config::PNPM_VERSION;
+    fs::write(
+        workspace.join("package.json"),
+        format!(r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{pinned}"}}}}}}"#),
+    )
+    .expect("write package.json");
+
+    let writable = fs::metadata(&workspace).expect("read the workspace permissions").permissions();
+    let mut read_only = writable.clone();
+    read_only.set_readonly(true);
+    fs::set_permissions(&workspace, read_only).expect("make the workspace read-only");
+    let output = workspace_rejects_writes(&workspace)
+        .then(|| {
+            test_command(pacquet, root.path())
+                .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+                .args(["--version"])
+                .output()
+                .expect("run pacquet --version")
+        });
+    fs::set_permissions(&workspace, writable).expect("make the workspace writable again");
+
+    let output =
+        output.expect("the read-only bit must reject writes; do not run this test as root");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet --version should survive a read-only project");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{pinned}\n"));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Cannot use the pnpm version this project pins"), "{stderr}");
+    assert!(
+        EnvLockfile::read(&workspace).expect("read the env lockfile").is_none(),
+        "a read-only project cannot have recorded the pin",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Whether the read-only bit set above actually stops a write. It does not
+/// when the test runs as root, and the case above then has nothing to
+/// observe, so it fails rather than passing without having run.
+#[cfg(unix)]
+fn workspace_rejects_writes(workspace: &Path) -> bool {
+    let probe = workspace.join("write-probe");
+    if fs::write(&probe, "").is_err() {
+        return true;
+    }
+    fs::remove_file(&probe).expect("remove the write probe");
+    false
+}
+
+/// Only the steps that write are skipped when the version is all that is
+/// wanted.
+#[test]
+fn version_flag_fails_when_the_project_pins_another_package_manager() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"yarn@4.0.0"}"#)
+        .expect("write package.json");
+
+    let output = test_command(pacquet, root.path())
+        .arg("--version")
+        .output()
+        .expect("run pacquet --version");
+
+    dbg!(&output);
+    assert!(!output.status.success(), "a pin naming another package manager must fail");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("This project is configured to use yarn"),
+        "{output:?}",
+    );
+
+    drop(root);
+}
+
 fn write_dev_engine_pin(workspace: &Path, version: &str) {
     fs::write(
         workspace.join("package.json"),
