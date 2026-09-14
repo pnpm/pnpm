@@ -263,12 +263,17 @@ fn a_group_naming_no_endpoint_stays_literal() {
 }
 
 #[test]
-fn an_endpoint_opening_with_a_caret_stays_literal() {
-    // The class would be `[^a]`, selecting every name but `a`. picomatch
-    // escapes the caret to keep it a member, which this syntax cannot say,
-    // so the group is left as text rather than inverted.
-    assert!(!is_match("/packages/b", "/packages/{^a..}"));
-    assert!(is_match("/packages/{^a..}", "/packages/{^a..}"));
+fn a_member_class_syntax_would_misread_stays_literal() {
+    // `[^a]` selects every name but `a`, and a `]` closes the class where
+    // it stands. picomatch escapes both to keep them members, which this
+    // syntax cannot say, so the group is left as text: less than upstream
+    // selects, rather than something else entirely.
+    assert!(!is_match("/packages/b", "/packages/{^..a}"));
+    assert!(is_match("/packages/{^..a}", "/packages/{^..a}"));
+    assert!(!is_match("/packages/a", "/packages/{]..a}"));
+    assert!(is_match("/packages/{]..a}", "/packages/{]..a}"));
+    assert!(!is_match("/packages/a", "/packages/{a..b,]}"));
+    assert!(is_match("/packages/{a..b,]}", "/packages/{a..b,]}"));
 }
 
 #[test]

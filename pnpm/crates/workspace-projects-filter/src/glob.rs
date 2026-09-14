@@ -235,10 +235,14 @@ fn brace_alternatives(content: &str) -> Option<Vec<String>> {
         return None;
     }
     members.sort();
-    // A `^` first in the class would negate it. picomatch escapes it and
-    // keeps it a member; this syntax has no escape, so leave the group as
-    // text rather than invert what it selects.
-    if members[0] == "^" {
+    // A `^` first in the class would negate it and a `]` would close it
+    // early. picomatch escapes both and keeps them members; this syntax has
+    // no escape, so leave the group as text rather than misread it.
+    if members[0] == "^"
+        || members
+            .iter()
+            .any(|member| member == "]")
+    {
         return None;
     }
     Some(vec![format!("[{}]", members.join("-"))])
