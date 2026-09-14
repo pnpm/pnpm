@@ -8,6 +8,8 @@ pub use workspace_ctx::WorkspaceTreeCtx;
 
 pub(crate) use catalogs::resolve_catalog_specifiers;
 
+pub(crate) use importer::importer_direct_wanted_specs;
+
 pub(crate) use reuse::{record_changed_direct_deps, unwrap_package_name};
 
 pub(crate) use workspace_ctx::SyncCursor;
@@ -19,15 +21,13 @@ use futures_util::future;
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_catalogs_resolver::CatalogResolutionError;
-use pnpm_catalogs_types::Catalogs;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_patching::{PatchGroupRecord, PatchKeyConflictError};
 use pnpm_resolving_resolver_base::{
     GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay, RegistryResponseError,
-    ResolveOptions, Resolver, WantedDependency, is_acceptable_peer_spec,
+    ResolveOptions, Resolver, WantedDependency,
 };
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -41,6 +41,7 @@ use crate::{
 
 mod catalogs;
 mod finalized;
+mod importer;
 mod manifest;
 mod reuse;
 mod tree_ctx;
@@ -50,6 +51,7 @@ mod workspace_ctx;
 #[cfg(test)]
 mod test_support;
 
+use importer::{importer_injected_dependency_names, importer_optional_dependency_names};
 use reuse::{ReuseSource, record_direct_dep_versions};
 use walk::{
     ChildEdge, NodeSeed, level_aliases, level_versions, resolve_node_seed, walk_from_seeds,
@@ -405,37 +407,6 @@ where
     Ok(ctx.into_resolved_tree(direct))
 }
 
-/// Collect the names of the importer manifest's `optionalDependencies`
-/// entries so the walker can tag each direct dep with the right
-/// `wanted.optional` flag. `optionalDependencies` wins over the other
-/// groups when an alias appears in more than one, so the
-/// `ResolvedPackage.optional` propagation starts from the right
-/// per-direct-dep value.
-pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
-    manifest
-        .dependencies([DependencyGroup::Optional])
-        .map(|(name, _)| name.to_string())
-        .collect()
-}
-
-/// Collect the names of the importer manifest's `dependenciesMeta` entries
-/// whose `injected` flag is `true`. This per-alias `injected` opt-in
-/// flips a workspace dep onto the hard-linked `file:` path even when the
-/// global `injectWorkspacePackages` is off.
-pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
-    injected_dependency_names(manifest.value())
-}
-
-fn injected_dependency_names(manifest: &Value) -> HashSet<String> {
-    let Some(meta) = manifest.get("dependenciesMeta").and_then(Value::as_object) else {
-        return HashSet::default();
-    };
-    meta.iter()
-        .filter(|(_, entry)| dependency_meta_is_injected(entry))
-        .map(|(name, _)| name.clone())
-        .collect()
-}
-
 fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
     manifest
         .get("dependenciesMeta")
@@ -448,115 +419,6 @@ fn dependency_meta_is_injected(meta: &Value) -> bool {
     meta.get("injected")
         .and_then(Value::as_bool)
         .unwrap_or(false)
-}
-
-/// Build the importer's direct-dependency wanted specs: the manifest's
-/// `dependencies` (plus, when `auto_install_peers`, its own
-/// `peerDependencies`) tagged with the right `optional` / `injected`
-/// flags and with `catalog:` specifiers resolved.
-///
-/// An alias declared in several groups yields one spec, merged by
-/// spreading the groups in order: `peerDependencies` first (when
-/// `auto_install_peers`), then `devDependencies` < `dependencies` <
-/// `optionalDependencies`, a later group's range replacing an earlier
-/// one — matching `filterDependenciesByType` in
-/// `@pnpm/pkg-manifest.utils` (`{...dev, ...prod, ...optional}`), so a
-/// regular dep wins over a devDependency of the same alias, and either
-/// wins over its peer range.
-///
-/// Shared by [`fn@crate::resolve_importer`] (which walks them) and the
-/// `time-based` cutoff pre-pass in [`fn@crate::resolve_workspace`]
-/// (which only needs the resolved direct-dep publish dates), so both
-/// see the identical direct-dep set — the importer-dep computation runs
-/// once before resolving an importer's deps.
-///
-/// Every importer's `peerDependencies` values are checked here, whatever
-/// `auto_install_peers` and `dependency_groups` select, because this is the
-/// one place every importer manifest passes through.
-pub(crate) fn importer_direct_wanted_specs<DependencyGroupList>(
-    manifest: &PackageManifest,
-    dependency_groups: DependencyGroupList,
-    auto_install_peers: bool,
-    catalogs: &Catalogs,
-) -> Result<Vec<WantedSpec>, ResolveDependencyTreeError>
-where
-    DependencyGroupList: IntoIterator<Item = DependencyGroup>,
-{
-    validate_peer_dependencies(manifest)?;
-    let included: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
-    let mut groups: Vec<DependencyGroup> = Vec::new();
-    if auto_install_peers || included.contains(&DependencyGroup::Peer) {
-        groups.push(DependencyGroup::Peer);
-    }
-    groups.extend(
-        [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional]
-            .into_iter()
-            .filter(|group| included.contains(group)),
-    );
-    let optional_names = importer_optional_dependency_names(manifest);
-    let injected_names = importer_injected_dependency_names(manifest);
-    let mut order: Vec<&str> = Vec::new();
-    let mut ranges: HashMap<&str, &str> = HashMap::default();
-    for (name, range) in manifest.dependencies(groups) {
-        if !crate::is_valid_dependency_alias(name) {
-            return Err(ResolveDependencyTreeError::InvalidDependencyName {
-                parent: "The current package".to_string(),
-                alias: name.to_string(),
-            });
-        }
-        if ranges.insert(name, range).is_none() {
-            order.push(name);
-        }
-    }
-    let wanted: Vec<WantedSpec> = order
-        .into_iter()
-        .map(|name| {
-            (
-                name.to_string(),
-                ranges[name].to_string(),
-                optional_names.contains(name),
-                injected_names.contains(name),
-            )
-        })
-        .collect();
-    resolve_catalog_specifiers(wanted, catalogs)
-}
-
-/// Reject a `peerDependencies` value that is neither a peer range nor a
-/// scheme-carrying specifier, so a `<name>@<version>` typo fails the install
-/// instead of resolving as a project-relative directory.
-fn validate_peer_dependencies(
-    manifest: &PackageManifest,
-) -> Result<(), ResolveDependencyTreeError> {
-    for (dep_name, specifier) in manifest.dependencies([DependencyGroup::Peer]) {
-        if !is_acceptable_peer_spec(specifier) {
-            return Err(ResolveDependencyTreeError::InvalidPeerDependencySpecification {
-                dep_name: dep_name.to_string(),
-                project_id: manifest_project_id(manifest),
-                specifier: specifier.to_string(),
-            });
-        }
-    }
-    Ok(())
-}
-
-/// How an importer is named in a diagnostic: its manifest's `name`, falling
-/// back to the directory holding the manifest for the unnamed root manifest a
-/// workspace usually has.
-fn manifest_project_id(manifest: &PackageManifest) -> String {
-    if let Some(name) = manifest
-        .value()
-        .get("name")
-        .and_then(Value::as_str)
-    {
-        return name.to_string();
-    }
-    manifest
-        .path()
-        .parent()
-        .unwrap_or_else(|| manifest.path())
-        .display()
-        .to_string()
 }
 
 /// One spec carried through [`extend_tree`] and the importer-side
