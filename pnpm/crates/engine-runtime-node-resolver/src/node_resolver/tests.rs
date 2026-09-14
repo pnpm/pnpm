@@ -431,6 +431,25 @@ async fn musl_reader_propagates_a_mirror_server_error() {
 }
 
 #[tokio::test]
+async fn musl_reader_propagates_an_unreachable_mirror() {
+    let err = read_musl_assets(
+        &ThrottledClient::new_for_installs(),
+        &AuthHeaders::default(),
+        // Port 1 is privileged, so nothing is bound to it and the connect is refused.
+        "http://127.0.0.1:1/download/release/",
+        "22.11.0",
+        None,
+    )
+    .await
+    .expect_err("an unreachable mirror fails the resolve");
+
+    assert!(matches!(
+        err,
+        NodeResolverError::FetchShasumsFile(FetchShasumsFileError::Network { .. })
+    ));
+}
+
+#[tokio::test]
 async fn musl_reader_keeps_only_the_musl_assets() {
     let assets = read_musl_assets_from_mock(200, Some(SHASUMS_WITH_GLIBC_AND_MUSL_ASSETS))
         .await
