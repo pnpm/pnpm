@@ -421,7 +421,7 @@ fn classify_license_spdx_2_3_expressions() {
         "gpl-2.0-only WITH classpath-exception-2.0",
         "(MIT AND Apache-2.0) OR ISC",
     ] {
-        assert_eq!(classify_license(expression), serde_json::json!({ "expression": expression }),);
+        assert_eq!(classify_license(expression), serde_json::json!({ "expression": expression }));
     }
 }
 
