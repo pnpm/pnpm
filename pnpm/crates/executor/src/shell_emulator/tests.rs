@@ -137,15 +137,38 @@ fn reads_past_a_quoted_closing_brace_in_a_default() {
     assert_eq!(lines, vec![(LifecycleStdio::Stdout, "}!".to_string())]);
 }
 
-/// Inside a double-quoted word an apostrophe is an ordinary character, so it
-/// does not hide the brace that closes the expansion.
+/// Inside a double-quoted word an apostrophe is an ordinary character. It
+/// neither hides the brace that closes the expansion nor opens a quoted run
+/// that would keep the rest of the word from expanding.
 #[test]
 fn keeps_an_apostrophe_literal_inside_a_double_quoted_default() {
     let dir = tempdir().expect("create a temp dir");
+    let env = HashMap::from([("MY_VAR".to_string(), "hello".to_string())]);
 
-    let (code, lines) = run(r#"echo "${MISSING:-it's fine}""#, dir.path(), &HashMap::new());
+    let (code, lines) = run(r#"echo "${MISSING:-it's fine}""#, dir.path(), &env);
     assert_eq!(code, 0);
     assert_eq!(lines, vec![(LifecycleStdio::Stdout, "it's fine".to_string())]);
+
+    let (code, lines) = run(r#"echo "${MISSING:-it's ${MY_VAR}}""#, dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "it's hello".to_string())]);
+}
+
+/// A backslash-escaped quote is text, so it must not read as opening a quoted
+/// run. It would otherwise make the rest of the script look double-quoted and
+/// leave a later word's operators unescaped.
+#[test]
+fn keeps_an_escaped_quote_from_opening_a_quoted_run() {
+    let dir = tempdir().expect("create a temp dir");
+    let env = HashMap::from([("MY_VAR".to_string(), "hello".to_string())]);
+
+    for (script, expected) in
+        [(r#"echo \"${MY_VAR}\""#, r#""hello""#), (r#"echo \"${MISSING:-a;b}\""#, r#""a;b""#)]
+    {
+        let (code, lines) = run(script, dir.path(), &env);
+        assert_eq!(code, 0, "`{script}` must exit zero");
+        assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected.to_string())], "`{script}`");
+    }
 }
 
 /// A default may itself be a parameter expansion, to any depth, and the
@@ -190,6 +213,56 @@ fn never_runs_an_expanded_value_as_script() {
     let (code, lines) = run(r#"echo "${SUBSTITUTED}""#, dir.path(), &env);
     assert_eq!(code, 0);
     assert_eq!(lines, vec![(LifecycleStdio::Stdout, "$(echo pwned)".to_string())]);
+}
+
+/// POSIX makes a shell operator inside a `word` part of the word rather than
+/// syntax of its own, so a default that reads like a second command is one
+/// argument. Command substitution still runs, as it does in `bash`.
+#[test]
+fn keeps_a_shell_operator_in_a_default_as_word_text() {
+    let dir = tempdir().expect("create a temp dir");
+    let env = HashMap::new();
+
+    for (script, expected) in [
+        ("echo ${MISSING:-safe; echo injected}", "safe; echo injected"),
+        (r#"echo "${MISSING:-safe; echo injected}""#, "safe; echo injected"),
+        ("echo ${MISSING:-a|b}", "a|b"),
+        ("echo ${MISSING:-a&b}", "a&b"),
+        ("echo ${MISSING:-a>written.txt}", "a>written.txt"),
+        ("echo pre${MISSING:-a;b}post", "prea;bpost"),
+        ("echo ${MISSING:-$(echo substituted)}", "substituted"),
+    ] {
+        let (code, lines) = run(script, dir.path(), &env);
+        assert_eq!(code, 0, "`{script}` must exit zero");
+        assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected.to_string())], "`{script}`");
+    }
+
+    assert!(!dir.path().join("written.txt").exists(), "a `>` in a word must not redirect");
+}
+
+/// A backslash run before an expansion behaves as it does before the bare
+/// `$NAME` the emulator already supported: the backslash next to the `$`
+/// escapes it whether or not another backslash precedes it. `bash` pairs the
+/// backslashes off first and would expand the odd-numbered cases, but the
+/// bare form's rule belongs to the bundled parser, and the two forms agreeing
+/// inside one shell matters more than either matching `bash` alone.
+#[test]
+fn treats_a_backslash_run_before_an_expansion_as_the_bare_form_does() {
+    let dir = tempdir().expect("create a temp dir");
+    let env = HashMap::from([("MY_VAR".to_string(), "hello".to_string())]);
+
+    for (script, expected) in [
+        (r"echo \$MY_VAR", "$MY_VAR"),
+        (r"echo \${MY_VAR}", "${MY_VAR}"),
+        (r"echo \\$MY_VAR", r"\$MY_VAR"),
+        (r"echo \\${MY_VAR}", r"\${MY_VAR}"),
+        (r"echo \\\$MY_VAR", r"\\$MY_VAR"),
+        (r"echo \\\${MY_VAR}", r"\\${MY_VAR}"),
+    ] {
+        let (code, lines) = run(script, dir.path(), &env);
+        assert_eq!(code, 0, "`{script}` must exit zero");
+        assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected.to_string())], "`{script}`");
+    }
 }
 
 /// An expansion the `$NAME` form cannot stand in for keeps the behavior it

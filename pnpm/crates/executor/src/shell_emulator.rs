@@ -60,7 +60,7 @@ pub fn execute_emulated(
     output: EmulatedOutput<'_>,
     process_tracker: Option<&ProcessTracker>,
 ) -> Result<i32, ShellEmulatorError> {
-    let expanded_script = expand_braced_parameters(script, env);
+    let expanded_script = expand_braced_parameters(script, env, Landing::Script);
     let list = parser::parse(&expanded_script)
         .map_err(|error| ShellEmulatorError::Parse {
             script: script.to_string(),
@@ -221,21 +221,27 @@ impl Write for LineWriter<'_> {
 /// Rewrite the POSIX `${...}` parameter expansions that the bundled shell
 /// parser does not recognize into the `$NAME` references it does.
 ///
-/// Only the script's own text is ever rewritten. A parameter that has a value
-/// becomes a `$NAME` reference the shell expands itself, after parsing, so a
-/// value holding shell punctuation cannot turn into a command, a redirection,
-/// or a substitution. The `word` of a `${NAME:-word}` is kept exactly as the
-/// script wrote it, quoting included.
+/// **A value never reaches the rewritten text.** A parameter that has one
+/// becomes a `$NAME` reference the shell expands after parsing, so shell
+/// punctuation in an environment variable cannot turn into a command, a
+/// redirection, or a substitution. Substituting the value here instead would
+/// read the same and be a command injection.
 ///
 /// Which side of a `${NAME:-word}` or `${NAME:+word}` is taken is read from
 /// `env`, the environment the shell starts with, so a parameter that an
 /// earlier command in the same script assigned is not seen. Forms no `$NAME`
-/// reference can stand in for — `${NAME:=word}`, `${NAME:?word}`, `${#NAME}`,
-/// `${NAME%suffix}` — are left verbatim.
-fn expand_braced_parameters(script: &str, env: &HashMap<String, String>) -> String {
+/// reference can stand in for, `${NAME:=word}` and `${#NAME}` among them, are
+/// left verbatim rather than guessed at.
+///
+/// `landing` says where `script` itself ends up. See [`Landing`].
+fn expand_braced_parameters(
+    script: &str,
+    env: &HashMap<String, String>,
+    landing: Landing,
+) -> String {
     let bytes = script.as_bytes();
     let mut expanded = String::with_capacity(script.len());
-    let mut quote = None;
+    let mut quote = landing.opening_quote();
     let mut index = 0;
 
     while index < script.len() {
@@ -247,9 +253,10 @@ fn expand_braced_parameters(script: &str, env: &HashMap<String, String>) -> Stri
         index += character.len_utf8();
 
         match next_step(character, next, quote) {
-            Step::Copy => expanded.push(character),
-            Step::KeepEscapedDollar => {
-                expanded.push_str(r"\$");
+            Step::Copy => push_plain(&mut expanded, character, landing, quote),
+            Step::KeepEscapedPair(escaped) => {
+                expanded.push('\\');
+                expanded.push(escaped);
                 index += 1;
             }
             Step::Quote(now_inside) => {
@@ -258,8 +265,8 @@ fn expand_braced_parameters(script: &str, env: &HashMap<String, String>) -> Stri
             }
             Step::Expand => {
                 let start = index - 1;
-                index =
-                    push_braced_parameter(&mut expanded, script, start, env, quote == Some('"'));
+                let word = landing.of_a_word_at(quote);
+                index = push_braced_parameter(&mut expanded, script, start, env, word);
             }
         }
     }
@@ -267,23 +274,67 @@ fn expand_braced_parameters(script: &str, env: &HashMap<String, String>) -> Stri
     expanded
 }
 
+/// Where the text being rewritten ends up in the finished script, which is
+/// what decides whether an operator in it is syntax or word text.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Landing {
+    Script,
+    /// POSIX makes an operator here part of the word, so it is escaped rather
+    /// than spliced in as the command, pipeline, or redirection the parser
+    /// would otherwise read.
+    UnquotedWord,
+    /// The surrounding double quotes already make an operator here literal.
+    QuotedWord,
+}
+
+impl Landing {
+    /// The quote this text already sits inside before its first character.
+    /// The `word` of an expansion carries none of its own, so without this a
+    /// quote in it would read as opening one rather than as the literal the
+    /// surrounding double quotes make it.
+    fn opening_quote(self) -> Option<char> {
+        (self == Landing::QuotedWord).then_some('"')
+    }
+
+    /// Where the `word` of an expansion sitting at `quote` in this text lands.
+    fn of_a_word_at(self, quote: Option<char>) -> Self {
+        if self == Landing::QuotedWord || quote == Some('"') {
+            Landing::QuotedWord
+        } else {
+            Landing::UnquotedWord
+        }
+    }
+}
+
+/// Append a character that carries no meaning of its own, escaping the shell
+/// operators of an unquoted `word` so the parser reads them as the text POSIX
+/// says they are.
+///
+/// Parentheses are not escaped. A `word` is subject to command substitution,
+/// so `${NAME:-$(date)}` has to keep its `$(…)`, and telling those parentheses
+/// from a literal pair would mean tracking the substitution itself. A literal
+/// `(` in a `word` is still read as syntax, which fails loudly rather than
+/// quietly running something.
+fn push_plain(expanded: &mut String, character: char, landing: Landing, quote: Option<char>) {
+    let is_word_text = landing == Landing::UnquotedWord && quote.is_none();
+    if is_word_text && matches!(character, ';' | '&' | '|' | '<' | '>') {
+        expanded.push('\\');
+    }
+    expanded.push(character);
+}
+
 /// What the character at the cursor does to the script being rewritten.
 enum Step {
-    /// Goes through as the text it is.
     Copy,
-    /// Goes through together with the `$` it escapes, leaving the braces
-    /// after it literal.
-    KeepEscapedDollar,
-    /// Goes through and leaves the rewrite inside the quote it names, or
-    /// outside every quote once it closes one.
+    /// A backslash and the character it escapes, which go through as they are.
+    KeepEscapedPair(char),
+    /// Carries the quote the rest of the text now sits in, `None` outside one.
     Quote(Option<char>),
-    /// Opens a `${...}` to rewrite.
     Expand,
 }
 
 /// Read `character` in the light of the quote it sits in. `next` is the byte
-/// after it, which is what tells a backslash and a dollar sign apart from the
-/// ordinary text they are everywhere else.
+/// after it.
 fn next_step(character: char, next: Option<u8>, quote: Option<char>) -> Step {
     // A single-quoted run is literal all the way to its own closing quote.
     if quote == Some('\'') {
@@ -291,7 +342,8 @@ fn next_step(character: char, next: Option<u8>, quote: Option<char>) -> Step {
     }
 
     match (character, next) {
-        ('\\', Some(b'$')) => Step::KeepEscapedDollar,
+        // An escaped quote is text, so it must not read as opening a quoted run.
+        ('\\', Some(escaped @ (b'$' | b'"'))) => Step::KeepEscapedPair(char::from(escaped)),
         ('\'', _) if quote.is_none() => Step::Quote(Some('\'')),
         ('"', _) if quote.is_none() => Step::Quote(Some('"')),
         ('"', _) => Step::Quote(None),
@@ -301,29 +353,28 @@ fn next_step(character: char, next: Option<u8>, quote: Option<char>) -> Step {
 }
 
 /// Append the replacement for the `${...}` that starts at `start` to
-/// `expanded` and return the index just past what was consumed. A `${` the
-/// script never closes, or one holding a form that has no `$NAME` equivalent,
-/// is copied through as the text it already is.
+/// `expanded` and return the index just past what was consumed.
 fn push_braced_parameter(
     expanded: &mut String,
     script: &str,
     start: usize,
     env: &HashMap<String, String>,
-    in_double_quotes: bool,
+    landing: Landing,
 ) -> usize {
+    let in_double_quotes = landing == Landing::QuotedWord;
     let Some(close) = braced_parameter_end(script, start, in_double_quotes) else {
         expanded.push('$');
         return start + 1;
     };
-    let Some(replacement) = expand_parameter(&script[start + 2..close], env) else {
+    let Some(replacement) = expand_parameter(&script[start + 2..close], env, landing) else {
         expanded.push_str(&script[start..=close]);
         return close + 1;
     };
 
     expanded.push_str(&replacement);
     // `$NAME` swallows every name byte after it, so an expansion glued to more
-    // of the same word is closed off with an empty string. The empty string
-    // joins the word without contributing to it, quoted or not.
+    // of the same word is closed off with an empty string, which joins the
+    // word without contributing to it.
     if script
         .as_bytes()
         .get(close + 1)
@@ -336,10 +387,8 @@ fn push_braced_parameter(
 }
 
 /// The index of the `}` closing the `${` at `start`, or `None` when the script
-/// has none. A brace inside quotes or behind a backslash is text, and a nested
-/// `{` has to close before the expansion does. Within a double-quoted word an
-/// apostrophe is an ordinary character, so `"${NAME:-it's fine}"` closes where
-/// it looks like it does.
+/// has none. Within a double-quoted word an apostrophe is an ordinary
+/// character, so `"${NAME:-it's fine}"` closes where it looks like it does.
 fn braced_parameter_end(script: &str, start: usize, in_double_quotes: bool) -> Option<usize> {
     let bytes = script.as_bytes();
     let opens_a_quote = |byte| byte == b'"' || (!in_double_quotes && byte == b'\'');
@@ -367,7 +416,7 @@ fn braced_parameter_end(script: &str, start: usize, in_double_quotes: bool) -> O
 
 /// The replacement text for the body of a `${...}`, or `None` for a body that
 /// no `$NAME` reference can stand in for.
-fn expand_parameter(body: &str, env: &HashMap<String, String>) -> Option<String> {
+fn expand_parameter(body: &str, env: &HashMap<String, String>, landing: Landing) -> Option<String> {
     let name_length = body
         .bytes()
         .take_while(|byte| is_name_byte(*byte))
@@ -392,7 +441,7 @@ fn expand_parameter(body: &str, env: &HashMap<String, String>) -> Option<String>
 
     match (operator.as_bytes().first()?, has_value) {
         (b'-', true) => Some(format!("${name}")),
-        (b'-', false) | (b'+', true) => Some(expand_braced_parameters(word, env)),
+        (b'-', false) | (b'+', true) => Some(expand_braced_parameters(word, env, landing)),
         (b'+', false) => Some(String::new()),
         _ => None,
     }
