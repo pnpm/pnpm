@@ -26,6 +26,7 @@ pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
         match_names: None,
         ignore_names: ignored.as_ref(),
         include_deprecated: false,
+        full_metadata: false,
     };
     let Some(matched_packages) = matching_global_packages(&global_pkg_dir, packages)? else {
         return Ok(None);
