@@ -167,8 +167,8 @@ impl LinkVirtualStoreBins<'_> {
     }
 }
 
-/// Pre-compute the set of package keys whose lockfile metadata sets
-/// `hasBin: true`. Most packages don't declare a bin, so
+/// Pre-compute the set of package keys whose lockfile metadata says they
+/// may expose bins. Most packages don't declare a bin, so
 /// short-circuiting the per-child manifest lookup with this set is
 /// the cheapest win on warm-cache installs.
 ///
@@ -180,7 +180,9 @@ impl LinkVirtualStoreBins<'_> {
 ///   linker falls back to the conservative "process every child"
 ///   path and lets the per-package bin resolver sort it out.
 /// - `Some(set)` — the section was present and we used it. The
-///   `set` contains only entries with `hasBin == Some(true)`; an
+///   `set` contains entries with `hasBin == Some(true)`, runtimes whose
+///   bin metadata lives in their resolution, and local directories whose
+///   generated metadata does not carry `hasBin`; an
 ///   *empty* `Some(set)` is authoritative: the lockfile says no
 ///   package has a bin, and every slot should short-circuit
 ///   immediately. Conflating this case with `None` (the bug flagged
@@ -199,6 +201,8 @@ fn build_has_bin_set(
                         meta.resolution,
                         LockfileResolution::Binary(_) | LockfileResolution::Variations(_),
                     )
+                    || (meta.has_bin.is_none()
+                        && matches!(meta.resolution, LockfileResolution::Directory(_)))
             })
             .map(|(key, _)| key.clone())
             .collect(),

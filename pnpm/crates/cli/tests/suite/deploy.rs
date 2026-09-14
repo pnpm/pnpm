@@ -113,6 +113,54 @@ fn deploy_from_shared_lockfile_installs_selected_project() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn deploy_links_workspace_dependency_bins() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js", "bin.js"],
+            "bin": { "lib-cli": "bin.js" },
+        }),
+    );
+    fs::write(workspace.join("packages/lib/bin.js"), "#!/usr/bin/env node\n").unwrap();
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    for (deploy_dir, extra_args) in
+        [("deploy", [].as_slice()), ("legacy-deploy", ["--legacy"].as_slice())]
+    {
+        pacquet_cmd(&workspace)
+            .with_args(["--filter", "app", "deploy", "--prod"])
+            .with_args(extra_args)
+            .with_arg(deploy_dir)
+            .assert()
+            .success();
+        assert!(
+            workspace
+                .join(deploy_dir)
+                .join("node_modules/.bin/lib-cli")
+                .exists(),
+            "{deploy_dir} must link the workspace dependency's bin",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
 /// A pinned `lockfileDir` moves the shared lockfile `deploy` reads and
 /// the importer id naming the selected project in it. Reading either from
 /// the workspace root instead drops the deploy to its "shared lockfile not
