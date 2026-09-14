@@ -8003,6 +8003,9 @@ importers:
 
   pnpm11/pnpm:
     dependencies:
+      '@pnpm/exec.pnpm-cli-runner':
+        specifier: workspace:*
+        version: link:../exec/pnpm-cli-runner
       '@reflink/reflink':
         specifier: 'catalog:'
         version: 0.1.19
