@@ -4,6 +4,10 @@ use super::{
 };
 use crate::config_deps;
 
+/// What [`update_project_pin`] did to the project's pin, each variant
+/// carrying the message that describes it. `Refused` is the only outcome
+/// that leaves the global install alone: the project already pins a pnpm
+/// newer than the registry's `latest`, so there is nothing to switch to.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum ProjectPinResult {
     Refused(String),
@@ -64,7 +68,7 @@ pub(super) async fn update_project_pin(
     }
 
     Ok(ProjectPinResult::Updated(format!(
-        "The current project has been updated to use pnpm v{target_version}"
+        "The current project has been updated to use pnpm v{target_version}",
     )))
 }
 
