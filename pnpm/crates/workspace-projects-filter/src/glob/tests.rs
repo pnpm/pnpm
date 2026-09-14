@@ -250,6 +250,15 @@ fn a_group_that_is_not_a_range_stays_literal() {
 }
 
 #[test]
+fn a_comma_splits_a_group_that_also_holds_a_range() {
+    // picomatch folds this one into a single class through fill-range. The
+    // comma splits first here, leaving `a..b` as one alternative's text.
+    assert!(is_match("/packages/c", "/packages/{a..b,c}"));
+    assert!(is_match("/packages/a..b", "/packages/{a..b,c}"));
+    assert!(!is_match("/packages/a", "/packages/{a..b,c}"));
+}
+
+#[test]
 fn a_bracket_expression_hides_the_dots_inside_it() {
     // The `..` sits in a class, so the group is not a range.
     assert!(is_match("/packages/{[a..b]}", "/packages/{[a..b]}"));

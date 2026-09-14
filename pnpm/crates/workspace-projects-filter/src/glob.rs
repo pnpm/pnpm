@@ -14,9 +14,13 @@
 //! `{a,b}` selects either alternative. Alternatives nest, may span `/`,
 //! and combine with the wildcards above. Braces holding no top-level comma
 //! are literal, except `{x..y}`, which picomatch turns into the character
-//! class `[x-y]` rather than expanding a range. An alternative opening with
-//! `**` is matched as an ordinary globstar segment; picomatch drops its
-//! leading-dot guard and its match-nothing case in that one position.
+//! class `[x-y]` rather than expanding a range. Only a group whose single
+//! `..` spans its whole content becomes that class. picomatch folds
+//! `{a..b,c}` and `{1..9..2}` into one as well, through `fill-range`; the
+//! first stays an ordinary alternation here and the second stays literal
+//! text. An alternative opening with `**` is matched as an ordinary
+//! globstar segment; picomatch drops its leading-dot guard and its
+//! match-nothing case in that one position.
 //!
 //! A wildcard does not match a segment's leading `.`, matching micromatch's
 //! default `dot: false`. A character class is exempt, as it is upstream:
