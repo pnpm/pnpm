@@ -456,9 +456,9 @@ pub enum LockfileVerificationMessage {
     Failed {
         entries: u64,
         /// Number of entries that were checked before the failure.
-        /// Zero only on the paths where the fan-out never ran to
-        /// completion (panic, registry-fetch abort) and the count is
-        /// unknown.
+        /// Zero is used only when the count is unavailable, such as a
+        /// panic before the fan-out completes; registry-fetch aborts
+        /// report the count observed before the abort.
         checked: u64,
         #[serde(rename = "elapsedMs")]
         elapsed_ms: u64,
