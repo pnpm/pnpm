@@ -110,7 +110,10 @@ impl InstallArgs {
         if self.effective_frozen_lockfile(config)
             || self.lockfile.only
             || self.lockfile.fix
-            || self.materialization.force
+        {
+            return false;
+        }
+        if self.materialization.force
             || self.materialization.verify_deps_before_run_install
             || config.cargo.enabled
             || config.python.enabled

@@ -34,38 +34,66 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     context: &FrozenTreeUpToDate<'a>,
 ) -> Option<(&'a Lockfile, &'a pnpm_modules_yaml::ModulesLayout)> {
     let config = context.tree.config;
-    if context.repeat.frozen
-        && !context.repeat.filtered
-        && !context.repeat.disable_optimistic_check
-        // `--force` reinstalls everything, so an up-to-date tree
-        // must not short-circuit the materialization.
-        && !config.force
-        && let Some(wanted_lockfile) = context.lockfile
-        && let Some(current) = context.current_lockfile
-        && wanted_lockfile == current
-        // A `file:` dependency resolves to a directory whose
-        // contents can change with nothing in the lockfile or
-        // `.modules.yaml` moving, so an equal-lockfile tree is not
-        // evidence that its slot is current. pnpm's `file:` is a
-        // copy taken at install time, not a symlink, so the copy
-        // has to be retaken; the TypeScript CLI has no gate at this
-        // level at all and instead forces every directory dep
-        // through materialization in `lockfileToDepGraph`.
-        && !has_directory_snapshot(wanted_lockfile)
-        && let Some(modules) = context.modules_manifest
-        && modules_consistent_with(modules, config, context.tree.node_linker, context.tree.included)
-        // A `supportedArchitectures` change alters the skip set
-        // without touching the lockfile or `.modules.yaml`, so the
-        // unchanged-layout premise doesn't hold and the platform
-        // packages must be re-evaluated.
-        && crate::optimistic_repeat_install::recorded_supported_architectures_match(
+    // `--force` reinstalls everything, so an up-to-date tree
+    // must not short-circuit the materialization.
+    if !context.repeat.frozen
+        || context.repeat.filtered
+        || context.repeat.disable_optimistic_check
+        || config.force
+    {
+        return None;
+    }
+    let wanted_lockfile = context.lockfile?;
+    let current = context.current_lockfile?;
+    // A `file:` dependency resolves to a directory whose
+    // contents can change with nothing in the lockfile or
+    // `.modules.yaml` moving, so an equal-lockfile tree is not
+    // evidence that its slot is current. pnpm's `file:` is a
+    // copy taken at install time, not a symlink, so the copy
+    // has to be retaken; the TypeScript CLI has no gate at this
+    // level at all and instead forces every directory dep
+    // through materialization in `lockfileToDepGraph`.
+    if wanted_lockfile != current || has_directory_snapshot(wanted_lockfile) {
+        return None;
+    }
+    let modules = context.modules_manifest?;
+    // A `supportedArchitectures` change alters the skip set
+    // without touching the lockfile or `.modules.yaml`, so the
+    // unchanged-layout premise doesn't hold and the platform
+    // packages must be re-evaluated.
+    if !modules_consistent_with(modules, config, context.tree.node_linker, context.tree.included)
+        || !crate::optimistic_repeat_install::recorded_supported_architectures_match(
             context.tree.workspace_root,
             context.repeat.supported_architectures,
         )
-        // An `allowBuilds` change that now permits a previously-ignored
-        // build must rebuild it, even though the lockfile and layout are
-        // unchanged.
-        && !has_newly_allowed_ignored_builds(modules, config)
+        || !frozen_build_state_matches(context, wanted_lockfile, modules)
+    {
+        return None;
+    }
+    // An explicit `pacquet rebuild` always re-runs the build phase,
+    // so it never short-circuits here.
+    let tree_intact = context.repeat.rebuild.is_none()
+        && !modules_cache_prune_due(config, context.modules_manifest)
+        && frozen_tree_intact(
+            wanted_lockfile,
+            modules,
+            config,
+            context.tree.workspace_root,
+            context.tree.node_linker,
+        );
+    tree_intact.then_some((wanted_lockfile, modules))
+}
+
+fn frozen_build_state_matches(
+    context: &FrozenTreeUpToDate<'_>,
+    wanted_lockfile: &Lockfile,
+    modules: &pnpm_modules_yaml::ModulesLayout,
+) -> bool {
+    let config = context.tree.config;
+    // An `allowBuilds` change that now permits a previously-ignored
+    // build must rebuild it, even though the lockfile and layout are
+    // unchanged.
+    !has_newly_allowed_ignored_builds(modules, config)
         // The mirror image: an approval the user has since withdrawn
         // must be re-evaluated, or a strict install would exit 0 on a
         // package it is no longer allowed to build.
@@ -80,21 +108,6 @@ pub(super) fn frozen_tree_up_to_date<'a>(
             context.tree.workspace_root,
             context.repeat.effective_node_version,
         )
-        // An explicit `pacquet rebuild` always re-runs the build phase,
-        // so it never short-circuits here.
-        && context.repeat.rebuild.is_none()
-        && !modules_cache_prune_due(config, context.modules_manifest)
-        && frozen_tree_intact(
-            wanted_lockfile,
-            modules,
-            config,
-            context.tree.workspace_root,
-            context.tree.node_linker,
-        )
-    {
-        return Some((wanted_lockfile, modules));
-    }
-    None
 }
 pub(super) fn modules_cache_prune_due(
     config: &Config,
