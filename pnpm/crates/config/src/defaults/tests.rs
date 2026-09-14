@@ -4,7 +4,7 @@ use super::{
     default_store_dir, default_unsafe_perm, default_user_agent, default_virtual_store_dir,
     default_workspace_concurrency, install_command_for, is_unsafe_perm_posix,
     resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
-    resolve_configured_state_dir,
+    resolve_configured_state_dir, store_dir_for_os,
 };
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
 use pnpm_store_dir::{STORE_VERSION, StoreDir};
@@ -139,11 +139,27 @@ fn test_default_store_dir_falls_back_to_home_dir() {
     }
     let store_dir = default_store_dir::<NoEnvWithHome>();
     let expected = match std::env::consts::OS {
-        "linux" => format!("/home/test-user/.local/share/pnpm/store/{STORE_VERSION}"),
         "macos" => format!("/home/test-user/Library/pnpm/store/{STORE_VERSION}"),
-        other => panic!("unexpected target OS in test: {other}"),
+        _ => format!("/home/test-user/.local/share/pnpm/store/{STORE_VERSION}"),
     };
     assert_eq!(display_store_dir(&store_dir), expected);
+}
+
+/// Calls [`store_dir_for_os`] rather than [`default_store_dir`] so the
+/// Unix fallback is pinned for OS strings no CI runner builds on.
+#[test]
+fn test_store_dir_for_os_unix_fallback_covers_freebsd() {
+    let home = PathBuf::from("/home/test-user");
+    let unix = home.join(".local/share/pnpm/store");
+    assert_eq!(store_dir_for_os(&home, "freebsd"), unix);
+    assert_eq!(store_dir_for_os(&home, "netbsd"), unix);
+    assert_eq!(store_dir_for_os(&home, "linux"), unix);
+}
+
+#[test]
+fn test_store_dir_for_os_macos_keeps_library_layout() {
+    let home = PathBuf::from("/home/test-user");
+    assert_eq!(store_dir_for_os(&home, "macos"), home.join("Library/pnpm/store"));
 }
 
 /// The [`GetHomeDir`] impl is `unreachable!` because the
