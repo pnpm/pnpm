@@ -3,6 +3,7 @@ import path from 'path'
 
 const ownDir = import.meta.dirname
 const placeholder = 'This file intentionally left blank'
+const reinstallHint = 'Reinstall @pnpm/exe with its install scripts allowed.'
 
 // pnpm is a placeholder — replaced with a hardlink to the native binary by setup.js
 for (const name of ['pnpm']) {
@@ -64,8 +65,8 @@ pnpm=\${self%/*}/pnpm
 # The placeholder setup.js replaces with the native binary is not executable, so
 # this reports the skipped install script rather than an EACCES from \`exec\`.
 if [ ! -x "$pnpm" ]; then
-  echo "${name}: pnpm's native binary was not installed next to this script." >&2
-  echo "Reinstall @pnpm/exe with its install scripts allowed." >&2
+  echo "${missingBinaryMessage(name)}" >&2
+  echo "${reinstallHint}" >&2
   exit 1
 fi
 
@@ -74,7 +75,12 @@ exec "$pnpm"${subcommand} "$@"
 }
 
 function cmdScript (name, subcommand) {
-  const message = missingBinaryMessage(name)
+  // The redirection leads each `echo` because cmd.exe strips it from the line
+  // without stripping the space in front of it, which a trailing `1>&2` would
+  // print as part of the message.
+  //
+  // cmd.exe seeks by byte offset when it takes a `goto`, so the file has to
+  // carry the CRLF endings a batch file is expected to have.
   return `@echo off
 if not exist "%~dp0pnpm.exe" goto missing_binary
 if exist "%~dp0pnpm.exe\\" goto missing_binary
@@ -82,19 +88,18 @@ if exist "%~dp0pnpm.exe\\" goto missing_binary
 exit /b %errorlevel%
 
 :missing_binary
-echo ${message} 1>&2
-echo Reinstall @pnpm/exe with its install scripts allowed. 1>&2
+>&2 echo ${missingBinaryMessage(name)}
+>&2 echo ${reinstallHint}
 exit /b 1
-`
+`.replace(/\n/g, '\r\n')
 }
 
 function powershellScript (name, subcommand) {
-  const message = missingBinaryMessage(name)
   return `$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
 $pnpm="$basedir\\pnpm.exe"
 if (!(Test-Path -LiteralPath $pnpm -PathType Leaf)) {
-  [Console]::Error.WriteLine("${message}")
-  [Console]::Error.WriteLine("Reinstall @pnpm/exe with its install scripts allowed.")
+  [Console]::Error.WriteLine("${missingBinaryMessage(name)}")
+  [Console]::Error.WriteLine("${reinstallHint}")
   exit 1
 }
 & $pnpm${subcommand} @args

@@ -83,10 +83,10 @@ if exist "%~dp0pnpm.exe\\" goto missing_binary
 exit /b %errorlevel%
 
 :missing_binary
-echo ${missingBinaryMessage} 1>&2
-echo Reinstall @pnpm/exe with its install scripts allowed. 1>&2
+>&2 echo ${missingBinaryMessage}
+>&2 echo Reinstall @pnpm/exe with its install scripts allowed.
 exit /b 1
-`)
+`.replace(/\n/g, '\r\n'))
     expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe(`$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
 $pnpm="$basedir\\pnpm.exe"
 if (!(Test-Path -LiteralPath $pnpm -PathType Leaf)) {
@@ -225,8 +225,8 @@ function buildWinSetupSandbox (): string {
 
 const winSetupTest = isWindows ? test : test.skip
 
-// Exercise prepare.js's checked-in Windows wrappers through the shells that run
-// them. Text snapshots alone cannot catch shell parsing, argument forwarding,
+// Exercise the wrappers prepare.js generates through the shells that run them.
+// Text comparison alone cannot catch shell parsing, argument forwarding,
 // executable selection, or exit-code regressions.
 const SYSTEM32 = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
 const POWERSHELL_DIR = path.join(SYSTEM32, 'WindowsPowerShell', 'v1.0')
@@ -234,7 +234,13 @@ const WINDOWS_WRAPPERS = [
   {
     extension: 'cmd',
     command: path.join(SYSTEM32, 'cmd.exe'),
-    argv: (script: string, args: string[]) => ['/d', '/c', script, ...args],
+    // `/s` tells cmd.exe to drop one outer quote pair and take the rest of the
+    // line as written, the only shape that survives a script path holding
+    // spaces. Node's own quoting escapes with backslashes, which cmd.exe does
+    // not read, so the line is built here and passed through verbatim.
+    argv: (script: string, args: string[]) =>
+      ['/d', '/s', '/c', `""${script}" ${args.map(arg => `"${arg}"`).join(' ')}"`],
+    verbatim: true,
   },
   {
     extension: 'ps1',
@@ -242,6 +248,7 @@ const WINDOWS_WRAPPERS = [
     argv: (script: string, args: string[]) => [
       '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, ...args,
     ],
+    verbatim: false,
   },
 ] as const
 const WRAPPER_EXIT_CODE = 23
@@ -347,6 +354,7 @@ function runWindowsWrapper (
     cwd: path.dirname(script),
     encoding: 'utf8',
     timeout: 30_000,
+    windowsVerbatimArguments: wrapper.verbatim,
     env: {
       ...process.env,
       PATH: [decoyDir, SYSTEM32, POWERSHELL_DIR].join(path.delimiter),
