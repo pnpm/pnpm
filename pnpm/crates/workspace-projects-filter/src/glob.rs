@@ -14,13 +14,12 @@
 //! `{a,b}` selects either alternative. Alternatives nest, may span `/`,
 //! and combine with the wildcards above. Braces holding no top-level comma
 //! are literal, except `{x..y}`, which picomatch turns into the character
-//! class `[x-y]` rather than expanding a range. Only a group whose single
-//! `..` spans its whole content becomes that class. picomatch folds
-//! `{a..b,c}` and `{1..9..2}` into one as well, through `fill-range`; the
-//! first stays an ordinary alternation here and the second stays literal
-//! text. An alternative opening with `**` is matched as an ordinary
-//! globstar segment; picomatch drops its leading-dot guard and its
-//! match-nothing case in that one position.
+//! class `[x-y]` rather than expanding a range. Every `..` in such a group
+//! contributes an endpoint to that one class. A group pairing a `..` with
+//! a comma is the one form picomatch folds into a class and this does not:
+//! the comma splits alternatives first. An alternative opening with `**`
+//! is matched as an ordinary globstar segment; picomatch drops its
+//! leading-dot guard and its match-nothing case in that one position.
 //!
 //! A wildcard does not match a segment's leading `.`, matching micromatch's
 //! default `dot: false`. A character class is exempt, as it is upstream:
@@ -207,57 +206,36 @@ fn join_branches(prefixes: &[String], literal: &str, branches: &[String]) -> Vec
 /// What a brace group's `content` stands for, or `None` when it is
 /// ordinary text.
 fn brace_alternatives(content: &str) -> Option<Vec<String>> {
-    let parts = split_top_level_commas(content);
-    if parts.len() > 1 {
-        return Some(parts);
+    let alternatives = split_top_level(content, &[',']);
+    if alternatives.len() > 1 {
+        return Some(alternatives);
     }
-    let (start, end) = split_top_level_range(content)?;
-    // picomatch's own reading of a second `..` is incoherent, so leave a
-    // group holding one as ordinary text.
-    if end.contains("..") {
+    let mut endpoints = split_top_level(content, &['.', '.']);
+    if endpoints.len() < 2 {
         return None;
     }
-    // A one-sided range is the class of the endpoint it has, so `{a..}` is
-    // `[a]`. With both, picomatch orders them: `{x..c}` is `[c-x]`.
-    let members = match (start.is_empty(), end.is_empty()) {
-        (true, true) => return None,
-        (true, false) => end,
-        (false, true) => start,
-        (false, false) if start <= end => format!("{start}-{end}"),
-        (false, false) => format!("{end}-{start}"),
-    };
-    Some(vec![format!("[{members}]")])
-}
-
-/// Split `content` at the `..` of a range: the first one outside any nested
-/// brace group or bracket expression. A `..` within a nested group belongs
-/// to that group, so `{{a..c}}` holds a range but is not one itself.
-fn split_top_level_range(content: &str) -> Option<(String, String)> {
-    let chars: Vec<char> = content.chars().collect();
-    let spans = brace_spans(&chars);
-    let mut index = 0;
-    while index < chars.len() {
-        match chars[index] {
-            '[' => {
-                index =
-                    bracket_end(&chars, &spans.next_close_bracket, index + 1).unwrap_or(index + 1);
-            }
-            '{' => index = spans.closes[index].map_or(index + 1, |close| close + 1),
-            '.' if chars.get(index + 1) == Some(&'.') => {
-                return Some((
-                    chars[..index].iter().collect(),
-                    chars[index + 2..].iter().collect(),
-                ));
-            }
-            _ => index += 1,
-        }
+    endpoints.retain(|endpoint| !endpoint.is_empty());
+    // A group naming no endpoint at all compiles to a class that matches
+    // nothing, which only its own text can stand in for here.
+    if endpoints.is_empty() {
+        return None;
     }
-    None
+    // picomatch orders the endpoints and folds them all into one class,
+    // however many `..` separate them.
+    endpoints.sort();
+    // A `^` first in the class would negate it. picomatch escapes it and
+    // keeps it a member; this syntax has no escape, so leave the group as
+    // text rather than invert what it selects.
+    if endpoints[0].starts_with('^') {
+        return None;
+    }
+    Some(vec![format!("[{}]", endpoints.join("-"))])
 }
 
-/// Split `content` on the commas that separate alternatives: those outside
-/// any nested brace group or bracket expression.
-fn split_top_level_commas(content: &str) -> Vec<String> {
+/// Split `content` on every `separator` outside a nested brace group or a
+/// bracket expression. A separator within a nested group belongs to that
+/// group, so `{{a,b}}` holds one alternative rather than two.
+fn split_top_level(content: &str, separator: &[char]) -> Vec<String> {
     let chars: Vec<char> = content.chars().collect();
     let spans = brace_spans(&chars);
     let brackets = &spans.next_close_bracket;
@@ -268,9 +246,9 @@ fn split_top_level_commas(content: &str) -> Vec<String> {
         match chars[index] {
             '[' => index = bracket_end(&chars, brackets, index + 1).unwrap_or(index + 1),
             '{' => index = spans.closes[index].map_or(index + 1, |close| close + 1),
-            ',' => {
+            _ if chars[index..].starts_with(separator) => {
                 parts.push(chars[part_start..index].iter().collect());
-                index += 1;
+                index += separator.len();
                 part_start = index;
             }
             _ => index += 1,

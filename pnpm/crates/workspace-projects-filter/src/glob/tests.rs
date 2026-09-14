@@ -242,11 +242,33 @@ fn a_one_sided_range_is_the_endpoint_it_has() {
 }
 
 #[test]
-fn a_group_that_is_not_a_range_stays_literal() {
-    // Neither endpoint, and a second `..`, leave the braces as text.
+fn every_range_endpoint_folds_into_one_class() {
+    // picomatch orders the endpoints and joins them all, so `{1..9..2}` is
+    // the class `[1-2-9]` and not the stepped range bash expands.
+    assert!(is_match("/packages/1", "/packages/{1..9..2}"));
+    assert!(is_match("/packages/2", "/packages/{1..9..2}"));
+    assert!(is_match("/packages/9", "/packages/{1..9..2}"));
+    assert!(!is_match("/packages/5", "/packages/{1..9..2}"));
+    assert!(is_match("/packages/c", "/packages/{a..b..c..d}"));
+    assert!(!is_match("/packages/e", "/packages/{a..b..c..d}"));
+}
+
+#[test]
+fn a_group_naming_no_endpoint_stays_literal() {
+    // An empty class selects nothing upstream, so the group must not be
+    // read as one: `[]` here is the literal text of a directory name.
     assert!(is_match("/packages/{..}", "/packages/{..}"));
-    assert!(is_match("/packages/{1..9..2}", "/packages/{1..9..2}"));
-    assert!(!is_match("/packages/1", "/packages/{1..9..2}"));
+    assert!(!is_match("/packages/a", "/packages/{..}"));
+    assert!(!is_match("/packages/[]", "/packages/{..}"));
+}
+
+#[test]
+fn an_endpoint_opening_with_a_caret_stays_literal() {
+    // The class would be `[^a]`, selecting every name but `a`. picomatch
+    // escapes the caret to keep it a member, which this syntax cannot say,
+    // so the group is left as text rather than inverted.
+    assert!(!is_match("/packages/b", "/packages/{^a..}"));
+    assert!(is_match("/packages/{^a..}", "/packages/{^a..}"));
 }
 
 #[test]
