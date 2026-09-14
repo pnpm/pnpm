@@ -799,9 +799,11 @@ fn a_filtered_install_only_reports_the_projects_it_installed() {
     drop((root, mock_instance));
 }
 
-/// A `<name>@<version>` typo in `peerDependencies` used to be hoisted into
-/// `dependencies` and resolved as a relative directory, leaving a dangling
-/// symlink behind a successful install (issue 14791).
+/// The peer name has to be scoped: the resolver only reads a value as a
+/// directory path when it contains a separator, and it is that reading which
+/// produces the dangling symlink this test guards against. An unscoped
+/// `foo@1.0.0` fails the install through a different error and would pass
+/// here whether or not the validation runs.
 #[test]
 fn invalid_peer_dependency_specification_fails_install() {
     let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
