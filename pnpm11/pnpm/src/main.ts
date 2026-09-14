@@ -7,7 +7,7 @@ if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
 import path from 'node:path'
-import { stripVTControlCharacters as stripAnsi } from 'node:util'
+import { stripVTControlCharacters as stripAnsi, types as utilTypes } from 'node:util'
 
 import { formatWarn } from '@pnpm/cli.default-reporter'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
@@ -434,14 +434,23 @@ export async function main (inputArgv: string[]): Promise<void> {
 async function tolerateWhenPrintingVersion (printingVersion: boolean, work: () => Promise<void>): Promise<void> {
   try {
     await work()
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     if (!printingVersion) throw err
     // The version prints before the reporter subscribes to the log stream,
     // so this warning goes straight to stderr.
-    const code = err['code'] ? `${err['code'] as string}: ` : ''
-    const reason = redactAndSanitize(err.message as string)
-    console.error(formatWarn(`Cannot use the pnpm version this project pins: ${code}${reason}`))
+    console.error(formatWarn(`Cannot use the pnpm version this project pins: ${describeFailure(err)}`))
   }
+}
+
+/**
+ * The code and message of `err`, made safe to print. A Node.js filesystem
+ * error opens its message with the code, so naming it again would repeat it.
+ */
+function describeFailure (err: unknown): string {
+  if (!utilTypes.isNativeError(err)) return redactAndSanitize(String(err))
+  const message = redactAndSanitize(err.message)
+  const code = 'code' in err ? String(err.code) : ''
+  return code === '' || message.startsWith(code) ? message : `${code}: ${message}`
 }
 
 function printError (message: string, hint?: string): void {
