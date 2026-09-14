@@ -2,12 +2,12 @@
 //! package-manager registry for pnpm's `latest` once a day and says so when
 //! it is newer than the running pnpm.
 
+#[cfg(unix)]
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    command_env::CommandTestExt,
-};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+#[cfg(unix)]
+use pnpm_testing_utils::command_env::CommandTestExt;
 use serde_json::Value;
 use std::{
     fs,

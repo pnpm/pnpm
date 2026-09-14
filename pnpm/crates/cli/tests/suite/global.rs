@@ -6,10 +6,12 @@ use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 #[cfg(unix)]
 use pnpm_testing_utils::bin::AddMockedRegistry;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::bin::CommandTempCwd;
 #[cfg(unix)]
-use std::path::Path;
-use std::{fs, path::PathBuf, process::Command};
+use pnpm_testing_utils::command_env::CommandTestExt;
+#[cfg(unix)]
+use std::path::{Path, PathBuf};
+use std::{fs, process::Command};
 
 /// Create the global bin directory and seed the pnpm home with the mocked
 /// registry / store / cache. A `-g` install anchors its config at the pnpm
