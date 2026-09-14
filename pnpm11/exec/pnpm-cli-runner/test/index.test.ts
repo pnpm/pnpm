@@ -84,6 +84,9 @@ test('an entry script whose link target is gone is re-run', () => {
 test.each([
   '{ not json',
   'null',
+  '"pnpm"',
+  '1',
+  '[]',
 ])('an entry script under the manifest %s is re-run', (contents) => {
   const root = makeTempDir()
   fs.writeFileSync(path.join(root, 'package.json'), contents)
