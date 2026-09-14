@@ -29,7 +29,7 @@ const {
 } = await import('@pnpm/bins.linker')
 
 const binsConflictLogger = logger('bins-conflict')
-const PRINTF_BASEDIR_LINE = String.raw`basedir=$(printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')`
+const PRINTF_BASEDIR_LINE = String.raw`basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')`
 // The fixture directories are copied to before the tests run
 // This happens because the tests convert some of the files into executables
 const f = fixtures(import.meta.dirname)

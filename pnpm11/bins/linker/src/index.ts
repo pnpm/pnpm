@@ -393,7 +393,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
 // `command -p` readlink lookup or the printf path conversion. The target
 // marker does not describe the header. pnpm 12 looks for the same two lines.
 const SH_SHIM_HARDENED_HELPER_LINE = '  target=$(command -p readlink "$link")\n'
-const SH_SHIM_PATH_PRINTF_LINE = String.raw`basedir=$(printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')` + '\n'
+const SH_SHIM_PATH_PRINTF_LINE = String.raw`basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')` + '\n'
 
 function isShimHardened (content: string): boolean {
   return content.includes(SH_SHIM_HARDENED_HELPER_LINE) &&

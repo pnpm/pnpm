@@ -243,7 +243,7 @@ describeOnPosix('sh shim resolves its helpers off the caller\'s PATH', () => {
     const decoyDir = path.join(tempDir, 'decoy')
     fs.mkdirSync(decoyDir)
     const answer = (p) => `#!/bin/sh\necho '${p}'\n`
-    for (const helper of ['readlink', 'sed']) {
+    for (const helper of ['readlink', 'sed', 'printf']) {
       writeExecutable(path.join(decoyDir, helper), answer(path.join(hijackBin, 'tsc')))
     }
     writeExecutable(path.join(decoyDir, 'dirname'), answer(hijackBin))

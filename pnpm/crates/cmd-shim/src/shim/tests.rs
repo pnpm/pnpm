@@ -115,7 +115,9 @@ case `command -p uname -a` in"#
     assert!(!body.contains("dirname"), "the header must not fork dirname, body was:\n{body}");
     // POSIX echo processes `\n` / `\t` before sed can convert the backslashes.
     assert!(
-        body.contains(r#"basedir=$(printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')"#),
+        body.contains(
+            r#"basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')"#
+        ),
         "header must print $link with printf so a Windows-form path keeps its backslashes, body was:\n{body}",
     );
     assert!(
@@ -787,7 +789,7 @@ fn plant_hijack_tree_and_decoys(root: &Path) -> PathBuf {
     let decoy_dir = root.join("decoy");
     std::fs::create_dir_all(&decoy_dir).unwrap();
     let answer = |path: &Path| format!("#!/bin/sh\necho '{}'\n", path.display());
-    for helper in ["readlink", "sed"] {
+    for helper in ["readlink", "sed", "printf"] {
         write_executable(&decoy_dir.join(helper), &answer(&hijack_bin.join("tsc")));
     }
     write_executable(&decoy_dir.join("dirname"), &answer(&hijack_bin));

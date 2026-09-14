@@ -137,11 +137,11 @@ const SH_SHIM_HEADER: &str = r#"#!/bin/sh
 # Resolve $0 through symlinks so basedir is the shim's real directory.
 # Cap hops at the kernel's ELOOP limit so a cycle cannot hang the shim.
 #
-# A shim runs with node_modules/.bin at the front of PATH, so readlink, sed, and
-# uname go through `command -p`, which searches the system default path instead.
-# A dependency's bin cannot stand in for one of them and take over the shim
-# before it reaches its target. Directories come from `${link%/*}`, which needs
-# no helper at all.
+# A shim runs with node_modules/.bin at the front of PATH, so every helper it
+# calls goes through `command -p`, which searches the system default path
+# instead. A dependency's bin cannot stand in for one of them and take over the
+# shim before it reaches its target. Directories come from `${link%/*}`, which
+# needs no helper at all.
 link="$0"
 # `${link%/*}` needs a separator to strip. A bare name came from a PATH lookup
 # and stands for a file in the current directory.
@@ -158,7 +158,7 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
     *)  link="${link%/*}/$target" ;;
   esac
 done
-basedir=$(printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')
+basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')
 basedir="${basedir%/*}"
 basedir_win="$basedir"
 exe=""
@@ -252,7 +252,7 @@ pub(super) const SH_SHIM_HARDENED_HELPER_LINE: &str = r#"  target=$(command -p r
 /// The line the header prints `$link` through before converting backslashes.
 /// Pinned the same way as [`SH_SHIM_HARDENED_HELPER_LINE`].
 pub(super) const SH_SHIM_PATH_PRINTF_LINE: &str =
-    r#"basedir=$(printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')"#;
+    r#"basedir=$(command -p printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')"#;
 
 /// Whether an already-on-disk POSIX shim has the header a warm reinstall can
 /// leave in place.
