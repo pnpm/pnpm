@@ -255,8 +255,9 @@ async fn collect_choices(
         match_names: None,
         ignore_names: ignored.as_ref(),
         include_deprecated: false,
+        full_metadata: false,
     };
-    let run = OutdatedRun::new(config, Arc::clone(http_client))?;
+    let run = OutdatedRun::new(config, Arc::clone(http_client), query.full_metadata)?;
     let choices = futures_util::future::join_all(
         projects
             .iter()

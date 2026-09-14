@@ -18,8 +18,16 @@ pub(crate) struct OutdatedRun {
 }
 
 impl OutdatedRun {
-    pub(crate) fn new(config: &Config, http_client: Arc<ThrottledClient>) -> miette::Result<Self> {
-        let policy = PickPolicy::from_config(config).map_err(miette::Report::new)?;
+    pub(crate) fn new(
+        config: &Config,
+        http_client: Arc<ThrottledClient>,
+        full_metadata: bool,
+    ) -> miette::Result<Self> {
+        let mut policy = PickPolicy::from_config(config).map_err(miette::Report::new)?;
+        if full_metadata {
+            policy.full_metadata = true;
+            policy.filter_metadata = false;
+        }
         let resolver = create_configured_npm_resolver(config, http_client, &policy)
             .map_err(miette::Report::new)?;
         Ok(Self {
@@ -127,6 +135,13 @@ pub struct OutdatedQuery<'a> {
     /// `update` does not (a deprecated-but-current dependency has no
     /// newer version to move to).
     pub include_deprecated: bool,
+    /// Fetch the full packument so the report can render the `--long`
+    /// details column. `homepage` is absent from the abbreviated install
+    /// metadata and dropped by the filtered full-metadata mirror, so a
+    /// details-rendering run must read the unfiltered document.
+    /// `outdated` sets this from `--long`; `update --interactive`
+    /// renders no details and leaves it off.
+    pub full_metadata: bool,
 }
 
 /// The matcher for `updateConfig.ignoreDependencies`, or [`None`] when
@@ -175,7 +190,7 @@ pub(crate) async fn collect_outdated_for_importer(
         lockfile,
         importer_id,
         query,
-        &OutdatedRun::new(config, Arc::clone(http_client))?,
+        &OutdatedRun::new(config, Arc::clone(http_client), query.full_metadata)?,
     )
     .await
 }

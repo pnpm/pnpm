@@ -320,7 +320,7 @@ impl OutdatedArgs {
         let shared_lockfile =
             if config.shares_one_lockfile() { loaded_lockfile(&state)? } else { None };
         let project_inputs = recursive_project_inputs(config, &selection)?;
-        let run = OutdatedRun::new(config, Arc::clone(&state.http_client))?;
+        let run = OutdatedRun::new(config, Arc::clone(&state.http_client), query.full_metadata)?;
         let mut outdated = workspace_outdated(
             &ProjectOutdatedInputs {
                 config,
@@ -425,6 +425,7 @@ struct OutdatedFilters {
     include: Vec<DependencyGroup>,
     match_names: Option<Matcher>,
     ignore_names: Option<Matcher>,
+    full_metadata: bool,
 }
 
 impl OutdatedFilters {
@@ -433,6 +434,7 @@ impl OutdatedFilters {
             include: args.dependency_options.include(config.optional),
             match_names: (!package_patterns.is_empty()).then(|| create_matcher(package_patterns)),
             ignore_names: ignored_dependencies_matcher(config),
+            full_metadata: args.output.long,
         }
     }
 
@@ -443,6 +445,7 @@ impl OutdatedFilters {
             match_names: self.match_names.as_ref(),
             ignore_names: self.ignore_names.as_ref(),
             include_deprecated: true,
+            full_metadata: self.full_metadata,
         }
     }
 }
