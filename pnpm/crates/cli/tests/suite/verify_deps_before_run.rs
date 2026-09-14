@@ -790,7 +790,7 @@ fn silent_recursive_run_suppresses_verifier_output() {
     drop(root);
 }
 
-/// Issue #14891: When a `pnpm-lock.yaml` contains an unreachable snapshot (a snapshot
+/// [pnpm/pnpm#14891](https://github.com/pnpm/pnpm/issues/14891): When a `pnpm-lock.yaml` contains an unreachable snapshot (a snapshot
 /// entry no importer references anymore), frozen installs and `verifyDepsBeforeRun`
 /// must not re-materialize packages or fail in a non-convergence loop.
 #[test]
