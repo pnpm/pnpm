@@ -1,9 +1,10 @@
 use super::{
-    AddMockedRegistry, CommandTempCwd, GitRepoFixture, IS_POSITIVE_BINDING_GYP_PATCH,
-    IS_POSITIVE_HOOKS_FILE_PATCH, IS_POSITIVE_POSTINSTALL_PATCH, MARKER_PATCH, Value,
-    append_workspace_yaml_key, assert_patch_apply_failure, assert_patch_install_scenario, fs,
-    is_positive_store_row, pacquet, patch_file_hash, read_installed_index, read_wanted_lockfile,
-    remove_dir_if_exists, setup_configured_patch, setup_configured_patch_with_yaml, snapshot_keys,
+    AddMockedRegistry, CommandTempCwd, GYPFILE_FALSE_REMOVAL_PATCH, GitRepoFixture,
+    IS_POSITIVE_BINDING_GYP_PATCH, IS_POSITIVE_HOOKS_FILE_PATCH, IS_POSITIVE_POSTINSTALL_PATCH,
+    MARKER_PATCH, Value, append_workspace_yaml_key, assert_patch_apply_failure,
+    assert_patch_install_scenario, fs, is_positive_store_row, pacquet, patch_file_hash,
+    read_installed_index, read_wanted_lockfile, remove_dir_if_exists, setup_configured_patch,
+    setup_configured_patch_with_yaml, snapshot_keys,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -445,4 +446,44 @@ fn install_level_range_patch_that_does_not_apply_fails() {
 #[test]
 fn install_level_name_only_patch_that_does_not_apply_fails() {
     assert_patch_apply_failure("is-positive");
+}
+
+/// A package can ship a `binding.gyp` *and* `gypfile: false`, which leaves it
+/// build-free. A patch that drops the opt-out puts that `binding.gyp` back in
+/// scope, so the build it enables needs approval like any other. The
+/// `binding.gyp` is one the package already had rather than one the patch wrote,
+/// so the preview has to answer for the whole patched package.
+#[test]
+fn install_level_patch_that_drops_gypfile_false_asks_for_approval() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/gypfile-false": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(workspace.join("patches/gypfile-false.patch"), GYPFILE_FALSE_REMOVAL_PATCH)
+        .expect("write the gypfile patch");
+    append_workspace_yaml_key(
+        &workspace,
+        "patchedDependencies",
+        "\n  \"@pnpm.e2e/gypfile-false@1.0.0\": patches/gypfile-false.patch",
+    );
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    eprintln!("unapproved install:\n{combined}");
+    assert!(!output.status.success(), "an unapproved native build must fail the install");
+    assert!(
+        combined.contains("ERR_PNPM_IGNORED_BUILDS"),
+        "expected the patched package to be reported as an ignored build; got:\n{combined}",
+    );
+
+    drop((root, mock_instance));
 }
