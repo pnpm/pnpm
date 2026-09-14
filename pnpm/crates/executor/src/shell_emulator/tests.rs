@@ -265,6 +265,29 @@ fn treats_a_backslash_run_before_an_expansion_as_the_bare_form_does() {
     }
 }
 
+/// A script may nest expansions as deeply as it likes, so the rewrite follows
+/// a bounded number of levels and leaves anything past that verbatim. Without
+/// the bound a lifecycle script could recurse until the stack overflows and
+/// takes the process with it.
+#[test]
+fn bounds_how_deeply_it_follows_nested_expansions() {
+    let dir = tempdir().expect("create a temp dir");
+    let nested =
+        |depth: usize| format!("echo {}deep{}", "${MISSING:-".repeat(depth), "}".repeat(depth));
+
+    let (code, lines) = run(&nested(32), dir.path(), &HashMap::new());
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "deep".to_string())]);
+
+    let (code, lines) = run(&nested(33), dir.path(), &HashMap::new());
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, "${MISSING:-deep}".to_string())]);
+
+    let (code, lines) = run(&nested(5_000), dir.path(), &HashMap::new());
+    assert_eq!(code, 0);
+    assert_eq!(lines.len(), 1, "the script still runs one `echo`");
+}
+
 /// An expansion the `$NAME` form cannot stand in for keeps the behavior it
 /// has today: the emulator hands it to the script as literal text.
 #[test]

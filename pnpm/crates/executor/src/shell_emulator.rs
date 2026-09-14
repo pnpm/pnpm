@@ -60,7 +60,7 @@ pub fn execute_emulated(
     output: EmulatedOutput<'_>,
     process_tracker: Option<&ProcessTracker>,
 ) -> Result<i32, ShellEmulatorError> {
-    let expanded_script = expand_braced_parameters(script, env, Landing::Script);
+    let expanded_script = expand_braced_parameters(script, Rewrite::of_the_script(env));
     let list = parser::parse(&expanded_script)
         .map_err(|error| ShellEmulatorError::Parse {
             script: script.to_string(),
@@ -233,15 +233,10 @@ impl Write for LineWriter<'_> {
 /// reference can stand in for, `${NAME:=word}` and `${#NAME}` among them, are
 /// left verbatim rather than guessed at.
 ///
-/// `landing` says where `script` itself ends up. See [`Landing`].
-fn expand_braced_parameters(
-    script: &str,
-    env: &HashMap<String, String>,
-    landing: Landing,
-) -> String {
+fn expand_braced_parameters(script: &str, rewrite: Rewrite<'_>) -> String {
     let bytes = script.as_bytes();
     let mut expanded = String::with_capacity(script.len());
-    let mut quote = landing.opening_quote();
+    let mut quote = rewrite.landing.opening_quote();
     let mut index = 0;
 
     while index < script.len() {
@@ -253,7 +248,7 @@ fn expand_braced_parameters(
         index += character.len_utf8();
 
         match next_step(character, next, quote) {
-            Step::Copy => push_plain(&mut expanded, character, landing, quote),
+            Step::Copy => push_plain(&mut expanded, character, rewrite.landing, quote),
             Step::KeepEscapedPair(escaped) => {
                 expanded.push('\\');
                 expanded.push(escaped);
@@ -265,13 +260,47 @@ fn expand_braced_parameters(
             }
             Step::Expand => {
                 let start = index - 1;
-                let word = landing.of_a_word_at(quote);
-                index = push_braced_parameter(&mut expanded, script, start, env, word);
+                index = push_braced_parameter(
+                    &mut expanded,
+                    script,
+                    start,
+                    rewrite.of_a_word_at(quote),
+                );
             }
         }
     }
 
     expanded
+}
+
+/// A script is free to nest `${NAME:-${NAME:-…}}` as deeply as it likes, and
+/// the rewrite follows one level per recursion, so a lifecycle script could
+/// otherwise overflow the stack and abort the process. No real script comes
+/// near this; past it an expansion is left verbatim.
+const MAX_EXPANSION_NESTING: u8 = 32;
+
+/// What one piece of text is rewritten against.
+#[derive(Clone, Copy)]
+struct Rewrite<'a> {
+    env: &'a HashMap<String, String>,
+    landing: Landing,
+    /// How many expansion words enclose this text.
+    depth: u8,
+}
+
+impl<'a> Rewrite<'a> {
+    fn of_the_script(env: &'a HashMap<String, String>) -> Self {
+        Rewrite { env, landing: Landing::Script, depth: 0 }
+    }
+
+    /// The rewrite of the `word` of an expansion sitting at `quote` in this text.
+    fn of_a_word_at(self, quote: Option<char>) -> Self {
+        Rewrite {
+            landing: self.landing.of_a_word_at(quote),
+            depth: self.depth.saturating_add(1),
+            ..self
+        }
+    }
 }
 
 /// Where the text being rewritten ends up in the finished script, which is
@@ -358,15 +387,14 @@ fn push_braced_parameter(
     expanded: &mut String,
     script: &str,
     start: usize,
-    env: &HashMap<String, String>,
-    landing: Landing,
+    word: Rewrite<'_>,
 ) -> usize {
-    let in_double_quotes = landing == Landing::QuotedWord;
+    let in_double_quotes = word.landing == Landing::QuotedWord;
     let Some(close) = braced_parameter_end(script, start, in_double_quotes) else {
         expanded.push('$');
         return start + 1;
     };
-    let Some(replacement) = expand_parameter(&script[start + 2..close], env, landing) else {
+    let Some(replacement) = expand_parameter(&script[start + 2..close], word) else {
         expanded.push_str(&script[start..=close]);
         return close + 1;
     };
@@ -416,7 +444,10 @@ fn braced_parameter_end(script: &str, start: usize, in_double_quotes: bool) -> O
 
 /// The replacement text for the body of a `${...}`, or `None` for a body that
 /// no `$NAME` reference can stand in for.
-fn expand_parameter(body: &str, env: &HashMap<String, String>, landing: Landing) -> Option<String> {
+fn expand_parameter(body: &str, rewrite: Rewrite<'_>) -> Option<String> {
+    if rewrite.depth > MAX_EXPANSION_NESTING {
+        return None;
+    }
     let name_length = body
         .bytes()
         .take_while(|byte| is_name_byte(*byte))
@@ -435,13 +466,13 @@ fn expand_parameter(body: &str, env: &HashMap<String, String>, landing: Landing)
         None => (operator, false),
     };
     let word = operator.get(1..)?;
-    let has_value = env
+    let has_value = rewrite.env
         .get(name)
         .is_some_and(|value| !empty_counts_as_unset || !value.is_empty());
 
     match (operator.as_bytes().first()?, has_value) {
         (b'-', true) => Some(format!("${name}")),
-        (b'-', false) | (b'+', true) => Some(expand_braced_parameters(word, env, landing)),
+        (b'-', false) | (b'+', true) => Some(expand_braced_parameters(word, rewrite)),
         (b'+', false) => Some(String::new()),
         _ => None,
     }
