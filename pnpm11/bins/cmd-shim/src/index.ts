@@ -244,7 +244,7 @@ async function searchScriptRuntime (target: string, opts: InternalOptions): Prom
   }
 }
 
-function getExeExtension (): string {
+export function getExeExtension (): string {
   let cmdExtension
 
   if (process.env.PATHEXT) {
