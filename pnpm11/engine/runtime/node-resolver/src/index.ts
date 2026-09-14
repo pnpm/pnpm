@@ -163,7 +163,7 @@ async function versionMissingFromIndex (fetch: FetchFromRegistry, version: strin
   }
 }
 
-export async function readNodeAssets (
+async function readNodeAssets (
   fetch: FetchFromRegistry,
   opts: {
     nodeMirrorBaseUrl: string

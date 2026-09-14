@@ -6,7 +6,7 @@ import { expect, test } from '@jest/globals'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { PlatformAssetResolution } from '@pnpm/resolving.resolver-base'
 
-import { DEFAULT_NODE_MIRROR_BASE_URL, readNodeAssets, resolveNodeRuntime, resolveNodeVersion, UNOFFICIAL_NODE_MIRROR_BASE_URL } from '../lib/index.js'
+import { DEFAULT_NODE_MIRROR_BASE_URL, resolveNodeRuntime, resolveNodeVersion, UNOFFICIAL_NODE_MIRROR_BASE_URL } from '../lib/index.js'
 
 const MIRROR = 'https://node.example/download/rc/'
 
@@ -216,43 +216,47 @@ function countingFetch (responses: Record<string, () => Response>): { fetch: Fet
   return { fetch: countedFetch, calls }
 }
 
+const OFFICIAL_INDEX_URL = `${DEFAULT_NODE_MIRROR_BASE_URL}index.json`
 const OFFICIAL_SHASUMS_URL = `${DEFAULT_NODE_MIRROR_BASE_URL}v22.11.0/SHASUMS256.txt`
 const UNOFFICIAL_SHASUMS_URL = `${UNOFFICIAL_NODE_MIRROR_BASE_URL}v22.11.0/SHASUMS256.txt`
 
-test('readNodeAssets() skips the musl assets of a release unofficial-builds never built', async () => {
-  const assets = await readMuslAssets(async () => new Response(null, { status: 404 }))
+test('resolveNodeRuntime() skips the musl assets of a release unofficial-builds never built', async () => {
+  const variants = await resolveMuslVariants(async () => new Response(null, { status: 404 }))
 
-  expect(assets.map(({ targets }) => targets[0].libc)).toStrictEqual([undefined])
+  expect(variants.map(({ targets }) => targets[0].libc)).toStrictEqual([undefined])
 })
 
-test('readNodeAssets() reads the musl assets unofficial-builds publishes', async () => {
-  const assets = await readMuslAssets(async () => new Response(MUSL_SHASUMS))
+test('resolveNodeRuntime() reads the musl assets unofficial-builds publishes', async () => {
+  const variants = await resolveMuslVariants(async () => new Response(MUSL_SHASUMS))
 
-  expect(assets.map(({ targets }) => targets[0].libc)).toStrictEqual([undefined, 'musl'])
+  expect(variants.map(({ targets }) => targets[0].libc)).toStrictEqual([undefined, 'musl'])
 })
 
 test.each([
   403,
   500,
-])('readNodeAssets() fails when unofficial-builds answers %i', async (status) => {
-  await expect(readMuslAssets(async () => new Response(null, { status })))
+])('resolveNodeRuntime() fails when unofficial-builds answers %i', async (status) => {
+  await expect(resolveMuslVariants(async () => new Response(null, { status })))
     .rejects.toThrow(`Failed to fetch integrity file: ${UNOFFICIAL_SHASUMS_URL} (status: ${status})`)
 })
 
-test('readNodeAssets() fails when unofficial-builds cannot be reached', async () => {
-  await expect(readMuslAssets(() => Promise.reject(new Error('getaddrinfo ENOTFOUND unofficial-builds.nodejs.org'))))
+test('resolveNodeRuntime() fails when unofficial-builds cannot be reached', async () => {
+  await expect(resolveMuslVariants(() => Promise.reject(new Error('getaddrinfo ENOTFOUND unofficial-builds.nodejs.org'))))
     .rejects.toThrow('getaddrinfo ENOTFOUND unofficial-builds.nodejs.org')
 })
 
 /**
- * Read the assets of a release whose musl SHASUMS request is answered by
- * `respondToMuslRequest`. The musl request is only made for the default
- * mirror, and the `rc` channel keeps that mirror's own SHASUMS file unsigned,
- * so no release signature has to be minted for the official half.
+ * Resolve a release whose musl SHASUMS request is answered by
+ * `respondToMuslRequest`. That request is only made when the picked mirror is
+ * the default one, and pointing the `rc` channel at it keeps its own SHASUMS
+ * file unsigned, so no release signature has to be minted for the official
+ * half.
  */
-function readMuslAssets (respondToMuslRequest: () => Promise<Response>): Promise<PlatformAssetResolution[]> {
+async function resolveMuslVariants (respondToMuslRequest: () => Promise<Response>): Promise<PlatformAssetResolution[]> {
   const fetch: FetchFromRegistry = async (url) => {
     switch (url) {
+      case OFFICIAL_INDEX_URL:
+        return new Response(JSON.stringify([{ version: 'v22.11.0', lts: false }]))
       case OFFICIAL_SHASUMS_URL:
         return new Response(GLIBC_SHASUMS)
       case UNOFFICIAL_SHASUMS_URL:
@@ -261,11 +265,14 @@ function readMuslAssets (respondToMuslRequest: () => Promise<Response>): Promise
         throw new Error(`Unexpected URL: ${url}`)
     }
   }
-  return readNodeAssets(fetch, {
-    nodeMirrorBaseUrl: DEFAULT_NODE_MIRROR_BASE_URL,
-    version: '22.11.0',
-    releaseChannel: 'rc',
+  const resolution = await resolveNodeRuntime({
+    fetchFromRegistry: fetch,
+    nodeDownloadMirrors: { rc: DEFAULT_NODE_MIRROR_BASE_URL },
+  }, {
+    alias: 'node',
+    bareSpecifier: 'runtime:rc/22.11.0',
   })
+  return resolution!.resolution.variants
 }
 
 const GLIBC_SHASUMS = 'ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz\n'
