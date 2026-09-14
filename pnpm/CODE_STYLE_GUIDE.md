@@ -52,6 +52,14 @@ Keep function and method bodies within three levels of nesting, including tests.
 
 Keep iterator closures simple. A single expression can make a chain easy to follow. When a closure needs several statements, prefer an explicit loop or a named helper. Preserve lazy evaluation, allocation behavior, and short-circuiting when choosing between them.
 
+### Condition complexity
+
+Keep `if`, `while`, and match-guard conditions within five `&&` or `||` operators, including tests. For larger conditions, use a meaningful name for the complete condition, helper functions for groups of checks, or early returns.
+
+A single boolean binding for the complete condition is fine when evaluated immediately before the branch: short-circuit evaluation inside the expression is preserved. When extracting only part of a condition, keep helper calls inside the short-circuit expression so later checks run only when needed. Do not precompute separate boolean variables if that makes checks run that would otherwise be skipped. For `while` conditions, preserve evaluation on every iteration.
+
+`perfectionist::overly_complex_condition` enforces this through [`dylint.toml`](../dylint.toml).
+
 ### Method chains
 
 Keep production method chains within nine calls. Consecutive calls to the same method count once; `.await` and `?` do not add to the count. Tests are exempt.

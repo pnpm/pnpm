@@ -132,11 +132,8 @@ pub(super) fn validate_output_name(name: &str) -> Result<String, PackAppError> {
         .any(|c| matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*' | '\0'));
     let trailing_dot_or_space = name.ends_with('.') || name.ends_with(' ');
     if basename != Some(name)
-        || name.is_empty()
-        || name == "."
-        || name == ".."
-        || name.contains('/')
-        || name.contains('\\')
+        || matches!(name, "" | "." | "..")
+        || name.contains(['/', '\\'])
         || invalid_chars
         || is_reserved_windows_name(name)
         || trailing_dot_or_space

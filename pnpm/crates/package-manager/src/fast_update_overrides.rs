@@ -378,10 +378,7 @@ fn find_reusable_dependency(
                 || !key.suffix
                     .version_semver()
                     .is_some_and(|version| range.satisfies(version))
-                || snapshot.optional
-                || snapshot.patched == Some(true)
-                || snapshot.id.is_some()
-                || snapshot.transitive_peer_dependencies.is_some()
+                || !snapshot_is_reusable(snapshot)
             {
                 return false;
             }
@@ -401,6 +398,13 @@ fn find_reusable_dependency(
         .next()
         .is_none()
         .then(|| SnapshotDepRef::Plain(key.suffix.clone()))
+}
+
+fn snapshot_is_reusable(snapshot: &SnapshotEntry) -> bool {
+    !snapshot.optional
+        && snapshot.patched != Some(true)
+        && snapshot.id.is_none()
+        && snapshot.transitive_peer_dependencies.is_none()
 }
 
 fn effective_dependencies(manifest: &Value) -> Option<HashMap<PkgName, String>> {
