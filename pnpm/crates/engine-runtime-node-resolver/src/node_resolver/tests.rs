@@ -1,9 +1,10 @@
 use super::{
-    NodeResolver, NodeResolverError,
+    FetchShasumsFileError, NodeResolver, NodeResolverError,
     assets::{bin_spec_for_platform, parse_node_file_name},
     exact_release_version, normalize_node_runtime_version_specifier, parse_node_specifier,
-    read_node_assets_from_mirror,
+    read_musl_assets, read_node_assets_from_mirror,
 };
+use pnpm_lockfile::PlatformAssetResolution;
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pretty_assertions::assert_eq;
@@ -399,60 +400,81 @@ async fn asset_reader_serves_repeat_reads_from_the_cache() {
     shasums.assert_async().await;
 }
 
+/// unofficial-builds answers 404 for a release it never built, so the
+/// musl read reports no assets instead of failing the resolve.
 #[tokio::test]
-async fn read_node_assets_from_mirror_distinguishes_404_from_server_error() {
-    let mut server = mockito::Server::new_async().await;
-    let _not_found = server
-        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt")
-        .with_status(404)
-        .create_async()
-        .await;
+async fn musl_reader_reports_no_assets_for_a_release_without_musl_builds() {
+    let assets = read_musl_assets_from_mock(404, None).await
+        .expect("a release without musl builds resolves to no musl assets");
 
-    let err = read_node_assets_from_mirror(
+    assert!(assets.is_empty());
+}
+
+/// A proxy blocking unofficial-builds answers 403. Absorbing that would
+/// write a lockfile missing the musl assets the same command records on
+/// an unblocked machine.
+#[tokio::test]
+async fn musl_reader_propagates_a_blocked_mirror() {
+    let err = read_musl_assets_from_mock(403, None).await
+        .expect_err("a blocked mirror fails the resolve");
+
+    assert!(matches!(
+        err,
+        NodeResolverError::FetchShasumsFile(FetchShasumsFileError::StatusNotOk { status: 403, .. })
+    ));
+}
+
+#[tokio::test]
+async fn musl_reader_propagates_a_mirror_server_error() {
+    let err = read_musl_assets_from_mock(500, None).await
+        .expect_err("an erroring mirror fails the resolve");
+
+    assert!(matches!(
+        err,
+        NodeResolverError::FetchShasumsFile(FetchShasumsFileError::StatusNotOk { status: 500, .. })
+    ));
+}
+
+/// The glibc rows the unofficial mirror also lists belong to the
+/// official mirror's asset set, so only the musl ones are kept.
+#[tokio::test]
+async fn musl_reader_keeps_only_the_musl_assets() {
+    let assets = read_musl_assets_from_mock(200, Some(SHASUMS_WITH_GLIBC_AND_MUSL_ASSETS))
+        .await
+        .expect("read the musl asset list");
+
+    assert_eq!(assets.len(), 1);
+    assert_eq!(assets[0].targets[0].libc.as_deref(), Some("musl"));
+}
+
+/// Run [`read_musl_assets`] against a mirror that answers the
+/// `SHASUMS256.txt` request with `status` and, when given, `body`.
+async fn read_musl_assets_from_mock(
+    status: usize,
+    body: Option<&str>,
+) -> Result<Vec<PlatformAssetResolution>, NodeResolverError> {
+    let mut server = mockito::Server::new_async().await;
+    let mut mock =
+        server.mock("GET", "/download/release/v22.11.0/SHASUMS256.txt").with_status(status);
+    if let Some(body) = body {
+        mock = mock.with_body(body);
+    }
+    let _mock = mock.create_async().await;
+
+    read_musl_assets(
         &ThrottledClient::new_for_installs(),
         &AuthHeaders::default(),
         &format!("{}/download/release/", server.url()),
         "22.11.0",
-        true,
-        false,
         None,
     )
     .await
-    .expect_err("404 should return FetchShasumsFile error");
-
-    assert!(matches!(
-        err,
-        NodeResolverError::FetchShasumsFile(
-            pnpm_crypto_shasums_file::FetchShasumsFileError::StatusNotOk { status: 404, .. }
-        )
-    ));
-
-    let mut server2 = mockito::Server::new_async().await;
-    let _server_error = server2
-        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt")
-        .with_status(500)
-        .create_async()
-        .await;
-
-    let err2 = read_node_assets_from_mirror(
-        &ThrottledClient::new_for_installs(),
-        &AuthHeaders::default(),
-        &format!("{}/download/release/", server2.url()),
-        "22.11.0",
-        true,
-        false,
-        None,
-    )
-    .await
-    .expect_err("500 should return FetchShasumsFile error");
-
-    assert!(matches!(
-        err2,
-        NodeResolverError::FetchShasumsFile(
-            pnpm_crypto_shasums_file::FetchShasumsFileError::StatusNotOk { status: 500, .. }
-        )
-    ));
 }
+
+const SHASUMS_WITH_GLIBC_AND_MUSL_ASSETS: &str = "\
+ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz
+696cb00a4b9d0e4dd2eb95e5fe32e8ff1ac2c3dfe54c7a2a5f03f7f9e6f0b1c2  node-v22.11.0-linux-x64-musl.tar.gz
+";
 
 const SHASUMS_WITH_ONE_NODE_ASSET: &str = "\
 ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz

@@ -1,11 +1,46 @@
 use super::{
-    Arc, AuthHeaders, BTreeMap, BinaryArchive, BinaryResolution, BinarySpec,
+    Arc, AuthHeaders, BTreeMap, BinaryArchive, BinaryResolution, BinarySpec, FetchShasumsFileError,
     GetNodeArtifactAddressOptions, Integrity, LockfileResolution, NodeResolverError, Path,
     PlatformAssetResolution, PlatformAssetTarget, ShasumsFileItem, ThrottledClient,
     fetch_shasums_file_cached, fetch_shasums_file_cached_with_auth_headers,
     fetch_verified_node_shasums_file_cached,
     fetch_verified_node_shasums_file_cached_with_auth_headers, get_node_artifact_address,
 };
+
+/// The musl assets `unofficial_mirror` publishes for `version`, or an
+/// empty list when that release has no musl builds.
+///
+/// A release the mirror never built answers 404, and that is the only
+/// failure this tolerates. Every other status and every transport
+/// error propagates: a mirror that is unreachable or blocked by a
+/// proxy must not silently drop the musl assets, because that writes a
+/// lockfile differing from the one the same command produces
+/// elsewhere.
+pub(super) async fn read_musl_assets(
+    http_client: &ThrottledClient,
+    auth_headers: &AuthHeaders,
+    unofficial_mirror: &str,
+    version: &str,
+    cache_dir: Option<&Path>,
+) -> Result<Vec<PlatformAssetResolution>, NodeResolverError> {
+    match read_node_assets_from_mirror(
+        http_client,
+        auth_headers,
+        unofficial_mirror,
+        version,
+        /* musl_only */ true,
+        /* verify_signature */ false,
+        cache_dir,
+    )
+    .await
+    {
+        Err(NodeResolverError::FetchShasumsFile(FetchShasumsFileError::StatusNotOk {
+            status: 404,
+            ..
+        })) => Ok(Vec::new()),
+        outcome => outcome,
+    }
+}
 
 /// Read the asset list for one mirror version and decode each row
 /// into a [`PlatformAssetResolution`].

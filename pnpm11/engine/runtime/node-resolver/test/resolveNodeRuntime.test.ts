@@ -4,8 +4,9 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
+import type { PlatformAssetResolution } from '@pnpm/resolving.resolver-base'
 
-import { DEFAULT_NODE_MIRROR_BASE_URL, readNodeAssets, resolveNodeRuntime, resolveNodeVersion } from '../lib/index.js'
+import { DEFAULT_NODE_MIRROR_BASE_URL, readNodeAssets, resolveNodeRuntime, resolveNodeVersion, UNOFFICIAL_NODE_MIRROR_BASE_URL } from '../lib/index.js'
 
 const MIRROR = 'https://node.example/download/rc/'
 
@@ -215,39 +216,57 @@ function countingFetch (responses: Record<string, () => Response>): { fetch: Fet
   return { fetch: countedFetch, calls }
 }
 
-test('readNodeAssets() ignores 404 from unofficial builds mirror but throws on server error', async () => {
-  const unofficialMirror = 'https://unofficial-builds.nodejs.org/download/release/'
+const OFFICIAL_SHASUMS_URL = `${DEFAULT_NODE_MIRROR_BASE_URL}v22.11.0/SHASUMS256.txt`
+const UNOFFICIAL_SHASUMS_URL = `${UNOFFICIAL_NODE_MIRROR_BASE_URL}v22.11.0/SHASUMS256.txt`
 
-  const okFetch: FetchFromRegistry = async (url) => {
-    if (url === `${DEFAULT_NODE_MIRROR_BASE_URL}v22.11.0/SHASUMS256.txt`) {
-      return new Response('ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz\n')
+test('readNodeAssets() skips the musl assets of a release unofficial-builds never built', async () => {
+  const assets = await readMuslAssets(async () => new Response(null, { status: 404 }))
+
+  expect(assets.map(({ targets }) => targets[0].libc)).toStrictEqual([undefined])
+})
+
+test('readNodeAssets() reads the musl assets unofficial-builds publishes', async () => {
+  const assets = await readMuslAssets(async () => new Response(MUSL_SHASUMS))
+
+  expect(assets.map(({ targets }) => targets[0].libc)).toStrictEqual([undefined, 'musl'])
+})
+
+test.each([
+  403,
+  500,
+])('readNodeAssets() fails when unofficial-builds answers %i', async (status) => {
+  await expect(readMuslAssets(async () => new Response(null, { status })))
+    .rejects.toThrow(`Failed to fetch integrity file: ${UNOFFICIAL_SHASUMS_URL} (status: ${status})`)
+})
+
+test('readNodeAssets() fails when unofficial-builds cannot be reached', async () => {
+  await expect(readMuslAssets(() => Promise.reject(new Error('getaddrinfo ENOTFOUND unofficial-builds.nodejs.org'))))
+    .rejects.toThrow('getaddrinfo ENOTFOUND unofficial-builds.nodejs.org')
+})
+
+/**
+ * Read the assets of a release whose musl SHASUMS request is answered by
+ * `respondToMuslRequest`. The musl request is only made for the default
+ * mirror, and the `rc` channel keeps that mirror's own SHASUMS file unsigned,
+ * so no release signature has to be minted for the official half.
+ */
+function readMuslAssets (respondToMuslRequest: () => Promise<Response>): Promise<PlatformAssetResolution[]> {
+  const fetch: FetchFromRegistry = async (url) => {
+    switch (url) {
+      case OFFICIAL_SHASUMS_URL:
+        return new Response(GLIBC_SHASUMS)
+      case UNOFFICIAL_SHASUMS_URL:
+        return respondToMuslRequest()
+      default:
+        throw new Error(`Unexpected URL: ${url}`)
     }
-    if (url === `${unofficialMirror}v22.11.0/SHASUMS256.txt`) {
-      return new Response(null, { status: 404 })
-    }
-    throw new Error(`Unexpected URL: ${url}`)
   }
-
-  const assets = await readNodeAssets(okFetch, {
+  return readNodeAssets(fetch, {
     nodeMirrorBaseUrl: DEFAULT_NODE_MIRROR_BASE_URL,
     version: '22.11.0',
     releaseChannel: 'rc',
   })
-  expect(assets).toHaveLength(1)
+}
 
-  const errFetch: FetchFromRegistry = async (url) => {
-    if (url === `${DEFAULT_NODE_MIRROR_BASE_URL}v22.11.0/SHASUMS256.txt`) {
-      return new Response('ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz\n')
-    }
-    if (url === `${unofficialMirror}v22.11.0/SHASUMS256.txt`) {
-      return new Response(null, { status: 500 })
-    }
-    throw new Error(`Unexpected URL: ${url}`)
-  }
-
-  await expect(readNodeAssets(errFetch, {
-    nodeMirrorBaseUrl: DEFAULT_NODE_MIRROR_BASE_URL,
-    version: '22.11.0',
-    releaseChannel: 'rc',
-  })).rejects.toThrow()
-})
+const GLIBC_SHASUMS = 'ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz\n'
+const MUSL_SHASUMS = '696cb00a4b9d0e4dd2eb95e5fe32e8ff1ac2c3dfe54c7a2a5f03f7f9e6f0b1c2  node-v22.11.0-linux-x64-musl.tar.gz\n'

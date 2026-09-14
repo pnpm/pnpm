@@ -1,7 +1,8 @@
 ---
 "@pnpm/engine.runtime.node-resolver": patch
+"@pnpm/crypto.shasums-file": patch
 "pacquet": patch
 "pnpm": patch
 ---
 
-`pnpm update` no longer produces inconsistent lockfile entries for Node.js runtime dependencies when network requests to unofficial-builds.nodejs.org fail [pnpm/pnpm#14813](https://github.com/pnpm/pnpm/issues/14813).
+Resolving a Node.js runtime now fails when unofficial-builds.nodejs.org cannot be reached. pnpm used to ignore that failure and leave the musl builds out of `pnpm-lock.yaml`, so `pnpm update` wrote a different lockfile on a machine whose network blocks the mirror [pnpm/pnpm#14813](https://github.com/pnpm/pnpm/issues/14813).
