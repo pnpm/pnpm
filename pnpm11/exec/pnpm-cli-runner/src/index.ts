@@ -18,6 +18,11 @@ const PNPM_ENTRY_SCRIPTS = new Set(['pnpm', 'pn', 'pnpm.cjs', 'pnpm.mjs'])
 
 const PNPM_PACKAGE_NAMES = new Set(['pnpm', '@pnpm/exe'])
 
+interface OwningPackage {
+  dir: string
+  manifest: { name?: string, bin?: unknown }
+}
+
 export interface RunPnpmCliOptions {
   cwd: string
   reporter?: string
@@ -50,37 +55,42 @@ export function resolvePnpmSelfCommand (): string[] {
 }
 
 /**
- * The name is only a hint, so confirm the script is pnpm's before handing it
- * the command. An unrelated script can carry one of these names, and the bare
- * ones are ordinary enough for another package to publish as a bin.
+ * Whether `entryScript` can be re-invoked as pnpm. The name alone is not
+ * enough, since these are ordinary enough for another package to publish as a
+ * bin, so a script carrying one is rejected when the package owning it claims
+ * it as a bin of its own.
+ *
+ * Nothing stronger is asked of it. pnpm is distributed as a copyable bundle
+ * and reached through shims and links, so a script that no package claims is
+ * pnpm as far as anything here can tell, and refusing it would put back the
+ * `PATH` lookup this exists to avoid.
  */
 function isPnpmEntryScript (entryScript: string): boolean {
   if (!PNPM_ENTRY_SCRIPTS.has(path.basename(entryScript).toLowerCase())) return false
-  const owner = readOwningPackageName(entryScript)
-  // Only a package that identifies itself as something other than pnpm is
-  // rejected. An entry with no manifest above it, a copied bundle among them,
-  // is still pnpm as far as anything here can tell, and refusing it would put
-  // back the `PATH` lookup this exists to avoid.
-  return owner == null || PNPM_PACKAGE_NAMES.has(owner)
+  let resolvedScript: string
+  try {
+    resolvedScript = fs.realpathSync(entryScript)
+  } catch {
+    return true
+  }
+  const owner = readOwningPackage(resolvedScript)
+  if (owner == null || owner.manifest.name == null) return true
+  if (PNPM_PACKAGE_NAMES.has(owner.manifest.name)) return true
+  return !declaresBin(owner, resolvedScript)
 }
 
 /**
- * The `name` of the nearest package manifest above `entryScript`, or
- * `undefined` when there is none to read. Resolves symlinks first: an
- * npm-installed pnpm is reached through `node_modules/.bin`, where the nearest
- * manifest is the *consuming* project's rather than pnpm's own.
+ * The nearest package above `resolvedScript`, or `undefined` when there is
+ * none to read. Takes a resolved path because an npm-installed pnpm is reached
+ * through `node_modules/.bin`, where the nearest package is the *consuming*
+ * project rather than pnpm itself.
  */
-function readOwningPackageName (entryScript: string): string | undefined {
-  let dir: string
-  try {
-    dir = path.dirname(fs.realpathSync(entryScript))
-  } catch {
-    return undefined
-  }
+function readOwningPackage (resolvedScript: string): OwningPackage | undefined {
+  let dir = path.dirname(resolvedScript)
   for (;;) {
-    let manifest: string
+    let contents: string
     try {
-      manifest = fs.readFileSync(path.join(dir, 'package.json'), 'utf8')
+      contents = fs.readFileSync(path.join(dir, 'package.json'), 'utf8')
     } catch {
       const parent = path.dirname(dir)
       if (parent === dir) return undefined
@@ -88,9 +98,15 @@ function readOwningPackageName (entryScript: string): string | undefined {
       continue
     }
     try {
-      return (JSON.parse(manifest) as { name?: string }).name
+      return { dir, manifest: JSON.parse(contents) as OwningPackage['manifest'] }
     } catch {
       return undefined
     }
   }
+}
+
+function declaresBin ({ dir, manifest }: OwningPackage, resolvedScript: string): boolean {
+  const { bin } = manifest
+  const targets = typeof bin === 'string' ? [bin] : typeof bin === 'object' && bin !== null ? Object.values(bin) : []
+  return targets.some((target) => typeof target === 'string' && path.resolve(dir, target) === resolvedScript)
 }
