@@ -1,6 +1,9 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
 use std::{collections::HashSet, ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
 
@@ -732,6 +735,116 @@ fn parse_sbom_output(output: &std::process::Output) -> serde_json::Value {
         String::from_utf8_lossy(&output.stderr),
     );
     serde_json::from_slice(&output.stdout).expect("parse JSON output")
+}
+
+#[test]
+fn sbom_root_repository_shorthand_is_expanded_to_github_url() {
+    let tmp = copy_fixture("sbom-repository");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
+    let root = &parsed["metadata"]["component"];
+    let ext_refs = root["externalReferences"].as_array().expect("root externalReferences");
+    let vcs = ext_refs
+        .iter()
+        .find(|ext_ref| ext_ref["type"] == "vcs")
+        .expect("vcs reference");
+    assert_eq!(vcs["url"], "git+https://github.com/acme/sbom-repository-test.git");
+}
+
+#[test]
+fn sbom_spdx_root_repository_shorthand_is_expanded_to_github_url() {
+    let tmp = copy_fixture("sbom-repository");
+    let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
+    let root = &parsed["packages"].as_array().expect("packages")[0];
+    assert_eq!(root["homepage"], "git+https://github.com/acme/sbom-repository-test.git");
+}
+
+#[test]
+fn sbom_root_repository_that_is_not_a_url_is_omitted() {
+    let tmp = copy_fixture("sbom-repository");
+    fs::write(
+        tmp.path().join("package.json"),
+        r#"{
+  "name": "sbom-repository-test",
+  "version": "1.0.0",
+  "license": "ISC",
+  "repository": "maintainers@example.com",
+  "dependencies": { "is-positive": "^3.1.0" }
+}"#,
+    )
+    .expect("write package.json");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
+    let root = &parsed["metadata"]["component"];
+    assert!(
+        !root
+            .get("externalReferences")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|ext_refs| ext_refs
+                .iter()
+                .any(|ext_ref| ext_ref["type"] == "vcs")),
+        "an email is not a repository URL and must not be published: {root}",
+    );
+}
+
+/// The fixture package's manifest carries `"repository": "pnpm/sbom-shorthand-repo"`.
+#[test]
+fn sbom_component_repository_shorthand_is_expanded_to_github_url() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry = mock_instance.url();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "sbom-component-repository",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/sbom-shorthand-repo": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args(["install"])
+        .with_arg(format!("--registry={registry}"))
+        .assert()
+        .success();
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_args(["sbom", "--sbom-format", "cyclonedx"])
+        .with_arg(format!("--registry={registry}"))
+        .output()
+        .expect("run pacquet sbom");
+    assert!(
+        output.status.success(),
+        "pacquet sbom failed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout).expect("parse SBOM");
+    let component = parsed["components"]
+        .as_array()
+        .expect("components array")
+        .iter()
+        .find(|component| {
+            component["name"] == "sbom-shorthand-repo" && component["version"] == "1.0.0"
+        })
+        .expect("@pnpm.e2e/sbom-shorthand-repo component");
+    let ext_refs =
+        component["externalReferences"].as_array().expect("component externalReferences");
+    let vcs = ext_refs
+        .iter()
+        .find(|ext_ref| ext_ref["type"] == "vcs")
+        .expect("vcs reference");
+    assert_eq!(vcs["url"], "git+https://github.com/pnpm/sbom-shorthand-repo.git");
+
+    drop((root, mock_instance));
 }
 
 /// Gives the root manifest the string form of the `author` field.

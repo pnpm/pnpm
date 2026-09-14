@@ -1,42 +1,84 @@
 use super::{
-    HashSet, InstallabilityOptions, LockfileResolution, PackageMetadata, PkgNameVerPeer,
-    WalkContext, WantedPlatformRef, extract_author, extract_homepage,
+    HashSet, HostedGit, HostedOpts, InstallabilityOptions, LockfileResolution, PackageMetadata,
+    PkgNameVerPeer, WalkContext, WantedPlatformRef, extract_author, extract_homepage,
     platform_is_supported_with_inference, safe_read_package_json_from_dir,
 };
 
+/// The manifest's `repository` field as a URL an SBOM may publish.
+/// `CycloneDX` requires an `iri-reference` here, so a raw value like the npm
+/// `owner/repo` shorthand fails validation in consumers such as
+/// Dependency-Track.
 pub(super) fn extract_repository(manifest: &serde_json::Value) -> Option<String> {
     let repo = manifest.get("repository")?;
-    if let Some(s) = repo.as_str() {
-        return Some(s.to_string());
-    }
-    repo.get("url")
-        .and_then(|u| u.as_str())
-        .map(ToString::to_string)
+    let raw = repo
+        .as_str()
+        .or_else(|| repo.get("url").and_then(|u| u.as_str()))?
+        .trim();
+    repository_url(raw)
 }
 
-pub(super) fn strip_url_credentials(url: &str) -> String {
-    if let Some(after_scheme) = url.find("://") {
-        let scheme = &url[..after_scheme + 3];
-        let rest = &url[after_scheme + 3..];
-        if let Some(at_pos) = rest.find('@') {
-            let after_host_start = &rest[at_pos + 1..];
-            return format!("{scheme}{after_host_start}");
-        }
+fn repository_url(raw: &str) -> Option<String> {
+    if let Some(url) = absolute_url(raw) {
+        return Some(url);
     }
-    url.to_string()
+    let hosted = HostedGit::from_url(raw)?;
+    // An ownerless shorthand derives a URL with an empty owner segment.
+    // `gist:<id>` is ownerless too and [`HostedGit`] has no gist support, so
+    // dropping it here is what keeps pnpm v11 and v12 in step.
+    if hosted.user.is_empty() {
+        return None;
+    }
+    let expanded = hosted.https(HostedOpts::default())?;
+    url_without_credentials(&expanded).map(|url| url.to_string())
+}
+
+/// The value as an absolute URL. One with no host is not: `github:owner/repo`
+/// belongs to the shorthand parser, and `mailto:` and `file:` values name no
+/// repository a consumer can reach.
+fn absolute_url(raw: &str) -> Option<String> {
+    let url = url_without_credentials(raw)?;
+    url.host_str()
+        .is_some_and(|host| !host.is_empty())
+        .then(|| url.to_string())
+}
+
+/// An absolute URL in the WHATWG parser's normalized form, without the
+/// userinfo an SBOM must not publish. Parsing is most of what makes the result
+/// a valid iri-reference: it percent-encodes whitespace and control
+/// characters, and query text can never be mistaken for userinfo.
+pub(super) fn url_without_credentials(raw: &str) -> Option<url::Url> {
+    let mut url = url::Url::parse(raw).ok()?;
+    if !percent_escapes_are_complete(url.as_str()) {
+        return None;
+    }
+    // `ssh` and `git+ssh` address their host as `git@github.com`, so a
+    // username with no password is part of the address there. Under any other
+    // scheme it can be the secret itself: GitHub and GitLab take a token in
+    // place of the whole `user:password`.
+    let ssh_login = url.password().is_none() && matches!(url.scheme(), "ssh" | "git+ssh");
+    if !ssh_login && (!url.username().is_empty() || url.password().is_some()) {
+        url.set_username("").ok()?;
+        url.set_password(None).ok()?;
+    }
+    Some(url)
+}
+
+/// The parser keeps a `%` that begins no `%XX` escape as the manifest wrote
+/// it, and an iri-reference admits no such thing.
+fn percent_escapes_are_complete(url: &str) -> bool {
+    url.split('%')
+        .skip(1)
+        .all(|rest| {
+            let mut escape = rest.bytes().take(2);
+            escape.len() == 2 && escape.all(|byte| byte.is_ascii_hexdigit())
+        })
 }
 
 pub(super) fn extract_bugs_url(manifest: &serde_json::Value) -> Option<String> {
     let bugs = manifest.get("bugs")?;
-    let url = if let Some(s) = bugs.as_str() {
-        s.to_string()
-    } else {
-        bugs.get("url")?.as_str()?.to_string()
-    };
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        return None;
-    }
-    Some(strip_url_credentials(&url))
+    let raw = if let Some(s) = bugs.as_str() { s } else { bugs.get("url")?.as_str()? };
+    let url = url_without_credentials(raw)?;
+    (url.scheme() == "http" || url.scheme() == "https").then(|| url.to_string())
 }
 
 fn registry_tarball_url(registry: &str, name: &str, version: &str) -> String {

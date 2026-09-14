@@ -12,6 +12,7 @@ import {
   authorNameFromField,
   bugsUrlFromField,
   collectSbomComponents,
+  repositoryFromField,
   resolveWorkspaceDeps,
   type SbomComponentType,
   type SbomFormat,
@@ -475,8 +476,11 @@ async function generateSbomForProject (
   const rootAuthor = authorNameFromField(
     manifest.author ?? (singleProject ? rootManifest.author : undefined)
   )
-  const rootRepository = extractRepository(manifest)
-    ?? (singleProject ? extractRepository(rootManifest) : undefined)
+  // The fallback is on the raw field, as for `author` above: a declared value
+  // that cannot be published is dropped, not replaced by the workspace root's.
+  const rootRepository = repositoryFromField(
+    manifest.repository ?? (singleProject ? rootManifest.repository : undefined)
+  )
   const rootDescription = manifest.description
     ?? (singleProject ? rootManifest.description : undefined)
   const rootBugsUrl = bugsUrlFromField(manifest.bugs)
@@ -597,11 +601,6 @@ async function resolveRootLicense (manifest: Parameters<typeof resolveLicenseFro
   return undefined
 }
 
-function extractRepository (manifest: { repository?: string | { url?: string } }): string | undefined {
-  if (typeof manifest.repository === 'string') return manifest.repository
-  return manifest.repository?.url
-}
-
 const WORKSPACE_MANIFEST_READ_CONCURRENCY = 8
 
 async function buildWorkspacePackagesMap (
@@ -629,7 +628,7 @@ async function buildWorkspacePackagesMap (
         license: typeof manifest.license === 'string' ? manifest.license : undefined,
         description: manifest.description,
         author: authorNameFromField(manifest.author),
-        repository: extractRepository(manifest),
+        repository: repositoryFromField(manifest.repository),
       }]
     }))
   )
