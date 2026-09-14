@@ -84,7 +84,7 @@ test('saveCatalogName works with different protocols', async () => {
     .intercept({ path: '/kevva/is-positive', method: 'HEAD' })
     .reply(200)
 
-  // Custom TLS or socket settings create a dispatcher that bypasses the global mock.
+  // Override the TLS and socket defaults to keep requests on the global mock dispatcher.
   const options = { ...createOptions(), strictSsl: true, maxSockets: 0 }
   options.registriesByScope['@jsr'] = 'https://npm.jsr.io/'
   await add.handler(options, [
