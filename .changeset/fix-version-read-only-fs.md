@@ -3,4 +3,4 @@
 "pacquet": patch
 ---
 
-`pnpm --version` no longer fails when the pnpm version a project pins cannot be installed or recorded, as in a sandbox with a read-only filesystem. pnpm reports why and prints the version of the running CLI [#14831](https://github.com/pnpm/pnpm/issues/14831).
+`pnpm --version` now reports why the pnpm version a project pins cannot be installed or recorded, then prints the version of the running CLI. It used to fail, which made the command unusable where the filesystem is read-only. `pnpm --version` also honors `--store-dir` and its `--store` alias now [#14831](https://github.com/pnpm/pnpm/issues/14831).
