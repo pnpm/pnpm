@@ -173,23 +173,21 @@ pub(crate) fn wanted_lockfile_mtime(workspace_root: &Path, config: &Config) -> O
 }
 
 /// The timestamp a project manifest's mtime is measured against to decide
-/// whether the manifest may have changed since the last install.
+/// whether the manifest may have changed since the last install: the
+/// recorded `lastValidatedTimestamp` for a workspace install, the
+/// effective wanted lockfile's mtime — `pnpm-lock.yaml`, or the current
+/// `<virtual_store_dir>/lock.yaml` standing in for it — for a
+/// single-project one. Both match what pnpm's `checkDepsStatus` compares
+/// against on the corresponding path.
 ///
-/// A workspace install measures against the recorded
-/// `lastValidatedTimestamp`, as pnpm's `checkDepsStatus` does.
-///
-/// A single-project install measures against the effective wanted
-/// lockfile's mtime instead — `pnpm-lock.yaml`, or the current
-/// `<virtual_store_dir>/lock.yaml` standing in for it — again as
-/// `checkDepsStatus` does. `lastValidatedTimestamp` is recorded once the
-/// install has committed everything, which is both after it read the
-/// manifests and after it wrote the lockfile, so measuring a manifest
-/// against it blesses an edit that landed in between. That edit is not in
-/// the lockfile the install wrote, so the fast path would report "Already
-/// up to date" on a working tree `--frozen-lockfile` rejects
+/// `lastValidatedTimestamp` is recorded once the install has committed
+/// everything, later than both the manifests it read and the lockfile it
+/// wrote, so on the single-project path it would bless a manifest edit the
+/// lockfile does not contain
 /// ([#14890](https://github.com/pnpm/pnpm/issues/14890)). The lockfile's
-/// own mtime carries no such gap. With neither lockfile on disk there is
-/// nothing to measure against and the recorded timestamp stands in; the
+/// own mtime carries no such gap.
+///
+/// With neither lockfile on disk the recorded timestamp stands in; the
 /// missing-lockfile gates decide that case.
 pub(crate) fn manifest_drift_reference_ms(
     config: &Config,

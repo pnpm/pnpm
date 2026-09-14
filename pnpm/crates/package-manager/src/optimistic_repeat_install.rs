@@ -435,7 +435,7 @@ fn lockfile_inputs_block_fast_path(
     // branch tolerates a missing `pnpm-lock.yaml` (the wanted-lockfile
     // scan `continue`s on ENOENT, and the missing lockfile is restored
     // from the current one rather than failing). The mtime side of that
-    // probe is handled by `wanted_lockfile_modified` in the caller.
+    // probe is handled by `ManifestDrift::stat` in the caller.
     // The current lockfile is not a stand-in for a missing *branch*
     // lockfile: it records what the previous branch's install
     // materialized, and pnpm refuses the substitution for the same
