@@ -448,13 +448,10 @@ impl<'a> InstallFrozenLockfile<'a> {
         crate::filter_lockfile_for_current(self.lockfiles.wanted, self.inputs().included(), skipped)
     }
 
-    /// Run the link phase, and pair its output with the `injectedDeps`
-    /// record of the copies it kept.
-    ///
-    /// The filtered lockfile that the sidecars and that record share
-    /// clones the whole graph, so it lives no longer than this call:
-    /// the build phase that follows must not hold it alive across the
-    /// lifecycle scripts it runs.
+    /// The filtered lockfile that the sidecars and the `injectedDeps`
+    /// record share clones the whole graph, so it must not outlive this
+    /// call: the build phase that follows would hold it across every
+    /// lifecycle script it runs.
     fn link_fetched<Reporter: self::Reporter>(
         &self,
         ctx: &crate::InstallContext<'_>,
