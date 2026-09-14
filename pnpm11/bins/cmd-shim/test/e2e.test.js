@@ -282,3 +282,30 @@ describeOnPosix('sh shim resolves its helpers off the caller\'s PATH', () => {
     runWithDecoys(tempDir, 'sh', ['tsc-link'], binDir)
   })
 })
+
+describeOnPosix('sh shim converts a Windows-form path', () => {
+  // The header converts backslashes to slashes with `sed`. A POSIX `echo` would
+  // turn the `\n` of `\node_modules` into a newline and the `\t` of `\tsc` into
+  // a tab before `sed` ever saw them (https://github.com/pnpm/pnpm/issues/14867).
+  test('keeps the backslashes until sed converts them', async () => {
+    const tempDir = temporaryDirectory()
+    const target = path.join(tempDir, 'tool.js')
+    fs.writeFileSync(target, '#!/usr/bin/env node\nconsole.log("SHIM_OK")\n', 'utf8')
+    const shim = path.join(tempDir, 'tool')
+    await cmdShim(target, shim, { createCmdFile: false })
+
+    const conversion = fs.readFileSync(shim, 'utf8')
+      .split('\n')
+      .find((line) => line.startsWith('basedir=$('))
+    assert.ok(conversion, 'the header must assign basedir from the shim path')
+
+    const script = `link='C:\\node_modules\\.bin\\tsc'\n${conversion}\nprintf '%s' "$basedir"`
+    const r = spawnSync('/bin/sh', ['-c', script], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+
+    assert.equal(r.status, 0, `sh exited ${r.status}\nstderr: ${r.stderr}`)
+    assert.equal(r.stdout, 'C:/node_modules/.bin/tsc')
+  })
+})

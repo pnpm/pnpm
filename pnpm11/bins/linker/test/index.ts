@@ -29,6 +29,9 @@ const {
 } = await import('@pnpm/bins.linker')
 
 const binsConflictLogger = logger('bins-conflict')
+// The header line that converts the shim path. A shim missing it predates the
+// switch away from `echo`, which ate the escapes in a Windows-form path.
+const PRINTF_BASEDIR_LINE = String.raw`basedir=$(printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')`
 // The fixture directories are copied to before the tests run
 // This happens because the tests convert some of the files into executables
 const f = fixtures(import.meta.dirname)
@@ -87,13 +90,11 @@ test('linkBins() skips bins that already reference the correct target', async ()
 
   const binLocation = path.join(binTarget, 'simple')
   expect(fs.existsSync(binLocation)).toBe(true)
-  const echoBasedir = String.raw`basedir=$(echo "$link" | command -p sed -e 's,\\,/,g')`
-  const printfBasedir = String.raw`basedir=$(printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')`
-  const originalContent = fs.readFileSync(binLocation, 'utf8').replace(echoBasedir, printfBasedir)
+  const originalContent = fs.readFileSync(binLocation, 'utf8')
   // The bin contains a cmd-shim-target marker with the correct target path
   const expectedTarget = normalizePath(path.join(simpleFixture, 'node_modules', 'simple', 'index.js'))
   expect(originalContent).toContain(`# cmd-shim-target=${expectedTarget}\n`)
-  expect(originalContent).toContain(printfBasedir)
+  expect(originalContent).toContain(PRINTF_BASEDIR_LINE)
   // Append a sentinel to the existing (correct) content to prove it is not rewritten
   const sentinel = originalContent + '\n# sentinel'
   fs.writeFileSync(binLocation, sentinel, 'utf8')
@@ -170,6 +171,7 @@ exec node  "$basedir/../simple/index.js" "$@"
   const content = fs.readFileSync(binLocation, 'utf8')
   expect(content).toContain(`# cmd-shim-target=${target}\n`)
   expect(content).toContain('  target=$(command -p readlink "$link")\n')
+  expect(content).toContain(PRINTF_BASEDIR_LINE)
   expect(content).not.toContain('# outdated-echo-basedir')
 })
 

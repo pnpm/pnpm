@@ -338,7 +338,7 @@ exec node  "$basedir/../foo/cli.js" "$@"
         "precondition: the outdated shim carries a matching target marker",
     );
     assert!(
-        outdated.contains("  target=$(command -p readlink \"$link\")"),
+        outdated.contains(r#"  target=$(command -p readlink "$link")"#),
         "precondition: helpers already resolve off the system path",
     );
     assert!(!is_sh_shim_hardened(&outdated), "precondition: the echo conversion is not current");
@@ -352,10 +352,8 @@ exec node  "$basedir/../foo/cli.js" "$@"
 
     let body = read_to_string(&shim).unwrap();
     assert!(is_shim_pointing_at(&body, &target), "the rewritten shim keeps its target");
-    eprintln!("SHIM:\n{body}\n");
     assert!(
-        body.contains(r#"basedir=$(printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')"#),
+        is_sh_shim_hardened(&body),
         "the reinstall must replace a shim that pipes $link through echo, body was:\n{body}",
     );
-    assert!(is_sh_shim_hardened(&body), "the rewritten shim must count as current");
 }

@@ -409,7 +409,7 @@ while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
     *)  link="\${link%/*}/$target" ;;
   esac
 done
-basedir=$(echo "$link" | command -p sed -e 's,\\\\,/,g')
+basedir=$(printf '%s\\n' "$link" | command -p sed -e 's,\\\\,/,g')
 basedir="\${basedir%/*}"
 basedir_win="$basedir"
 exe=""
