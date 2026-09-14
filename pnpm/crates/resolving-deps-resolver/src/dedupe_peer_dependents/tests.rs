@@ -253,46 +253,53 @@ fn incompatible_variants_do_not_collapse() {
     assert!(graph.contains_key(&dp(QUX_VARIANT)));
 }
 
+/// The child variants cannot all collapse in one round: `child(other)`
+/// absorbs neither `child(opt_peer)` nor the other way round, so the
+/// child group still holds a leftover when the round ends and the graph's
+/// child edges are never rewritten. The parents must therefore collapse
+/// on the strength of their children being compatible variants of one
+/// package, not on their child depPaths being equal
+/// ([pnpm/pnpm#14800](https://github.com/pnpm/pnpm/issues/14800)).
 #[test]
-fn deduplicates_parent_package_when_child_dependency_carries_peer_suffix() {
+fn parent_collapses_when_its_child_carries_a_peer_suffix_the_other_lacks() {
+    const CHILD_WITH_OPT_PEER: &str = "child@1.0.0(opt_peer@1.0.0)";
+    const CHILD_WITH_OTHER: &str = "child@1.0.0(other@1.0.0)";
+    const CHILD_BARE: &str = "child@1.0.0";
+    const PARENT_WITH_OPT_PEER: &str = "parent@1.0.0(opt_peer@1.0.0)";
+    const PARENT_WITH_OTHER: &str = "parent@1.0.0(other@1.0.0)";
+    const PARENT_BARE: &str = "parent@1.0.0";
+
     let mut graph = DependenciesGraph::default();
-
-    graph.insert(dp("opt_peer@1.0.0"), make_node("opt_peer@1.0.0", "opt_peer@1.0.0", &[], &[]));
-    graph.insert(
-        dp("child@1.0.0(opt_peer@1.0.0)"),
-        make_node("child@1.0.0", "child@1.0.0(opt_peer@1.0.0)", &[], &["opt_peer"]),
-    );
-    graph.insert(dp("child@1.0.0"), make_node("child@1.0.0", "child@1.0.0", &[], &[]));
-
-    let parent_with_peer = "parent@1.0.0(opt_peer@1.0.0)";
-    let parent_without_peer = "parent@1.0.0";
-
-    graph.insert(
-        dp(parent_with_peer),
-        make_node(
-            "parent@1.0.0",
-            parent_with_peer,
-            &[("child", "child@1.0.0(opt_peer@1.0.0)")],
-            &["opt_peer"],
-        ),
-    );
-    graph.insert(
-        dp(parent_without_peer),
-        make_node("parent@1.0.0", parent_without_peer, &[("child", "child@1.0.0")], &[]),
-    );
+    for peer in ["opt_peer@1.0.0", "other@1.0.0"] {
+        graph.insert(dp(peer), make_node(peer, peer, &[], &[]));
+    }
+    for (child, peers) in [
+        (CHILD_WITH_OPT_PEER, &["opt_peer"][..]),
+        (CHILD_WITH_OTHER, &["other"][..]),
+        (CHILD_BARE, &[][..]),
+    ] {
+        graph.insert(dp(child), make_node("child@1.0.0", child, &[], peers));
+    }
+    for (parent, child, peers) in [
+        (PARENT_WITH_OPT_PEER, CHILD_WITH_OPT_PEER, &["opt_peer"][..]),
+        (PARENT_WITH_OTHER, CHILD_WITH_OTHER, &["other"][..]),
+        (PARENT_BARE, CHILD_BARE, &[][..]),
+    ] {
+        graph.insert(dp(parent), make_node("parent@1.0.0", parent, &[("child", child)], peers));
+    }
 
     let mut direct: DirectByImporter = BTreeMap::new();
-    direct.insert(
-        "project1".to_string(),
-        BTreeMap::from([("parent".to_string(), dp(parent_with_peer))]),
-    );
-    direct.insert(
-        "project2".to_string(),
-        BTreeMap::from([("parent".to_string(), dp(parent_without_peer))]),
-    );
+    for (importer, parent) in [
+        ("project-opt-peer", PARENT_WITH_OPT_PEER),
+        ("project-other", PARENT_WITH_OTHER),
+        ("project-bare", PARENT_BARE),
+    ] {
+        direct.insert(importer.to_string(), BTreeMap::from([("parent".to_string(), dp(parent))]));
+    }
 
     dedupe_peer_dependents(&mut graph, &mut direct);
 
-    assert_eq!(direct["project1"]["parent"], dp(parent_with_peer));
-    assert_eq!(direct["project2"]["parent"], dp(parent_with_peer));
+    dbg!(&direct);
+    assert_ne!(direct["project-bare"]["parent"], dp(PARENT_BARE));
+    assert!(!graph.contains_key(&dp(PARENT_BARE)));
 }

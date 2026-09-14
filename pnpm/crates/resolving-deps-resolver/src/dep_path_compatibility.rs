@@ -14,9 +14,11 @@ pub(crate) fn node_deps_count(node: &DependenciesGraphNode) -> usize {
 }
 
 /// Whether `larger` can absorb `smaller`: it must have at least as many
-/// deps, every one of `smaller`'s child depPaths must appear among
-/// `larger`'s children, and every peer `smaller` resolved must also be
-/// resolved by `larger`.
+/// deps, every peer `smaller` resolved must also be resolved by `larger`,
+/// and each of `smaller`'s child aliases must resolve either to the same
+/// depPath or to a variant of the same package that `larger`'s child can
+/// absorb in turn. The recursive case is what lets a package whose child
+/// carries a peer suffix absorb the variant whose child does not.
 ///
 /// Compares dependency/peer *sets* only, not package identity, so callers
 /// must pass depPaths already known to share a `pkgIdWithPatchHash` —
@@ -31,6 +33,10 @@ pub(crate) fn is_compatible_and_has_more_deps(
     is_compatible_and_has_more_deps_helper(graph, larger, smaller, &mut visited)
 }
 
+/// Pairs are recorded on entry, so a dependency cycle assumes
+/// compatibility instead of recursing forever. The assumption is never
+/// observed by a `true` result: an incompatible pair anywhere aborts the
+/// whole check.
 fn is_compatible_and_has_more_deps_helper<'a>(
     graph: &'a DependenciesGraph,
     larger: &'a DepPath,
@@ -60,9 +66,7 @@ fn has_all_resolved_peers(
     larger_node: &DependenciesGraphNode,
     smaller_node: &DependenciesGraphNode,
 ) -> bool {
-    smaller_node
-        .edges
-        .resolved_peer_names
+    smaller_node.edges.resolved_peer_names
         .iter()
         .all(|peer| larger_node.edges.resolved_peer_names.contains(peer))
 }
@@ -73,9 +77,11 @@ fn child_deps_are_compatible<'a>(
     smaller_node: &'a DependenciesGraphNode,
     visited: &mut HashSet<(&'a DepPath, &'a DepPath)>,
 ) -> bool {
-    smaller_node.edges.children.iter().all(|(alias, smaller_child)| {
-        are_child_deps_compatible(graph, larger_node, alias, smaller_child, visited)
-    })
+    smaller_node.edges.children
+        .iter()
+        .all(|(alias, smaller_child)| {
+            are_child_deps_compatible(graph, larger_node, alias, smaller_child, visited)
+        })
 }
 
 fn are_child_deps_compatible<'a>(

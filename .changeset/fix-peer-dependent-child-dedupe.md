@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-Fixed an issue where packages whose child dependencies carry peer-dependent suffixes (such as `next` depending on `styled-jsx` with an optional `babel-plugin-macros` peer) were not deduplicated when one workspace project satisfied the optional peer and another did not [#14800](https://github.com/pnpm/pnpm/issues/14800).
+pnpm now deduplicates a package whose child dependency resolved an optional peer in one workspace project but not in another. Two copies of `next` could appear when only some projects could reach `styled-jsx`'s optional `babel-plugin-macros` peer [#14800](https://github.com/pnpm/pnpm/issues/14800).
