@@ -272,12 +272,25 @@ fn an_endpoint_opening_with_a_caret_stays_literal() {
 }
 
 #[test]
-fn a_comma_splits_a_group_that_also_holds_a_range() {
-    // picomatch folds this one into a single class through fill-range. The
-    // comma splits first here, leaving `a..b` as one alternative's text.
+fn a_comma_beside_a_range_joins_the_class() {
+    // The `..` makes the whole group a class, so the comma is a member of
+    // it rather than a separator: `{a..b,c}` is `[,-a-b-c]`.
+    assert!(is_match("/packages/a", "/packages/{a..b,c}"));
     assert!(is_match("/packages/c", "/packages/{a..b,c}"));
-    assert!(is_match("/packages/a..b", "/packages/{a..b,c}"));
-    assert!(!is_match("/packages/a", "/packages/{a..b,c}"));
+    assert!(is_match("/packages/,", "/packages/{a..b,c}"));
+    assert!(!is_match("/packages/z", "/packages/{a..b,c}"));
+    assert!(!is_match("/packages/a..b", "/packages/{a..b,c}"));
+}
+
+#[test]
+fn an_endpoint_of_several_characters_stays_literal() {
+    // `[bar-foo]` would select the names `b`, `a` and `o`. picomatch emits
+    // no class it cannot order, and neither does this.
+    assert!(!is_match("/packages/a", "/packages/{foo..bar}"));
+    assert!(!is_match("/packages/o", "/packages/{foo..bar}"));
+    assert!(is_match("/packages/{foo..bar}", "/packages/{foo..bar}"));
+    // Upstream does read `{ab..cd}` as `[ab-cd]`; here it is text as well.
+    assert!(!is_match("/packages/b", "/packages/{ab..cd}"));
 }
 
 #[test]

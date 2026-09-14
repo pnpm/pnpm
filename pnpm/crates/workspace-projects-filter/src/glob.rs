@@ -14,12 +14,13 @@
 //! `{a,b}` selects either alternative. Alternatives nest, may span `/`,
 //! and combine with the wildcards above. Braces holding no top-level comma
 //! are literal, except `{x..y}`, which picomatch turns into the character
-//! class `[x-y]` rather than expanding a range. Every `..` in such a group
-//! contributes an endpoint to that one class. A group pairing a `..` with
-//! a comma is the one form picomatch folds into a class and this does not:
-//! the comma splits alternatives first. An alternative opening with `**`
-//! is matched as an ordinary globstar segment; picomatch drops its
-//! leading-dot guard and its match-nothing case in that one position.
+//! class `[x-y]` rather than expanding a range. A `..` anywhere in a group
+//! makes the whole of it one class: every endpoint joins, and so does each
+//! comma, as a member of its own. Only single characters are read that way,
+//! so `{foo..bar}` stays text where upstream reads `{ab..cd}` as a class.
+//! An alternative opening with `**` is matched as an ordinary globstar
+//! segment; picomatch drops its leading-dot guard and its match-nothing
+//! case in that one position.
 //!
 //! A wildcard does not match a segment's leading `.`, matching micromatch's
 //! default `dot: false`. A character class is exempt, as it is upstream:
@@ -207,29 +208,40 @@ fn join_branches(prefixes: &[String], literal: &str, branches: &[String]) -> Vec
 /// ordinary text.
 fn brace_alternatives(content: &str) -> Option<Vec<String>> {
     let alternatives = split_top_level(content, &[',']);
-    if alternatives.len() > 1 {
-        return Some(alternatives);
+    if !content.contains("..") || split_top_level(content, &['.', '.']).len() < 2 {
+        return (alternatives.len() > 1).then_some(alternatives);
     }
-    let mut endpoints = split_top_level(content, &['.', '.']);
-    if endpoints.len() < 2 {
+    // A `..` anywhere makes the whole group one character class, and each
+    // comma joins it as a member of its own rather than separating
+    // alternatives.
+    let mut members = vec![",".to_string(); alternatives.len() - 1];
+    for alternative in &alternatives {
+        let endpoints = split_top_level(alternative, &['.', '.']);
+        members.extend(
+            endpoints
+                .into_iter()
+                .filter(|endpoint| !endpoint.is_empty()),
+        );
+    }
+    // picomatch builds the class only from members it can order. One of
+    // several characters would leave the rest as stray members of a class
+    // that selects them one at a time, so it keeps the group as text, as
+    // does a group naming no member at all.
+    if members.is_empty()
+        || members
+            .iter()
+            .any(|member| member.chars().count() != 1)
+    {
         return None;
     }
-    endpoints.retain(|endpoint| !endpoint.is_empty());
-    // A group naming no endpoint at all compiles to a class that matches
-    // nothing, which only its own text can stand in for here.
-    if endpoints.is_empty() {
-        return None;
-    }
-    // picomatch orders the endpoints and folds them all into one class,
-    // however many `..` separate them.
-    endpoints.sort();
+    members.sort();
     // A `^` first in the class would negate it. picomatch escapes it and
     // keeps it a member; this syntax has no escape, so leave the group as
     // text rather than invert what it selects.
-    if endpoints[0].starts_with('^') {
+    if members[0] == "^" {
         return None;
     }
-    Some(vec![format!("[{}]", endpoints.join("-"))])
+    Some(vec![format!("[{}]", members.join("-"))])
 }
 
 /// Split `content` on every `separator` outside a nested brace group or a
