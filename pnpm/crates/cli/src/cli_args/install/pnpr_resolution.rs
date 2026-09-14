@@ -311,10 +311,29 @@ fn load_previous_wanted<'a, Reporter: self::Reporter + 'static>(
     if !link.use_state_lockfile {
         return Ok(None);
     }
-    let loaded =
-        if link.lockfile.fix { state.lockfile.get_for_fix() } else { state.lockfile.get() };
+    let lockfile_source = if link.lockfile.fix {
+        MaybeLazyLockfile::Repair(&state.lockfile)
+    } else {
+        MaybeLazyLockfile::Lazy(&state.lockfile)
+    };
+    let loaded = lockfile_source.get();
     match loaded {
-        Ok(lockfile) => Ok(lockfile),
+        Ok(lockfile) => {
+            let merged_conflict_files =
+                lockfile_source.merged_conflict_files().map_err(miette::Report::new)?;
+            for _ in 0..merged_conflict_files {
+                <Reporter as pnpm_reporter::Reporter>::emit(&pnpm_reporter::LogEvent::Lockfile(
+                    pnpm_reporter::LockfileLog {
+                        level: pnpm_reporter::LogLevel::Info,
+                        message:
+                            "Merge conflict detected in pnpm-lock.yaml and successfully merged"
+                                .to_string(),
+                        prefix: lockfile_dir.to_string_lossy().into_owned(),
+                    },
+                ));
+            }
+            Ok(lockfile)
+        }
         Err(error) if !link.lockfile.frozen => {
             <Reporter as pnpm_reporter::Reporter>::emit(&pnpm_reporter::LogEvent::Pnpm(
                 pnpm_reporter::PnpmLog {

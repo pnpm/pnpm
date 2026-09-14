@@ -51,7 +51,7 @@ fn install_via_pnpr_links_node_modules() {
 }
 
 #[test]
-fn install_via_pnpr_replaces_a_conflicted_lockfile() {
+fn install_via_pnpr_merges_a_conflicted_lockfile() {
     const CONFLICTED_LOCKFILE: &str = text_block_fnl! {
         "<<<<<<< HEAD"
         "lockfileVersion: '9.0'"
@@ -79,11 +79,17 @@ fn install_via_pnpr_replaces_a_conflicted_lockfile() {
     fs::write(workspace.join("pnpm-lock.yaml"), CONFLICTED_LOCKFILE)
         .expect("write conflicted lockfile");
 
-    pacquet
+    let install = pacquet
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .with_args(["install", "--pnpr-server", &pnpr_url])
         .assert()
         .success();
+    let stdout = String::from_utf8_lossy(&install.get_output().stdout);
+    assert!(
+        stdout.contains("Merge conflict detected in pnpm-lock.yaml and successfully merged"),
+        "STDOUT:\n{stdout}",
+    );
+    assert!(!stdout.contains("Ignoring broken lockfile"), "STDOUT:\n{stdout}");
 
     let lockfile = read_workspace_lockfile(&workspace);
     assert_eq!(workspace_importer_version(&lockfile, ".", "@foo/no-deps"), "1.0.0");
@@ -91,11 +97,17 @@ fn install_via_pnpr_replaces_a_conflicted_lockfile() {
 
     fs::write(workspace.join("pnpm-lock.yaml"), CONFLICTED_LOCKFILE)
         .expect("rewrite conflicted lockfile");
-    pacquet_at(&workspace)
+    let repair = pacquet_at(&workspace)
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .with_args(["install", "--fix-lockfile", "--pnpr-server", &pnpr_url])
         .assert()
         .success();
+    let stdout = String::from_utf8_lossy(&repair.get_output().stdout);
+    assert!(
+        stdout.contains("Merge conflict detected in pnpm-lock.yaml and successfully merged"),
+        "STDOUT:\n{stdout}",
+    );
+    assert!(!stdout.contains("Ignoring broken lockfile"), "STDOUT:\n{stdout}");
     let repaired = read_workspace_lockfile(&workspace);
     assert_eq!(workspace_importer_version(&repaired, ".", "@foo/no-deps"), "1.0.0");
 

@@ -34,6 +34,37 @@ const MAIN_DOC: &str = text_block! {
     "  react@17.0.2: {}"
 };
 
+const CONFLICTED_MAIN_DOC: &str = text_block! {
+    "lockfileVersion: '9.0'"
+    ""
+    "importers:"
+    ""
+    "  .:"
+    "    dependencies:"
+    "      react:"
+    "<<<<<<< HEAD"
+    "        specifier: '>=17.0.0 <19.0.0'"
+    "        version: 17.0.2"
+    "======="
+    "        specifier: '>=17.0.0 <19.0.0'"
+    "        version: 18.2.0"
+    ">>>>>>> feature"
+    ""
+    "packages:"
+    ""
+    "  react@17.0.2:"
+    "    resolution: {integrity: sha512-react-17}"
+    ""
+    "  react@18.2.0:"
+    "    resolution: {integrity: sha512-react-18}"
+    ""
+    "snapshots:"
+    ""
+    "  react@17.0.2: {}"
+    ""
+    "  react@18.2.0: {}"
+};
+
 /// Env-document prelude pnpm v11 writes when `packageManager` /
 /// `devEngines.runtime` triggers a package-manager-bootstrap entry.
 const ENV_DOC: &str = text_block! {
@@ -69,6 +100,67 @@ fn write_lockfile(content: &str) -> tempfile::TempDir {
     std::fs::write(virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), content)
         .expect("write lock.yaml");
     tmp
+}
+
+#[test]
+fn wanted_loader_merges_git_conflicts_in_the_main_document() {
+    let tmp = tempdir().expect("create tempdir");
+    let combined = format!("---\n{ENV_DOC}\n---\n{CONFLICTED_MAIN_DOC}");
+    std::fs::write(tmp.path().join(Lockfile::FILE_NAME), combined)
+        .expect("write conflicted lockfile");
+
+    let loaded = Lockfile::load_wanted_detailed(tmp.path(), &WantedLockfileSelection::default())
+        .expect("merge conflicted wanted lockfile");
+    assert_eq!(loaded.merged_conflict_files, 1);
+    let lockfile = loaded.lockfile.expect("wanted lockfile");
+    let react: PkgName = "react".parse().expect("parse package name");
+    let dependency = &lockfile
+        .root_project()
+        .expect("root importer")
+        .dependencies
+        .as_ref()
+        .expect("root dependencies")[&react];
+
+    assert_eq!(dependency.specifier, ">=17.0.0 <19.0.0");
+    assert_eq!(dependency.version.to_string(), "18.2.0");
+}
+
+#[test]
+fn repair_loader_merges_git_conflicts() {
+    let tmp = tempdir().expect("create tempdir");
+    std::fs::write(tmp.path().join(Lockfile::FILE_NAME), CONFLICTED_MAIN_DOC)
+        .expect("write conflicted lockfile");
+    let lazy = LazyLockfile::deferred(tmp.path().to_path_buf(), WantedLockfileSelection::default());
+    let source = crate::MaybeLazyLockfile::Repair(&lazy);
+
+    let lockfile = source
+        .get()
+        .expect("merge conflicted repair lockfile")
+        .expect("repair lockfile");
+    let react: PkgName = "react".parse().expect("parse package name");
+    let dependency = &lockfile
+        .root_project()
+        .expect("root importer")
+        .dependencies
+        .as_ref()
+        .expect("root dependencies")[&react];
+
+    assert_eq!(source.merged_conflict_files().expect("read conflict state"), 1);
+    assert_eq!(dependency.version.to_string(), "18.2.0");
+}
+
+#[test]
+fn current_loader_does_not_merge_git_conflicts() {
+    let tmp = write_lockfile(CONFLICTED_MAIN_DOC);
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
+
+    let error = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
+        .expect_err("current lockfile conflict must remain invalid");
+
+    assert!(matches!(error, LoadLockfileError::ParseYaml { .. }));
 }
 
 #[test]

@@ -1,7 +1,7 @@
 use super::{
     super::{
-        Arc, HashSet, InstallError, Lockfile, LogEvent, LogLevel, Path, PathBuf, PnpmLog, Reporter,
-        emit_initial_package_manifest,
+        Arc, HashSet, InstallError, Lockfile, LockfileLog, LogEvent, LogLevel, Path, PathBuf,
+        PnpmLog, Reporter, emit_initial_package_manifest,
     },
     HookedManifests, InstallOwned, InstallView, RunMode, resolve_pnpmfile_hook,
     workspace::{InstallScope, InstallWorkspace, report_install_scope_cycles, workspace_projects},
@@ -198,14 +198,27 @@ pub(super) fn load_wanted_lockfile<'a, Reporter: self::Reporter>(
 ) -> Result<LoadedWantedLockfile<'a>, InstallError> {
     let (workspace_root, prefix) = context;
     match lockfile_source.get() {
-        Ok(lockfile) => Ok(LoadedWantedLockfile {
-            lockfile,
-            shared: lockfile_source.shared().map_err(InstallError::LoadWantedLockfile)?,
-            merge: lockfile_source.get_for_merge().map_err(InstallError::LoadWantedLockfile)?,
-            pre_merge_importers: lockfile_source
-                .pre_merge_importers()
-                .map_err(InstallError::LoadWantedLockfile)?,
-        }),
+        Ok(lockfile) => {
+            let merged_conflict_files = lockfile_source
+                .merged_conflict_files()
+                .map_err(InstallError::LoadWantedLockfile)?;
+            for _ in 0..merged_conflict_files {
+                Reporter::emit(&LogEvent::Lockfile(LockfileLog {
+                    level: LogLevel::Info,
+                    message: "Merge conflict detected in pnpm-lock.yaml and successfully merged"
+                        .to_string(),
+                    prefix: prefix.to_string(),
+                }));
+            }
+            Ok(LoadedWantedLockfile {
+                lockfile,
+                shared: lockfile_source.shared().map_err(InstallError::LoadWantedLockfile)?,
+                merge: lockfile_source.get_for_merge().map_err(InstallError::LoadWantedLockfile)?,
+                pre_merge_importers: lockfile_source
+                    .pre_merge_importers()
+                    .map_err(InstallError::LoadWantedLockfile)?,
+            })
+        }
         Err(error) if !frozen_lockfile => {
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Warn,

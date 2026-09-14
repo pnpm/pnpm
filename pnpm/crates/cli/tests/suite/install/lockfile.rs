@@ -10,6 +10,54 @@ use super::{enable_gvs_in_workspace_yaml, is_symlink_or_junction};
 use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 
 #[test]
+fn fix_lockfile_merges_git_conflicts() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let original = fs::read_to_string(&lockfile_path).expect("read original lockfile");
+    let original_lockfile = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
+        .expect("load original lockfile")
+        .expect("original lockfile");
+    let conflicted = format!("<<<<<<< HEAD\n{original}=======\n{original}>>>>>>> branch\n");
+    fs::write(&lockfile_path, conflicted).expect("write conflicted lockfile");
+
+    let output = new_pacquet_command(&workspace)
+        .with_args(["install", "--fix-lockfile", "--lockfile-only"])
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    assert!(stdout.contains("Merge conflict detected in pnpm-lock.yaml and successfully merged"));
+    assert!(!stdout.contains("Ignoring broken lockfile"));
+
+    let repaired = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
+        .expect("load repaired lockfile")
+        .expect("repaired lockfile");
+    assert_eq!(repaired, original_lockfile);
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
     let CommandTempCwd {
         pacquet,
