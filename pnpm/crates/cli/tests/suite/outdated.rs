@@ -432,10 +432,7 @@ fn outdated_long_shows_deprecation_details() {
         stdout.contains("This package is deprecated"),
         "--long should print the deprecation reason: {stdout}",
     );
-    assert!(
-        stdout.contains("https://foo.bar/qar"),
-        "--long should print the homepage: {stdout}",
-    );
+    assert!(stdout.contains("https://foo.bar/qar"), "--long should print the homepage: {stdout}",);
 
     drop((root, anchor));
 }
