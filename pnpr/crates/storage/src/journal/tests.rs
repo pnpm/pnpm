@@ -1,7 +1,8 @@
+#[cfg(unix)]
+use super::sync_dir;
 use super::{
     ApplyProgress, DocumentMerge, HostedDocuments, JOURNAL_DIR, JournaledPublish,
     JournaledRevisionRef, MANIFEST_FILE, Manifest, PackageId, SealedTxn, cleanup_lost_tmp_paths,
-    sync_dir,
 };
 use crate::{BlobFinalize, HostedRevisionRefWrite, Storage, publish::merge_journaled_packument};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};

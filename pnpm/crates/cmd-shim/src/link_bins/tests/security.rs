@@ -136,7 +136,11 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     {
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(
-            metadata(&cli_js).unwrap().permissions().mode() & 0o777,
+            metadata(&cli_js)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
             0o755,
             "the target file gets the executable bits, like pnpm's ensureExecutable",
         );

@@ -251,6 +251,9 @@ jobs:
     name: Rust CI / Clippy / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    # `#[cfg(windows)]` code is invisible to a Linux-only lint, and the test
+    # job only type-checks it, so Windows gets its own Clippy row. macOS does
+    # not: it shares the `#[cfg(unix)]` blocks the Ubuntu row already lints.
     strategy:
       fail-fast: false
       matrix:

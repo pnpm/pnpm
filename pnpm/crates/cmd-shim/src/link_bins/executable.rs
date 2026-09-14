@@ -217,6 +217,10 @@ where
 }
 
 #[cfg(windows)]
+#[expect(
+    clippy::extra_unused_type_parameters,
+    reason = "the stub keeps the unix signature so callers stay platform-agnostic"
+)]
 pub(super) fn link_symlinked_executable<Sys>(
     _target_path: &Path,
     _shim_path: &Path,
@@ -224,7 +228,6 @@ pub(super) fn link_symlinked_executable<Sys>(
 where
     Sys: FsReadToString + FsEnsureExecutableBits,
 {
-    let _ = std::marker::PhantomData::<Sys>;
     Ok(false)
 }
 

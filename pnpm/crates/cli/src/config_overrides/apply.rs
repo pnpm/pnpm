@@ -101,8 +101,7 @@ pub(crate) fn apply_registry_override(config: &mut Config, registry: &str) {
     config.registry.clone_from(&registry);
     config.registries_by_scope.insert("default".to_string(), registry.clone());
     config.package_manager_bootstrap.registry.clone_from(&registry);
-    config.package_manager_bootstrap.registries.insert("default".to_string(), registry.clone());
-    config.explicit_settings.insert("registry".to_string(), serde_json::Value::String(registry));
+    config.package_manager_bootstrap.registries.insert("default".to_string(), registry);
 }
 
 pub(super) fn normalize_registry_url(registry: &str) -> String {
