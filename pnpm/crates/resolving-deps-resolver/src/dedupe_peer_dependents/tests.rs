@@ -252,3 +252,84 @@ fn incompatible_variants_do_not_collapse() {
     assert!(graph.contains_key(&dp(BAZ_VARIANT)));
     assert!(graph.contains_key(&dp(QUX_VARIANT)));
 }
+
+/// The child variants cannot all collapse in one round: `child(other)`
+/// absorbs neither `child(opt_peer)` nor the other way round, so the
+/// child group still holds a leftover when the round ends and the graph's
+/// child edges are never rewritten. The parents must therefore collapse
+/// on the strength of their children being compatible variants of one
+/// package, not on their child depPaths being equal
+/// ([pnpm/pnpm#14800](https://github.com/pnpm/pnpm/issues/14800)).
+#[test]
+fn parent_collapses_when_its_child_carries_a_peer_suffix_the_other_lacks() {
+    const CHILD_WITH_OPT_PEER: &str = "child@1.0.0(opt_peer@1.0.0)";
+    const CHILD_WITH_OTHER: &str = "child@1.0.0(other@1.0.0)";
+    const CHILD_BARE: &str = "child@1.0.0";
+    const PARENT_WITH_OPT_PEER: &str = "parent@1.0.0(opt_peer@1.0.0)";
+    const PARENT_WITH_OTHER: &str = "parent@1.0.0(other@1.0.0)";
+    const PARENT_BARE: &str = "parent@1.0.0";
+
+    let mut graph = DependenciesGraph::default();
+    for peer in ["opt_peer@1.0.0", "other@1.0.0"] {
+        graph.insert(dp(peer), make_node(peer, peer, &[], &[]));
+    }
+    for (child, peers) in [
+        (CHILD_WITH_OPT_PEER, &["opt_peer"][..]),
+        (CHILD_WITH_OTHER, &["other"][..]),
+        (CHILD_BARE, &[][..]),
+    ] {
+        graph.insert(dp(child), make_node("child@1.0.0", child, &[], peers));
+    }
+    for (parent, child, peers) in [
+        (PARENT_WITH_OPT_PEER, CHILD_WITH_OPT_PEER, &["opt_peer"][..]),
+        (PARENT_WITH_OTHER, CHILD_WITH_OTHER, &["other"][..]),
+        (PARENT_BARE, CHILD_BARE, &[][..]),
+    ] {
+        graph.insert(dp(parent), make_node("parent@1.0.0", parent, &[("child", child)], peers));
+    }
+
+    let mut direct: DirectByImporter = BTreeMap::new();
+    for (importer, parent) in [
+        ("project-opt-peer", PARENT_WITH_OPT_PEER),
+        ("project-other", PARENT_WITH_OTHER),
+        ("project-bare", PARENT_BARE),
+    ] {
+        direct.insert(importer.to_string(), BTreeMap::from([("parent".to_string(), dp(parent))]));
+    }
+
+    dedupe_peer_dependents(&mut graph, &mut direct);
+
+    assert_eq!(direct["project-opt-peer"]["parent"], dp(PARENT_WITH_OPT_PEER));
+    assert_eq!(direct["project-other"]["parent"], dp(PARENT_WITH_OTHER));
+    assert_eq!(direct["project-bare"]["parent"], dp(PARENT_WITH_OTHER));
+    assert!(!graph.contains_key(&dp(PARENT_BARE)));
+}
+
+/// Chain longer than any thread's stack budget, diverging at every level
+/// so the compatibility walk has to reach the bottom. Compatibility stays
+/// answerable at a depth the native call stack cannot hold.
+#[test]
+fn deep_divergent_chain_does_not_overflow_the_stack() {
+    const DEPTH: usize = 30_000;
+
+    let mut graph = DependenciesGraph::default();
+    for level in 0..DEPTH {
+        let pkg = format!("pkg{level}@1.0.0");
+        let larger = format!("pkg{level}@1.0.0(peer@1.0.0)");
+        let child = format!("pkg{}@1.0.0", level + 1);
+        let larger_child = format!("pkg{}@1.0.0(peer@1.0.0)", level + 1);
+        let last = level + 1 == DEPTH;
+        let larger_children: Vec<(&str, &str)> =
+            if last { vec![] } else { vec![("next", larger_child.as_str())] };
+        let children: Vec<(&str, &str)> =
+            if last { vec![] } else { vec![("next", child.as_str())] };
+        graph.insert(dp(&larger), make_node(&pkg, &larger, &larger_children, &["peer"]));
+        graph.insert(dp(&pkg), make_node(&pkg, &pkg, &children, &[]));
+    }
+
+    let larger = dp("pkg0@1.0.0(peer@1.0.0)");
+    let smaller = dp("pkg0@1.0.0");
+    assert!(crate::dep_path_compatibility::is_compatible_and_has_more_deps(
+        &graph, &larger, &smaller
+    ));
+}
