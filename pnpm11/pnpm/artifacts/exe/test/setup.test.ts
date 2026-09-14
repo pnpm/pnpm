@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
-import { cmdShim } from '@zkochan/cmd-shim'
+import { cmdShim } from '@pnpm/cmd-shim'
 import { familySync } from 'detect-libc'
 
 // @ts-expect-error — JS helper without type declarations
@@ -252,7 +252,7 @@ winBashTest('aliases run from Bash (Git Bash / MSYS2) without dropping into inte
   const pkg = JSON.parse(fs.readFileSync(path.join(sandbox, 'package.json'), 'utf8'))
 
   // Mirror what `pnpm self-update` does in the global bin: feed each bin
-  // entry into @zkochan/cmd-shim and let it write the Bash / cmd / pwsh
+  // entry into @pnpm/cmd-shim and let it write the Bash / cmd / pwsh
   // shims. Using cmd-shim here (the same lib pnpm's bin linker uses) is what
   // lets this repro the real-world chain rather than just asserting the
   // package.json shape.
