@@ -269,6 +269,14 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfec
 pedantic = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 
+# Windows sizes `PathBuf` 8 bytes wider than unix does, which carries
+# `InstallFrozenLockfileError` from 112 bytes to over the lint's 128-byte limit.
+# Every `install`, `add`, `update`, and `remove` signature wraps that error, so the
+# Windows job reports it 104 times across two crates while unix reports none. The fix
+# is to shrink `SymlinkDirectDependenciesError::SymlinkPackage`, the 104-byte variant
+# at the root of the chain, which is a change to miette `Diagnostic` types and their
+# construction sites rather than a lint cleanup.
+result_large_err = "allow" # deferred: see above
 doc_link_with_quotes = "allow" # false positive: matches markdown link titles
 unreadable_literal = "allow" # false positive: octal file modes
 case_sensitive_file_extension_comparisons = "allow" # extension checks are intentionally case-sensitive
