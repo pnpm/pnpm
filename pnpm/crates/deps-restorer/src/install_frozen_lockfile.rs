@@ -1,3 +1,10 @@
+// `allow` rather than `expect`: an expectation that only one platform fulfils
+// warns on the other.
+#![allow(
+    clippy::result_large_err,
+    reason = "`InstallFrozenLockfileError` measures 112 bytes on unix and crosses the 128-byte threshold on Windows, whose `PathBuf` is 8 bytes wider; the largest variant is a miette `Diagnostic` chain that boxing would flatten"
+)]
+
 pub use build_phase::{
     BuildPhaseError, BuildPhaseInputs, resolve_snapshot_patches, run_build_phase,
 };
