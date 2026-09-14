@@ -40,11 +40,14 @@ test('the @pnpm/exe build re-runs itself', () => {
 })
 
 test.each([
-  ['pnpm', 'pnpm.mjs'],
-  ['pn', 'pnpm.mjs'],
-  ['pnpm', 'pnpm.cjs'],
-])('pnpm reached through node_modules/.bin/%s is re-run with Node.js', (binName, scriptName) => {
-  const entryScript = installPackage({ pkgName: 'pnpm', binName, scriptName })
+  ['pnpm', 'pnpm', 'pnpm.mjs'],
+  ['pnpm', 'pn', 'pnpm.mjs'],
+  ['pnpm', 'pnpm', 'pnpm.cjs'],
+  // `@pnpm/exe` ships the bundle next to its binary, so its entry reaches here
+  // whenever the single-file build is not what is running.
+  ['@pnpm/exe', 'pnpm', 'pnpm.mjs'],
+])('%s reached through node_modules/.bin/%s is re-run with Node.js', (pkgName, binName, scriptName) => {
+  const entryScript = installPackage({ pkgName, binName, scriptName })
   process.argv[1] = entryScript
 
   expectReinvoked(entryScript)
