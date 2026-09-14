@@ -134,6 +134,26 @@ test('a package whose only bin is named after itself falls back to the pnpm on P
   expectFellBackToPath()
 })
 
+test('a bin that another package claims through a symlink falls back to the pnpm on PATH', () => {
+  const root = makeTempDir()
+  const pkgDir = path.join(root, 'node_modules', 'not-pnpm')
+  const binDir = path.join(root, 'node_modules', '.bin')
+  fs.mkdirSync(path.join(pkgDir, 'lib'), { recursive: true })
+  fs.mkdirSync(binDir, { recursive: true })
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+    name: 'not-pnpm',
+    // The first target does not exist, so resolving it fails before the
+    // matching one is reached.
+    bin: { gone: 'lib/gone', pn: 'lib/pn' },
+  }))
+  fs.writeFileSync(path.join(pkgDir, 'cli.js'), '')
+  fs.symlinkSync(path.join(pkgDir, 'cli.js'), path.join(pkgDir, 'lib', 'pn'))
+  fs.symlinkSync(path.join(pkgDir, 'lib', 'pn'), path.join(binDir, 'pn'))
+  process.argv[1] = path.join(binDir, 'pn')
+
+  expectFellBackToPath()
+})
+
 test.each([
   // A host that merely imports pnpm's packages, such as the Jest runs of the
   // commands that call runPnpmCli.

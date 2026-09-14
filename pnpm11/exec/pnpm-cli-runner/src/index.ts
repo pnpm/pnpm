@@ -110,8 +110,21 @@ function readOwningPackage (resolvedScript: string): OwningPackage | undefined {
   }
 }
 
+/**
+ * Whether the package claims `resolvedScript` as one of its own bins. Declared
+ * targets are resolved too, since a package is free to point a bin at a
+ * symlink inside its own tree, and `resolvedScript` has already been resolved.
+ */
 function declaresBin ({ dir, manifest }: OwningPackage, resolvedScript: string): boolean {
   const { bin } = manifest
   const targets = typeof bin === 'string' ? [bin] : typeof bin === 'object' && bin !== null ? Object.values(bin) : []
-  return targets.some((target) => typeof target === 'string' && path.resolve(dir, target) === resolvedScript)
+  return targets.some((target) => typeof target === 'string' && realpathOrSelf(path.resolve(dir, target)) === resolvedScript)
+}
+
+function realpathOrSelf (target: string): string {
+  try {
+    return fs.realpathSync(target)
+  } catch {
+    return target
+  }
 }
