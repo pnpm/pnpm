@@ -286,6 +286,12 @@ fn expand_braced_parameters(script: &str, rewrite: Rewrite<'_>) -> String {
 /// near this; past it an expansion is left verbatim.
 const MAX_EXPANSION_NESTING: u8 = 32;
 
+/// Every `${` costs a scan for the `}` that closes it, and one that never
+/// closes is scanned to the end of the script, so a script of nothing but `${`
+/// would cost the square of its length. No real expansion is anywhere near
+/// this long; past it the `${` is left verbatim, as an unclosed one already is.
+const MAX_EXPANSION_BODY: usize = 4096;
+
 /// What one piece of text is rewritten against.
 #[derive(Clone, Copy)]
 struct Rewrite<'a> {
@@ -474,9 +480,13 @@ fn braced_parameter_end(script: &str, start: usize, in_double_quotes: bool) -> O
     let opens_a_quote = |byte| byte == b'"' || (!in_double_quotes && byte == b'\'');
     let mut quote = None;
     let mut depth = 1_usize;
-    let mut index = start + 2;
+    let body_start = start + 2;
+    let end = bytes
+        .len()
+        .min(body_start.saturating_add(MAX_EXPANSION_BODY));
+    let mut index = body_start;
 
-    while index < bytes.len() {
+    while index < end {
         let byte = bytes[index];
         index += 1;
         match (quote, byte) {

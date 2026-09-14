@@ -320,6 +320,25 @@ fn reads_a_backslash_in_a_default_as_escaping_what_follows() {
     }
 }
 
+/// Every `${` costs a scan for the `}` that closes it, so the scan is bounded
+/// and a script of nothing but `${` cannot cost the square of its length. A
+/// body past the bound is left verbatim, as an unclosed `${` already is.
+#[test]
+fn bounds_the_scan_for_a_closing_brace() {
+    let dir = tempdir().expect("create a temp dir");
+    let env = HashMap::new();
+
+    let within = "x".repeat(4_000);
+    let (code, lines) = run(&format!("echo ${{MISSING:-{within}}}"), dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, within)]);
+
+    let past = "x".repeat(5_000);
+    let (code, lines) = run(&format!("echo ${{MISSING:-{past}}}"), dir.path(), &env);
+    assert_eq!(code, 0);
+    assert_eq!(lines, vec![(LifecycleStdio::Stdout, format!("${{MISSING:-{past}}}"))]);
+}
+
 /// An expansion the `$NAME` form cannot stand in for keeps the behavior it
 /// has today: the emulator hands it to the script as literal text.
 #[test]
