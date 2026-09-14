@@ -414,9 +414,9 @@ fn outdated_list_format() {
     drop((root, anchor));
 }
 
-/// `--long` adds the details column: the deprecation reason and the
-/// package homepage, which only the full packument carries. Ports
-/// pnpm's "--long with only deprecated packages".
+/// `--long` renders the deprecation reason and the package homepage in
+/// the Details column. Ports pnpm's "--long with only deprecated
+/// packages".
 #[test]
 fn outdated_long_shows_deprecation_details() {
     let (root, workspace, anchor) = setup();
