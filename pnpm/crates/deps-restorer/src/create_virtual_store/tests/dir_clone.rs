@@ -4,9 +4,6 @@ use std::collections::HashMap;
 
 const INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
-/// Every exclusion the canonical slot's graph-hash path cannot express.
-/// A `file:` tarball and a git-hosted tarball both carry an integrity
-/// the slot path hashes, yet neither pins the bytes the slot holds.
 #[test]
 fn only_immutable_integrity_addressed_resolutions_qualify() {
     for (label, resolution, cacheable) in [
@@ -59,8 +56,6 @@ fn build_mutability_and_force_each_disqualify_a_registry_slot() {
     assert!(!dir_clone_cacheable(&packages, &key, false, false, true), "forced re-import");
 }
 
-/// A snapshot whose `packages:` entry the lockfile never recorded has
-/// no integrity to address a slot by.
 #[test]
 fn a_snapshot_without_a_packages_entry_does_not_qualify() {
     let key: PackageKey = "foo@1.0.0".parse().expect("parse package key");

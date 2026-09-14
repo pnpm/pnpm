@@ -24,10 +24,7 @@ impl fmt::Debug for HoistedDirCloneCache<'_> {
 
 impl<'a> HoistedDirCloneCache<'a> {
     /// Qualify every snapshot once, up front, so the per-node
-    /// [`Self::try_import`] on the link path is a set lookup. `None`
-    /// when the install has no cache to project from, when the caller
-    /// forces every directory to be re-imported, or when the build
-    /// flags the qualification reads were never prefetched.
+    /// [`Self::try_import`] on the link path is a set lookup.
     pub(crate) fn new(
         cache: Option<&'a DirCloneCache<'a>>,
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
