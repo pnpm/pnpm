@@ -42,7 +42,11 @@ pub(super) fn frozen_tree_up_to_date<'a>(
         && !config.force
         && let Some(wanted_lockfile) = context.lockfile
         && let Some(current) = context.current_lockfile
-        && wanted_lockfile == current
+        // Past this gate `current` is the graph this install would
+        // materialize, so every probe below reads it instead of the wanted
+        // lockfile: a snapshot no importer reaches has no slot on disk and no
+        // say in whether the tree is complete.
+        && materialized_shape_matches(wanted_lockfile, current, context.tree.included)
         // A `file:` dependency resolves to a directory whose
         // contents can change with nothing in the lockfile or
         // `.modules.yaml` moving, so an equal-lockfile tree is not
@@ -51,7 +55,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
         // has to be retaken; the TypeScript CLI has no gate at this
         // level at all and instead forces every directory dep
         // through materialization in `lockfileToDepGraph`.
-        && !has_directory_snapshot(wanted_lockfile)
+        && !has_directory_snapshot(current)
         && let Some(modules) = context.modules_manifest
         && modules_consistent_with(modules, config, context.tree.node_linker, context.tree.included)
         // A `supportedArchitectures` change alters the skip set
@@ -75,7 +79,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
         // buildable and patched GVS slots instead of declaring the local
         // tree complete from importer links alone.
         && !gvs_build_marker_present(
-            wanted_lockfile,
+            current,
             config,
             context.tree.workspace_root,
             context.repeat.effective_node_version,
@@ -85,7 +89,7 @@ pub(super) fn frozen_tree_up_to_date<'a>(
         && context.repeat.rebuild.is_none()
         && !modules_cache_prune_due(config, context.modules_manifest)
         && frozen_tree_intact(
-            wanted_lockfile,
+            current,
             modules,
             config,
             context.tree.workspace_root,
@@ -95,6 +99,31 @@ pub(super) fn frozen_tree_up_to_date<'a>(
         return Some((wanted_lockfile, modules));
     }
     None
+}
+/// Whether `current` already records what materializing `wanted` would
+/// produce.
+///
+/// The current lockfile keeps only what the importers reach
+/// ([`crate::filter_lockfile_for_current`]), so a wanted lockfile carrying a
+/// snapshot no importer reaches any more can never equal it. Comparing the
+/// same shape both sides is what lets such a tree settle instead of
+/// re-materializing on every run.
+///
+/// The equal case is the common one and answers without building the
+/// filtered shape at all.
+fn materialized_shape_matches(
+    wanted: &Lockfile,
+    current: &Lockfile,
+    included: pnpm_modules_yaml::IncludedDependencies,
+) -> bool {
+    if wanted == current {
+        return true;
+    }
+    // A transient skip (a failed optional fetch) prunes the current lockfile
+    // further, and its set is not known here. Such a tree simply falls
+    // through to materialization, which retries the fetch anyway.
+    current
+        == &crate::filter_lockfile_for_current(wanted, included, &crate::SkippedSnapshots::new())
 }
 pub(super) fn modules_cache_prune_due(
     config: &Config,

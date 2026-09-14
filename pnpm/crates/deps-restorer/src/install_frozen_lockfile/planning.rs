@@ -180,7 +180,7 @@ impl<'a> FrozenInputs<'a> {
         // resolution-verification fan-out where the offline name check
         // would otherwise run. The slot-containment half needs the
         // install-time `layout`, so it can't live in the verifier crate.
-        pnpm_lockfile_verification::verify_lockfile_dependency_names(install.lockfiles.wanted)
+        pnpm_lockfile_verification::verify_lockfile_dependency_names(install.lockfiles.verified)
             .map_err(InstallFrozenLockfileError::LockfileVerification)?;
         crate::validate_virtual_store_slot_containment(snapshots, &layout)
             .map_err(InstallFrozenLockfileError::LockfileVerification)?;

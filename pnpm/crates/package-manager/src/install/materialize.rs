@@ -126,17 +126,16 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
     }
 }
 
-/// What a frozen install materializes: the closure of the requested
-/// importers under the isolated linker, and the project manifests the
-/// bin links anchor on.
+/// What a frozen install materializes: the closure of the importers it
+/// installs for, and the project manifests the bin links anchor on.
 struct FrozenScope<'a> {
-    closure: Option<crate::MaterializationClosure>,
+    closure: crate::MaterializationClosure,
     project_manifests: Vec<(PathBuf, &'a PackageManifest)>,
 }
 
 impl FrozenScope<'_> {
-    fn lockfile<'l>(&'l self, lockfile: &'l Lockfile) -> &'l Lockfile {
-        self.closure.as_ref().map_or(lockfile, |closure| &closure.lockfile)
+    fn lockfile(&self) -> &Lockfile {
+        &self.closure.lockfile
     }
 }
 
@@ -330,23 +329,18 @@ impl<'a> MaterializationWorkspace<'a> {
         included: IncludedDependencies,
     ) -> FrozenScope<'a> {
         let empty_skipped = crate::SkippedSnapshots::new();
-        let closure =
-            initial_materialization_ids(lockfile, self.requested_importer_ids, node_linker)
-                .as_ref()
-                .map(|importer_ids| {
-                    crate::materialization_closure(
-                        lockfile,
-                        self.workspace_root,
-                        importer_ids,
-                        included,
-                        &empty_skipped,
-                    )
-                });
+        let closure = crate::materialization_closure(
+            lockfile,
+            self.workspace_root,
+            &initial_materialization_ids(lockfile, self.requested_importer_ids, node_linker),
+            included,
+            &empty_skipped,
+        );
         let project_anchor_ids = frozen_project_anchor_ids(
             self.requested_importer_ids,
             self.real_importer_ids,
             node_linker,
-            closure.as_ref(),
+            &closure,
         );
         FrozenScope {
             project_manifests: anchored_project_manifests(

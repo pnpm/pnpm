@@ -854,31 +854,29 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
 
     drop(dirs.dir);
 }
-/// Regression coverage for the shared-dependency case
-/// (`dependency that is both optional and non-optional is installed,
-/// when optional dependencies should be skipped`).
+/// Polarity test for [`frozen_install_no_optional_drops_optional_only_snapshots`]:
+/// `--no-optional` may drop a snapshot only when no non-optional edge
+/// reaches it.
 ///
 /// `SnapshotEntry::optional` is set by the resolver only
 /// when a snapshot is reachable **exclusively** through optional
-/// edges. A snapshot reachable through any non-optional edge carries
+/// edges. A snapshot reachable through a non-optional edge carries
 /// `optional: false` and **must not** be dropped by `--no-optional`.
 ///
-/// Fixture: a single snapshot `shared@1.0.0` with `optional: false`
-/// (default) and metadata missing from `packages:`. With
-/// `--no-optional`, the filter must skip this snapshot only if it
-/// checks the `optional` flag — if it accidentally drops every
-/// snapshot listed under `optionalDependencies` regardless of the
-/// flag, the install would silently succeed (the missing-metadata
-/// error wouldn't surface). Conversely, if the filter is correct,
-/// the install aborts with `MissingPackageMetadata` because the
-/// non-optional snapshot reaches cache-key derivation.
+/// Fixture: a single snapshot `shared@1.0.0` the importer declares
+/// under `dependencies`, with `optional: false` (default) and
+/// metadata missing from `packages:`. With `--no-optional`, the
+/// install must abort with `MissingPackageMetadata` because the
+/// snapshot reaches cache-key derivation. An install that dropped
+/// snapshots wholesale once `--no-optional` is in play would
+/// silently succeed instead.
 #[tokio::test]
 async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
     const SHARED_NON_OPTIONAL_LOCKFILE: &str = text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
         "  .:"
-        "    optionalDependencies:"
+        "    dependencies:"
         "      shared:"
         "        specifier: 1.0.0"
         "        version: 1.0.0"
@@ -891,7 +889,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
 
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
-    manifest.add_dependency("shared", "1.0.0", DependencyGroup::Optional).unwrap();
+    manifest.add_dependency("shared", "1.0.0", DependencyGroup::Prod).unwrap();
     manifest.save().unwrap();
 
     let mut config = Config::new();
