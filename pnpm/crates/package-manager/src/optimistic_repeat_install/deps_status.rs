@@ -58,7 +58,7 @@ pub fn check_deps_status_before_run(
     let Some(drift) = super::ManifestDrift::stat(check, state) else {
         return outdated("Cannot check whether dependencies are outdated".to_string());
     };
-    let modified = drift.modified(state);
+    let modified = drift.modified();
     if let Some(status) =
         early_content_verdict(check, &modified, drift.lockfile_modified, &outdated)
     {
