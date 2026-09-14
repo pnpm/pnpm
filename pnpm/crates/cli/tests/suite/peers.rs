@@ -5,6 +5,7 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     command_env::CommandTestExt,
+    diagnostics::assert_diagnostic_contains,
 };
 use serde_json::Value;
 use std::{fs, process::Command};
@@ -798,6 +799,9 @@ fn a_filtered_install_only_reports_the_projects_it_installed() {
     drop((root, mock_instance));
 }
 
+/// A `<name>@<version>` typo in `peerDependencies` used to be hoisted into
+/// `dependencies` and resolved as a relative directory, leaving a dangling
+/// symlink behind a successful install (issue 14791).
 #[test]
 fn invalid_peer_dependency_specification_fails_install() {
     let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -806,31 +810,31 @@ fn invalid_peer_dependency_specification_fails_install() {
         serde_json::json!({
             "name": "proj",
             "version": "1.0.0",
-            "peerDependencies": {
-                "@pnpm.e2e/foo": "@pnpm.e2e/foo@1.0.0"
-            }
+            "peerDependencies": { "@scope/foo": "@scope/foo@1.0.0" },
         })
         .to_string(),
     )
     .expect("write package.json");
 
-    let output = pacquet.arg("install").output().expect("run pnpm install");
+    let output = pacquet
+        .arg("install")
+        .output()
+        .expect("run pnpm install");
 
     assert!(
         !output.status.success(),
-        "install should fail on invalid peer specification: {output:?}",
+        "install should fail on an invalid peer specification: {output:?}",
     );
     let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
     assert!(
         stderr.contains("ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION"),
-        "stderr should contain ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION:\n{stderr}",
+        "stderr should carry the error code:\n{stderr}",
     );
-    assert!(
-        stderr.contains("The peerDependencies field named")
-            && stderr.contains("'@pnpm.e2e/foo'")
-            && stderr.contains("package 'proj'"),
-        "stderr should contain detailed error message:\n{stderr}",
+    assert_diagnostic_contains(
+        &stderr,
+        "The peerDependencies field named '@scope/foo' of package 'proj' has an invalid value: '@scope/foo@1.0.0'",
     );
+    assert!(!workspace.join("node_modules").exists(), "nothing should have been linked");
 
     drop(root);
 }

@@ -31,7 +31,6 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::Path,
     sync::{Arc, Mutex, MutexGuard},
 };
 
@@ -309,10 +308,11 @@ pub enum ResolveDependencyTreeError {
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     PnpmfileHook(#[error(not(source))] pnpm_hooks::HookError),
 
-    /// A peerDependencies field contained an invalid range or specifier,
-    /// raised with the `ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION` code.
+    /// An importer's `peerDependencies` entry held a value that is neither a
+    /// peer range nor a scheme-carrying specifier, raised with the
+    /// `ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION` code.
     #[display(
-        "The peerDependencies field named '{dep_name}' of package '{project_id}' has an invalid value: '{version}'"
+        "The peerDependencies field named '{dep_name}' of package '{project_id}' has an invalid value: '{specifier}'"
     )]
     #[diagnostic(
         code(ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION),
@@ -323,10 +323,8 @@ pub enum ResolveDependencyTreeError {
     InvalidPeerDependencySpecification {
         #[error(not(source))]
         dep_name: String,
-        #[error(not(source))]
         project_id: String,
-        #[error(not(source))]
-        version: String,
+        specifier: String,
     },
 }
 
@@ -452,38 +450,6 @@ fn dependency_meta_is_injected(meta: &Value) -> bool {
         .unwrap_or(false)
 }
 
-pub(crate) fn validate_peer_dependencies(
-    manifest: &PackageManifest,
-) -> Result<(), ResolveDependencyTreeError> {
-    for (dep_name, version) in manifest.dependencies([DependencyGroup::Peer]) {
-        if is_acceptable_peer_spec(version) {
-            continue;
-        }
-        return Err(ResolveDependencyTreeError::InvalidPeerDependencySpecification {
-            dep_name: dep_name.to_string(),
-            project_id: manifest_project_id(manifest),
-            version: version.to_string(),
-        });
-    }
-    Ok(())
-}
-
-fn manifest_project_id(manifest: &PackageManifest) -> String {
-    if let Some(name) = manifest.value().get("name").and_then(Value::as_str) {
-        return name.to_string();
-    }
-    let path = manifest.path();
-    let dir = if path.as_os_str().is_empty() {
-        Path::new(".")
-    } else if path.file_name().is_some_and(|name| name == "package.json") {
-        path.parent().unwrap_or(path)
-    } else {
-        path
-    };
-    let dir_str = dir.display().to_string();
-    if dir_str.is_empty() { ".".to_string() } else { dir_str }
-}
-
 /// Build the importer's direct-dependency wanted specs: the manifest's
 /// `dependencies` (plus, when `auto_install_peers`, its own
 /// `peerDependencies`) tagged with the right `optional` / `injected`
@@ -503,6 +469,10 @@ fn manifest_project_id(manifest: &PackageManifest) -> String {
 /// (which only needs the resolved direct-dep publish dates), so both
 /// see the identical direct-dep set — the importer-dep computation runs
 /// once before resolving an importer's deps.
+///
+/// Every importer's `peerDependencies` values are checked here, whatever
+/// `auto_install_peers` and `dependency_groups` select, because this is the
+/// one place every importer manifest passes through.
 pub(crate) fn importer_direct_wanted_specs<DependencyGroupList>(
     manifest: &PackageManifest,
     dependency_groups: DependencyGroupList,
@@ -550,6 +520,43 @@ where
         })
         .collect();
     resolve_catalog_specifiers(wanted, catalogs)
+}
+
+/// Reject a `peerDependencies` value that is neither a peer range nor a
+/// scheme-carrying specifier, so a `<name>@<version>` typo fails the install
+/// instead of resolving as a project-relative directory.
+fn validate_peer_dependencies(
+    manifest: &PackageManifest,
+) -> Result<(), ResolveDependencyTreeError> {
+    for (dep_name, specifier) in manifest.dependencies([DependencyGroup::Peer]) {
+        if !is_acceptable_peer_spec(specifier) {
+            return Err(ResolveDependencyTreeError::InvalidPeerDependencySpecification {
+                dep_name: dep_name.to_string(),
+                project_id: manifest_project_id(manifest),
+                specifier: specifier.to_string(),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// How an importer is named in a diagnostic: its manifest's `name`, falling
+/// back to the directory holding the manifest for the unnamed root manifest a
+/// workspace usually has.
+fn manifest_project_id(manifest: &PackageManifest) -> String {
+    if let Some(name) = manifest
+        .value()
+        .get("name")
+        .and_then(Value::as_str)
+    {
+        return name.to_string();
+    }
+    manifest
+        .path()
+        .parent()
+        .unwrap_or_else(|| manifest.path())
+        .display()
+        .to_string()
 }
 
 /// One spec carried through [`extend_tree`] and the importer-side
