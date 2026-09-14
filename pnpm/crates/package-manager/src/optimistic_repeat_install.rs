@@ -67,8 +67,8 @@ pub(crate) use settings::{
 };
 pub(crate) use timestamps::{
     FileMtime, file_mtime, file_mtime_from_metadata, filesystem_now_ms, lockfile_modified_since,
-    modified_at_or_after, mtime_ms, refreshed_validation_baseline_ms, validation_baseline_ms,
-    wanted_lockfile_modified,
+    manifest_drift_reference_ms, modified_at_or_after, mtime_ms, refreshed_validation_baseline_ms,
+    validation_baseline_ms, wanted_lockfile_mtime,
 };
 
 mod settle;
@@ -200,7 +200,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     let Some(drift) = ManifestDrift::stat(check, &state) else {
         return Decision::Skipped { reason: "failed to stat a project manifest" };
     };
-    let modified = drift.modified(&state);
+    let modified = drift.modified();
     if let Some(decision) = early_repeat_verdict(check, &modified, drift.lockfile_modified) {
         return decision;
     }
@@ -229,16 +229,21 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     }
 }
 
-/// Every project manifest's mtime against the last validation, and
-/// whether the wanted lockfile itself moved since.
+/// Every project manifest's mtime against the timestamp that proves it
+/// unchanged, and whether the wanted lockfile itself moved since the last
+/// validation.
 pub(crate) struct ManifestDrift<'a> {
     stats: Vec<ManifestStat<'a>>,
     //// A lockfile-only change — `git checkout`/stash-restore of just
     //// `pnpm-lock.yaml`, or an external rewrite — leaves every manifest
     //// untouched but still invalidates the install. Probe the wanted
     //// lockfile's mtime before the manifest-mtime exit so a lockfile
-    //// modification is not missed.
+    //// modification is not missed. A missing lockfile reports `false`
+    //// here — it is handled by the existence and stand-in gates, not
+    //// treated as a modification.
     pub(crate) lockfile_modified: bool,
+    /// Per [`manifest_drift_reference_ms`].
+    manifest_reference_ms: i64,
 }
 
 impl<'a> ManifestDrift<'a> {
@@ -248,20 +253,25 @@ impl<'a> ManifestDrift<'a> {
         check: &OptimisticRepeatInstallCheck<'a>,
         state: &WorkspaceState,
     ) -> Option<Self> {
+        let lockfile_mtime = wanted_lockfile_mtime(check.workspace_root, check.config);
         Some(Self {
             stats: stat_manifests(check.project_manifests)?,
-            lockfile_modified: wanted_lockfile_modified(
-                check.workspace_root,
+            lockfile_modified: lockfile_mtime.is_some_and(|mtime| {
+                lockfile_modified_since(mtime, state.last_validated_timestamp)
+            }),
+            manifest_reference_ms: manifest_drift_reference_ms(
                 check.config,
+                check.is_workspace_install,
                 state.last_validated_timestamp,
+                lockfile_mtime,
             ),
         })
     }
 
-    pub(crate) fn modified(&self, state: &WorkspaceState) -> Vec<&ManifestStat<'a>> {
+    pub(crate) fn modified(&self) -> Vec<&ManifestStat<'a>> {
         self.stats
             .iter()
-            .filter(|stat| modified_at_or_after(stat.mtime, state.last_validated_timestamp))
+            .filter(|stat| modified_at_or_after(stat.mtime, self.manifest_reference_ms))
             .collect()
     }
 
@@ -425,7 +435,7 @@ fn lockfile_inputs_block_fast_path(
     // branch tolerates a missing `pnpm-lock.yaml` (the wanted-lockfile
     // scan `continue`s on ENOENT, and the missing lockfile is restored
     // from the current one rather than failing). The mtime side of that
-    // probe is handled by `wanted_lockfile_modified` in the caller.
+    // probe is handled by `ManifestDrift::stat` in the caller.
     // The current lockfile is not a stand-in for a missing *branch*
     // lockfile: it records what the previous branch's install
     // materialized, and pnpm refuses the substitution for the same

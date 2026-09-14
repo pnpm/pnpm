@@ -165,27 +165,43 @@ pub(crate) fn refreshed_validation_baseline_ms(baseline_ms: i64, now_ms: Option<
     now_ms.map_or(baseline_ms, |now| baseline_ms.max(now))
 }
 
-/// Whether `<workspace_root>/pnpm-lock.yaml` has an mtime newer than the
-/// last validation. A lockfile-only change leaves every manifest
-/// untouched but must still defeat the manifest-mtime fast path. A
-/// missing lockfile reports `false` here — it is handled by the
-/// existence and stand-in gates, not treated as a modification.
-///
-/// Compared at whole-millisecond precision, unlike the manifest / patch /
-/// pnpmfile checks: `lastValidatedTimestamp` is itself a lockfile mtime
-/// truncated to milliseconds (see
-/// [`crate::install::build_workspace_state`]), so a nanosecond comparison
-/// would flag the *unchanged* lockfile against its own truncated value on
-/// every repeat install and force a content check each time. An external
-/// lockfile edit (git checkout, manual rewrite) lands in a later
-/// millisecond, so millisecond precision still catches it.
-pub(crate) fn wanted_lockfile_modified(
-    workspace_root: &Path,
-    config: &Config,
-    last_validated_timestamp: i64,
-) -> bool {
+/// [`FileMtime`] of the wanted lockfile —
+/// `<workspace_root>/pnpm-lock.yaml`, or the per-branch name when
+/// git-branch lockfiles are on. `None` when it is absent.
+pub(crate) fn wanted_lockfile_mtime(workspace_root: &Path, config: &Config) -> Option<FileMtime> {
     file_mtime(&workspace_root.join(config.wanted_lockfile_name()))
-        .is_some_and(|mtime| lockfile_modified_since(mtime, last_validated_timestamp))
+}
+
+/// The timestamp a project manifest's mtime is measured against to decide
+/// whether the manifest may have changed since the last install: the
+/// recorded `lastValidatedTimestamp` for a workspace install, the
+/// effective wanted lockfile's mtime — `pnpm-lock.yaml`, or the current
+/// `<virtual_store_dir>/lock.yaml` standing in for it — for a
+/// single-project one. Both match what pnpm's `checkDepsStatus` compares
+/// against on the corresponding path.
+///
+/// `lastValidatedTimestamp` is recorded once the install has committed
+/// everything, later than both the manifests it read and the lockfile it
+/// wrote, so on the single-project path it would bless a manifest edit the
+/// lockfile does not contain
+/// ([#14890](https://github.com/pnpm/pnpm/issues/14890)). The lockfile's
+/// own mtime carries no such gap.
+///
+/// With neither lockfile on disk the recorded timestamp stands in; the
+/// missing-lockfile gates decide that case.
+pub(crate) fn manifest_drift_reference_ms(
+    config: &Config,
+    is_workspace_install: bool,
+    last_validated_timestamp: i64,
+    wanted_lockfile_mtime: Option<FileMtime>,
+) -> i64 {
+    if is_workspace_install {
+        return last_validated_timestamp;
+    }
+    wanted_lockfile_mtime
+        .map(|mtime| mtime.ms)
+        .or_else(|| mtime_ms(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)))
+        .unwrap_or(last_validated_timestamp)
 }
 
 /// Whether the lockfile's `subject` mtime post-dates `reference_ms`.
@@ -200,7 +216,7 @@ pub(crate) fn wanted_lockfile_modified(
 /// treated as possibly-after (as [`modified_at_or_after`] does), because
 /// there a same-second external edit is indistinguishable from the
 /// install's own lockfile write by mtime alone, so it must fall through to
-/// the authoritative content check. See [`wanted_lockfile_modified`].
+/// the authoritative content check.
 pub(crate) fn lockfile_modified_since(subject: FileMtime, reference_ms: i64) -> bool {
     if subject.whole_second {
         subject.ms.saturating_add(1_000) > reference_ms

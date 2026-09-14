@@ -14,8 +14,8 @@ use super::{
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::backdate_existing_files;
-use pnpm_workspace_state::{ProjectEntry, load_workspace_state};
+use pnpm_testing_utils::fs::{backdate_existing_files, set_mtime_ms};
+use pnpm_workspace_state::{ProjectEntry, load_workspace_state, update_workspace_state};
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
 
@@ -567,4 +567,118 @@ fn lockfile_check_does_not_self_flag_its_own_baseline() {
     assert!(lockfile_modified_since(coarse, ms));
     // A whole second entirely before the baseline is not flagged.
     assert!(!lockfile_modified_since(coarse, ms + 1_000));
+}
+/// The mtime the install's own lockfile write lands on in the tests
+/// below. Deliberately not a whole second: a whole-second lockfile mtime
+/// counts its entire second as possibly-modified, which would route every
+/// project into the content check and mask what these tests assert.
+const COMMITTING_LOCKFILE_MS: i64 = 1_700_000_000_123;
+
+/// An install records `lastValidatedTimestamp` once it has committed
+/// everything, which is later than the lockfile it wrote and later still
+/// than the manifests it read. A dependency edit that lands in that gap is
+/// absent from the lockfile, so the single-project fast path has to see it
+/// ([#14890](https://github.com/pnpm/pnpm/issues/14890)).
+fn setup_edit_during_install() -> (tempfile::TempDir, &'static Config, PackageManifest) {
+    let (dir, config) = setup_content_check_project();
+    fs::write(
+        dir.path().join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0","bar":"^2.0.0"}}"#,
+    )
+    .unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    set_mtime_ms(&dir.path().join(Lockfile::FILE_NAME), COMMITTING_LOCKFILE_MS);
+    set_mtime_ms(
+        &config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+        COMMITTING_LOCKFILE_MS,
+    );
+    set_mtime_ms(&dir.path().join("package.json"), COMMITTING_LOCKFILE_MS + 250);
+
+    let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
+    state.last_validated_timestamp = COMMITTING_LOCKFILE_MS + 500;
+    update_workspace_state(dir.path(), &state).unwrap();
+
+    (dir, config, manifest)
+}
+#[test]
+fn install_detects_a_manifest_edit_that_landed_while_the_install_was_committing() {
+    let (dir, config, manifest) = setup_edit_during_install();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("satisfied")),
+        "expected Skipped(no longer satisfied), got {decision:?}",
+    );
+}
+/// `verifyDepsBeforeRun` must reach the same verdict the install fast path
+/// does, or `pnpm run` executes scripts against a `node_modules` that no
+/// longer matches the manifest.
+#[test]
+fn run_gate_detects_a_manifest_edit_that_landed_while_the_install_was_committing() {
+    let (dir, config, manifest) = setup_edit_during_install();
+    let state = load_workspace_state(dir.path()).unwrap().unwrap();
+
+    let status = check_deps_status_before_run(
+        &OptimisticRepeatInstallCheck {
+            workspace_root: dir.path(),
+            config,
+            project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+            is_workspace_install: false,
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            catalogs: &BTreeMap::default(),
+            layout: crate::RepeatInstallLayout {
+                node_linker: pnpm_config::NodeLinker::Isolated,
+                included: isolated_included(),
+                supported_architectures: None,
+            },
+        },
+        &state,
+    );
+
+    assert!(
+        matches!(&status, RunDepsStatus::Outdated { issue, .. } if issue.contains("satisfied")),
+        "expected Outdated(no longer satisfied), got {status:?}",
+    );
+}
+/// Measuring against the lockfile only widens the window a manifest edit
+/// is caught in. An untouched manifest older than the lockfile still takes
+/// the pure-mtime fast path.
+#[test]
+fn keeps_the_fast_path_for_a_manifest_older_than_the_lockfile() {
+    let (dir, config) = setup_content_check_project();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    set_mtime_ms(&dir.path().join("package.json"), COMMITTING_LOCKFILE_MS);
+    set_mtime_ms(&dir.path().join(Lockfile::FILE_NAME), COMMITTING_LOCKFILE_MS + 250);
+    set_mtime_ms(
+        &config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+        COMMITTING_LOCKFILE_MS + 250,
+    );
+
+    let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
+    state.last_validated_timestamp = COMMITTING_LOCKFILE_MS + 500;
+    update_workspace_state(dir.path(), &state).unwrap();
+
+    let decision = check(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    assert_eq!(decision, Decision::UpToDate);
+}
+#[test]
+fn detects_an_edit_during_install_against_the_current_lockfile_stand_in() {
+    let (dir, config, manifest) = setup_edit_during_install();
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("satisfied")),
+        "expected Skipped(no longer satisfied), got {decision:?}",
+    );
 }
