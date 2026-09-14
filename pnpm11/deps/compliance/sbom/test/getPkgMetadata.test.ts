@@ -250,6 +250,9 @@ describe('repositoryFromField', () => {
   it('drops an incomplete percent escape', () => {
     expect(repositoryFromField('https://example.com/%zz')).toBeUndefined()
     expect(repositoryFromField('https://example.com/%')).toBeUndefined()
+    // The hosted parser decodes a shorthand's committish, so this `%251`
+    // reaches the derived URL as a stray `%1`.
+    expect(repositoryFromField('owner/repo#release%251')).toBeUndefined()
   })
 
   it('drops absolute URLs that do not parse', () => {

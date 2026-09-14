@@ -360,7 +360,9 @@ fn extract_repository_percent_encodes_whitespace_in_urls() {
 
 #[test]
 fn extract_repository_drops_an_incomplete_percent_escape() {
-    for value in ["https://example.com/%zz", "https://example.com/%"] {
+    // The hosted parser decodes a shorthand's committish, so the `%251` of
+    // the last value reaches the derived URL as a stray `%1`.
+    for value in ["https://example.com/%zz", "https://example.com/%", "owner/repo#release%251"] {
         let manifest = serde_json::json!({ "repository": value });
         assert_eq!(extract_repository(&manifest), None, "value: {value:?}");
     }

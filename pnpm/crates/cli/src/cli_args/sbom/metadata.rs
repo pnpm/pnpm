@@ -63,9 +63,8 @@ pub(super) fn url_without_credentials(raw: &str) -> Option<url::Url> {
     Some(url)
 }
 
-/// Whether every `%` in the URL begins a `%XX` escape. The parser keeps a
-/// stray one as the manifest wrote it, and an iri-reference admits no such
-/// thing, so a URL carrying one cannot be published.
+/// The parser keeps a `%` that begins no `%XX` escape as the manifest wrote
+/// it, and an iri-reference admits no such thing.
 fn percent_escapes_are_complete(url: &str) -> bool {
     let bytes = url.as_bytes();
     bytes
