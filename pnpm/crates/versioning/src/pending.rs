@@ -64,7 +64,10 @@ pub fn list_pending_changelogs(
     for entry in entries {
         let entry = entry.map_err(|source| VersioningError::Read { path: dir.clone(), source })?;
         let file_name = entry.file_name();
-        let Some(key) = file_name.to_str().and_then(|name| name.strip_suffix(".md")) else {
+        let Some(key) = file_name
+            .to_str()
+            .and_then(|name| name.strip_suffix(".md"))
+        else {
             continue;
         };
         let Some(at) = key.rfind('@') else {

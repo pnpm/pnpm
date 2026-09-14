@@ -20,11 +20,15 @@ pub(super) struct SearchPage<Item> {
     pub(super) names: HashSet<String>,
     pub(super) from: usize,
     pub(super) size: usize,
+    /// A source's reported total minus what was walked, not deduplicated
+    /// against `names`. Counted at the tail of the served sequence, behind
+    /// every downloaded result of every source.
+    pub(super) unscanned: usize,
 }
 
 impl<Item> SearchPage<Item> {
     pub(super) fn new(from: usize, size: usize) -> Self {
-        Self { objects: Vec::new(), names: HashSet::new(), from, size }
+        Self { objects: Vec::new(), names: HashSet::new(), from, size, unscanned: 0 }
     }
 
     pub(super) fn push_name(&mut self, name: &str) -> bool {
@@ -39,7 +43,7 @@ impl<Item> SearchPage<Item> {
     }
 
     pub(super) fn total(&self) -> usize {
-        self.names.len()
+        self.names.len().saturating_add(self.unscanned)
     }
 }
 
@@ -58,9 +62,20 @@ pub(super) const MAX_UPSTREAM_SEARCH_RESULTS: usize = 2_000;
 
 pub(super) const MAX_UPSTREAM_SEARCH_PAGES: usize = 8;
 
+/// The ceiling on upstream requests for one search, however many sources a
+/// registry routes to. Continuation pages stop at
+/// [`MAX_UPSTREAM_SEARCH_PAGES`]; the fetch each source is guaranteed may
+/// carry the search past that, but never past this.
+pub(super) const MAX_UPSTREAM_SEARCH_REQUESTS: usize = 32;
+
+/// What one search may download from its upstreams. The budgets bound
+/// pnpr's own fetching, never what an upstream advertises: npmjs's loose
+/// full-text search reports five-digit totals for almost any term, so a
+/// search that refused those would refuse almost every term.
 #[derive(Default)]
 pub(super) struct UpstreamSearchBudget {
     pub(super) pages: usize,
+    pub(super) requests: usize,
     pub(super) results: usize,
 }
 
@@ -78,45 +93,32 @@ impl UpstreamSearchBudget {
         MAX_UPSTREAM_SEARCH_RESULTS.saturating_sub(self.results)
     }
 
-    /// Charge one upstream page against the budget.
-    pub(super) fn take_page(&mut self) -> Result<(), RegistryError> {
+    pub(super) fn try_take_page(&mut self) -> bool {
         if self.pages == MAX_UPSTREAM_SEARCH_PAGES {
-            return Err(RegistryError::BadRequest {
-                reason: format!(
-                    "upstream search is limited to {MAX_UPSTREAM_SEARCH_PAGES} pages; refine the query",
-                ),
-            });
+            return false;
         }
         self.pages += 1;
-        Ok(())
+        true
     }
 
-    /// Charge one page's results against the budget, refusing a source that
-    /// reports more than the whole search may scan.
-    pub(super) fn take_results(
-        &mut self,
-        reported_total: usize,
-        object_count: usize,
-        source_budget: usize,
-    ) -> Result<(), RegistryError> {
-        if reported_total > source_budget || object_count > self.remaining_results() {
-            return Err(RegistryError::BadRequest {
-                reason: format!(
-                    "upstream search is limited to {MAX_UPSTREAM_SEARCH_RESULTS} results; refine the query",
-                ),
-            });
+    pub(super) fn try_take_request(&mut self) -> bool {
+        if self.requests == MAX_UPSTREAM_SEARCH_REQUESTS {
+            return false;
         }
-        self.results += object_count;
-        Ok(())
+        self.requests += 1;
+        true
+    }
+
+    pub(super) fn add_results(&mut self, object_count: usize) {
+        self.results = self.results.saturating_add(object_count);
     }
 }
 
 /// `GET /-/v1/search?text=...&from=...&size=...` — npm search v1 endpoint.
 /// Hosted results are counted after routing and access filters, then optional
-/// upstream results are appended in registry-source order. Every participating
-/// upstream is exhausted so `total` describes the complete visible,
-/// deduplicated result set. An upstream only participates when its `search`
-/// setting is enabled.
+/// upstream results are appended in registry-source order. An upstream only
+/// participates when its `search` setting is enabled, and only within the
+/// [`UpstreamSearchBudget`].
 pub(super) async fn serve_search(
     state: &AppState,
     identity: &Identity,
@@ -146,13 +148,8 @@ pub(super) async fn serve_search(
                 .await
             }
             DiscoverySource::Upstream(source) => {
-                let search = UpstreamSearch {
-                    registry: &registry,
-                    source: &source,
-                    query_string,
-                    browse,
-                    from: params.from,
-                };
+                let search =
+                    UpstreamSearch { registry: &registry, source: &source, query_string, browse };
                 append_upstream_source(state, identity, search, &mut page, &mut upstream_budget)
                     .await
             }
@@ -216,7 +213,6 @@ pub(super) struct UpstreamSearch<'a> {
     pub(super) query_string: &'a str,
     /// A browse request lists what pnpr itself holds, so no upstream is asked.
     pub(super) browse: bool,
-    pub(super) from: usize,
 }
 
 /// Add one upstream source's matches to the page, if the caller may reach it
@@ -228,22 +224,15 @@ pub(super) async fn append_upstream_source(
     page: &mut SearchPage<Value>,
     budget: &mut UpstreamSearchBudget,
 ) -> Result<(), RegistryError> {
-    let Some(config) = state.inner.config.upstreams.get(search.source) else {
+    let Some(config) = state.inner.config.routing.upstreams.get(search.source) else {
         return Ok(());
     };
     if search.browse || !config.search || !upstream_search_admits(config, identity) {
         return Ok(());
     }
-    let Some(upstream) = state.inner.upstreams.get(search.source) else {
+    let Some(upstream) = state.inner.proxy.upstreams.get(search.source) else {
         return Ok(());
     };
-    if search.from > page.total().saturating_add(budget.remaining_results()) {
-        return Err(RegistryError::BadRequest {
-            reason: format!(
-                "search `from` would require scanning more than {MAX_UPSTREAM_SEARCH_RESULTS} upstream results",
-            ),
-        });
-    }
     let context = UpstreamSearchContext {
         state,
         identity,
@@ -260,7 +249,9 @@ pub(super) fn upstream_search_admits(
     config: &pnpr_config::UpstreamConfig,
     identity: &Identity,
 ) -> bool {
-    config.access.as_ref().is_none_or(|access| access.allows(identity))
+    config.access
+        .as_ref()
+        .is_none_or(|access| access.allows(identity))
         && config.rules.all_access_admit(identity)
 }
 
@@ -276,7 +267,7 @@ pub(super) async fn hosted_search_names(
     ecosystem: Ecosystem,
     text: &pnpr_search::SearchText,
 ) -> Result<Option<(Storage, Vec<String>)>, RegistryError> {
-    let Some(hosted) = state.inner.config.hosted.get(source) else {
+    let Some(hosted) = state.inner.config.routing.hosted.get(source) else {
         return Ok(None);
     };
     if !hosted.rules.any_access_admits(identity) {
@@ -301,29 +292,66 @@ pub(super) async fn append_upstream_search(
     const FETCH_SIZE: usize = 250;
 
     let resolved = RegistrySource::Upstream(context.source.to_string());
-    let source_result_budget = budget.remaining_results();
+    // Unconditional against the page budget, though not the request cap: a
+    // source routed after a large one must still be asked, or it vanishes
+    // from `objects` and `total` at once.
+    budget.try_take_page();
     let mut from = 0usize;
     loop {
-        budget.take_page()?;
-        let query = upstream_search_query(context.query_string, from, FETCH_SIZE);
+        if !budget.try_take_request() {
+            return Ok(());
+        }
+        let size = budget.remaining_results().clamp(1, FETCH_SIZE);
+        let query = upstream_search_query(context.query_string, from, size);
         let response = match context.upstream.fetch_search(&query).await? {
             FetchOutcome::Ok(response) => response,
             FetchOutcome::NotFound => return Ok(()),
         };
-        let object_count = response.objects.len();
-        budget.take_results(response.total, object_count, source_result_budget)?;
-        append_visible_results(&context, &resolved, response.objects, page);
-        from = from.saturating_add(object_count);
-        if from >= response.total {
-            return Ok(());
-        }
-        if object_count == 0 {
-            return Err(RegistryError::UpstreamResponse {
-                url: format!("{}/-/v1/search", context.source),
-                reason: format!("reported {} results but returned an empty page", response.total),
-            });
+        match consume_upstream_page(&context, &resolved, response, page, budget, &mut from)? {
+            PageOutcome::Done => return Ok(()),
+            PageOutcome::More => {}
         }
     }
+}
+
+pub(super) enum PageOutcome {
+    Done,
+    More,
+}
+
+/// Advances `from` by what the result budget let this page keep.
+pub(super) fn consume_upstream_page(
+    context: &UpstreamSearchContext<'_>,
+    resolved: &RegistrySource,
+    response: pnpr_upstream::SearchResponse,
+    page: &mut SearchPage<Value>,
+    budget: &mut UpstreamSearchBudget,
+    from: &mut usize,
+) -> Result<PageOutcome, RegistryError> {
+    let fetched = response.objects.len();
+    let mut objects = response.objects;
+    objects.truncate(budget.remaining_results());
+    let consumed = objects.len();
+    budget.add_results(consumed);
+    append_visible_results(context, resolved, objects, page);
+    *from = from.saturating_add(consumed);
+    if *from >= response.total {
+        return Ok(PageOutcome::Done);
+    }
+    if fetched == 0 {
+        return Err(RegistryError::UpstreamResponse {
+            url: format!("{}/-/v1/search", context.source),
+            reason: format!("reported {} results but returned an empty page", response.total),
+        });
+    }
+    if budget.remaining_results() == 0 || !budget.try_take_page() {
+        // Raw, unfiltered by `search_result_is_visible`, yet no leak:
+        // `upstream_search_admits` withholds a source from any caller its
+        // access or package rules deny.
+        page.unscanned = page.unscanned.saturating_add(response.total.saturating_sub(*from));
+        return Ok(PageOutcome::Done);
+    }
+    Ok(PageOutcome::More)
 }
 
 /// Take the results of one upstream page that this caller may see.
@@ -361,7 +389,7 @@ pub(super) fn discovery_sources(
     registry: &str,
     ecosystem: Ecosystem,
 ) -> Vec<DiscoverySource> {
-    let registries = &state.inner.config.registries;
+    let registries = &state.inner.config.routing.registries;
     registries
         .sources(registry, ecosystem)
         .into_iter()
@@ -374,7 +402,10 @@ pub(super) fn discovery_sources(
 }
 
 pub(super) fn search_object_name(object: &Value) -> Option<&str> {
-    object.get("package")?.get("name")?.as_str()
+    object
+        .get("package")?
+        .get("name")?
+        .as_str()
 }
 
 pub(super) fn upstream_search_query(query_string: &str, from: usize, size: usize) -> String {

@@ -342,15 +342,17 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
                 Ok(())
             }
             Err(error) if is_cross_device(&error) || is_too_many_links(&error) => {
-                copy_file(source_file, target_link).inspect(|()| {
-                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                })
+                copy_file(source_file, target_link)
+                    .inspect(|()| {
+                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                    })
             }
             Err(error) => Err(error),
         },
-        PackageImportMethod::Clone => clone_file::<Sys>(source_file, target_link).inspect(|()| {
-            log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
-        }),
+        PackageImportMethod::Clone => clone_file::<Sys>(source_file, target_link)
+            .inspect(|()| {
+                log_method_once::<Reporter>(logged, LOG_FLAG_CLONE, WireImportMethod::Clone);
+            }),
         PackageImportMethod::CloneOrCopy => {
             static CLONE_OR_COPY_STATE: AtomicU8 = AtomicU8::new(LINK_STATE_CLONE);
             clone_or_copy_link::<Reporter, Sys>(
@@ -360,9 +362,10 @@ fn try_import<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
                 target_link,
             )
         }
-        PackageImportMethod::Copy => copy_file(source_file, target_link).inspect(|()| {
-            log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-        }),
+        PackageImportMethod::Copy => copy_file(source_file, target_link)
+            .inspect(|()| {
+                log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+            }),
     }
 }
 
@@ -394,11 +397,12 @@ fn copy_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
     let mut source = fs::File::open(source_file)?;
     let permissions = source.metadata()?.permissions();
     let mut target = create_new_with_permissions(target_link, &permissions)?;
-    finish_copy(&mut source, &mut target, permissions, source_file).inspect_err(|_| {
-        if path_still_names(&target, target_link) {
-            let _ = fs::remove_file(target_link);
-        }
-    })
+    finish_copy(&mut source, &mut target, permissions, source_file)
+        .inspect_err(|_| {
+            if path_still_names(&target, target_link) {
+                let _ = fs::remove_file(target_link);
+            }
+        })
 }
 
 /// The part of [`copy_file`] that runs against the created handle, so
@@ -454,7 +458,11 @@ fn path_still_names(created: &fs::File, path: &Path) -> bool {
 #[cfg(unix)]
 fn create_new_with_permissions(path: &Path, permissions: &fs::Permissions) -> io::Result<fs::File> {
     use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-    fs::OpenOptions::new().write(true).create_new(true).mode(permissions.mode()).open(path)
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(permissions.mode())
+        .open(path)
 }
 
 /// Windows carries no creation mode: the read-only attribute is the
@@ -577,9 +585,10 @@ fn auto_link<Reporter: self::Reporter, Sys: FsHardLink + FsReflink>(
                 downgrade_auto_tier(state, LINK_STATE_HARDLINK);
             }
             _ => {
-                return copy_file(source, target).inspect(|()| {
-                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                });
+                return copy_file(source, target)
+                    .inspect(|()| {
+                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                    });
             }
         }
     }
@@ -655,9 +664,10 @@ fn clone_or_copy_link<Reporter: self::Reporter, Sys: FsReflink>(
                 state.fetch_max(LINK_STATE_COPY, Ordering::Relaxed);
             }
             _ => {
-                return copy_file(source, target).inspect(|()| {
-                    log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
-                });
+                return copy_file(source, target)
+                    .inspect(|()| {
+                        log_method_once::<Reporter>(logged, LOG_FLAG_COPY, WireImportMethod::Copy);
+                    });
             }
         }
     }

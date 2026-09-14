@@ -123,7 +123,12 @@ pub(crate) struct PrunePipeline {
 
 impl PrunePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let PrunePipeline { args, cfg, config_root, manifest_path } = self;
+        let PrunePipeline {
+            args,
+            cfg,
+            config_root,
+            manifest_path,
+        } = self;
 
         config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
         // Validate path containment AFTER hooks: updateConfig can mutate

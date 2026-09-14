@@ -147,7 +147,10 @@ fn write_cas_file_from_reader_matches_write_cas_file() {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(&streamed_path).unwrap().permissions().mode();
+            let mode = std::fs::metadata(&streamed_path)
+                .unwrap()
+                .permissions()
+                .mode();
             assert_eq!(
                 pnpm_fs::file_mode::is_executable(mode),
                 executable,

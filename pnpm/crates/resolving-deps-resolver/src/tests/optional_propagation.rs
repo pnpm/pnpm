@@ -291,8 +291,12 @@ async fn dep_listed_in_both_manifest_groups_yields_one_optional_edge() {
         tree.packages.get("plat@1.0.0").expect("plat resolved").optional,
         "the merged edge carries optional: true",
     );
-    let plat_calls =
-        resolver.calls.lock().unwrap().iter().filter(|(alias, _)| alias == "plat").count();
+    let plat_calls = resolver.calls
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(alias, _)| alias == "plat")
+        .count();
     assert_eq!(
         plat_calls, 1,
         "one merged edge resolves once; a duplicate non-optional edge would resolve again and defeat the optional-edge gates (e.g. the unsupported-platform prefetch skip)",

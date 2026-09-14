@@ -45,7 +45,13 @@ async fn rejects_exotic_transitive_dep() {
         &manifest,
         [DependencyGroup::Prod],
         ResolveDependencyTreeOptions {
-            base_opts: ResolveOptions { block_exotic_subdeps: true, ..ResolveOptions::default() },
+            base_opts: ResolveOptions {
+                policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                    block_exotic_subdeps: true,
+                    ..Default::default()
+                },
+                ..ResolveOptions::default()
+            },
             patched_dependencies: None,
             manifest_hook: None,
             overrides_hook: None,
@@ -85,7 +91,13 @@ async fn allows_exotic_direct_dep() {
         &manifest,
         [DependencyGroup::Prod],
         ResolveDependencyTreeOptions {
-            base_opts: ResolveOptions { block_exotic_subdeps: true, ..ResolveOptions::default() },
+            base_opts: ResolveOptions {
+                policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                    block_exotic_subdeps: true,
+                    ..Default::default()
+                },
+                ..ResolveOptions::default()
+            },
             patched_dependencies: None,
             manifest_hook: None,
             overrides_hook: None,
@@ -127,7 +139,13 @@ async fn allows_registry_subdep() {
         &manifest,
         [DependencyGroup::Prod],
         ResolveDependencyTreeOptions {
-            base_opts: ResolveOptions { block_exotic_subdeps: true, ..ResolveOptions::default() },
+            base_opts: ResolveOptions {
+                policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                    block_exotic_subdeps: true,
+                    ..Default::default()
+                },
+                ..ResolveOptions::default()
+            },
             patched_dependencies: None,
             manifest_hook: None,
             overrides_hook: None,
@@ -167,7 +185,13 @@ async fn allows_exotic_subdep_when_disabled() {
         &manifest,
         [DependencyGroup::Prod],
         ResolveDependencyTreeOptions {
-            base_opts: ResolveOptions { block_exotic_subdeps: false, ..ResolveOptions::default() },
+            base_opts: ResolveOptions {
+                policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                    block_exotic_subdeps: false,
+                    ..Default::default()
+                },
+                ..ResolveOptions::default()
+            },
             patched_dependencies: None,
             manifest_hook: None,
             overrides_hook: None,
@@ -208,7 +232,13 @@ async fn allows_exotic_dep_under_workspace_dep() {
         &manifest,
         [DependencyGroup::Prod],
         ResolveDependencyTreeOptions {
-            base_opts: ResolveOptions { block_exotic_subdeps: true, ..ResolveOptions::default() },
+            base_opts: ResolveOptions {
+                policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                    block_exotic_subdeps: true,
+                    ..Default::default()
+                },
+                ..ResolveOptions::default()
+            },
             patched_dependencies: None,
             manifest_hook: None,
             overrides_hook: None,

@@ -45,35 +45,38 @@ const PNPM_HIDDEN_ENTRIES: &[&str] =
 
 impl CleanArgs {
     pub(super) fn run(self, ctx: &RunCtx<'_>, command_name: &str) -> miette::Result<()> {
-        let config = (ctx.config)()?;
+        let config = (ctx.loaders.config)()?;
         if ctx.builtin_command_forced {
             return clean_builtin(ctx, config, self.lockfile);
         }
         // A `<command_name>` script in the current project's `package.json`
         // replaces the built-in command.
-        if let Some(script) = script_of(read_project_manifest_only(ctx.dir).ok(), command_name)
+        if let Some(script) =
+            script_of(read_project_manifest_only(ctx.locations.dir).ok(), command_name)
             && !script.is_empty()
         {
             return RunArgs {
                 script: RunArgs::script(command_name, []),
                 if_present: false,
-                resume_from: None,
-                report_summary: false,
-                no_bail: false,
-                sort: true,
-                reverse: false,
-                parallel: false,
                 sequential: false,
                 dry_run: false,
                 json: false,
+                workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
+                    resume_from: None,
+                    report_summary: false,
+                    no_bail: false,
+                    sort: true,
+                    reverse: false,
+                    parallel: false,
+                },
             }
-            .run(ctx.dir, config, ctx.reporter);
+            .run(ctx.locations.dir, config, ctx.reporter);
         }
         // Inside a workspace subdirectory, a `<command_name>` script at the
         // workspace root must be run from the root rather than shadowed by
         // the built-in command here.
         if let Some(workspace_dir) = config.workspace_dir.as_deref()
-            && lexical_normalize(workspace_dir) != lexical_normalize(ctx.dir)
+            && lexical_normalize(workspace_dir) != lexical_normalize(ctx.locations.dir)
             && let Some(script) =
                 script_of(read_project_manifest_only(workspace_dir).ok(), command_name)
             && !script.is_empty()
@@ -115,17 +118,19 @@ fn clean_builtin(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> mi
     // would send every project back to that one directory. Take the
     // configured leaf instead; an absolute setting survives `join`, as it
     // does pnpm's `pathAbsolute`.
-    let modules_leaf = config
-        .explicit_settings
+    let modules_leaf = config.explicit_settings
         .get("modulesDir")
         .and_then(Value::as_str)
         .map_or_else(|| Path::new("node_modules"), Path::new);
-    let root_dir = config.workspace_dir.as_deref().unwrap_or(ctx.dir);
+    let root_dir = config.workspace_dir.as_deref().unwrap_or(ctx.locations.dir);
     let dirs: Vec<PathBuf> = if let Some(workspace_dir) = config.workspace_dir.as_deref() {
         let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
-        projects.into_iter().map(|project| project.root_dir).collect()
+        projects
+            .into_iter()
+            .map(|project| project.root_dir)
+            .collect()
     } else {
-        vec![ctx.dir.to_path_buf()]
+        vec![ctx.locations.dir.to_path_buf()]
     };
     for dir in &dirs {
         let full_modules_dir = dir.join(modules_leaf);
@@ -190,7 +195,9 @@ fn has_contents_to_remove(modules_dir: &Path) -> bool {
     let Ok(entries) = std::fs::read_dir(modules_dir) else {
         return false;
     };
-    entries.filter_map(Result::ok).any(|entry| is_pnpm_entry(&entry.file_name().to_string_lossy()))
+    entries
+        .filter_map(Result::ok)
+        .any(|entry| is_pnpm_entry(&entry.file_name().to_string_lossy()))
 }
 
 fn remove_modules_dir_contents(modules_dir: &Path) -> miette::Result<()> {

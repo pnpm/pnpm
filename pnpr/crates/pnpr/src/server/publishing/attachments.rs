@@ -195,7 +195,12 @@ pub(super) async fn write_attachment_slot(
     name: &CanonicalPackageName,
     prepared: PreparedAttachment,
 ) -> Result<pnpr_storage::BlobSlot, RegistryError> {
-    let PreparedAttachment { attachment, canonical, version: _, dist } = prepared;
+    let PreparedAttachment {
+        attachment,
+        canonical,
+        version: _,
+        dist,
+    } = prepared;
     let slot = storage.reserve_hosted_blob(name, &canonical).await?;
     let PendingAttachment { filename, data, declared_length } = attachment;
     let tmp_path = slot.tmp_path.clone();
@@ -244,9 +249,13 @@ pub(super) fn check_publishable_versions(
     hosted: Option<&Value>,
     prepared: &[PreparedAttachment],
 ) -> Result<(), RegistryError> {
-    let attachment_versions: HashSet<&str> =
-        prepared.iter().map(|attachment| attachment.version.as_str()).collect();
-    let hosted_versions = hosted.and_then(|h| h.get("versions")).and_then(Value::as_object);
+    let attachment_versions: HashSet<&str> = prepared
+        .iter()
+        .map(|attachment| attachment.version.as_str())
+        .collect();
+    let hosted_versions = hosted
+        .and_then(|h| h.get("versions"))
+        .and_then(Value::as_object);
     let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
         return Ok(());
     };
@@ -285,7 +294,11 @@ pub(super) fn staged_hosted_original_ref(
     package: &CanonicalPackageName,
     attachment: &PreparedAttachment,
 ) -> Option<JournaledRevisionRef> {
-    let integrity: Integrity = attachment.dist.get("integrity")?.as_str()?.parse().ok()?;
+    let integrity: Integrity = attachment.dist
+        .get("integrity")?
+        .as_str()?
+        .parse()
+        .ok()?;
     let path = integrity_addressed_tarball_path(&integrity)?;
     let digest = path.strip_prefix("-/tarballs/sha512/")?.to_string();
     let record = HostedOriginalRef {

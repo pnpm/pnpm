@@ -58,22 +58,49 @@ fn version_conflict_keeps_loser_at_parent() {
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["a", "b", "c", "d"], "root keeps its direct d and one b");
-    let b_at_root = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "b").unwrap().0);
+    let b_at_root = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "b")
+            .unwrap()
+            .0,
+    );
     let b_refs = b_at_root.references.borrow();
     assert!(b_refs.contains("b@1.0.0"), "first DFS visitor wins root slot: {b_refs:?}");
     assert_eq!(b_refs.len(), 1, "no other reference accumulated yet: {b_refs:?}");
-    let dep_c = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "c").unwrap().0);
+    let dep_c = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "c")
+            .unwrap()
+            .0,
+    );
     let c_kids = dep_c.dependencies.borrow();
     assert_eq!(c_kids.len(), 2, "c kept b@2 and hoisted its conflicting d@2");
-    let b_under_c = Rc::clone(&c_kids.iter().find(|dep| dep.0.name == "b").unwrap().0);
+    let b_under_c = Rc::clone(
+        &c_kids
+            .iter()
+            .find(|dep| dep.0.name == "b")
+            .unwrap()
+            .0,
+    );
     let b_under_c_refs = b_under_c.references.borrow();
     assert!(b_under_c_refs.contains("b@2.0.0"), "loser stays under c: {b_under_c_refs:?}");
     assert_eq!(b_under_c_refs.len(), 1);
     assert!(b_under_c.dependencies.borrow().is_empty(), "b's descendants hoist to nested root c");
-    let d_under_c_refs = c_kids.iter().find(|dep| dep.0.name == "d").unwrap().0.references.borrow();
+    let d_under_c_refs = c_kids
+        .iter()
+        .find(|dep| dep.0.name == "d")
+        .unwrap()
+        .0
+        .references
+        .borrow();
     assert!(d_under_c_refs.contains("d@2.0.0"), "d@2 stays below the root's d@1 conflict");
 }
 
@@ -134,16 +161,31 @@ fn most_used_version_wins_root_slot() {
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["aa", "cc", "dd", "x"], "one x at root: {result:#?}");
-    let x_at_root = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "x").unwrap().0);
+    let x_at_root = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "x")
+            .unwrap()
+            .0,
+    );
     let x_refs = x_at_root.references.borrow();
     assert!(
         x_refs.contains("x@2.0.0"),
         "the more-used x@2.0.0 wins root over the first-visited x@1.0.0: {x_refs:?}",
     );
-    let dep_aa = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "aa").unwrap().0);
+    let dep_aa = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "aa")
+            .unwrap()
+            .0,
+    );
     let aa_kids = dep_aa.dependencies.borrow();
     assert_eq!(aa_kids.len(), 1, "aa keeps its conflicting x@1.0.0");
     let x_under_aa = aa_kids[0].0.references.borrow();
@@ -187,8 +229,11 @@ fn external_dependencies_are_stripped_from_the_result() {
         ..HoistOpts::default()
     };
     let result = hoist(&lockfile, &opts).expect("hoist should succeed");
-    let names: Vec<String> =
-        result.dependencies.borrow().iter().map(|dep| dep.name.clone()).collect();
+    let names: Vec<String> = result.dependencies
+        .borrow()
+        .iter()
+        .map(|dep| dep.name.clone())
+        .collect();
     assert_eq!(names, ["real"], "external dep is stripped, real dep remains: {names:?}");
 }
 
@@ -239,12 +284,24 @@ fn peer_constrained_node_stays_under_parent_when_root_provides_different_ident()
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("peer-aware hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["app", "react"], "widget stays under app: {result:#?}");
-    let app = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "app").unwrap().0);
+    let app = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "app")
+            .unwrap()
+            .0,
+    );
     let app_kids = app.dependencies.borrow();
-    let app_names: Vec<&str> = app_kids.iter().map(|dep| dep.0.name.as_str()).collect();
+    let app_names: Vec<&str> = app_kids
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     assert!(
         app_names.contains(&"widget"),
         "widget nested under app to keep ancestor peer resolution: {app_names:?}",
@@ -302,15 +359,27 @@ fn file_dep_peer_variants_keep_their_own_copies() {
     let root_children = result.dependencies.borrow();
     let comp_reference_seen_by = |importer: &str| -> String {
         let importer_name = percent_encode_path(importer);
-        let importer_node =
-            &root_children.iter().find(|dep| dep.0.name == importer_name).unwrap().0;
+        let importer_node = &root_children
+            .iter()
+            .find(|dep| dep.0.name == importer_name)
+            .unwrap()
+            .0;
         let importer_children = importer_node.dependencies.borrow();
         let comp = importer_children
             .iter()
             .find(|dep| dep.0.name == "comp")
-            .or_else(|| root_children.iter().find(|dep| dep.0.name == "comp"))
+            .or_else(|| {
+                root_children
+                    .iter()
+                    .find(|dep| dep.0.name == "comp")
+            })
             .unwrap_or_else(|| panic!("no comp reachable from {importer}"));
-        comp.0.references.borrow().iter().next().cloned().unwrap_or_default()
+        comp.0.references
+            .borrow()
+            .iter()
+            .next()
+            .cloned()
+            .unwrap_or_default()
     };
     assert_eq!(
         comp_reference_seen_by("node_modules/.bit_roots/r1"),
@@ -363,15 +432,26 @@ fn file_tarball_peer_variants_collapse_like_registry_packages() {
     let result =
         hoist(&lockfile, &HoistOpts::default()).expect("tarball-variant hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let tarpkg = &root_children.iter().find(|dep| dep.0.name == "tarpkg").unwrap().0;
+    let tarpkg = &root_children
+        .iter()
+        .find(|dep| dep.0.name == "tarpkg")
+        .unwrap()
+        .0;
     assert!(
         tarpkg.references.borrow().contains("tarpkg@file:tarpkg.tgz(p@1.0.0)"),
         "the first-seen variant is the canonical reference: {tarpkg:#?}",
     );
     for importer in ["packages%2Fa", "packages%2Fb"] {
-        let importer_node = &root_children.iter().find(|dep| dep.0.name == importer).unwrap().0;
+        let importer_node = &root_children
+            .iter()
+            .find(|dep| dep.0.name == importer)
+            .unwrap()
+            .0;
         assert!(
-            !importer_node.dependencies.borrow().iter().any(|dep| dep.0.name == "tarpkg"),
+            !importer_node.dependencies
+                .borrow()
+                .iter()
+                .any(|dep| dep.0.name == "tarpkg"),
             "a tarball peer variant must dedup against the root copy: {importer_node:#?}",
         );
     }
@@ -413,9 +493,18 @@ fn self_dependency_does_not_loop() {
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("self-dep should not loop");
     let root_children = result.dependencies.borrow();
-    let names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     assert_eq!(names, ["a"], "single a at root: {result:#?}");
-    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let dep_a = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "a")
+            .unwrap()
+            .0,
+    );
     assert!(dep_a.dependencies.borrow().is_empty(), "self-edge stripped: {dep_a:#?}");
 }
 
@@ -463,11 +552,26 @@ fn basic_cyclic_dependency_terminates() {
     )
     .expect("cycle should not loop");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["a", "b"], "both a and b flatten to root: {result:#?}");
-    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
-    let dep_b = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "b").unwrap().0);
+    let dep_a = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "a")
+            .unwrap()
+            .0,
+    );
+    let dep_b = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "b")
+            .unwrap()
+            .0,
+    );
     assert!(dep_a.dependencies.borrow().is_empty(), "a's b hoisted away: {dep_a:#?}");
     assert!(dep_b.dependencies.borrow().is_empty(), "b's back-edge to a stripped: {dep_b:#?}");
 }

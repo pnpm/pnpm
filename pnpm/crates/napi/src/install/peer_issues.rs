@@ -174,8 +174,10 @@ fn peer_intersections_json(
             continue;
         }
         if let [entry] = entries.as_slice() {
-            intersections
-                .insert(peer_name.clone(), serde_json::Value::String(entry.wanted_range.clone()));
+            intersections.insert(
+                peer_name.clone(),
+                serde_json::Value::String(entry.wanted_range.clone()),
+            );
             continue;
         }
         match safe_intersect(entries.iter().map(|entry| entry.wanted_range.as_str())) {

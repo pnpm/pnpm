@@ -46,12 +46,17 @@ fn importer_link(target: &str) -> ResolvedDependencySpec {
 }
 
 fn importer_map(entries: &[(&str, &str)]) -> ResolvedDependencyMap {
-    entries.iter().map(|(n, v)| (pkg(n), importer_dep(v))).collect()
+    entries
+        .iter()
+        .map(|(n, v)| (pkg(n), importer_dep(v)))
+        .collect()
 }
 
 fn snapshot_with_deps(deps: &[(&str, &str)]) -> SnapshotEntry {
-    let map: HashMap<PkgName, SnapshotDepRef> =
-        deps.iter().map(|(n, v)| (pkg(n), SnapshotDepRef::Plain(ver(v)))).collect();
+    let map: HashMap<PkgName, SnapshotDepRef> = deps
+        .iter()
+        .map(|(n, v)| (pkg(n), SnapshotDepRef::Plain(ver(v))))
+        .collect();
     SnapshotEntry { dependencies: Some(map), ..Default::default() }
 }
 

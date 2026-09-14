@@ -79,14 +79,23 @@ fn range_selectors() -> VersionSelectors {
 }
 
 fn update_opts() -> ResolveOptions {
-    ResolveOptions { update_requested: true, ..ResolveOptions::default() }
+    ResolveOptions {
+        refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+            update_requested: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    }
 }
 
 // <https://github.com/pnpm/pnpm/issues/13071>
 #[test]
 fn no_warning_when_minimum_release_age_is_the_reason_for_the_held_back_pick() {
     let opts = ResolveOptions {
-        published_by: Some(parse_iso("2026-07-01T00:00:00.000Z")),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: Some(parse_iso("2026-07-01T00:00:00.000Z")),
+            ..update_opts().policy
+        },
         ..update_opts()
     };
     let preferred = held_back_preferred(
@@ -128,7 +137,10 @@ fn warns_when_the_newer_version_is_mature_under_the_cutoff() {
         }),
     )]);
     let opts = ResolveOptions {
-        published_by: Some(parse_iso("2026-08-01T00:00:00.000Z")),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: Some(parse_iso("2026-08-01T00:00:00.000Z")),
+            ..update_opts().policy
+        },
         ..update_opts()
     };
     let preferred =
@@ -140,8 +152,11 @@ fn warns_when_the_newer_version_is_mature_under_the_cutoff() {
 fn excluded_package_keeps_the_unfiltered_baseline() {
     let policy = create_package_version_policy(["foo"]).expect("policy");
     let opts = ResolveOptions {
-        published_by: Some(parse_iso("2026-07-01T00:00:00.000Z")),
-        published_by_exclude: Some(policy),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: Some(parse_iso("2026-07-01T00:00:00.000Z")),
+            published_by_exclude: Some(policy),
+            ..update_opts().policy
+        },
         ..update_opts()
     };
     let preferred = held_back_preferred(
@@ -158,8 +173,11 @@ fn excluded_package_keeps_the_unfiltered_baseline() {
 fn version_trusted_by_exact_version_stays_in_the_baseline() {
     let policy = create_package_version_policy(["foo@2.1.4"]).expect("policy");
     let opts = ResolveOptions {
-        published_by: Some(parse_iso("2026-07-01T00:00:00.000Z")),
-        published_by_exclude: Some(policy),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: Some(parse_iso("2026-07-01T00:00:00.000Z")),
+            published_by_exclude: Some(policy),
+            ..update_opts().policy
+        },
         ..update_opts()
     };
     let preferred = held_back_preferred(

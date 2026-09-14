@@ -64,7 +64,10 @@ pub fn find_npm_local_prefix(start_dir: &Path) -> miette::Result<PathBuf> {
 fn find_prefix(start_dir: &Path, targets: &[&str]) -> miette::Result<PathBuf> {
     let mut name = start_dir.to_path_buf();
 
-    while name.file_name().is_some_and(|f| f == "node_modules") {
+    while name
+        .file_name()
+        .is_some_and(|f| f == "node_modules")
+    {
         if let Some(parent) = name.parent() {
             name = parent.to_path_buf();
         } else {
@@ -84,7 +87,10 @@ fn find_prefix_up(name: &Path, original: &Path, targets: &[&str]) -> miette::Res
             MarkerProbe::Unreadable => return Ok(original.to_path_buf()),
             MarkerProbe::NotFound => {}
         }
-        let Some(parent) = current.parent().filter(|parent| *parent != current) else {
+        let Some(parent) = current
+            .parent()
+            .filter(|parent| *parent != current)
+        else {
             return Ok(original.to_path_buf());
         };
         current = parent.to_path_buf();
@@ -132,10 +138,11 @@ impl PrefixArgs {
             // (`globalDirShouldAllowWrite` is false for `root` and `prefix`;
             // see pnpm issue 2700).
             let bin = config.global_bin.clone().ok_or(GlobalError::NoGlobalBinDir)?;
-            std::fs::create_dir_all(&bin).map_err(|error| {
-                let bin_dir = bin.display();
-                miette::miette!("failed to create the global bin directory {bin_dir}: {error}")
-            })?;
+            std::fs::create_dir_all(&bin)
+                .map_err(|error| {
+                    let bin_dir = bin.display();
+                    miette::miette!("failed to create the global bin directory {bin_dir}: {error}")
+                })?;
             check_global_bin_dir(&bin, std::env::var("PATH").ok().as_deref(), false)
                 .map_err(miette::Report::new)?;
             // pnpm's `prefix` handler prints the parent of the global packages

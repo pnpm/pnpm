@@ -65,7 +65,9 @@ impl ShimTarget {
 
     fn decode(bytes: &[u8]) -> Option<Self> {
         let raw = decode_os(bytes)?;
-        if let Some(package) = raw.to_str().and_then(|raw| raw.strip_prefix(VIRTUAL_TARGET_PREFIX))
+        if let Some(package) = raw
+            .to_str()
+            .and_then(|raw| raw.strip_prefix(VIRTUAL_TARGET_PREFIX))
         {
             return is_valid_old_npm_package_name(package)
                 .then(|| ShimTarget::Virtual(package.to_string()));
@@ -113,13 +115,14 @@ pub(crate) fn install_native_shim_from(
     let target_file = target_file_path(bin_dir, name);
     let executable = executable_path(bin_dir, name);
     pnpm_fs::write_atomic(&target_file, &target.encode())?;
-    crate::executable_link::replace_executable(source, &executable).inspect_err(|_| {
-        // A sidecar without an executable would list as a shim; a sidecar
-        // beside an older executable is a live shim with its new target.
-        if !executable.exists() {
-            let _ = fs::remove_file(&target_file);
-        }
-    })
+    crate::executable_link::replace_executable(source, &executable)
+        .inspect_err(|_| {
+            // A sidecar without an executable would list as a shim; a sidecar
+            // beside an older executable is a live shim with its new target.
+            if !executable.exists() {
+                let _ = fs::remove_file(&target_file);
+            }
+        })
 }
 
 /// Remove the shim `name` and its sidecar. A missing shim is not an error.
@@ -137,12 +140,14 @@ pub(crate) fn native_shim_target(bin_dir: &Path, name: &str) -> io::Result<Optio
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error),
     };
-    ShimTarget::decode(&bytes).map(Some).ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("{} does not hold a shim target", target_file.display()),
-        )
-    })
+    ShimTarget::decode(&bytes)
+        .map(Some)
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{} does not hold a shim target", target_file.display()),
+            )
+        })
 }
 
 pub(crate) fn native_shim_is_installed(bin_dir: &Path, name: &str) -> bool {
@@ -247,7 +252,10 @@ fn legacy_shim_target(path: &Path) -> io::Result<Option<ShimTarget>> {
         return Ok(None);
     }
     let body = String::from_utf8_lossy(&bytes);
-    if !body.lines().any(|line| line == LEGACY_CONTEXT_AWARE_MARKER) {
+    if !body
+        .lines()
+        .any(|line| line == LEGACY_CONTEXT_AWARE_MARKER)
+    {
         return Ok(None);
     }
     let target = body
@@ -283,7 +291,9 @@ pub(super) fn dispatch_legacy_shim(rest: &[OsString]) -> i32 {
 }
 
 fn executing_dispatcher_bin_dir(shim: &Path) -> Option<PathBuf> {
-    let supplied_bin_dir = shim.parent().filter(|dir| !dir.as_os_str().is_empty())?;
+    let supplied_bin_dir = shim
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())?;
     let dispatcher = std::env::current_exe().ok()?;
     let dispatcher_name = format!("{LEGACY_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX);
     if dispatcher.file_name() != Some(OsStr::new(&dispatcher_name)) {
@@ -403,7 +413,10 @@ fn decode_os(bytes: &[u8]) -> Option<OsString> {
 #[cfg(windows)]
 fn encode_os(value: &OsStr) -> Vec<u8> {
     use std::os::windows::ffi::OsStrExt as _;
-    value.encode_wide().flat_map(u16::to_le_bytes).collect()
+    value
+        .encode_wide()
+        .flat_map(u16::to_le_bytes)
+        .collect()
 }
 
 #[cfg(windows)]
@@ -411,7 +424,13 @@ fn decode_os(bytes: &[u8]) -> Option<OsString> {
     use std::os::windows::ffi::OsStringExt as _;
     let mut chunks = bytes.chunks_exact(2);
     let value = OsString::from_wide(
-        &chunks.by_ref().map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]])).collect::<Vec<_>>(),
+        &chunks
+            .by_ref()
+            .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+            .collect::<Vec<_>>(),
     );
-    chunks.remainder().is_empty().then_some(value)
+    chunks
+        .remainder()
+        .is_empty()
+        .then_some(value)
 }

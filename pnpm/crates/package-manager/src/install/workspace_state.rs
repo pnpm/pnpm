@@ -79,13 +79,15 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     if check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: &state_root,
         config: check.config,
-        node_linker: check.node_linker,
-        included: super::included_dependencies(&check.dependency_groups),
-        supported_architectures: check.supported_architectures.as_ref(),
         project_manifests: &project_manifests,
         is_workspace_install: workspace_manifest.is_some(),
         lockfile: MaybeLazyLockfile::Lazy(&lockfile),
         catalogs: &catalogs,
+        layout: crate::RepeatInstallLayout {
+            node_linker: check.node_linker,
+            included: super::included_dependencies(&check.dependency_groups),
+            supported_architectures: check.supported_architectures.as_ref(),
+        },
     }) != OptimisticRepeatInstallDecision::UpToDate
     {
         return None;
@@ -101,8 +103,11 @@ fn fast_path_workspace_context(
     config: &Config,
     workspace_dir: Option<&Path>,
 ) -> Option<(Option<pnpm_workspace::WorkspaceManifest>, super::Catalogs)> {
-    let workspace_manifest =
-        workspace_dir.map(pnpm_workspace::read_workspace_manifest).transpose().ok()?.flatten();
+    let workspace_manifest = workspace_dir
+        .map(pnpm_workspace::read_workspace_manifest)
+        .transpose()
+        .ok()?
+        .flatten();
     let catalogs = match config.catalogs.clone() {
         Some(catalogs) => catalogs,
         None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()).ok()?,
@@ -128,12 +133,21 @@ fn ensure_gvs_builds_complete(
     Some(())
 }
 
+/// The workspace root the run belongs to: the configured one, else the
+/// nearest ancestor carrying a `pnpm-workspace.yaml`.
+///
+/// Yields `None` under [`Config::workspace_search_skipped`], where the
+/// ancestor walk would re-adopt the very `pnpm-workspace.yaml` that
+/// `--ignore-workspace` asked to ignore. Only that walk is suppressed:
+/// a caller that pinned [`Config::workspace_dir`] keeps it, which is how a
+/// global install anchors itself under the global packages dir.
 pub(crate) fn configured_or_discovered_workspace_dir(
     config: &Config,
     manifest_dir: &Path,
 ) -> Result<Option<PathBuf>, pnpm_workspace::FindWorkspaceDirError> {
     match config.workspace_dir.clone() {
         Some(workspace_dir) => Ok(Some(workspace_dir)),
+        None if config.workspace_search_skipped => Ok(None),
         None => pnpm_workspace::find_workspace_dir(manifest_dir),
     }
 }
@@ -213,22 +227,23 @@ pub fn build_workspace_packages_map(
                 version.to_string()
             }
         };
-        map.entry(name).or_default().insert(
-            version,
-            pnpm_resolving_resolver_base::WorkspacePackage {
-                root_dir: project.root_dir.clone(),
-                // The map feeds workspace picks resolved as *dependencies*
-                // (injected instances), so a project that splits its two
-                // views contributes its dependency manifest here — see
-                // `pnpm_workspace::Project::dependency_manifest`.
-                manifest: project
-                    .dependency_manifest
-                    .as_ref()
-                    .unwrap_or(&project.manifest)
-                    .value()
-                    .clone(),
-            },
-        );
+        map.entry(name)
+            .or_default()
+            .insert(
+                version,
+                pnpm_resolving_resolver_base::WorkspacePackage {
+                    root_dir: project.root_dir.clone(),
+                    // The map feeds workspace picks resolved as *dependencies*
+                    // (injected instances), so a project that splits its two
+                    // views contributes its dependency manifest here — see
+                    // `pnpm_workspace::Project::dependency_manifest`.
+                    manifest: project.dependency_manifest
+                        .as_ref()
+                        .unwrap_or(&project.manifest)
+                        .value()
+                        .clone(),
+                },
+            );
     }
     Some(map)
 }

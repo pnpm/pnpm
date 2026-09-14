@@ -130,7 +130,10 @@ fn a_parallel_run_relays_the_interrupt_to_every_project() {
 
     for project in PROJECTS {
         assert!(
-            workspace.join(project).join("shut-down.txt").exists(),
+            workspace
+                .join(project)
+                .join("shut-down.txt")
+                .exists(),
             "{project} should have finished shutting down before pnpm exited",
         );
     }
@@ -149,7 +152,10 @@ fn a_third_interrupt_ends_pnpm_even_when_the_script_ignores_them() {
     // The script outlives pnpm here by design, so its stdio is discarded
     // rather than left holding the test harness's pipes open.
     let mut process = interruptible(
-        pacquet.with_args(["run", "dev"]).with_stdout(Stdio::null()).with_stderr(Stdio::null()),
+        pacquet
+            .with_args(["run", "dev"])
+            .with_stdout(Stdio::null())
+            .with_stderr(Stdio::null()),
     );
     wait_for_file(&workspace.join("started.txt"), &mut process);
     for _ in 0..3 {
@@ -184,7 +190,9 @@ fn a_later_script_still_gets_a_plain_first_interrupt() {
     fs::write(workspace.join("dev.js"), GRACEFUL_SCRIPT).expect("write the script");
 
     let mut process = interruptible(
-        pacquet.with_env("PNPM_CONFIG_ENABLE_PRE_POST_SCRIPTS", "true").with_args(["run", "dev"]),
+        pacquet
+            .with_env("PNPM_CONFIG_ENABLE_PRE_POST_SCRIPTS", "true")
+            .with_args(["run", "dev"]),
     );
     wait_for_file(&workspace.join("pre-started.txt"), &mut process);
     interrupt(&process);
@@ -209,7 +217,10 @@ fn write_project(dir: &Path, name: &str, script: &str) {
 }
 
 fn write_workspace(workspace: &Path, projects: &[&str], script: &str) {
-    let packages = projects.iter().map(|name| format!("  - {name}")).collect::<Vec<_>>();
+    let packages = projects
+        .iter()
+        .map(|name| format!("  - {name}"))
+        .collect::<Vec<_>>();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!("packages:\n{}\n", packages.join("\n")),

@@ -47,6 +47,7 @@ fn create_config(
         reporter_hide_prefix: None,
         use_stderr: false,
         ignore_workspace: false,
+        workspace_search_skipped: false,
         workspace_package_patterns: None,
         shell_emulator: false,
         skip_manifest_obfuscation: false,
@@ -254,19 +255,25 @@ async fn resolve_via_mock(
     let resolver = NpmResolver {
         registries,
         registries_by_prefix: HashMap::new(),
-        http_client,
-        auth_headers: Default::default(),
-        meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
-        fetch_locker: shared_packument_fetch_locker(),
-        picked_manifest_cache: shared_picked_manifest_cache(),
-        cache_dir: Some(cache_dir.to_path_buf()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: true,
-        full_metadata: false,
-        needs_full_metadata_for: None,
-        filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
+            http_client,
+            auth_headers: Default::default(),
+            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(cache_dir.to_path_buf()),
+            retry_opts: RetryOpts::default(),
+        },
+        format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
+            full_metadata: false,
+            needs_full_metadata_for: None,
+            filter_metadata: false,
+        },
+        cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: true,
+        },
     };
     let wanted = WantedDependency {
         alias: Some(alias.to_string()),
@@ -310,19 +317,22 @@ pub async fn should_install_package_from_pre_resolved_result() {
     )
     .await;
 
-    let name_ver = resolution.name_ver.as_ref().expect("npm resolver fills name_ver");
+    let name_ver = resolution.package.name_ver.as_ref().expect("npm resolver fills name_ver");
     let real_name = name_ver.name.to_string();
     let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), name_ver.suffix);
     let slot_dir = virtual_store_dir.path().join(&virtual_store_name);
 
     InstallPackageFromRegistry {
-        tarball_mem_cache: &Default::default(),
-        config,
-        http_client: &http_client,
-        store_index: None,
-        store_index_writer: None,
-        verified_files_cache: &verified_files_cache,
-        prefetched_cas_paths: None,
+        fetching: crate::RegistryFetchContext {
+            http_client: &http_client,
+            config,
+            store_index: None,
+            store_index_writer: None,
+            verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: &Default::default(),
+        },
+
         logged_methods: &logged_methods,
         requester: "",
         alias: "@pnpm.e2e/hello-world-js-bin",
@@ -362,7 +372,10 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -395,7 +408,7 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     )
     .await;
 
-    let name_ver = resolution.name_ver.as_ref().expect("npm resolver fills name_ver");
+    let name_ver = resolution.package.name_ver.as_ref().expect("npm resolver fills name_ver");
     let real_name = name_ver.name.to_string();
     let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), name_ver.suffix);
     let slot_dir = virtual_store_dir.path().join(&virtual_store_name);
@@ -403,13 +416,16 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     // First edge: full path. Run, then clear events for the assertion
     // on the second edge.
     InstallPackageFromRegistry {
-        tarball_mem_cache: &Default::default(),
-        config,
-        http_client: &http_client,
-        store_index: None,
-        store_index_writer: None,
-        verified_files_cache: &verified_files_cache,
-        prefetched_cas_paths: None,
+        fetching: crate::RegistryFetchContext {
+            http_client: &http_client,
+            config,
+            store_index: None,
+            store_index_writer: None,
+            verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: &Default::default(),
+        },
+
         logged_methods: &logged_methods,
         requester: "/proj",
         alias: "first-alias",
@@ -424,13 +440,16 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     EVENTS.lock().unwrap().clear();
 
     InstallPackageFromRegistry {
-        tarball_mem_cache: &Default::default(),
-        config,
-        http_client: &http_client,
-        store_index: None,
-        store_index_writer: None,
-        verified_files_cache: &verified_files_cache,
-        prefetched_cas_paths: None,
+        fetching: crate::RegistryFetchContext {
+            http_client: &http_client,
+            config,
+            store_index: None,
+            store_index_writer: None,
+            verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: &Default::default(),
+        },
+
         logged_methods: &logged_methods,
         requester: "/proj",
         alias: "second-alias",
@@ -477,7 +496,10 @@ async fn install_emits_progress_sequence() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -510,19 +532,22 @@ async fn install_emits_progress_sequence() {
     )
     .await;
 
-    let name_ver = resolution.name_ver.as_ref().expect("npm resolver fills name_ver");
+    let name_ver = resolution.package.name_ver.as_ref().expect("npm resolver fills name_ver");
     let real_name = name_ver.name.to_string();
     let virtual_store_name = format!("{}@{}", real_name.replace('/', "+"), name_ver.suffix);
     let slot_dir = virtual_store_dir.path().join(&virtual_store_name);
 
     InstallPackageFromRegistry {
-        tarball_mem_cache: &Default::default(),
-        config,
-        http_client: &http_client,
-        store_index: None,
-        store_index_writer: None,
-        verified_files_cache: &verified_files_cache,
-        prefetched_cas_paths: None,
+        fetching: crate::RegistryFetchContext {
+            http_client: &http_client,
+            config,
+            store_index: None,
+            store_index_writer: None,
+            verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: &Default::default(),
+        },
+
         logged_methods: &logged_methods,
         requester: "/proj",
         alias: "@pnpm.e2e/hello-world-js-bin",
@@ -598,10 +623,6 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
 
     let resolution = ResolveResult {
         id: "git+ssh://git@example.com/foo/bar.git#deadbeef".into(),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: None,
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "https://example.com/foo.tar.gz".to_string(),
             integrity: None,
@@ -613,18 +634,27 @@ async fn install_returns_unsupported_resolution_when_name_ver_missing() {
         normalized_bare_specifier: Some("github:foo/bar#deadbeef".to_string()),
         alias: Some("bar".to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: None,
+        },
     };
 
     let slot_dir = virtual_store_dir.path().join("bar@unused");
 
     let result = InstallPackageFromRegistry {
-        tarball_mem_cache: &Default::default(),
-        config,
-        http_client: &http_client,
-        store_index: None,
-        store_index_writer: None,
-        verified_files_cache: &verified_files_cache,
-        prefetched_cas_paths: None,
+        fetching: crate::RegistryFetchContext {
+            http_client: &http_client,
+            config,
+            store_index: None,
+            store_index_writer: None,
+            verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: &Default::default(),
+        },
+
         logged_methods: &logged_methods,
         requester: "",
         alias: "bar",
@@ -676,13 +706,6 @@ async fn install_rejects_traversal_manifest_name() {
     let traversal_name = "@x/../../../../../../OUTSIDE";
     let resolution = ResolveResult {
         id: "https://example.com/foo.tar.gz".into(),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(Arc::new(serde_json::json!({
-            "name": traversal_name,
-            "version": "1.0.0",
-        }))),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "https://example.com/foo.tar.gz".to_string(),
             integrity: None,
@@ -694,18 +717,30 @@ async fn install_rejects_traversal_manifest_name() {
         normalized_bare_specifier: None,
         alias: Some("bar".to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(Arc::new(serde_json::json!({
+                "name": traversal_name,
+                "version": "1.0.0",
+            }))),
+        },
     };
 
     let slot_dir = virtual_store_dir.path().join("bar@1.0.0");
 
     let result = InstallPackageFromRegistry {
-        tarball_mem_cache: &Default::default(),
-        config,
-        http_client: &http_client,
-        store_index: None,
-        store_index_writer: None,
-        verified_files_cache: &verified_files_cache,
-        prefetched_cas_paths: None,
+        fetching: crate::RegistryFetchContext {
+            http_client: &http_client,
+            config,
+            store_index: None,
+            store_index_writer: None,
+            verified_files_cache: &verified_files_cache,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: &Default::default(),
+        },
+
         logged_methods: &logged_methods,
         requester: "",
         alias: "bar",
@@ -726,8 +761,18 @@ async fn install_rejects_traversal_manifest_name() {
 
     // The traversal must not have materialized anything outside the
     // slot's `node_modules`.
-    assert!(!virtual_store_dir.path().join("OUTSIDE").exists());
-    assert!(!slot_dir.join("node_modules").join("OUTSIDE").exists());
+    assert!(
+        !virtual_store_dir
+            .path()
+            .join("OUTSIDE")
+            .exists(),
+    );
+    assert!(
+        !slot_dir
+            .join("node_modules")
+            .join("OUTSIDE")
+            .exists(),
+    );
 
     drop((store_dir, modules_dir, virtual_store_dir, cache_dir));
 }

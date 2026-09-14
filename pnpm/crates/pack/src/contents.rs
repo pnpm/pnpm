@@ -6,7 +6,10 @@ use super::{
 /// Map each packed path to `package/<path>` → absolute source, in
 /// packlist order.
 pub(super) fn build_files_map(dir: &Path, files: &[String]) -> indexmap::IndexMap<String, PathBuf> {
-    files.iter().map(|file| (format!("package/{file}"), dir.join(file))).collect()
+    files
+        .iter()
+        .map(|file| (format!("package/{file}"), dir.join(file)))
+        .collect()
 }
 
 /// Absolute source paths that should be marked executable in the
@@ -47,7 +50,10 @@ pub(super) fn inject_workspace_license(
     }
     let Ok(entries) = std::fs::read_dir(workspace_dir) else { return };
     for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().into_owned();
+        let name = entry
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
         if !is_license_filename(&name) {
             continue;
         }
@@ -75,10 +81,11 @@ pub(super) fn unpacked_size<Sys: FsFileLen>(
         total += if is_manifest_entry(name) {
             manifest_json_len
         } else {
-            Sys::file_len(source).map_err(|source_err| PackError::ReadFile {
-                path: source.display().to_string(),
-                source: source_err,
-            })?
+            Sys::file_len(source)
+                .map_err(|source_err| PackError::ReadFile {
+                    path: source.display().to_string(),
+                    source: source_err,
+                })?
         };
     }
     Ok(total)
@@ -94,7 +101,10 @@ pub(super) fn packed_contents_with_injected(
 ) -> Vec<String> {
     let mut contents = packed_contents(files_map);
     for (name, _) in injected {
-        let stripped = name.strip_prefix("package/").unwrap_or(name).to_string();
+        let stripped = name
+            .strip_prefix("package/")
+            .unwrap_or(name)
+            .to_string();
         if !contents.contains(&stripped) {
             contents.push(stripped);
         }
@@ -111,7 +121,9 @@ fn packed_contents(files_map: &indexmap::IndexMap<String, PathBuf>) -> Vec<Strin
             if is_manifest_entry(name) {
                 "package.json".to_string()
             } else {
-                name.strip_prefix("package/").unwrap_or(name).to_string()
+                name.strip_prefix("package/")
+                    .unwrap_or(name)
+                    .to_string()
             }
         })
         .filter(|item| seen.insert(item.clone()))
@@ -126,12 +138,17 @@ fn packed_contents(files_map: &indexmap::IndexMap<String, PathBuf>) -> Vec<Strin
 pub fn sort_paths_en_locale(paths: &mut Vec<String>) {
     // Decorate each path with its lowercase form once, rather than
     // recomputing `to_lowercase` for both sides on every comparison.
-    let mut decorated: Vec<(String, String)> =
-        std::mem::take(paths).into_iter().map(|item| (item.to_lowercase(), item)).collect();
+    let mut decorated: Vec<(String, String)> = std::mem::take(paths)
+        .into_iter()
+        .map(|item| (item.to_lowercase(), item))
+        .collect();
     decorated.sort_by(|(left_lower, left), (right_lower, right)| {
         left_lower.cmp(right_lower).then_with(|| case_precedence_tiebreak(left, right))
     });
-    *paths = decorated.into_iter().map(|(_, item)| item).collect();
+    *paths = decorated
+        .into_iter()
+        .map(|(_, item)| item)
+        .collect();
 }
 
 /// Tie-breaker for [`sort_paths_en_locale`]'s `localeCompare(b, 'en')`

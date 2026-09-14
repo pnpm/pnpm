@@ -45,11 +45,17 @@ fn merge(graphs: [ProjectGraph<()>; 2]) -> ProjectGraph<()> {
 }
 
 fn dirs(names: &[&str]) -> Vec<PathBuf> {
-    names.iter().map(PathBuf::from).collect()
+    names
+        .iter()
+        .map(PathBuf::from)
+        .collect()
 }
 
 fn prod_only(names: &[&str]) -> HashSet<PathBuf> {
-    names.iter().map(PathBuf::from).collect()
+    names
+        .iter()
+        .map(PathBuf::from)
+        .collect()
 }
 
 fn filtered_order(
@@ -63,7 +69,14 @@ fn filtered_order(
         .iter()
         .map(|(project, dependencies)| (project.clone(), dependencies.clone()))
         .collect();
-    graph_sequencer(&edges, &dependencies.keys().cloned().collect::<Vec<_>>()).order
+    graph_sequencer(
+        &edges,
+        &dependencies
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+    )
+    .order
 }
 
 #[test]
@@ -181,7 +194,9 @@ fn detects_a_cycle_that_passes_through_unselected_projects() {
     let result = sequence_graph(&select(&graph, &["a", "c"]), &graph);
     dbg!(&result);
     assert!(
-        result.cycles.iter().any(|cycle| cycle.len() > 1),
+        result.cycles
+            .iter()
+            .any(|cycle| cycle.len() > 1),
         "a -> b -> c -> a is a cycle once b is tunneled through",
     );
 }

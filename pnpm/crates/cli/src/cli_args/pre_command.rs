@@ -27,9 +27,9 @@ use super::{
     with::{PackageManagerCheck, spawn_pnpm},
 };
 use crate::{
-    cli_args::config_warnings::report_workspace_key_issues,
+    cli_args::{config_warnings::report_workspace_key_issues, dispatch::seed_config},
     config_deps,
-    config_overrides::{ConfigOverrides, apply_state_dir_override},
+    config_overrides::{ConfigOverrides, apply_state_dir_override, apply_store_dir_override},
     engine_pm::{
         channel::PackageManager,
         install::{install_engine_from_env, install_engine_to_store},
@@ -53,6 +53,7 @@ use pnpm_config::{ColorMode, Config, Host, PNPM_VERSION, PmOnFail};
 use pnpm_default_reporter::DefaultReporter;
 use pnpm_env_installer::is_package_manager_resolved;
 use pnpm_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
+use pnpm_network::redact_and_sanitize;
 use pnpm_package_manifest::{apply_runtime_on_fail_override, is_runtime_alias};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
 use runtime::{RUNTIME_ON_FAIL_HINT, check_runtimes};
@@ -81,7 +82,7 @@ pub(crate) fn pre_command_plan(
             global: is_global(&args.command),
             skip_pm_handling: should_skip_pm_handling(&args.command),
             check_runtimes: true,
-            emit: reporter_emit(args.reporter),
+            emit: reporter_emit(args.output.presentation.reporter),
             key_issues: key_issue_reporting(&args.command),
         },
         config_overrides,
@@ -121,9 +122,11 @@ fn pre_command_plan_from_input(
     if input.switch.command.as_deref().is_some_and(should_skip_command_name) {
         return Ok(None);
     }
-    let dir = dunce::canonicalize(&input.switch.dir).into_diagnostic().wrap_err_with(|| {
-        format!("canonicalizing the `--dir` argument: {}", input.switch.dir.display())
-    })?;
+    let dir = dunce::canonicalize(&input.switch.paths.dir)
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!("canonicalizing the `--dir` argument: {}", input.switch.paths.dir.display())
+        })?;
     let config = load_pre_command_config(&input.switch, config_overrides, &dir)?;
 
     let roots = PinRoots {
@@ -157,8 +160,9 @@ fn pre_command_plan_from_input(
     {
         check_runtimes(manifest, &config, input.emit)?;
     }
-    Ok(package_manager_to_sync
-        .map(|package_manager| env_lockfile_sync_plan(input, config, roots.env, package_manager)))
+    Ok(package_manager_to_sync.map(|package_manager| {
+        env_lockfile_sync_plan(input, config, roots.env, package_manager)
+    }))
 }
 
 /// Whether the manifest's pin names the pnpm that is running.
@@ -192,11 +196,10 @@ fn load_pre_command_config(
     config_overrides: &ConfigOverrides,
     dir: &Path,
 ) -> miette::Result<Config> {
-    let mut config =
-        Config { npmrc_auth_file: switch.npmrc_auth_file.clone(), ..Config::default() }
-            .current::<Host>(dir)
-            .map_err(miette::Report::new)
-            .wrap_err("load configuration")?;
+    let mut config = seed_config(switch.paths.npmrc_auth_file.as_deref(), switch.ignore_workspace)
+        .current::<Host>(dir)
+        .map_err(miette::Report::new)
+        .wrap_err("load configuration")?;
     config_overrides.apply(&mut config, dir);
     if let Some(color) = switch.color {
         config.color = color;
@@ -205,7 +208,10 @@ fn load_pre_command_config(
     if config.ci {
         pnpm_default_reporter::force_append_only();
     }
-    if let Some(state_dir) = switch.state_dir.as_deref() {
+    if let Some(store_dir) = switch.paths.store_dir.as_deref() {
+        apply_store_dir_override::<Host>(&mut config, store_dir, dir)?;
+    }
+    if let Some(state_dir) = switch.paths.state_dir.as_deref() {
         apply_state_dir_override::<Host>(&mut config, state_dir, dir);
     }
     // `--lockfile-dir` moves the lockfile the pin is recorded in, and
@@ -245,6 +251,48 @@ fn switch_or_sync(
 fn global_warn(emit: fn(&LogEvent), message: &str) {
     let message = sanitize_inline(message).into_owned();
     emit(&LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }));
+}
+
+/// Report a pinned pnpm that `pnpm --version` could not act on. Why the
+/// command carries on afterwards is documented on its caller in `lib.rs`.
+///
+/// The command succeeds, so this is a warning rather than a diagnostic
+/// miette renders. It carries the code and the help a diagnostic came
+/// with, which is what that rendering would have added.
+pub(crate) fn warn_pinned_pnpm_unusable(error: &miette::Report) {
+    global_warn(DefaultReporter::emit, &warning_for_unusable_pin(error));
+}
+
+fn warning_for_unusable_pin(error: &miette::Report) -> String {
+    let code = error
+        .code()
+        .map(|code| format!("{code}: "))
+        .unwrap_or_default();
+    let help = error
+        .help()
+        .map(|help| format!(". {}", redact_and_sanitize(&help.to_string())))
+        .unwrap_or_default();
+    format!("Cannot use the pnpm version this project pins: {code}{}{help}", error_causes(error))
+}
+
+/// Every cause of `error`, in miette's order, dropping the ones an earlier
+/// cause already quotes — a wrapping error usually renders its source. A
+/// fetch that failed quotes the registry URL it was given, which carries
+/// the credentials configured for that registry, so each cause is redacted
+/// on its way to the terminal.
+fn error_causes(error: &miette::Report) -> String {
+    let mut causes = String::new();
+    for cause in error.chain() {
+        let cause = redact_and_sanitize(&cause.to_string());
+        if causes.contains(cause.as_str()) {
+            continue;
+        }
+        if !causes.is_empty() {
+            causes.push_str(": ");
+        }
+        causes.push_str(&cause);
+    }
+    causes
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]

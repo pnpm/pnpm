@@ -103,10 +103,12 @@ pub(super) fn filter_pkg_metadata_by_publish_date_uncached(
     cutoff: chrono::DateTime<chrono::Utc>,
     trusted_versions: Option<&[String]>,
 ) -> Package {
-    let time = meta.time.as_ref().expect(
-        "filter_pkg_metadata_by_publish_date called without `time`; \
+    let time = meta.time
+        .as_ref()
+        .expect(
+            "filter_pkg_metadata_by_publish_date called without `time`; \
          caller must check before invoking",
-    );
+        );
 
     filter_pkg_metadata_versions_with_dist_tag_bound(
         meta,
@@ -116,8 +118,11 @@ pub(super) fn filter_pkg_metadata_by_publish_date_uncached(
                 .and_then(serde_json::Value::as_str)
                 .and_then(parse_packument_timestamp)
                 .is_some_and(|date| date <= cutoff);
-            let trusted = trusted_versions
-                .is_some_and(|allow| allow.iter().any(|allowed| allowed == version));
+            let trusted = trusted_versions.is_some_and(|allow| {
+                allow
+                    .iter()
+                    .any(|allowed| allowed == version)
+            });
             mature || trusted
         },
         true,
@@ -215,11 +220,13 @@ pub(super) fn best_tag_candidate<'a>(
     let deprecated = |slot: &TagCandidate<'a>| -> bool {
         *slot.2.get_or_init(|| filtered_versions.is_deprecated(slot.1))
     };
-    let eligible = candidates.iter().filter(|(candidate, _, _)| {
-        !(bound_dist_tags && candidate > original)
-            && (tag == "latest" || candidate.major == original.major)
-            && candidate.pre_release.is_empty() != original_is_prerelease
-    });
+    let eligible = candidates
+        .iter()
+        .filter(|(candidate, _, _)| {
+            !(bound_dist_tags && candidate > original)
+                && (tag == "latest" || candidate.major == original.major)
+                && candidate.pre_release.is_empty() != original_is_prerelease
+        });
     let mut best: Option<&TagCandidate<'a>> = None;
     for slot in eligible {
         let (candidate, _, _) = slot;

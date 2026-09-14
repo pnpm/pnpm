@@ -57,7 +57,11 @@ async fn document_roundtrips_and_missing_is_none() {
     assert_eq!(store.read_document(&name).await.unwrap(), None);
     write_document(&store, &name, br#"{"name":"is-positive"}"#).await;
     assert_eq!(
-        store.read_document(&name).await.unwrap().as_deref(),
+        store
+            .read_document(&name)
+            .await
+            .unwrap()
+            .as_deref(),
         Some(&br#"{"name":"is-positive"}"#[..]),
     );
 }
@@ -68,8 +72,16 @@ async fn stale_document_update_is_rejected() {
     let name = pkg("racer");
     store.write_document_if_current(&name, br#"{"name":"racer"}"#, None).await.unwrap();
 
-    let first_read = store.read_document_for_update(&name).await.unwrap().unwrap();
-    let second_read = store.read_document_for_update(&name).await.unwrap().unwrap();
+    let first_read = store
+        .read_document_for_update(&name)
+        .await
+        .unwrap()
+        .unwrap();
+    let second_read = store
+        .read_document_for_update(&name)
+        .await
+        .unwrap()
+        .unwrap();
 
     let first_written = store
         .write_document_if_current(
@@ -91,7 +103,11 @@ async fn stale_document_update_is_rejected() {
         .unwrap();
     assert!(!second_written);
     assert_eq!(
-        store.read_document(&name).await.unwrap().as_deref(),
+        store
+            .read_document(&name)
+            .await
+            .unwrap()
+            .as_deref(),
         Some(&br#"{"name":"racer","versions":{"1.0.0":{"version":"1.0.0"}}}"#[..]),
     );
 }
@@ -102,7 +118,11 @@ async fn deleted_document_update_is_rejected() {
     let name = pkg("removed-racer");
     write_document(&store, &name, br#"{"name":"removed-racer"}"#).await;
 
-    let read = store.read_document_for_update(&name).await.unwrap().unwrap();
+    let read = store
+        .read_document_for_update(&name)
+        .await
+        .unwrap()
+        .unwrap();
     store.remove_package(&name).await.unwrap();
 
     let written = store
@@ -114,7 +134,13 @@ async fn deleted_document_update_is_rejected() {
         .await
         .unwrap();
     assert!(!written);
-    assert!(store.read_document(&name).await.unwrap().is_none());
+    assert!(
+        store
+            .read_document(&name)
+            .await
+            .unwrap()
+            .is_none(),
+    );
 }
 
 #[tokio::test]
@@ -140,7 +166,11 @@ async fn concurrent_blob_finalize_does_not_overwrite() {
     tokio::fs::write(&tmp, b"tarball B").await.unwrap();
     assert_eq!(store.upload_blob(&tmp, &name, file).await.unwrap(), BlobFinalize::Conflict);
 
-    let (body, _len) = store.open_blob(&name, file).await.unwrap().unwrap();
+    let (body, _len) = store
+        .open_blob(&name, file)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(collect(body).await, b"tarball A");
 }
 
@@ -148,12 +178,22 @@ async fn concurrent_blob_finalize_does_not_overwrite() {
 async fn blob_uploads_streams_and_reports_length() {
     let (store, _staging) = store_with_prefix("");
     let name = pkg("is-positive");
-    assert!(store.open_blob(&name, "is-positive-1.0.0.tgz").await.unwrap().is_none());
+    assert!(
+        store
+            .open_blob(&name, "is-positive-1.0.0.tgz")
+            .await
+            .unwrap()
+            .is_none(),
+    );
 
     let payload = b"a fake tarball payload";
     upload(&store, &name, "is-positive-1.0.0.tgz", payload).await;
 
-    let (body, len) = store.open_blob(&name, "is-positive-1.0.0.tgz").await.unwrap().unwrap();
+    let (body, len) = store
+        .open_blob(&name, "is-positive-1.0.0.tgz")
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(len, Some(payload.len() as u64));
     assert_eq!(collect(body).await, payload);
 }
@@ -165,9 +205,19 @@ async fn scoped_keys_and_prefix_are_honored() {
     write_document(&store, &name, br#"{"name":"@scope/thing"}"#).await;
     upload(&store, &name, "thing-1.0.0.tgz", b"scoped tarball").await;
 
-    let (body, _len) = store.open_blob(&name, "thing-1.0.0.tgz").await.unwrap().unwrap();
+    let (body, _len) = store
+        .open_blob(&name, "thing-1.0.0.tgz")
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(collect(body).await, b"scoped tarball");
-    assert!(store.read_document(&name).await.unwrap().is_some());
+    assert!(
+        store
+            .read_document(&name)
+            .await
+            .unwrap()
+            .is_some(),
+    );
 }
 
 #[tokio::test]
@@ -181,10 +231,22 @@ async fn remove_blob_then_package() {
     // S3 (and the in-memory store) deletes are idempotent and don't
     // report whether the key existed, so a second delete still succeeds.
     store.remove_blob(&name, "is-positive-1.0.0.tgz").await.unwrap();
-    assert!(store.open_blob(&name, "is-positive-1.0.0.tgz").await.unwrap().is_none());
+    assert!(
+        store
+            .open_blob(&name, "is-positive-1.0.0.tgz")
+            .await
+            .unwrap()
+            .is_none(),
+    );
 
     store.remove_package(&name).await.unwrap();
-    assert!(store.read_document(&name).await.unwrap().is_none());
+    assert!(
+        store
+            .read_document(&name)
+            .await
+            .unwrap()
+            .is_none(),
+    );
 }
 
 #[tokio::test]
@@ -209,8 +271,14 @@ async fn revision_refs_roundtrip_under_the_configured_prefix() {
         let digest = "A".repeat(86);
         assert_eq!(store.read_revision_refs(&digest).await.unwrap(), Vec::<Vec<u8>>::new());
 
-        store.write_revision_ref(&digest, &"a".repeat(64), "owner-a", b"first").await.unwrap();
-        store.write_revision_ref(&digest, &"b".repeat(64), "owner-a", b"second").await.unwrap();
+        store
+            .write_revision_ref(&digest, &"a".repeat(64), "owner-a", b"first")
+            .await
+            .unwrap();
+        store
+            .write_revision_ref(&digest, &"b".repeat(64), "owner-a", b"second")
+            .await
+            .unwrap();
         let mut refs = store.read_revision_refs(&digest).await.unwrap();
         refs.sort();
         assert_eq!(refs, vec![b"first".to_vec(), b"second".to_vec()]);
@@ -300,11 +368,13 @@ async fn revision_ref_writes_enforce_the_read_bound() {
     ));
 
     assert_eq!(
-        store.write_revision_ref(&digest, &"0".repeat(64), "owner-a", b"{}").await.unwrap(),
+        store
+            .write_revision_ref(&digest, &"0".repeat(64), "owner-a", b"{}")
+            .await
+            .unwrap(),
         HostedRevisionRefWrite::AlreadyClaimed,
     );
-    store
-        .store
+    store.store
         .put(
             &ObjectPath::from(format!("packages/.revisions/sha512/{digest}/not-a-reference.json")),
             PutPayload::from_static(b"stray"),
@@ -342,7 +412,11 @@ async fn concurrent_revision_ref_writes_cannot_exceed_the_limit() {
     assert_eq!(written, crate::MAX_HOSTED_REVISION_REFS);
     assert_eq!(rejected, crate::MAX_HOSTED_REVISION_REFS);
     assert_eq!(
-        store.read_revision_refs(&digest).await.unwrap().len(),
+        store
+            .read_revision_refs(&digest)
+            .await
+            .unwrap()
+            .len(),
         crate::MAX_HOSTED_REVISION_REFS,
     );
 }
@@ -443,7 +517,11 @@ async fn maintenance_inventory_includes_nested_and_unmanifested_repositories() {
     let files =
         crate::HostedBackend::list_blob_files(&store).try_collect::<Vec<_>>().await.unwrap();
     assert_eq!(files.len(), 3);
-    assert!(files.iter().any(|file| file.path == "acme/app/tool/sha256-child"));
+    assert!(
+        files
+            .iter()
+            .any(|file| file.path == "acme/app/tool/sha256-child"),
+    );
 }
 
 /// A staged record is claimed by rewriting it. Two replicas that read the same
@@ -476,7 +554,11 @@ async fn a_staged_record_is_replaced_only_while_it_is_unchanged() {
         .unwrap();
     assert_eq!(second, DocumentWrite::Conflict);
     assert_eq!(
-        store.read_record(".staged", "stage.json").await.unwrap().as_deref(),
+        store
+            .read_record(".staged", "stage.json")
+            .await
+            .unwrap()
+            .as_deref(),
         Some(&br#"{"id":"stage","a":1}"#[..]),
     );
 }
@@ -499,7 +581,13 @@ async fn a_removed_staged_record_is_not_replaced() {
         .await
         .unwrap();
     assert_eq!(replaced, DocumentWrite::Conflict);
-    assert!(store.read_record(".staged", "stage.json").await.unwrap().is_none());
+    assert!(
+        store
+            .read_record(".staged", "stage.json")
+            .await
+            .unwrap()
+            .is_none(),
+    );
 }
 
 /// A record that must not be rewritten is created, not put: the second
@@ -510,7 +598,11 @@ async fn creating_a_record_twice_leaves_the_first_one() {
     assert!(store.create_record(".staged", "stage.json", br#"{"id":"stage"}"#).await.unwrap());
     assert!(!store.create_record(".staged", "stage.json", br#"{"id":"other"}"#).await.unwrap());
     assert_eq!(
-        store.read_record(".staged", "stage.json").await.unwrap().as_deref(),
+        store
+            .read_record(".staged", "stage.json")
+            .await
+            .unwrap()
+            .as_deref(),
         Some(&br#"{"id":"stage"}"#[..]),
     );
 }

@@ -38,6 +38,7 @@ use std::{
 use tabled::{builder::Builder, settings::Style};
 
 mod license_resolver;
+use license_resolver::{extract_license_author, extract_license_homepage};
 
 #[derive(Debug, Args)]
 pub struct LicensesArgs {
@@ -119,6 +120,13 @@ pub enum BelongsTo {
 }
 
 #[derive(Debug, Serialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the pnpm licenses JSON output format."
+    )
+)]
 pub struct LicenseInfo {
     pub name: String,
     pub versions: Vec<String>,
@@ -259,7 +267,10 @@ fn licensed_importer_ids(
     recursive: bool,
 ) -> miette::Result<Vec<String>> {
     if !recursive {
-        return Ok(lockfile.importers.keys().cloned().collect());
+        return Ok(lockfile.importers
+            .keys()
+            .cloned()
+            .collect());
     }
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
     let (projects, _) = discover_workspace_projects(workspace_root, config)?;
@@ -275,22 +286,27 @@ async fn group_by_license(
 ) -> IndexMap<String, BTreeMap<String, LicenseInfo>> {
     let mut results_by_license: IndexMap<String, BTreeMap<String, LicenseInfo>> = IndexMap::new();
     for (key, kind, name, version) in dependencies {
-        let pkg_dir = layout.slot_dir(&key).join("node_modules").join(&name);
+        let pkg_dir = layout
+            .slot_dir(&key)
+            .join("node_modules")
+            .join(&name);
         let details = read_license_details(&pkg_dir, &name).await;
         let path_str = pkg_dir.to_string_lossy().to_string();
 
         let license_group = results_by_license.entry(details.license.clone()).or_default();
-        let info = license_group.entry(name.clone()).or_insert_with(|| LicenseInfo {
-            name: name.clone(),
-            versions: Vec::new(),
-            paths: Vec::new(),
-            license: details.license,
-            belongs_to: kind,
-            selected_version: version.clone(),
-            author: details.author.clone(),
-            homepage: details.homepage.clone(),
-            description: details.description.clone(),
-        });
+        let info = license_group
+            .entry(name.clone())
+            .or_insert_with(|| LicenseInfo {
+                name: name.clone(),
+                versions: Vec::new(),
+                paths: Vec::new(),
+                license: details.license,
+                belongs_to: kind,
+                selected_version: version.clone(),
+                author: details.author.clone(),
+                homepage: details.homepage.clone(),
+                description: details.description.clone(),
+            });
 
         // The newest version of a package supplies the rendered details.
         if select_newer_version(info, &version, kind) {
@@ -311,8 +327,10 @@ async fn group_by_license(
 fn sorted_license_infos(
     results_by_license: &IndexMap<String, BTreeMap<String, LicenseInfo>>,
 ) -> Vec<&LicenseInfo> {
-    let mut all_packages: Vec<&LicenseInfo> =
-        results_by_license.values().flat_map(BTreeMap::values).collect();
+    let mut all_packages: Vec<&LicenseInfo> = results_by_license
+        .values()
+        .flat_map(BTreeMap::values)
+        .collect();
     all_packages.sort_by(|left, right| compare_package_names(&left.name, &right.name));
     all_packages
 }
@@ -338,7 +356,11 @@ fn sorted_licensed_dependencies(
     dependencies.sort_by(|left, right| {
         compare_package_names(&left.2, &right.2)
             .then_with(|| compare_versions(&left.3, &right.3))
-            .then_with(|| left.0.to_string().cmp(&right.0.to_string()))
+            .then_with(|| {
+                left.0
+                    .to_string()
+                    .cmp(&right.0.to_string())
+            })
             .then_with(|| left.1.cmp(&right.1))
     });
     dependencies
@@ -416,44 +438,6 @@ fn render_package_name(info: &LicenseInfo) -> String {
         BelongsTo::Dev => "(dev)",
     };
     format!("{} {}", name, suffix.if_supports_color(Stream::Stdout, |text| text.dimmed()))
-}
-
-fn extract_license_author(manifest: &serde_json::Value) -> Option<String> {
-    match manifest.get("author")? {
-        serde_json::Value::String(author) => {
-            if author.is_empty() {
-                return Some(String::new());
-            }
-            let name_end = author.find(['(', '<']).unwrap_or(author.len());
-            let name = author[..name_end].trim();
-            (!name.is_empty()).then(|| name.to_string())
-        }
-        serde_json::Value::Object(author) => {
-            author.get("name").and_then(serde_json::Value::as_str).map(ToString::to_string)
-        }
-        _ => None,
-    }
-}
-
-fn extract_license_homepage(manifest: &serde_json::Value) -> Option<String> {
-    if let Some(homepage) =
-        manifest.get("homepage").and_then(serde_json::Value::as_str).filter(|url| !url.is_empty())
-    {
-        return Some(if url::Url::parse(homepage).is_ok() {
-            homepage.to_string()
-        } else {
-            format!("http://{homepage}")
-        });
-    }
-
-    let repository = match manifest.get("repository")? {
-        serde_json::Value::String(repository) => repository,
-        serde_json::Value::Object(repository) => {
-            repository.get("url").and_then(serde_json::Value::as_str)?
-        }
-        _ => return None,
-    };
-    HostedGit::package_docs_url(repository)
 }
 
 #[cfg(test)]

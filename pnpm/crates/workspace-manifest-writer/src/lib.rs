@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! Format-preserving writer for `pnpm-workspace.yaml`'s catalog blocks.
 //!
 //! Given a set of updated catalogs, merge them into the `catalog:` /
@@ -213,22 +216,25 @@ fn unsupported_edit_target(
     manifest: &Manifest,
     opts: &UpdateWorkspaceManifestOptions<'_>,
 ) -> Option<String> {
-    if let Some(updated_catalogs) = opts
-        .updated_catalogs
-        .filter(|catalogs| catalogs.values().any(|entries| !entries.is_empty()))
-    {
-        let named: Vec<Vec<&str>> =
-            updated_catalogs.keys().map(|name| vec!["catalogs", name.as_str()]).collect();
+    if let Some(updated_catalogs) = opts.updated_catalogs.filter(|catalogs| {
+        catalogs
+            .values()
+            .any(|entries| !entries.is_empty())
+    }) {
+        let named: Vec<Vec<&str>> = updated_catalogs
+            .keys()
+            .map(|name| vec!["catalogs", name.as_str()])
+            .collect();
         let mut paths: Vec<&[&str]> = vec![&["catalog"], &["catalogs"]];
         paths.extend(named.iter().map(Vec::as_slice));
-        if let Some(key) = unsupported_inline_key(manifest.text(), &paths) {
+        if let Some(key) = unsupported_inline_key(manifest.document.text(), &paths) {
             return Some(key);
         }
     }
     if opts.added_minimum_release_age_excludes.is_empty() {
         return None;
     }
-    unsupported_inline_key(manifest.text(), &[&["minimumReleaseAgeExclude"]])
+    unsupported_inline_key(manifest.document.text(), &[&["minimumReleaseAgeExclude"]])
 }
 
 fn add_updated_catalogs(
@@ -275,8 +281,7 @@ fn add_minimum_release_age_excludes(
     path: &Path,
 ) -> Result<bool, UpdateWorkspaceManifestError> {
     let merged = pnpm_config::version_policy::merge_package_version_specs(
-        manifest
-            .minimum_release_age_exclude
+        manifest.exceptions.release_age
             .iter()
             .flatten()
             .chain(opts.added_minimum_release_age_excludes),
@@ -324,7 +329,10 @@ fn collect_catalog_references(
     let mut references = edit::CatalogReferences::new();
     for project in all_projects {
         for (name, specifier) in project.dependencies(GROUPS) {
-            references.entry(name.to_string()).or_default().insert(specifier.to_string());
+            references
+                .entry(name.to_string())
+                .or_default()
+                .insert(specifier.to_string());
         }
     }
     for (selector, specifier) in manifest.overrides.iter().flatten() {
@@ -334,7 +342,10 @@ fn collect_catalog_references(
         let Ok((_, target_pkg)) = parse_pkg_and_parent_selector(selector) else {
             continue;
         };
-        references.entry(target_pkg.name).or_default().insert(specifier.clone());
+        references
+            .entry(target_pkg.name)
+            .or_default()
+            .insert(specifier.clone());
     }
     references
 }
@@ -359,8 +370,8 @@ pub fn update_manifest_field(
         }
     };
 
-    let edit =
-        edit_manifest_field(original.as_deref(), key, value).map_err(|error| match error {
+    let edit = edit_manifest_field(original.as_deref(), key, value)
+        .map_err(|error| match error {
             EditManifestFieldError::Parse { source } => {
                 UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source }
             }
@@ -383,12 +394,15 @@ pub fn update_manifest_field(
     // the write; a `delete` never needs it (the file, hence its parent,
     // already exists).
     if !value.is_null()
-        && let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty())
+        && let Some(parent) = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
     {
-        fs::create_dir_all(parent).map_err(|source| UpdateWorkspaceManifestError::Write {
-            path: path.to_path_buf(),
-            source,
-        })?;
+        fs::create_dir_all(parent)
+            .map_err(|source| UpdateWorkspaceManifestError::Write {
+                path: path.to_path_buf(),
+                source,
+            })?;
     }
 
     write_atomic(path, &text)
@@ -442,7 +456,7 @@ pub fn edit_manifest_field(
     let mut manifest =
         Manifest::parse(original).map_err(|source| EditManifestFieldError::Parse { source })?;
 
-    if edit::document_root_is_inline(manifest.text()) {
+    if edit::document_root_is_inline(manifest.document.text()) {
         return Err(EditManifestFieldError::UnsupportedInlineBlock { key: key.to_string() });
     }
 
@@ -454,10 +468,10 @@ pub fn edit_manifest_field(
     if !changed {
         return Ok(ManifestEdit::Unchanged);
     }
-    if manifest.top_level_keys.is_empty() {
+    if manifest.document.keys.is_empty() {
         return Ok(ManifestEdit::Remove);
     }
-    Ok(ManifestEdit::Write(manifest.into_text()))
+    Ok(ManifestEdit::Write(manifest.document.into_text()))
 }
 
 fn remove_manifest(path: &Path) -> Result<(), UpdateWorkspaceManifestError> {
@@ -474,12 +488,14 @@ fn write_or_remove_manifest(
     path: &Path,
     manifest: Manifest,
 ) -> Result<(), UpdateWorkspaceManifestError> {
-    if manifest.top_level_keys.is_empty() {
+    if manifest.document.keys.is_empty() {
         remove_manifest(path)
     } else {
-        write_atomic(path, &manifest.into_text()).map_err(|source| {
-            UpdateWorkspaceManifestError::Write { path: path.to_path_buf(), source }
-        })
+        write_atomic(path, &manifest.document.into_text())
+            .map_err(|source| UpdateWorkspaceManifestError::Write {
+                path: path.to_path_buf(),
+                source,
+            })
     }
 }
 

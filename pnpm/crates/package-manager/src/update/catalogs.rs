@@ -129,7 +129,10 @@ pub(super) fn effective_specifier(
 ) -> Result<String, UpdateError> {
     if let Some(catalog_name) = parse_catalog_protocol(prev) {
         let ctx = ensure_catalog_ctx(catalog_ctx, manifest, config)?;
-        if let Some(spec) = ctx.catalogs.get(catalog_name).and_then(|catalog| catalog.get(name)) {
+        if let Some(spec) = ctx.catalogs
+            .get(catalog_name)
+            .and_then(|catalog| catalog.get(name))
+        {
             return Ok(spec.clone());
         }
     }
@@ -147,10 +150,14 @@ pub(super) fn read_catalog_ctx(
     manifest: &PackageManifest,
     config: &Config,
 ) -> Result<CatalogCtx, UpdateError> {
-    let manifest_dir =
-        manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let manifest_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir")
+        .to_path_buf();
     let workspace_dir_opt =
-        pnpm_workspace::find_workspace_dir(&manifest_dir).map_err(UpdateError::FindWorkspaceDir)?;
+        crate::install::configured_or_discovered_workspace_dir(config, &manifest_dir)
+            .map_err(UpdateError::FindWorkspaceDir)?;
     let catalogs = if let Some(catalogs) = config.catalogs.clone() {
         catalogs
     } else {
@@ -162,19 +169,30 @@ pub(super) fn read_catalog_ctx(
         get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
             .map_err(UpdateError::InvalidCatalogsConfiguration)?
     };
-    let prefix =
-        workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
+    let prefix = workspace_dir_opt
+        .as_deref()
+        .unwrap_or(&manifest_dir)
+        .to_string_lossy()
+        .into_owned();
     Ok(CatalogCtx { catalogs, workspace_dir_opt, manifest_dir, prefix })
 }
 pub(super) fn read_catalog_ctx_with_catalogs(
     manifest: &PackageManifest,
+    config: &Config,
     catalogs: Catalogs,
 ) -> Result<CatalogCtx, UpdateError> {
-    let manifest_dir =
-        manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let manifest_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir")
+        .to_path_buf();
     let workspace_dir_opt =
-        pnpm_workspace::find_workspace_dir(&manifest_dir).map_err(UpdateError::FindWorkspaceDir)?;
-    let prefix =
-        workspace_dir_opt.as_deref().unwrap_or(&manifest_dir).to_string_lossy().into_owned();
+        crate::install::configured_or_discovered_workspace_dir(config, &manifest_dir)
+            .map_err(UpdateError::FindWorkspaceDir)?;
+    let prefix = workspace_dir_opt
+        .as_deref()
+        .unwrap_or(&manifest_dir)
+        .to_string_lossy()
+        .into_owned();
     Ok(CatalogCtx { catalogs, workspace_dir_opt, manifest_dir, prefix })
 }

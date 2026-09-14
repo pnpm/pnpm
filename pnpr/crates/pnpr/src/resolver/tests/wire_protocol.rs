@@ -35,9 +35,10 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
     let key = "base".to_string();
     let pnpm_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
-    registry
-        .upstreams
-        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "alice"));
+    registry.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "alice"),
+    );
     let router = tarball_router(&registry, user("alice"));
     let routed = router.route_lockfile(&pnpm_config, &lockfile("1.0.0"));
 
@@ -76,15 +77,17 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
     };
 
     let hint = |unpacked_size, file_count, revision| ResolvedPackageHint {
-        id: "acme@1.0.0",
-        name: "acme",
-        version: "1.0.0",
         integrity: "sha512-abc",
         tarball_url: "https://r.test/acme/-/acme-1.0.0.tgz",
         unpacked_size,
         file_count,
         revision,
         from_registry: false,
+        identity: pnpm_package_manager::ResolvedPackageIdentity {
+            id: "acme@1.0.0",
+            name: "acme",
+            version: "1.0.0",
+        },
     };
     observer.on_resolved(hint(Some(123_456), Some(42), Some(3)));
     observer.on_resolved(hint(None, None, None));
@@ -108,7 +111,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
     use pnpm_package_manager::ResolvedPackageHint;
 
     let mut registry = registry_config();
-    registry.upstreams.insert(
+    registry.routing.upstreams.insert(
         "corp".to_string(),
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
@@ -116,15 +119,17 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
     let frame = super::super::wire::package_frame(
         &router,
         &ResolvedPackageHint {
-            id: "acme@1.0.0",
-            name: "acme",
-            version: "1.0.0",
             integrity: "sha512-abc",
             tarball_url: "https://npm.corp.example/acme/-/acme-1.0.0.tgz",
             unpacked_size: None,
             file_count: None,
             revision: Some(3),
             from_registry: false,
+            identity: pnpm_package_manager::ResolvedPackageIdentity {
+                id: "acme@1.0.0",
+                name: "acme",
+                version: "1.0.0",
+            },
         },
     );
     let tarball = frame["tarball"].as_str().expect("tarball URL");
@@ -139,7 +144,7 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
     use pnpm_package_manager::ResolvedPackageHint;
 
     let mut registry = registry_config();
-    registry.upstreams.insert(
+    registry.routing.upstreams.insert(
         "corp".to_string(),
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
@@ -151,15 +156,17 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
     let frame = super::super::wire::package_frame(
         &router,
         &ResolvedPackageHint {
-            id: "acme@1.0.0",
-            name: "acme",
-            version: "1.0.0",
             integrity: "sha512-abc",
             tarball_url: "https://cdn.split-domain.example/acme-1.0.0.tgz",
             unpacked_size: None,
             file_count: None,
             revision: None,
             from_registry: true,
+            identity: pnpm_package_manager::ResolvedPackageIdentity {
+                id: "acme@1.0.0",
+                name: "acme",
+                version: "1.0.0",
+            },
         },
     );
     let tarball = frame["tarball"].as_str().expect("tarball URL");
@@ -181,9 +188,6 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
     let frame = super::super::wire::package_frame(
         &router,
         &ResolvedPackageHint {
-            id: "acme@1.0.0",
-            name: "acme",
-            version: "1.0.0",
             integrity: "sha512-abc",
             // A public registry that fronts a presigned CDN URL with a token.
             tarball_url: "https://registry.npmjs.org/acme/-/acme-1.0.0.tgz?token=secret",
@@ -191,6 +195,11 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
             file_count: None,
             revision: None,
             from_registry: true,
+            identity: pnpm_package_manager::ResolvedPackageIdentity {
+                id: "acme@1.0.0",
+                name: "acme",
+                version: "1.0.0",
+            },
         },
     );
     let tarball = frame["tarball"].as_str().expect("tarball URL");
@@ -254,7 +263,7 @@ fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
     let lockfile = lockfile("1.0.0");
     let stats = observed_dist_stats_sink();
     let mut registry = registry_config();
-    registry.upstreams.insert(
+    registry.routing.upstreams.insert(
         "corp".to_string(),
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );

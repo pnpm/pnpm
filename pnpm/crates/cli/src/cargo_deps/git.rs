@@ -113,9 +113,11 @@ impl GitSource {
     /// The `[source."…"]` block that sends this git source to the vendored
     /// directory, keyed the way `cargo vendor` writes it.
     pub(crate) fn config_block(&self) -> String {
-        let reference = self.reference.as_ref().map_or_else(String::new, |(key, value)| {
-            format!("{key} = {}\n", toml::Value::from(value.as_str()))
-        });
+        let reference = self.reference
+            .as_ref()
+            .map_or_else(String::new, |(key, value)| {
+                format!("{key} = {}\n", toml::Value::from(value.as_str()))
+            });
         format!(
             "[source.{}]\ngit = {}\n{reference}replace-with = {}\n",
             toml::Value::from(self.id.as_str()),
@@ -293,11 +295,14 @@ fn import_directory(
         // A lossy name would key one file's contents under another's, and
         // the checksum manifest that keeps the vendored package honest
         // cannot spell a name that is not UTF-8 either.
-        let name = entry.file_name().into_string().map_err(|name| {
-            let path = dir.join(name);
-            let path = path.display();
-            miette::miette!("cannot vendor {path}: its name is not valid UTF-8")
-        })?;
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|name| {
+                let path = dir.join(name);
+                let path = path.display();
+                miette::miette!("cannot vendor {path}: its name is not valid UTF-8")
+            })?;
         let path = entry.path();
         match entry_kind(context.root, &entry)? {
             Some(EntryKind::Directory) => {
@@ -328,8 +333,7 @@ fn import_file(
     executable: bool,
 ) -> Result<PathBuf> {
     if relative == "Cargo.toml" {
-        return context
-            .store_dir
+        return context.store_dir
             .write_cas_file(context.manifest.as_bytes(), executable)
             .into_diagnostic()
             .map(|(cas_path, _)| cas_path)
@@ -340,8 +344,7 @@ fn import_file(
     let mut file = fs::File::open(path)
         .into_diagnostic()
         .wrap_err_with(|| format!("read {}", path.display()))?;
-    context
-        .store_dir
+    context.store_dir
         .write_cas_file_from_reader(&mut file, executable, None)
         .into_diagnostic()
         .map(|(cas_path, _, _)| cas_path)
@@ -406,7 +409,10 @@ mod tests;
 fn group_git_packages(packages: Vec<GitPackage>) -> BTreeMap<Arc<GitSource>, Vec<GitPackage>> {
     let mut sources: BTreeMap<Arc<GitSource>, Vec<GitPackage>> = BTreeMap::new();
     for package in packages {
-        sources.entry(Arc::clone(&package.source)).or_default().push(package);
+        sources
+            .entry(Arc::clone(&package.source))
+            .or_default()
+            .push(package);
     }
     sources
 }
@@ -444,14 +450,16 @@ fn require_git_package(
     source: &GitSource,
     repository: &str,
 ) -> Result<CheckoutPackage> {
-    checked_out.find(&package.name, &package.version)?.ok_or_else(|| {
-        miette::miette!(
-            "{repository} at {} holds no crate {} {}",
-            source.commit,
-            package.name,
-            package.version,
-        )
-    })
+    checked_out
+        .find(&package.name, &package.version)?
+        .ok_or_else(|| {
+            miette::miette!(
+                "{repository} at {} holds no crate {} {}",
+                source.commit,
+                package.name,
+                package.version,
+            )
+        })
 }
 
 mod manifest;

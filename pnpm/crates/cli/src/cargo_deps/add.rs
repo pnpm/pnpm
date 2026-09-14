@@ -56,7 +56,12 @@ async fn prepare_manifest(
     options: AddOptions,
     http_client: Arc<ThrottledClient>,
 ) -> Result<()> {
-    let AddOptions { packages, dependency_kind, save_exact, save_prefix } = options;
+    let AddOptions {
+        packages,
+        dependency_kind,
+        save_exact,
+        save_prefix,
+    } = options;
     let save_prefix = save_prefix.as_deref();
     let auth_headers = packages
         .iter()
@@ -69,21 +74,22 @@ async fn prepare_manifest(
             let http_client = Arc::clone(&http_client);
             let auth_headers = auth_headers.clone();
             async move {
-                let version_spec = if let Some(version_spec) = package.version_spec.as_deref() {
-                    version_spec.to_string()
-                } else {
-                    let auth_headers = auth_headers
-                        .as_deref()
-                        .expect("auth is prepared when a version lookup is needed");
-                    let version = cargo_deps::latest_version(
-                        config,
-                        auth_headers,
-                        &package.name,
-                        &http_client,
-                    )
-                    .await?;
-                    saved_version(&version, save_exact, save_prefix)
-                };
+                let version_spec =
+                    if let Some(version_spec) = package.version_spec.as_deref() {
+                        version_spec.to_string()
+                    } else {
+                        let auth_headers = auth_headers
+                            .as_deref()
+                            .expect("auth is prepared when a version lookup is needed");
+                        let version = cargo_deps::latest_version(
+                            config,
+                            auth_headers,
+                            &package.name,
+                            &http_client,
+                        )
+                        .await?;
+                        saved_version(&version, save_exact, save_prefix)
+                    };
                 Ok::<_, miette::Report>((package.name.clone(), version_spec))
             }
         })

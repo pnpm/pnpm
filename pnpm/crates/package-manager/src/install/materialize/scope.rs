@@ -29,8 +29,7 @@ pub(super) fn recorded_allow_builds_differ(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &pnpm_config::Config,
 ) -> bool {
-    let recorded: std::collections::HashMap<&str, bool> = modules
-        .allow_builds
+    let recorded: std::collections::HashMap<&str, bool> = modules.allow_builds
         .iter()
         .flatten()
         .filter_map(|(spec, value)| match value {
@@ -39,7 +38,9 @@ pub(super) fn recorded_allow_builds_differ(
         })
         .collect();
     recorded.len() != config.allow_builds.len()
-        || recorded.iter().any(|(spec, decision)| config.allow_builds.get(*spec) != Some(decision))
+        || recorded
+            .iter()
+            .any(|(spec, decision)| config.allow_builds.get(*spec) != Some(decision))
 }
 /// The `name@version` keys the previous install's `.modules.yaml` recorded
 /// as not built, its `ignoredBuilds` and `pendingBuilds`. Empty on a first
@@ -51,7 +52,10 @@ pub(super) fn prior_unbuilt_builds(
     if let Some(modules) = modules_manifest {
         unbuilt.extend(modules.pending_builds.iter().cloned());
         unbuilt.extend(
-            modules.ignored_builds.iter().flatten().map(|dep_path| dep_path.as_str().to_string()),
+            modules.ignored_builds
+                .iter()
+                .flatten()
+                .map(|dep_path| dep_path.as_str().to_string()),
         );
     }
     unbuilt
@@ -65,8 +69,10 @@ pub(super) fn anchored_project_manifests<'a>(
     project_manifests
         .iter()
         .filter(|(project_dir, _)| {
-            project_anchor_ids
-                .contains(&pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
+            project_anchor_ids.contains(&pnpm_workspace::importer_id_from_root_dir(
+                workspace_root,
+                project_dir,
+            ))
         })
         .cloned()
         .collect()
@@ -170,7 +176,12 @@ pub(super) fn initial_materialization_ids(
 ) -> Option<HashSet<String>> {
     let selected = requested_importer_ids?;
     if matches!(node_linker, NodeLinker::Hoisted) {
-        return Some(lockfile.importers.keys().cloned().collect());
+        return Some(
+            lockfile.importers
+                .keys()
+                .cloned()
+                .collect(),
+        );
     }
     Some(selected.clone())
 }

@@ -28,29 +28,16 @@ impl Config {
             ),
         );
         let (hosted, registries) = registry_mock_graph();
-        Self {
+        Self::with_routing(
             listen,
-            public_url: format!("http://{listen}"),
-            cors: CorsConfig::default(),
-            oci: OciConfig::default(),
-            cache_storage: default_cache_dir(&storage),
             storage,
-            upstreams,
-            packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            auth: AuthConfig::default(),
-            logs: LogConfig::default(),
-            hosted_store: HostedStoreConfig::Fs,
-            backend: BackendConfig::Local,
-            osv: OsvConfig::default(),
-            registry: RegistryFeature::default(),
-            resolver: ResolverFeature::default(),
-            artifacts: ArtifactsFeature::default(),
-            pipeline: PipelineFeature::default(),
-            route_policy: RoutePolicy::default(),
-            resolution_cache_secret: random_secret(),
-            registries,
-            hosted,
-        }
+            super::RoutingConfig {
+                upstreams,
+                route_policy: RoutePolicy::default(),
+                registries,
+                hosted,
+            },
+        )
     }
 
     /// Build a static-mode config that serves `storage` verbatim: one
@@ -80,28 +67,46 @@ impl Config {
             ("main".to_string(), Registry::Router { sources: vec!["local".to_string()] }),
         ];
         let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
-        Self {
+        Self::with_routing(
             listen,
-            public_url: format!("http://{listen}"),
-            cors: CorsConfig::default(),
-            oci: OciConfig::default(),
-            cache_storage: default_cache_dir(&storage),
             storage,
-            upstreams: IndexMap::new(),
-            packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
-            auth: AuthConfig::default(),
+            super::RoutingConfig {
+                upstreams: IndexMap::new(),
+                route_policy: RoutePolicy::default(),
+                registries,
+                hosted,
+            },
+        )
+    }
+
+    fn with_routing(listen: SocketAddr, storage: PathBuf, routing: super::RoutingConfig) -> Self {
+        Self {
             logs: LogConfig::default(),
-            hosted_store: HostedStoreConfig::Fs,
-            backend: BackendConfig::Local,
             osv: OsvConfig::default(),
-            registry: RegistryFeature::default(),
-            resolver: ResolverFeature::default(),
-            artifacts: ArtifactsFeature::default(),
-            pipeline: PipelineFeature::default(),
-            route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
-            registries,
-            hosted,
+            http: super::HttpConfig {
+                listen,
+                public_url: format!("http://{listen}"),
+                cors: CorsConfig::default(),
+                oci: OciConfig::default(),
+                packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
+            },
+            storage: super::StorageConfig {
+                cache_dir: default_cache_dir(&storage),
+                hosted_dir: storage,
+                hosted_backend: HostedStoreConfig::Fs,
+            },
+            identity: super::IdentityConfig {
+                auth: AuthConfig::default(),
+                backend: BackendConfig::Local,
+            },
+            features: super::Features {
+                registry: RegistryFeature::default(),
+                resolver: ResolverFeature::default(),
+                artifacts: ArtifactsFeature::default(),
+                pipeline: PipelineFeature::default(),
+            },
+            routing,
         }
     }
 }

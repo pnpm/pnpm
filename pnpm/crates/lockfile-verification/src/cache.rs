@@ -161,8 +161,9 @@ pub fn try_lockfile_verification_cache(
         let hit = every_verifier_trusts_cached_run(record, verifiers);
         return CacheLookupResult {
             hit,
-            verified_at: (hit && !record.verified_at.is_empty())
-                .then(|| record.verified_at.clone()),
+            verified_at: (hit && !record.verified_at.is_empty()).then(|| {
+                record.verified_at.clone()
+            }),
             precomputed: CachePrecomputed {
                 stat: Some(stat),
                 hash: Some(record.lockfile.hash.clone()),
@@ -183,7 +184,9 @@ pub fn try_lockfile_verification_cache(
 
     CacheLookupResult {
         hit: true,
-        verified_at: (!refreshed.verified_at.is_empty()).then(|| refreshed.verified_at.clone()),
+        verified_at: (!refreshed.verified_at.is_empty()).then(|| {
+            refreshed.verified_at.clone()
+        }),
         precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
     }
 }
@@ -340,7 +343,9 @@ fn every_verifier_trusts_cached_run(
     record: &CacheRecord,
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> bool {
-    verifiers.iter().all(|verifier| verifier.can_trust_past_check(&record.policy))
+    verifiers
+        .iter()
+        .all(|verifier| verifier.can_trust_past_check(&record.policy))
 }
 
 fn merge_policies(verifiers: &[Arc<dyn ResolutionVerifier>]) -> serde_json::Map<String, JsonValue> {
@@ -364,7 +369,11 @@ fn append_record(cache_dir: &Path, record: &CacheRecord) -> io::Result<()> {
     fs::create_dir_all(cache_dir)?;
     let line = format!("{}\n", serde_json::to_string(record).map_err(io::Error::other)?);
     let cache_file_path = cache_dir.join(CACHE_FILE_NAME);
-    OpenOptions::new().create(true).append(true).open(&cache_file_path)?.write_all(line.as_bytes())
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&cache_file_path)?
+        .write_all(line.as_bytes())
 }
 
 fn maybe_compact_cache(cache_dir: &Path) {
@@ -395,7 +404,11 @@ fn maybe_compact_cache(cache_dir: &Path) {
 fn newest_records(contents: &str) -> Vec<&str> {
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut newest: Vec<&str> = Vec::new();
-    for line in contents.lines().filter(|line| !line.is_empty()).rev() {
+    for line in contents
+        .lines()
+        .filter(|line| !line.is_empty())
+        .rev()
+    {
         let Ok(parsed) = serde_json::from_str::<CacheRecord>(line) else {
             continue;
         };

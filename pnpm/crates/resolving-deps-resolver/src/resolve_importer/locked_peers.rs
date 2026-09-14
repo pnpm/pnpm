@@ -10,7 +10,9 @@ pub(super) struct LockedPeers {
 impl LockedPeers {
     pub(super) fn of(ctx: &TreeCtx, importer_id: &str) -> Self {
         let versions = Arc::new(importer_locked_peer_versions(
-            ctx.workspace().wanted_lockfile().map(AsRef::as_ref),
+            ctx.workspace()
+                .wanted_lockfile()
+                .map(AsRef::as_ref),
             importer_id,
         ));
         Self { names: Arc::new(versions.keys().cloned().collect()), versions }
@@ -36,9 +38,14 @@ pub(super) fn importer_locked_peer_versions(
         let Some(key) = dependency.version.resolved_key(alias) else {
             continue;
         };
-        let snapshot = lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(&key));
+        let snapshot = lockfile.snapshots
+            .as_ref()
+            .and_then(|snapshots| snapshots.get(&key));
         for (name, version) in locked_peer_versions_for_key(lockfile, &key, snapshot) {
-            versions.entry(name).or_default().insert(version);
+            versions
+                .entry(name)
+                .or_default()
+                .insert(version);
         }
     }
     versions
@@ -57,7 +64,10 @@ pub(super) fn all_locked_peer_versions(
     let mut versions = HashMap::<String, HashSet<String>>::default();
     for (key, snapshot) in lockfile.snapshots.iter().flatten() {
         for (name, version) in locked_peer_versions_for_key(lockfile, key, Some(snapshot)) {
-            versions.entry(name).or_default().insert(version);
+            versions
+                .entry(name)
+                .or_default()
+                .insert(version);
         }
     }
     versions
@@ -74,8 +84,9 @@ pub(super) fn locked_peer_versions_for_key(
     key: &pnpm_lockfile::PkgNameVerPeer,
     snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
 ) -> Vec<(String, String)> {
-    let metadata =
-        lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()));
+    let metadata = lockfile.packages
+        .as_ref()
+        .and_then(|packages| packages.get(&key.without_peer()));
     let mut explicit = peer_suffix_versions(key.suffix.peer()).collect::<Vec<_>>();
     if !explicit.is_empty() {
         if let Some(snapshot) = snapshot {
@@ -89,14 +100,12 @@ pub(super) fn locked_peer_versions_for_key(
     let (Some(snapshot), Some(metadata)) = (snapshot, metadata) else {
         return Vec::new();
     };
-    let peer_names = metadata
-        .peer_dependencies
+    let peer_names = metadata.peer_dependencies
         .iter()
         .flatten()
         .filter_map(|(name, _)| name.parse::<PkgName>().ok())
         .collect::<HashSet<_>>();
-    snapshot
-        .dependencies
+    snapshot.dependencies
         .iter()
         .chain(snapshot.optional_dependencies.iter())
         .flatten()
@@ -128,8 +137,9 @@ pub(super) fn restore_aliased_peer_names(
         return;
     }
     for (name, version) in peers.iter_mut() {
-        let Some(alias) =
-            providers.get_mut(&format!("{name}@{version}")).and_then(ProviderAliases::claim)
+        let Some(alias) = providers
+            .get_mut(&format!("{name}@{version}"))
+            .and_then(ProviderAliases::claim)
         else {
             continue;
         };
@@ -227,7 +237,10 @@ impl ProviderAliases {
 pub(super) fn dependency_edges(
     snapshot: &pnpm_lockfile::SnapshotEntry,
 ) -> impl Iterator<Item = (&PkgName, &pnpm_lockfile::SnapshotDepRef)> {
-    snapshot.dependencies.iter().chain(snapshot.optional_dependencies.iter()).flatten()
+    snapshot.dependencies
+        .iter()
+        .chain(snapshot.optional_dependencies.iter())
+        .flatten()
 }
 
 /// Whether the suffix is the opaque hash
@@ -236,17 +249,24 @@ pub(super) fn dependency_edges(
 /// [`ResolvePeersOptions::peers_suffix_max_length`](crate::ResolvePeersOptions::peers_suffix_max_length), rather than
 /// segments [`peer_suffix_versions`] can read.
 pub(super) fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
-    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
-        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
-    })
+    peer_suffix
+        .rsplit_once('(')
+        .and_then(|(_, tail)| tail.strip_suffix(')'))
+        .is_some_and(|hash| {
+            hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
+        })
 }
 
 pub(super) fn peer_suffix_versions(
     peer_suffix: &str,
 ) -> impl Iterator<Item = (String, String)> + '_ {
-    peer_suffix.match_indices('(').filter_map(|(start, _)| {
-        let segment = peer_suffix[start + 1..].split(['(', ')']).next()?;
-        let (name, version) = segment.rsplit_once('@')?;
-        (!name.is_empty()).then(|| (name.to_string(), version.to_string()))
-    })
+    peer_suffix
+        .match_indices('(')
+        .filter_map(|(start, _)| {
+            let segment = peer_suffix[start + 1..]
+                .split(['(', ')'])
+                .next()?;
+            let (name, version) = segment.rsplit_once('@')?;
+            (!name.is_empty()).then(|| (name.to_string(), version.to_string()))
+        })
 }

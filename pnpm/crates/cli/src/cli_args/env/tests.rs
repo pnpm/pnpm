@@ -10,13 +10,21 @@ fn config_with_global_bin() -> Config {
 }
 
 fn args(global: bool, params: &[&str]) -> EnvArgs {
-    EnvArgs { global, remote: false, params: params.iter().map(ToString::to_string).collect() }
+    EnvArgs {
+        global,
+        remote: false,
+        params: params
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+    }
 }
 
 #[test]
 fn a_bare_env_asks_for_a_subcommand() {
-    let error =
-        args(false, &[]).subcommand::<SilentReporter>(&config_with_global_bin()).unwrap_err();
+    let error = args(false, &[])
+        .subcommand::<SilentReporter>(&config_with_global_bin())
+        .unwrap_err();
     assert!(matches!(error, EnvError::NoSubcommand), "{error:?}");
 }
 
@@ -30,15 +38,17 @@ fn an_unrecognized_subcommand_is_rejected() {
 
 #[test]
 fn managing_node_needs_a_global_bin_dir() {
-    let error =
-        args(true, &["use", "24"]).subcommand::<SilentReporter>(&Config::default()).unwrap_err();
+    let error = args(true, &["use", "24"])
+        .subcommand::<SilentReporter>(&Config::default())
+        .unwrap_err();
     assert!(matches!(error, EnvError::CannotManageNode), "{error:?}");
 }
 
 #[test]
 fn use_installs_the_version_as_a_global_runtime() {
-    let subcommand =
-        args(true, &["use", "24"]).subcommand::<SilentReporter>(&config_with_global_bin()).unwrap();
+    let subcommand = args(true, &["use", "24"])
+        .subcommand::<SilentReporter>(&config_with_global_bin())
+        .unwrap();
     let EnvSubcommand::Use { package_name } = subcommand else {
         panic!("expected a `use` subcommand");
     };
@@ -70,8 +80,9 @@ fn list_takes_an_optional_selector() {
         (vec!["list", "lts"], Some("lts".to_string())),
         (vec!["ls", "rc/24"], Some("rc/24".to_string())),
     ] {
-        let subcommand =
-            args(false, &params).subcommand::<SilentReporter>(&config_with_global_bin()).unwrap();
+        let subcommand = args(false, &params)
+            .subcommand::<SilentReporter>(&config_with_global_bin())
+            .unwrap();
         let EnvSubcommand::List { version_spec } = subcommand else {
             panic!("expected a `list` subcommand for {params:?}");
         };

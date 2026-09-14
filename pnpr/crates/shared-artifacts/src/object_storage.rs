@@ -21,14 +21,12 @@ impl SharedArtifactStore {
         relative: &str,
         bytes: impl Into<PutPayload>,
     ) -> Result<bool> {
-        match self
-            .store
-            .put_opts(
-                &self.object_path(relative),
-                bytes.into(),
-                PutOptions { mode: PutMode::Create, ..PutOptions::default() },
-            )
-            .await
+        match self.store.put_opts(
+            &self.object_path(relative),
+            bytes.into(),
+            PutOptions { mode: PutMode::Create, ..PutOptions::default() },
+        )
+        .await
         {
             Ok(_) => Ok(true),
             Err(error) if is_create_conflict(&error) => Ok(false),
@@ -65,9 +63,13 @@ impl SharedArtifactStore {
         &self,
         relative_prefix: Option<&str>,
     ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
-        let prefix = relative_prefix.map(|prefix| self.object_path(prefix)).or_else(|| {
-            (!self.prefix.is_empty()).then(|| ObjectPath::from(self.prefix.trim_end_matches('/')))
-        });
+        let prefix = relative_prefix
+            .map(|prefix| self.object_path(prefix))
+            .or_else(|| {
+                (!self.prefix.is_empty()).then(|| {
+                    ObjectPath::from(self.prefix.trim_end_matches('/'))
+                })
+            });
         self.store.list(prefix.as_ref())
     }
 

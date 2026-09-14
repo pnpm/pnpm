@@ -8,28 +8,28 @@ fn registry_surface_is_derived_from_declared_registries() {
     // No registries ⇒ nothing to serve on the npm-registry surface; declaring
     // one turns the surface on. There is no YAML toggle in between.
     let config = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
-    assert!(!config.registry.enabled);
-    assert!(config.resolver.enabled);
+    assert!(!config.features.registry.enabled);
+    assert!(config.features.resolver.enabled);
 
     let yaml = "
 registries:
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert!(config.registry.enabled);
-    assert!(config.resolver.enabled);
+    assert!(config.features.registry.enabled);
+    assert!(config.features.resolver.enabled);
 }
 
 #[test]
 fn static_constructor_serves_everything_from_one_hosted() {
     use pnpr_registry::{ConcreteKind, Resolved};
     let config = Config::static_serve(listen(), PathBuf::from("/tmp"));
-    assert!(config.upstreams.is_empty());
+    assert!(config.routing.upstreams.is_empty());
     // Everything routes to the single local hosted registry, which serves the
     // flat storage root (its `org` namespace is empty).
-    assert_eq!(config.hosted["local"].org, "");
+    assert_eq!(config.routing.hosted["local"].org, "");
     assert_eq!(
-        config.registries.resolve_default(Ecosystem::Npm, "anything"),
+        config.routing.registries.resolve_default(Ecosystem::Npm, "anything"),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
 }
@@ -58,18 +58,18 @@ defaultRegistry: main
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     // Both upstream registries are exposed as upstreams for serving.
-    assert!(config.upstreams.contains_key("npmjs"));
-    assert!(config.upstreams.contains_key("corp"));
+    assert!(config.routing.upstreams.contains_key("npmjs"));
+    assert!(config.routing.upstreams.contains_key("corp"));
     // The public upstream carries no credential gate; the private one does.
-    assert!(config.upstreams["npmjs"].access.is_none());
-    assert!(config.upstreams["corp"].access.is_some());
-    assert_eq!(config.registries.default_registry(), Some("main"));
-    assert!(config.registries.is_router("main"));
-    match config.registries.resolve("main", Ecosystem::Npm, "@corp/secret") {
+    assert!(config.routing.upstreams["npmjs"].access.is_none());
+    assert!(config.routing.upstreams["corp"].access.is_some());
+    assert_eq!(config.routing.registries.default_registry(), Some("main"));
+    assert!(config.routing.registries.is_router("main"));
+    match config.routing.registries.resolve("main", Ecosystem::Npm, "@corp/secret") {
         pnpr_registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "corp"),
         other => panic!("expected @corp/* -> corp, got {other:?}"),
     }
-    match config.registries.resolve("main", Ecosystem::Npm, "lodash") {
+    match config.routing.registries.resolve("main", Ecosystem::Npm, "lodash") {
         pnpr_registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "npmjs"),
         other => panic!("expected lodash -> npmjs, got {other:?}"),
     }
@@ -237,7 +237,7 @@ fn rules_are_derived_from_the_registry_packages_map() {
     let config = hosted_rules_config(
         "      '@secret/*':\n        access: $authenticated\n        publish: $authenticated\n        unpublish: admin\n      '**':\n        access: $all\n        publish: $authenticated\n",
     );
-    let rules = &config.hosted["local"].rules;
+    let rules = &config.routing.hosted["local"].rules;
     let secret = rules.for_package("@secret/thing");
     assert!(!secret.access.allows(&Identity::Anonymous));
     assert!(secret.access.allows(&user("alice")));
@@ -277,7 +277,7 @@ registries:
     type: hosted
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let registries = &config.registries;
+    let registries = &config.routing.registries;
     assert_eq!(registries.ecosystem("crates"), Some(Ecosystem::Cargo));
     assert_eq!(registries.ecosystem("cratesio"), Some(Ecosystem::Cargo));
     assert_eq!(registries.ecosystem("cargo"), None);
@@ -305,15 +305,15 @@ defaultRegistry: main
 ";
     let config = Config::from_yaml_str(mixed, Path::new("/x"), listen(), None).unwrap();
     assert!(matches!(
-        config.registries.resolve_default(Ecosystem::Cargo, "serde"),
+        config.routing.registries.resolve_default(Ecosystem::Cargo, "serde"),
         pnpr_registry::Resolved::Concrete { registry: "crates", .. }
     ));
     assert!(matches!(
-        config.registries.resolve_default(Ecosystem::Npm, "serde"),
+        config.routing.registries.resolve_default(Ecosystem::Npm, "serde"),
         pnpr_registry::Resolved::Concrete { registry: "npmjs", .. }
     ));
     assert_eq!(
-        config.registries.resolve_default(Ecosystem::Pypi, "serde"),
+        config.routing.registries.resolve_default(Ecosystem::Pypi, "serde"),
         pnpr_registry::Resolved::Unclaimed,
     );
 
@@ -381,14 +381,14 @@ defaultRegistry: images
     for repository in ["acme/app", "acme/team/tool", "library/nginx"] {
         assert!(
             matches!(
-                config.registries.resolve_default(Ecosystem::Oci, repository),
+                config.routing.registries.resolve_default(Ecosystem::Oci, repository),
                 pnpr_registry::Resolved::Concrete { registry: "images", .. }
             ),
             "{repository} should resolve to the image registry",
         );
     }
     assert_eq!(
-        config.registries.resolve_default(Ecosystem::Oci, "other/app"),
+        config.routing.registries.resolve_default(Ecosystem::Oci, "other/app"),
         pnpr_registry::Resolved::Unclaimed,
     );
 }
@@ -406,7 +406,7 @@ defaultRegistry: images
 ";
     let config = Config::from_yaml_str(case_folded, Path::new("/x"), listen(), None).unwrap();
     assert!(matches!(
-        config.registries.resolve_default(Ecosystem::Oci, "acme/app"),
+        config.routing.registries.resolve_default(Ecosystem::Oci, "acme/app"),
         pnpr_registry::Resolved::Concrete { registry: "images", .. }
     ));
 
@@ -460,7 +460,7 @@ fn ecosystem_default_requires_a_router_source_for_that_ecosystem() {
         if valid {
             let config = result.unwrap();
             assert_eq!(
-                config.registries.resolve_default(Ecosystem::Cargo, "demo"),
+                config.routing.registries.resolve_default(Ecosystem::Cargo, "demo"),
                 pnpr_registry::Resolved::Concrete {
                     registry: "crates",
                     kind: pnpr_registry::ConcreteKind::Hosted,

@@ -34,7 +34,7 @@ use crate::resolved_tree::ResolvedPackage;
 /// into a package still under inspection adds no package the walk has
 /// not already checked.
 pub(super) fn announce_finalized_packages(ctx: &TreeCtx) {
-    let Some(finalized_package) = ctx.workspace.finalized_package.as_ref() else { return };
+    let Some(finalized_package) = ctx.workspace.hooks.finalized_package.as_ref() else { return };
     let announcements = collect_finalized(ctx);
     for package in announcements {
         finalized_package(package);
@@ -42,14 +42,15 @@ pub(super) fn announce_finalized_packages(ctx: &TreeCtx) {
 }
 
 fn collect_finalized(ctx: &TreeCtx) -> Vec<FinalizedPackage> {
-    let mut worklist = std::mem::take(&mut *lock_recoverable(&ctx.workspace.finalization_pending));
+    let mut worklist =
+        std::mem::take(&mut *lock_recoverable(&ctx.workspace.finalization.finalization_pending));
     if worklist.is_empty() {
         return Vec::new();
     }
-    let packages = lock_recoverable(&ctx.workspace.packages);
-    let children_by_id = lock_recoverable(&ctx.workspace.children_by_id);
-    let parents_by_id = lock_recoverable(&ctx.workspace.parents_by_id);
-    let mut finalized_ids = lock_recoverable(&ctx.workspace.finalized_ids);
+    let packages = lock_recoverable(&ctx.workspace.tree.packages);
+    let children_by_id = lock_recoverable(&ctx.workspace.children.by_id);
+    let parents_by_id = lock_recoverable(&ctx.workspace.finalization.parents_by_id);
+    let mut finalized_ids = lock_recoverable(&ctx.workspace.finalization.finalized_ids);
     let mut sweep = Sweep {
         packages: &packages,
         children_by_id: &children_by_id,
@@ -118,7 +119,10 @@ impl Sweep<'_> {
         if let Some(verdict) = self.verdicts.get(pkg_id) {
             return *verdict;
         }
-        if self.inspecting.iter().any(|inspected| inspected == pkg_id) {
+        if self.inspecting
+            .iter()
+            .any(|inspected| inspected == pkg_id)
+        {
             return true;
         }
         let verdict = self.subtree_is_finalized(pkg_id);
@@ -139,7 +143,9 @@ impl Sweep<'_> {
             None => return package.is_leaf,
         };
         self.inspecting.push(Arc::clone(pkg_id));
-        let finalized = edges.iter().all(|edge| self.is_finalized(&edge.pkg_id));
+        let finalized = edges
+            .iter()
+            .all(|edge| self.is_finalized(&edge.pkg_id));
         self.inspecting.pop();
         finalized
     }

@@ -86,7 +86,10 @@ fn publication_tagged(builder_id: &str, tags: &[&str]) -> PublishArtifactRequest
     let mut payload: ArtifactPayload =
         serde_json::from_slice(&BASE64.decode(&request.envelope.payload).unwrap()).unwrap();
     payload.compatibility = CompatibilityConstraints::Tagged {
-        tags: tags.iter().map(|tag| (*tag).to_string()).collect(),
+        tags: tags
+            .iter()
+            .map(|tag| (*tag).to_string())
+            .collect(),
     };
     request.envelope.payload = BASE64.encode(serde_json::to_vec(&payload).unwrap());
     request
@@ -178,15 +181,6 @@ struct FailArtifactWrites {
     inner: InMemory,
     commit_before_error: bool,
     fail_deletes: bool,
-    fail_next_quota_write: Option<Arc<AtomicBool>>,
-    /// Stands in for the publication that won a race for a slot: the first
-    /// creation of this path stores these bytes instead and reports the
-    /// conflict the loser would see.
-    claim_slot_first: Option<(String, Vec<u8>)>,
-    /// Fails reads of the slot *after* the first, so the pre-check still finds
-    /// it free and the failure lands on the re-read that follows a lost create
-    /// — the only point where the loser is charged for what it did not store.
-    fail_slot_read_after_first: Option<Arc<AtomicUsize>>,
     /// Stands in for a publication whose constraints merely overlap this one's.
     /// It lands once this one's variant is written, which is after the overlap
     /// scan found the entry clear — the window a conditional create on a
@@ -201,6 +195,19 @@ struct FailArtifactWrites {
     /// Lets every operation through except the one named, so a test can put a
     /// failure exactly where it means it.
     fail_only: Option<FailOnly>,
+    quota: QuotaFaults,
+}
+#[derive(Debug)]
+struct QuotaFaults {
+    fail_next_write: Option<Arc<AtomicBool>>,
+    /// Stands in for the publication that won a race for a slot: the first
+    /// creation of this path stores these bytes instead and reports the
+    /// conflict the loser would see.
+    claim_slot_first: Option<(String, Vec<u8>)>,
+    /// Fails reads of the slot *after* the first, so the pre-check still finds
+    /// it free and the failure lands on the re-read that follows a lost create
+    /// — the only point where the loser is charged for what it did not store.
+    fail_slot_read_after_first: Option<Arc<AtomicUsize>>,
     /// Counts writes of the usage document, which is what a reservation and a
     /// release each cost against a hosted store.
     usage_writes: Option<Arc<AtomicUsize>>,
@@ -224,7 +231,7 @@ impl fmt::Display for FailArtifactWrites {
 
 impl FailArtifactWrites {
     fn count_usage_write(&self, location: &ObjectPath) {
-        if let Some(writes) = self.usage_writes.as_ref()
+        if let Some(writes) = self.quota.usage_writes.as_ref()
             && location.as_ref().ends_with("/quota.json")
         {
             writes.fetch_add(1, Ordering::SeqCst);
@@ -236,15 +243,18 @@ impl FailArtifactWrites {
         &self,
         location: &ObjectPath,
     ) -> Option<object_store::Result<PutResult>> {
-        let (slot, winner) = self.claim_slot_first.as_ref()?;
+        let (slot, winner) = self.quota.claim_slot_first.as_ref()?;
         if location.as_ref() != slot {
             return None;
         }
         Some(
             async {
-                self.inner
-                    .put_opts(location, PutPayload::from(winner.clone()), PutOptions::default())
-                    .await?;
+                self.inner.put_opts(
+                    location,
+                    PutPayload::from(winner.clone()),
+                    PutOptions::default(),
+                )
+                .await?;
                 Err(object_store::Error::AlreadyExists {
                     path: location.to_string(),
                     source: std::io::Error::other("slot claimed by another publication").into(),
@@ -264,7 +274,10 @@ impl FailArtifactWrites {
         let injected = match self.fail_only.as_ref().expect("caller checked fail_only") {
             FailOnly::RegistrationAfter(stored) => {
                 location.as_ref().ends_with("/quota.json")
-                    && self.inner.head(&ObjectPath::from(stored.as_str())).await.is_ok()
+                    && self.inner
+                        .head(&ObjectPath::from(stored.as_str()))
+                        .await
+                        .is_ok()
             }
             FailOnly::WriteOf(path) => location.as_ref() == path,
             FailOnly::DeleteOf(_) => false,
@@ -287,8 +300,7 @@ impl FailArtifactWrites {
         payload: PutPayload,
         options: PutOptions,
     ) -> object_store::Result<PutResult> {
-        if self
-            .fail_next_quota_write
+        if self.quota.fail_next_write
             .as_ref()
             .is_some_and(|fail| fail.swap(false, Ordering::SeqCst))
         {
@@ -333,13 +345,12 @@ impl ObjectStore for FailArtifactWrites {
         };
         let stored = self.inner.put_opts(location, payload, options).await?;
         if location.as_ref() != path {
-            self.inner
-                .put_opts(
-                    &ObjectPath::from(path.as_str()),
-                    PutPayload::from(envelope.clone()),
-                    PutOptions::default(),
-                )
-                .await?;
+            self.inner.put_opts(
+                &ObjectPath::from(path.as_str()),
+                PutPayload::from(envelope.clone()),
+                PutOptions::default(),
+            )
+            .await?;
         }
         Ok(stored)
     }
@@ -357,14 +368,19 @@ impl ObjectStore for FailArtifactWrites {
         location: &ObjectPath,
         options: GetOptions,
     ) -> object_store::Result<GetResult> {
-        if self.fail_reads_of.as_ref().is_some_and(|path| location.as_ref() == path) {
+        if self.fail_reads_of
+            .as_ref()
+            .is_some_and(|path| location.as_ref() == path)
+        {
             return Err(object_store::Error::Generic {
                 store: "test",
                 source: std::io::Error::other("injected variant read failure").into(),
             });
         }
-        if let Some(reads) = self.fail_slot_read_after_first.as_ref()
-            && self.claim_slot_first.as_ref().is_some_and(|(slot, _)| location.as_ref() == slot)
+        if let Some(reads) = self.quota.fail_slot_read_after_first.as_ref()
+            && self.quota.claim_slot_first
+                .as_ref()
+                .is_some_and(|(slot, _)| location.as_ref() == slot)
             && reads.fetch_add(1, Ordering::SeqCst) > 0
         {
             return Err(object_store::Error::Generic {

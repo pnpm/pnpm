@@ -34,7 +34,7 @@ impl WorkEnv {
         let json = serde_json::to_string_pretty(&diagnostics).expect("serialize diagnostics JSON");
         fs::write(self.root().join(BENCHMARK_DIAGNOSTICS_JSON), json)
             .expect("write benchmark diagnostics JSON");
-        let markdown = render_diagnostics_markdown(&diagnostics, self.scenario);
+        let markdown = render_diagnostics_markdown(&diagnostics, self.options.selection.scenario);
         fs::write(self.root().join(BENCHMARK_DIAGNOSTICS_MD), &markdown)
             .expect("write benchmark diagnostics markdown");
     }
@@ -49,8 +49,12 @@ impl WorkEnv {
             .benchmarked_ids()
             .map(|id| {
                 let id = id.to_string();
-                let phase_events =
-                    read_phase_events(&self.root().join(&id).join(BENCHMARK_OUTPUT_LOG));
+                let phase_events = read_phase_events(
+                    &self
+                        .root()
+                        .join(&id)
+                        .join(BENCHMARK_OUTPUT_LOG),
+                );
                 let command = commands_by_name.get(&id);
                 BenchmarkTargetDiagnostics {
                     id,
@@ -75,15 +79,19 @@ impl WorkEnv {
         self.verify_peer_heavy_pacquet_pnpm_ratio(&diagnostics);
     }
     pub(super) fn verify_peer_heavy_lockfiles(&self) {
-        if self.scenario != Some(BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline) {
+        if self.options.selection.scenario
+            != Some(BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline)
+        {
             return;
         }
-        let mut lockfiles = self.target_ids().map(|id| {
-            let path = self.bench_dir(id).join("pnpm-lock.yaml");
-            let contents =
-                fs::read(&path).unwrap_or_else(|error| panic!("read {path:?} for {id}: {error}"));
-            (id.to_string(), contents)
-        });
+        let mut lockfiles = self
+            .target_ids()
+            .map(|id| {
+                let path = self.bench_dir(id).join("pnpm-lock.yaml");
+                let contents = fs::read(&path)
+                    .unwrap_or_else(|error| panic!("read {path:?} for {id}: {error}"));
+                (id.to_string(), contents)
+            });
         let (reference_id, reference) =
             lockfiles.next().expect("peer-heavy benchmark has at least one target");
         for (target_id, lockfile) in lockfiles {
@@ -94,11 +102,12 @@ impl WorkEnv {
         }
     }
     pub(super) fn verify_fresh_pnpr_cold_batch(&self, diagnostics: &BenchmarkDiagnostics) {
-        if self.scenario != Some(BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore) {
+        if self.options.selection.scenario
+            != Some(BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore)
+        {
             return;
         }
-        for target in diagnostics
-            .targets
+        for target in diagnostics.targets
             .iter()
             .filter(|target| requires_fresh_pnpr_cold_batch_metrics(&target.id))
         {
@@ -121,7 +130,7 @@ impl WorkEnv {
         }
     }
     pub(super) fn verify_pnpr_direct_ratios(&self, diagnostics: &BenchmarkDiagnostics) {
-        let Some(scenario) = self.scenario else { return };
+        let Some(scenario) = self.options.selection.scenario else { return };
         if !scenario.expects_pnpr_not_slower_than_direct() {
             return;
         }
@@ -144,13 +153,12 @@ impl WorkEnv {
         }
     }
     pub(super) fn verify_peer_heavy_pacquet_pnpm_ratio(&self, diagnostics: &BenchmarkDiagnostics) {
-        if self.scenario != Some(BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline)
-            || !self
-                .targets
+        if self.options.selection.scenario
+            != Some(BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline)
+            || !self.options.selection.targets
                 .iter()
                 .any(|target| target.kind == TargetKind::Pnpm && target.rev == "HEAD")
-            || !self
-                .targets
+            || !self.options.selection.targets
                 .iter()
                 .any(|target| target.kind == TargetKind::Pacquet && target.rev == "HEAD")
         {

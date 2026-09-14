@@ -35,12 +35,11 @@ function preResolution(ctx, logger) {
         registries: serde_json::json!({ "default": "http://localhost:1234/" }),
     };
 
-    hooks
-        .pre_resolution(
-            ctx,
-            pnpm_hooks::PreResolutionHookLogger { info: Arc::new(|_| {}), warn: Arc::new(|_| {}) },
-        )
-        .await;
+    hooks.pre_resolution(
+        ctx,
+        pnpm_hooks::PreResolutionHookLogger { info: Arc::new(|_| {}), warn: Arc::new(|_| {}) },
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -80,17 +79,19 @@ function preResolution(ctx, logger) {
 
     let info_messages = Arc::new(Mutex::new(Vec::new()));
     let captured_info_messages = Arc::clone(&info_messages);
-    hooks
-        .pre_resolution(
-            ctx,
-            pnpm_hooks::PreResolutionHookLogger {
-                info: Arc::new(move |message| {
-                    captured_info_messages.lock().unwrap().push(message);
-                }),
-                warn: Arc::new(|_| {}),
-            },
-        )
-        .await;
+    hooks.pre_resolution(
+        ctx,
+        pnpm_hooks::PreResolutionHookLogger {
+            info: Arc::new(move |message| {
+                captured_info_messages
+                    .lock()
+                    .unwrap()
+                    .push(message);
+            }),
+            warn: Arc::new(|_| {}),
+        },
+    )
+    .await;
 
     let info_messages = info_messages.lock().unwrap();
     dbg!(&*info_messages);

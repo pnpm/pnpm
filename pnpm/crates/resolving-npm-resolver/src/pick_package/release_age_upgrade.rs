@@ -27,29 +27,29 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
     if !release_age_upgrade_needed(ctx, spec, opts, full_metadata, cache_key, &meta) {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
-    let limit = release_age_upgrade_limit(ctx.fetch_locker, cache_key);
+    let limit = release_age_upgrade_limit(ctx.metadata.fetch_locker, cache_key);
     let _permit =
         limit.acquire().await.expect("release-age upgrade semaphore should not be closed");
     // Waiting for the permit may have handed the winner's work to us: pick up
     // whatever it left in the cache and re-run the guards before spending a
     // round trip of our own. A checksum refresh skips the cache on purpose —
     // it is the one caller holding a document fresher than the cached one.
-    if !opts.update_checksums
-        && let Some(cached) = ctx.meta_cache.get(cache_key)
+    if !opts.request.update_checksums
+        && let Some(cached) = ctx.metadata.meta_cache.get(cache_key)
     {
         meta = cached.meta;
     }
-    if ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta) || meta.time.is_some() {
+    if ctx.metadata.fetch_locker.release_age_upgrade_was_checked(cache_key, &meta)
+        || meta.time.is_some()
+    {
         return Ok(UpgradeOutcome { meta, upgraded: false });
     }
     let fetch_opts = FetchFullMetadataOptions {
         registry: opts.registry,
-        http_client: ctx.http_client,
-        auth_headers: ctx.auth_headers,
         full_metadata: true,
         etag: meta.etag.as_deref(),
         modified: meta.modified.as_deref(),
-        retry_opts: ctx.retry_opts,
+        http: ctx.metadata.http,
     };
     match fetch_full_metadata(&spec.name, &fetch_opts).await? {
         FetchFullMetadataOutcome::Modified(upgraded) => {
@@ -63,15 +63,15 @@ pub(super) async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: Packag
         // The 304 also registry-validated the document, so it may enter the
         // shared metadata cache as verified.
         FetchFullMetadataOutcome::NotModified => {
-            ctx.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
+            ctx.metadata.fetch_locker.mark_release_age_upgrade_checked(cache_key, &meta);
             // A `Modified` outcome is marked by the caller instead: it persists
             // the response to the mirror and may hand back a reloaded document,
             // so only the caller knows the `Arc` that ends up in the cache.
             // Both outcomes must be marked — a registry whose full form is no
             // more complete than its abbreviated one would otherwise be
             // re-asked once per dependency edge.
-            if !opts.dry_run {
-                ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
+            if !opts.request.dry_run {
+                ctx.metadata.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
             }
             Ok(UpgradeOutcome { meta, upgraded: false })
         }
@@ -129,16 +129,18 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
     cache_key: &str,
     meta: &Arc<Package>,
 ) -> bool {
-    if ctx.offline || full_metadata {
+    if ctx.cache_policy.offline || full_metadata {
         return false;
     }
-    let Some(cutoff) = opts.published_by else { return false };
-    if meta.time.is_some() || ctx.fetch_locker.release_age_upgrade_was_checked(cache_key, meta) {
+    let Some(cutoff) = opts.policy.published_by else { return false };
+    if meta.time.is_some()
+        || ctx.metadata.fetch_locker.release_age_upgrade_was_checked(cache_key, meta)
+    {
         return false;
     }
-    let fully_excluded = opts
-        .published_by_exclude
-        .is_some_and(|policy| matches!(policy.matches(&spec.name), PolicyMatch::AnyVersion));
+    let fully_excluded = opts.policy.published_by_exclude.is_some_and(|policy| {
+        matches!(policy.matches(&spec.name), PolicyMatch::AnyVersion)
+    });
     if fully_excluded {
         return false;
     }
@@ -146,8 +148,7 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
     // `filter_pkg_metadata_by_publish_date`. When `modified` is missing or
     // unparsable this falls through to the upgrade — better to spend one
     // extra fetch than to silently bypass the maturity check.
-    let modified_before_cutoff = meta
-        .modified
+    let modified_before_cutoff = meta.modified
         .as_deref()
         .and_then(parse_packument_timestamp)
         .is_some_and(|modified| modified <= cutoff);
@@ -209,8 +210,7 @@ pub(super) fn release_age_upgrade_limit(
     cache_key: &str,
 ) -> Arc<Semaphore> {
     Arc::clone(
-        fetch_locker
-            .limits
+        fetch_locker.limits
             .entry(format!("{cache_key}#release-age-upgrade"))
             .or_insert_with(|| Arc::new(Semaphore::new(1)))
             .value(),

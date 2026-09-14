@@ -33,6 +33,7 @@ use pnpm_package_is_installable::{
 };
 use pnpm_package_manager::{importer_root_dir, validate_importer_id};
 use pnpm_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
+use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
 use spdx::serialize_spdx;
 use std::{
     collections::{HashMap, HashSet, hash_map::Entry},
@@ -65,59 +66,59 @@ pub enum SbomComponentType {
 
 #[derive(Debug, Args)]
 pub struct SbomArgs {
-    /// The SBOM output format (required).
-    #[clap(long = "sbom-format", value_enum)]
-    pub format: SbomFormat,
-
-    /// The component type for the root package (default: library).
-    #[clap(long = "sbom-type", value_enum, default_value = "library")]
-    pub sbom_type: SbomComponentType,
-
-    /// The `CycloneDX` specification version (`1.5`, `1.6`, or `1.7`; default: `1.7`).
-    /// Only valid with `--sbom-format cyclonedx`.
-    #[clap(long = "sbom-spec-version")]
-    pub spec_version: Option<String>,
-
     /// Only use lockfile data (skip reading from the store).
     #[clap(long)]
     pub lockfile_only: bool,
-
-    /// Comma-separated list of SBOM authors (`CycloneDX` `metadata.authors`).
-    #[clap(long = "sbom-authors")]
-    pub authors: Option<String>,
-
-    /// SBOM supplier name (`CycloneDX` `metadata.supplier`).
-    #[clap(long = "sbom-supplier")]
-    pub supplier: Option<String>,
-
-    /// Only include production dependencies.
-    #[clap(long, short = 'P', visible_alias = "production")]
-    pub prod: bool,
-
-    /// Only include dev dependencies.
-    #[clap(long, short = 'D')]
-    pub dev: bool,
-
-    /// Exclude optional dependencies.
-    #[clap(long = "no-optional", overrides_with = "optional")]
-    pub no_optional: bool,
-
-    /// Include optional dependencies.
-    #[clap(long, overrides_with = "no_optional")]
-    pub optional: bool,
-
-    /// Exclude peer dependencies.
-    #[clap(long = "exclude-peers")]
-    pub exclude_peers: bool,
-
     /// Write SBOM to a file instead of stdout. Use `%s` for the
     /// package name and `%v` for the version.
     #[clap(long)]
     pub out: Option<String>,
-
     /// Generate a separate SBOM for each matched workspace package.
     #[clap(long)]
     pub split: bool,
+    #[clap(flatten)]
+    pub document: SbomDocumentArgs,
+    #[clap(flatten)]
+    pub dependencies: SbomDependencyArgs,
+}
+
+#[derive(Debug, Clone, clap::Args)]
+pub struct SbomDocumentArgs {
+    /// The SBOM output format (required).
+    #[clap(long = "sbom-format", value_enum)]
+    pub format: SbomFormat,
+    /// The component type for the root package (default: library).
+    #[clap(long = "sbom-type", value_enum, default_value = "library")]
+    pub sbom_type: SbomComponentType,
+    /// The `CycloneDX` specification version (`1.5`, `1.6`, or `1.7`; default: `1.7`).
+    /// Only valid with `--sbom-format cyclonedx`.
+    #[clap(long = "sbom-spec-version")]
+    pub spec_version: Option<String>,
+    /// Comma-separated list of SBOM authors (`CycloneDX` `metadata.authors`).
+    #[clap(long = "sbom-authors")]
+    pub authors: Option<String>,
+    /// SBOM supplier name (`CycloneDX` `metadata.supplier`).
+    #[clap(long = "sbom-supplier")]
+    pub supplier: Option<String>,
+}
+
+#[derive(Debug, Clone, clap::Args)]
+pub struct SbomDependencyArgs {
+    /// Only include production dependencies.
+    #[clap(long, short = 'P', visible_alias = "production")]
+    pub prod: bool,
+    /// Only include dev dependencies.
+    #[clap(long, short = 'D')]
+    pub dev: bool,
+    /// Exclude optional dependencies.
+    #[clap(long = "no-optional", overrides_with = "optional")]
+    pub no_optional: bool,
+    /// Include optional dependencies.
+    #[clap(long, overrides_with = "no_optional")]
+    pub optional: bool,
+    /// Exclude peer dependencies.
+    #[clap(long = "exclude-peers")]
+    pub exclude_peers: bool,
 }
 
 struct IncludeFilter {
@@ -129,12 +130,16 @@ struct IncludeFilter {
 impl SbomArgs {
     fn include_filter(&self, include_optional: bool) -> IncludeFilter {
         IncludeFilter {
-            dependencies: !self.dev,
-            dev_dependencies: !self.prod,
+            dependencies: !self.dependencies.dev,
+            dev_dependencies: !self.dependencies.prod,
             // pnpm's config reader clears `optional` for a dev-only run,
             // and leaves it alone for a production-only one.
-            optional_dependencies: !self.dev
-                && resolve_bool_override(self.optional, self.no_optional, include_optional),
+            optional_dependencies: !self.dependencies.dev
+                && resolve_bool_override(
+                    self.dependencies.optional,
+                    self.dependencies.no_optional,
+                    include_optional,
+                ),
         }
     }
 }
@@ -145,6 +150,13 @@ enum DepType {
     ProdOnly,
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the pnpm sbom JSON output format."
+    )
+)]
 struct SbomComponent {
     name: String,
     version: String,
@@ -165,7 +177,16 @@ struct SbomRelationship {
     to: String,
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the pnpm sbom JSON output format."
+    )
+)]
 struct SbomResult {
+    components: Vec<SbomComponent>,
+    relationships: Vec<SbomRelationship>,
     root_name: String,
     root_version: String,
     root_type: SbomComponentType,
@@ -174,8 +195,6 @@ struct SbomResult {
     root_author: Option<String>,
     root_repository: Option<String>,
     root_bugs_url: Option<String>,
-    components: Vec<SbomComponent>,
-    relationships: Vec<SbomRelationship>,
 }
 
 /// Resolve a lockfile importer key to the on-disk directory whose
@@ -203,8 +222,7 @@ impl SbomArgs {
         let include = self.include_filter(state.config.optional);
         let authors = self.author_list();
 
-        let lockfile = state
-            .lockfile
+        let lockfile = state.lockfile
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
         let all_importer_ids = sorted_importer_ids(lockfile);
@@ -223,14 +241,18 @@ impl SbomArgs {
                 virtual_store_dirs.as_deref(),
             );
         }
-        let filter_ids: Option<Vec<&str>> = (selectors_narrow_the_run(state.config)
-            || importer_ids.len() < all_count)
-            .then(|| importer_ids.iter().map(String::as_str).collect());
+        let filter_ids: Option<Vec<&str>> =
+            (selectors_narrow_the_run(state.config) || importer_ids.len() < all_count).then(|| {
+                importer_ids
+                    .iter()
+                    .map(String::as_str)
+                    .collect()
+            });
         let result = collect_components(
             &state,
             &include,
-            self.sbom_type,
-            self.exclude_peers,
+            self.document.sbom_type,
+            self.dependencies.exclude_peers,
             self.lockfile_only,
             filter_ids.as_deref(),
             virtual_store_dirs.as_deref(),
@@ -239,7 +261,7 @@ impl SbomArgs {
     }
 
     fn author_list(&self) -> Vec<String> {
-        self.authors
+        self.document.authors
             .as_deref()
             .map(|csv| {
                 csv.split(',')
@@ -254,7 +276,10 @@ impl SbomArgs {
     /// placeholder and several importers to fill it.
     fn splits_output(&self, importer_ids: &[String]) -> bool {
         self.split
-            || (self.out.as_ref().is_some_and(|o| o.contains("%s")) && importer_ids.len() > 1)
+            || (self.out
+                .as_ref()
+                .is_some_and(|o| o.contains("%s"))
+                && importer_ids.len() > 1)
     }
 
     fn write_single_sbom(&self, result: &SbomResult, output: &str) -> miette::Result<()> {
@@ -286,10 +311,10 @@ impl SbomArgs {
     /// `--sbom-spec-version` names a `CycloneDX` version, so it applies to
     /// that format alone.
     fn check_spec_version(&self) -> miette::Result<()> {
-        let Some(spec_ver) = self.spec_version.as_deref() else {
+        let Some(spec_ver) = self.document.spec_version.as_deref() else {
             return Ok(());
         };
-        if self.format != SbomFormat::CycloneDx {
+        if self.document.format != SbomFormat::CycloneDx {
             return Err(miette::miette!(
                 code = "ERR_PNPM_SBOM_SPEC_VERSION_UNSUPPORTED_FORMAT",
                 "The --sbom-spec-version option is only supported with --sbom-format cyclonedx."
@@ -305,13 +330,13 @@ impl SbomArgs {
     }
 
     fn serialize(&self, result: &SbomResult, authors: &[String], compact: bool) -> String {
-        match self.format {
+        match self.document.format {
             SbomFormat::CycloneDx => serialize_cyclonedx(&CycloneDxOpts {
                 result,
-                spec_version: self.spec_version.as_deref(),
+                spec_version: self.document.spec_version.as_deref(),
                 lockfile_only: self.lockfile_only,
                 authors,
-                supplier: self.supplier.as_deref(),
+                supplier: self.document.supplier.as_deref(),
                 compact,
             }),
             SbomFormat::Spdx => serialize_spdx(result, compact),
@@ -346,8 +371,8 @@ impl SbomArgs {
             let result = collect_components(
                 state,
                 include,
-                self.sbom_type,
-                self.exclude_peers,
+                self.document.sbom_type,
+                self.dependencies.exclude_peers,
                 self.lockfile_only,
                 Some(&filter),
                 virtual_store_dirs,
@@ -377,7 +402,11 @@ impl SbomArgs {
                 stdout,
                 "Generated {} SBOMs:\n{}",
                 files.len(),
-                files.iter().map(|file| format!("  {file}")).collect::<Vec<_>>().join("\n"),
+                files
+                    .iter()
+                    .map(|file| format!("  {file}"))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
             );
         } else {
             let _ = write!(stdout, "{}", ndjson_lines.join("\n"));

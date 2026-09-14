@@ -6,8 +6,10 @@ mod higher_direct_dep_version {
     use super::super::{DirectDepVersions, higher_direct_dep_version};
 
     fn direct(name: &str, versions: &[&str]) -> DirectDepVersions {
-        let parsed =
-            versions.iter().map(|raw| raw.parse::<Version>().expect("parse version")).collect();
+        let parsed = versions
+            .iter()
+            .map(|raw| raw.parse::<Version>().expect("parse version"))
+            .collect();
         HashMap::from_iter([(name.to_string(), parsed)])
     }
 
@@ -184,7 +186,10 @@ mod is_update_target {
 
     fn except(names: &[&str]) -> UpdateReuseScope {
         UpdateReuseScope::Except(
-            names.iter().map(|name| ((*name).to_string(), None)).collect::<UpdateTargets>(),
+            names
+                .iter()
+                .map(|name| ((*name).to_string(), None))
+                .collect::<UpdateTargets>(),
         )
     }
 
@@ -214,7 +219,7 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^1.0.0")),
             None,
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -225,7 +230,7 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^1.0.0")),
             None,
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -237,7 +242,7 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^1.0.0")),
             None,
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -248,7 +253,7 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^1.0.0")),
             None,
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -261,7 +266,7 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("npm:bar@^4")),
             None,
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -273,13 +278,13 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^1.0.0")),
             Some(&version("1.0.0")),
             0,
-        ));
+        ),);
         assert!(!is_update_target(
             unlimited(&reuse),
             &wanted_with(Some("foo"), Some("^2.0.0")),
             Some(&version("2.5.0")),
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -291,13 +296,13 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^0.2.0")),
             Some(&version("0.2.1")),
             0,
-        ));
+        ),);
         assert!(!is_update_target(
             unlimited(&reuse),
             &wanted_with(Some("foo"), Some("^0.3.0")),
             Some(&version("0.3.0")),
             0,
-        ));
+        ),);
     }
 
     #[test]
@@ -309,7 +314,7 @@ mod is_update_target {
             &wanted_with(Some("foo"), Some("^2.0.0")),
             None,
             0,
-        ));
+        ),);
     }
 
     #[test]

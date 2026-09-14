@@ -2,30 +2,26 @@ use super::{
     ColdCapture, CreateVirtualStoreError, cache_keys::dir_clone_cacheable, removed_aliases_for,
     snapshot_needs_build_marker,
 };
-use crate::{InstallPackageBySnapshotError, SkippedSnapshots};
-use pnpm_config::PackageImportMethod;
+use crate::InstallPackageBySnapshotError;
 use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, SnapshotEntry};
 use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
 use pnpm_tarball::SharedReportedProgressKeys;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::atomic::AtomicU8,
 };
 
 pub(super) struct SlotLink<'a> {
+    pub source: crate::SlotImportSource<'a>,
     pub(super) snapshot_key: &'a PackageKey,
     pub(super) snapshot: &'a SnapshotEntry,
     pub(super) cas_paths: &'a HashMap<String, PathBuf>,
     pub(super) warm_cache_key: Option<&'a str>,
-    pub(super) source_is_mutable: bool,
-    pub(super) force_import: bool,
-    pub(super) needs_build_marker_source: Option<&'a Path>,
     /// Whether the directory-clone cache may serve this slot — see
     /// [`dir_clone_cacheable`].
     pub(super) dir_clone_cacheable: bool,
     /// Child aliases dropped since the previous install, threaded into
-    /// [`crate::CreateVirtualDirBySnapshot::removed_aliases`] so their
+    /// [`crate::SnapshotDependencyLinks::removed_aliases`] so their
     /// stale symlinks are unlinked during the link pass.
     pub(super) removed_aliases: &'a [PkgName],
 }
@@ -92,9 +88,9 @@ pub(super) fn merge_into_slot_group<'a>(group: &mut SlotDirGroup<'a>, slot: &'a 
     if slot.removed_aliases.is_empty() {
         return;
     }
-    let merged = group
-        .merged_removed_aliases
-        .get_or_insert_with(|| group.representative.removed_aliases.to_vec());
+    let merged = group.merged_removed_aliases.get_or_insert_with(|| {
+        group.representative.removed_aliases.to_vec()
+    });
     for alias in slot.removed_aliases {
         if !merged.contains(alias) {
             merged.push(alias.clone());
@@ -125,13 +121,16 @@ pub(super) fn link_cold_chunk<Reporter: self::Reporter>(
             let needs_build =
                 snapshot_needs_build_marker(capture.snapshot_key, capture.requires_build);
             SlotLink {
+                source: crate::SlotImportSource {
+                    is_mutable: capture.source_is_mutable,
+                    force: capture.force_import,
+                    build_marker: needs_build.then_some(marker_path).flatten(),
+                },
                 snapshot_key: capture.snapshot_key,
                 snapshot: capture.snapshot,
                 cas_paths: &capture.cas_paths,
                 warm_cache_key: None,
-                source_is_mutable: capture.source_is_mutable,
-                force_import: capture.force_import,
-                needs_build_marker_source: needs_build.then_some(marker_path).flatten(),
+
                 dir_clone_cacheable: dir_clone_cacheable(
                     packages,
                     capture.snapshot_key,
@@ -147,16 +146,10 @@ pub(super) fn link_cold_chunk<Reporter: self::Reporter>(
 }
 #[derive(Clone, Copy)]
 pub(super) struct LinkSlotsParallel<'a> {
+    pub import: crate::PackageImportOptions<'a>,
+    pub link: crate::VirtualStoreLinkOptions<'a>,
     pub(super) batch: &'static str,
     pub(super) slots: &'a [SlotLink<'a>],
-    pub(super) layout: &'a crate::VirtualStoreLayout,
-    pub(super) dir_clone_cache: Option<&'a crate::DirCloneCache<'a>>,
-    pub(super) symlink: bool,
-    pub(super) import_method: PackageImportMethod,
-    pub(super) logged_methods: &'a AtomicU8,
-    pub(super) requester: &'a str,
-    pub(super) skipped: &'a SkippedSnapshots,
-    pub(super) include_optional_dependencies: bool,
     pub(super) progress_reported: &'a SharedReportedProgressKeys,
     #[cfg(test)]
     pub(super) link_concurrency_probe:
@@ -168,7 +161,7 @@ pub(super) fn link_slots_parallel<Reporter: self::Reporter>(
     use rayon::prelude::*;
 
     let phase_start = std::time::Instant::now();
-    let groups = group_slots_by_dir(opts.slots, opts.layout);
+    let groups = group_slots_by_dir(opts.slots, opts.link.layout);
     let link_work =
         || groups.par_iter().try_for_each(|group| link_slot_group::<Reporter>(group, &opts));
     // Driving the link pass from inside an `async fn` means the
@@ -202,25 +195,25 @@ pub(super) fn link_slot_group<Reporter: self::Reporter>(
 ) -> Result<(), CreateVirtualStoreError> {
     let slot = group.representative;
     let package_id = slot.snapshot_key.pkg_id();
-    emit_group_warm_progress::<Reporter>(group, opts.requester, opts.progress_reported);
+    emit_group_warm_progress::<Reporter>(group, opts.import.requester, opts.progress_reported);
 
     crate::CreateVirtualDirBySnapshot {
-        layout: opts.layout,
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: slot.snapshot_key,
+            snapshot: slot.snapshot,
+            skipped: opts.link.skipped,
+            include_optional: opts.link.include_optional,
+            removed_aliases: group.removed_aliases(),
+            symlink: opts.link.symlink,
+        },
+        import: opts.import,
+        source: slot.source,
+        layout: opts.link.layout,
         cas_paths: slot.cas_paths,
-        import_method: opts.import_method,
-        logged_methods: opts.logged_methods,
-        requester: opts.requester,
+
         package_id: &package_id,
-        package_key: slot.snapshot_key,
-        snapshot: slot.snapshot,
-        source_is_mutable: slot.source_is_mutable,
-        force_import: slot.force_import,
-        include_optional_dependencies: opts.include_optional_dependencies,
-        symlink: opts.symlink,
-        skipped: opts.skipped,
-        removed_aliases: group.removed_aliases(),
-        needs_build_marker_source: slot.needs_build_marker_source,
-        dir_clone_cache: if slot.dir_clone_cacheable { opts.dir_clone_cache } else { None },
+
+        dir_clone_cache: if slot.dir_clone_cacheable { opts.link.dir_clone_cache } else { None },
         #[cfg(test)]
         link_concurrency_probe: opts.link_concurrency_probe,
     }

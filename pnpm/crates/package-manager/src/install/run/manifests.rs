@@ -38,8 +38,9 @@ impl HookedManifests {
         let extended_view = manifests_view(declared, &extended);
         let read_package_log =
             pnpmfile_hook.map(|hook| read_package_log::<Reporter>(hook, workspace_root));
-        let every_project_manifest_is_pre_hooked =
-            extended_view.iter().all(|(_, manifest)| pre_hooked_paths.contains(manifest.path()));
+        let every_project_manifest_is_pre_hooked = extended_view
+            .iter()
+            .all(|(_, manifest)| pre_hooked_paths.contains(manifest.path()));
         let hooked = hook_project_manifests(
             (pnpmfile_hook, read_package_log.as_ref()),
             &extended_view,
@@ -65,16 +66,17 @@ pub(super) fn read_package_log<Reporter: self::Reporter>(
     hook: &Arc<dyn pnpm_hooks::PnpmfileHooks>,
     workspace_root: &Path,
 ) -> pnpm_hooks::LogFn {
-    hook.source_path().map_or_else(
-        || Arc::new(|_| {}) as pnpm_hooks::LogFn,
-        |from| {
-            crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
-                workspace_root,
-                from,
-                "readPackage",
-            )
-        },
-    )
+    hook.source_path()
+        .map_or_else(
+            || Arc::new(|_| {}) as pnpm_hooks::LogFn,
+            |from| {
+                crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
+                    workspace_root,
+                    from,
+                    "readPackage",
+                )
+            },
+        )
 }
 /// The pnpmfile whose checksum the freshness gates compare against a
 /// lockfile's `pnpmfileChecksum`, resolved the way the install that records
@@ -104,7 +106,10 @@ pub(super) fn manifests_view<'v>(
         return std::borrow::Cow::Borrowed(declared);
     }
     std::borrow::Cow::Owned(
-        rewritten.iter().map(|(project_dir, manifest)| (project_dir.clone(), manifest)).collect(),
+        rewritten
+            .iter()
+            .map(|(project_dir, manifest)| (project_dir.clone(), manifest))
+            .collect(),
     )
 }
 /// pnpm's `getContext` runs `readPackage` over every project manifest before
@@ -122,11 +127,15 @@ pub(super) async fn hook_project_manifests(
     if every_manifest_is_pre_hooked {
         return Ok(Vec::new());
     }
-    futures_util::future::try_join_all(project_manifests.iter().map(|(project_dir, manifest)| {
-        let ctx = pnpm_hooks::HookContext { log: Arc::clone(log), dir: None };
-        let pre_hooked = pre_hooked_paths.contains(manifest.path());
-        async move { hook_one_manifest(hook, ctx, project_dir, manifest, pre_hooked).await }
-    }))
+    futures_util::future::try_join_all(
+        project_manifests
+            .iter()
+            .map(|(project_dir, manifest)| {
+                let ctx = pnpm_hooks::HookContext { log: Arc::clone(log), dir: None };
+                let pre_hooked = pre_hooked_paths.contains(manifest.path());
+                async move { hook_one_manifest(hook, ctx, project_dir, manifest, pre_hooked).await }
+            }),
+    )
     .await
 }
 pub(super) async fn hook_one_manifest(
@@ -189,8 +198,7 @@ pub(super) fn run_dev_preinstall_hook<Reporter: self::Reporter>(
         return Ok(());
     }
     let normalized_root = pnpm_fs::lexical_normalize(scope.workspace_root);
-    let root_defines_hook = scope
-        .project_manifests
+    let root_defines_hook = scope.project_manifests
         .iter()
         .find(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir) == normalized_root)
         .is_none_or(|(_, manifest)| {
@@ -211,8 +219,9 @@ pub(super) fn extend_project_manifests(
     config: &Config,
     project_manifests: &[(PathBuf, &PackageManifest)],
 ) -> Result<Vec<(PathBuf, PackageManifest)>, InstallError> {
-    let compat_extender = (!config.ignore_compatibility_db)
-        .then(crate::compat_package_extensions::compat_package_extender);
+    let compat_extender = (!config.ignore_compatibility_db).then(
+        crate::compat_package_extensions::compat_package_extender,
+    );
     let extender = match config.package_extensions.as_ref() {
         Some(extensions) => crate::PackageExtender::new(extensions)
             .map(|extender| (!extender.is_empty()).then_some(extender))
@@ -221,7 +230,9 @@ pub(super) fn extend_project_manifests(
     };
     let selects = |manifest: &PackageManifest| {
         compat_extender.is_some_and(|extender| extender.matches(manifest.value()))
-            || extender.as_ref().is_some_and(|extender| extender.matches(manifest.value()))
+            || extender
+                .as_ref()
+                .is_some_and(|extender| extender.matches(manifest.value()))
     };
     // A workspace project is rarely named by an extension — pnpm's
     // compatibility set names published packages — so this usually finds

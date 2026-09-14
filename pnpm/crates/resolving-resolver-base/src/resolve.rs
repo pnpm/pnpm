@@ -26,7 +26,7 @@ use crate::verifier::ResolutionPolicyViolation;
 ///   `file:…`) from the git / local / tarball resolvers.
 ///
 /// Consumers that need the structured `name@version` form read
-/// [`ResolveResult::name_ver`] instead.
+/// [`ResolvedPackageInfo::name_ver`] instead.
 #[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, From)]
 #[serde(transparent)]
 pub struct PkgResolutionId(String);
@@ -303,10 +303,31 @@ pub struct CurrentPkg {
 /// Options the dispatcher hands a resolver per-resolve.
 #[derive(Debug, Default, Clone)]
 pub struct ResolveOptions {
+    pub project: ResolverProjectOptions,
+    pub version: VersionSelectionOptions,
+    pub refresh: ResolutionRefreshOptions,
+    pub policy: ResolutionPolicyOptions,
+    pub specifier: ResolverSpecifierOptions,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ResolverProjectOptions {
     pub project_dir: PathBuf,
     pub lockfile_dir: PathBuf,
-    /// Previously-resolved lockfile entry. The `currentPkg` field.
-    pub current_pkg: Option<CurrentPkg>,
+    /// Behind [`Arc`] for the same reason as
+    /// [`VersionSelectionOptions::preferred_versions`]: the tree walker clones
+    /// [`ResolveOptions`] per adjusted resolve and every workspace
+    /// package carries its full manifest, so a by-value map turned each
+    /// clone into a deep copy of every project manifest in the
+    /// workspace.
+    pub workspace_packages: Option<Arc<WorkspacePackages>>,
+    pub prefer_workspace_packages: bool,
+    pub link_workspace_packages: pnpm_config::LinkWorkspacePackages,
+    pub inject_workspace_packages: bool,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct VersionSelectionOptions {
     /// Lockfile + manifest preferred-versions seed the npm picker biases
     /// toward (so pins that still satisfy their range survive a
     /// re-resolve). Held behind [`Arc`] because the tree walker clones
@@ -316,25 +337,22 @@ pub struct ResolveOptions {
     pub preferred_versions: Arc<PreferredVersions>,
     /// Per-level preferred-version additions from the tree walk. See
     /// [`PreferredVersionsOverlay`]. `None` outside the walk (importer
-    /// direct deps resolve against [`Self::preferred_versions`] only).
+    /// direct deps resolve against [`VersionSelectionOptions::preferred_versions`] only).
     pub preferred_versions_overlay: Option<Arc<PreferredVersionsOverlay>>,
-    /// Behind [`Arc`] for the same reason as
-    /// [`Self::preferred_versions`]: the tree walker clones
-    /// [`ResolveOptions`] per adjusted resolve and every workspace
-    /// package carries its full manifest, so a by-value map turned each
-    /// clone into a deep copy of every project manifest in the
-    /// workspace.
-    pub workspace_packages: Option<Arc<WorkspacePackages>>,
     pub default_tag: Option<String>,
     pub pick_lowest_version: bool,
-    pub prefer_workspace_packages: bool,
-    pub link_workspace_packages: pnpm_config::LinkWorkspacePackages,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ResolutionRefreshOptions {
+    /// Previously-resolved lockfile entry. The `currentPkg` field.
+    pub current_pkg: Option<CurrentPkg>,
     pub update: UpdateBehavior,
     /// True only when this specific package matches the user's update
     /// target (e.g. `pnpm up <name>`). Unlike `update`, this is false for
     /// unrelated packages that get re-resolved as a side effect of an
     /// update. The npm picker uses it to warn when a
-    /// [`preferred_versions`](Self::preferred_versions) selector holds
+    /// [`preferred_versions`](VersionSelectionOptions::preferred_versions) selector holds
     /// the update target below the newest version its range admits —
     /// the seed already withholds the target's own lockfile pins, so
     /// any remaining preference is one a fresh install would apply too.
@@ -343,23 +361,13 @@ pub struct ResolveOptions {
     /// is the authority on integrity values. The `--update-checksums`
     /// flag.
     pub update_checksums: bool,
-    pub inject_workspace_packages: bool,
-    /// Ask the resolver to report a manifest-ready
-    /// [`normalized_bare_specifier`](ResolveResult::normalized_bare_specifier)
-    /// for the version it picked, so `add` / `update` can write it back
-    /// without re-deriving what the specifier for this protocol should
-    /// look like. Set for importer-level deps only — nothing below the
-    /// top level is written to a manifest.
-    pub calc_specifier: bool,
-    /// The range operator to apply when [`Self::calc_specifier`] computes
-    /// a specifier for a dependency whose current one declares none.
-    /// A specifier that already carries an operator keeps it (`^` stays
-    /// `^`, `~` stays `~`, an exact pin stays exact). `None` leaves the
-    /// choice to the resolver's own default.
-    pub range_spec_style: Option<RangeSpecStyle>,
-    /// How [`Self::calc_specifier`] writes a dependency that resolved to
-    /// a workspace package. The `saveWorkspaceProtocol` setting.
-    pub save_workspace_protocol: SaveWorkspaceProtocol,
+    /// `true` suppresses on-disk and in-memory cache write-back during
+    /// resolution. The `dryRun` flag at the resolver boundary.
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ResolutionPolicyOptions {
     /// `minimumReleaseAge` cutoff. Versions published after this point
     /// are filtered out by the npm picker (or reported inline via
     /// [`ResolveResult::policy_violation`] when no mature pick exists).
@@ -386,9 +394,6 @@ pub struct ResolveOptions {
     /// A picked version older than this skips the check. `None` always
     /// checks. The `trustPolicyIgnoreAfter` setting.
     pub trust_policy_ignore_after: Option<u64>,
-    /// `true` suppresses on-disk and in-memory cache write-back during
-    /// resolution. The `dryRun` flag at the resolver boundary.
-    pub dry_run: bool,
     /// Optional guard that rejects concrete npm package versions after
     /// the normal picker selects them. The npm resolvers then exclude
     /// the rejected version and pick again, so a vulnerable or otherwise
@@ -404,6 +409,26 @@ pub struct ResolveOptions {
     pub block_exotic_subdeps: bool,
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct ResolverSpecifierOptions {
+    /// Ask the resolver to report a manifest-ready
+    /// [`normalized_bare_specifier`](ResolveResult::normalized_bare_specifier)
+    /// for the version it picked, so `add` / `update` can write it back
+    /// without re-deriving what the specifier for this protocol should
+    /// look like. Set for importer-level deps only — nothing below the
+    /// top level is written to a manifest.
+    pub calc_specifier: bool,
+    /// The range operator to apply when [`Self::calc_specifier`] computes
+    /// a specifier for a dependency whose current one declares none.
+    /// A specifier that already carries an operator keeps it (`^` stays
+    /// `^`, `~` stays `~`, an exact pin stays exact). `None` leaves the
+    /// choice to the resolver's own default.
+    pub range_spec_style: Option<RangeSpecStyle>,
+    /// How [`Self::calc_specifier`] writes a dependency that resolved to
+    /// a workspace package. The `saveWorkspaceProtocol` setting.
+    pub save_workspace_protocol: SaveWorkspaceProtocol,
+}
+
 /// In-memory manifest shape a resolver may attach to its
 /// [`ResolveResult`].
 ///
@@ -415,7 +440,7 @@ pub struct ResolveOptions {
 pub type DependencyManifest = serde_json::Value;
 
 /// `Arc`-shared variant of [`DependencyManifest`], used in
-/// [`ResolveResult::manifest`]. Wrapping the manifest avoids the
+/// [`ResolvedPackageInfo::manifest`]. Wrapping the manifest avoids the
 /// deep-clone of the JSON tree every time a [`ResolveResult`]
 /// propagates — the deps-resolver stores one copy in
 /// `ResolvedPackage` and another in each `DependenciesGraph` node,
@@ -429,27 +454,6 @@ pub type SharedDependencyManifest = Arc<DependencyManifest>;
 pub struct ResolveResult {
     /// Branded resolution identifier — see [`PkgResolutionId`].
     pub id: PkgResolutionId,
-    /// Structured `name@version` when the resolver knows both at
-    /// resolve time. The npm-registry resolver always fills this;
-    /// resolvers that learn the package name from the manifest only
-    /// after the fetch (git / tarball / local) leave it `None` and
-    /// downstream consumers (virtual-store layout, dedupe keys) must
-    /// fall back to reading the manifest, whose `name` and `version`
-    /// are the canonical sources for non-npm resolutions.
-    pub name_ver: Option<PkgNameVer>,
-    /// `latest` tag at the moment of resolution. Filled by the npm
-    /// resolver; absent for protocols that have no notion of latest
-    /// (git, file, link, ...).
-    pub latest: Option<String>,
-    /// ISO-8601 publish timestamp. Filled by the npm resolver when
-    /// available; consulted by the `minimumReleaseAge` verifier.
-    pub published_at: Option<String>,
-    /// The manifest fragment the resolver fetched. Optional because
-    /// some protocols defer manifest reading to the fetch step.
-    /// Held as [`SharedDependencyManifest`] (`Arc`-shared) so the
-    /// deps-resolver's tree walk and the per-snapshot graph copies
-    /// don't deep-clone the JSON tree per occurrence.
-    pub manifest: Option<SharedDependencyManifest>,
     /// Where the artifact lives. Pacquet reuses
     /// [`LockfileResolution`] for this — a discriminated union over
     /// tarball/registry/directory/git/binary/variations.
@@ -471,6 +475,32 @@ pub struct ResolveResult {
     /// downgrade). The deps-resolver aggregates these across every
     /// resolve call into a single set the install command can react to.
     pub policy_violation: Option<ResolutionPolicyViolation>,
+    pub package: ResolvedPackageInfo,
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct ResolvedPackageInfo {
+    /// Structured `name@version` when the resolver knows both at
+    /// resolve time. The npm-registry resolver always fills this;
+    /// resolvers that learn the package name from the manifest only
+    /// after the fetch (git / tarball / local) leave it `None` and
+    /// downstream consumers (virtual-store layout, dedupe keys) must
+    /// fall back to reading the manifest, whose `name` and `version`
+    /// are the canonical sources for non-npm resolutions.
+    pub name_ver: Option<PkgNameVer>,
+    /// `latest` tag at the moment of resolution. Filled by the npm
+    /// resolver; absent for protocols that have no notion of latest
+    /// (git, file, link, ...).
+    pub latest: Option<String>,
+    /// ISO-8601 publish timestamp. Filled by the npm resolver when
+    /// available; consulted by the `minimumReleaseAge` verifier.
+    pub published_at: Option<String>,
+    /// The manifest fragment the resolver fetched. Optional because
+    /// some protocols defer manifest reading to the fetch step.
+    /// Held as [`SharedDependencyManifest`] (`Arc`-shared) so the
+    /// deps-resolver's tree walk and the per-snapshot graph copies
+    /// don't deep-clone the JSON tree per occurrence.
+    pub manifest: Option<SharedDependencyManifest>,
 }
 
 /// Input to [`Resolver::resolve_latest`]. The resolver decides whether
@@ -564,5 +594,7 @@ pub async fn resolve_package_version(
     Ok(resolver
         .resolve(wanted, options)
         .await?
-        .and_then(|result| result.name_ver.map(|name_ver| name_ver.suffix.to_string())))
+        .and_then(|result| {
+            result.package.name_ver.map(|name_ver| name_ver.suffix.to_string())
+        }))
 }

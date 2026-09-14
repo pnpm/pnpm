@@ -167,7 +167,7 @@ fn missing_workspace_package_surfaces_pnpm_error_code() {
     assert!(matches!(
         err,
         ResolveFromWorkspaceError::WorkspacePkgNotFound { ref name, .. } if name == "missing",
-    ));
+    ),);
 }
 
 #[test]

@@ -130,9 +130,16 @@ fn auth_with_token(root: &Map<String, Value>, registry: &str, scope: &str, token
                 scopes.remove(scope);
             }
         }
-        auth.retain(|_, scopes| scopes.as_object().is_none_or(|scopes| !scopes.is_empty()));
+        auth.retain(|_, scopes| {
+            scopes
+                .as_object()
+                .is_none_or(|scopes| !scopes.is_empty())
+        });
     }
-    let mut scopes = auth.get(registry).and_then(as_object).unwrap_or_default();
+    let mut scopes = auth
+        .get(registry)
+        .and_then(as_object)
+        .unwrap_or_default();
     scopes.insert(scope.to_owned(), json!({ "authToken": token }));
     auth.insert(registry.to_owned(), Value::Object(scopes));
     Value::Object(auth)
@@ -160,12 +167,25 @@ fn registries_with_route(root: &Map<String, Value>, registry: &str, scope: &str)
             unroute_scope(entry, scope);
         }
     }
-    registries.retain(|_, entry| entry.as_object().is_none_or(|entry| !entry.is_empty()));
+    registries.retain(|_, entry| {
+        entry
+            .as_object()
+            .is_none_or(|entry| !entry.is_empty())
+    });
 
-    let mut declaration = registries.get(registry).and_then(as_object).unwrap_or_default();
-    let mut scopes =
-        declaration.get("scopes").and_then(Value::as_array).cloned().unwrap_or_default();
-    if !scopes.iter().any(|existing| existing.as_str() == Some(scope)) {
+    let mut declaration = registries
+        .get(registry)
+        .and_then(as_object)
+        .unwrap_or_default();
+    let mut scopes = declaration
+        .get("scopes")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if !scopes
+        .iter()
+        .any(|existing| existing.as_str() == Some(scope))
+    {
         scopes.push(Value::String(scope.to_owned()));
     }
     declaration.insert("scopes".to_owned(), Value::Array(scopes));

@@ -9,7 +9,7 @@ use crate::{
     },
     shim::{
         ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
-        is_shim_pointing_at, search_script_runtime,
+        is_sh_shim_hardened, is_shim_pointing_at, search_script_runtime,
     },
 };
 use derive_more::{Display, Error};
@@ -230,12 +230,15 @@ impl ShimTargetCache {
     /// read from serializing every other target's probe behind it. Same
     /// trade as the store's `verifiedFilesCache`.
     fn runtime_for<Sys: FsReadHead>(&self, probe_path: &Path) -> io::Result<Option<ScriptRuntime>> {
-        if let Some(runtime) = self.0.runtimes.lock().expect("runtime memo lock").get(probe_path) {
+        if let Some(runtime) = self.0.runtimes
+            .lock()
+            .expect("runtime memo lock")
+            .get(probe_path)
+        {
             return Ok(runtime.clone());
         }
         let runtime = search_script_runtime::<Sys>(probe_path)?;
-        self.0
-            .runtimes
+        self.0.runtimes
             .lock()
             .expect("runtime memo lock")
             .insert(probe_path.to_path_buf(), runtime.clone());
@@ -247,12 +250,15 @@ impl ShimTargetCache {
         &self,
         probe_path: &Path,
     ) -> Result<(), LinkBinsError> {
-        if self.0.executable_ensured.lock().expect("executable memo lock").contains(probe_path) {
+        if self.0.executable_ensured
+            .lock()
+            .expect("executable memo lock")
+            .contains(probe_path)
+        {
             return Ok(());
         }
         ensure_target_executable::<Sys>(probe_path)?;
-        self.0
-            .executable_ensured
+        self.0.executable_ensured
             .lock()
             .expect("executable memo lock")
             .insert(probe_path.to_path_buf());
@@ -391,45 +397,45 @@ where
     // across bin names. There is no shared state, so drive them on rayon.
     // The hot path is per-package-bin; without parallelism the per-shim
     // file I/O serialised across the whole `chosen` map.
-    chosen.par_iter().try_for_each(|(command, pkg)| {
-        // On Unix the symlink branch never writes a shim, so no bin
-        // needs a NODE_PATH — skip `shim_node_path`'s per-package
-        // canonicalize entirely.
-        let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
-            Vec::new()
-        } else {
-            shim_node_path(pkg, &options.extra_node_paths)
-        };
-        let pkg_name = package_name(pkg);
-        // The target's symlink-resolved path doubles as the memo key
-        // for the per-target probes: importers that reach one
-        // virtual-store file through different symlinks share it.
-        // Without a resolved location, the literal path still dedupes
-        // within whatever scope the caller gave the cache.
-        let probe_path = pkg
-            .resolved_location
-            .as_ref()
-            .and_then(|resolved| {
-                command
-                    .path
-                    .strip_prefix(&pkg.location)
-                    .ok()
-                    .map(|bin_rel_path| resolved.join(bin_rel_path))
-            })
-            .unwrap_or_else(|| command.path.clone());
-        write_shim::<Sys>(
-            ShimSpec {
-                target_path: &command.path,
-                probe_path: &probe_path,
-                shim_path: &bins_dir.join(&command.name),
-                node_path: &node_path,
-                prefer_symlinked_executables: options.prefer_symlinked_executables,
-                make_powershell_shim: wants_powershell_shim(pkg_name),
-                bin_dir,
-            },
-            cache,
-        )
-    })?;
+    chosen
+        .par_iter()
+        .try_for_each(|(command, pkg)| {
+            // On Unix the symlink branch never writes a shim, so no bin
+            // needs a NODE_PATH — skip `shim_node_path`'s per-package
+            // canonicalize entirely.
+            let node_path = if options.prefer_symlinked_executables && cfg!(unix) {
+                Vec::new()
+            } else {
+                shim_node_path(pkg, &options.extra_node_paths)
+            };
+            let pkg_name = package_name(pkg);
+            // The target's symlink-resolved path doubles as the memo key
+            // for the per-target probes: importers that reach one
+            // virtual-store file through different symlinks share it.
+            // Without a resolved location, the literal path still dedupes
+            // within whatever scope the caller gave the cache.
+            let probe_path = pkg.resolved_location
+                .as_ref()
+                .and_then(|resolved| {
+                    command.path
+                        .strip_prefix(&pkg.location)
+                        .ok()
+                        .map(|bin_rel_path| resolved.join(bin_rel_path))
+                })
+                .unwrap_or_else(|| command.path.clone());
+            write_shim::<Sys>(
+                ShimSpec {
+                    target_path: &command.path,
+                    probe_path: &probe_path,
+                    shim_path: &bins_dir.join(&command.name),
+                    node_path: &node_path,
+                    prefer_symlinked_executables: options.prefer_symlinked_executables,
+                    make_powershell_shim: wants_powershell_shim(pkg_name),
+                    bin_dir,
+                },
+                cache,
+            )
+        })?;
 
     Ok(())
 }
@@ -478,7 +484,8 @@ fn shim_node_path(pkg: &PackageBinSource, extra_node_paths: &[String]) -> Vec<St
     let mut merged = if let Some(resolved) = &pkg.resolved_location {
         bin_node_paths(resolved)
     } else {
-        let dir = dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
+        let dir =
+            dunce::canonicalize(&pkg.location).unwrap_or_else(|_| pkg.location.clone());
         bin_node_paths(&dir)
     };
     for extra in extra_node_paths {
@@ -524,7 +531,10 @@ fn pick_winner(bin_name: &str, existing: &PackageBinSource, candidate: &PackageB
 }
 
 fn package_name(pkg: &PackageBinSource) -> &str {
-    pkg.manifest.get("name").and_then(Value::as_str).unwrap_or("")
+    pkg.manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
 }
 
 fn package_version(pkg: &PackageBinSource) -> Option<Version> {

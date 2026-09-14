@@ -56,15 +56,26 @@ fn assert_frozen_replay_installs_local_overrides(target_dir: &str) {
         );
     }
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read(&lockfile_path).expect("read generated lockfile");
 
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert_eq!(fs::read(&lockfile_path).unwrap(), lockfile);
     for project in ["packages/a", "packages/nested/b"] {
         for name in ["vendored", "linked"] {
-            let installed = read_manifest(&workspace.join(project).join("node_modules").join(name));
+            let installed = read_manifest(
+                &workspace
+                    .join(project)
+                    .join("node_modules")
+                    .join(name),
+            );
             assert_eq!(installed["name"], name);
             assert_eq!(installed["version"], "1.0.0");
         }
@@ -109,7 +120,10 @@ fn assert_exec_content_check_accepts_link_override(custom_lockfile_dir: bool) {
         append_workspace_yaml_key(&workspace, "lockfileDir", "..");
     }
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let lockfile_path = lockfile_dir.join("pnpm-lock.yaml");
     let lockfile = fs::read(&lockfile_path).expect("read generated lockfile");
     bump_mtime(&workspace.join("packages/nested/a/package.json"));

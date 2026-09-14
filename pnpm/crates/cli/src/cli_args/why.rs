@@ -34,40 +34,9 @@ use std::{
 #[derive(Debug, Args)]
 pub struct WhyArgs {
     pub packages: Vec<String>,
-
     /// Max display depth of the reverse dependency tree.
     #[clap(long)]
     pub depth: Option<usize>,
-
-    /// Show extended information.
-    #[clap(long)]
-    pub long: bool,
-
-    /// Show information in JSON format.
-    #[clap(long)]
-    pub json: bool,
-
-    /// Show parseable output instead of tree view.
-    #[clap(long)]
-    pub parseable: bool,
-
-    /// Display only the dependency graph for packages in `dependencies`
-    /// and `optionalDependencies`.
-    #[clap(short = 'P', long = "prod", visible_alias = "production")]
-    pub production: bool,
-
-    /// Display only the dependency graph for packages in `devDependencies`.
-    #[clap(short = 'D', long)]
-    pub dev: bool,
-
-    /// Don't display packages from `optionalDependencies`.
-    #[clap(long, overrides_with = "optional")]
-    pub no_optional: bool,
-
-    /// Include packages from `optionalDependencies`.
-    #[clap(long, overrides_with = "no_optional")]
-    pub optional: bool,
-
     /// Exclude peer dependencies.
     ///
     /// Accepted but not applied, matching the TypeScript CLI: its `why`
@@ -75,10 +44,13 @@ pub struct WhyArgs {
     /// dependents-tree builder.
     #[clap(long)]
     pub exclude_peers: bool,
-
     /// Search by a finder function declared in `.pnpmfile.cjs`.
     #[clap(long = "find-by")]
     pub find_by: Vec<String>,
+    #[clap(flatten)]
+    pub output: crate::cli_args::list::TreeOutputArgs,
+    #[clap(flatten)]
+    pub dependencies: crate::cli_args::list::TreeDependencyArgs,
 }
 
 impl WhyArgs {
@@ -129,13 +101,13 @@ impl WhyArgs {
     }
 
     fn included_dependencies(&self, config: &Config) -> IncludedDependencies {
-        let has_both = self.production == self.dev;
+        let has_both = self.dependencies.production == self.dependencies.dev;
         IncludedDependencies {
-            dependencies: has_both || self.production,
-            dev_dependencies: has_both || self.dev,
+            dependencies: has_both || self.dependencies.production,
+            dev_dependencies: has_both || self.dependencies.dev,
             optional_dependencies: resolve_bool_override(
-                self.optional,
-                self.no_optional,
+                self.dependencies.optional,
+                self.dependencies.no_optional,
                 config.optional,
             ),
         }
@@ -160,10 +132,10 @@ impl WhyArgs {
     }
 
     fn render(&self, trees: &[DependentsTree]) -> String {
-        let render_opts = RenderDependentsOptions { long: self.long, depth: self.depth };
-        if self.parseable {
+        let render_opts = RenderDependentsOptions { long: self.output.long, depth: self.depth };
+        if self.output.parseable {
             render_dependents_parseable(trees, &render_opts)
-        } else if self.json {
+        } else if self.output.json {
             render_dependents_json(trees, &render_opts)
         } else {
             render_dependents_tree(trees, &render_opts)
@@ -221,8 +193,7 @@ fn state_project_dirs(state: &State, lockfile_dir: &Path) -> miette::Result<Vec<
     why_project_dirs(
         state.config,
         lockfile_dir,
-        state
-            .manifest
+        state.manifest
             .path()
             .parent()
             .expect("manifest path always has a parent dir")

@@ -19,11 +19,17 @@ pub(super) fn collect_reachable<ShouldSkip>(
 where
     ShouldSkip: Fn(&PackageKey) -> bool,
 {
-    let mut known_importer_ids = lockfile.importers.keys().cloned().collect::<Vec<_>>();
+    let mut known_importer_ids = lockfile.importers
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
     known_importer_ids.sort();
     let mut walk = ReachableWalk {
+        reached: ReachableLockfileGraph {
+            importer_ids: HashSet::new(),
+            snapshot_keys: HashSet::new(),
+        },
         lockfile,
-        snapshots: lockfile.snapshots.as_ref(),
         workspace_root,
         known_importers: known_importer_ids
             .into_iter()
@@ -33,9 +39,11 @@ where
             .collect(),
         included,
         should_skip,
-        importer_ids: HashSet::new(),
-        snapshot_keys: HashSet::new(),
-        importer_queue: initial_importer_ids.iter().cloned().collect(),
+
+        importer_queue: initial_importer_ids
+            .iter()
+            .cloned()
+            .collect(),
         snapshot_queue: VecDeque::new(),
     };
 
@@ -48,39 +56,36 @@ where
         }
     }
 
-    ReachableLockfileGraph { importer_ids: walk.importer_ids, snapshot_keys: walk.snapshot_keys }
+    walk.reached
 }
 /// Breadth-first walk of the lockfile graph from a set of importers.
 /// Importers and snapshots reach each other in both directions —
 /// a snapshot's `link:` dependency pulls in a workspace importer — so
 /// the two queues run to exhaustion in turn until neither grows.
 pub(super) struct ReachableWalk<'a, ShouldSkip> {
+    pub reached: ReachableLockfileGraph,
     lockfile: &'a Lockfile,
-    snapshots: Option<&'a HashMap<PackageKey, pnpm_lockfile::SnapshotEntry>>,
     workspace_root: &'a Path,
     known_importers: HashMap<std::path::PathBuf, String>,
     included: IncludedDependencies,
     should_skip: ShouldSkip,
-    importer_ids: HashSet<String>,
-    snapshot_keys: HashSet<PackageKey>,
     importer_queue: VecDeque<String>,
     snapshot_queue: VecDeque<PackageKey>,
 }
 impl<ShouldSkip: Fn(&PackageKey) -> bool> ReachableWalk<'_, ShouldSkip> {
     fn visit_importer(&mut self, importer_id: &str) {
-        if self.importer_ids.contains(importer_id) {
+        if self.reached.importer_ids.contains(importer_id) {
             return;
         }
         let Some(importer) = self.lockfile.importers.get(importer_id) else {
             return;
         };
-        self.importer_ids.insert(importer_id.to_owned());
+        self.reached.importer_ids.insert(importer_id.to_owned());
         let included = self.included;
         for map in [
             included.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
             included.dev_dependencies.then_some(importer.dev_dependencies.as_ref()).flatten(),
-            included
-                .optional_dependencies
+            included.optional_dependencies
                 .then_some(importer.optional_dependencies.as_ref())
                 .flatten(),
         ]
@@ -96,16 +101,18 @@ impl<ShouldSkip: Fn(&PackageKey) -> bool> ReachableWalk<'_, ShouldSkip> {
     }
 
     fn visit_snapshot(&mut self, key: &PackageKey) {
-        if !self.snapshot_keys.insert(key.clone()) {
+        if !self.reached.snapshot_keys.insert(key.clone()) {
             return;
         }
-        let Some(snapshot) = self.snapshots.and_then(|snapshots| snapshots.get(key)) else {
+        let Some(snapshot) = self.lockfile.snapshots
+            .as_ref()
+            .and_then(|snapshots| snapshots.get(key))
+        else {
             return;
         };
         for map in [
             snapshot.dependencies.as_ref(),
-            self.included
-                .optional_dependencies
+            self.included.optional_dependencies
                 .then_some(snapshot.optional_dependencies.as_ref())
                 .flatten(),
         ]
@@ -128,7 +135,10 @@ impl<ShouldSkip: Fn(&PackageKey) -> bool> ReachableWalk<'_, ShouldSkip> {
         if (self.should_skip)(&key) {
             return;
         }
-        if self.snapshots.is_some_and(|snapshots| snapshots.contains_key(&key)) {
+        if self.lockfile.snapshots
+            .as_ref()
+            .is_some_and(|snapshots| snapshots.contains_key(&key))
+        {
             self.snapshot_queue.push_back(key);
         }
     }

@@ -147,7 +147,10 @@ fn record_spec_bump(
             cataloged.insert((catalog_name, alias));
         }
         SpecBump::Manifest { alias, group, bumped } => {
-            manifests.entry(importer_id.to_string()).or_default().insert(alias, (group, bumped));
+            manifests
+                .entry(importer_id.to_string())
+                .or_default()
+                .insert(alias, (group, bumped));
         }
     }
 }
@@ -191,10 +194,9 @@ fn spec_bump(target: &SpecBumpTarget<'_>) -> SpecBump {
     // that repeats the declaration verbatim rewrites nothing, which
     // is why the text comparison below cannot stand in for this
     // (pnpm/pnpm#14224).
-    if target
-        .override_matcher
-        .is_some_and(|matcher| matcher.matches(target.alias, target.manifest_specifier))
-    {
+    if target.override_matcher.is_some_and(|matcher| {
+        matcher.matches(target.alias, target.manifest_specifier)
+    }) {
         return SpecBump::Skip;
     }
     let Ok(alias) = PkgName::parse(target.alias) else { return SpecBump::Skip };
@@ -224,8 +226,7 @@ fn collect_catalog_bumps(
 ) -> BTreeMap<String, HashMap<PkgName, String>> {
     let mut catalogs: BTreeMap<String, HashMap<PkgName, String>> = BTreeMap::new();
     for (catalog_name, alias) in cataloged {
-        let Some(entry) = lockfile
-            .catalogs
+        let Some(entry) = lockfile.catalogs
             .as_ref()
             .and_then(|catalogs| catalogs.get(catalog_name))
             .and_then(|catalog| catalog.get(&alias.to_string()))
@@ -236,7 +237,10 @@ fn collect_catalog_bumps(
         let Some(bumped) = bumped_range(&entry.specifier, &version, range_spec_style) else {
             continue;
         };
-        catalogs.entry(catalog_name.clone()).or_default().insert(alias.clone(), bumped);
+        catalogs
+            .entry(catalog_name.clone())
+            .or_default()
+            .insert(alias.clone(), bumped);
     }
     catalogs
 }
@@ -246,7 +250,10 @@ fn apply_importer_bumps(lockfile: &mut Lockfile, manifests: &ImporterBumps) {
         let Some(importer) = lockfile.importers.get_mut(importer_id) else { continue };
         let mut groups = dependency_maps_mut(importer);
         for (alias, (group, specifier)) in bumped {
-            if let Some(declared) = groups[*group].as_mut().and_then(|map| map.get_mut(alias)) {
+            if let Some(declared) = groups[*group]
+                .as_mut()
+                .and_then(|map| map.get_mut(alias))
+            {
                 declared.specifier.clone_from(specifier);
             }
         }
@@ -258,8 +265,9 @@ fn apply_catalog_bumps(
     catalogs: &BTreeMap<String, HashMap<PkgName, String>>,
 ) {
     for (catalog_name, bumped) in catalogs {
-        let Some(catalog) =
-            lockfile.catalogs.as_mut().and_then(|catalogs| catalogs.get_mut(catalog_name))
+        let Some(catalog) = lockfile.catalogs
+            .as_mut()
+            .and_then(|catalogs| catalogs.get_mut(catalog_name))
         else {
             continue;
         };
@@ -328,7 +336,11 @@ fn bumped_range(
 pub(crate) fn split_registry_alias(declared: &str) -> Option<(Cow<'_, str>, &str)> {
     let Some((protocol, rest)) = ["npm:", "jsr:"]
         .into_iter()
-        .find_map(|protocol| declared.strip_prefix(protocol).map(|rest| (protocol, rest)))
+        .find_map(|protocol| {
+            declared
+                .strip_prefix(protocol)
+                .map(|rest| (protocol, rest))
+        })
     else {
         return (!declared.contains(':')).then_some((Cow::Borrowed(""), declared));
     };
@@ -337,7 +349,10 @@ pub(crate) fn split_registry_alias(declared: &str) -> Option<(Cow<'_, str>, &str
     if rest.parse::<Range>().is_ok() {
         return Some((Cow::Borrowed(protocol), rest));
     }
-    match rest.rfind('@').filter(|index| *index >= 1) {
+    match rest
+        .rfind('@')
+        .filter(|index| *index >= 1)
+    {
         Some(at) => {
             let prefix_len = protocol.len() + at + 1;
             Some((Cow::Borrowed(&declared[..prefix_len]), &declared[prefix_len..]))
@@ -366,7 +381,9 @@ fn declared_dependency<'a>(
     alias: &PkgName,
     group: DependencyGroup,
 ) -> Option<(DependencyGroupIndex, &'a ResolvedDependencySpec)> {
-    let index = IMPORTER_GROUPS.iter().position(|candidate| *candidate == group)?;
+    let index = IMPORTER_GROUPS
+        .iter()
+        .position(|candidate| *candidate == group)?;
     let maps =
         [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
     Some((index, maps[index].as_ref()?.get(alias)?))

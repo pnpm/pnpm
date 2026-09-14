@@ -55,7 +55,7 @@ pub(super) struct ParentRef {
 /// the real name.
 pub(super) type ParentRefs = HashMap<String, ParentRef>;
 
-/// Per-peer-name snapshot stored on [`Walker::parent_pkgs_of_node`].
+/// Per-peer-name snapshot stored on [`crate::resolve_peers::discovery::PeerDiscoveryCaches::parent_pkgs_of_node`].
 ///
 /// `pkg_id` is `None` for parents that came in without a real
 /// `NodeId` (the importer-level `topParents` path); those
@@ -101,7 +101,8 @@ impl<Element: PartialEq> SharedChain<Element> {
     where
         Element: AsRef<str>,
     {
-        self.iter().any(|item| item.as_ref() == value)
+        self.iter()
+            .any(|item| item.as_ref() == value)
     }
 }
 
@@ -194,7 +195,7 @@ pub(super) struct CurrentProviderSource {
 
 impl Walker<'_> {
     /// Build the `(peer_name → ParentPkgInfo)` snapshot that gets
-    /// stored on [`Self::parent_pkgs_of_node`] for each child the
+    /// stored on [`crate::resolve_peers::discovery::PeerDiscoveryCaches::parent_pkgs_of_node`] for each child the
     /// caller is about to descend into.
     ///
     /// `link:` parents don't have a real tree entry; pacquet's
@@ -209,8 +210,7 @@ impl Walker<'_> {
             if !self.tree.all_peer_dep_names.contains(name) {
                 continue;
             }
-            let pkg_id = parent_ref
-                .node_id
+            let pkg_id = parent_ref.node_id
                 .as_ref()
                 .and_then(|nid| self.tree.dependencies_tree.get(nid))
                 .map(|tn| std::sync::Arc::<str>::clone(&tn.resolved_package_id));
@@ -266,12 +266,10 @@ impl Walker<'_> {
         if inherited_node_id == own_child_node_id {
             return false;
         }
-        let Some(inherited_context) = self.parent_pkgs_of_node.get(inherited_node_id) else {
+        let Some(inherited_context) = self.caches.parent_pkgs_of_node.get(inherited_node_id) else {
             return false;
         };
-        let Some(parent_pkg) = self
-            .tree
-            .dependencies_tree
+        let Some(parent_pkg) = self.tree.dependencies_tree
             .get(own_child_node_id)
             .and_then(|node| self.tree.packages.get(&node.resolved_package_id))
         else {
@@ -324,7 +322,10 @@ impl Walker<'_> {
             if !child_pkg.peer_dependencies.contains_key(parent_pkg_name) {
                 continue;
             }
-            if conflicting_peers.iter().any(|peer| child_pkg.peer_dependencies.contains_key(peer)) {
+            if conflicting_peers
+                .iter()
+                .any(|peer| child_pkg.peer_dependencies.contains_key(peer))
+            {
                 return true;
             }
         }
@@ -340,9 +341,7 @@ impl Walker<'_> {
                 .filter_map(|child_node_id| self.tree.dependencies_tree.get(child_node_id))
                 .map(|child| &*child.resolved_package_id)
                 .collect(),
-            TreeChildren::Lazy { .. } => self
-                .tree
-                .children_by_id
+            TreeChildren::Lazy { .. } => self.tree.children_by_id
                 .get(&node.resolved_package_id)
                 .into_iter()
                 .flat_map(|children| children.iter())
@@ -360,9 +359,7 @@ impl Walker<'_> {
             let Some(current_node_id) = current_peer.node_id.as_ref() else {
                 return true;
             };
-            return self
-                .tree
-                .dependencies_tree
+            return self.tree.dependencies_tree
                 .get(current_node_id)
                 .is_none_or(|node| *node.resolved_package_id != **inherited_pkg_id);
         }
@@ -401,11 +398,15 @@ pub(super) fn insert_parent_ref(
 
 fn update_parent_refs(refs: &mut ParentRefs, new_alias: &str, parent_ref: &ParentRef) {
     if let Some(existing) = refs.get(new_alias) {
-        let existing_has_alias = existing.alias.as_deref().is_some_and(|alias| alias != new_alias);
+        let existing_has_alias = existing.alias
+            .as_deref()
+            .is_some_and(|alias| alias != new_alias);
         if !existing_has_alias {
             return;
         }
-        let new_has_alias = parent_ref.alias.as_deref().is_some_and(|alias| alias != new_alias);
+        let new_has_alias = parent_ref.alias
+            .as_deref()
+            .is_some_and(|alias| alias != new_alias);
         if new_has_alias && version_gte(&existing.version, &parent_ref.version) {
             return;
         }

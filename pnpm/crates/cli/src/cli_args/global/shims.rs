@@ -26,19 +26,24 @@ pub(super) fn link_global_bins(
     // globally installed runtime already has. The entry is recorded before
     // the split below, so the bins this very run writes are the
     // dispatching flavor.
-    let names = pkgs.iter().filter_map(|pkg| pkg.manifest.get("name")?.as_str());
+    let names = pkgs
+        .iter()
+        .filter_map(|pkg| pkg.manifest.get("name")?.as_str());
     let newly_enabled = record_package_manager_shims(config, names)?;
 
-    let (direct, context_aware): (Vec<_>, Vec<_>) = pkgs.iter().cloned().partition(|pkg| {
-        let name = pkg.manifest.get("name").and_then(serde_json::Value::as_str);
-        !name.is_some_and(|name| {
-            (config.global_shims.is_enabled(name) || newly_enabled.contains(name))
-                && (!pnpm_package_manifest::is_runtime_alias(name)
-                    || dependencies
-                        .iter()
-                        .any(|(alias, spec)| alias == name && spec.starts_with("runtime:")))
-        })
-    });
+    let (direct, context_aware): (Vec<_>, Vec<_>) = pkgs
+        .iter()
+        .cloned()
+        .partition(|pkg| {
+            let name = pkg.manifest.get("name").and_then(serde_json::Value::as_str);
+            !name.is_some_and(|name| {
+                (config.global_shims.is_enabled(name) || newly_enabled.contains(name))
+                    && (!pnpm_package_manifest::is_runtime_alias(name)
+                        || dependencies
+                            .iter()
+                            .any(|(alias, spec)| alias == name && spec.starts_with("runtime:")))
+            })
+        });
     migrate_legacy_shims(global_bin_dir).into_diagnostic().wrap_err("migrate the global shims")?;
     if !direct.is_empty() {
         // A slot turning direct again (its package's shim switched off)
@@ -81,17 +86,7 @@ pub(super) fn check_virtual_shim_conflicts(
     packages: &[PackageBinSource],
     global_bin_dir: &Path,
 ) -> miette::Result<()> {
-    let mut providers_by_bin: HashMap<String, BTreeSet<String>> = HashMap::new();
-    for package in packages {
-        let package_name =
-            package.manifest.get("name").and_then(serde_json::Value::as_str).unwrap_or("");
-        for command in pnpm_cmd_shim::get_bins_from_package_manifest::<CmdShimHost>(
-            &package.manifest,
-            &package.location,
-        ) {
-            providers_by_bin.entry(command.name).or_default().insert(package_name.to_string());
-        }
-    }
+    let providers_by_bin = package_bin_providers(packages);
     if providers_by_bin.is_empty() {
         return Ok(());
     }
@@ -101,19 +96,44 @@ pub(super) fn check_virtual_shim_conflicts(
         let owner = virtual_shim_owner(&bin_path)
             .into_diagnostic()
             .wrap_err_with(|| format!("inspect global bin at {}", bin_path.display()))?;
-        let owner = owner.as_ref().or_else(|| restoration_owners.get(&bin));
+        let owner = owner
+            .as_ref()
+            .or_else(|| restoration_owners.get(&bin));
         let Some(owner) = owner else { continue };
         if providers.len() == 1 && providers.contains(owner) {
             continue;
         }
         return Err(GlobalError::VirtualShimBinConflict {
-            packages: providers.into_iter().collect::<Vec<_>>().join(", "),
+            packages: providers
+                .into_iter()
+                .collect::<Vec<_>>()
+                .join(", "),
             bin,
             shim_package: owner.clone(),
         }
         .into());
     }
     Ok(())
+}
+
+fn package_bin_providers(packages: &[PackageBinSource]) -> HashMap<String, BTreeSet<String>> {
+    let mut providers_by_bin: HashMap<String, BTreeSet<String>> = HashMap::new();
+    for package in packages {
+        let package_name = package.manifest
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        for command in pnpm_cmd_shim::get_bins_from_package_manifest::<CmdShimHost>(
+            &package.manifest,
+            &package.location,
+        ) {
+            providers_by_bin
+                .entry(command.name)
+                .or_default()
+                .insert(package_name.to_string());
+        }
+    }
+    providers_by_bin
 }
 
 pub(super) fn virtual_shims_to_restore(
@@ -155,7 +175,10 @@ fn add_package_shims_to_restore(
         &package.location,
     ) {
         if recorded.contains(&command.name) && !protected.contains(&command.name) {
-            shims.entry(package_name.to_string()).or_default().insert(command.name);
+            shims
+                .entry(package_name.to_string())
+                .or_default()
+                .insert(command.name);
         }
     }
     Ok(())
@@ -168,7 +191,11 @@ pub(super) struct ReplacedGlobalBinPlan {
 
 impl ReplacedGlobalBinPlan {
     pub(super) fn restored_bin_names(&self) -> HashSet<String> {
-        self.shims_to_restore.values().flatten().cloned().collect()
+        self.shims_to_restore
+            .values()
+            .flatten()
+            .cloned()
+            .collect()
     }
 }
 
@@ -179,7 +206,10 @@ pub(super) fn plan_replaced_global_bins(
     protected_bins: &HashSet<String>,
     enabled: &GlobalShims,
 ) -> miette::Result<ReplacedGlobalBinPlan> {
-    let occupied_bins = prospective_bins.union(protected_bins).cloned().collect::<HashSet<_>>();
+    let occupied_bins = prospective_bins
+        .union(protected_bins)
+        .cloned()
+        .collect::<HashSet<_>>();
     let shims_to_restore =
         virtual_shims_to_restore(groups, global_bin_dir, &occupied_bins, enabled)?;
     let affected_bin_names = groups

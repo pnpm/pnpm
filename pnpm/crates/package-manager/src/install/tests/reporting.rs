@@ -40,39 +40,51 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
     let config = config.leak();
 
     let error = Install {
-        tarball_mem_cache: Default::default(),
-        http_client: &Default::default(),
-        http_client_arc: std::sync::Arc::new(Default::default()),
-        config,
-        manifest: &manifest,
-        emit_initial_manifest: true,
-        lockfile: MaybeLazyLockfile::Loaded(None),
-        lockfile_path: None,
-        dependency_groups: [DependencyGroup::Prod],
-        frozen_lockfile: false,
-        prefer_frozen_lockfile: Some(false),
-        ignore_manifest_check: false,
-        skip_runtimes: false,
-        trust_lockfile: false,
-        update_checksums: false,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        supported_architectures: None,
-        node_linker: pnpm_config::NodeLinker::default(),
-        lockfile_only: false,
-        dry_run: false,
-        policy_excludes: PolicyExcludes::Persist,
-        resolved_packages: &Default::default(),
-        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: false,
+            prefer_frozen: Some(false),
+            ignore_manifest_check: false,
+            trust: false,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
     }
     .run_with_prompt_eligibility::<SilentReporter>(false)
     .await
@@ -84,7 +96,11 @@ async fn fresh_install_reports_strict_minimum_release_age_violations_before_writ
             MinimumReleaseAgeError::NoMatureMatchingVersion { .. }
         ))
     ));
-    assert!(!dir.path().join("pnpm-lock.yaml").exists());
+    assert!(
+        !dir.path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
     assert!(!modules_dir.exists());
 }
 /// [`Install::run`] emits `pnpm:package-manifest initial`,
@@ -117,7 +133,10 @@ async fn install_emits_pnpm_event_sequence() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -131,9 +150,10 @@ async fn install_emits_pnpm_event_sequence() {
     config.store_dir = dirs.store_dir.clone().into();
     config.modules_dir = dirs.modules_dir.clone();
     config.virtual_store_dir = dirs.virtual_store_dir.clone();
-    config
-        .registries_by_scope
-        .insert("@private".to_string(), "https://private.example.com/npm/".to_string());
+    config.registries_by_scope.insert(
+        "@private".to_string(),
+        "https://private.example.com/npm/".to_string(),
+    );
     let config = config.leak();
 
     // Empty v9 lockfile: `--frozen-lockfile` walks an empty snapshot
@@ -149,39 +169,51 @@ async fn install_emits_pnpm_event_sequence() {
     .expect("parse minimal v9 lockfile");
 
     Install {
-        tarball_mem_cache: Default::default(),
-        http_client: &Default::default(),
-        http_client_arc: std::sync::Arc::new(Default::default()),
-        config,
-        manifest: &manifest,
-        emit_initial_manifest: true,
-        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
-        lockfile_path: None,
-        dependency_groups: [DependencyGroup::Prod],
-        frozen_lockfile: true,
-        prefer_frozen_lockfile: None,
-        ignore_manifest_check: false,
-        skip_runtimes: false,
-        trust_lockfile: false,
-        update_checksums: false,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        supported_architectures: None,
-        node_linker: pnpm_config::NodeLinker::default(),
-        lockfile_only: false,
-        dry_run: false,
-        policy_excludes: PolicyExcludes::Persist,
-        resolved_packages: &Default::default(),
-        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: true,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: false,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
     }
     .run::<RecordingReporter>()
     .await
@@ -228,7 +260,12 @@ async fn install_emits_pnpm_event_sequence() {
     };
     assert!(package_names.is_empty(), "no builds in empty lockfile: {package_names:?}");
 
-    let expected_prefix = manifest.path().parent().unwrap().to_string_lossy().into_owned();
+    let expected_prefix = manifest
+        .path()
+        .parent()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
 
     // Manifest event carries the on-disk JSON unchanged so consumers
     // can diff `initial` vs a later `updated` byte-for-byte.
@@ -257,7 +294,13 @@ async fn install_emits_pnpm_event_sequence() {
         unreachable!("context follows the manifest snapshot, asserted above");
     };
     assert!(!current_lockfile_exists);
-    assert_eq!(emitted_store_dir, &dirs.store_dir.join(STORE_VERSION).display().to_string());
+    assert_eq!(
+        emitted_store_dir,
+        &dirs.store_dir
+            .join(STORE_VERSION)
+            .display()
+            .to_string(),
+    );
     assert_eq!(emitted_virtual_store_dir, &dirs.virtual_store_dir.to_string_lossy().into_owned());
 
     // Summary's `prefix` must equal the manifest-parent value
@@ -282,7 +325,10 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -331,39 +377,52 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
     // event in the captured set regardless of the final install
     // result.
     let _ = Install {
-        tarball_mem_cache: Default::default(),
-        http_client: &Default::default(),
-        http_client_arc: std::sync::Arc::new(Default::default()),
-        config,
-        manifest: &manifest,
-        emit_initial_manifest: true,
-        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
-        lockfile_path: None,
-        dependency_groups: [DependencyGroup::Prod],
-        frozen_lockfile: true,
-        prefer_frozen_lockfile: None,
-        ignore_manifest_check: false,
-        skip_runtimes: false,
-        trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
-        update_checksums: false,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        supported_architectures: None,
-        node_linker: pnpm_config::NodeLinker::default(),
-        lockfile_only: false,
-        dry_run: false,
-        policy_excludes: PolicyExcludes::Persist,
-        resolved_packages: &Default::default(),
-        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: true,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: true,
+            // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
     }
     .run::<RecordingReporter>()
     .await;
@@ -404,7 +463,10 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -440,39 +502,52 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
 
     EVENTS.lock().unwrap().clear();
     Install {
-        tarball_mem_cache: Default::default(),
-        http_client: &Default::default(),
-        http_client_arc: std::sync::Arc::new(Default::default()),
-        config,
-        manifest: &manifest,
-        emit_initial_manifest: true,
-        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
-        lockfile_path: None,
-        dependency_groups: [DependencyGroup::Prod],
-        frozen_lockfile: true,
-        prefer_frozen_lockfile: None,
-        ignore_manifest_check: false,
-        skip_runtimes: false,
-        trust_lockfile: true, // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
-        update_checksums: false,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        supported_architectures: None,
-        node_linker: pnpm_config::NodeLinker::default(),
-        lockfile_only: false,
-        dry_run: false,
-        policy_excludes: PolicyExcludes::Persist,
-        resolved_packages: &Default::default(),
-        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: true,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: true,
+            // fixture pins a tripwire tarball URL; skip resolution verification so the tarball-URL check doesn't flag it before the path under test
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
     }
     .run::<RecordingReporter>()
     .await
@@ -485,9 +560,10 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         .unwrap()
         .iter()
         .filter_map(|event| match event {
-            LogEvent::Stats(StatsLog { message: StatsMessage::Added { added, .. }, .. }) => {
-                Some(*added)
-            }
+            LogEvent::Stats(StatsLog {
+                message: StatsMessage::Added { added, .. },
+                ..
+            }) => Some(*added),
             _ => None,
         })
         .collect();

@@ -196,10 +196,15 @@ fn extend_children<Child>(
 pub fn in_lockfile_order<Value>(
     snapshots: &HashMap<PackageKey, Value>,
 ) -> Vec<(&PackageKey, &Value)> {
-    let mut entries: Vec<(String, &PackageKey, &Value)> =
-        snapshots.iter().map(|(key, value)| (key.to_string(), key, value)).collect();
+    let mut entries: Vec<(String, &PackageKey, &Value)> = snapshots
+        .iter()
+        .map(|(key, value)| (key.to_string(), key, value))
+        .collect();
     entries.sort_unstable_by(|(left, ..), (right, ..)| left.cmp(right));
-    entries.into_iter().map(|(_, key, value)| (key, value)).collect()
+    entries
+        .into_iter()
+        .map(|(_, key, value)| (key, value))
+        .collect()
 }
 
 #[cfg(test)]

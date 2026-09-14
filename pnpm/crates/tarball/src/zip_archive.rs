@@ -5,15 +5,14 @@
 
 use super::{
     Arc, ArchiveStoreProjection, Component, Cursor, HashMap, IgnoreEntryFilter, NetworkError,
-    PathBuf, PrefetchedCasPaths, Read, STREAM_ENTRY_BUFFER_MAX, TarballError, UNIX_EPOCH,
-    allocate_tarball_buffer, post_download_semaphore,
+    PathBuf, Read, STREAM_ENTRY_BUFFER_MAX, TarballError, UNIX_EPOCH, allocate_tarball_buffer,
+    post_download_semaphore,
 };
 use pnpm_fs::file_mode;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{
-    CafsFileInfo, FileHash, PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache,
-    StoreDir, StoreIndexWriter, WriteCasFileFromReaderError,
+    CafsFileInfo, FileHash, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError,
 };
 use ssri::Integrity;
 
@@ -46,14 +45,17 @@ pub(crate) fn extract_zip_entries(
     // keeping entry paths verbatim when there is no prefix. The
     // trailing slash anchors the strip so a prefix of `foo` doesn't
     // accidentally consume `foobar/...`.
-    let basename_prefix: Option<String> =
-        archive_prefix.filter(|prefix| !prefix.is_empty()).map(|prefix| format!("{prefix}/"));
+    let basename_prefix: Option<String> = archive_prefix
+        .filter(|prefix| !prefix.is_empty())
+        .map(|prefix| format!("{prefix}/"));
 
     for index in 0..entry_count {
-        let mut entry = archive.by_index(index).map_err(|source| TarballError::ReadZipArchive {
-            url: package_url.to_string(),
-            source,
-        })?;
+        let mut entry = archive
+            .by_index(index)
+            .map_err(|source| TarballError::ReadZipArchive {
+                url: package_url.to_string(),
+                source,
+            })?;
         let Some(cleaned) =
             zip_entry_path(&entry, package_url, basename_prefix.as_deref(), ignore_file_pattern)?
         else {
@@ -122,8 +124,10 @@ fn store_zip_entry(
         store_dir,
         file_mode::is_executable(file_mode),
     )?;
-    let checked_at =
-        UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
+    let checked_at = UNIX_EPOCH
+        .elapsed()
+        .ok()
+        .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
     Ok((
         file_path,
         CafsFileInfo {
@@ -199,7 +203,10 @@ fn zip_entry_path(
     // doesn't start with `{prefix}/` we use the normalized form
     // (a no-op when the entry already lives at the archive root).
     let cleaned = match basename_prefix {
-        Some(prefix) => normalized.strip_prefix(prefix).unwrap_or(&normalized).to_string(),
+        Some(prefix) => normalized
+            .strip_prefix(prefix)
+            .unwrap_or(&normalized)
+            .to_string(),
         None => normalized,
     };
     // An entry whose name was exactly the prefix directory leaves no
@@ -259,12 +266,14 @@ pub(crate) fn write_zip_entry_to_cas(
 
     let prealloc = declared_size as usize;
     let mut buffer = Vec::new();
-    buffer.try_reserve(prealloc).map_err(|err| {
-        read_error(std::io::Error::new(
-            std::io::ErrorKind::OutOfMemory,
-            format!("failed to reserve {prealloc} bytes for zip entry: {err}"),
-        ))
-    })?;
+    buffer
+        .try_reserve(prealloc)
+        .map_err(|err| {
+            read_error(std::io::Error::new(
+                std::io::ErrorKind::OutOfMemory,
+                format!("failed to reserve {prealloc} bytes for zip entry: {err}"),
+            ))
+        })?;
     bounded.read_to_end(&mut buffer).map_err(read_error)?;
     if buffer.len() as u64 != declared_size {
         return Err(read_error(std::io::Error::new(
@@ -358,8 +367,9 @@ async fn download_zip_body<Reporter: self::Reporter>(
     let mut stream = response_head.bytes_stream();
     let mut progress = crate::download::BodyProgress::new(expected_size, package_id);
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk
-            .map_err(|error| TarballError::FetchTarball(NetworkError::new(package_url, error)))?;
+        let chunk = chunk.map_err(|error| {
+            TarballError::FetchTarball(NetworkError::new(package_url, error))
+        })?;
         buf.extend_from_slice(&chunk);
         progress.on_chunk::<Reporter>(chunk.len());
     }
@@ -389,9 +399,11 @@ impl ZipExtraction {
         // The buffer + ZipArchive are released on return — large runtime
         // archives (Node.js for Windows is ~30 MB) would otherwise keep
         // the buffer alive through the whole read.
-        let mut archive = zip::ZipArchive::new(Cursor::new(self.buffer)).map_err(|source| {
-            TarballError::ReadZipArchive { url: self.package_url.clone(), source }
-        })?;
+        let mut archive = zip::ZipArchive::new(Cursor::new(self.buffer))
+            .map_err(|source| TarballError::ReadZipArchive {
+                url: self.package_url.clone(),
+                source,
+            })?;
         extract_zip_entries(
             &mut archive,
             &self.package_url,
@@ -462,25 +474,10 @@ pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
 /// packages.
 #[must_use]
 pub struct IngestZipArchiveToStore<'a> {
-    pub http_client: &'a ThrottledClient,
-    pub store_dir: &'static StoreDir,
-    pub store_index: Option<SharedReadonlyStoreIndex>,
-    pub store_index_writer: Option<Arc<StoreIndexWriter>>,
-    pub verify_store_integrity: bool,
-    /// See [`crate::download::IngestTarballToStore::strict_store_pkg_content_check`].
-    pub strict_store_pkg_content_check: bool,
-    pub verified_files_cache: SharedVerifiedFilesCache,
-    pub package_integrity: &'a Integrity,
-    pub package_url: &'a str,
-    pub package_id: &'a str,
+    pub fetching: crate::ArchiveFetchOptions<'a>,
+    pub package: crate::ZipArchivePackage<'a>,
+    pub store: crate::ArchiveStoreContext<'a>,
     pub requester: &'a str,
-    pub prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
-    pub retry_opts: RetryOpts,
-    /// Auth headers resolved at install start. The zip pipeline
-    /// applies the per-URL match the same way the tarball pipeline
-    /// does (`AuthHeaders::for_url`), so a runtime archive hosted
-    /// behind a token-protected proxy still authenticates correctly.
-    pub auth_headers: &'a AuthHeaders,
     /// Basename of the archive's top-level directory, mirroring the
     /// `prefix` field on `pnpm_lockfile::BinaryResolution`. The
     /// zip extractor strips `{prefix}/` from each entry path before
@@ -491,12 +488,6 @@ pub struct IngestZipArchiveToStore<'a> {
     /// See [`crate::download::IngestTarballToStore::ignore_file_pattern`] — the
     /// per-fetch archive filter is shared by both archive types.
     pub ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
-    /// See [`crate::download::IngestTarballToStore::offline`]. Same semantics for
-    /// the zip-archive path: when both cache lookups miss and
-    /// `offline` is `true`, the fetcher fails with
-    /// [`TarballError::NoOfflineTarball`] rather than hitting the
-    /// network.
-    pub offline: bool,
     /// Ecosystem-owned projection policy applied after verified extraction.
     pub store_projection: ArchiveStoreProjection<'a>,
 }
@@ -507,26 +498,24 @@ impl IngestZipArchiveToStore<'_> {
         &self,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
         crate::ingestion::ArchiveIngestion {
-            http_client: self.http_client,
-            store_dir: self.store_dir,
-            store_index: &self.store_index,
-            store_index_writer: &self.store_index_writer,
-            verify_store_integrity: self.verify_store_integrity,
-            strict_store_pkg_content_check: self.strict_store_pkg_content_check,
-            verified_files_cache: &self.verified_files_cache,
-            package_integrity: Some(self.package_integrity),
-            package_url: self.package_url,
-            package_id: self.package_id,
+            store: &self.store,
+            fetching: self.fetching,
+            package: crate::TarballPackage {
+                integrity: Some(self.package.integrity),
+                url: self.package.url,
+                id: self.package.id,
+                unpacked_size: None,
+                file_count: None,
+            },
+
             requester: self.requester,
-            prefetched_cas_paths: self.prefetched_cas_paths,
-            retry_opts: self.retry_opts,
-            auth_headers: self.auth_headers,
+
             ignore_file_pattern: &self.ignore_file_pattern,
-            offline: self.offline,
+
             progress_reported: &None,
             store_projection: self.store_projection,
             format: crate::ingestion::ArchiveFormat::Zip {
-                integrity: self.package_integrity,
+                integrity: self.package.integrity,
                 prefix: self.archive_prefix,
             },
         }

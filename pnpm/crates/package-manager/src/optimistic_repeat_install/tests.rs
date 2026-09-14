@@ -71,13 +71,15 @@ fn check_with_catalogs(
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker,
-        included: isolated_included(),
-        supported_architectures: None,
         project_manifests,
         is_workspace_install,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs,
+        layout: crate::RepeatInstallLayout {
+            node_linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
     })
 }
 
@@ -91,13 +93,15 @@ fn check_with_lockfile(
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker,
-        included: isolated_included(),
-        supported_architectures: None,
         project_manifests,
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(Some(lockfile)),
         catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
     })
 }
 
@@ -125,7 +129,10 @@ fn write_local_tarball_lockfile(
     dependency_group: &str,
     tarball: &[u8],
 ) -> Lockfile {
-    let integrity = IntegrityOpts::new().algorithm(Algorithm::Sha512).chain(tarball).result();
+    let integrity = IntegrityOpts::new()
+        .algorithm(Algorithm::Sha512)
+        .chain(tarball)
+        .result();
     fs::write(
         workspace_root.join(Lockfile::FILE_NAME),
         format!(
@@ -147,7 +154,10 @@ fn write_bare_tarball_lockfile(
     virtual_store_dir: &std::path::Path,
     tarball: &[u8],
 ) -> Lockfile {
-    let integrity = IntegrityOpts::new().algorithm(Algorithm::Sha512).chain(tarball).result();
+    let integrity = IntegrityOpts::new()
+        .algorithm(Algorithm::Sha512)
+        .chain(tarball)
+        .result();
     fs::write(
         workspace_root.join(Lockfile::FILE_NAME),
         format!(
@@ -169,7 +179,10 @@ fn write_registry_lockfile(
     virtual_store_dir: &std::path::Path,
     specifier: &str,
 ) -> Lockfile {
-    let integrity = IntegrityOpts::new().algorithm(Algorithm::Sha512).chain(b"registry").result();
+    let integrity = IntegrityOpts::new()
+        .algorithm(Algorithm::Sha512)
+        .chain(b"registry")
+        .result();
     fs::write(
         workspace_root.join(Lockfile::FILE_NAME),
         format!(
@@ -364,13 +377,15 @@ fn content_check_decision(
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pnpm_config::NodeLinker::Isolated,
-        included: isolated_included(),
-        supported_architectures: None,
         project_manifests,
         is_workspace_install,
         lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
         catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
     })
 }
 
@@ -419,7 +434,10 @@ fn collide_mtimes_with_recorded_state(
 /// verdict after this can only have come from the pure-mtime fast path.
 fn poison_lockfile_content(workspace_root: &std::path::Path) {
     let path = workspace_root.join(Lockfile::FILE_NAME);
-    let modified = fs::metadata(&path).unwrap().modified().unwrap();
+    let modified = fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
     fs::write(&path, FOO_LOCKFILE.replace("1.0.0", "1.0.1")).unwrap();
     set_mtime(&path, modified);
 }
@@ -462,13 +480,15 @@ fn workspace_deps_status(
         &OptimisticRepeatInstallCheck {
             workspace_root: dir.path(),
             config,
-            node_linker: pnpm_config::NodeLinker::Isolated,
-            included: isolated_included(),
-            supported_architectures: None,
             project_manifests,
             is_workspace_install: true,
             lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
             catalogs: &BTreeMap::default(),
+            layout: crate::RepeatInstallLayout {
+                node_linker: pnpm_config::NodeLinker::Isolated,
+                included: isolated_included(),
+                supported_architectures: None,
+            },
         },
         &state,
     )
@@ -593,9 +613,6 @@ importers:
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker: pnpm_config::NodeLinker::Isolated,
-        included: isolated_included(),
-        supported_architectures: None,
         project_manifests: &[
             (workspace_root.to_path_buf(), &root_manifest_touched),
             (sibling_dir, &sibling_manifest),
@@ -603,5 +620,10 @@ importers:
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
         catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
     })
 }

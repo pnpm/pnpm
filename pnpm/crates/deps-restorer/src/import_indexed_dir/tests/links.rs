@@ -151,6 +151,11 @@ fn safe_to_skip_replaces_a_symlink_to_matching_store_content() {
     )
     .expect("a shared slot must not adopt a symlink to store content");
 
-    assert!(!fs::symlink_metadata(target.join("index.js")).unwrap().file_type().is_symlink());
+    assert!(
+        !fs::symlink_metadata(target.join("index.js"))
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
     assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
 }

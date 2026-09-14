@@ -21,6 +21,13 @@ pub enum PublishBodyError {
 
 /// One dependency as `cargo publish` sends it.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "Cargo publish dependency format is flat"
+    )
+)]
 pub struct PublishDependency {
     /// The dependency's package name.
     pub name: String,
@@ -46,6 +53,13 @@ pub struct PublishDependency {
 /// a registry's web UI (description, license, links, badges, ...) are
 /// accepted and retained but do not reach the index.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "Cargo publish metadata format is flat"
+    )
+)]
 pub struct PublishMetadata {
     pub name: String,
     pub vers: String,
@@ -109,26 +123,30 @@ impl PublishMetadata {
     /// Reject metadata whose names or versions no registry could index.
     pub fn validate(&self) -> Result<(), PublishMetadataError> {
         validate_crate_name(&self.name).map_err(PublishMetadataError::CrateName)?;
-        semver::Version::parse(&self.vers).map_err(|source| PublishMetadataError::Version {
-            version: self.vers.clone(),
-            source,
-        })?;
-        for dep in &self.deps {
-            validate_crate_name(&dep.name).map_err(|source| {
-                PublishMetadataError::DependencyName { name: dep.name.clone(), source }
+        semver::Version::parse(&self.vers)
+            .map_err(|source| PublishMetadataError::Version {
+                version: self.vers.clone(),
+                source,
             })?;
-            if let Some(alias) = &dep.explicit_name_in_toml {
-                validate_crate_name(alias).map_err(|source| {
-                    PublishMetadataError::DependencyName { name: alias.clone(), source }
+        for dep in &self.deps {
+            validate_crate_name(&dep.name)
+                .map_err(|source| PublishMetadataError::DependencyName {
+                    name: dep.name.clone(),
+                    source,
                 })?;
+            if let Some(alias) = &dep.explicit_name_in_toml {
+                validate_crate_name(alias)
+                    .map_err(|source| PublishMetadataError::DependencyName {
+                        name: alias.clone(),
+                        source,
+                    })?;
             }
-            semver::VersionReq::parse(&dep.version_req).map_err(|source| {
-                PublishMetadataError::DependencyRequirement {
+            semver::VersionReq::parse(&dep.version_req)
+                .map_err(|source| PublishMetadataError::DependencyRequirement {
                     name: dep.name.clone(),
                     req: dep.version_req.clone(),
                     source,
-                }
-            })?;
+                })?;
         }
         Ok(())
     }
@@ -139,30 +157,17 @@ impl PublishMetadata {
     /// understand them does not read them.
     #[must_use]
     pub fn into_index_entry(self, cksum: String) -> IndexEntry {
-        let deps = self
-            .deps
+        let deps = self.deps
             .into_iter()
-            .map(|dep| {
-                let (name, package) = match dep.explicit_name_in_toml {
-                    Some(alias) => (alias, Some(dep.name)),
-                    None => (dep.name, None),
-                };
-                IndexDependency {
-                    name,
-                    req: dep.version_req,
-                    features: dep.features,
-                    optional: dep.optional,
-                    default_features: dep.default_features,
-                    target: dep.target,
-                    kind: dep.kind,
-                    registry: dep.registry,
-                    package,
-                }
-            })
+            .map(PublishDependency::into_index_dependency)
             .collect();
-        let (features, features2): (BTreeMap<_, _>, BTreeMap<_, _>) =
-            self.features.into_iter().partition(|(_, values)| {
-                !values.iter().any(|value| value.starts_with("dep:") || value.contains("?/"))
+        let (features, features2): (BTreeMap<_, _>, BTreeMap<_, _>) = self
+            .features
+            .into_iter()
+            .partition(|(_, values)| {
+                !values
+                    .iter()
+                    .any(|value| value.starts_with("dep:") || value.contains("?/"))
             });
         let schema_version = if features2.is_empty() { 1 } else { 2 };
         IndexEntry {
@@ -284,10 +289,17 @@ pub(super) fn crate_entry_path<Reader: io::Read>(
         path: path.clone(),
         expected: expected.to_string(),
     };
-    let Some(inner) = path.strip_prefix(expected).and_then(|rest| rest.strip_prefix('/')) else {
+    let Some(inner) = path
+        .strip_prefix(expected)
+        .and_then(|rest| rest.strip_prefix('/'))
+    else {
         return Err(outside());
     };
-    if path.contains(['\\', ':']) || inner.split('/').any(|part| part == "..") {
+    if path.contains(['\\', ':'])
+        || inner
+            .split('/')
+            .any(|part| part == "..")
+    {
         return Err(outside());
     }
     if !entry_type.is_file() && !entry_type.is_dir() {
@@ -304,14 +316,39 @@ pub(super) fn validate_crate_manifest<Reader: io::Read>(
 ) -> Result<(), CrateArchiveError> {
     let mut manifest = String::new();
     entry.read_to_string(&mut manifest).map_err(CrateArchiveError::Read)?;
-    let matches = toml::from_str::<toml::Value>(&manifest).ok().is_some_and(|manifest| {
-        let package = manifest.get("package");
-        let field =
-            |key| package.and_then(|package| package.get(key)).and_then(toml::Value::as_str);
-        field("name") == Some(name) && field("version") == Some(version)
-    });
+    let matches = toml::from_str::<toml::Value>(&manifest)
+        .ok()
+        .is_some_and(|manifest| {
+            let package = manifest.get("package");
+            let field = |key| {
+                package
+                    .and_then(|package| package.get(key))
+                    .and_then(toml::Value::as_str)
+            };
+            field("name") == Some(name) && field("version") == Some(version)
+        });
     if matches {
         return Ok(());
     }
     Err(CrateArchiveError::InvalidManifest { name: name.to_string(), version: version.to_string() })
+}
+
+impl PublishDependency {
+    fn into_index_dependency(self) -> IndexDependency {
+        let (name, package) = match self.explicit_name_in_toml {
+            Some(alias) => (alias, Some(self.name)),
+            None => (self.name, None),
+        };
+        IndexDependency {
+            name,
+            req: self.version_req,
+            features: self.features,
+            optional: self.optional,
+            default_features: self.default_features,
+            target: self.target,
+            kind: self.kind,
+            registry: self.registry,
+            package,
+        }
+    }
 }

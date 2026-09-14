@@ -7,7 +7,9 @@ fn pattern(raw: &str) -> PackagePattern {
 }
 
 fn patterns(raws: &[&str]) -> Vec<PackagePattern> {
-    raws.iter().map(|raw| pattern(raw)).collect()
+    raws.iter()
+        .map(|raw| pattern(raw))
+        .collect()
 }
 
 fn hosted(raws: &[&str]) -> Registry {
@@ -19,11 +21,19 @@ fn upstream(raws: &[&str]) -> Registry {
 }
 
 fn router(sources: &[&str]) -> Registry {
-    Registry::Router { sources: sources.iter().map(ToString::to_string).collect() }
+    Registry::Router {
+        sources: sources
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+    }
 }
 
 fn registries(entries: Vec<(&str, Registry)>, default_registry: Option<&str>) -> Registries {
-    let map = entries.into_iter().map(|(name, kind)| (name.to_string(), kind)).collect();
+    let map = entries
+        .into_iter()
+        .map(|(name, kind)| (name.to_string(), kind))
+        .collect();
     Registries::new(map, default_registry.map(str::to_string))
 }
 

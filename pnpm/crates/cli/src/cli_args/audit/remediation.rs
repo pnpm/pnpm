@@ -14,7 +14,9 @@ fn prune_ignored_advisories(
     report: &AuditReport,
     settings_dir: &std::path::Path,
 ) -> miette::Result<()> {
-    if !config.audit_ignore_prune.unwrap_or(false) || config.audit_config.ignore_ghsas.is_empty() {
+    if !config.audit_ignore_prune.unwrap_or(false)
+        || config.audit_config.ignore_ghsas.is_empty()
+    {
         return Ok(());
     }
     let configured_ghsas = &config.audit_config.ignore_ghsas;
@@ -44,18 +46,28 @@ fn report_pruned_ghsas(pruned: &[String]) {
         "Removed {} unused ignored GHSA{}: {}",
         pruned.len(),
         if pruned.len() == 1 { "" } else { "s" },
-        pruned.iter().map(|ghsa| sanitize_inline(ghsa)).collect::<Vec<_>>().join(", "),
+        pruned
+            .iter()
+            .map(|ghsa| sanitize_inline(ghsa))
+            .collect::<Vec<_>>()
+            .join(", "),
     );
 }
 
 impl PackageVersionGuard for VulnerabilityGuard {
     fn check<'a>(&'a self, name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a> {
         Box::pin(async move {
-            let rejected = self.ranges_by_name.get(name).is_some_and(|ranges| {
-                version.parse::<Version>().is_ok_and(|version| {
-                    ranges.iter().any(|range| satisfies_including_prerelease(&version, range))
-                })
-            });
+            let rejected = self.ranges_by_name
+                .get(name)
+                .is_some_and(|ranges| {
+                    version
+                        .parse::<Version>()
+                        .is_ok_and(|version| {
+                            ranges
+                                .iter()
+                                .any(|range| satisfies_including_prerelease(&version, range))
+                        })
+                });
             Ok(if rejected {
                 PackageVersionGuardDecision::Reject {
                     reason: format!("{name}@{version} is vulnerable"),

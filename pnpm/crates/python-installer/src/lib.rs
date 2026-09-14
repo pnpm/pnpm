@@ -4,14 +4,15 @@ pub use manifest::DependencySelection;
 mod add;
 mod environment;
 mod host;
+mod lockfile;
 mod manifest;
 mod registry;
 mod resolver;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use environment::{
-    LockfileInputs, PythonPrepare, accept_server_lockfile, ensure_environment_parent, publish_link,
-    read_existing_lock, resolve_via_pnpr, validate_environment_link,
+    LockfileInputs, PythonPrepare, ensure_environment_parent, publish_link,
+    validate_environment_link,
 };
 use host::Interpreter;
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
@@ -50,7 +51,10 @@ pub fn plan<Reporter: self::Reporter + 'static>(
     manifests: Vec<PathBuf>,
     selection: DependencySelection,
 ) -> pnpm_install_coordinator::InstallTask<'static> {
-    let metadata = manifests.iter().map(|path| path.with_file_name("pylock.toml")).collect();
+    let metadata = manifests
+        .iter()
+        .map(|path| path.with_file_name("pylock.toml"))
+        .collect();
     pnpm_install_coordinator::InstallTask::new(
         metadata,
         prepare::<Reporter>(context, manifests, false, selection),
@@ -86,8 +90,7 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     };
     let result = prepare_projects::<Reporter>(&prepare, roots).await;
     drop(writer);
-    writer_task
-        .await
+    writer_task.await
         .into_diagnostic()
         .wrap_err("join Python artifact store index writer")?
         .into_diagnostic()
@@ -113,13 +116,17 @@ async fn read_project_manifests(
 ) -> Result<Vec<(PathBuf, manifest::Manifest)>> {
     let mut roots = Vec::new();
     for path in manifests {
-        let contents = tokio::fs::read_to_string(&path)
-            .await
+        let contents = tokio::fs::read_to_string(&path).await
             .into_diagnostic()
             .wrap_err_with(|| format!("read {}", path.display()))?;
         let manifest = manifest::Manifest::parse(&contents)?;
         if manifest.project.is_some() {
-            roots.push((path.parent().expect("manifest has a parent").to_path_buf(), manifest));
+            roots.push((
+                path.parent()
+                    .expect("manifest has a parent")
+                    .to_path_buf(),
+                manifest,
+            ));
         }
     }
     Ok(roots)
@@ -134,8 +141,12 @@ fn python_index(config: &pnpm_config::Config) -> Result<(url::Url, pnpm_network:
     if !index.username().is_empty() || index.password().is_some() {
         let username = pnpm_network::percent_decode_str(index.username());
         let password = pnpm_network::percent_decode_str(index.password().unwrap_or(""));
-        index.set_username("").map_err(|()| miette::miette!("invalid Python index URL"))?;
-        index.set_password(None).map_err(|()| miette::miette!("invalid Python index URL"))?;
+        index
+            .set_username("")
+            .map_err(|()| miette::miette!("invalid Python index URL"))?;
+        index
+            .set_password(None)
+            .map_err(|()| miette::miette!("invalid Python index URL"))?;
         auth.insert_url_header(
             index.as_str(),
             format!("Basic {}", STANDARD.encode(format!("{username}:{password}"))),
@@ -161,32 +172,27 @@ impl PythonPrepare<'_> {
         let inputs = Inputs::new(&requirements, &self.interpreter.target, self.index.as_str());
         let mut registry = self.registry();
         let lock_path = root.join("pylock.toml");
-        let existing = read_existing_lock(&lock_path).await?;
-        let fresh = existing.as_ref().is_some_and(|lock| {
-            lock.tool.pnpm == inputs && lock.requires_python == project.requires_python
-        });
-        if self.context.frozen_lockfile && (!fresh || self.resolve) {
-            bail!("frozen Python lockfile is missing or out of date: {}", lock_path.display());
-        }
-        let lock = self
-            .lockfile::<Reporter>(
-                &mut registry,
-                LockfileInputs {
-                    existing: existing.filter(|_| fresh && !self.resolve),
-                    requirements: &requirements,
-                    inputs,
-                    requires_python: project.requires_python.clone(),
-                },
-            )
-            .await?;
-        let environment = self
-            .environment(
-                &mut registry,
-                &root,
-                &lock,
-                &manifest.requirements(config, self.selection)?,
-            )
-            .await?;
+        let existing =
+            self.replayable_lockfile(&lock_path, &inputs, project.requires_python.as_deref())
+                .await?;
+        let lock = self.lockfile::<Reporter>(
+            &mut registry,
+            LockfileInputs {
+                existing,
+                lock_path: &lock_path,
+                requirements: &requirements,
+                inputs,
+                requires_python: project.requires_python.clone(),
+            },
+        )
+        .await?;
+        let environment = self.environment(
+            &mut registry,
+            &root,
+            &lock,
+            &manifest.requirements(config, self.selection)?,
+        )
+        .await?;
         Ok(Prepared {
             root,
             lock: toml::to_string_pretty(&lock).into_diagnostic()?,
@@ -202,9 +208,15 @@ impl PythonPrepare<'_> {
             auth: self.auth.clone(),
             index: self.index.clone(),
             interpreter: self.interpreter,
-            store_index: self.store_index.clone(),
-            writer: Arc::clone(self.writer),
-            verified: Arc::default(),
+            store: pnpm_tarball::ArchiveStoreContext {
+                dir: &self.context.config.store_dir,
+                index: self.store_index.clone(),
+                index_writer: Some(Arc::clone(self.writer)),
+                verify_integrity: self.context.config.verify_store_integrity,
+                strict_pkg_content_check: self.context.config.strict_store_pkg_content_check,
+                verified_files_cache: Arc::default(),
+                prefetched_cas_paths: None,
+            },
             packages: pnpm_python_resolver::Packages::new(),
             wheels: BTreeMap::new(),
         }
@@ -227,52 +239,6 @@ impl PythonPrepare<'_> {
         Ok(())
     }
 
-    /// The lockfile for one project: the one on disk when it still matches,
-    /// then the one the server resolves, and a local resolution last.
-    async fn lockfile<Reporter: self::Reporter + 'static>(
-        &self,
-        registry: &mut Registry<'_>,
-        LockfileInputs { existing, requirements, inputs, requires_python }: LockfileInputs<'_>,
-    ) -> Result<Lockfile> {
-        if let Some(lock) = existing {
-            self.accept_lockfile::<Reporter>(registry, lock, requirements).await
-        } else if let Some(lock) = resolve_via_pnpr(
-            self.context.config,
-            requirements,
-            &self.interpreter.target,
-            self.index.as_str(),
-            requires_python.clone(),
-        )
-        .await?
-        {
-            accept_server_lockfile(&lock, &inputs, requires_python.as_deref())?;
-            self.accept_lockfile::<Reporter>(registry, lock, requirements).await
-        } else {
-            let solution = resolver::resolve::<Reporter>(registry, requirements).await?;
-            Lockfile::new(
-                &registry.packages,
-                &self.interpreter.target,
-                solution,
-                inputs,
-                requires_python,
-            )
-        }
-    }
-
-    /// Fetch the wheels a ready-made lockfile pins and check that it still
-    /// covers the project's requirements.
-    async fn accept_lockfile<Reporter: self::Reporter + 'static>(
-        &self,
-        registry: &mut Registry<'_>,
-        lock: Lockfile,
-        requirements: &[pep508_rs::Requirement],
-    ) -> Result<Lockfile> {
-        lock.seed(&mut registry.packages)?;
-        registry.fetch_wheels::<Reporter>(&lock.packages).await?;
-        resolver::validate_locked(registry, requirements)?;
-        Ok(lock)
-    }
-
     /// Install the locked wheels the project selects into a fresh
     /// environment generation. A lockfile-only run builds none.
     async fn environment(
@@ -288,13 +254,17 @@ impl PythonPrepare<'_> {
         validate_environment_link(root)?;
         let generations = root.join(".pnpm/python-envs");
         ensure_environment_parent(root)?;
-        let environment =
-            tempfile::Builder::new().prefix("env-").tempdir_in(&generations).into_diagnostic()?;
+        let environment = tempfile::Builder::new()
+            .prefix("env-")
+            .tempdir_in(&generations)
+            .into_diagnostic()?;
         registry.packages.candidates.clear();
         lock.seed(&mut registry.packages)?;
         let selected = resolver::locked_solution(registry, selected_requirements)?;
-        let wheels =
-            selected.into_iter().map(|package| &registry.wheels[&package]).collect::<Vec<_>>();
+        let wheels = selected
+            .into_iter()
+            .map(|package| &registry.wheels[&package])
+            .collect::<Vec<_>>();
         host::run::<serde_json::Value>(
             &self.interpreter.executable,
             "install",

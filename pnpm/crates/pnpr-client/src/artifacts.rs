@@ -12,6 +12,15 @@ pub struct ResolveArtifactsOptions {
     pub candidates: Vec<ArtifactCandidate>,
     /// Most preferred compatibility tag first.
     pub supported_tags: Vec<String>,
+    /// P-256 `SubjectPublicKeyInfo` DER bytes keyed by the envelope's key id.
+    pub trusted_keys: BTreeMap<String, Vec<u8>>,
+    pub quarantined_envelope_digests: BTreeMap<String, HashSet<String>>,
+    pub on_rejected_artifact: Option<std::sync::Arc<dyn Fn(RejectedArtifact) + Send + Sync>>,
+    pub authorization: Option<String>,
+    pub build_policy: ArtifactBuildPolicy,
+}
+
+pub struct ArtifactBuildPolicy {
     /// Package names that passed the configured remote-artifact eligibility
     /// policy.
     pub eligible_packages: HashSet<String>,
@@ -21,11 +30,12 @@ pub struct ResolveArtifactsOptions {
     /// made because applying build output would violate the same policy that
     /// suppresses a local build.
     pub ignore_scripts: bool,
-    /// P-256 `SubjectPublicKeyInfo` DER bytes keyed by the envelope's key id.
-    pub trusted_keys: BTreeMap<String, Vec<u8>>,
-    pub quarantined_envelope_digests: BTreeMap<String, HashSet<String>>,
-    pub on_rejected_artifact: Option<std::sync::Arc<dyn Fn(RejectedArtifact) + Send + Sync>>,
-    pub authorization: Option<String>,
+}
+
+impl ArtifactBuildPolicy {
+    fn permits(&self, package_name: &str) -> bool {
+        self.eligible_packages.contains(package_name) && self.allowed_builds.contains(package_name)
+    }
 }
 
 #[derive(Clone)]
@@ -143,8 +153,7 @@ fn verify_variant(
     };
     let envelope_digest =
         variant.envelope.digest().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-    let quarantined = opts
-        .quarantined_envelope_digests
+    let quarantined = opts.quarantined_envelope_digests
         .get(candidate.key.as_str())
         .is_some_and(|digests| digests.contains(&envelope_digest));
     if quarantined {
@@ -202,8 +211,7 @@ impl PnprClient {
         authorization: Option<&str>,
     ) -> Result<(), PnprClientError> {
         request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        let mut put = self
-            .http
+        let mut put = self.http
             .put(format!("{}-/pnpr/v0/artifacts", self.base_url))
             .timeout(self.artifact_request_timeout)
             .json(request);
@@ -231,15 +239,14 @@ impl PnprClient {
     ) -> Result<BTreeMap<String, VerifiedArtifact>, PnprClientError> {
         validate_supported_tags(&opts.supported_tags)
             .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        if opts.ignore_scripts {
+        if opts.build_policy.ignore_scripts {
             return Ok(BTreeMap::new());
         }
         opts.candidates.retain(|candidate| {
             let ArtifactSubject::DependencySideEffects { package, .. } = &candidate.subject else {
                 return false;
             };
-            opts.eligible_packages.contains(&package.name)
-                && opts.allowed_builds.contains(&package.name)
+            opts.build_policy.permits(&package.name)
         });
         if opts.candidates.is_empty() {
             return Ok(BTreeMap::new());
@@ -270,8 +277,7 @@ impl PnprClient {
         opts: &ResolveArtifactsOptions,
     ) -> Result<ResolveArtifactsResponse, PnprClientError> {
         let request = ResolveArtifactsRequest { candidates: opts.candidates.clone() };
-        let mut post = self
-            .http
+        let mut post = self.http
             .post(format!("{}-/pnpr/v0/artifacts/resolve", self.base_url))
             .timeout(self.artifact_request_timeout)
             .json(&request);
@@ -299,8 +305,7 @@ impl PnprClient {
         authorization: Option<&str>,
     ) -> Result<Vec<u8>, PnprClientError> {
         request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
-        let mut post = self
-            .http
+        let mut post = self.http
             .post(format!("{}-/pnpr/v0/artifacts/blob", self.base_url))
             .timeout(self.artifact_request_timeout)
             .json(request);

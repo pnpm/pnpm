@@ -148,7 +148,10 @@ fn test_intersect_widens_partial_versions_like_npm() {
         (vec!["~1", "2.0.0"], None),
     ];
     for (ranges, expected) in cases {
-        let ranges: Vec<String> = ranges.into_iter().map(ToString::to_string).collect();
+        let ranges: Vec<String> = ranges
+            .into_iter()
+            .map(ToString::to_string)
+            .collect();
         let actual = intersect_multiple_ranges(&ranges);
         assert_eq!(actual.as_deref(), expected, "ranges: {ranges:?}");
     }

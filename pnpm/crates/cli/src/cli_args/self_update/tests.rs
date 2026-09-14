@@ -27,6 +27,15 @@ fn version_constraint_preserves_pinning_style() {
 }
 
 fn seed_global_engine(global_dir: &Path, package_name: &str, version: &str) {
+    seed_global_engine_slot(global_dir, package_name, version, true);
+}
+
+fn seed_global_engine_slot(
+    global_dir: &Path,
+    package_name: &str,
+    version: &str,
+    with_executable: bool,
+) {
     let install_dir = global_dir.join(format!("pnpm-{version}"));
     let package_dir = install_pnpm::package_dir(&install_dir, package_name);
     fs::create_dir_all(&package_dir).unwrap();
@@ -40,6 +49,10 @@ fn seed_global_engine(global_dir: &Path, package_name: &str, version: &str) {
         format!(r#"{{"name":"{package_name}","version":"{version}"}}"#),
     )
     .unwrap();
+    if with_executable {
+        fs::write(install_pnpm::pnpm_executable_path(&install_dir, package_name), b"engine")
+            .unwrap();
+    }
     pnpm_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{version}"))).unwrap();
 }
 
@@ -73,6 +86,19 @@ fn is_installed_globally_requires_a_matching_global_install() {
     assert!(is_installed_globally(Some(global_dir), "11.0.0").unwrap());
     // A different target version of the same engine package is not a match.
     assert!(!is_installed_globally(Some(global_dir), "11.1.0").unwrap());
+
+    // The standalone install script installs a v12 engine as `@pnpm/exe`, while
+    // `pnpm_package_to_install` resolves v12 to `pnpm`. The install still counts.
+    seed_global_engine(global_dir, "@pnpm/exe", "12.3.4");
+    assert!(is_installed_globally(Some(global_dir), "12.3.4").unwrap());
+    // A `pnpm` group at another version does not hide the matching `@pnpm/exe` one.
+    seed_global_engine(global_dir, "pnpm", "12.4.0");
+    assert!(is_installed_globally(Some(global_dir), "12.3.4").unwrap());
+
+    // A group recording the target version but missing its executable is not
+    // the engine yet, so the update proceeds and relinks it.
+    seed_global_engine_slot(global_dir, "@pnpm/exe", "12.5.0", false);
+    assert!(!is_installed_globally(Some(global_dir), "12.5.0").unwrap());
 }
 
 #[test]

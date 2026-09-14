@@ -21,20 +21,24 @@ pub async fn collect_oci_blobs(
     min_age: Duration,
     dry_run: bool,
 ) -> Result<(usize, u64)> {
-    if config.registries.ecosystem(registry) != Some(Ecosystem::Oci) {
+    if config.routing.registries.ecosystem(registry) != Some(Ecosystem::Oci) {
         return Err(RegistryError::BadRequest {
             reason: format!("{registry:?} is not a concrete OCI registry"),
         });
     }
-    let hosted = config.hosted.get(registry).ok_or_else(|| RegistryError::BadRequest {
-        reason: format!("{registry:?} is not a hosted registry"),
-    })?;
-    let storage =
-        Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?
-            .for_hosted(&hosted.org);
+    let hosted = config.routing.hosted
+        .get(registry)
+        .ok_or_else(|| RegistryError::BadRequest {
+            reason: format!("{registry:?} is not a hosted registry"),
+        })?;
+    let storage = Storage::new(
+        &config.storage.hosted_backend,
+        config.storage.hosted_dir.clone(),
+        config.storage.cache_dir.clone(),
+    )?
+    .for_hosted(&hosted.org);
     let excluded: HashSet<&str> = if hosted.org.is_empty() {
-        config
-            .hosted
+        config.routing.hosted
             .values()
             .map(|hosted| hosted.org.as_str())
             .filter(|org| !org.is_empty())
@@ -42,7 +46,7 @@ pub async fn collect_oci_blobs(
     } else {
         HashSet::new()
     };
-    collect(&storage, min_age, dry_run, &excluded, config.oci.max_manifest_bytes).await
+    collect(&storage, min_age, dry_run, &excluded, config.http.oci.max_manifest_bytes).await
 }
 
 async fn collect(
@@ -94,9 +98,10 @@ async fn inventory_hosted_blobs(
         if filename == "package.json" {
             continue;
         }
-        let size = i64::try_from(file.size).map_err(|_| RegistryError::BadRequest {
-            reason: format!("blob {} is too large to inventory", file.path),
-        })?;
+        let size = i64::try_from(file.size)
+            .map_err(|_| RegistryError::BadRequest {
+                reason: format!("blob {} is too large to inventory", file.path),
+            })?;
         inventory.execute(
             "INSERT INTO blobs (repository, filename, size, old) VALUES (?, ?, ?, ?)",
             params![
@@ -117,7 +122,11 @@ fn inventoried_blob_path<'a>(
     path: &'a str,
     excluded: &HashSet<&str>,
 ) -> Option<(&'a str, &'a str)> {
-    if path.split('/').next().is_some_and(|part| excluded.contains(part)) {
+    if path
+        .split('/')
+        .next()
+        .is_some_and(|part| excluded.contains(part))
+    {
         return None;
     }
     let (repository, filename) = path.rsplit_once('/')?;
@@ -207,11 +216,12 @@ async fn finish_pending_deletions(
             removed += 1;
             bytes += size;
         }
-        storage
-            .update_hosted_document_with_retry(&name, pnpr_storage::DOCUMENT_WRITE_RETRIES, |_| {
-                Ok(Some(document.to_bytes()))
-            })
-            .await?;
+        storage.update_hosted_document_with_retry(
+            &name,
+            pnpr_storage::DOCUMENT_WRITE_RETRIES,
+            |_| Ok(Some(document.to_bytes())),
+        )
+        .await?;
     }
     Ok((removed, bytes))
 }
@@ -306,8 +316,7 @@ pub(crate) async fn referenced_document_blobs(
             }
         }
     }
-    if document
-        .deleting_blob
+    if document.deleting_blob
         .as_ref()
         .is_some_and(|digest| reachable.contains(&digest.blob_filename()))
     {
@@ -322,10 +331,11 @@ fn resolve_reference_media_type(
     reference: &Descriptor,
     document: &ImageDocument,
 ) -> Option<String> {
-    reference
-        .media_type
+    reference.media_type
         .clone()
-        .or_else(|| document.manifest(&reference.digest).map(|entry| entry.media_type.clone()))
+        .or_else(|| {
+            document.manifest(&reference.digest).map(|entry| entry.media_type.clone())
+        })
 }
 
 /// Read one retained manifest back and parse it, checking it is the blob its
@@ -345,8 +355,7 @@ async fn read_manifest_blob(
         .open_hosted_blob(name, &filename)
         .await?
         .ok_or_else(|| invalid("retained manifest is missing".into()))?;
-    let bytes = axum::body::to_bytes(body, manifest_limit)
-        .await
+    let bytes = axum::body::to_bytes(body, manifest_limit).await
         .map_err(|error| invalid(error.to_string()))?;
     if Digest::of(&bytes) != *digest {
         return Err(invalid("manifest digest mismatch".into()));

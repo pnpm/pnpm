@@ -60,7 +60,10 @@ async fn spawn_stalled_response() -> (String, Arc<Notify>, tokio::task::JoinHand
             )
             .await
             .unwrap();
-        socket.write_all(&vec![0xAA; 64 * 1024]).await.unwrap();
+        socket
+            .write_all(&vec![0xAA; 64 * 1024])
+            .await
+            .unwrap();
         socket.flush().await.unwrap();
         release_for_server.notified().await;
     });
@@ -96,7 +99,10 @@ fn blob_tmp_entries(dir: &Path) -> Vec<String> {
             entries
                 .filter_map(Result::ok)
                 .filter_map(|entry| {
-                    let name = entry.file_name().to_string_lossy().into_owned();
+                    let name = entry
+                        .file_name()
+                        .to_string_lossy()
+                        .into_owned();
                     name.starts_with("foo-1.0.0.tgz.tmp.").then_some(name)
                 })
                 .collect::<Vec<_>>()
@@ -139,7 +145,11 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
     let body = stream_verified_to_cache(response, write, &integrity, u64::MAX).unwrap();
     let mut chunks = body.into_data_stream();
     // Pull the first chunk so the tee writes the body's start to the tmp file.
-    chunks.next().await.expect("first chunk").expect("first chunk is ok");
+    chunks
+        .next()
+        .await
+        .expect("first chunk")
+        .expect("first chunk is ok");
     let package_dir = cache.join("~public/test").join("foo");
     let in_flight = await_nonempty_blob_tmp(&package_dir).await;
     assert_eq!(in_flight.len(), 1, "expected one in-flight blob writer");

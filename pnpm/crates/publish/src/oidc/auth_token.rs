@@ -58,17 +58,20 @@ fn auth_token_from_response(
     registry: &str,
 ) -> Result<String, AuthTokenError> {
     if !response.ok {
-        let message = response
-            .body
+        let message = response.body
             .pipe_as_ref(serde_json::from_str::<Value>)
             .ok()
-            .and_then(|json| json.get("body")?.get("message")?.as_str().map(str::to_owned))
+            .and_then(|json| {
+                json.get("body")?
+                    .get("message")?
+                    .as_str()
+                    .map(str::to_owned)
+            })
             .unwrap_or_else(|| "Unknown error".to_owned());
         return Err(AuthTokenError::Exchange { message, http_status: response.status });
     }
 
-    let json = response
-        .body
+    let json = response.body
         .pipe_as_ref(serde_json::from_str::<Value>)
         .map_err(|source| AuthTokenError::JsonInterrupted { source: source.to_string() })?;
 

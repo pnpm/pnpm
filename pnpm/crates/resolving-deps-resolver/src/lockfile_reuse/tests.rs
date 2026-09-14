@@ -134,13 +134,13 @@ fn synthesizes_a_registry_resolution_with_the_recorded_integrity() {
     let result =
         synthesize_reused_result(&lockfile, &key, "react").expect("registry dep is reusable");
     assert_eq!(result.id.as_str(), "react@18.2.0");
-    let name_ver = result.name_ver.expect("name_ver");
+    let name_ver = result.package.name_ver.expect("name_ver");
     assert_eq!(name_ver.name.to_string(), "react");
     assert_eq!(name_ver.suffix.to_string(), "18.2.0");
     assert_eq!(result.resolution, metadata.resolution);
     assert_eq!(result.resolved_via, "npm-registry");
     assert_eq!(result.alias.as_deref(), Some("react"));
-    let manifest = result.manifest.expect("synthesized manifest");
+    let manifest = result.package.manifest.expect("synthesized manifest");
     assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("react"));
     assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("18.2.0"));
 }
@@ -156,9 +156,11 @@ fn synthesized_manifest_carries_peer_metadata() {
 
     let result =
         synthesize_reused_result(&lockfile, &key, "react-dom").expect("registry dep is reusable");
-    let manifest = result.manifest.expect("synthesized manifest");
-    let peers =
-        manifest.get("peerDependencies").and_then(serde_json::Value::as_object).expect("peers");
+    let manifest = result.package.manifest.expect("synthesized manifest");
+    let peers = manifest
+        .get("peerDependencies")
+        .and_then(serde_json::Value::as_object)
+        .expect("peers");
     assert_eq!(peers.get("react").and_then(serde_json::Value::as_str), Some("^18.0.0"));
 }
 
@@ -172,7 +174,7 @@ fn synthesized_manifest_carries_deprecated_metadata() {
 
     let result =
         synthesize_reused_result(&lockfile, &key, "left-pad").expect("registry dep is reusable");
-    let manifest = result.manifest.expect("synthesized manifest");
+    let manifest = result.package.manifest.expect("synthesized manifest");
     assert_eq!(
         manifest.get("deprecated").and_then(serde_json::Value::as_str),
         Some("use String.prototype.padStart()"),
@@ -189,7 +191,7 @@ fn synthesized_manifest_carries_bundled_dependencies() {
 
     let result = synthesize_reused_result(&lockfile, &key, "pkg-with-bundled-deps")
         .expect("registry dep is reusable");
-    let manifest = result.manifest.expect("synthesized manifest");
+    let manifest = result.package.manifest.expect("synthesized manifest");
     assert_eq!(manifest.get("bundledDependencies"), Some(&serde_json::json!(["napi-wasm"])));
 }
 
@@ -203,7 +205,7 @@ fn synthesized_manifest_carries_the_boolean_bundled_dependencies_form() {
 
     let result = synthesize_reused_result(&lockfile, &key, "pkg-bundling-everything")
         .expect("registry dep is reusable");
-    let manifest = result.manifest.expect("synthesized manifest");
+    let manifest = result.package.manifest.expect("synthesized manifest");
     assert_eq!(manifest.get("bundledDependencies"), Some(&serde_json::Value::Bool(true)));
 }
 
@@ -217,7 +219,7 @@ fn synthesized_manifest_keeps_the_scalar_libc_form() {
 
     let result = synthesize_reused_result(&lockfile, &key, "pkg-with-scalar-libc")
         .expect("registry dep is reusable");
-    let manifest = result.manifest.expect("synthesized manifest");
+    let manifest = result.package.manifest.expect("synthesized manifest");
     assert_eq!(manifest.get("libc"), Some(&serde_json::Value::String("musl".to_string())));
 }
 
@@ -257,10 +259,10 @@ fn synthesizes_a_git_resolution_with_the_locked_commit_and_manifest_version() {
     let result = synthesize_reused_result(&lockfile, &key, "git-pkg")
         .expect("locked git dependency is reusable");
     assert_eq!(result.id.as_str(), key.to_string());
-    assert_eq!(result.name_ver, None);
+    assert_eq!(result.package.name_ver, None);
     assert_eq!(result.resolution, metadata.resolution);
     assert_eq!(result.resolved_via, "git-repository");
-    let manifest = result.manifest.expect("synthesized git manifest");
+    let manifest = result.package.manifest.expect("synthesized git manifest");
     assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("git-pkg"));
     assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("1.2.3"));
 }
@@ -339,9 +341,10 @@ fn current_pkg_materializes_a_revision_from_the_registry_prefix_declaration() {
     let mut lockfile = empty_lockfile();
     lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
     let mut context = registry_context(default_registry());
-    context
-        .registries_by_prefix
-        .insert("work".to_string(), "https://registry.example.test/work/npm/".to_string());
+    context.registries_by_prefix.insert(
+        "work".to_string(),
+        "https://registry.example.test/work/npm/".to_string(),
+    );
 
     let current_pkg = super::current_pkg_from_lockfile(&lockfile, &key, &context)
         .expect("declared prefix makes the revision reusable");

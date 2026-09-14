@@ -43,16 +43,16 @@ impl PeersArgs {
         recursive: bool,
     ) -> miette::Result<PeersOutcome> {
         if !matches!(self.params.first().map(String::as_str), Some("check") | None) {
-            let mut cmd = crate::cli_args::CliArgs::command();
-            cmd.build();
-            let _ = cmd.find_subcommand_mut("peers").expect("peers subcommand").print_help();
+            print_peers_help();
             return Ok(PeersOutcome::UnknownSubcommand);
         }
 
         let lockfile_dir = config.lockfile_dir_for(dir);
         let project_dirs = checked_project_dirs(config, dir, recursive)?;
-        let lockfile =
-            self.load_lockfile(config, lockfile_dir).into_diagnostic().wrap_err("load lockfile")?;
+        let lockfile = self
+            .load_lockfile(config, lockfile_dir)
+            .into_diagnostic()
+            .wrap_err("load lockfile")?;
         let catalogs = configured_catalogs(config)?;
         let catalogs =
             (config.workspace_dir.is_some() || config.catalogs.is_some()).then_some(&catalogs);
@@ -71,7 +71,9 @@ impl PeersArgs {
         };
         let issues = filter_peer_issues(issues, &config.peer_dependency_rules);
 
-        let no_issues = issues.values().all(|pi| pi.bad.is_empty() && pi.missing.is_empty());
+        let no_issues = issues
+            .values()
+            .all(|pi| pi.bad.is_empty() && pi.missing.is_empty());
 
         if self.json {
             let output = serde_json::to_string_pretty(&issues)
@@ -103,6 +105,15 @@ impl PeersArgs {
             None => Lockfile::load_wanted_from_dir(lockfile_dir),
         }
     }
+}
+
+fn print_peers_help() {
+    let mut cmd = crate::cli_args::CliArgs::command();
+    cmd.build();
+    let _ = cmd
+        .find_subcommand_mut("peers")
+        .expect("peers subcommand")
+        .print_help();
 }
 
 /// The projects the check covers: the `--filter` selection under

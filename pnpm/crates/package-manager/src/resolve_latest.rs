@@ -82,7 +82,10 @@ impl<'a> LatestPicker<'a> {
             policy,
             meta_cache,
             fetch_locker,
-            registries: config.resolved_registries().into_iter().collect(),
+            registries: config
+                .resolved_registries()
+                .into_iter()
+                .collect(),
         }
     }
 
@@ -127,16 +130,20 @@ impl<'a> LatestPicker<'a> {
         let opts = PickPackageOptions {
             registry,
             preferred_version_selectors: None,
-            published_by: self.policy.published_by,
-            published_by_exclude: self.policy.published_by_exclude.as_ref(),
             pick_lowest_version: false,
             // The spec already is the `latest` tag.
             include_latest_tag: false,
-            dry_run,
-            optional: false,
-            update_checksums: false,
-            trust_policy: Some(self.config.trust_policy),
             blocked_versions: None,
+            policy: pnpm_resolving_npm_resolver::PackagePickPolicy {
+                published_by: self.policy.published_by,
+                published_by_exclude: self.policy.published_by_exclude.as_ref(),
+                trust_policy: Some(self.config.trust_policy),
+            },
+            request: pnpm_resolving_npm_resolver::MetadataPickRequest {
+                dry_run,
+                optional: false,
+                update_checksums: false,
+            },
         };
         let ctx = pick_package_context(
             self.http_client,
@@ -146,8 +153,7 @@ impl<'a> LatestPicker<'a> {
             &self.fetch_locker,
         );
 
-        let pick = pick_package(&ctx, &spec, &opts)
-            .await
+        let pick = pick_package(&ctx, &spec, &opts).await
             .map_err(|error| ResolveLatestError::Pick(Box::new(error)))?;
         if let Some(picked) = pick.picked_package {
             return Ok(picked);

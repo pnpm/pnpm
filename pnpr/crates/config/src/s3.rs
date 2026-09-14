@@ -76,9 +76,11 @@ impl S3Settings {
 /// work out of the box, then the explicit YAML values override.
 /// Failures here are config errors surfaced at startup, not over HTTP.
 pub fn build_s3_store(settings: &S3Settings) -> pnpr_error::Result<Arc<dyn ObjectStore>> {
-    let store = s3_builder(settings).build().map_err(|err| {
-        pnpr_error::RegistryError::InvalidConfig { reason: format!("invalid s3 config: {err}") }
-    })?;
+    let store = s3_builder(settings)
+        .build()
+        .map_err(|err| pnpr_error::RegistryError::InvalidConfig {
+            reason: format!("invalid s3 config: {err}"),
+        })?;
     Ok(Arc::new(store))
 }
 
@@ -118,7 +120,10 @@ pub(super) fn s3_builder(settings: &S3Settings) -> AmazonS3Builder {
 /// goes through this — a raw `packages` would otherwise key `packagesfoo/…`.
 #[must_use]
 pub fn normalize_key_prefix(prefix: Option<&str>) -> String {
-    match prefix.map(str::trim).filter(|text| !text.is_empty()) {
+    match prefix
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+    {
         None => String::new(),
         Some(prefix) => {
             let trimmed = prefix.trim_matches('/');
@@ -133,7 +138,7 @@ pub fn normalize_key_prefix(prefix: Option<&str>) -> String {
 /// about the lifetime of. `Storage::new` builds the client.
 #[derive(Debug, Clone)]
 pub enum HostedStoreConfig {
-    /// Local directory — [`crate::Config::storage`].
+    /// Local directory — [`crate::StorageConfig::hosted_dir`].
     Fs,
     /// S3-compatible bucket, as declared by the YAML `s3:` block.
     S3(S3Settings),

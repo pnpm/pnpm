@@ -67,8 +67,12 @@ fn plan(mut argv: Vec<OsString>) -> miette::Result<(Vec<OsString>, bool)> {
 /// command is `with` with first param `current`.
 fn find_with_current_index(argv: &[OsString]) -> Option<usize> {
     let command = command_index(argv)?;
-    let is_with = argv.get(command).is_some_and(|token| token == "with");
-    let is_current = argv.get(command + 1).is_some_and(|token| token == "current");
+    let is_with = argv
+        .get(command)
+        .is_some_and(|token| token == "with");
+    let is_current = argv
+        .get(command + 1)
+        .is_some_and(|token| token == "current");
     (is_with && is_current).then_some(command)
 }
 
@@ -101,7 +105,10 @@ fn option_consumes_value(token: &str) -> bool {
     if token.starts_with("--") {
         long_option_consumes_value(token)
     } else {
-        let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) else {
+        let Some(rest) = token
+            .strip_prefix('-')
+            .filter(|rest| !rest.is_empty())
+        else {
             return false;
         };
         short_cluster_consumes_value(rest, |short| top_level_arity().short_consumes_value(short))

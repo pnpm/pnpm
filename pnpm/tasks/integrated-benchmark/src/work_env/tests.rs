@@ -1,7 +1,6 @@
 use super::{
-    BenchId, BenchmarkScenario, HyperfineCommand, PEER_HEAVY_DEPTH, PEER_HEAVY_PROVIDER,
-    PEER_HEAVY_WIDTH, WorkEnv, collect_pnpr_direct_ratios, create_install_script,
-    create_package_json, create_pnpm_workspace,
+    BenchId, HyperfineCommand, PEER_HEAVY_DEPTH, PEER_HEAVY_PROVIDER, PEER_HEAVY_WIDTH, WorkEnv,
+    collect_pnpr_direct_ratios, create_install_script, create_package_json, create_pnpm_workspace,
     fixtures::peer_heavy_package_name,
     measurements::PhaseEvent,
     non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
@@ -9,6 +8,7 @@ use super::{
     server_config::{pnpr_auth_config_key, pnpr_benchmark_config_yaml},
     summarize_phase_events,
 };
+use crate::cli_args::BenchmarkScenario;
 use std::{collections::HashMap, fs};
 
 #[test]
@@ -102,13 +102,19 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
     let registry = dir.join("registry");
     seed_peer_heavy_registry(&registry);
     let first_packument: serde_json::Value = serde_json::from_slice(
-        &fs::read(registry.join(peer_heavy_package_name(0, 0)).join("package.json"))
-            .expect("read first peer-heavy packument"),
+        &fs::read(
+            registry
+                .join(peer_heavy_package_name(0, 0))
+                .join("package.json"),
+        )
+        .expect("read first peer-heavy packument"),
     )
     .expect("parse first peer-heavy packument");
     let leaf_packument: serde_json::Value = serde_json::from_slice(
         &fs::read(
-            registry.join(peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0)).join("package.json"),
+            registry
+                .join(peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0))
+                .join("package.json"),
         )
         .expect("read leaf peer-heavy packument"),
     )
@@ -447,7 +453,10 @@ fn cli_bin_name_reads_the_declared_bin_from_either_layout() {
 
     // Current layout, `pnpm` bin, with taplo-style key padding.
     let current = root.join("current");
-    let manifest_dir = current.join("pnpm").join("crates").join("cli");
+    let manifest_dir = current
+        .join("pnpm")
+        .join("crates")
+        .join("cli");
     fs::create_dir_all(&manifest_dir).expect("create current-layout manifest dir");
     fs::write(
         manifest_dir.join("Cargo.toml"),
@@ -458,7 +467,10 @@ fn cli_bin_name_reads_the_declared_bin_from_either_layout() {
 
     // Old layout, `pacquet` bin.
     let old = root.join("old");
-    let manifest_dir = old.join("pacquet").join("crates").join("cli");
+    let manifest_dir = old
+        .join("pacquet")
+        .join("crates")
+        .join("cli");
     fs::create_dir_all(&manifest_dir).expect("create old-layout manifest dir");
     fs::write(
         manifest_dir.join("Cargo.toml"),

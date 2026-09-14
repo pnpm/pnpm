@@ -8,28 +8,28 @@ use std::fmt::Write as _;
 fn from_yaml_str_storage_is_resolved_relative_to_base_dir() {
     let yaml = "storage: ./store\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert_eq!(config.storage, PathBuf::from("/etc/pnpr/./store"));
+    assert_eq!(config.storage.hosted_dir, PathBuf::from("/etc/pnpr/./store"));
 }
 
 #[test]
 fn from_yaml_str_absolute_storage_is_left_alone() {
     let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert_eq!(config.storage, PathBuf::from("/var/lib/pnpr"));
+    assert_eq!(config.storage.hosted_dir, PathBuf::from("/var/lib/pnpr"));
 }
 
 #[test]
 fn cache_storage_defaults_to_subdir_of_storage() {
     let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert_eq!(config.cache_storage, PathBuf::from("/var/lib/pnpr/.pnpr-cache"));
+    assert_eq!(config.storage.cache_dir, PathBuf::from("/var/lib/pnpr/.pnpr-cache"));
 }
 
 #[test]
 fn hosted_store_defaults_to_fs_without_an_s3_block() {
     let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert!(matches!(config.hosted_store, HostedStoreConfig::Fs));
+    assert!(matches!(config.storage.hosted_backend, HostedStoreConfig::Fs));
 }
 
 #[test]
@@ -46,7 +46,7 @@ s3:
 upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    match config.hosted_store {
+    match config.storage.hosted_backend {
         HostedStoreConfig::S3(settings) => assert_eq!(settings.normalized_prefix(), "packages/"),
         other => panic!("expected an S3 hosted store, got {other:?}"),
     }
@@ -69,7 +69,7 @@ backend:
 upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    match config.backend {
+    match config.identity.backend {
         BackendConfig::Libsql(settings) => {
             assert_eq!(settings.url, "libsql://db.turso.io");
             assert_eq!(settings.auth_token.as_deref(), Some("tok-secret"));
@@ -88,7 +88,7 @@ backend:
 upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    match config.backend {
+    match config.identity.backend {
         BackendConfig::Libsql(settings) => {
             assert!(settings.auth_token.is_none());
             assert!(settings.replica_path.is_none(), "no replica by default");
@@ -109,7 +109,7 @@ backend:
 upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    match config.backend {
+    match config.identity.backend {
         BackendConfig::Libsql(settings) => {
             assert_eq!(
                 settings.replica_path.as_deref(),
@@ -133,7 +133,7 @@ backend:
 upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    match config.backend {
+    match config.identity.backend {
         BackendConfig::Libsql(settings) => assert_eq!(
             settings.replica_path.as_deref(),
             Some(Path::new("/var/lib/pnpr/auth-replica.db")),
@@ -167,7 +167,7 @@ fn yaml_with_no_storage_uses_default_storage_string() {
     // to the config-file's parent dir.
     let yaml = "upstreams: {}\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert_eq!(config.storage, PathBuf::from("/etc/pnpr/./storage"));
+    assert_eq!(config.storage.hosted_dir, PathBuf::from("/etc/pnpr/./storage"));
 }
 
 /// `Debug` on [`S3Settings`] is reachable from `Debug` on the whole [`Config`],
@@ -216,17 +216,17 @@ fn ecosystem_groups_scope_names_sources_defaults_and_hosted_storage() {
     }
     yaml.push_str("defaultRegistry:\n  npm: main\n  cargo: main\n  pypi: main\n  oci: main\n");
     let mut config = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap();
-    config.ensure_valid_registry_graph().unwrap();
+    config.routing.ensure_valid_registry_graph(config.features.registry.enabled).unwrap();
     for ecosystem in Ecosystem::all() {
         let key = format!("{ecosystem}/internal");
         let router = format!("{ecosystem}/main");
-        assert_eq!(config.registries.default_for(ecosystem), Some(router.as_str()));
-        assert_eq!(config.registries.sources("main", ecosystem), [key.as_str()]);
-        assert_eq!(config.hosted[&key].org, format!("{ecosystem}~internal"));
+        assert_eq!(config.routing.registries.default_for(ecosystem), Some(router.as_str()));
+        assert_eq!(config.routing.registries.sources("main", ecosystem), [key.as_str()]);
+        assert_eq!(config.routing.hosted[&key].org, format!("{ecosystem}~internal"));
         for resolution in [
-            config.registries.resolve("internal", ecosystem, "demo"),
-            config.registries.resolve("main", ecosystem, "demo"),
-            config.registries.resolve_default(ecosystem, "demo"),
+            config.routing.registries.resolve("internal", ecosystem, "demo"),
+            config.routing.registries.resolve("main", ecosystem, "demo"),
+            config.routing.registries.resolve_default(ecosystem, "demo"),
         ] {
             assert_eq!(
                 resolution,
@@ -237,5 +237,5 @@ fn ecosystem_groups_scope_names_sources_defaults_and_hosted_storage() {
             );
         }
     }
-    assert_eq!(config.registries.addressed("cargo/internal", Ecosystem::Npm), None);
+    assert_eq!(config.routing.registries.addressed("cargo/internal", Ecosystem::Npm), None);
 }

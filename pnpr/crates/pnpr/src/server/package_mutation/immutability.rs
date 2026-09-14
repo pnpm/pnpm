@@ -102,7 +102,10 @@ pub(super) fn check_integrity_immutable(
     let version = entry.version;
     // A present dist.integrity must be a string; a non-string would slip past
     // the string-only checks below.
-    let incoming = match entry.manifest.get("dist").and_then(|dist| dist.get("integrity")) {
+    let incoming = match entry.manifest
+        .get("dist")
+        .and_then(|dist| dist.get("integrity"))
+    {
         None => None,
         Some(Value::String(value)) => Some(value.as_str()),
         Some(_) => {
@@ -111,8 +114,7 @@ pub(super) fn check_integrity_immutable(
             });
         }
     };
-    let stored = entry
-        .existing
+    let stored = entry.existing
         .get("dist")
         .and_then(|dist| dist.get("integrity"))
         .and_then(Value::as_str)?;
@@ -145,8 +147,7 @@ pub(super) fn check_tarball_immutable(
 ) -> Option<RegistryError> {
     let version = entry.version;
     let stored_basename = served_tarball_basename(entry.existing, name)?;
-    let incoming_basename = entry
-        .manifest
+    let incoming_basename = entry.manifest
         .get("dist")
         .and_then(|dist| dist.get("tarball"))
         .and_then(Value::as_str)
@@ -159,8 +160,7 @@ pub(super) fn check_tarball_immutable(
         None => {
             let refusal = require_object_dist(entry.manifest, version);
             if refusal.is_none() {
-                let stored = entry
-                    .existing
+                let stored = entry.existing
                     .get("dist")
                     .and_then(|dist| dist.get("tarball"))
                     .cloned()
@@ -180,7 +180,10 @@ pub(super) fn served_tarball_basename(
     manifest: &Value,
     pkg: &CanonicalPackageName,
 ) -> Option<String> {
-    let url = manifest.get("dist").and_then(|dist| dist.get("tarball")).and_then(Value::as_str)?;
+    let url = manifest
+        .get("dist")
+        .and_then(|dist| dist.get("tarball"))
+        .and_then(Value::as_str)?;
     if let Some(basename) = tarball_basename(url) {
         return Some(basename.to_owned());
     }

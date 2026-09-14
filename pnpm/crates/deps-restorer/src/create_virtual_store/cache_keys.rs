@@ -43,7 +43,9 @@ pub(super) fn prefetch_keys(
         .collect();
     refs.sort_unstable();
     refs.dedup();
-    refs.into_iter().map(String::from).collect()
+    refs.into_iter()
+        .map(String::from)
+        .collect()
 }
 /// Build the store-index cache key for a snapshot.
 ///
@@ -64,12 +66,12 @@ pub(super) fn snapshot_cache_key(
     runtime_platform_selector: &PlatformSelector,
 ) -> Result<SnapshotCacheKey, CreateVirtualStoreError> {
     let metadata_key = snapshot_key.without_peer();
-    let metadata = packages.get(&metadata_key).ok_or_else(|| {
-        CreateVirtualStoreError::MissingPackageMetadata {
+    let metadata = packages
+        .get(&metadata_key)
+        .ok_or_else(|| CreateVirtualStoreError::MissingPackageMetadata {
             snapshot_key: snapshot_key.to_string(),
             metadata_key: metadata_key.to_string(),
-        }
-    })?;
+        })?;
     let pkg_id = metadata_key.pkg_id();
     match &metadata.resolution {
         LockfileResolution::Tarball(t) => {

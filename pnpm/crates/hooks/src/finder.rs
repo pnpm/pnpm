@@ -45,7 +45,10 @@ pub struct PnpmfileSelection<'a> {
 
 #[must_use]
 pub fn find_pnpmfiles(root: &Path, selection: PnpmfileSelection<'_>) -> Vec<PathBuf> {
-    let mut paths: Vec<PathBuf> = selection.global.map(Path::to_path_buf).into_iter().collect();
+    let mut paths: Vec<PathBuf> = selection.global
+        .map(Path::to_path_buf)
+        .into_iter()
+        .collect();
     let project = match selection.configured {
         Some(configured) => configured.to_vec(),
         None => find_pnpmfile(root).into_iter().collect(),
@@ -76,10 +79,14 @@ pub fn validate_configured_pnpmfiles(
 ) -> Result<(), MissingPnpmfileError> {
     // Discovery is the only source that may come back empty without complaint,
     // so both explicitly named sources are checked and the default is not.
-    let mut named = selection
-        .global
+    let mut named = selection.global
         .into_iter()
-        .chain(selection.configured.unwrap_or(&[]).iter().map(PathBuf::as_path));
+        .chain(
+            selection.configured
+                .unwrap_or(&[])
+                .iter()
+                .map(PathBuf::as_path),
+        );
     match named.find(|path| !pnpmfile_exists(path)) {
         Some(missing) => Err(MissingPnpmfileError { path: missing.to_path_buf() }),
         None => Ok(()),
@@ -115,7 +122,10 @@ pub fn load_pnpmfiles(
     let paths = find_pnpmfiles(root, selection);
     validate_configured_pnpmfiles(selection)?;
     let checksum_skips = usize::from(selection.global.is_some());
-    let hooks: Vec<_> = paths.into_iter().map(load_pnpmfile_at).collect();
+    let hooks: Vec<_> = paths
+        .into_iter()
+        .map(load_pnpmfile_at)
+        .collect();
     Ok(match (hooks.len(), checksum_skips) {
         (0, _) => None,
         // A lone project pnpmfile answers for its own checksum. Anything else
@@ -262,8 +272,10 @@ pub fn calc_pnpmfile_paths_of_plugin_deps<'a>(
     config_modules_dir: &Path,
     config_dep_names: impl IntoIterator<Item = &'a str>,
 ) -> Vec<PathBuf> {
-    let mut names: Vec<&str> =
-        config_dep_names.into_iter().filter(|name| is_plugin_name(name)).collect();
+    let mut names: Vec<&str> = config_dep_names
+        .into_iter()
+        .filter(|name| is_plugin_name(name))
+        .collect();
     names.sort_unstable();
     names
         .into_iter()

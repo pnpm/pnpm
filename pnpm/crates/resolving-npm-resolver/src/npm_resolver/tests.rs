@@ -102,19 +102,25 @@ fn build_resolver_with_registries(
     let resolver = NpmResolver {
         registries,
         registries_by_prefix: HashMap::new(),
-        http_client: Arc::new(ThrottledClient::default()),
-        auth_headers: Arc::new(AuthHeaders::default()),
-        meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
-        fetch_locker: shared_packument_fetch_locker(),
-        picked_manifest_cache: shared_picked_manifest_cache(),
-        cache_dir: Some(cache_dir.path().to_path_buf()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
-        full_metadata: false,
-        needs_full_metadata_for: None,
-        filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        metadata: crate::RegistryMetadataClient {
+            http_client: Arc::new(ThrottledClient::default()),
+            auth_headers: Arc::new(AuthHeaders::default()),
+            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(cache_dir.path().to_path_buf()),
+            retry_opts: RetryOpts::default(),
+        },
+        format: crate::RegistryMetadataFormat {
+            full_metadata: false,
+            needs_full_metadata_for: None,
+            filter_metadata: false,
+        },
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
     };
     (resolver, cache_dir)
 }
@@ -146,7 +152,10 @@ fn guard_rejecting(
     exhaustion_policy: GuardExhaustionPolicy,
 ) -> Arc<dyn PackageVersionGuard> {
     Arc::new(RejectVersions {
-        versions: versions.iter().map(|version| (*version).to_string()).collect(),
+        versions: versions
+            .iter()
+            .map(|version| (*version).to_string())
+            .collect(),
         exhaustion_policy,
     })
 }
@@ -300,7 +309,9 @@ const MISMATCHED_KEY_BODY: &str = r#"{
 fn trust_downgrade_body_without_time() -> String {
     let mut body: serde_json::Value =
         serde_json::from_str(TRUST_DOWNGRADE_PACKAGE_BODY).expect("parse fixture packument");
-    body.as_object_mut().expect("packument is an object").remove("time");
+    body.as_object_mut()
+        .expect("packument is an object")
+        .remove("time");
     body.to_string()
 }
 
@@ -344,10 +355,13 @@ fn build_workspace_packages(name: &str, versions: &[&str]) -> WorkspacePackages 
 
 fn workspace_resolve_options(packages: WorkspacePackages) -> ResolveOptions {
     ResolveOptions {
-        project_dir: Path::new("/repo/packages/consumer").to_path_buf(),
-        lockfile_dir: Path::new("/repo").to_path_buf(),
-        workspace_packages: Some(std::sync::Arc::new(packages)),
-        link_workspace_packages: pnpm_config::LinkWorkspacePackages::Deep,
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: Path::new("/repo/packages/consumer").to_path_buf(),
+            lockfile_dir: Path::new("/repo").to_path_buf(),
+            workspace_packages: Some(std::sync::Arc::new(packages)),
+            link_workspace_packages: pnpm_config::LinkWorkspacePackages::Deep,
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     }
 }

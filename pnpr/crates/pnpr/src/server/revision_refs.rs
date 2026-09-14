@@ -89,7 +89,14 @@ pub(super) async fn serve_revision_ref(
     reference: RevisionRef<'_>,
     scan: &mut RevisionScan,
 ) -> Option<Response> {
-    let RevisionRef { registry, source, storage, original, digest, integrity } = reference;
+    let RevisionRef {
+        registry,
+        source,
+        storage,
+        original,
+        digest,
+        integrity,
+    } = reference;
     let package =
         match CanonicalPackageName::parse(&original.package, pnpr_package_name::Ecosystem::Npm) {
             Ok(package) => package,
@@ -145,7 +152,7 @@ pub(super) fn readable_here(
 }
 
 pub(super) fn hosted_revision_sources(state: &AppState, registry: &str) -> Vec<String> {
-    let registries = &state.inner.config.registries;
+    let registries = &state.inner.config.routing.registries;
     registries
         .sources(registry, Ecosystem::Npm)
         .into_iter()

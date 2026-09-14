@@ -45,7 +45,7 @@ where
     // their manifest ranges where `seed_node_children` can redirect a
     // stale pin onto the higher direct-dep version (reusing the subtree
     // would keep the pin, leaving the lockfile non-convergent).
-    if ctx.workspace.reuse_lockfile_subtrees
+    if ctx.workspace.reuse.subtrees
         && edge.reuse.allows_reuse()
         && !node_depends_on_changed_direct_dep(ctx, prior_key.as_ref())
         && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref(), edge.depth)
@@ -76,7 +76,7 @@ where
     };
 
     if let Some(violation) = result.policy_violation.clone() {
-        lock_recoverable(&ctx.workspace.policy_violations).push(violation);
+        lock_recoverable(&ctx.workspace.policy.policy_violations).push(violation);
     }
 
     reject_exotic_subdep(ctx, &wanted, &result, edge.depth, edge.parent_is_workspace)?;
@@ -143,16 +143,20 @@ pub(super) fn edge_opts<'c>(
 ) -> Cow<'c, ResolveOptions> {
     let opts = ctx.opts_for_depth(edge.depth);
     let current_pkg = prior_key.and_then(|key| {
-        let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
-        current_pkg_from_lockfile(lockfile, key, &ctx.workspace.registry_context)
+        let lockfile = ctx.workspace.reuse.lockfile.as_ref()?;
+        current_pkg_from_lockfile(lockfile, key, &ctx.workspace.cache.registry_context)
     });
-    if opts.update == UpdateBehavior::Patches {
+    if opts.refresh.update == UpdateBehavior::Patches {
         pin_patched_revision(wanted, current_pkg.as_ref(), prior_key);
     }
     match current_pkg {
-        Some(current_pkg) => {
-            Cow::Owned(ResolveOptions { current_pkg: Some(current_pkg), ..opts.clone() })
-        }
+        Some(current_pkg) => Cow::Owned(ResolveOptions {
+            refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+                current_pkg: Some(current_pkg),
+                ..opts.refresh.clone()
+            },
+            ..opts.clone()
+        }),
         None => Cow::Borrowed(opts),
     }
 }
@@ -179,8 +183,7 @@ pub(super) fn edge_cache_key(
     prior_key: Option<&PkgNameVerPeer>,
 ) -> WantedKey {
     let project_scope = project_relative_cache_scope(wanted, opts);
-    let overlay_versions = edge
-        .pick_overlay
+    let overlay_versions = edge.pick_overlay
         .as_ref()
         .map(|overlay| overlay_version_view(overlay, wanted))
         .unwrap_or_default();
@@ -195,8 +198,8 @@ pub(super) fn edge_cache_key(
         wanted.bare_specifier.clone(),
         wanted.optional,
         wanted.injected,
-        opts.pick_lowest_version,
-        opts.published_by,
+        opts.version.pick_lowest_version,
+        opts.policy.published_by,
         project_scope,
         prior_key.cloned(),
         overlay_versions,
@@ -228,9 +231,9 @@ pub(super) fn seed_pending(
     let alias = node_alias(wanted, &result, &resolved.id);
     let identity = NodeIdentity::of(&result, &resolved.id);
     let peer_shadowed = peer_shadowed_dependencies(
-        result.manifest.as_deref(),
+        result.package.manifest.as_deref(),
         edge.parent_pkg_aliases,
-        ctx.workspace.auto_install_peers,
+        ctx.workspace.policy.auto_install_peers,
     );
     // The envelope's peer split follows the occurrence that owns the
     // package's children, which this level's settlement decides — see
@@ -251,23 +254,17 @@ pub(super) fn seed_pending(
         emit_deprecation_if_needed(ctx, &result, &resolved.id, edge.depth);
     }
 
-    let next_ancestors: Vec<String> =
-        edge.ancestor_ids.iter().cloned().chain(std::iter::once(resolved.id.clone())).collect();
+    let ancestry = edge.pending_ancestry(&resolved.id, resolved.current_is_optional);
 
     Ok(NodeSeed::Pending(Box::new(PendingNode {
         result,
-        id: resolved.id,
-        alias,
-        node_id: identity.node_id,
         is_link: identity.is_link,
         resolves_children_through_catalogs: identity.resolves_children_through_catalogs,
-        parent_ancestors: Arc::clone(edge.ancestor_ids),
-        next_ancestors: Arc::new(next_ancestors),
         peer_shadowed,
         claim: None,
-        depth: edge.depth,
-        current_is_optional: resolved.current_is_optional,
         prior_key: resolved.prior_key,
+        identity: super::PendingNodeIdentity { id: resolved.id, alias, node_id: identity.node_id },
+        ancestry,
     })))
 }
 
@@ -348,7 +345,7 @@ pub(super) fn register_seeded_package(
         is_link,
         is_leaf,
     } = seeded;
-    let mut packages = lock_recoverable(&ctx.workspace.packages);
+    let mut packages = lock_recoverable(&ctx.workspace.tree.packages);
     if let Some(existing) = packages.get_mut(id) {
         ensure_same_registry_revision(existing, result)?;
         existing.optional = existing.optional && current_is_optional;
@@ -389,23 +386,25 @@ pub(super) fn record_workspace_manifest_identity(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     id: &str,
 ) {
-    if result.name_ver.is_some() {
+    if result.package.name_ver.is_some() {
         return;
     }
-    let names_a_workspace_project = wanted.bare_specifier.as_deref().is_some_and(|specifier| {
-        specifier.starts_with("workspace:") && !specifier.starts_with("workspace:.")
-    });
+    let names_a_workspace_project = wanted.bare_specifier
+        .as_deref()
+        .is_some_and(|specifier| {
+            specifier.starts_with("workspace:") && !specifier.starts_with("workspace:.")
+        });
     if !names_a_workspace_project {
         return;
     }
-    let Some(manifest) = result.manifest.as_deref() else { return };
+    let Some(manifest) = result.package.manifest.as_deref() else { return };
     let (Some(name), Some(version)) = (
         manifest.get("name").and_then(Value::as_str),
         manifest.get("version").and_then(Value::as_str),
     ) else {
         return;
     };
-    ctx.workspace.record_workspace_manifest_identity(id, name, version);
+    ctx.workspace.versions.record_workspace_manifest_identity(id, name, version);
 }
 
 pub(super) fn reject_exotic_subdep(
@@ -415,7 +414,7 @@ pub(super) fn reject_exotic_subdep(
     depth: i32,
     parent_is_workspace: bool,
 ) -> Result<(), ResolveDependencyTreeError> {
-    if !ctx.base_opts.block_exotic_subdeps
+    if !ctx.options.base.policy.block_exotic_subdeps
         || depth == 0
         || parent_is_workspace
         || !is_exotic_resolved_via(&result.resolved_via)
@@ -423,8 +422,7 @@ pub(super) fn reject_exotic_subdep(
         return Ok(());
     }
     Err(ResolveDependencyTreeError::ExoticSubdep {
-        specifier: wanted
-            .alias
+        specifier: wanted.alias
             .clone()
             .or_else(|| wanted.bare_specifier.clone())
             .unwrap_or_default(),
@@ -447,17 +445,20 @@ pub(super) fn drop_failed_optional_edge(
     if !wanted.optional.unwrap_or(false) || !is_droppable_resolve_error(&err) {
         return Err(err);
     }
-    if wanted_lockfile_contains_satisfying_entry(ctx.workspace.wanted_lockfile.as_deref(), wanted) {
+    if wanted_lockfile_contains_satisfying_entry(ctx.workspace.reuse.lockfile.as_deref(), wanted) {
         return Err(ResolveDependencyTreeError::LockedOptionalResolutionFailure(Box::new(err)));
     }
-    if let Some(log) = ctx.workspace.skipped_optional_log.as_ref() {
+    if let Some(log) = ctx.workspace.hooks.skipped_optional_log.as_ref() {
         log(SkippedOptionalDependency {
             details: err.to_string(),
             name: wanted.alias.clone(),
-            version: wanted.alias.is_some().then(|| wanted.bare_specifier.clone()).flatten(),
+            version: wanted.alias
+                .is_some()
+                .then(|| wanted.bare_specifier.clone())
+                .flatten(),
             bare_specifier: wanted.bare_specifier.clone().unwrap_or_default(),
             parents: pkgs_info_from_ids(ctx, ancestor_ids),
-            prefix: opts.project_dir.display().to_string(),
+            prefix: opts.project.project_dir.display().to_string(),
         });
     }
     Ok(())
@@ -473,4 +474,20 @@ pub(super) fn is_droppable_resolve_error(err: &ResolveDependencyTreeError) -> bo
             | ResolveDependencyTreeError::GitResolve(_)
             | ResolveDependencyTreeError::SpecNotSupported { .. },
     )
+}
+
+impl ChildEdge<'_> {
+    fn pending_ancestry(&self, id: &str, current_is_optional: bool) -> super::PendingNodeAncestry {
+        let next_ancestors = self.ancestor_ids
+            .iter()
+            .cloned()
+            .chain(std::iter::once(id.to_owned()))
+            .collect();
+        super::PendingNodeAncestry {
+            parent_ancestors: Arc::clone(self.ancestor_ids),
+            next_ancestors: Arc::new(next_ancestors),
+            depth: self.depth,
+            current_is_optional,
+        }
+    }
 }

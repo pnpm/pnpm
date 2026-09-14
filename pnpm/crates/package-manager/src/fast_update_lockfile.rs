@@ -78,8 +78,10 @@ impl DroppedEdges {
                 // The `@` of a scoped name is not the separator, and a
                 // segment the lockfile put a multi-byte character in front
                 // of must not be sliced blindly.
-                let Some(separator) =
-                    peer_id.match_indices('@').map(|(index, _)| index).find(|index| *index > 0)
+                let Some(separator) = peer_id
+                    .match_indices('@')
+                    .map(|(index, _)| index)
+                    .find(|index| *index > 0)
                 else {
                     return false;
                 };
@@ -132,13 +134,17 @@ fn peer_suffixes_are_independent_of(lockfile: &Lockfile, dropped: &DroppedEdges)
     let Some(snapshots) = lockfile.snapshots.as_ref() else {
         return true;
     };
-    snapshots.keys().all(|key| dropped.are_absent_from(key.suffix.peer()))
+    snapshots
+        .keys()
+        .all(|key| dropped.are_absent_from(key.suffix.peer()))
 }
 
 pub(crate) fn prune_unreachable_packages(lockfile: &mut Lockfile) {
     let Some(reachable) = reachable_keys(lockfile) else { return };
-    let reachable_metadata: HashSet<_> =
-        reachable.iter().map(PkgNameVerPeer::without_peer).collect();
+    let reachable_metadata: HashSet<_> = reachable
+        .iter()
+        .map(PkgNameVerPeer::without_peer)
+        .collect();
     if let Some(snapshots) = lockfile.snapshots.as_mut() {
         snapshots.retain(|key, _| reachable.contains(key));
         if snapshots.is_empty() {
@@ -171,8 +177,7 @@ fn reachable_keys(lockfile: &Lockfile) -> Option<HashSet<PkgNameVerPeer>> {
 
 /// The snapshot keys every importer declares directly.
 fn importer_root_keys(lockfile: &Lockfile) -> VecDeque<PkgNameVerPeer> {
-    lockfile
-        .importers
+    lockfile.importers
         .values()
         .flat_map(|importer| {
             [
@@ -225,8 +230,10 @@ fn optionally_reached_keys(lockfile: &Lockfile) -> Option<HashSet<PkgNameVerPeer
         let Some(snapshot) = snapshots.get(&key) else { continue };
         queue.extend(snapshot_optional_children(snapshot, optional));
     }
-    let non_optional: HashSet<_> =
-        visited.iter().filter_map(|(key, optional)| (!optional).then_some(key.clone())).collect();
+    let non_optional: HashSet<_> = visited
+        .iter()
+        .filter_map(|(key, optional)| (!optional).then_some(key.clone()))
+        .collect();
     Some(
         visited
             .into_iter()
@@ -236,8 +243,7 @@ fn optionally_reached_keys(lockfile: &Lockfile) -> Option<HashSet<PkgNameVerPeer
 }
 
 fn importer_optional_roots(lockfile: &Lockfile) -> VecDeque<(PkgNameVerPeer, bool)> {
-    lockfile
-        .importers
+    lockfile.importers
         .values()
         .flat_map(|importer| {
             [
@@ -247,11 +253,16 @@ fn importer_optional_roots(lockfile: &Lockfile) -> VecDeque<(PkgNameVerPeer, boo
             ]
             .into_iter()
             .flat_map(|(dependencies, optional)| {
-                dependencies.into_iter().flatten().map(move |entry| (entry, optional))
+                dependencies
+                    .into_iter()
+                    .flatten()
+                    .map(move |entry| (entry, optional))
             })
         })
         .filter_map(|((alias, spec), optional)| {
-            spec.version.resolved_key(alias).map(|key| (key, optional))
+            spec.version
+                .resolved_key(alias)
+                .map(|key| (key, optional))
         })
         .collect()
 }
@@ -263,10 +274,15 @@ fn snapshot_optional_children(
     [(snapshot.dependencies.as_ref(), optional), (snapshot.optional_dependencies.as_ref(), true)]
         .into_iter()
         .flat_map(|(dependencies, next_optional)| {
-            dependencies.into_iter().flatten().map(move |entry| (entry, next_optional))
+            dependencies
+                .into_iter()
+                .flatten()
+                .map(move |entry| (entry, next_optional))
         })
         .filter_map(|((alias, dep_ref), next_optional)| {
-            dep_ref.resolve(alias).map(|key| (key, next_optional))
+            dep_ref
+                .resolve(alias)
+                .map(|key| (key, next_optional))
         })
 }
 
@@ -279,7 +295,9 @@ pub(crate) fn prune_unreferenced_catalog_entries(lockfile: &mut Lockfile) {
     let stale: Vec<(String, String)> = catalogs
         .iter()
         .flat_map(|(catalog_name, entries)| {
-            entries.keys().map(move |alias| (catalog_name.clone(), alias.clone()))
+            entries
+                .keys()
+                .map(move |alias| (catalog_name.clone(), alias.clone()))
         })
         .filter(|(catalog_name, alias)| {
             !crate::fast_update_catalogs::catalog_entry_is_referenced(lockfile, catalog_name, alias)

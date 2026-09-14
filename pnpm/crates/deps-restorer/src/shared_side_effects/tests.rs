@@ -49,8 +49,9 @@ fn an_artifact_digest_addresses_the_file_the_store_wrote() {
     let digest = pnpm_pnpr_client::blob_id(&integrity).unwrap();
     let mut located_by_mode = Vec::new();
     for mode in [0o755, 0o644, 0o744] {
-        let (written, _) =
-            store_dir.write_cas_file(bytes, pnpm_fs::file_mode::is_executable(mode)).unwrap();
+        let (written, _) = store_dir
+            .write_cas_file(bytes, pnpm_fs::file_mode::is_executable(mode))
+            .unwrap();
         let located = store_dir
             .cas_file_path_by_mode(&digest, mode)
             .expect("an artifact digest must address a CAS path");
@@ -113,7 +114,11 @@ async fn a_non_regular_file_is_not_reused_as_store_content() {
     {
         let fifo = store.path().join("fifo");
         assert!(
-            std::process::Command::new("mkfifo").arg(&fifo).status().unwrap().success(),
+            std::process::Command::new("mkfifo")
+                .arg(&fifo)
+                .status()
+                .unwrap()
+                .success(),
             "mkfifo is needed to plant a FIFO at a store path",
         );
         assert!(
@@ -220,7 +225,11 @@ mod restore {
 
     fn public_key() -> String {
         BASE64.encode(
-            secret_key().public_key().to_public_key_der().expect("fixture public key").as_bytes(),
+            secret_key()
+                .public_key()
+                .to_public_key_der()
+                .expect("fixture public key")
+                .as_bytes(),
         )
     }
 
@@ -276,7 +285,10 @@ mod restore {
         let envelope = SignedArtifactEnvelope::sign(
             &payload,
             KEY_ID,
-            secret_key().to_pkcs8_der().expect("fixture private key").as_bytes(),
+            secret_key()
+                .to_pkcs8_der()
+                .expect("fixture private key")
+                .as_bytes(),
         )
         .expect("sign the fixture payload");
         let response = ResolveArtifactsResponse {
@@ -319,7 +331,10 @@ mod restore {
         let envelope = SignedArtifactEnvelope::sign(
             &payload,
             KEY_ID,
-            secret_key().to_pkcs8_der().unwrap().as_bytes(),
+            secret_key()
+                .to_pkcs8_der()
+                .unwrap()
+                .as_bytes(),
         )
         .unwrap();
         let diff = SideEffectsDiff {
@@ -377,7 +392,10 @@ mod restore {
         let [overlay] = maps.values().collect::<Vec<_>>()[..] else {
             panic!("expected one cache key, got {}", maps.len());
         };
-        overlay.get(BUILT_FILE).expect("the built file must be in the overlay").clone()
+        overlay
+            .get(BUILT_FILE)
+            .expect("the built file must be in the overlay")
+            .clone()
     }
 
     /// Apply the shared cache against a server that offers `manifest` for
@@ -432,6 +450,15 @@ mod restore {
         let (store_index_writer, store_index_writer_task) =
             pnpm_store_dir::StoreIndexWriter::spawn_disabled();
         super::super::apply_shared_side_effects(super::super::ApplySharedSideEffectsOptions {
+            cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
+                base_cas_paths: &HashMap::from([(snapshot_key.clone(), HashMap::new())]),
+                by_snapshot: &HashMap::new(),
+                quarantine_by_snapshot: &HashMap::new(),
+                store_index_keys_by_snapshot: &HashMap::from([(
+                    snapshot_key.clone(),
+                    "row".to_string(),
+                )]),
+            },
             config: &config(&server.url(), store_dir),
             snapshots: &snapshots,
             packages: &packages,
@@ -444,14 +471,9 @@ mod restore {
                 HashSet::new(),
                 false,
             ),
-            base_cas_paths: &HashMap::from([(snapshot_key.clone(), HashMap::new())]),
+
             side_effects_maps_by_snapshot: &mut side_effects,
-            side_effects_by_snapshot: &HashMap::new(),
-            remote_side_effects_quarantine_by_snapshot: &HashMap::new(),
-            store_index_keys_by_snapshot: &HashMap::from([(
-                snapshot_key.clone(),
-                "row".to_string(),
-            )]),
+
             store_index_writer: &store_index_writer,
         })
         .await;
@@ -509,7 +531,9 @@ mod restore {
     async fn content_the_store_already_holds_is_not_downloaded() {
         let store = tempfile::tempdir().expect("tempdir");
         let store_dir = StoreDir::new(store.path());
-        let (seeded, _) = store_dir.write_cas_file(built_bytes(), true).expect("seed the store");
+        let (seeded, _) = store_dir
+            .write_cas_file(built_bytes(), true)
+            .expect("seed the store");
 
         let restored = restore(&store_dir, 0).await;
 
@@ -556,7 +580,12 @@ mod restore {
         settings.key_id = Some(KEY_ID.to_string());
         settings.builder_id = Some("ci/main/1".to_string());
         settings.private_key = Some(
-            BASE64.encode(secret_key().to_pkcs8_der().expect("fixture private key").as_bytes()),
+            BASE64.encode(
+                secret_key()
+                    .to_pkcs8_der()
+                    .expect("fixture private key")
+                    .as_bytes(),
+            ),
         );
         config
     }
@@ -614,14 +643,24 @@ mod restore {
         let mut server = mockito::Server::new_async().await;
         let config = publishing_config(&server.url(), &store_dir);
 
-        let untouched = server.mock("PUT", "/-/pnpr/v0/artifacts").expect(0).create_async().await;
+        let untouched = server
+            .mock("PUT", "/-/pnpr/v0/artifacts")
+            .expect(0)
+            .create_async()
+            .await;
         let empty = SideEffectsDiff { added: None, deleted: None, remote_origin: None };
         publish(config.clone(), store_dir.clone(), empty).await;
         untouched.assert_async().await;
         untouched.remove_async().await;
 
-        let published = server.mock("PUT", "/-/pnpr/v0/artifacts").expect(1).create_async().await;
-        store_dir.write_cas_file(built_bytes(), true).expect("seed the built file");
+        let published = server
+            .mock("PUT", "/-/pnpr/v0/artifacts")
+            .expect(1)
+            .create_async()
+            .await;
+        store_dir
+            .write_cas_file(built_bytes(), true)
+            .expect("seed the built file");
         let built = SideEffectsDiff {
             added: Some(HashMap::from([(
                 BUILT_FILE.to_string(),

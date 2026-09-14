@@ -198,7 +198,13 @@ fn previews_no_path_for_a_file_the_patch_creates_and_then_deletes() {
 
     apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
     assert!(preview.written_paths.is_empty(), "written_paths: {:?}", preview.written_paths);
-    assert!(!patched.path().join("binding.gyp").exists(), "no binding.gyp remains");
+    assert!(
+        !patched
+            .path()
+            .join("binding.gyp")
+            .exists(),
+        "no binding.gyp remains",
+    );
 }
 
 /// The build phase owns the real apply. Applying twice to one slot is not
@@ -386,7 +392,12 @@ fn delete_that_carries_no_preimage_on_an_already_deleted_file_is_noop() {
     );
 
     apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
-    assert!(!patched.path().join("to-delete.txt").exists());
+    assert!(
+        !patched
+            .path()
+            .join("to-delete.txt")
+            .exists(),
+    );
 }
 
 #[cfg(unix)]
@@ -565,5 +576,10 @@ deleted file mode 100644
     );
 
     apply_patch_to_dir(patched.path(), &patch).expect("re-apply must succeed");
-    assert!(!patched.path().join("to-delete.txt").exists());
+    assert!(
+        !patched
+            .path()
+            .join("to-delete.txt")
+            .exists(),
+    );
 }

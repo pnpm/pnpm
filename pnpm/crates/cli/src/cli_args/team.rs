@@ -16,7 +16,7 @@ use registry::{
 };
 use reqwest::Response;
 use serde::Deserialize;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::collections::HashMap;
 
 #[derive(Debug, Args)]
 pub struct TeamArgs {
@@ -229,49 +229,18 @@ impl TeamArgs {
     }
 
     fn context<'a>(&self, config: &'a Config) -> miette::Result<TeamContext<'a>> {
-        let mut registries: HashMap<String, String> =
-            config.resolved_registries().into_iter().collect();
+        let mut registries: HashMap<String, String> = config
+            .resolved_registries()
+            .into_iter()
+            .collect();
         if let Some(registry) = &self.registry {
             registries.insert("default".to_string(), normalize_registry_url(registry));
         }
-        // When an OTP is in play, restrict redirects to the configured
-        // registry origins so a redirect cannot forward the `npm-otp` header
-        // to another host (reqwest only strips standard auth headers on
-        // cross-host redirects). Mirrors the `access` command's guard.
-        //
-        // Deliberate divergence from pnpm: the TypeScript fetch layer
-        // follows a cross-host redirect after stripping `authorization` and
-        // `npm-otp`, so the request proceeds without credentials and fails
-        // at the target; here it fails at the redirect hop instead. reqwest
-        // redirect policies cannot strip custom headers per hop, so matching
-        // pnpm exactly needs a manual redirect loop in pnpm-network — a
-        // follow-up that would cover `access` too.
-        let redirect_guard = self.otp.as_ref().map(|_| {
-            let origins: Vec<(String, String, Option<u16>)> = registries
-                .values()
-                .filter_map(|registry| {
-                    let url = reqwest::Url::parse(registry).ok()?;
-                    Some((url.scheme().to_string(), url.host_str()?.to_string(), url.port()))
-                })
-                .collect();
-            let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
-                origins.iter().any(|(scheme, host, port)| {
-                    target.scheme() == scheme
-                        && target.host_str() == Some(host.as_str())
-                        && target.port() == *port
-                })
-            });
-            guard
-        });
+        let redirect_guard = self.otp.as_ref().map(|_| registry::redirect_guard(&registries));
         Ok(TeamContext {
             config,
             http_client: build_http_client(config, redirect_guard.as_ref())?,
-            retry_opts: RetryOpts {
-                retries: config.fetch_retries,
-                factor: config.fetch_retry_factor,
-                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-            },
+            retry_opts: config.retry_opts(),
             registries,
             otp: self.otp.clone(),
             parseable: self.parseable,
@@ -292,8 +261,10 @@ async fn team_create(context: &TeamContext<'_>, params: &[String]) -> miette::Re
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let builder =
-                client.put(&url).header("content-type", "application/json").body(body.clone());
+            let builder = client
+                .put(&url)
+                .header("content-type", "application/json")
+                .body(body.clone());
             apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
         })
         .await
@@ -345,8 +316,10 @@ async fn team_add(context: &TeamContext<'_>, params: &[String]) -> miette::Resul
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let builder =
-                client.put(&url).header("content-type", "application/json").body(body.clone());
+            let builder = client
+                .put(&url)
+                .header("content-type", "application/json")
+                .body(body.clone());
             apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
         })
         .await
@@ -377,8 +350,10 @@ async fn team_rm(context: &TeamContext<'_>, params: &[String]) -> miette::Result
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let builder =
-                client.delete(&url).header("content-type", "application/json").body(body.clone());
+            let builder = client
+                .delete(&url)
+                .header("content-type", "application/json")
+                .body(body.clone());
             apply_auth_and_otp(builder, Some(&auth_header), context.otp.as_deref())
         })
         .await
@@ -416,14 +391,20 @@ fn render_teams(
     json: bool,
 ) -> miette::Result<String> {
     if json {
-        let names: Vec<&str> = teams.iter().map(|team| team.name.as_str()).collect();
+        let names: Vec<&str> = teams
+            .iter()
+            .map(|team| team.name.as_str())
+            .collect();
         return serde_json::to_string_pretty(&names)
             .into_diagnostic()
             .map_err(|source| registry_operation_error("serializing teams as JSON", source));
     }
 
     if parseable {
-        let lines: Vec<&str> = teams.iter().map(|team| team.name.as_str()).collect();
+        let lines: Vec<&str> = teams
+            .iter()
+            .map(|team| team.name.as_str())
+            .collect();
         return Ok(lines.join("\n"));
     }
 
@@ -446,14 +427,20 @@ fn render_members(
     json: bool,
 ) -> miette::Result<String> {
     if json {
-        let names: Vec<&str> = members.iter().map(|member| member.name.as_str()).collect();
+        let names: Vec<&str> = members
+            .iter()
+            .map(|member| member.name.as_str())
+            .collect();
         return serde_json::to_string_pretty(&names)
             .into_diagnostic()
             .map_err(|source| registry_operation_error("serializing members as JSON", source));
     }
 
     if parseable {
-        let lines: Vec<&str> = members.iter().map(|member| member.name.as_str()).collect();
+        let lines: Vec<&str> = members
+            .iter()
+            .map(|member| member.name.as_str())
+            .collect();
         return Ok(lines.join("\n"));
     }
 

@@ -22,7 +22,7 @@ impl WorkEnv {
     /// Apply the `serve_timing` diagnostic env to a spawned `pnpr` command, if
     /// enabled — so the server emits per-phase serve timing to its log.
     fn apply_serve_timing(&self, command: &mut Command) {
-        if self.serve_timing {
+        if self.options.serve_timing {
             // Append rather than clobber, so a `RUST_LOG` the caller already set
             // (to surface other diagnostics) keeps working alongside the timing
             // target. EnvFilter reads the last matching directive, and ours is
@@ -74,7 +74,7 @@ impl WorkEnv {
         // The mock advertises its tarball URLs at the client-facing proxy
         // URL (`registry.url`), not its own loopback port, so downloads cross
         // the emulated registry link instead of bypassing it.
-        let cold = self.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache);
+        let cold = self.options.selection.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache);
         let mut command = if cold {
             self.cold_revision_mock_command(revision, &binary, &bench_dir, mock_port, &registry.url)
         } else {
@@ -108,11 +108,11 @@ impl WorkEnv {
     ) -> Command {
         let cold_storage = bench_dir.join("cold-mock-storage");
         let config_path = bench_dir.join("cold-mock-config.yaml");
-        fs::write(&config_path, cold_mock_config_yaml(&cold_storage, &self.registry))
+        fs::write(&config_path, cold_mock_config_yaml(&cold_storage, &self.registry.client))
             .expect("write cold mock config");
         eprintln!(
             "Serving {revision}'s tarballs from a COLD mock built from pnpr@{revision} on 127.0.0.1:{mock_port} (origin {})...",
-            self.registry,
+            self.registry.client,
         );
         let mut command = Command::new(binary);
         command
@@ -151,16 +151,16 @@ impl WorkEnv {
     ) -> LatencyProxy {
         let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, mock_port));
         let profile = LinkProfile {
-            one_way: Duration::from_millis(self.registry_latency_ms) / 2,
-            rate_limit: mbps_to_bytes_per_sec(self.registry_bandwidth_mbps),
-            slow_start: self.registry_slow_start,
+            one_way: Duration::from_millis(self.options.network.registry_latency_ms) / 2,
+            rate_limit: mbps_to_bytes_per_sec(self.options.network.registry_bandwidth_mbps),
+            slow_start: self.options.network.registry_slow_start,
         };
         let proxy = LatencyProxy::spawn_with_listener(listener, upstream, profile)
             .expect("spawn revision mock latency proxy");
         eprintln!(
             "Fronting mock for {revision} with {}ms round-trip latency + {} download cap (proxy at {})",
-            self.registry_latency_ms,
-            match self.registry_bandwidth_mbps {
+            self.options.network.registry_latency_ms,
+            match self.options.network.registry_bandwidth_mbps {
                 mbps if mbps > 0.0 => format!("{mbps} Mbit/s"),
                 _ => "no".to_string(),
             },
@@ -170,17 +170,22 @@ impl WorkEnv {
     }
     pub(super) fn start_pnpr_server(&self, id: BenchId, pnpr_server_registry: &str) -> PnprServer {
         let bench_dir = self.bench_dir(id);
-        let binary = bench_dir.join("pacquet").join("target").join("release").join("pnpr");
+        let binary = bench_dir
+            .join("pacquet")
+            .join("target")
+            .join("release")
+            .join("pnpr");
         assert!(
             binary.is_file(),
             "pnpr binary not found at {binary:?} — the build step did not produce it",
         );
         let pnpr_storage = bench_dir.join("pnpr-storage");
         seed_pnpr_auth(&pnpr_storage);
-        let public_route_registries = if matches!(self.registry_mode, RegistryMode::Npm) {
+        let public_route_registries = if matches!(self.options.network.registry, RegistryMode::Npm)
+        {
             Vec::new()
         } else {
-            distinct_public_route_registries([self.registry.as_str(), pnpr_server_registry])
+            distinct_public_route_registries([self.registry.client.as_str(), pnpr_server_registry])
         };
         let pnpr_config =
             write_pnpr_benchmark_config(&bench_dir, &pnpr_storage, &public_route_registries);
@@ -237,7 +242,7 @@ impl WorkEnv {
                 "export PNPM_CONFIG_PNPR_SERVER={client_url}\n\
                  export {PNPR_SERVER_REGISTRY_ENV}={pnpr_server_registry}\n\
                  export {PNPR_TARBALL_REWRITE_FROM_ENV}={tarball_rewrite_from}\n",
-                tarball_rewrite_from = self.registry,
+                tarball_rewrite_from = self.registry.client,
             ),
         )
         .expect("write .pnpr-env");
@@ -277,7 +282,7 @@ impl WorkEnv {
     /// The URL the client reaches the server at: a latency-injecting proxy
     /// when `--pnpr-latency-ms` is set, the server itself otherwise.
     fn pnpr_client_url(&self, id: BenchId, port: u16, server: &mut PnprServer) -> String {
-        if self.pnpr_latency_ms == 0 {
+        if self.options.network.pnpr_latency_ms == 0 {
             return format!("http://127.0.0.1:{port}");
         }
         let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
@@ -285,7 +290,7 @@ impl WorkEnv {
         // metadata payloads, so the round trip (not throughput) is the
         // cost that matters for the client↔server link.
         let profile = LinkProfile {
-            one_way: Duration::from_millis(self.pnpr_latency_ms) / 2,
+            one_way: Duration::from_millis(self.options.network.pnpr_latency_ms) / 2,
             rate_limit: None,
             slow_start: false,
         };
@@ -293,7 +298,7 @@ impl WorkEnv {
         let proxy_url = format!("http://{}", proxy.addr);
         eprintln!(
             "Injecting {}ms round-trip latency in front of {id}'s server (proxy at {})",
-            self.pnpr_latency_ms, proxy.addr,
+            self.options.network.pnpr_latency_ms, proxy.addr,
         );
         server.latency_proxy = Some(proxy);
         proxy_url
@@ -304,23 +309,23 @@ impl WorkEnv {
     /// proxied in `main` so their advertised tarball URLs use the proxied
     /// public port.
     pub(super) fn start_client_registry_proxy(&self) -> Option<LatencyProxy> {
-        let rate_limit = mbps_to_bytes_per_sec(self.registry_bandwidth_mbps);
-        if (self.registry_latency_ms == 0 && rate_limit.is_none())
-            || matches!(self.registry_mode, RegistryMode::Npm | RegistryMode::Verdaccio)
+        let rate_limit = mbps_to_bytes_per_sec(self.options.network.registry_bandwidth_mbps);
+        if (self.options.network.registry_latency_ms == 0 && rate_limit.is_none())
+            || matches!(self.options.network.registry, RegistryMode::Npm | RegistryMode::Verdaccio)
         {
             return None;
         }
-        let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, self.registry_port));
+        let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, self.options.network.registry_port));
         let profile = LinkProfile {
-            one_way: Duration::from_millis(self.registry_latency_ms) / 2,
+            one_way: Duration::from_millis(self.options.network.registry_latency_ms) / 2,
             rate_limit,
-            slow_start: self.registry_slow_start,
+            slow_start: self.options.network.registry_slow_start,
         };
         let proxy = LatencyProxy::spawn(upstream, profile).expect("spawn registry proxy");
         eprintln!(
             "Fronting the registry with {}ms round-trip latency + {} download cap (proxy at {})",
-            self.registry_latency_ms,
-            match self.registry_bandwidth_mbps {
+            self.options.network.registry_latency_ms,
+            match self.options.network.registry_bandwidth_mbps {
                 mbps if mbps > 0.0 => format!("{mbps} Mbit/s"),
                 _ => "no".to_string(),
             },
@@ -332,14 +337,15 @@ impl WorkEnv {
     /// The client still uses [`Self::start_client_registry_proxy`], which
     /// may have a higher latency and a bandwidth cap for tarball fetches.
     pub(super) fn start_pnpr_server_registry_proxy(&self) -> Option<LatencyProxy> {
-        if self.pnpr_server_registry_latency_ms == 0
-            || matches!(self.registry_mode, RegistryMode::Npm)
+        if self.options.network.pnpr_server_registry_latency_ms == 0
+            || matches!(self.options.network.registry, RegistryMode::Npm)
         {
             return None;
         }
-        let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, self.registry_port));
+        let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, self.options.network.registry_port));
         let profile = LinkProfile {
-            one_way: Duration::from_millis(self.pnpr_server_registry_latency_ms) / 2,
+            one_way: Duration::from_millis(self.options.network.pnpr_server_registry_latency_ms)
+                / 2,
             rate_limit: None,
             slow_start: false,
         };
@@ -347,7 +353,7 @@ impl WorkEnv {
             LatencyProxy::spawn(upstream, profile).expect("spawn pnpr server registry proxy");
         eprintln!(
             "Fronting the pnpr server registry link with {}ms round-trip latency (proxy at {})",
-            self.pnpr_server_registry_latency_ms, proxy.addr,
+            self.options.network.pnpr_server_registry_latency_ms, proxy.addr,
         );
         Some(proxy)
     }
@@ -372,9 +378,12 @@ impl WorkEnv {
         revision_mocks: &'a HashMap<String, RevisionMockRegistry>,
     ) -> &'a str {
         if id.is_proxy_cache_populator() {
-            return &self.registry_cache_populator;
+            return &self.registry.cache_populator;
         }
-        if let Some(mock) = id.revision().and_then(|rev| revision_mocks.get(rev)) {
+        if let Some(mock) = id
+            .revision()
+            .and_then(|rev| revision_mocks.get(rev))
+        {
             return &mock.url;
         }
         client_registry
@@ -393,20 +402,27 @@ impl WorkEnv {
     /// spawns it. Empty for non-Verdaccio modes, which front no local mock.
     pub(super) fn plan_revision_mocks(&self) -> HashMap<String, RevisionMockRegistry> {
         let mut mocks = HashMap::new();
-        if !matches!(self.registry_mode, RegistryMode::Verdaccio) {
+        if !matches!(self.options.network.registry, RegistryMode::Verdaccio) {
             return mocks;
         }
-        for target in &self.targets {
+        for target in &self.options.selection.targets {
             if target.kind != TargetKind::Pnpr {
                 continue;
             }
-            mocks.entry(target.rev.clone()).or_insert_with(|| {
-                let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-                    .expect("bind a port for the revision mock proxy");
-                let listen_port =
-                    listener.local_addr().expect("revision mock proxy local addr").port();
-                RevisionMockRegistry { listener, url: format!("http://127.0.0.1:{listen_port}/") }
-            });
+            mocks
+                .entry(target.rev.clone())
+                .or_insert_with(|| {
+                    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+                        .expect("bind a port for the revision mock proxy");
+                    let listen_port = listener
+                        .local_addr()
+                        .expect("revision mock proxy local addr")
+                        .port();
+                    RevisionMockRegistry {
+                        listener,
+                        url: format!("http://127.0.0.1:{listen_port}/"),
+                    }
+                });
         }
         mocks
     }

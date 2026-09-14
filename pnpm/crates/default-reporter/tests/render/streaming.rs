@@ -119,7 +119,12 @@ fn append_only_streams_each_lifecycle_output_line() {
         }
     }
 
-    assert!(lines.iter().any(|line| line.contains("downloading the binary")), "lines: {lines:#?}");
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains("downloading the binary")),
+        "lines: {lines:#?}",
+    );
 }
 
 /// `hideLifecycleOutput` keeps the script's output in its collapsed block
@@ -129,7 +134,10 @@ fn append_only_streams_each_lifecycle_output_line() {
 fn hide_lifecycle_output_stops_the_streaming_even_under_append_only() {
     let mut reporter = state_with_options(ReporterOptions {
         append_only: true,
-        hide_lifecycle_output: true,
+        lifecycle: pnpm_default_reporter::state::LifecycleOptions {
+            hide_output: true,
+            ..Default::default()
+        },
         ..ReporterOptions::default()
     });
 
@@ -140,7 +148,12 @@ fn hide_lifecycle_output_stops_the_streaming_even_under_append_only() {
         }
     }
 
-    assert!(!lines.iter().any(|line| line.contains("downloading the binary")), "lines: {lines:#?}");
+    assert!(
+        !lines
+            .iter()
+            .any(|line| line.contains("downloading the binary")),
+        "lines: {lines:#?}",
+    );
 }
 
 /// Port of upstream's `groups lifecycle output when streamLifecycleOutput
@@ -150,7 +163,10 @@ fn hide_lifecycle_output_stops_the_streaming_even_under_append_only() {
 #[test]
 fn stream_lifecycle_output_streams_without_append_only() {
     let mut reporter = state_with_options(ReporterOptions {
-        stream_lifecycle_output: true,
+        lifecycle: pnpm_default_reporter::state::LifecycleOptions {
+            stream_output: true,
+            ..Default::default()
+        },
         ..ReporterOptions::default()
     });
 

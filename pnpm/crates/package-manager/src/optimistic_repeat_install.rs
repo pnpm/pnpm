@@ -120,12 +120,6 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// pins the lockfile somewhere else.
     pub workspace_root: &'a Path,
     pub config: &'a Config,
-    pub node_linker: NodeLinker,
-    pub included: IncludedDependencies,
-    /// The CLI-merged effective `supportedArchitectures` this run would
-    /// install with (yaml plus `--cpu` / `--os` / `--libc`), compared
-    /// against the recorded value like `included`.
-    pub supported_architectures: Option<&'a SupportedArchitectures>,
     /// Every importer's `(root_dir, manifest)` pair. For a
     /// single-project install it's just the root manifest; for a
     /// workspace install it's every project the resolver would
@@ -157,6 +151,17 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// pnpmfile hook, for resolving `catalog:` values inside
     /// `pnpm.overrides` before the lockfile settings comparison.
     pub catalogs: &'a Catalogs,
+    pub layout: RepeatInstallLayout<'a>,
+}
+
+#[derive(Clone, Copy)]
+pub struct RepeatInstallLayout<'a> {
+    pub node_linker: NodeLinker,
+    pub included: IncludedDependencies,
+    /// The CLI-merged effective `supportedArchitectures` this run would
+    /// install with (yaml plus `--cpu` / `--os` / `--libc`), compared
+    /// against the recorded value like `included`.
+    pub supported_architectures: Option<&'a SupportedArchitectures>,
 }
 
 /// Run the workspace-state freshness fast path. Returns
@@ -313,7 +318,12 @@ fn state_blocks_fast_path(
 /// A local file dependency's contents can change with nothing in the manifest
 /// or the lockfile moving, so any of them rules the fast path out.
 fn local_file_blocks_fast_path(check: &OptimisticRepeatInstallCheck<'_>) -> Option<&'static str> {
-    let &OptimisticRepeatInstallCheck { config, included, catalogs, .. } = check;
+    let &OptimisticRepeatInstallCheck {
+        config,
+        catalogs,
+        layout: crate::RepeatInstallLayout { included, .. },
+        ..
+    } = check;
     match has_local_file_dep_requiring_install(check) {
         Ok(true) => {
             return Some(
@@ -347,11 +357,15 @@ fn settings_block_fast_path(
 ) -> Option<&'static str> {
     let &OptimisticRepeatInstallCheck {
         config,
-        node_linker,
-        included,
-        supported_architectures,
         project_manifests,
         catalogs,
+        layout:
+            crate::RepeatInstallLayout {
+                node_linker,
+                included,
+                supported_architectures,
+                ..
+            },
         ..
     } = check;
     if !settings_match(
@@ -390,7 +404,12 @@ fn lockfile_inputs_block_fast_path(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
 ) -> Option<&'static str> {
-    let &OptimisticRepeatInstallCheck { workspace_root, config, is_workspace_install, .. } = check;
+    let &OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        is_workspace_install,
+        ..
+    } = check;
     // Single-project installs require a lockfile to even attempt the
     // fast path. The single-project branch raises
     // `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` when the wanted-lockfile
@@ -450,11 +469,18 @@ fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
     [value.get("dependencies"), value.get("devDependencies"), value.get("optionalDependencies")]
         .into_iter()
         .flatten()
-        .any(|deps| deps.as_object().is_some_and(|map| !map.is_empty()))
+        .any(|deps| {
+            deps.as_object()
+                .is_some_and(|map| !map.is_empty())
+        })
 }
 
 fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
-    manifest.value().get(key).and_then(|v| v.as_str()).map(ToString::to_string)
+    manifest
+        .value()
+        .get(key)
+        .and_then(|v| v.as_str())
+        .map(ToString::to_string)
 }
 
 /// Whether any configured patch file's mtime is newer than the last
@@ -467,15 +493,17 @@ fn patches_modified_since(workspace_root: &Path, config: &Config, cutoff_ms: i64
     let Some(patches) = config.patched_dependencies.as_ref() else {
         return false;
     };
-    patches.values().any(|rel_or_abs| {
-        let candidate = Path::new(rel_or_abs);
-        let path = if candidate.is_absolute() {
-            candidate.to_path_buf()
-        } else {
-            workspace_root.join(candidate)
-        };
-        file_mtime(&path).is_some_and(|mtime| modified_at_or_after(mtime, cutoff_ms))
-    })
+    patches
+        .values()
+        .any(|rel_or_abs| {
+            let candidate = Path::new(rel_or_abs);
+            let path = if candidate.is_absolute() {
+                candidate.to_path_buf()
+            } else {
+                workspace_root.join(candidate)
+            };
+            file_mtime(&path).is_some_and(|mtime| modified_at_or_after(mtime, cutoff_ms))
+        })
 }
 
 /// The pnpmfile list recorded in the workspace state and compared by
@@ -520,13 +548,15 @@ fn pnpmfiles_drift(
     if current != previous {
         return Some("The list of pnpmfiles changed.".to_string());
     }
-    current.iter().find_map(|path| {
-        let Some(mtime) = file_mtime(Path::new(path)) else {
-            return Some(format!(r#"pnpmfile at "{path}" was removed"#));
-        };
-        modified_at_or_after(mtime, cutoff_ms)
-            .then(|| format!(r#"pnpmfile at "{path}" was modified"#))
-    })
+    current
+        .iter()
+        .find_map(|path| {
+            let Some(mtime) = file_mtime(Path::new(path)) else {
+                return Some(format!(r#"pnpmfile at "{path}" was removed"#));
+            };
+            modified_at_or_after(mtime, cutoff_ms)
+                .then(|| format!(r#"pnpmfile at "{path}" was modified"#))
+        })
 }
 
 #[cfg(test)]

@@ -10,11 +10,13 @@ pub(super) fn fold_version(
     name: String,
     version: String,
 ) {
-    versions.entry(name).or_default().entry(version).or_insert(
-        pnpm_resolving_resolver_base::VersionSelectorEntry::Plain(
+    versions
+        .entry(name)
+        .or_default()
+        .entry(version)
+        .or_insert(pnpm_resolving_resolver_base::VersionSelectorEntry::Plain(
             pnpm_resolving_resolver_base::VersionSelectorType::Version,
-        ),
-    );
+        ));
 }
 
 /// `false` when the recorded spec disagrees with the one already synced.
@@ -82,7 +84,10 @@ pub(super) fn fold_visited_versions(
     cache: &mut RunVersionsCache,
 ) {
     for pkg_id in newly_visited {
-        match packages.get(pkg_id.as_str()).and_then(|pkg| pkg.result.name_ver.as_ref()) {
+        match packages
+            .get(pkg_id.as_str())
+            .and_then(|pkg| pkg.result.package.name_ver.as_ref())
+        {
             Some(name_ver) => fold_version(
                 &mut cache.versions,
                 name_ver.name.to_string(),
@@ -103,7 +108,10 @@ pub(super) fn walk_reachable_nodes(
 ) -> (HashSet<NodeId>, HashSet<Arc<str>>) {
     let mut reachable_node_ids = HashSet::default();
     let mut reachable_pkg_ids = HashSet::default();
-    let mut pending_node_ids: Vec<NodeId> = direct.iter().map(|dep| dep.node_id.clone()).collect();
+    let mut pending_node_ids: Vec<NodeId> = direct
+        .iter()
+        .map(|dep| dep.node_id.clone())
+        .collect();
     while let Some(node_id) = pending_node_ids.pop() {
         if !reachable_node_ids.insert(node_id.clone()) {
             continue;
@@ -125,7 +133,10 @@ pub(super) fn walk_reachable_children(
     all_children: &HashMap<Arc<str>, RecordedChildren>,
     reachable_pkg_ids: &mut HashSet<Arc<str>>,
 ) -> HashMap<Arc<str>, Arc<Vec<crate::resolved_tree::ChildEdge>>> {
-    let mut pending_pkg_ids: Vec<Arc<str>> = reachable_pkg_ids.iter().cloned().collect();
+    let mut pending_pkg_ids: Vec<Arc<str>> = reachable_pkg_ids
+        .iter()
+        .cloned()
+        .collect();
     let mut children_by_id = HashMap::default();
     while let Some(pkg_id) = pending_pkg_ids.pop() {
         let Some(children) = all_children.get(&pkg_id) else {

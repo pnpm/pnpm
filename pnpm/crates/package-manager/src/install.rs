@@ -1,3 +1,5 @@
+pub(crate) mod state_options;
+
 pub use entry_points::apply_deploy_manifest_hook;
 pub(crate) use entry_points::apply_deploy_manifest_hook_to_arc;
 pub use errors::{InstallError, defer_ignored_builds};
@@ -8,11 +10,14 @@ pub(crate) use lockfile_freshness::{
 pub use lockfile_freshness::{
     WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace,
 };
+pub use run::{InstallExecution, InstallLockfilePolicy, ResolutionInputs};
 pub use workspace_state::{
     UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
     check_deps_status_before_run_at, install_already_up_to_date,
 };
-pub(crate) use workspace_state::{build_workspace_state, lockfile_root_dir};
+pub(crate) use workspace_state::{
+    build_workspace_state, configured_or_discovered_workspace_dir, lockfile_root_dir,
+};
 
 mod entry_points;
 
@@ -23,7 +28,7 @@ use errors::{map_fresh_lockfile_error, map_frozen_lockfile_error};
 use crate::{
     HoistedDependencies, InstallFrozenLockfile, InstallWithFreshLockfile,
     InstallWithFreshLockfileError, LockfileVerificationOverride, OptimisticRepeatInstallCheck,
-    PolicyExcludes, RebuildOptions, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
+    RebuildOptions, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
     check_optimistic_repeat_install, emit_initial_package_manifest, link_project_bins,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
     prune_merged_branch_lockfile::prune_merged_branch_lockfile,
@@ -109,8 +114,8 @@ use prepare_modules_state::{
 };
 use workspace_state::{
     ProjectScriptsInputs, build_project_manifests_list, build_root_importer_project_manifests_list,
-    build_selected_project_manifests_list, configured_or_discovered_workspace_dir,
-    lockfile_root_for, projects_running_own_scripts, selected_manifest_freshness_inputs,
+    build_selected_project_manifests_list, lockfile_root_for, projects_running_own_scripts,
+    selected_manifest_freshness_inputs,
 };
 
 #[cfg(test)]
@@ -191,9 +196,9 @@ impl LockfileVerificationGate {
 
     /// Block on the verdict.
     pub(crate) async fn wait(mut self) -> Result<(), pnpm_lockfile_verification::VerifyError> {
-        (&mut self.0)
-            .await
-            .expect("the lockfile verification task is only aborted by dropping the gate unawaited")
+        (&mut self.0).await.expect(
+            "the lockfile verification task is only aborted by dropping the gate unawaited",
+        )
     }
 }
 
@@ -213,7 +218,7 @@ fn effective_node_version(config: &Config, manifest: &PackageManifest) -> Option
     config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()))
 }
 
-/// Shared out-map for [`Install::peer_issues_sink`]: importer id →
+/// Shared out-map for [`ResolutionInputs::peer_issues_sink`]: importer id →
 /// that importer's peer-dependency issues from the fresh resolve.
 pub type PeerIssuesSink = Arc<
     std::sync::Mutex<
@@ -221,7 +226,7 @@ pub type PeerIssuesSink = Arc<
     >,
 >;
 
-/// Shared out-slot for [`Install::deps_requiring_build_sink`]: the dep
+/// Shared out-slot for [`ResolutionInputs::deps_requiring_build_sink`]: the dep
 /// paths of every package this install put on disk whose files carry
 /// install scripts (`requiresBuild`), regardless of the allow-build
 /// policy. A snapshot skipped for installability, an excluded optional,
@@ -351,21 +356,17 @@ pub struct Install<'a, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
-    /// Shared in-memory tarball cache. Held behind [`Arc`] so the
-    /// prefetcher constructed in [`InstallWithFreshLockfile::run`]
-    /// can capture an owned clone into the background download task
-    /// while the install-side calls still take `&MemCache` via deref.
-    pub tarball_mem_cache: Arc<MemCache>,
-    pub resolved_packages: &'a ResolvedPackages,
+    pub lockfile_policy: InstallLockfilePolicy,
+    pub execution: InstallExecution,
+    pub resolution: ResolutionInputs,
+    pub context: InstallInvocation<'a>,
+    pub fetching: InstallFetching<'a>,
+    pub projects: InstallProjects<DependencyGroupList>,
+}
+
+#[derive(Clone, Copy)]
+pub struct InstallInvocation<'a> {
     pub http_client: &'a ThrottledClient,
-    /// Same client behind an [`Arc`] for the lockfile-verification
-    /// gate (which owns its `ThrottledClient` to outlive the
-    /// per-call lifetime of [`Self::http_client`]). The CLI builds
-    /// both from a single source; the duplicate is the smallest
-    /// change that bridges the borrowed `&` shape every existing
-    /// sub-installer expects with the owned `Arc` the verifier
-    /// needs.
-    pub http_client_arc: Arc<ThrottledClient>,
     pub config: &'static Config,
     pub manifest: &'a PackageManifest,
     /// Emit `pnpm:package-manifest initial` from this install run.
@@ -381,62 +382,27 @@ where
     /// re-verifies) and falls back to deriving the path from
     /// `workspace_root`.
     pub lockfile_path: Option<&'a Path>,
+}
+
+pub struct InstallFetching<'a> {
+    /// Shared in-memory tarball cache. Held behind [`Arc`] so the
+    /// prefetcher constructed in [`InstallWithFreshLockfile::run`]
+    /// can capture an owned clone into the background download task
+    /// while the install-side calls still take `&MemCache` via deref.
+    pub tarball_mem_cache: Arc<MemCache>,
+    pub resolved_packages: &'a ResolvedPackages,
+    /// Same client behind an [`Arc`] for the lockfile-verification
+    /// gate (which owns its `ThrottledClient` to outlive the
+    /// per-call lifetime of [`InstallInvocation::http_client`]). The CLI builds
+    /// both from a single source; the duplicate is the smallest
+    /// change that bridges the borrowed `&` shape every existing
+    /// sub-installer expects with the owned `Arc` the verifier
+    /// needs.
+    pub http_client_arc: Arc<ThrottledClient>,
+}
+
+pub struct InstallProjects<DependencyGroupList> {
     pub dependency_groups: DependencyGroupList,
-    pub frozen_lockfile: bool,
-    /// `preferFrozenLockfile` value to honor for *this* invocation.
-    /// `None` (no CLI flag) means "use `config.prefer_frozen_lockfile`";
-    /// `Some(true)` forces the auto-frozen fast path on, `Some(false)`
-    /// forces it off. Computed at the CLI layer from the
-    /// `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile`
-    /// flags. Threaded as an [`Option<bool>`] so the dispatch can
-    /// tell a per-invocation override apart from the config default.
-    pub prefer_frozen_lockfile: Option<bool>,
-    /// Skip the per-importer `package.json` ↔ `pnpm-lock.yaml`
-    /// freshness check ([`satisfies_package_manifest`]) that
-    /// normally guards `--frozen-lockfile`. Surfaced as
-    /// `--ignore-manifest-check` on the CLI; intended for the
-    /// `configDependencies` delegation path, where the lockfile has
-    /// just been resolved and written but the updated manifest hasn't
-    /// been written yet. Settings-drift checks (`overrides`,
-    /// `ignoredOptionalDependencies`, ...) still run — they don't
-    /// inspect the manifest and the bug this flag addresses is
-    /// specifically the per-dep specifier mismatch.
-    pub ignore_manifest_check: bool,
-    /// When `true`, runtime dependencies (`node@runtime:` /
-    /// `deno@runtime:` / `bun@runtime:`) are skipped — their
-    /// archives aren't fetched, their slots aren't materialized,
-    /// and their bins aren't linked. Computed at the CLI layer
-    /// from `config.skip_runtimes || --no-runtime`. The rest of
-    /// the install proceeds normally. See
-    /// `pnpm_config::Config::skip_runtimes`.
-    pub skip_runtimes: bool,
-    /// Effective `trustLockfile` value for *this* invocation. The CLI
-    /// layer ORs the `--trust-lockfile` flag with `config.trust_lockfile`
-    /// so a yaml `true` can't be overridden back to `false` from the
-    /// CLI — the same stance applied to similar flags. Threaded as a
-    /// separate field for the same reason [`Self::skip_runtimes`] is:
-    /// `state.config` is a shared `&'static Config`, so the CLI
-    /// override merge happens in the caller and lands here as a
-    /// fully-resolved value.
-    pub trust_lockfile: bool,
-    /// The `--update-checksums` flag: refresh locked integrity values
-    /// from the registry. Skips the frozen-lockfile path so the
-    /// fresh-resolve path rewrites them.
-    pub update_checksums: bool,
-    /// What this run does to the manifests of the projects it installs.
-    /// Decides whether the run counts as a full install and which
-    /// projects fire their own lifecycle scripts — see
-    /// [`ProjectMutation`].
-    pub mutation: ProjectMutation,
-    /// Whether every mutation this run performs is a plain install
-    /// (upstream's `installsOnly`, true for `pacquet install` /
-    /// `pacquet update`). A plain install may recreate a modules
-    /// directory whose layout settings drifted; `add` / `remove` set
-    /// this `false` and fail with the upstream `*_DIFF` errors
-    /// instead — pnpm's `validateModules` contract. Distinct from
-    /// [`ProjectMutation::is_full_install`], which stays `false` for a
-    /// named `update`.
-    pub installs_only: bool,
     /// `supportedArchitectures` after merging
     /// `Config::supported_architectures` from `pnpm-workspace.yaml`
     /// with the CLI per-axis overrides (`--cpu` / `--os` / `--libc`).
@@ -453,95 +419,12 @@ where
     /// override merge happens in the caller and lands here as a
     /// fully-resolved value.
     pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
-    /// `nodeLinker` value to honor for *this* invocation. The CLI
-    /// layer applies any `--node-linker` override here; absent a
-    /// flag, this equals `config.node_linker`. Threaded as a
-    /// separate field for the same reason
-    /// [`Self::supported_architectures`] is: `state.config` is a
-    /// shared `&'static Config`, so the CLI override merge happens
-    /// in the caller and lands here as a fully-resolved value.
-    /// Used today for the `.modules.yaml.nodeLinker` write and
-    /// (in Slice 6) for the install-pipeline branch.
-    pub node_linker: pnpm_config::NodeLinker,
-    /// When `true`, resolve dependencies and (re)write `pnpm-lock.yaml`
-    /// but skip every materialization step: no tarball is fetched into
-    /// the store, no `node_modules` is linked, and neither
-    /// `.modules.yaml` nor the current lockfile
-    /// (`<virtual_store_dir>/lock.yaml`) nor the workspace-state file
-    /// is written. Surfaced as `--lockfile-only` on the CLI. A pure
-    /// per-invocation flag (no `pnpm-workspace.yaml` / `config.yaml`
-    /// counterpart — `lockfile-only` is an excluded config key),
-    /// so it is threaded straight from the CLI like
-    /// [`Self::frozen_lockfile`]. Equivalent to npm's
-    /// `--package-lock-only`.
-    pub lockfile_only: bool,
-    /// `--dry-run`: resolve fully but write nothing, then report what a
-    /// real install would change. Forces the fresh-resolve path (so the
-    /// would-be lockfile is always computed), suppresses every write —
-    /// `pnpm-lock.yaml`, `node_modules`, `.modules.yaml`, the current
-    /// lockfile, the workspace-state file — and exits 0 regardless of
-    /// whether changes were found.
-    pub dry_run: bool,
-    /// What this run may do with the resolution-policy bypasses a pick
-    /// needs, such as `minimumReleaseAge` picks appended to
-    /// `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`. Ignored on the
-    /// frozen path, which resolves nothing. [`PolicyExcludes::Persist`]
-    /// also gates the prune of that manifest's exclude lists
-    /// (`minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune`) that
-    /// this run owns; `add`, `update` and `remove` prune for themselves.
-    pub policy_excludes: PolicyExcludes,
-    /// Which lockfile pins to withhold from the preferred-versions seed.
-    /// [`UpdateSeedPolicy::KeepAll`] for `install` / `add`; the `DropAll`
-    /// / `DropOnly` variants drive `pacquet update`'s compatible bump by
-    /// forcing the affected names to re-resolve to highest-in-range.
-    /// Forwarded to [`InstallWithFreshLockfile`]; ignored on the frozen
-    /// path (`update` always takes the fresh-resolve path). When set to
-    /// anything other than `KeepAll` the optimistic repeat-install
-    /// short-circuit is also bypassed so an `update` that finds newer
-    /// in-range versions isn't skipped as "already up to date".
-    pub update_seed_policy: UpdateSeedPolicy,
-    /// Preferences layered onto the preferred-versions seed, by package
-    /// name. `add` / `update` put a version named on the command line here
-    /// so the re-resolve lands on it rather than on the highest version its
-    /// range allows. Forwarded to [`InstallWithFreshLockfile`].
-    pub preferred_versions_override: Option<pnpm_resolving_resolver_base::PreferredVersions>,
-    /// Per-invocation `Authorization`-header override for resolve/verify;
-    /// `None` (every local install) uses `config.auth_headers`. The pnpr
-    /// resolver threads request-scoped [`AuthHeaders`] here so it
-    /// resolves a caller's private content without baking per-user auth
-    /// into the shared `&'static Config`.
-    pub auth_override: Option<Arc<AuthHeaders>>,
-    /// Sink notified for each resolved tarball package as the fresh
-    /// resolve yields it. `None` for every local install. The pnpr
-    /// server installs one to stream fetch frames to the client so
-    /// tarball downloads overlap server-side resolution.
-    /// Ignored on the frozen path (no tree walk to observe).
-    pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
-    /// Out-channel for the fresh resolve's per-importer peer-dependency
-    /// issues. `None` for every CLI install (issues are only logged).
-    /// The napi `getPeerDependencyIssues` runs a `dry_run` install with
-    /// a sink to collect them — and a sink-driven dry run suppresses
-    /// the CLI's stdout diff report, since it is a programmatic query
-    /// rather than an `--dry-run` preview. Only the fresh path fills
-    /// it (the frozen path resolves nothing).
-    pub peer_issues_sink: Option<crate::PeerIssuesSink>,
-    /// Out-slot for the dep paths of packages requiring a build. `None`
-    /// for every CLI install; the napi `install` sets one when the
-    /// embedder asks for `returnListOfDepsRequiringBuild`. See
-    /// [`crate::DepsRequiringBuildSink`] for when it is filled.
-    pub deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
     /// In-memory catalogs to resolve against instead of reading
     /// `pnpm-workspace.yaml` from disk. `None` (every plain install) reads
     /// the workspace manifest. `pacquet update` sets this so a `--latest`
     /// catalog bump drives resolution even under `--no-save`, where the
     /// bumped entry is intentionally not persisted to disk.
     pub catalogs_override: Option<Catalogs>,
-    /// When `true`, repeat-install fast paths are disabled so the full
-    /// install pipeline always runs. `pacquet prune` sets this because
-    /// a fast path can short-circuit before the virtual-store sweep,
-    /// meaning extraneous packages can survive a prune when the lockfile
-    /// hasn't changed.
-    pub disable_optimistic_repeat_install: bool,
     /// In-process `readPackage` / `afterAllResolved` hooks supplied by an
     /// embedder (the Node API binding) instead of a `.pnpmfile.cjs` on disk.
     /// `Some` replaces the disk lookup for the install, including custom
@@ -550,7 +433,7 @@ where
     /// Workspace importers supplied in memory by an embedder (the Node API
     /// binding) instead of discovering them from a `pnpm-workspace.yaml` on
     /// disk. `Some` bypasses the on-disk workspace-project walk entirely — the
-    /// root importer still comes from [`Self::manifest`], siblings from this
+    /// root importer still comes from [`InstallInvocation::manifest`], siblings from this
     /// list. `None` (every CLI install) walks the workspace on disk.
     pub workspace_projects_override: Option<Vec<pnpm_workspace::Project>>,
 }
@@ -560,20 +443,6 @@ struct InstallRunOptions<'install, 'selection> {
     rebuild: Option<RebuildOptions>,
     selection: Option<WorkspaceInstallSelection<'selection>>,
     root_manifest_as_workspace_root: bool,
-    deploy_manifest_hook: bool,
-    /// Project manifests used only as the source for lockfile importer
-    /// specifiers. `pacquet update --no-save` resolves against an in-memory
-    /// manifest rewrite but must serialize importer specifiers from the
-    /// manifest the user kept on disk. Supplied already
-    /// `readPackage`-transformed.
-    lockfile_specifier_project_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
-    /// Manifest paths `pacquet update --no-save` already ran `readPackage`
-    /// over before preparing its in-memory resolution rewrite. The hook must
-    /// observe each project manifest exactly once, so the install layer skips
-    /// these and still hooks every project manifest outside the set — the
-    /// workspace projects the non-selected update path never loads. Dependency
-    /// manifests always flow through the resolver's hook path.
-    read_package_hooked_manifest_paths: HashSet<PathBuf>,
     /// pnpm's `saveLockfile`: whether the resolved graph may be written
     /// to `<workspace_root>/pnpm-lock.yaml`. `false` for an install
     /// whose resolution belongs to a project other than the one that
@@ -583,11 +452,30 @@ struct InstallRunOptions<'install, 'selection> {
     /// it once the install returns, so the run must leave nothing else on
     /// disk changed either. Only `pacquet dedupe --check` sets it.
     lockfile_check: bool,
-    /// See [`crate::ManifestSpecBumps`]. Only `pacquet update` sets it.
-    manifest_spec_bumps: Option<&'install crate::ManifestSpecBumps>,
     /// Forces the interactive-prompt eligibility that is otherwise derived
     /// from the process environment, so tests can exercise both branches.
     prompt_eligibility_override: Option<bool>,
+    manifests: InstallManifestOptions<'install>,
+}
+
+#[derive(Default)]
+struct InstallManifestOptions<'install> {
+    deploy_hook: bool,
+    /// Project manifests used only as the source for lockfile importer
+    /// specifiers. `pacquet update --no-save` resolves against an in-memory
+    /// manifest rewrite but must serialize importer specifiers from the
+    /// manifest the user kept on disk. Supplied already
+    /// `readPackage`-transformed.
+    specifier_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
+    /// Manifest paths `pacquet update --no-save` already ran `readPackage`
+    /// over before preparing its in-memory resolution rewrite. The hook must
+    /// observe each project manifest exactly once, so the install layer skips
+    /// these and still hooks every project manifest outside the set — the
+    /// workspace projects the non-selected update path never loads. Dependency
+    /// manifests always flow through the resolver's hook path.
+    hooked_paths: HashSet<PathBuf>,
+    /// See [`crate::ManifestSpecBumps`]. Only `pacquet update` sets it.
+    spec_bumps: Option<&'install crate::ManifestSpecBumps>,
 }
 
 impl Default for InstallRunOptions<'_, '_> {
@@ -597,13 +485,15 @@ impl Default for InstallRunOptions<'_, '_> {
             rebuild: None,
             selection: None,
             root_manifest_as_workspace_root: false,
-            deploy_manifest_hook: false,
-            lockfile_specifier_project_manifests: None,
-            read_package_hooked_manifest_paths: HashSet::new(),
             save_lockfile: true,
             lockfile_check: false,
-            manifest_spec_bumps: None,
             prompt_eligibility_override: None,
+            manifests: crate::install::InstallManifestOptions {
+                deploy_hook: false,
+                specifier_manifests: None,
+                hooked_paths: HashSet::new(),
+                spec_bumps: None,
+            },
         }
     }
 }

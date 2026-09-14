@@ -87,8 +87,10 @@ impl VerdictCache {
         let Ok(policy) = serde_json::from_str::<Map<String, Value>>(&policy_json) else {
             // A corrupt policy blob would miss forever; drop the row so
             // the next install re-verifies and re-records a clean one.
-            let _ = conn
-                .execute("DELETE FROM lockfile_verdicts WHERE hash = ?1", rusqlite::params![hash]);
+            let _ = conn.execute(
+                "DELETE FROM lockfile_verdicts WHERE hash = ?1",
+                rusqlite::params![hash],
+            );
             return false;
         };
         trusts(&policy)
@@ -131,7 +133,9 @@ fn evict_overflow(conn: &Connection) {
 }
 
 fn now_ms() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis() as i64)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_millis() as i64)
 }
 
 #[cfg(test)]

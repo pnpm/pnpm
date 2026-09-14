@@ -12,10 +12,18 @@ pub(super) struct RecursivePack<'a, 'graph> {
     pub(super) graph:
         &'a pnpm_workspace_projects_filter::ProjectGraph<pnpm_workspace::GraphPkg<'graph>>,
     pub(super) catalogs: Catalogs,
-    pub(super) out: Option<String>,
-    pub(super) pack_destination: Option<String>,
     pub(super) before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
-    pub(super) output_locks: Arc<PackOutputLocks>,
+    pub(super) output: PackOutput,
+    pub(super) results: PackResults,
+}
+
+pub(crate) struct PackOutput {
+    pub(super) out: Option<String>,
+    pub(super) destination: Option<String>,
+    pub(super) locks: Arc<PackOutputLocks>,
+}
+
+pub(crate) struct PackResults {
     /// Each project's position in dependency order, which the results are
     /// listed in.
     pub(super) order_index: HashMap<PathBuf, usize>,
@@ -31,7 +39,10 @@ fn dependency_order(
             .iter()
             .map(|(project, dependencies)| (project.clone(), dependencies.clone()))
             .collect::<HashMap<_, _>>(),
-        &project_dependencies.keys().cloned().collect::<Vec<_>>(),
+        &project_dependencies
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
     )
     .order
 }
@@ -43,7 +54,11 @@ fn output_is_literal(out: Option<&str>) -> bool {
 }
 
 pub(super) fn order_index(dependency_order: Vec<PathBuf>) -> HashMap<PathBuf, usize> {
-    dependency_order.into_iter().enumerate().map(|(index, project)| (project, index)).collect()
+    dependency_order
+        .into_iter()
+        .enumerate()
+        .map(|(index, project)| (project, index))
+        .collect()
 }
 
 /// Order two projects that pack to the same output path against each
@@ -99,19 +114,28 @@ fn output_can_change_while_packing(
         return true;
     }
     let runs_pack_scripts = !config.ignore_scripts
-        && graph.values().any(|node| {
-            let manifest = node.package.project.manifest.value();
-            ["prepack", "prepare"].iter().any(|script| {
-                manifest
-                    .pointer(&format!("/scripts/{script}"))
-                    .and_then(serde_json::Value::as_str)
-                    .is_some_and(|body| !body.is_empty())
-            })
-        });
+        && graph
+            .values()
+            .any(|node| {
+                let manifest = node.package.project.manifest.value();
+                ["prepack", "prepare"]
+                    .iter()
+                    .any(|script| {
+                        manifest
+                            .pointer(&format!("/scripts/{script}"))
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(|body| !body.is_empty())
+                    })
+            });
     runs_pack_scripts
-        || graph.values().any(|node| {
-            node.package.project.manifest.value().pointer("/publishConfig/directory").is_some()
-        })
+        || graph
+            .values()
+            .any(|node| {
+                node.package.project.manifest
+                    .value()
+                    .pointer("/publishConfig/directory")
+                    .is_some()
+            })
 }
 
 fn render_recursive_pack(
@@ -175,13 +199,13 @@ impl PackArgs {
             config,
             graph,
             catalogs: configured_catalogs(config)?,
-            out,
-            pack_destination,
             before_packing_hooks,
-            output_locks: Arc::new(PackOutputLocks::default()),
-            order_index: order_index(dependency_order),
-            packed: Mutex::new(Vec::new()),
-            first_error: Mutex::new(None),
+            output: PackOutput {
+                out,
+                destination: pack_destination,
+                locks: Arc::new(PackOutputLocks::default()),
+            },
+            results: PackResults::new(dependency_order),
         };
         pack.execute::<Reporter>(self, &project_dependencies).await;
         let packed = pack.finish()?;
@@ -205,6 +229,16 @@ impl PackArgs {
             (None, Some(absolute_against(dir, destination)))
         } else {
             (None, Some(dir.to_string_lossy().into_owned()))
+        }
+    }
+}
+
+impl PackResults {
+    fn new(dependency_order: Vec<PathBuf>) -> Self {
+        Self {
+            order_index: order_index(dependency_order),
+            packed: Mutex::new(Vec::new()),
+            first_error: Mutex::new(None),
         }
     }
 }

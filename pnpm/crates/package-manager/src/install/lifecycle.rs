@@ -83,9 +83,13 @@ fn lifecycle_dependencies<'a>(
             .map(|project_dir| pnpm_fs::lexical_normalize(project_dir))
             .collect::<HashSet<_>>()
     });
-    let explicit_order_covers_projects = ordered_dirs.as_ref().is_some_and(|ordered_dirs| {
-        normalized_project_dirs.iter().all(|project_dir| ordered_dirs.contains(project_dir))
-    });
+    let explicit_order_covers_projects = ordered_dirs
+        .as_ref()
+        .is_some_and(|ordered_dirs| {
+            normalized_project_dirs
+                .iter()
+                .all(|project_dir| ordered_dirs.contains(project_dir))
+        });
     let dependencies: std::borrow::Cow<IndexMap<PathBuf, Vec<PathBuf>>> =
         if explicit_order_covers_projects {
             std::borrow::Cow::Borrowed(ordered_dependencies.expect("checked as present"))
@@ -97,14 +101,7 @@ fn lifecycle_dependencies<'a>(
                 lockfile,
             ))
         } else if let Some(ordered_dirs) = ordered_dirs {
-            return Err(InstallError::ProjectLifecycleOrder {
-                projects: normalized_project_dirs
-                    .iter()
-                    .filter(|project_dir| !ordered_dirs.contains(*project_dir))
-                    .map(|project_dir| project_dir.display().to_string())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            });
+            return Err(missing_lifecycle_order(normalized_project_dirs, &ordered_dirs));
         } else {
             std::borrow::Cow::Owned(
                 normalized_project_dirs
@@ -125,15 +122,17 @@ fn link_dependencies_from_lockfile(
     workspace_root: &Path,
     lockfile: &Lockfile,
 ) -> IndexMap<PathBuf, Vec<PathBuf>> {
-    let included_set = normalized_project_dirs.iter().cloned().collect::<HashSet<_>>();
+    let included_set = normalized_project_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
     projects
         .iter()
         .zip(normalized_project_dirs)
         .map(|((project_dir, _), normalized_project_dir)| {
             let importer_id =
                 pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir);
-            let dependencies = lockfile
-                .importers
+            let dependencies = lockfile.importers
                 .get(&importer_id)
                 .into_iter()
                 .flat_map(|snapshot| {
@@ -182,16 +181,18 @@ fn retain_known_projects(
         .iter()
         .filter_map(|(dir, project_dependencies)| {
             let dir = pnpm_fs::lexical_normalize(dir);
-            projects_by_dir.contains_key(&dir).then(|| {
-                (
-                    dir,
-                    project_dependencies
-                        .iter()
-                        .map(|dependency| pnpm_fs::lexical_normalize(dependency))
-                        .filter(|dependency| projects_by_dir.contains_key(dependency))
-                        .collect(),
-                )
-            })
+            projects_by_dir
+                .contains_key(&dir)
+                .then(|| {
+                    (
+                        dir,
+                        project_dependencies
+                            .iter()
+                            .map(|dependency| pnpm_fs::lexical_normalize(dependency))
+                            .filter(|dependency| projects_by_dir.contains_key(dependency))
+                            .collect(),
+                    )
+                })
         })
         .collect()
 }
@@ -260,21 +261,27 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
     let extra_env = config.extra_env_with_node_options();
     let dep_path = workspace_root.to_string_lossy();
     run_dev_preinstall_hook::<Reporter>(&RunPostinstallHooks {
+        environment: pnpm_executor::ScriptEnvironment {
+            init_cwd: workspace_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: Some(&config.user_agent),
+            extra_env: &extra_env,
+        },
+        execution: pnpm_executor::ScriptExecutionOptions {
+            extra_bin_paths: &config.extra_bin_paths,
+            node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
+            prepend_node_path: exec_scripts_prepend_node_path(config),
+            shell: config.script_shell.as_deref().map(Path::new),
+            shell_emulator: config.shell_emulator,
+        },
         dep_path: &dep_path,
         pkg_root: workspace_root,
         root_modules_dir: &root_modules_dir,
-        init_cwd: workspace_root,
-        extra_bin_paths: &config.extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: Some(&config.user_agent),
+
         unsafe_perm: config.unsafe_perm,
-        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-        scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
-        script_shell: config.script_shell.as_deref().map(Path::new),
-        shell_emulator: config.shell_emulator,
+
         optional: false,
     })
     .map(drop)
@@ -304,21 +311,27 @@ impl ProjectScriptRunner<'_> {
             .map_err(InstallError::ProjectBinLink)?;
         let dep_path = project_dir.to_string_lossy();
         run_project_lifecycle_scripts::<Reporter>(&RunPostinstallHooks {
+            environment: pnpm_executor::ScriptEnvironment {
+                init_cwd: self.workspace_root,
+                node_execpath: None,
+                npm_execpath: None,
+                node_gyp_path: None,
+                user_agent: Some(&self.config.user_agent),
+                extra_env: &self.extra_env,
+            },
+            execution: pnpm_executor::ScriptExecutionOptions {
+                extra_bin_paths: &self.config.extra_bin_paths,
+                node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
+                prepend_node_path: self.scripts_prepend_node_path,
+                shell: self.config.script_shell.as_deref().map(Path::new),
+                shell_emulator: self.config.shell_emulator,
+            },
             dep_path: &dep_path,
             pkg_root: project_dir,
             root_modules_dir: &root_modules_dir,
-            init_cwd: self.workspace_root,
-            extra_bin_paths: &self.config.extra_bin_paths,
-            extra_env: &self.extra_env,
-            node_execpath: None,
-            npm_execpath: None,
-            node_gyp_path: None,
-            user_agent: Some(&self.config.user_agent),
+
             unsafe_perm: self.config.unsafe_perm,
-            node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-            scripts_prepend_node_path: self.scripts_prepend_node_path,
-            script_shell: self.config.script_shell.as_deref().map(Path::new),
-            shell_emulator: self.config.shell_emulator,
+
             optional: false,
         })
         .map(drop)
@@ -396,5 +409,22 @@ pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
         },
     )
     .map_err(InstallError::ProjectLifecycleThreadPool)?;
-    first_error.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner).map_or(Ok(()), Err)
+    first_error
+        .into_inner()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .map_or(Ok(()), Err)
+}
+
+fn missing_lifecycle_order(
+    project_dirs: &[PathBuf],
+    ordered_dirs: &HashSet<PathBuf>,
+) -> InstallError {
+    InstallError::ProjectLifecycleOrder {
+        projects: project_dirs
+            .iter()
+            .filter(|dir| !ordered_dirs.contains(*dir))
+            .map(|dir| dir.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", "),
+    }
 }

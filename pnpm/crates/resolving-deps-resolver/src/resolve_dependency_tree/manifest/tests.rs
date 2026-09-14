@@ -138,10 +138,6 @@ fn dependencies_meta_marks_children_as_injected() {
 fn deprecated_pkg_name_ver_falls_back_to_the_manifest() {
     let result = |manifest: serde_json::Value| ResolveResult {
         id: PkgResolutionId::from("git-pkg@https://example.com/repo.tgz"),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(std::sync::Arc::new(manifest)),
         resolution: LockfileResolution::Directory(DirectoryResolution {
             directory: ".".to_string(),
         }),
@@ -149,6 +145,12 @@ fn deprecated_pkg_name_ver_falls_back_to_the_manifest() {
         normalized_bare_specifier: None,
         alias: Some("git-pkg".to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(manifest)),
+        },
     };
 
     assert_eq!(

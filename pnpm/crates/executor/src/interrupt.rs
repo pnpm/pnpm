@@ -93,8 +93,7 @@ fn claim_entry(target: i32) -> &'static RelayEntry {
         // each line exclusively, which is what a wide parallel run would
         // pay for on every spawn.
         if entry.target.load(Ordering::Relaxed) == 0
-            && entry
-                .target
+            && entry.target
                 .compare_exchange(0, CLAIMING, Ordering::AcqRel, Ordering::Relaxed)
                 .is_ok()
         {

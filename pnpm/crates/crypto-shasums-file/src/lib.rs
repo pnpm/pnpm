@@ -22,19 +22,17 @@ pub use disk_cache::RUNTIME_SHASUMS_CACHE_DIR;
 mod disk_cache;
 mod node_release_keys;
 
-use std::{io::Cursor, path::Path, string::FromUtf8Error, sync::Arc};
+use std::{path::Path, string::FromUtf8Error, sync::Arc};
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pgp::{
-    composed::{Deserializable, DetachedSignature, SignedPublicKey},
-    types::KeyDetails,
-};
+
 use pnpm_network::{AuthHeaders, ThrottledClient};
 
 use disk_cache::{ShasumsTrust, read_cached_bytes, read_cached_shasums, write_cached_shasums};
-use node_release_keys::{NODE_RELEASE_KEYS, NodeReleaseKey};
+mod signatures;
+use signatures::is_signed_by_trusted_node_release_key;
 
 /// One row parsed out of a `SHASUMS256.txt` body.
 ///
@@ -201,12 +199,11 @@ async fn fetch_verified_node_shasums_with_signature(
         });
     }
 
-    let body = String::from_utf8(shasums_bytes).map_err(|error| {
-        FetchVerifiedNodeShasumsError::InvalidUtf8 {
+    let body = String::from_utf8(shasums_bytes)
+        .map_err(|error| FetchVerifiedNodeShasumsError::InvalidUtf8 {
             url: shasums_url.to_string(),
             error: Arc::new(error),
-        }
-    })?;
+        })?;
     Ok((body, signature_bytes))
 }
 
@@ -341,18 +338,24 @@ async fn fetch_shasums_file_raw_with_auth(
             })?;
         (response.status, response.body)
     } else {
-        let response =
-            http_client.acquire_for_url(shasums_url).await.get(shasums_url).send().await.map_err(
-                |error| FetchShasumsFileError::Network {
-                    url: shasums_url.to_string(),
-                    error: Arc::new(error),
-                },
-            )?;
+        let response = http_client
+            .acquire_for_url(shasums_url)
+            .await
+            .get(shasums_url)
+            .send()
+            .await
+            .map_err(|error| FetchShasumsFileError::Network {
+                url: shasums_url.to_string(),
+                error: Arc::new(error),
+            })?;
         let status = response.status();
-        let body = response.bytes().await.map_err(|error| FetchShasumsFileError::Network {
-            url: shasums_url.to_string(),
-            error: Arc::new(error),
-        })?;
+        let body = response
+            .bytes()
+            .await
+            .map_err(|error| FetchShasumsFileError::Network {
+                url: shasums_url.to_string(),
+                error: Arc::new(error),
+            })?;
         (status, body.to_vec())
     };
     if !status.is_success() {
@@ -374,28 +377,19 @@ async fn fetch_node_shasums_bytes(
         let response = http_client
             .get_bytes_with_secure_auth_headers(url, auth_headers)
             .await
-            .map_err(|error| FetchVerifiedNodeShasumsError::Network {
-                what,
-                url: url.to_string(),
-                error: Arc::new(error),
-            })?;
+            .map_err(|error| node_shasums_network_error(what, url, error))?;
         (response.status, response.body)
     } else {
-        let response =
-            http_client.acquire_for_url(url).await.get(url).send().await.map_err(|error| {
-                FetchVerifiedNodeShasumsError::Network {
-                    what,
-                    url: url.to_string(),
-                    error: Arc::new(error),
-                }
-            })?;
+        let response = http_client
+            .acquire_for_url(url)
+            .await
+            .get(url)
+            .send()
+            .await
+            .map_err(|error| node_shasums_network_error(what, url, error))?;
         let status = response.status();
         let body =
-            response.bytes().await.map_err(|error| FetchVerifiedNodeShasumsError::Network {
-                what,
-                url: url.to_string(),
-                error: Arc::new(error),
-            })?;
+            response.bytes().await.map_err(|error| node_shasums_network_error(what, url, error))?;
         (status, body.to_vec())
     };
     if !status.is_success() {
@@ -408,47 +402,12 @@ async fn fetch_node_shasums_bytes(
     Ok(body)
 }
 
-fn is_signed_by_trusted_node_release_key(
-    content: &[u8],
-    signature_bytes: &[u8],
-) -> Result<bool, FetchVerifiedNodeShasumsError> {
-    let signature = DetachedSignature::from_bytes(Cursor::new(signature_bytes))
-        .map_err(signature_unreadable)?;
-    for key in trusted_node_release_keys()? {
-        if signature.verify(&key.primary_key, content).is_ok() {
-            return Ok(true);
-        }
-        for subkey in &key.public_subkeys {
-            if signature.verify(subkey, content).is_ok() {
-                return Ok(true);
-            }
-        }
-    }
-    Ok(false)
-}
-
-fn trusted_node_release_keys() -> Result<Vec<SignedPublicKey>, FetchVerifiedNodeShasumsError> {
-    NODE_RELEASE_KEYS.iter().map(read_node_release_key).collect()
-}
-
-fn read_node_release_key(
-    trusted_key: &NodeReleaseKey,
-) -> Result<SignedPublicKey, FetchVerifiedNodeShasumsError> {
-    let (key, _headers) = SignedPublicKey::from_armor_single(trusted_key.armored_key.as_bytes())
-        .map_err(signature_unreadable)?;
-    let actual_fingerprint = key.fingerprint().to_string();
-    let fingerprint_matches = actual_fingerprint.eq_ignore_ascii_case(trusted_key.fingerprint);
-    if !fingerprint_matches {
-        return Err(FetchVerifiedNodeShasumsError::EmbeddedKeyFingerprintMismatch {
-            expected: trusted_key.fingerprint,
-            actual: actual_fingerprint,
-        });
-    }
-    Ok(key)
-}
-
-fn signature_unreadable(error: pgp::errors::Error) -> FetchVerifiedNodeShasumsError {
-    FetchVerifiedNodeShasumsError::SignatureUnreadable { error: Arc::new(error) }
+fn node_shasums_network_error(
+    what: &'static str,
+    url: &str,
+    error: reqwest::Error,
+) -> FetchVerifiedNodeShasumsError {
+    FetchVerifiedNodeShasumsError::Network { what, url: url.to_string(), error: Arc::new(error) }
 }
 
 /// Parse a `SHASUMS256.txt` body into rows.
@@ -488,7 +447,10 @@ pub fn pick_file_checksum_from_shasums_file(
         .lines()
         .find(|line| line.trim_end().ends_with(&needle))
         .ok_or_else(|| PickFileChecksumError::NotFound { file_name: file_name.to_string() })?;
-    let sha256 = line.split_whitespace().next().unwrap_or("");
+    let sha256 = line
+        .split_whitespace()
+        .next()
+        .unwrap_or("");
     if !is_sha256_hex(sha256) {
         return Err(PickFileChecksumError::Malformed {
             file_name: file_name.to_string(),
@@ -526,7 +488,9 @@ fn is_sha256_hex(value: &str) -> bool {
     // sneaking through the validator that the upstream parser would
     // have rejected.
     value.len() == 64
-        && value.bytes().all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
 }
 
 fn decode_hex(hex: &str) -> Option<Vec<u8>> {

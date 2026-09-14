@@ -124,27 +124,29 @@ pub(super) fn read_phase_events(path: &Path) -> Vec<PhaseEvent> {
         .collect()
 }
 pub(super) fn event_field<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
-    value.get(key).or_else(|| value.get("fields").and_then(|fields| fields.get(key)))
+    value
+        .get(key)
+        .or_else(|| {
+            value
+                .get("fields")
+                .and_then(|fields| fields.get(key))
+        })
 }
 pub(super) fn event_str<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
     event_field(value, key).and_then(Value::as_str)
 }
 pub(super) fn event_u64(value: &Value, key: &str) -> Option<u64> {
     let value = event_field(value, key)?;
-    value.as_u64().or_else(|| value.as_str().and_then(|text| text.parse().ok()))
+    value
+        .as_u64()
+        .or_else(|| {
+            value
+                .as_str()
+                .and_then(|text| text.parse().ok())
+        })
 }
 pub(super) fn summarize_phase_events(events: &[PhaseEvent]) -> PhaseSummary {
-    let partition =
-        events.iter().rev().find(|event| event.phase == "create_virtual_store_partition").and_then(
-            |event| {
-                Some(PartitionMetric {
-                    warm: event.warm?,
-                    cold: event.cold?,
-                    skipped: event.skipped.unwrap_or(0),
-                    total: event.total?,
-                })
-            },
-        );
+    let partition = latest_partition_metric(events);
     let create_virtual_store_mean_ms = mean(
         events
             .iter()
@@ -164,13 +166,35 @@ pub(super) fn summarize_phase_events(events: &[PhaseEvent]) -> PhaseSummary {
             if matching.is_empty() {
                 return None;
             }
-            let slots = matching.iter().filter_map(|event| event.slots).max().unwrap_or(0);
-            let mean_ms =
-                mean(matching.iter().filter_map(|event| event.elapsed_ms).map(|ms| ms as f64))?;
+            let slots = matching
+                .iter()
+                .filter_map(|event| event.slots)
+                .max()
+                .unwrap_or(0);
+            let mean_ms = mean(
+                matching
+                    .iter()
+                    .filter_map(|event| event.elapsed_ms)
+                    .map(|ms| ms as f64),
+            )?;
             Some(LinkSlotsMetric { batch: batch.to_string(), slots, mean_ms })
         })
         .collect();
     PhaseSummary { partition, create_virtual_store_mean_ms, link_slots }
+}
+fn latest_partition_metric(events: &[PhaseEvent]) -> Option<PartitionMetric> {
+    events
+        .iter()
+        .rev()
+        .find(|event| event.phase == "create_virtual_store_partition")
+        .and_then(|event| {
+            Some(PartitionMetric {
+                warm: event.warm?,
+                cold: event.cold?,
+                skipped: event.skipped.unwrap_or(0),
+                total: event.total?,
+            })
+        })
 }
 pub(super) fn mean(values: impl Iterator<Item = f64>) -> Option<f64> {
     let mut total = 0.0;
@@ -213,8 +237,7 @@ pub(super) fn requires_fresh_pnpr_cold_batch_metrics(target_id: &str) -> bool {
 /// cross-engine comparison. This is the same statistic the workflow reports to
 /// Bencher, for the same reason.
 pub(super) fn benchmark_target_min(diagnostics: &BenchmarkDiagnostics, target_id: &str) -> f64 {
-    diagnostics
-        .targets
+    diagnostics.targets
         .iter()
         .find(|target| target.id == target_id)
         .and_then(|target| target.hyperfine_min_seconds)
@@ -265,13 +288,15 @@ pub(super) fn render_diagnostics_markdown(
     out
 }
 pub(super) fn contains_uninstrumented_pnpr_main(diagnostics: &BenchmarkDiagnostics) -> bool {
-    diagnostics
-        .targets
+    diagnostics.targets
         .iter()
         .any(|target| target.id == "pnpr@main" && target.phase_summary.partition.is_none())
 }
 pub(super) fn link_slots_mean(summary: &PhaseSummary, batch: &str) -> Option<f64> {
-    summary.link_slots.iter().find(|metric| metric.batch == batch).map(|metric| metric.mean_ms)
+    summary.link_slots
+        .iter()
+        .find(|metric| metric.batch == batch)
+        .map(|metric| metric.mean_ms)
 }
 pub(super) fn format_seconds(value: Option<f64>) -> String {
     value.map_or_else(|| "-".to_string(), |value| format!("{value:.3}s"))

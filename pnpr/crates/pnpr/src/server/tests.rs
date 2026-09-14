@@ -250,7 +250,10 @@ fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
         created_at: 1,
         last_used_at: 1,
         readonly,
-        cidr_whitelist: cidr_whitelist.iter().map(|entry| (*entry).to_string()).collect(),
+        cidr_whitelist: cidr_whitelist
+            .iter()
+            .map(|entry| (*entry).to_string())
+            .collect(),
     }
 }
 
@@ -312,12 +315,16 @@ fn signed(method: Method, path: &str, raw: &str) -> Request<Body> {
 }
 
 fn with_peer(mut request: Request<Body>, addr: SocketAddr) -> Request<Body> {
-    request.extensions_mut().insert(ConnectInfo(PeerAddr(addr)));
+    request
+        .extensions_mut()
+        .insert(ConnectInfo(PeerAddr(addr)));
     request
 }
 
 async fn status(app: axum::Router, request: Request<Body>) -> StatusCode {
-    app.oneshot(request).await.unwrap().status()
+    app.oneshot(request).await
+        .unwrap()
+        .status()
 }
 
 #[tokio::test]
@@ -326,14 +333,21 @@ async fn authenticated_identity_reaches_handlers() {
     let app = app_with_token(&tmp, "tok", record(false, &[]));
     // The middleware resolves the bearer once; whoami reads that identity
     // back out of request extensions rather than re-parsing the header.
-    let response = app.clone().oneshot(signed(Method::GET, "/-/whoami", "tok")).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(signed(Method::GET, "/-/whoami", "tok"))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["username"], "alice");
 
     // An unknown token resolves to anonymous, so whoami is a 401.
-    let anon = app.oneshot(signed(Method::GET, "/-/whoami", "unknown")).await.unwrap();
+    let anon = app
+        .oneshot(signed(Method::GET, "/-/whoami", "unknown"))
+        .await
+        .unwrap();
     assert_eq!(anon.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -344,7 +358,7 @@ async fn team_tokens_reach_package_authorization() {
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     use pnpr_policy::{AccessToken, Identity};
     use pnpr_registry::{Ecosystem, PackagePattern};
-    config.hosted.get_mut("local").unwrap().rules = PackageRules::new(
+    config.routing.hosted.get_mut("local").unwrap().rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse("@team/*", Ecosystem::Npm).unwrap(),
             access: Some(AccessList::new(vec![AccessToken::Team {
@@ -359,7 +373,7 @@ async fn team_tokens_reach_package_authorization() {
     // Team membership reaches the per-package rule evaluation.
     let alice = Identity::user("alice");
     let carol = Identity::user("carol");
-    let rules = &config.hosted["local"].rules;
+    let rules = &config.routing.hosted["local"].rules;
     assert!(rules.for_package("@team/x").access.allows(&alice));
     assert!(!rules.for_package("@team/x").access.allows(&carol));
 
@@ -369,9 +383,16 @@ async fn team_tokens_reach_package_authorization() {
     // credentials — rather than masked (masking is the registry-level
     // default's behavior, not an explicit entry's).
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
-    let allowed = app.clone().oneshot(signed(Method::GET, "/@team/missing", "tok")).await.unwrap();
+    let allowed = app
+        .clone()
+        .oneshot(signed(Method::GET, "/@team/missing", "tok"))
+        .await
+        .unwrap();
     assert_eq!(allowed.status(), StatusCode::NOT_FOUND);
-    let anonymous = app.oneshot(signed(Method::GET, "/@team/missing", "unknown")).await.unwrap();
+    let anonymous = app
+        .oneshot(signed(Method::GET, "/@team/missing", "unknown"))
+        .await
+        .unwrap();
     assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -448,7 +469,9 @@ async fn forwarded_header_cannot_satisfy_a_cidr_restriction() {
     let request = signed(Method::GET, "/foo", "pinned");
     let request = {
         let mut request = request;
-        request.headers_mut().insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
+        request
+            .headers_mut()
+            .insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
         request
     };
     assert_eq!(status(app, request).await, StatusCode::FORBIDDEN);
@@ -477,10 +500,16 @@ fn config_with_teams(tmp: &TempDir) -> Config {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     let teams = [("developers", vec!["bob", "alice"]), ("admins", vec!["alice"])];
-    config.hosted.get_mut("local").unwrap().teams = teams
+    config.routing.hosted.get_mut("local").unwrap().teams = teams
         .into_iter()
         .map(|(team, members)| {
-            (team.to_string(), members.into_iter().map(str::to_string).collect())
+            (
+                team.to_string(),
+                members
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect(),
+            )
         })
         .collect();
     config
@@ -498,13 +527,18 @@ async fn team_listing_serves_config_declared_teams() {
     // Declaration order is preserved; the shape is what `pnpm team ls`
     // consumes.
     let expected = serde_json::json!([{ "name": "developers" }, { "name": "admins" }]);
-    let response =
-        app.clone().oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(signed(Method::GET, "/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_json(response).await, expected);
     // The same listing through the registry-addressed endpoint.
-    let prefixed =
-        app.oneshot(signed(Method::GET, "/~local/-/org/myorg/team", "tok")).await.unwrap();
+    let prefixed = app
+        .oneshot(signed(Method::GET, "/~local/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
     assert_eq!(prefixed.status(), StatusCode::OK);
     assert_eq!(body_json(prefixed).await, expected);
 }
@@ -530,7 +564,10 @@ async fn team_members_are_listed_sorted() {
     assert_eq!(prefixed.status(), StatusCode::OK);
     assert_eq!(body_json(prefixed).await, expected);
     // A team the config does not declare is a definitive not-found.
-    let missing = app.oneshot(signed(Method::GET, "/-/team/myorg/nope/user", "tok")).await.unwrap();
+    let missing = app
+        .oneshot(signed(Method::GET, "/-/team/myorg/nope/user", "tok"))
+        .await
+        .unwrap();
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
 }
 
@@ -549,7 +586,11 @@ async fn team_mutations_are_rejected_as_config_managed() {
         (Method::DELETE, "/~local/-/team/myorg/developers/user"),
     ];
     for (method, path) in mutations {
-        let response = app.clone().oneshot(signed(method.clone(), path, "tok")).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(signed(method.clone(), path, "tok"))
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::FORBIDDEN, "{method} {path}");
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let body = String::from_utf8(body.to_vec()).unwrap();
@@ -562,7 +603,7 @@ async fn team_listing_masks_callers_the_registry_denies() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_with_teams(&tmp);
     // Registry-level default access admits only authenticated callers.
-    config.hosted.get_mut("local").unwrap().rules =
+    config.routing.hosted.get_mut("local").unwrap().rules =
         PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$authenticated"])));
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
     // An anonymous caller gets the not-found mask on reads and mutations
@@ -572,11 +613,18 @@ async fn team_listing_masks_callers_the_registry_denies() {
         (Method::GET, "/-/team/myorg/developers/user"),
         (Method::PUT, "/-/org/myorg/team"),
     ] {
-        let response = app.clone().oneshot(signed(method.clone(), path, "unknown")).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(signed(method.clone(), path, "unknown"))
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {path}");
     }
     // The authenticated caller passes the gate.
-    let allowed = app.oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
+    let allowed = app
+        .oneshot(signed(Method::GET, "/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
     assert_eq!(allowed.status(), StatusCode::OK);
 }
 
@@ -633,7 +681,7 @@ fn tilde_registry_names_a_registry_only_for_a_leading_tilde_and_a_name() {
 async fn stored_tokens_with_jwt_shape_keep_their_backend_restrictions() {
     let tmp = TempDir::new().unwrap();
     let mut config = Config::static_serve("127.0.0.1:0".parse().unwrap(), tmp.path().to_path_buf());
-    config.auth.oidc = serde_json::from_value(serde_json::json!([{
+    config.identity.auth.oidc = serde_json::from_value(serde_json::json!([{
         "name": "github", "issuer": "https://token.actions.githubusercontent.com", "audience": "pnpr",
         "workloads": [{"identity": {"subject": "repo:org/repo:ref:refs/heads/main", "username": "ci"},
             "registry": "local", "packages": ["foo"]}]

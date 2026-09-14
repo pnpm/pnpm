@@ -17,7 +17,10 @@ async fn trust_downgrade_at_resolve_time_fails_under_no_downgrade() {
     let (resolver, _tempdir) = build_resolver(&registry);
 
     let opts = ResolveOptions {
-        trust_policy: Some(TrustPolicy::NoDowngrade),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            trust_policy: Some(TrustPolicy::NoDowngrade),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let wanted = WantedDependency {
@@ -42,7 +45,10 @@ async fn trust_check_fails_at_resolve_time_when_the_registry_serves_no_time_fiel
     let (resolver, _tempdir) = build_resolver(&registry);
 
     let opts = ResolveOptions {
-        trust_policy: Some(TrustPolicy::NoDowngrade),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            trust_policy: Some(TrustPolicy::NoDowngrade),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let wanted = WantedDependency {
@@ -65,10 +71,13 @@ async fn trust_check_skipped_at_resolve_time_when_missing_time_is_ignored() {
         .await;
     let registry = format!("{}/", server.url());
     let (mut resolver, _tempdir) = build_resolver(&registry);
-    resolver.ignore_missing_time_field = true;
+    resolver.cache_policy.ignore_missing_time_field = true;
 
     let opts = ResolveOptions {
-        trust_policy: Some(TrustPolicy::NoDowngrade),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            trust_policy: Some(TrustPolicy::NoDowngrade),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let wanted = WantedDependency {
@@ -76,8 +85,19 @@ async fn trust_check_skipped_at_resolve_time_when_missing_time_is_ignored() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .expect("name_ver")
+            .suffix
+            .to_string(),
+        "1.1.0",
+    );
 }
 
 #[tokio::test]
@@ -97,6 +117,17 @@ async fn trust_downgrade_ignored_when_trust_policy_off() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
-    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .expect("name_ver")
+            .suffix
+            .to_string(),
+        "1.1.0",
+    );
 }

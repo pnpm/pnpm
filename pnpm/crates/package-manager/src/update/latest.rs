@@ -85,22 +85,8 @@ pub(super) async fn latest_specifier(
         prev_specifier: Some(effective.clone()),
         ..WantedDependency::default()
     };
-    let manifest_dir =
-        ctx.manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
-    let opts = ResolveOptions {
-        project_dir: manifest_dir.clone(),
-        lockfile_dir: manifest_dir,
-        default_tag: Some("latest".to_string()),
-        update: UpdateBehavior::Latest,
-        calc_specifier: true,
-        range_spec_style: Some(ctx.range_spec_style),
-        published_by: chain.published_by,
-        published_by_exclude: chain.published_by_exclude.clone(),
-        dry_run: ctx.lockfile_only,
-        ..ResolveOptions::default()
-    };
-    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts)
-        .await
+    let opts = ctx.resolve_options(chain);
+    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts).await
         .map_err(|error| UpdateError::ResolveLatest { name: name.to_string(), error })?;
     // A resolver that reports back what the manifest already says has
     // nothing to rewrite. Recording it anyway would mark the manifest dirty
@@ -129,21 +115,39 @@ pub(super) async fn tag_version(
         bare_specifier: Some(tag.to_string()),
         ..WantedDependency::default()
     };
-    let manifest_dir =
-        ctx.manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let manifest_dir = ctx.manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir")
+        .to_path_buf();
     let opts = ResolveOptions {
-        project_dir: manifest_dir.clone(),
-        lockfile_dir: manifest_dir,
-        default_tag: Some(tag.to_string()),
-        published_by: chain.published_by,
-        published_by_exclude: chain.published_by_exclude.clone(),
-        dry_run: ctx.lockfile_only,
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: manifest_dir.clone(),
+            lockfile_dir: manifest_dir,
+            ..Default::default()
+        },
+        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+            default_tag: Some(tag.to_string()),
+            ..Default::default()
+        },
+        refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+            dry_run: ctx.lockfile_only,
+            ..Default::default()
+        },
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: chain.published_by,
+            published_by_exclude: chain.published_by_exclude.clone(),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
-    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts).await.map_err(|error| {
-        UpdateError::ResolveTag { name: name.to_string(), tag: tag.to_string(), error }
-    })?;
-    Ok(resolved.and_then(|result| result.name_ver).map(|name_ver| name_ver.suffix))
+    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts).await
+        .map_err(|error| UpdateError::ResolveTag {
+            name: name.to_string(),
+            tag: tag.to_string(),
+            error,
+        })?;
+    Ok(resolved.and_then(|result| result.package.name_ver).map(|name_ver| name_ver.suffix))
 }
 /// The resolvers that can answer "what is the latest for this dependency",
 /// built on first use so an update whose deps are all local opens no
@@ -161,9 +165,9 @@ pub(super) fn ensure_latest_resolver_chain<'chain>(
     ctx: &LatestRewriteCtx<'_, '_>,
 ) -> Result<&'chain LatestResolverChain, UpdateError> {
     if chain.is_none() {
-        let extra_excludes = ctx
-            .resolution_observer
-            .and_then(|observer| observer.minimum_release_age_exclude_override());
+        let extra_excludes = ctx.resolution_observer.and_then(|observer| {
+            observer.minimum_release_age_exclude_override()
+        });
         let policy =
             PickPolicy::from_config_with_extra_excludes(ctx.config, extra_excludes.as_deref())
                 .map_err(UpdateError::MinimumReleaseAgeExclude)?;
@@ -215,4 +219,40 @@ pub(crate) fn is_workspace_local_path_specifier(bare_specifier: &str) -> bool {
         chars.next().is_some_and(|first| first.is_ascii_alphabetic()) && chars.next() == Some(':')
     };
     pref.starts_with('.') || pref.starts_with('/') || pref.starts_with("~/") || is_windows_drive
+}
+
+impl LatestRewriteCtx<'_, '_> {
+    fn resolve_options(&self, chain: &LatestResolverChain) -> ResolveOptions {
+        let manifest_dir = self.manifest
+            .path()
+            .parent()
+            .expect("manifest path always has a parent dir")
+            .to_path_buf();
+        ResolveOptions {
+            project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+                project_dir: manifest_dir.clone(),
+                lockfile_dir: manifest_dir,
+                ..Default::default()
+            },
+            version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+                default_tag: Some("latest".to_string()),
+                ..Default::default()
+            },
+            refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+                update: UpdateBehavior::Latest,
+                dry_run: self.lockfile_only,
+                ..Default::default()
+            },
+            policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                published_by: chain.published_by,
+                published_by_exclude: chain.published_by_exclude.clone(),
+                ..Default::default()
+            },
+            specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
+                calc_specifier: true,
+                range_spec_style: Some(self.range_spec_style),
+                ..Default::default()
+            },
+        }
+    }
 }

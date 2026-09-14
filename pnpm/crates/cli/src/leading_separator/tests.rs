@@ -3,10 +3,15 @@ use pretty_assertions::assert_eq;
 use std::ffi::OsString;
 
 fn preserve<Items: IntoIterator<Item = &'static str>>(items: Items) -> Vec<String> {
-    preserve_leading_separator(items.into_iter().map(OsString::from).collect())
-        .into_iter()
-        .map(|token| token.to_string_lossy().into_owned())
-        .collect()
+    preserve_leading_separator(
+        items
+            .into_iter()
+            .map(OsString::from)
+            .collect(),
+    )
+    .into_iter()
+    .map(|token| token.to_string_lossy().into_owned())
+    .collect()
 }
 
 #[test]

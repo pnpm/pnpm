@@ -93,7 +93,10 @@ pub(super) fn unique_tmp_path(base: &Path) -> PathBuf {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
-    let mut name = base.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
+    let mut name = base
+        .file_name()
+        .map(std::ffi::OsStr::to_os_string)
+        .unwrap_or_default();
     name.push(format!(".tmp.{pid}.{counter}"));
     match base.parent() {
         Some(parent) => parent.join(name),

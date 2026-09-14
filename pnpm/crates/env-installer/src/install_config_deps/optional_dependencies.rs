@@ -1,7 +1,7 @@
 use super::{
-    AtomicU8, BTreeMap, ConfigDepError, ConfigDepsInstallOptions, EnvLockfile,
-    InstallabilityOptions, Integrity, LockfileResolution, LogEvent, LogLevel, NormalizedConfigDep,
-    NormalizedSubdep, PackageInstallabilityManifest, Path, Reporter, SkippedOptionalDependencyLog,
+    AtomicU8, BTreeMap, ConfigDepError, ConfigDepsInstallOptions, EnvLockfile, Integrity,
+    LockfileResolution, LogEvent, LogLevel, NormalizedConfigDep, NormalizedSubdep,
+    PackageInstallabilityManifest, Path, Reporter, SkippedOptionalDependencyLog,
     SkippedOptionalPackage, SkippedOptionalReason, StartedGate, TarballUrlOptions,
     calc_leaf_global_virtual_store_path, check_package, force_symlink, full_pkg_id,
     join_global_virtual_store_path, materialize, npm_tarball_url, prune_unexpected_siblings,
@@ -82,15 +82,8 @@ fn is_compatible<Reporter: self::Reporter>(
     }
     let manifest = subdep_installability_manifest(subdep);
     let id = format!("{}@{}", subdep.name, subdep.version);
-    let options = InstallabilityOptions {
-        current_node_version: opts.current_node_version,
-        current_os: opts.current_os,
-        current_cpu: opts.current_cpu,
-        current_libc: opts.current_libc,
-        supported_architectures: opts.supported_architectures,
-        ..InstallabilityOptions::default()
-    };
-    match check_package(&id, &manifest, &options) {
+
+    match check_package(&id, &manifest, &opts.platform) {
         Ok(None) => true,
         Ok(Some(error)) => {
             Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
@@ -160,8 +153,7 @@ pub(super) fn normalize_from_lockfile(
             ),
         })?;
 
-        let optional_subdeps = env_lockfile
-            .snapshots
+        let optional_subdeps = env_lockfile.snapshots
             .get(&key)
             .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
             .map(|optionals| read_optional_subdeps(name, optionals, env_lockfile, opts))
@@ -185,11 +177,16 @@ fn required_config_package<'a>(
     env_lockfile: &'a EnvLockfile,
     pkg_key: &str,
 ) -> Result<(pnpm_lockfile::PackageKey, &'a pnpm_lockfile::PackageMetadata), ConfigDepError> {
-    let key = pkg_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
-        message: format!(r#"pnpm-lock.yaml has an unparsable config-dependency key "{pkg_key}""#),
-    })?;
-    let pkg =
-        env_lockfile.packages.get(&key).ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
+    let key = pkg_key
+        .parse()
+        .map_err(|_| ConfigDepError::EnvLockfileCorrupted {
+            message: format!(
+                r#"pnpm-lock.yaml has an unparsable config-dependency key "{pkg_key}""#,
+            ),
+        })?;
+    let pkg = env_lockfile.packages
+        .get(&key)
+        .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
                 "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
                  \"{pkg_key}\" referenced from importers['.'].configDependencies",
@@ -206,21 +203,19 @@ fn read_optional_subdeps(
 ) -> Result<Vec<NormalizedSubdep>, ConfigDepError> {
     let mut subdeps = Vec::new();
     for (subdep_name, dep_ref) in optionals {
-        let version = dep_ref.ver_peer().map(std::string::ToString::to_string).unwrap_or_default();
+        let version = optional_subdep_version(dep_ref);
         let subdep_name = subdep_name.to_string();
         let subdep_key = format!("{subdep_name}@{version}");
-        let key = subdep_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
-            message: format!(r#"pnpm-lock.yaml has an unparsable subdep key "{subdep_key}""#),
-        })?;
-        let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
-            ConfigDepError::EnvLockfileCorrupted {
+        let key = parse_optional_subdep_key(&subdep_key)?;
+        let pkg = env_lockfile.packages
+            .get(&key)
+            .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
                 message: format!(
                     "pnpm-lock.yaml is corrupted or incomplete: missing packages entry for \
                      \"{subdep_key}\" referenced from optionalDependencies of config dependency \
                      \"{parent_name}\"",
                 ),
-            }
-        })?;
+            })?;
         let (integrity, tarball) = integrity_and_tarball(
             &pkg.resolution,
             &subdep_name,
@@ -244,6 +239,23 @@ fn read_optional_subdeps(
         });
     }
     Ok(subdeps)
+}
+
+fn optional_subdep_version(dep_ref: &pnpm_lockfile::SnapshotDepRef) -> String {
+    dep_ref
+        .ver_peer()
+        .map(std::string::ToString::to_string)
+        .unwrap_or_default()
+}
+
+fn parse_optional_subdep_key(
+    subdep_key: &str,
+) -> Result<pnpm_lockfile::PackageKey, ConfigDepError> {
+    subdep_key
+        .parse()
+        .map_err(|_| ConfigDepError::EnvLockfileCorrupted {
+            message: format!(r#"pnpm-lock.yaml has an unparsable subdep key "{subdep_key}""#),
+        })
 }
 
 /// Extract `(integrity, tarball_url)` from a lockfile-form resolution,

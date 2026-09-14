@@ -124,7 +124,10 @@ pub(super) async fn verify_signatures(
 
     let mut result = SignatureVerificationResult::default();
     for pkg in packages {
-        let Some(keys) = keys_by_registry.get(&pkg.registry).filter(|keys| !keys.is_empty()) else {
+        let Some(keys) = keys_by_registry
+            .get(&pkg.registry)
+            .filter(|keys| !keys.is_empty())
+        else {
             continue;
         };
         match packuments.get(&(pkg.registry.clone(), pkg.name.clone())) {
@@ -149,12 +152,16 @@ async fn fetch_keys_by_registry(
     config: &Config,
     http_client: &ThrottledClient,
 ) -> Result<HashMap<String, Vec<RegistryKey>>, SignaturesError> {
-    let registries: BTreeSet<&str> = packages.iter().map(|pkg| pkg.registry.as_str()).collect();
-    let key_fetches = registries.into_iter().map(|registry| async move {
-        fetch_registry_keys(registry, config, http_client)
-            .await
-            .map(|keys| (registry.to_string(), keys))
-    });
+    let registries: BTreeSet<&str> = packages
+        .iter()
+        .map(|pkg| pkg.registry.as_str())
+        .collect();
+    let key_fetches = registries
+        .into_iter()
+        .map(|registry| async move {
+            fetch_registry_keys(registry, config, http_client).await
+                .map(|keys| (registry.to_string(), keys))
+        });
     Ok(futures_util::future::try_join_all(key_fetches).await?.into_iter().collect())
 }
 
@@ -168,15 +175,21 @@ async fn fetch_needed_packuments(
 ) -> HashMap<(String, String), Result<Option<Packument>, String>> {
     let needed: BTreeSet<(&str, &str)> = packages
         .iter()
-        .filter(|pkg| keys_by_registry.get(&pkg.registry).is_some_and(|keys| !keys.is_empty()))
+        .filter(|pkg| {
+            keys_by_registry
+                .get(&pkg.registry)
+                .is_some_and(|keys| !keys.is_empty())
+        })
         .map(|pkg| (pkg.registry.as_str(), pkg.name.as_str()))
         .collect();
-    let packument_fetches = needed.into_iter().map(|(registry, name)| async move {
-        let result = fetch_packument(name, registry, config, http_client)
-            .await
-            .map_err(|err| err.to_string());
-        ((registry.to_string(), name.to_string()), result)
-    });
+    let packument_fetches = needed
+        .into_iter()
+        .map(|(registry, name)| async move {
+            let result = fetch_packument(name, registry, config, http_client)
+                .await
+                .map_err(|err| err.to_string());
+            ((registry.to_string(), name.to_string()), result)
+        });
     futures_util::future::join_all(packument_fetches).await.into_iter().collect()
 }
 
@@ -187,8 +200,10 @@ fn process_version(
     result: &mut SignatureVerificationResult,
 ) {
     let version = packument.versions.get(&pkg.version);
-    let published_at =
-        packument.time.get(&pkg.version).and_then(serde_json::Value::as_str).map(str::to_string);
+    let published_at = packument.time
+        .get(&pkg.version)
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
     let dist = version.and_then(|version| version.dist.as_ref());
     let integrity = dist.and_then(|dist| dist.integrity.clone());
     let resolved = dist.and_then(|dist| dist.tarball.clone());
@@ -235,7 +250,10 @@ fn parse_signatures(raw_signatures: Option<&serde_json::Value>) -> Option<Vec<Pa
     let serde_json::Value::Array(elements) = value else {
         return None;
     };
-    elements.iter().map(|element| serde_json::from_value(element.clone()).ok()).collect()
+    elements
+        .iter()
+        .map(|element| serde_json::from_value(element.clone()).ok())
+        .collect()
 }
 
 /// Returns `None` as soon as one signature validates against a trusted key.
@@ -258,21 +276,17 @@ fn verify_package_signatures(
 
     let mut failures = Vec::new();
     for signature in signatures {
-        let Some(key) = keys.iter().find(|key| key.keyid == signature.keyid) else {
+        let Some(key) = keys
+            .iter()
+            .find(|key| key.keyid == signature.keyid)
+        else {
             failures.push(format!(
                 "{}@{} has a registry signature with keyid {} but no corresponding public key can be found",
                 pkg.name, pkg.version, signature.keyid,
             ));
             continue;
         };
-        // Key expiry is a consistency check, not a security boundary: the
-        // publish time comes from the same unauthenticated packument as the
-        // signatures. A missing or unparsable publish time therefore keeps the
-        // key usable — the signature check below is what gates acceptance.
-        let expired = match (key.expires.as_deref().and_then(parse_timestamp), published_time) {
-            (Some(expires), Some(published)) => published >= expires,
-            _ => false,
-        };
+        let expired = key_is_expired(key, published_time);
         if expired {
             failures.push(format!(
                 "{}@{} has a registry signature with keyid {} but the corresponding public key has expired {}",
@@ -298,6 +312,17 @@ fn verify_package_signatures(
         resolved.map(str::to_string),
         Some(most_telling_failure(pkg, &failures)),
     ))
+}
+
+fn key_is_expired(key: &RegistryKey, published_time: Option<i64>) -> bool {
+    // Key expiry is a consistency check, not a security boundary: the
+    // publish time comes from the same unauthenticated packument as the
+    // signatures. A missing or unparsable publish time therefore keeps the
+    // key usable — the signature check below is what gates acceptance.
+    match (key.expires.as_deref().and_then(parse_timestamp), published_time) {
+        (Some(expires), Some(published)) => published >= expires,
+        _ => false,
+    }
 }
 
 /// Verify one base64 ECDSA-P256 signature over `message` against a base64

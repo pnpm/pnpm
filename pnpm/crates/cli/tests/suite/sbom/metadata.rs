@@ -107,7 +107,11 @@ fn sbom_has_tools() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
     let tools = parsed["metadata"]["tools"]["components"].as_array().expect("tools");
-    assert!(tools.iter().any(|tool| tool["name"] == "pnpm"));
+    assert!(
+        tools
+            .iter()
+            .any(|tool| tool["name"] == "pnpm"),
+    );
 }
 
 #[test]
@@ -131,7 +135,14 @@ fn sbom_spdx_creation_info() {
     let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
     assert!(parsed["creationInfo"]["created"].is_string());
     let creators = parsed["creationInfo"]["creators"].as_array().expect("creators");
-    assert!(creators.iter().any(|creator| creator.as_str().unwrap().contains("pnpm")));
+    assert!(
+        creators
+            .iter()
+            .any(|creator| creator
+                .as_str()
+                .unwrap()
+                .contains("pnpm")),
+    );
 }
 
 #[test]
@@ -154,7 +165,10 @@ fn sbom_spdx_describes_relationship() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
     let rels = parsed["relationships"].as_array().expect("relationships");
-    assert!(rels.iter().any(|rel| rel["relationshipType"] == "DESCRIBES"));
+    assert!(
+        rels.iter()
+            .any(|rel| rel["relationshipType"] == "DESCRIBES"),
+    );
 }
 
 #[test]
@@ -171,8 +185,10 @@ fn sbom_spdx_download_location() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
     let packages = parsed["packages"].as_array().expect("packages");
-    let is_positive =
-        packages.iter().find(|pkg| pkg["name"] == "is-positive").expect("is-positive");
+    let is_positive = packages
+        .iter()
+        .find(|pkg| pkg["name"] == "is-positive")
+        .expect("is-positive");
     let dl = is_positive["downloadLocation"].as_str().expect("downloadLocation");
     assert!(dl.contains("registry.npmjs.org"), "should have registry URL, got {dl}");
 }

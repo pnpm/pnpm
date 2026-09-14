@@ -25,8 +25,12 @@ fn origin_of_extracts_scheme_host_and_port() {
 #[tokio::test]
 async fn streamed_responses_retain_both_permits_until_consumed_or_dropped() {
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("GET", "/artifact").with_body("artifact bytes").expect(3).create_async().await;
+    let mock = server
+        .mock("GET", "/artifact")
+        .with_body("artifact bytes")
+        .expect(3)
+        .create_async()
+        .await;
     let client = ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1));
     let initial_permits = client.semaphore.available_permits();
     let url = format!("{}/artifact", server.url());
@@ -51,7 +55,9 @@ async fn assert_streamed_response_permits(
     assert_eq!(response.content_length(), Some(14));
     assert_eq!(client.semaphore.available_permits(), initial_permits - 1);
     assert!(
-        tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(url)).await.is_err(),
+        tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(url))
+            .await
+            .is_err(),
     );
     if mode == 0 {
         assert_eq!(response.bytes().await.unwrap(), "artifact bytes");
@@ -64,7 +70,8 @@ async fn assert_streamed_response_permits(
         }
         drop(stream);
     }
-    let guard =
-        tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(url)).await.unwrap();
+    let guard = tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(url))
+        .await
+        .unwrap();
     drop(guard);
 }

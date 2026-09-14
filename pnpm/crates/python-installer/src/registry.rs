@@ -5,12 +5,11 @@ use pep440_rs::Version;
 use pep508_rs::PackageName;
 use pnpm_config::Config;
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_python_resolver::{LockedPackage, Packages, candidates_from_page, wheel_identity};
+use pnpm_python_resolver::{LockedPackage, Packages, candidates_from_page};
 use pnpm_reporter::Reporter;
-use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
 use pnpm_tarball::{ArchiveStoreProjection, IngestZipArchiveToStore};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 use tokio::io::AsyncReadExt;
 use url::Url;
 
@@ -29,9 +28,7 @@ pub(super) struct Registry<'a> {
     pub(super) auth: AuthHeaders,
     pub(super) index: Url,
     pub(super) interpreter: &'a Interpreter,
-    pub(super) store_index: Option<SharedReadonlyStoreIndex>,
-    pub(super) writer: Arc<StoreIndexWriter>,
-    pub(super) verified: SharedVerifiedFilesCache,
+    pub(super) store: pnpm_tarball::ArchiveStoreContext<'a>,
     /// What resolution reads: the candidates each distribution offers and
     /// the metadata of the wheels it has looked at.
     pub(super) packages: Packages,
@@ -42,10 +39,10 @@ pub(super) struct Registry<'a> {
 
 impl Registry<'_> {
     pub(super) async fn fetch_index(&mut self, name: &PackageName) -> Result<()> {
-        let index_url = self.index.join(&format!("{name}/")).into_diagnostic()?;
-        let cache = self
-            .config
-            .cache_dir
+        let index_url = self.index
+            .join(&format!("{name}/"))
+            .into_diagnostic()?;
+        let cache = self.config.cache_dir
             .join("python-index-v2")
             .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(index_url.as_str())));
         let cached = if self.config.offline {
@@ -74,8 +71,7 @@ impl Registry<'_> {
 
     /// Fetch the Simple JSON index for `name` from the configured index.
     async fn download_index(&self, index_url: &Url, name: &PackageName) -> Result<CachedIndex> {
-        let response = self
-            .client
+        let response = self.client
             .get_limited_bytes_with_secure_auth_and_retry(
                 index_url.as_str(),
                 &self.auth,
@@ -161,23 +157,24 @@ impl Registry<'_> {
         let integrity = wheel.integrity()?;
         let package_id = format!("python:{}", wheel.name);
         let files = IngestZipArchiveToStore {
-            http_client: self.client,
-            store_dir: &self.config.store_dir,
-            store_index: self.store_index.clone(),
-            store_index_writer: Some(Arc::clone(&self.writer)),
-            verify_store_integrity: self.config.verify_store_integrity,
-            strict_store_pkg_content_check: self.config.strict_store_pkg_content_check,
-            verified_files_cache: Arc::clone(&self.verified),
-            package_integrity: &integrity,
-            package_url: &wheel.url,
-            package_id: &package_id,
+            fetching: pnpm_tarball::ArchiveFetchOptions {
+                http_client: self.client,
+                auth_headers: &self.auth,
+                retry_opts: self.config.retry_opts(),
+                offline: self.config.offline,
+            },
+            package: pnpm_tarball::ZipArchivePackage {
+                integrity: &integrity,
+                url: &wheel.url,
+                id: &package_id,
+            },
+            store: self.store.clone(),
+
             requester: "Python environment",
-            prefetched_cas_paths: None,
-            retry_opts: self.config.retry_opts(),
-            auth_headers: &self.auth,
+
             archive_prefix: None,
             ignore_file_pattern: None,
-            offline: self.config.offline,
+
             store_projection: ArchiveStoreProjection::RawArchive,
         }
         .run_without_mem_cache::<Reporter>()
@@ -198,11 +195,16 @@ impl Registry<'_> {
 /// The index cached from an earlier run, which is the only source an
 /// offline resolution has.
 async fn read_cached_index(cache: &std::path::Path, name: &PackageName) -> Result<CachedIndex> {
-    let file = tokio::fs::File::open(cache).await.into_diagnostic().wrap_err_with(|| {
-        format!("Python index for {name} is not cached for offline resolution")
-    })?;
+    let file = tokio::fs::File::open(cache).await
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!("Python index for {name} is not cached for offline resolution")
+        })?;
     let mut contents = Vec::new();
-    file.take(MAX_CACHE_BYTES as u64 + 1).read_to_end(&mut contents).await.into_diagnostic()?;
+    file.take(MAX_CACHE_BYTES as u64 + 1)
+        .read_to_end(&mut contents)
+        .await
+        .into_diagnostic()?;
     if contents.len() > MAX_CACHE_BYTES {
         bail!("Python index cache for {name} exceeds {MAX_CACHE_BYTES} bytes");
     }
@@ -219,8 +221,7 @@ fn validate_wheel_metadata(
     {
         bail!("Python wheel metadata identity mismatch for {name}=={version}");
     }
-    let (directory_name, directory_version) = metadata
-        .dist_info
+    let (directory_name, directory_version) = metadata.dist_info
         .strip_suffix(".dist-info")
         .and_then(|stem| stem.rsplit_once('-'))
         .ok_or_else(|| {
@@ -241,11 +242,5 @@ fn validate_wheel_identity(
     version: &Version,
 ) -> Result<()> {
     pnpm_python_resolver::validate_url(&Url::parse(&wheel.url).into_diagnostic()?)?;
-    let Some((wheel_name, wheel_version, _)) = wheel_identity(&wheel.name, tags)? else {
-        bail!("Python wheel is incompatible with this interpreter: {}", wheel.name)
-    };
-    if wheel_name != *name || wheel_version != *version {
-        bail!("Python lockfile wheel identity mismatch: {}", wheel.name);
-    }
-    Ok(())
+    wheel.check_installable(tags, name, version)
 }

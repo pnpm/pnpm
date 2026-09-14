@@ -158,9 +158,11 @@ impl Lockfile {
                 Err(error) => Err(SaveLockfileError::RemoveFile { path: target, error }),
             }
         } else {
-            fs::create_dir_all(virtual_store_dir).map_err(|error| {
-                SaveLockfileError::CreateDir { dir: virtual_store_dir.to_path_buf(), error }
-            })?;
+            fs::create_dir_all(virtual_store_dir)
+                .map_err(|error| SaveLockfileError::CreateDir {
+                    dir: virtual_store_dir.to_path_buf(),
+                    error,
+                })?;
             let content = self.to_yaml_string()?;
             write_atomic(&target, content.as_bytes())
         }
@@ -226,7 +228,11 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
         let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
         let tmp = parent.join(format!(".{file_name}.{pid}.{counter}.tmp"));
 
-        let mut file = match OpenOptions::new().write(true).create_new(true).open(&tmp) {
+        let mut file = match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)
+        {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
                 // Stale temp file or adversarial / concurrent pre-seed
@@ -249,12 +255,7 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
         // the rename commits the dirent change.
         drop(file);
 
-        return fs::rename(&tmp, target).map_err(|error| {
-            // Best-effort cleanup so a failed rename doesn't leak temp
-            // files in the virtual store.
-            let _ = fs::remove_file(&tmp);
-            SaveLockfileError::RenameFile { tmp, target: target.to_path_buf(), error }
-        });
+        return commit_temp_file(tmp, target);
     }
 
     // Ran out of temp-name attempts. Surface the last `AlreadyExists`
@@ -265,6 +266,16 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
             "exhausted temp-path attempts for atomic lockfile write",
         )
     })))
+}
+
+fn commit_temp_file(tmp: PathBuf, target: &Path) -> Result<(), SaveLockfileError> {
+    fs::rename(&tmp, target)
+        .map_err(|error| {
+            // Best-effort cleanup so a failed rename doesn't leak temp
+            // files in the virtual store.
+            let _ = fs::remove_file(&tmp);
+            SaveLockfileError::RenameFile { tmp, target: target.to_path_buf(), error }
+        })
 }
 
 #[cfg(test)]

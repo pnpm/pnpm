@@ -16,7 +16,7 @@ impl Walker<'_> {
         node_id: &NodeId,
         pkg_id: &Arc<str>,
     ) -> Option<(Arc<Vec<ChildEdge>>, AncestorIds)> {
-        if !self.discovery {
+        if !self.traversal.discovery {
             return None;
         }
         let TreeChildren::Lazy { parent_ids } = &self.tree.dependencies_tree[node_id].children
@@ -24,7 +24,10 @@ impl Walker<'_> {
             return None;
         };
         Some((
-            self.tree.children_by_id.get(&**pkg_id).cloned().unwrap_or_default(),
+            self.tree.children_by_id
+                .get(&**pkg_id)
+                .cloned()
+                .unwrap_or_default(),
             parent_ids.pushed(pkg_id.to_string()),
         ))
     }
@@ -34,7 +37,13 @@ impl Walker<'_> {
         deferred: DeferredChildren<'_>,
         walk: &NodeWalkContext<'_>,
     ) -> ChildOutputs {
-        let DeferredChildren { pkg_id, children, parent_ids, provider_children, depth } = deferred;
+        let DeferredChildren {
+            pkg_id,
+            children,
+            parent_ids,
+            provider_children,
+            depth,
+        } = deferred;
         let canonical_scc = self.canonical_scc();
         let child_aliases = ChildAliases::Deferred(children);
         let mut child_outputs = ChildOutputs::default();
@@ -95,20 +104,23 @@ impl Walker<'_> {
                 // still walks it once at importer context — eagerly realized
                 // trees reach their back-edge subtrees only through that
                 // queue.
-                if self.tree.dependencies_tree.get(child_node_id).is_some_and(|child| {
-                    Self::cuts_cycle_edge(&canonical_scc, pkg_id, &child.resolved_package_id)
-                }) {
+                if self.tree.dependencies_tree
+                    .get(child_node_id)
+                    .is_some_and(|child| {
+                        Self::cuts_cycle_edge(&canonical_scc, pkg_id, &child.resolved_package_id)
+                    })
+                {
                     continue;
                 }
                 let child_output = self.resolve_node(child_node_id, walk);
-                child_outputs.push(alias, child_output, &child_aliases, !self.discovery);
+                child_outputs.push(alias, child_output, &child_aliases, !self.traversal.discovery);
             }
         }
         child_outputs
     }
 
     /// Record this walk's outcome in the per-`pkgIdWithPatchHash` caches.
-    /// Pure subtrees go in [`Walker::pure_pkgs`] for the fast-path early
+    /// Pure subtrees go in [`crate::resolve_peers::discovery::PeerDiscoveryCaches::pure_pkgs`] for the fast-path early
     /// return at the top of [`Walker::resolve_node`]; non-pure subtrees push
     /// a [`PeersCacheItem`] so a future visit with a compatible parent
     /// context can short-circuit via [`Walker::find_hit`]. The canonical
@@ -120,25 +132,33 @@ impl Walker<'_> {
         pkg_id: &Arc<str>,
         result: &WalkResult<'_>,
     ) {
-        if !self.discovery {
-            self.node_external_peers.insert(node_id.clone(), Arc::clone(result.all_resolved_peers));
-            self.node_missing_peers.insert(node_id.clone(), Arc::clone(result.all_missing_peers));
-            self.node_missing_peers_of_children
-                .insert(node_id.clone(), Arc::clone(result.missing_peers_of_children));
+        if !self.traversal.discovery {
+            self.nodes.external_peers.insert(
+                node_id.clone(),
+                Arc::clone(result.all_resolved_peers),
+            );
+            self.nodes.missing_peers.insert(node_id.clone(), Arc::clone(result.all_missing_peers));
+            self.nodes.children_missing_peers.insert(
+                node_id.clone(),
+                Arc::clone(result.missing_peers_of_children),
+            );
         }
         if result.is_pure {
-            self.pure_pkgs.insert(pkg_id.to_string(), result.dep_path.clone());
+            self.caches.pure_pkgs.insert(pkg_id.to_string(), result.dep_path.clone());
             return;
         }
-        self.retained_peer_node_ids.extend(result.all_resolved_peers.values().cloned());
-        self.peers_cache.entry(pkg_id.to_string()).or_default().push(PeersCacheItem {
-            owner_node_id: node_id.clone(),
-            dep_path: result.dep_path.clone(),
-            resolved_peers: Arc::clone(result.all_resolved_peers),
-            missing_peers: Arc::clone(result.all_missing_peers),
-            missing_peers_of_children: Arc::clone(result.missing_peers_of_children),
-            subtree_missing_by_pkg: result.subtree_missing_by_pkg.clone(),
-        });
+        self.caches.retained_peer_node_ids.extend(result.all_resolved_peers.values().cloned());
+        self.caches.peers_cache
+            .entry(pkg_id.to_string())
+            .or_default()
+            .push(PeersCacheItem {
+                owner_node_id: node_id.clone(),
+                dep_path: result.dep_path.clone(),
+                resolved_peers: Arc::clone(result.all_resolved_peers),
+                missing_peers: Arc::clone(result.all_missing_peers),
+                missing_peers_of_children: Arc::clone(result.missing_peers_of_children),
+                subtree_missing_by_pkg: result.subtree_missing_by_pkg.clone(),
+            });
     }
 
     /// Build the [`ParentRefs`] map that descendants of this node see:

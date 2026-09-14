@@ -37,7 +37,10 @@ impl Resolver for CapturingResolver {
         wanted_dependency: &'a WantedDependency,
         _opts: &'a ResolveOptions,
     ) -> ResolveFuture<'a> {
-        self.seen.lock().unwrap().push(wanted_dependency.bare_specifier.clone());
+        self.seen
+            .lock()
+            .unwrap()
+            .push(wanted_dependency.bare_specifier.clone());
         Box::pin(async { Ok::<Option<ResolveResult>, ResolveError>(None) })
     }
     fn resolve_latest<'a>(
@@ -60,7 +63,13 @@ async fn declines_non_deno_alias() {
         bare_specifier: Some("runtime:1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    assert!(resolver().resolve(&wanted, &ResolveOptions::default()).await.unwrap().is_none());
+    assert!(
+        resolver()
+            .resolve(&wanted, &ResolveOptions::default())
+            .await
+            .unwrap()
+            .is_none(),
+    );
 }
 
 #[tokio::test]
@@ -70,7 +79,13 @@ async fn declines_deno_without_runtime_prefix() {
         bare_specifier: Some("^1.0".to_string()),
         ..WantedDependency::default()
     };
-    assert!(resolver().resolve(&wanted, &ResolveOptions::default()).await.unwrap().is_none());
+    assert!(
+        resolver()
+            .resolve(&wanted, &ResolveOptions::default())
+            .await
+            .unwrap()
+            .is_none(),
+    );
 }
 
 #[tokio::test]
@@ -86,9 +101,18 @@ async fn empty_runtime_spec_delegates_latest_to_npm_resolver() {
         ..WantedDependency::default()
     };
 
-    resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+    resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap_err();
 
-    assert_eq!(npm_resolver.seen.lock().unwrap().clone(), vec![Some("latest".to_string())]);
+    assert_eq!(
+        npm_resolver.seen
+            .lock()
+            .unwrap()
+            .clone(),
+        vec![Some("latest".to_string())],
+    );
 }
 
 #[tokio::test]
@@ -104,7 +128,16 @@ async fn whitespace_runtime_spec_delegates_latest_to_npm_resolver() {
         ..WantedDependency::default()
     };
 
-    resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+    resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap_err();
 
-    assert_eq!(npm_resolver.seen.lock().unwrap().clone(), vec![Some("latest".to_string())]);
+    assert_eq!(
+        npm_resolver.seen
+            .lock()
+            .unwrap()
+            .clone(),
+        vec![Some("latest".to_string())],
+    );
 }

@@ -123,7 +123,9 @@ fn is_committish(ref_: &str) -> bool {
     let bytes = ref_.as_bytes();
     bytes.len() >= 7
         && bytes.len() <= 40
-        && bytes.iter().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+        && bytes
+            .iter()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 /// Parse the `git ls-remote` stdout into `{ ref_name -> commit_sha }`.
@@ -148,12 +150,11 @@ fn resolve_ref_from_refs(
     range: Option<&str>,
 ) -> Result<String, GitResolveRefError> {
     let Some(range) = range else {
-        return resolve_exact_ref(refs, ref_, committish).ok_or_else(|| {
-            GitResolveRefError::UnknownRef {
+        return resolve_exact_ref(refs, ref_, committish)
+            .ok_or_else(|| GitResolveRefError::UnknownRef {
                 ref_: ref_.to_string(),
                 repo: redact_and_sanitize(repo),
-            }
-        });
+            });
     };
     resolve_range(refs, repo, range)
 }
@@ -172,7 +173,10 @@ fn resolve_exact_ref(
         format!("refs/tags/{ref_}"),
         format!("refs/heads/{ref_}"),
     ];
-    if let Some(commit) = lookup_keys.iter().find_map(|key| refs.get(key)) {
+    if let Some(commit) = lookup_keys
+        .iter()
+        .find_map(|key| refs.get(key))
+    {
         return Some(commit.clone());
     }
     if !committish {
@@ -181,8 +185,10 @@ fn resolve_exact_ref(
     // Dedupe across multiple refs that point at the same commit
     // (`refs/heads/main` and `refs/tags/v1` may both point at the same SHA);
     // an ambiguous prefix resolves to nothing.
-    let mut matches: BTreeSet<&String> =
-        refs.values().filter(|value| value.starts_with(ref_)).collect();
+    let mut matches: BTreeSet<&String> = refs
+        .values()
+        .filter(|value| value.starts_with(ref_))
+        .collect();
     if matches.len() != 1 {
         return None;
     }
@@ -200,7 +206,11 @@ fn resolve_range(
     let unknown_range = || GitResolveRefError::UnknownRange {
         range: range.to_string(),
         repo: redact_and_sanitize(repo),
-        available: v_tags.iter().cloned().collect::<Vec<_>>().join(", "),
+        available: v_tags
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", "),
     };
 
     let parsed_range = Range::parse(range).map_err(|_| unknown_range())?;
@@ -263,7 +273,9 @@ fn looks_like_version_tag(key: &str) -> bool {
 fn resolve_v_tags(tags: &BTreeSet<String>, range: &Range) -> Option<String> {
     let mut best: Option<(Version, String)> = None;
     for tag in tags {
-        let parsed = Version::parse(tag).or_else(|_| Version::parse(strip_v(tag))).ok()?;
+        let parsed = Version::parse(tag)
+            .or_else(|_| Version::parse(strip_v(tag)))
+            .ok()?;
         if range.satisfies(&parsed) {
             match best {
                 Some((ref best_v, _)) if best_v >= &parsed => {}

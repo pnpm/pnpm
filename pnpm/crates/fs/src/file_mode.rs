@@ -22,7 +22,9 @@ pub fn is_executable(mode: u32) -> bool {
 /// mode may have lost its exec bit on a copy / reflink fallback.
 #[must_use]
 pub fn cas_path_is_executable(path: &Path) -> bool {
-    path.file_name().and_then(|name| name.to_str()).is_some_and(|name| name.ends_with("-exec"))
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with("-exec"))
 }
 
 /// Open `path` for the chmod in [`restore_exec_bit_from_cas_suffix`],
@@ -35,7 +37,10 @@ pub fn cas_path_is_executable(path: &Path) -> bool {
 #[cfg(unix)]
 fn open_without_following(path: &Path) -> io::Result<std::fs::File> {
     use std::os::unix::fs::OpenOptionsExt;
-    std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path)
+    std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)
 }
 
 /// Re-add executable bits to `target` when the CAS source path carries the

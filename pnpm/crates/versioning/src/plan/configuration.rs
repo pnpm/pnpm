@@ -62,11 +62,14 @@ pub(super) fn validate_fixed_group_lanes(
     versioning: Option<&VersioningSettings>,
 ) -> Result<(), VersioningError> {
     for (index, group) in fixed_groups.iter().enumerate() {
-        let tags: HashSet<Option<&String>> =
-            group.iter().map(|dir| lanes_by_dir.get(dir)).collect();
+        let tags: HashSet<Option<&String>> = group
+            .iter()
+            .map(|dir| lanes_by_dir.get(dir))
+            .collect();
         if tags.len() > 1 {
-            let declared =
-                versioning.map(|settings| settings.fixed[index].clone()).unwrap_or_default();
+            let declared = versioning
+                .map(|settings| settings.fixed[index].clone())
+                .unwrap_or_default();
             return Err(VersioningError::ConflictingConfig { group: declared });
         }
     }
@@ -89,8 +92,10 @@ pub(super) fn resolve_epics(
             .next()
             .filter(|dir| participants.contains_key(dir))
             .ok_or_else(|| VersioningError::EpicUnknownLead { lead: epic.lead.clone() })?;
-        let selectors: Vec<EpicSelector> =
-            epic.packages.iter().map(|selector| compile_epic_selector(selector)).collect();
+        let selectors: Vec<EpicSelector> = epic.packages
+            .iter()
+            .map(|selector| compile_epic_selector(selector))
+            .collect();
         let mut member_dirs = HashSet::new();
         for participant in participants.values() {
             if participant.dir == lead_dir {
@@ -182,7 +187,10 @@ fn assert_fixed_group_fits_epic(
     epic: &ResolvedEpic,
     group: &[String],
 ) -> Result<(), VersioningError> {
-    if !group.iter().any(|dir| epic.member_dirs.contains(dir)) {
+    if !group
+        .iter()
+        .any(|dir| epic.member_dirs.contains(dir))
+    {
         return Ok(());
     }
     let outsiders: Vec<String> = group
@@ -246,7 +254,10 @@ fn resolve_intent_ref(
             dirs,
         });
     }
-    let dir = dirs.into_iter().next().expect("one element");
+    let dir = dirs
+        .into_iter()
+        .next()
+        .expect("one element");
     if bump_type != IntentBumpType::None && !participants.contains_key(&dir) {
         return Err(VersioningError::UnreleasablePackage {
             file_path: intent.file_path.clone(),

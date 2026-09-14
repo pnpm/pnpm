@@ -96,7 +96,11 @@ fn outdated_compatible_ignores_out_of_range_releases() {
 
     // Default run is outdated (101.0.0 latest)...
     assert_eq!(
-        pacquet(&workspace, ["outdated"]).output().unwrap().status.code(),
+        pacquet(&workspace, ["outdated"])
+            .output()
+            .unwrap()
+            .status
+            .code(),
         Some(1),
         "default outdated should flag the out-of-range 101.0.0",
     );
@@ -505,8 +509,11 @@ fn outdated_catalog_entry_missing_is_a_catalog_error() {
 
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
-    let without_catalog =
-        yaml.lines().filter(|line| !line.starts_with("catalog:")).collect::<Vec<_>>().join("\n");
+    let without_catalog = yaml
+        .lines()
+        .filter(|line| !line.starts_with("catalog:"))
+        .collect::<Vec<_>>()
+        .join("\n");
     fs::write(&workspace_yaml, without_catalog).expect("drop the catalog entry");
 
     let output = pacquet(&workspace, ["outdated"]).output().expect("run pacquet outdated");

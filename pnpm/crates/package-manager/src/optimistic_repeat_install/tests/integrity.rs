@@ -40,9 +40,10 @@ fn returns_skipped_when_trust_policy_is_newly_configured() {
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.trust_policy = pnpm_config::TrustPolicy::NoDowngrade;
-    config
-        .explicit_settings
-        .insert("trustPolicy".to_string(), serde_json::Value::String("no-downgrade".to_string()));
+    config.explicit_settings.insert(
+        "trustPolicy".to_string(),
+        serde_json::Value::String("no-downgrade".to_string()),
+    );
     let config = config.leak();
 
     let decision = check(

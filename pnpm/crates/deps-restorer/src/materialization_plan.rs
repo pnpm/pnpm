@@ -14,12 +14,10 @@ use crate::{
     extend_skipped_with_dependency_closure,
     install_frozen_lockfile::{find_runtime_node_major, parse_major_from_version},
 };
-use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
-use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
 use pnpm_package_is_installable::{InstallabilityError, SupportedArchitectures};
 use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
+    collections::HashMap,
     sync::{Arc, OnceLock},
 };
 
@@ -94,18 +92,20 @@ impl HostDetection {
     pub async fn resolve(self) -> Option<InstallabilityHost> {
         match self {
             HostDetection::Resolved(host) => host,
-            HostDetection::Pending { task, engine_strict, supported_architectures } => {
-                task.await.unwrap_or_else(|error| {
-                    tracing::warn!(
-                        target: "pacquet::install",
-                        ?error,
-                        "host detection task failed; falling back to the synthetic host",
-                    );
-                    let mut host = synthetic_installability_host(engine_strict);
-                    host.supported_architectures = supported_architectures;
-                    Some(host)
-                })
-            }
+            HostDetection::Pending {
+                task,
+                engine_strict,
+                supported_architectures,
+            } => task.await.unwrap_or_else(|error| {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "host detection task failed; falling back to the synthetic host",
+                );
+                let mut host = synthetic_installability_host(engine_strict);
+                host.supported_architectures = supported_architectures;
+                Some(host)
+            }),
         }
     }
 }
@@ -166,14 +166,11 @@ pub async fn detect_installability_host(
 }
 
 pub struct SkipSetInputs<'a> {
+    pub closure: crate::SkipSetClosure<'a>,
+    pub entries: pnpm_lockfile::LockfileEntries<'a>,
     pub requester: &'a str,
     /// Importers the installability pass evaluates against.
     pub importers: &'a HashMap<String, ProjectSnapshot>,
-    /// The snapshots and metadata being evaluated. Under a filtered
-    /// install these are the materialization closure's, not the whole
-    /// lockfile's.
-    pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
-    pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     /// `None` when installability checks are bypassed — see
     /// [`detect_installability_host`].
     pub installability_host: Option<&'a InstallabilityHost>,
@@ -195,12 +192,6 @@ pub struct SkipSetInputs<'a> {
     /// distinction visible where the reason for it lives.
     pub exclude_optional: bool,
     pub skip_runtimes: bool,
-    /// The lockfile whose importers anchor the reachability closure —
-    /// the full one, even under a filtered install.
-    pub closure_lockfile: &'a Lockfile,
-    pub closure_root: &'a Path,
-    pub closure_importer_ids: &'a HashSet<String>,
-    pub included: IncludedDependencies,
 }
 
 /// Compute the snapshots this install must not materialize: the
@@ -215,20 +206,21 @@ pub struct SkipSetInputs<'a> {
 pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
     inputs: SkipSetInputs<'_>,
 ) -> Result<SkippedSnapshots, Box<InstallabilityError>> {
-    let mut skipped = match (inputs.snapshots, inputs.packages, inputs.installability_host) {
-        (Some(snapshots), Some(packages), Some(host)) => compute_skipped_snapshots::<Reporter>(
-            inputs.importers,
-            snapshots,
-            packages,
-            host,
-            inputs.requester,
-            inputs.seed,
-        )?,
-        // Constraint-free lockfile: keep the seed verbatim, so a
-        // snapshot recorded as skipped previously survives the
-        // constraint having since been removed from the lockfile.
-        _ => inputs.seed,
-    };
+    let mut skipped =
+        match (inputs.entries.snapshots, inputs.entries.packages, inputs.installability_host) {
+            (Some(snapshots), Some(packages), Some(host)) => compute_skipped_snapshots::<Reporter>(
+                inputs.importers,
+                snapshots,
+                packages,
+                host,
+                inputs.requester,
+                inputs.seed,
+            )?,
+            // Constraint-free lockfile: keep the seed verbatim, so a
+            // snapshot recorded as skipped previously survives the
+            // constraint having since been removed from the lockfile.
+            _ => inputs.seed,
+        };
 
     // The lockfile's `optional` flag is set only when a snapshot is
     // reachable *exclusively* through optional edges, so a dependency
@@ -237,7 +229,7 @@ pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
     // from materialization, but kept out of `.modules.yaml.skipped` so a
     // later install without the flag brings them back.
     if inputs.exclude_optional
-        && let Some(snapshots) = inputs.snapshots
+        && let Some(snapshots) = inputs.entries.snapshots
     {
         for (key, snapshot) in snapshots {
             if snapshot.optional {
@@ -247,17 +239,17 @@ pub fn compute_skip_set<Reporter: pnpm_reporter::Reporter>(
     }
 
     if inputs.skip_runtimes
-        && let Some(packages) = inputs.packages
+        && let Some(packages) = inputs.entries.packages
     {
         add_direct_runtime_skips(&mut skipped, inputs.importers, packages);
     }
 
     extend_skipped_with_dependency_closure(
         &mut skipped,
-        inputs.closure_lockfile,
-        inputs.closure_root,
-        inputs.closure_importer_ids,
-        inputs.included,
+        inputs.closure.lockfile,
+        inputs.closure.root,
+        inputs.closure.importer_ids,
+        inputs.closure.included,
     );
 
     Ok(skipped)

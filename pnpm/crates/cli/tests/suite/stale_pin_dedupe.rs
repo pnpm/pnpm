@@ -43,7 +43,10 @@ fn refreshes_stale_transitive_pin_to_higher_direct_dep_version() {
     // First install pins the direct dep at 100.0.0, so the transitive
     // `^100.0.0` edge prefers it: only 100.0.0 is recorded.
     write_manifest(&manifest_path, "100.0.0");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(
@@ -60,7 +63,10 @@ fn refreshes_stale_transitive_pin_to_higher_direct_dep_version() {
     // stale 100.0.0 must be pruned.
     write_manifest(&manifest_path, "100.1.0");
     bump_mtime(&manifest_path);
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(
@@ -89,11 +95,17 @@ fn refreshes_stale_transitive_pin_for_caret_range_direct_dep() {
     let lockfile_path = workspace.join("pnpm-lock.yaml");
 
     write_manifest(&manifest_path, "100.0.0");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     write_manifest(&manifest_path, "^100.1.0");
     bump_mtime(&manifest_path);
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(
@@ -136,11 +148,17 @@ fn does_not_refresh_an_aliased_transitive_dependency() {
     };
 
     write("100.0.0");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     write("100.1.0");
     bump_mtime(&manifest_path);
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert!(

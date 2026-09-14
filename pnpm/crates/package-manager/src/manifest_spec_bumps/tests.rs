@@ -208,7 +208,12 @@ importers:
     apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
 
     assert_eq!(specifier_of(lockfile.importers["."].dependencies.as_ref(), "foo"), "^1.0.0");
-    assert!(bumps.applied.into_inner().expect("never poisoned").is_empty());
+    assert!(
+        bumps.applied
+            .into_inner()
+            .expect("never poisoned")
+            .is_empty(),
+    );
 }
 
 /// Mirrors `update moves a declaration a range-scoped override does not claim`
@@ -260,5 +265,10 @@ importers:
     let claimed = bumps(&[("foo", DependencyGroup::Dev, "^1.0.0")]);
     apply_manifest_spec_bumps(&mut lockfile, &claimed, Some(&overridden));
     assert_eq!(specifier_of(lockfile.importers["."].dev_dependencies.as_ref(), "foo"), "^1.0.0");
-    assert!(claimed.applied.into_inner().expect("never poisoned").is_empty());
+    assert!(
+        claimed.applied
+            .into_inner()
+            .expect("never poisoned")
+            .is_empty(),
+    );
 }

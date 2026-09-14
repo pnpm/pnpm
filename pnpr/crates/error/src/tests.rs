@@ -23,9 +23,16 @@ async fn timeout_error_maps_to_gateway_timeout() {
         }
     });
 
-    let client = reqwest::Client::builder().timeout(Duration::from_millis(100)).build().unwrap();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_millis(100))
+        .build()
+        .unwrap();
     let url = format!("http://{addr}/");
-    let err = client.get(&url).send().await.unwrap_err();
+    let err = client
+        .get(&url)
+        .send()
+        .await
+        .unwrap_err();
     assert!(err.is_timeout(), "expected timeout error, got {err:?}");
 
     let registry_err = RegistryError::Upstream { url, source: err };

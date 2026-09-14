@@ -10,7 +10,9 @@ fn setup() -> (tempfile::TempDir, tempfile::TempDir, TaskCache) {
     let cache = TaskCache::open(storage.path(), project.path()).unwrap();
     fs::create_dir(project.path().join("out")).unwrap();
     fs::write(project.path().join("out/result"), "built").unwrap();
-    cache.store("abcdef", project.path(), "build", &["out/**".to_string()], Vec::new()).unwrap();
+    cache
+        .store("abcdef", project.path(), "build", &["out/**".to_string()], Vec::new())
+        .unwrap();
     (project, storage, cache)
 }
 
@@ -176,7 +178,10 @@ fn hashing_inputs_preserves_deleted_tracked_files() {
     let (root, _repo, cache) = setup_input_cache();
     let project = root.path().join("inputs-src");
     fs::remove_file(project.join("input")).unwrap();
-    let files = cache.hashed_project_files(&project).unwrap().unwrap();
+    let files = cache
+        .hashed_project_files(&project)
+        .unwrap()
+        .unwrap();
     assert!(files.is_empty(), "deleted tracked input must be absent: {files:?}");
 }
 
@@ -186,11 +191,17 @@ fn hashing_inputs_reports_read_errors() {
     let project = root.path().join("inputs-src");
     fs::remove_file(project.join("input")).unwrap();
     fs::create_dir(project.join("input")).unwrap();
-    let error = cache.hashed_project_files(&project).unwrap_err().to_string();
+    let error = cache
+        .hashed_project_files(&project)
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("hashing cache input"), "{error}");
     assert!(error.contains("input") && error.contains(&project.display().to_string()), "{error}");
     assert!(
-        cache.project_files.lock().unwrap().is_empty(),
+        cache.project_files
+            .lock()
+            .unwrap()
+            .is_empty(),
         "failed enumeration must not be cached",
     );
 }
@@ -213,7 +224,10 @@ fn hashing_inputs_rejects_non_utf8_names() {
         .write_stdin(record)
         .assert()
         .success();
-    let error = cache.hashed_project_files(&project).unwrap_err().to_string();
+    let error = cache
+        .hashed_project_files(&project)
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("non-UTF-8") && error.contains("invalid-"), "{error}");
     assert!(error.contains(&project.display().to_string()), "{error}");
 }
@@ -225,10 +239,15 @@ fn hashing_inputs_keeps_literal_backslashes_distinct_from_separators() {
     let project = root.path().join("inputs-src");
     repo.write_file("src/input", "nested source");
     fs::write(project.join(r"src\input"), "literal source").unwrap();
-    let files = cache.hashed_project_files(&project).unwrap().unwrap();
+    let files = cache
+        .hashed_project_files(&project)
+        .unwrap()
+        .unwrap();
     for relative in ["src/input", r"src\input"] {
-        let file =
-            files.iter().find(|file| file.rel_path == relative).expect("each filename is retained");
+        let file = files
+            .iter()
+            .find(|file| file.rel_path == relative)
+            .expect("each filename is retained");
         assert_eq!(file.hash, create_hex_hash_from_file(&project.join(relative)).unwrap());
     }
 }
@@ -239,8 +258,14 @@ fn hashing_inputs_covers_a_dangling_symlink_by_its_target() {
     let (root, _repo, cache) = setup_input_cache();
     let project = root.path().join("inputs-src");
     std::os::unix::fs::symlink("missing", project.join("linked-input")).unwrap();
-    let files = cache.hashed_project_files(&project).unwrap().unwrap();
-    let file = files.iter().find(|file| file.rel_path == "linked-input").expect("linked input");
+    let files = cache
+        .hashed_project_files(&project)
+        .unwrap()
+        .unwrap();
+    let file = files
+        .iter()
+        .find(|file| file.rel_path == "linked-input")
+        .expect("linked input");
     assert_eq!(file.hash, format!("symlink:{}", create_hex_hash_bytes(b"missing")));
 }
 
@@ -255,7 +280,10 @@ fn hashing_inputs_rejects_dangling_parent_symlinks() {
     fs::remove_file(project.join("dir/input")).unwrap();
     fs::remove_dir(project.join("dir")).unwrap();
     std::os::unix::fs::symlink("missing", project.join("dir")).unwrap();
-    let error = cache.hashed_project_files(&project).unwrap_err().to_string();
+    let error = cache
+        .hashed_project_files(&project)
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("symlink") && error.contains("dir"), "{error}");
 }
 
@@ -267,8 +295,14 @@ fn hashing_inputs_covers_a_leaf_symlink_without_following_it() {
     let outside = root.path().join("outside-input");
     fs::write(&outside, "external source").unwrap();
     std::os::unix::fs::symlink(&outside, project.join("linked-input")).unwrap();
-    let files = cache.hashed_project_files(&project).unwrap().unwrap();
-    let file = files.iter().find(|file| file.rel_path == "linked-input").expect("linked input");
+    let files = cache
+        .hashed_project_files(&project)
+        .unwrap()
+        .unwrap();
+    let file = files
+        .iter()
+        .find(|file| file.rel_path == "linked-input")
+        .expect("linked input");
     assert_eq!(
         file.hash,
         format!("symlink:{}", create_hex_hash_bytes(outside.as_os_str().as_encoded_bytes())),
@@ -282,9 +316,18 @@ fn hashing_inputs_rejects_symlinked_project_roots() {
     let (root, _repo, cache) = setup_input_cache();
     let link = root.path().join("linked-project");
     std::os::unix::fs::symlink(root.path().join("inputs-src"), &link).unwrap();
-    let error = cache.hashed_project_files(&link).unwrap_err().to_string();
+    let error = cache
+        .hashed_project_files(&link)
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("symlink") && error.contains("linked-project"), "{error}");
-    assert!(cache.project_files.lock().unwrap().is_empty(), "unsafe inputs must not be cached");
+    assert!(
+        cache.project_files
+            .lock()
+            .unwrap()
+            .is_empty(),
+        "unsafe inputs must not be cached",
+    );
 }
 
 #[cfg(unix)]
@@ -301,7 +344,16 @@ fn hashing_inputs_rejects_valid_parent_symlinks() {
     fs::create_dir(&outside).unwrap();
     fs::write(outside.join("input"), "external source").unwrap();
     std::os::unix::fs::symlink(&outside, project.join("dir")).unwrap();
-    let error = cache.hashed_project_files(&project).unwrap_err().to_string();
+    let error = cache
+        .hashed_project_files(&project)
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("symlink") && error.contains("dir"), "{error}");
-    assert!(cache.project_files.lock().unwrap().is_empty(), "unsafe inputs must not be cached");
+    assert!(
+        cache.project_files
+            .lock()
+            .unwrap()
+            .is_empty(),
+        "unsafe inputs must not be cached",
+    );
 }

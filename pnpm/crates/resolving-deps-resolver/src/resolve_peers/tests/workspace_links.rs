@@ -51,13 +51,18 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
         false,
         false,
         ResolvePeersOptions {
-            hoisted_peer_provider_node_ids: HashSet::from_iter([prov]),
+            scope: crate::PeerResolutionScope {
+                hoisted_peer_provider_node_ids: HashSet::from_iter([prov]),
+                ..Default::default()
+            },
             ..ResolvePeersOptions::default()
         },
     );
 
     assert_eq!(
-        result.direct_dependencies_by_importer.get(".").and_then(|deps| deps.get("prov")),
+        result.direct_dependencies_by_importer
+            .get(".")
+            .and_then(|deps| deps.get("prov")),
         Some(&DepPath::from("prov@1.0.0")),
         "the pruned provider must get a depPath from the fallback",
     );
@@ -94,8 +99,11 @@ fn single_importer_link_is_rendered_relative_to_project_root() {
     let result = resolve_peers(
         &mut tree,
         ResolvePeersOptions {
-            lockfile_dir: Some(std::path::PathBuf::from("/repo")),
             project_dir: Some(std::path::PathBuf::from("/repo/apps/nested/app")),
+            links: crate::PeerLinkOptions {
+                lockfile_dir: Some(std::path::PathBuf::from("/repo")),
+                ..Default::default()
+            },
             ..ResolvePeersOptions::default()
         },
     );

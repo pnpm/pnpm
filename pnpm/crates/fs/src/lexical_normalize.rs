@@ -47,11 +47,14 @@ pub fn lexical_normalize(path: &Path) -> PathBuf {
 #[must_use]
 pub fn lexical_normalize_posix(path: &str) -> String {
     let root = path.starts_with('/').then_some(Component::RootDir);
-    let components = path.split('/').filter(|part| !part.is_empty()).map(|part| match part {
-        "." => Component::CurDir,
-        ".." => Component::ParentDir,
-        _ => Component::Normal(OsStr::new(part)),
-    });
+    let components = path
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .map(|part| match part {
+            "." => Component::CurDir,
+            ".." => Component::ParentDir,
+            _ => Component::Normal(OsStr::new(part)),
+        });
     let mut normalized = String::with_capacity(path.len());
     for component in normalize_components(root.into_iter().chain(components)) {
         push_posix_component(&mut normalized, component);
@@ -74,7 +77,12 @@ fn push_posix_component(normalized: &mut String, component: Component<'_>) {
     if !normalized.is_empty() && !normalized.ends_with('/') {
         normalized.push('/');
     }
-    normalized.push_str(component.as_os_str().to_str().expect("components came from UTF-8"));
+    normalized.push_str(
+        component
+            .as_os_str()
+            .to_str()
+            .expect("components came from UTF-8"),
+    );
 }
 
 fn normalize_components<'path>(

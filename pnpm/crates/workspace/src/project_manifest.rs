@@ -124,13 +124,16 @@ pub fn read_exact_project_manifest(
 }
 
 fn read_package_yaml(path: &Path) -> Result<PackageManifest, ReadProjectManifestError> {
-    let text = fs::read_to_string(path).map_err(|source| ReadProjectManifestError::ReadFile {
-        path: path.to_path_buf(),
-        source,
-    })?;
-    let value = serde_saphyr::from_str(&text).map_err(|source| {
-        ReadProjectManifestError::ParseYaml { path: path.to_path_buf(), source: Box::new(source) }
-    })?;
+    let text = fs::read_to_string(path)
+        .map_err(|source| ReadProjectManifestError::ReadFile {
+            path: path.to_path_buf(),
+            source,
+        })?;
+    let value = serde_saphyr::from_str(&text)
+        .map_err(|source| ReadProjectManifestError::ParseYaml {
+            path: path.to_path_buf(),
+            source: Box::new(source),
+        })?;
     Ok(PackageManifest::from_value(path.to_path_buf(), value))
 }
 

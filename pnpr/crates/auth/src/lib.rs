@@ -170,9 +170,15 @@ impl AuthState {
     pub async fn load(auth: &AuthConfig, backend: &BackendConfig) -> Result<Self> {
         match backend {
             BackendConfig::Local => {}
-            BackendConfig::Libsql(settings) => return Self::load_libsql(auth, settings).await,
-            BackendConfig::Postgres(settings) => return Self::load_postgres(auth, settings).await,
-            BackendConfig::Mysql(settings) => return Self::load_mysql(auth, settings).await,
+            BackendConfig::Libsql(settings) => {
+                return Self::load_libsql(auth, settings).await;
+            }
+            BackendConfig::Postgres(settings) => {
+                return Self::load_postgres(auth, settings).await;
+            }
+            BackendConfig::Mysql(settings) => {
+                return Self::load_mysql(auth, settings).await;
+            }
         }
         Self::load_local(auth)
     }
@@ -368,9 +374,11 @@ impl UserStore {
     /// by tests that want sub-100ms hashing.
     pub fn open_with_cost(path: PathBuf, max_users: MaxUsers, bcrypt_cost: u32) -> Result<Self> {
         let users = match std::fs::read_to_string(&path) {
-            Ok(raw) => parse_htpasswd(&raw).map_err(|reason| {
-                RegistryError::InvalidHtpasswdFile { path: path.display().to_string(), reason }
-            })?,
+            Ok(raw) => parse_htpasswd(&raw)
+                .map_err(|reason| RegistryError::InvalidHtpasswdFile {
+                    path: path.display().to_string(),
+                    reason,
+                })?,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => HashMap::new(),
             Err(err) => return Err(err.into()),
         };
@@ -382,7 +390,10 @@ impl UserStore {
         match self.max_users {
             MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
             MaxUsers::Limited(max) => {
-                let current = self.users.lock().expect("UserStore mutex poisoned").len() as u64;
+                let current = self.users
+                    .lock()
+                    .expect("UserStore mutex poisoned")
+                    .len() as u64;
                 if current >= max {
                     return Err(RegistryError::TooManyUsers { max });
                 }

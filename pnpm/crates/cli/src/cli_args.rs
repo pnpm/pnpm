@@ -35,6 +35,7 @@ pub mod ignored_builds;
 pub mod import;
 pub mod init;
 pub mod install;
+pub mod install_options;
 pub mod install_test;
 pub mod lane;
 pub(crate) mod legacy_pnpm_field;

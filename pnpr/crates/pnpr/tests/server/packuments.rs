@@ -31,11 +31,18 @@ async fn packument_is_proxied_cached_and_rewritten() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.public_url = "http://example.test".to_string();
+    config.http.public_url = "http://example.test".to_string();
     let app = router(config);
 
-    let response =
-        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(
@@ -44,8 +51,15 @@ async fn packument_is_proxied_cached_and_rewritten() {
     );
     assert_eq!(body["versions"]["1.0.0"]["dist"]["shasum"], "deadbeef");
 
-    let cached =
-        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let cached = app
+        .clone()
+        .oneshot(
+            Request::get("/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(cached.status(), StatusCode::OK);
 
     packument_mock.assert_async().await;
@@ -112,10 +126,20 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
     // The fractional `time.modified` rounds *up*: the header must stay
     // an upper bound on the publish time for release-age checks.
     let expected = "Sun, 21 Jun 2026 12:00:01 GMT";
-    let get = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let get = app
+        .clone()
+        .oneshot(
+            Request::get("/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(get.status(), StatusCode::OK);
     assert_eq!(
-        get.headers().get("last-modified").and_then(|value| value.to_str().ok()),
+        get.headers()
+            .get("last-modified")
+            .and_then(|value| value.to_str().ok()),
         Some(expected),
     );
 
@@ -123,25 +147,57 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
     // so a client can read the bound without downloading the document.
     let head = app
         .clone()
-        .oneshot(Request::builder().method("HEAD").uri("/foo").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .method("HEAD")
+                .uri("/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(head.status(), StatusCode::OK);
     assert_eq!(
-        head.headers().get("last-modified").and_then(|value| value.to_str().ok()),
+        head.headers()
+            .get("last-modified")
+            .and_then(|value| value.to_str().ok()),
         Some(expected),
     );
 
     // A document without a parsable `time.modified` omits the header
     // instead of guessing — absent and garbled values alike.
-    let no_time =
-        app.clone().oneshot(Request::get("/bare").body(Body::empty()).unwrap()).await.unwrap();
+    let no_time = app
+        .clone()
+        .oneshot(
+            Request::get("/bare")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(no_time.status(), StatusCode::OK);
-    assert!(no_time.headers().get("last-modified").is_none());
-    let unparsable =
-        app.clone().oneshot(Request::get("/garbled").body(Body::empty()).unwrap()).await.unwrap();
+    assert!(
+        no_time
+            .headers()
+            .get("last-modified")
+            .is_none(),
+    );
+    let unparsable = app
+        .clone()
+        .oneshot(
+            Request::get("/garbled")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(unparsable.status(), StatusCode::OK);
-    assert!(unparsable.headers().get("last-modified").is_none());
+    assert!(
+        unparsable
+            .headers()
+            .get("last-modified")
+            .is_none(),
+    );
 }
 
 #[tokio::test]
@@ -179,12 +235,19 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("foo", &["1.1.0"]);
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.resolver.enabled = false;
+    config.features.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
 
-    let first =
-        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let first = app
+        .clone()
+        .oneshot(
+            Request::get("/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(first.status(), StatusCode::OK);
     let body = body_json(first.into_body()).await;
     assert!(body["versions"].get("1.1.0").is_none());
@@ -193,8 +256,15 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     assert!(body["dist-tags"].get("latest").is_none());
     assert_eq!(body["dist-tags"]["stable"], "1.0.0");
 
-    let cached =
-        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let cached = app
+        .clone()
+        .oneshot(
+            Request::get("/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(cached.status(), StatusCode::OK);
     let cached_body = body_json(cached.into_body()).await;
     assert!(cached_body["versions"].get("1.1.0").is_none());
@@ -202,18 +272,36 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     assert!(cached_body["dist-tags"].get("latest").is_none());
     assert_eq!(cached_body["dist-tags"]["stable"], "1.0.0");
 
-    let vulnerable_manifest =
-        app.clone().oneshot(Request::get("/foo/1.1.0").body(Body::empty()).unwrap()).await.unwrap();
+    let vulnerable_manifest = app
+        .clone()
+        .oneshot(
+            Request::get("/foo/1.1.0")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(vulnerable_manifest.status(), StatusCode::NOT_FOUND);
 
-    let safe_manifest =
-        app.clone().oneshot(Request::get("/foo/1.0.0").body(Body::empty()).unwrap()).await.unwrap();
+    let safe_manifest = app
+        .clone()
+        .oneshot(
+            Request::get("/foo/1.0.0")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(safe_manifest.status(), StatusCode::OK);
     let safe_body = body_json(safe_manifest.into_body()).await;
     assert_eq!(safe_body["version"], "1.0.0");
 
     let dist_tags = app
-        .oneshot(Request::get("/-/package/foo/dist-tags").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/package/foo/dist-tags")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(dist_tags.status(), StatusCode::OK);
@@ -271,12 +359,19 @@ async fn osv_filters_packument_identity_mismatches() {
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("foo", &["1.1.0", "1.2.0"]);
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.resolver.enabled = false;
+    config.features.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
 
-    let response =
-        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
     let versions = body["versions"].as_object().unwrap();
@@ -290,18 +385,33 @@ async fn osv_filters_packument_identity_mismatches() {
     assert!(time.contains_key("modified"));
     assert!(time.contains_key("1.0.0"));
 
-    let vulnerable_key_manifest =
-        app.clone().oneshot(Request::get("/foo/1.1.0").body(Body::empty()).unwrap()).await.unwrap();
+    let vulnerable_key_manifest = app
+        .clone()
+        .oneshot(
+            Request::get("/foo/1.1.0")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(vulnerable_key_manifest.status(), StatusCode::NOT_FOUND);
     let vulnerable_manifest_version = app
         .clone()
-        .oneshot(Request::get("/foo/safe-key").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/foo/safe-key")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(vulnerable_manifest_version.status(), StatusCode::NOT_FOUND);
 
     let dist_tags = app
-        .oneshot(Request::get("/-/package/foo/dist-tags").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/package/foo/dist-tags")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(dist_tags.status(), StatusCode::OK);
@@ -326,17 +436,32 @@ async fn packument_is_refetched_after_ttl_expires() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.packument_ttl = Duration::from_millis(50);
+    config.http.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
-    let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let r1 = app
+        .clone()
+        .oneshot(
+            Request::get("/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(r1.status(), StatusCode::OK);
     let _ = body_bytes(r1.into_body()).await;
 
     // Wait past the TTL so the cached packument is stale.
     tokio::time::sleep(Duration::from_millis(120)).await;
 
-    let r2 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let r2 = app
+        .oneshot(
+            Request::get("/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(r2.status(), StatusCode::OK);
 
     // Mock asserts exactly 2 upstream calls were made.
@@ -360,13 +485,19 @@ async fn packument_is_gzipped_for_clients_that_accept_it() {
 
     let response = app
         .oneshot(
-            Request::get("/foo").header("accept-encoding", "gzip").body(Body::empty()).unwrap(),
+            Request::get("/foo")
+                .header("accept-encoding", "gzip")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
-        response.headers().get("content-encoding").and_then(|value| value.to_str().ok()),
+        response
+            .headers()
+            .get("content-encoding")
+            .and_then(|value| value.to_str().ok()),
         Some("gzip"),
         "a packument should be gzipped when the client accepts gzip",
     );
@@ -399,10 +530,20 @@ async fn packument_is_not_gzipped_without_accept_encoding() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
-    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert!(
-        response.headers().get("content-encoding").is_none(),
+        response
+            .headers()
+            .get("content-encoding")
+            .is_none(),
         "no Accept-Encoding means the packument is served uncompressed",
     );
     let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();

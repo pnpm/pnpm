@@ -240,7 +240,10 @@ impl GitCommandLog {
         fs::create_dir_all(&bin_dir).unwrap();
         let bin = bin_dir.join("git");
         let log = bin_dir.join("acquisitions.log");
-        let output = Command::new("sh").args(["-c", "command -v git"]).output().unwrap();
+        let output = Command::new("sh")
+            .args(["-c", "command -v git"])
+            .output()
+            .unwrap();
         assert!(output.status.success(), "locate git: {output:?}");
         let git = String::from_utf8(output.stdout).unwrap();
         fs::write(bin_dir.join("real-git"), git.trim()).unwrap();
@@ -261,6 +264,10 @@ exec "$real_git" "$@"
 
     #[must_use]
     pub fn acquisitions(&self) -> Vec<PathBuf> {
-        fs::read_to_string(&self.log).unwrap().lines().map(PathBuf::from).collect()
+        fs::read_to_string(&self.log)
+            .unwrap()
+            .lines()
+            .map(PathBuf::from)
+            .collect()
     }
 }

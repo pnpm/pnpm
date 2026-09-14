@@ -167,8 +167,9 @@ fn setup_patch_remove_project(
     }
     workspace_yaml.push_str("patchedDependencies:\n");
     for (key, patch_file) in entries {
-        writeln!(&mut workspace_yaml, "  {key}: {patch_file}")
-            .expect("append patchedDependencies entry");
+        writeln!(&mut workspace_yaml, "  {key}: {patch_file}").expect(
+            "append patchedDependencies entry",
+        );
     }
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
     (root, workspace, npmrc_info)
@@ -224,8 +225,7 @@ fn read_wanted_lockfile(workspace: &Path) -> pnpm_lockfile::Lockfile {
 }
 
 fn snapshot_keys(lockfile: &pnpm_lockfile::Lockfile) -> Vec<String> {
-    let mut keys: Vec<String> = lockfile
-        .snapshots
+    let mut keys: Vec<String> = lockfile.snapshots
         .as_ref()
         .expect("the lockfile records snapshots")
         .keys()
@@ -246,7 +246,10 @@ fn is_positive_store_row(store_dir: &Path) -> pnpm_store_dir::PackageFilesIndex 
         .into_iter()
         .find(|key| key.ends_with("\tis-positive@1.0.0"))
         .expect("a store index row for is-positive@1.0.0");
-    index.get(&row_key).expect("read the store index row").expect("the row is present")
+    index
+        .get(&row_key)
+        .expect("read the store index row")
+        .expect("the row is present")
 }
 
 /// Assert the store kept the patched `index.js` as a side-effects overlay
@@ -270,8 +273,7 @@ fn assert_patched_side_effects_cached(store_dir: &Path, patch_hash: &str) {
             )
         });
 
-    let cached = diff
-        .added
+    let cached = diff.added
         .as_ref()
         .expect("the patched files land in `added`")
         .get("index.js")
@@ -598,7 +600,10 @@ fn patch_errors_when_existing_patch_file_is_missing() {
 fn patch_rejects_existing_patch_file_outside_patches_dir() {
     let (root, workspace, npmrc_info) = setup_installed();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    let outside_patch = workspace.parent().expect("workspace parent").join("outside.patch");
+    let outside_patch = workspace
+        .parent()
+        .expect("workspace parent")
+        .join("outside.patch");
     fs::write(&outside_patch, IS_POSITIVE_PATCH).expect("write outside patch");
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_yaml =
@@ -631,7 +636,10 @@ fn patch_exact_version_creates_edit_dir_and_state() {
     assert!(edit_dir.join("package.json").is_file(), "edit dir package.json exists");
     assert!(edit_dir.join("index.js").is_file(), "edit dir package files exist");
 
-    let key = dunce::canonicalize(&edit_dir).expect("canonical edit dir").display().to_string();
+    let key = dunce::canonicalize(&edit_dir)
+        .expect("canonical edit dir")
+        .display()
+        .to_string();
     let state = patch_state(&workspace);
     assert_eq!(state[&key]["patchedPkg"], "is-positive@1.0.0");
     assert_eq!(state[&key]["applyToAll"], false);
@@ -671,7 +679,10 @@ fn patch_bare_name_single_version_sets_apply_to_all() {
     pacquet(&workspace, ["patch", "is-positive", "--reporter=silent"]).assert().success();
 
     let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
-    let key = dunce::canonicalize(&edit_dir).expect("canonical edit dir").display().to_string();
+    let key = dunce::canonicalize(&edit_dir)
+        .expect("canonical edit dir")
+        .display()
+        .to_string();
     let state = patch_state(&workspace);
     assert_eq!(state[&key]["patchedPkg"], "is-positive");
     assert_eq!(state[&key]["applyToAll"], true);
@@ -731,7 +742,10 @@ fn patch_accepts_empty_custom_edit_dir() {
     assert!(edit_dir.join("package.json").is_file(), "custom edit dir package.json exists");
     assert!(edit_dir.join("index.js").is_file(), "custom edit dir package file exists");
 
-    let key = dunce::canonicalize(&edit_dir).expect("canonical edit dir").display().to_string();
+    let key = dunce::canonicalize(&edit_dir)
+        .expect("canonical edit dir")
+        .display()
+        .to_string();
     let state = patch_state(&workspace);
     assert_eq!(state[&key]["patchedPkg"], "is-positive@1.0.0");
     assert_eq!(state[&key]["packageKey"], "is-positive@1.0.0");
@@ -768,8 +782,9 @@ fn setup_configured_patch_with_allow_unused(
     }
     workspace_yaml.push_str("patchedDependencies:\n");
     for (key, file_name) in entries {
-        writeln!(&mut workspace_yaml, "  {key}: patches/{file_name}")
-            .expect("append patchedDependencies entry");
+        writeln!(&mut workspace_yaml, "  {key}: patches/{file_name}").expect(
+            "append patchedDependencies entry",
+        );
     }
     if allow_unused {
         workspace_yaml.push_str("allowUnusedPatches: true\n");

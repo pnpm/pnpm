@@ -8,9 +8,13 @@
 //! form. The command name is `pipeline` because `pnpm ci` is already the
 //! clean-install command.
 
+pub(crate) use agent::WatchPolling;
 pub use agent::{WatchInvocation, run_watch};
+pub use arguments::{PipelineReportArgs, WatchArgs};
 pub use report::RunUpload;
 pub use selection::{Selection, SelectionMode};
+
+mod arguments;
 
 use super::{
     install::InstallArgs,
@@ -81,66 +85,30 @@ pub struct PipelineArgs {
     /// The pipeline to run, from the `pipelines` section of
     /// `pnpm-workspace.yaml`. Defaults to "default".
     pub name: Option<String>,
-
     /// The install `pnpm pipeline` performs first is always a frozen
     /// install; these flags tune the rest of it. `--dry-run` prints the
     /// task graph without installing or running anything.
     #[clap(flatten)]
     pub install_args: InstallArgs,
-
     /// With `--dry-run`, print the tasks and their resolved dependency
     /// edges as JSON.
     #[clap(long)]
     pub json: bool,
-
     /// Run every task without reading or writing cached results or Cargo snapshots.
     #[clap(long = "no-cache")]
     pub no_cache: bool,
-
     /// Run the pipeline over every workspace project instead of the
     /// affected-since-base selection.
     #[clap(long)]
     pub full: bool,
-
     /// The git ref the affected selection diffs against (its merge base
     /// with HEAD). Overrides the `pipelineBase` setting.
     #[clap(long)]
     pub base: Option<String>,
-
-    /// Publish the run's summary and event stream to the configured pnpr
-    /// server (the `pnprServer` setting) once the run settles.
-    #[clap(long)]
-    pub report: bool,
-
-    /// Publish the run to this pnpr server instead of the `pnprServer`
-    /// setting — which also drives install offloading, so a server that
-    /// only stores runs is better named here.
-    #[clap(long = "report-to", value_name = "URL")]
-    pub report_to: Option<String>,
-
-    /// Watch a git repository and run the pipeline for every new revision
-    /// of a branch, instead of running once against the current
-    /// directory.
-    #[clap(long, requires = "repo")]
-    pub watch: bool,
-
-    /// The repository the watch agent polls and builds — a URL or a local
-    /// path, anything git accepts as a remote.
-    #[clap(long, value_name = "REPO")]
-    pub repo: Option<String>,
-
-    /// The branch the watch agent follows.
-    #[clap(long, default_value = "main", value_name = "NAME")]
-    pub branch: String,
-
-    /// Seconds between polls of the watched repository.
-    #[clap(long, default_value_t = 30, value_name = "SECONDS", value_parser = clap::value_parser!(u64).range(1..))]
-    pub interval: u64,
-
-    /// With `--watch`: poll once, build if there is a new revision, and
-    /// exit.
-    #[clap(long, requires = "watch")]
-    pub once: bool,
+    #[clap(flatten)]
+    pub agent: WatchArgs,
+    #[clap(flatten)]
+    pub reporting: PipelineReportArgs,
 }
 
 /// The pipeline-specific inputs of one invocation, split off
@@ -288,7 +256,11 @@ impl<'a> PipelineRun<'a> {
         let Some(requested_tasks) = self.config.pipelines.get(name) else {
             return Err(PipelineError::UnknownPipeline {
                 name: name.to_string(),
-                available: self.config.pipelines.keys().cloned().collect::<Vec<_>>().join(", "),
+                available: self.config.pipelines
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", "),
             }
             .into());
         };
@@ -333,15 +305,11 @@ impl<'a> PipelineRun<'a> {
             cache: &cache,
             task_keys: &task_keys,
             report: plan.report,
-            init_cwd: env::current_dir().unwrap_or_else(|_| self.dir.to_path_buf()),
-            base_extra_env: self.config.extra_env_with_node_options(),
-            statuses: Mutex::new(
-                task_graph
-                    .keys()
-                    .map(|key| (format_task(key, self.workspace_root), ExecutionStatus::queued()))
-                    .collect(),
-            ),
-            abort: Mutex::new(None),
+            environment: PipelineEnvironment {
+                init_cwd: env::current_dir().unwrap_or_else(|_| self.dir.to_path_buf()),
+                extra_env: self.config.extra_env_with_node_options(),
+            },
+            results: PipelineResults::new(&task_graph, self.workspace_root),
         };
         runner.schedule(&task_graph);
 
@@ -376,8 +344,7 @@ impl<'a> PipelineRun<'a> {
     /// The task graph over the selection: the requested projects' tasks
     /// plus the `dependsOn` edges into the rest of the selected projects.
     fn task_graph(&self, plan: &PipelinePlan<'_, '_>) -> TaskGraph {
-        let selected_graph: ProjectGraph<GraphPkg<'_>> = plan
-            .graph
+        let selected_graph: ProjectGraph<GraphPkg<'_>> = plan.graph
             .iter()
             .filter(|(root, _)| plan.selection.selected.contains(root.as_path()))
             .map(|(root, node)| (root.clone(), node.clone()))
@@ -392,7 +359,10 @@ impl<'a> PipelineRun<'a> {
                 Err(_) => Vec::new(),
             }
         };
-        let task_names: Vec<&str> = plan.requested_tasks.iter().map(String::as_str).collect();
+        let task_names: Vec<&str> = plan.requested_tasks
+            .iter()
+            .map(String::as_str)
+            .collect();
         build_pipeline_task_graph(&BuildPipelineTaskGraphOptions {
             project_dependencies: &project_dependencies,
             select_scripts,
@@ -429,8 +399,16 @@ struct TaskRunner<'a, 'graph> {
     cache: &'a TaskCache,
     task_keys: &'a HashMap<TaskKey, Option<String>>,
     report: &'a RunReport,
+    environment: PipelineEnvironment,
+    results: PipelineResults,
+}
+
+pub(crate) struct PipelineEnvironment {
     init_cwd: PathBuf,
-    base_extra_env: HashMap<String, String>,
+    extra_env: HashMap<String, String>,
+}
+
+pub(crate) struct PipelineResults {
     statuses: Mutex<IndexMap<String, ExecutionStatus>>,
     abort: Mutex<Option<miette::Report>>,
 }
@@ -460,30 +438,36 @@ impl TaskRunner<'_, '_> {
             invocation: self.run.invocation,
             cache: self.cache,
             task_key: self.task_keys.get(&key).and_then(Option::as_deref),
-            init_cwd: &self.init_cwd,
-            base_extra_env: &self.base_extra_env,
-            emit: self.run.emit,
-            silent: self.run.silent,
-            report: self.report,
-            summary_key: &summary_key,
+            environment: crate::cli_args::pipeline::execution::TaskEnvironment {
+                init_cwd: &self.environment.init_cwd,
+                extra_env: &self.environment.extra_env,
+            },
+            reporting: crate::cli_args::pipeline::execution::TaskReporting {
+                emit: self.run.emit,
+                silent: self.run.silent,
+                report: self.report,
+                summary_key: &summary_key,
+            },
         });
-        record_task_outcome(&self.statuses, &self.abort, &summary_key, outcome)
+        record_task_outcome(&self.results.statuses, &self.results.abort, &summary_key, outcome)
     }
 
     fn skip_task(&self, node: &TaskNode) {
         let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
         let summary_key = format_task(&key, self.run.workspace_root);
-        self.statuses.lock().expect("status lock is not poisoned")[&summary_key].status =
+        self.results.statuses.lock().expect("status lock is not poisoned")[&summary_key].status =
             Status::Skipped;
         self.report.task_skipped(&summary_key);
     }
 
     /// The settled statuses, unless a task could not run at all.
     fn finish(self) -> miette::Result<IndexMap<String, ExecutionStatus>> {
-        if let Some(error) = self.abort.into_inner().expect("abort slot lock is not poisoned") {
+        if let Some(error) =
+            self.results.abort.into_inner().expect("abort slot lock is not poisoned")
+        {
             return Err(error);
         }
-        Ok(self.statuses.into_inner().expect("status lock is not poisoned"))
+        Ok(self.results.statuses.into_inner().expect("status lock is not poisoned"))
     }
 }
 
@@ -496,8 +480,7 @@ fn pipeline_data_dir(config: &Config, workspace_root: &Path) -> PathBuf {
 }
 
 fn pipeline_base(invocation: &PipelineInvocation, config: &Config) -> String {
-    invocation
-        .base
+    invocation.base
         .clone()
         .or_else(|| config.pipeline_base.clone())
         .unwrap_or_else(|| DEFAULT_PIPELINE_BASE.to_string())

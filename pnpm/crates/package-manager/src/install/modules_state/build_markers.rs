@@ -10,7 +10,9 @@ pub(in super::super) fn gvs_build_markers_may_require_recovery(config: &Config) 
     config.enable_global_virtual_store
         && (config.dangerously_allow_all_builds
             || config.allow_builds.values().any(|allowed| *allowed)
-            || config.patched_dependencies.as_ref().is_some_and(|patches| !patches.is_empty()))
+            || config.patched_dependencies
+                .as_ref()
+                .is_some_and(|patches| !patches.is_empty()))
 }
 /// Probe the buildable or patched GVS slots this lockfile resolves to.
 /// Markers in sibling hash directories belong to other dependency graphs and
@@ -73,8 +75,7 @@ pub(super) fn sibling_store_marker(
 ) -> MarkerProbe {
     let mut visited_version_dirs = HashSet::new();
     for &snapshot_key in eligible_snapshots {
-        let metadata = wanted
-            .packages
+        let metadata = wanted.packages
             .as_ref()
             .and_then(|packages| packages.get(&snapshot_key.without_peer()));
         let Some(version_dir) = crate::global_virtual_store_version_dir(

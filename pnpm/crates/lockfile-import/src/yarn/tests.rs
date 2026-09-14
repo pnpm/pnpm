@@ -7,7 +7,10 @@ use super::{YarnSyntaxError, collect_yarn_lockfile_versions};
 fn collect(contents: &str) -> Vec<(String, Vec<String>)> {
     let mut versions = VersionsByPackageName::new();
     collect_yarn_lockfile_versions(contents, &mut versions).expect("parse yarn.lock");
-    versions.into_iter().map(|(name, versions)| (name, versions.into_iter().collect())).collect()
+    versions
+        .into_iter()
+        .map(|(name, versions)| (name, versions.into_iter().collect()))
+        .collect()
 }
 
 fn collect_err(contents: &str) -> YarnSyntaxError {

@@ -24,8 +24,7 @@ impl DocsArgs {
 }
 
 fn documentation_url_from_manifest(manifest: &PackageVersion) -> String {
-    manifest
-        .other
+    manifest.other
         .get("homepage")
         .and_then(serde_json::Value::as_str)
         .filter(|homepage| is_http_url(homepage))
@@ -44,14 +43,15 @@ fn open_url<Sys: OpenUrl>(url: &str) -> miette::Result<()> {
     match Sys::open_url(url) {
         Ok(()) => Ok(()),
         Err(e) => {
-            let redacted = url::Url::parse(url).map_or_else(
-                |_| url.to_string(),
-                |mut parsed_url| {
-                    let _ = parsed_url.set_username("");
-                    let _ = parsed_url.set_password(None);
-                    parsed_url.to_string()
-                },
-            );
+            let redacted = url::Url::parse(url)
+                .map_or_else(
+                    |_| url.to_string(),
+                    |mut parsed_url| {
+                        let _ = parsed_url.set_username("");
+                        let _ = parsed_url.set_password(None);
+                        parsed_url.to_string()
+                    },
+                );
             eprintln!("Could not open browser: {e}");
             println!("{redacted}");
             Ok(())

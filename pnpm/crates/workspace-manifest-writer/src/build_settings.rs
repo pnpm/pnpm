@@ -65,7 +65,7 @@ where
 
     let entries: Vec<(&str, bool)> = entries.into_iter().collect();
     if !entries.is_empty()
-        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["allowBuilds"]])
+        && let Some(key) = unsupported_inline_key(manifest.document.text(), &[&["allowBuilds"]])
     {
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }
@@ -129,7 +129,7 @@ where
 
     let names: Vec<&str> = names.into_iter().collect();
     if !names.is_empty()
-        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["allowBuilds"]])
+        && let Some(key) = unsupported_inline_key(manifest.document.text(), &[&["allowBuilds"]])
     {
         return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
     }

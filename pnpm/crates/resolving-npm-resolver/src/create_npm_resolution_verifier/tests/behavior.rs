@@ -45,7 +45,7 @@ async fn rejects_an_explicit_zero_current_revision() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(1);
+    opts.release_age.minimum_minutes = Some(1);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = tarball_resolution(
         &format!("{registry}revision-pkg/-/revision-pkg-1.0.0.tgz"),
@@ -86,7 +86,7 @@ async fn rejects_a_non_numeric_current_revision() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(1);
+    opts.release_age.minimum_minutes = Some(1);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = tarball_resolution(
         &format!("{registry}revision-pkg/-/revision-pkg-1.0.0.tgz"),
@@ -138,7 +138,7 @@ async fn accepts_an_advertised_historical_revision() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(1);
+    opts.release_age.minimum_minutes = Some(1);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Registry(RegistryResolution {
         integrity: revision_integrity(REVISION_ONE_DIGEST),
@@ -151,7 +151,7 @@ async fn accepts_an_advertised_historical_revision() {
 #[tokio::test]
 async fn verify_short_circuits_non_registry_resolution() {
     let mut opts = default_opts("https://registry.example/");
-    opts.minimum_release_age = Some(60 * 24 * 365);
+    opts.release_age.minimum_minutes = Some(60 * 24 * 365);
     let verifier = create_npm_resolution_verifier(opts);
     let directory = LockfileResolution::Directory(pnpm_lockfile::DirectoryResolution {
         directory: "/some/path".into(),
@@ -180,7 +180,11 @@ async fn git_hosted_archive_url_stays_exempt_without_the_flag() {
 async fn unplanned_entry_sends_no_head_probe() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
-    let _head_mock = server.mock("HEAD", "/acme").expect(0).create_async().await;
+    let _head_mock = server
+        .mock("HEAD", "/acme")
+        .expect(0)
+        .create_async()
+        .await;
     // The metadata-backed chain answers instead: the abbreviated
     // `modified` shortcut passes on an old package whose pinned
     // version the versions map still lists.
@@ -192,17 +196,19 @@ async fn unplanned_entry_sends_no_head_probe() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24);
+    opts.release_age.minimum_minutes = Some(60 * 24);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let planned = pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
     planned
         .set(std::collections::HashSet::from([("other".to_string(), "2.0.0".to_string(), None)]))
         .expect("first fill");
-    opts.planned_canonical_fetches = Some(std::sync::Arc::clone(&planned));
+    opts.artifacts.canonical_fetches = Some(std::sync::Arc::clone(&planned));
     let verifier = create_npm_resolution_verifier(opts);
-    let result = verifier
-        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"))
-        .await;
+    let result = verifier.verify(
+        &registry_resolution(),
+        ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"),
+    )
+    .await;
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
@@ -250,7 +256,7 @@ async fn verify_routes_via_named_registry_prefix() {
     // would fail with a connection error instead of finding the mock.
     let mut opts = default_opts("http://nonexistent.example.invalid/");
     opts.registries_by_prefix = named;
-    opts.minimum_release_age = Some(60 * 24);
+    opts.release_age.minimum_minutes = Some(60 * 24);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let tarball = LockfileResolution::Tarball(TarballResolution {
@@ -271,17 +277,17 @@ async fn verify_routes_via_named_registry_prefix() {
 #[test]
 fn policy_snapshot_records_all_fields_sorted_and_deduped() {
     let mut opts = default_opts("https://registry.example/");
-    opts.minimum_release_age = Some(60 * 24);
-    opts.minimum_release_age_exclude_patterns =
+    opts.release_age.minimum_minutes = Some(60 * 24);
+    opts.release_age.exclude_patterns =
         vec!["lodash".to_string(), "acme".to_string(), "lodash".to_string()];
-    opts.minimum_release_age_exclude = Some(
+    opts.release_age.exclude = Some(
         create_package_version_policy(["lodash".to_string(), "acme".to_string()]).expect("policy"),
     );
-    opts.trust_policy = Some(TrustPolicy::NoDowngrade);
-    opts.trust_policy_exclude_patterns = vec!["@scope/foo".to_string()];
-    opts.trust_policy_exclude =
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+    opts.trust.exclude_patterns = vec!["@scope/foo".to_string()];
+    opts.trust.exclude =
         Some(create_package_version_policy(["@scope/foo".to_string()]).expect("policy"));
-    opts.trust_policy_ignore_after = Some(60 * 24 * 30);
+    opts.trust.ignore_after = Some(60 * 24 * 30);
     let verifier = create_npm_resolution_verifier(opts);
 
     let policy = verifier.policy();
@@ -290,8 +296,10 @@ fn policy_snapshot_records_all_fields_sorted_and_deduped() {
     assert_eq!(policy.get("tarballUrlBinding").and_then(serde_json::Value::as_bool), Some(true));
     assert_eq!(policy.get("integrityRequired").and_then(serde_json::Value::as_bool), Some(true));
     assert_eq!(policy.get("minimumReleaseAge").and_then(serde_json::Value::as_u64), Some(60 * 24));
-    let min_age_excludes =
-        policy.get("minimumReleaseAgeExclude").and_then(|value| value.as_array()).expect("array");
+    let min_age_excludes = policy
+        .get("minimumReleaseAgeExclude")
+        .and_then(|value| value.as_array())
+        .expect("array");
     assert_eq!(
         min_age_excludes
             .iter()
@@ -335,14 +343,14 @@ async fn concurrent_verifications_share_one_fetch() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24); // 1 day
+    opts.release_age.minimum_minutes = Some(60 * 24); // 1 day
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let name: PkgName = "acme".parse().expect("parse");
     let resolution = registry_resolution();
-    let results = futures_util::future::join_all(
-        (0..16).map(|_| verifier.verify(&resolution, ctx(&name, "1.0.0"))),
-    )
+    let results = futures_util::future::join_all((0..16).map(|_| {
+        verifier.verify(&resolution, ctx(&name, "1.0.0"))
+    }))
     .await;
     for result in results {
         assert_eq!(result, ResolutionVerification::Ok);
@@ -396,7 +404,7 @@ async fn without_registry_supports_time_field_abbreviated_time_is_not_consulted(
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24);
+    opts.release_age.minimum_minutes = Some(60 * 24);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("{server_url}/aged-pkg/-/aged-pkg-1.0.0.tgz"),

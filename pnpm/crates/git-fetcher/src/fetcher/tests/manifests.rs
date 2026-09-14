@@ -14,27 +14,35 @@ async fn fetcher_handles_repo_without_package_json() {
 
     let repo_url = format!("file://{}", bare.display());
     let received = GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: &repo_url,
-        commit: &commit,
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: &repo_url,
+            commit: &commit,
+            path: None,
+            shallow_hosts: &[],
+            git_bin: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "anon@0.0.0\tbuilt",
+        },
+
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "anon@0.0.0",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "anon@0.0.0\tbuilt",
-        git_bin: None,
     }
     .run::<SilentReporter>()
     .await
@@ -58,27 +66,35 @@ async fn fetcher_rejects_untrusted_manifest_identity() {
     let allow_registry_artifacts_only: AllowBuildRef<'_> = &|dep_path| !dep_path.contains("://");
 
     let err = GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: &repo_url,
-        commit: &commit,
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: &repo_url,
+            commit: &commit,
+            path: None,
+            shallow_hosts: &[],
+            git_bin: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "git+file:///tmp/repo.git#abc123\tbuilt",
+        },
+
         allow_build: allow_registry_artifacts_only,
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "git+file:///tmp/repo.git#abc123",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "git+file:///tmp/repo.git#abc123\tbuilt",
-        git_bin: None,
     }
     .run::<SilentReporter>()
     .await
@@ -112,27 +128,35 @@ async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
         &|dep_path| dep_path == "x@git+file:///tmp/repo.git#abc123";
 
     let received = GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: &repo_url,
-        commit: &commit,
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: &repo_url,
+            commit: &commit,
+            path: None,
+            shallow_hosts: &[],
+            git_bin: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "git+file:///tmp/repo.git#abc123\tbuilt",
+        },
+
         allow_build: allow_dep_path,
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id,
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "git+file:///tmp/repo.git#abc123\tbuilt",
-        git_bin: None,
     }
     .run::<SilentReporter>()
     .await

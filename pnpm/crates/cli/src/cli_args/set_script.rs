@@ -74,7 +74,9 @@ fn reject_unsafe_key(key: &str) -> Result<(), SetScriptError> {
 /// the path.
 fn set_script(manifest: &mut Value, name: String, command: String) {
     let Some(manifest) = manifest.as_object_mut() else { return };
-    let scripts = manifest.entry("scripts").or_insert_with(|| Value::Object(Map::new()));
+    let scripts = manifest
+        .entry("scripts")
+        .or_insert_with(|| Value::Object(Map::new()));
     if !scripts.is_object() {
         *scripts = Value::Object(Map::new());
     }

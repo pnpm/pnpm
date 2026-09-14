@@ -10,7 +10,11 @@ use std::{
 };
 
 fn git(root: &Path, args: &[&str]) {
-    let output = Command::new("git").current_dir(root).args(args).output().unwrap();
+    let output = Command::new("git")
+        .current_dir(root)
+        .args(args)
+        .output()
+        .unwrap();
     assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
 }
 
@@ -94,7 +98,10 @@ fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
     assert_eq!(run_binary(&second_worktree), format!("one\n{}\n", second_worktree.display()));
 
     let source = second_worktree.join("src/main.rs");
-    let timestamp = fs::metadata(&source).unwrap().modified().unwrap();
+    let timestamp = fs::metadata(&source)
+        .unwrap()
+        .modified()
+        .unwrap();
     fs::write(
         &source,
         "fn main() { println!(\"two\"); println!(\"{}\", env!(\"BUILD_ROOT\")); }\n",

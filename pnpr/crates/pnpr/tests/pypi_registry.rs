@@ -112,15 +112,34 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert!(tmp.path().join("python/demo-pkg").join(filename).is_file());
-    assert!(std::fs::read_dir(tmp.path().join(".pnpr-journal")).unwrap().next().is_none());
+    assert!(
+        tmp.path()
+            .join("python/demo-pkg")
+            .join(filename)
+            .is_file(),
+    );
+    assert!(
+        std::fs::read_dir(tmp.path().join(".pnpr-journal"))
+            .unwrap()
+            .next()
+            .is_none(),
+    );
 
     // PEP 691 JSON, with the file URL pointing back at this registry.
-    let response = app.clone().oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/simple/demo-pkg/", Some(JSON)))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CONTENT_TYPE], JSON);
     // A public project through the default target stays cacheable.
-    assert!(response.headers().get(header::CACHE_CONTROL).is_none());
+    assert!(
+        response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .is_none(),
+    );
     let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(page["meta"]["api-version"], "1.1");
     assert_eq!(page["name"], "demo-pkg");
@@ -135,7 +154,11 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     assert!(file["upload-time"].is_string());
 
     // PEP 503 HTML for clients that do not ask for JSON.
-    let response = app.clone().oneshot(get("/pypi/simple/demo-pkg/", None)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/simple/demo-pkg/", None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CONTENT_TYPE], "text/html; charset=utf-8");
     let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
@@ -151,13 +174,25 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     assert!(html.contains(&expected_anchor), "{html}");
 
     // The trailing-slash-less form and the project list.
-    let response = app.clone().oneshot(get("/pypi/simple/demo-pkg", Some(JSON))).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/simple/demo-pkg", Some(JSON)))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let response = app.clone().oneshot(get("/pypi/simple/", Some(JSON))).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/simple/", Some(JSON)))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let list: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(list["projects"], json!([{ "name": "demo-pkg" }]));
-    let response = app.clone().oneshot(get("/pypi/simple", None)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/simple", None))
+        .await
+        .unwrap();
     let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(
         html.contains(&format!(r#"<a href="{PUBLIC_URL}/pypi/simple/demo-pkg/">demo-pkg</a>"#)),
@@ -165,19 +200,29 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     );
 
     // A non-normalized spelling redirects to the canonical page.
-    let response = app.clone().oneshot(get("/pypi/simple/Demo_Pkg/", None)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/simple/Demo_Pkg/", None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::MOVED_PERMANENTLY);
     assert_eq!(response.headers()[header::LOCATION], format!("{PUBLIC_URL}/pypi/simple/demo-pkg/"));
 
     // The file itself.
-    let response =
-        app.clone().oneshot(get(&format!("/pypi/files/demo-pkg/{filename}"), None)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get(&format!("/pypi/files/demo-pkg/{filename}"), None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, wheel);
 
     // The named form is caller-scoped and points file URLs at itself.
-    let response =
-        app.clone().oneshot(get("/pypi/~internal/simple/demo-pkg/", Some(JSON))).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/~internal/simple/demo-pkg/", Some(JSON)))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
     let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
@@ -185,9 +230,16 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
         page["files"][0]["url"],
         format!("{PUBLIC_URL}/pypi/~internal/files/demo-pkg/{filename}"),
     );
-    let response = app.clone().oneshot(get("/pypi/demo-pkg", None)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/demo-pkg", None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    let response = app.oneshot(get("/npm/~internal/simple/demo-pkg/", None)).await.unwrap();
+    let response = app
+        .oneshot(get("/npm/~internal/simple/demo-pkg/", None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
@@ -202,14 +254,26 @@ async fn upload_is_authenticated_and_validated() {
     let filename = "demo_pkg-1.0.0-py3-none-any.whl";
     let good = wheel_upload("demo-pkg", "1.0.0", filename, &wheel);
 
-    let response = app.clone().oneshot(upload_request(None, good.clone())).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(upload_request(None, good.clone()))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    let response = app.clone().oneshot(upload_request(Some(&token), good.clone())).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(upload_request(Some(&token), good.clone()))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
     // The same filename cannot be uploaded twice.
-    let response = app.clone().oneshot(upload_request(Some(&token), good)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(upload_request(Some(&token), good))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(text.contains("File already exists"), "{text}");
@@ -247,7 +311,11 @@ async fn upload_is_authenticated_and_validated() {
         "demo_pkg-1.1.0-py3-none-any.whl",
         &wheel,
     );
-    let response = app.clone().oneshot(upload_request(Some(&token), lying.clone())).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(upload_request(Some(&token), lying.clone()))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     lying.clear();
 
@@ -263,7 +331,11 @@ async fn upload_is_authenticated_and_validated() {
         "demo_pkg-1.1.0.tar.gz",
         &wheel,
     );
-    let response = app.clone().oneshot(upload_request(Some(&token), sdist_as_wheel)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(upload_request(Some(&token), sdist_as_wheel))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     // A project the hosted registry does not claim routes to the upstream,
@@ -281,7 +353,10 @@ async fn upload_is_authenticated_and_validated() {
     assert!(text.contains("upstream registry"), "{text}");
 
     // Only the one wheel landed.
-    let response = app.oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await.unwrap();
+    let response = app
+        .oneshot(get("/pypi/simple/demo-pkg/", Some(JSON)))
+        .await
+        .unwrap();
     let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(page["files"].as_array().unwrap().len(), 1);
 }
@@ -334,7 +409,11 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     );
 
     // The page is re-rendered with file URLs pointing back at this registry.
-    let response = app.clone().oneshot(get("/pypi/simple/requests/", Some(JSON))).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/simple/requests/", Some(JSON)))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(page["name"], "requests");
@@ -343,7 +422,11 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     assert_eq!(page["files"][0]["requires-python"], ">=3.8");
 
     // The HTML form is rendered from the same cached page.
-    let response = app.clone().oneshot(get("/pypi/simple/requests/", None)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/simple/requests/", None))
+        .await
+        .unwrap();
     let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(html.contains(&format!("/pypi/files/requests/{filename}#sha256=")), "{html}");
 
@@ -370,8 +453,15 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     // An unknown project is a definitive 404.
-    let missing = upstream.mock("GET", "/simple/nope/").with_status(404).create_async().await;
-    let response = app.oneshot(get("/pypi/simple/nope/", Some(JSON))).await.unwrap();
+    let missing = upstream
+        .mock("GET", "/simple/nope/")
+        .with_status(404)
+        .create_async()
+        .await;
+    let response = app
+        .oneshot(get("/pypi/simple/nope/", Some(JSON)))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     missing.assert_async().await;
 }
@@ -413,10 +503,17 @@ async fn an_upstream_without_the_json_api_is_a_gateway_error_and_a_bad_hash_is_n
         AuthState::in_memory(),
     );
 
-    let response = app.clone().oneshot(get("/pypi/simple/html-only/", Some(JSON))).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/simple/html-only/", Some(JSON)))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 
-    let response = app.oneshot(get(&format!("/pypi/files/lying/{filename}"), None)).await.unwrap();
+    let response = app
+        .oneshot(get(&format!("/pypi/files/lying/{filename}"), None))
+        .await
+        .unwrap();
     assert!(axum::body::to_bytes(response.into_body(), usize::MAX).await.is_err());
     assert!(find_file(&tmp.path().join(".pnpr-cache"), filename).is_none());
 }
@@ -439,7 +536,11 @@ async fn anonymous_uploads_are_rejected_before_reading_the_body() {
                 panic!("anonymous upload body must not be polled");
             },
         ));
-        let response = app.clone().oneshot(Request::post(path).body(body).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(Request::post(path).body(body).unwrap())
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 }
@@ -454,9 +555,12 @@ async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_stag
     let store = Arc::new(InMemory::new());
     let filename = "demo_pkg-1.0.0-py3-none-any.whl";
     let object = ObjectPath::from(format!("python/demo-pkg/{filename}"));
-    store.put(&object, axum::body::Bytes::from_static(b"winning artifact").into()).await.unwrap();
+    store
+        .put(&object, axum::body::Bytes::from_static(b"winning artifact").into())
+        .await
+        .unwrap();
     let mut config = pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/");
-    config.hosted_store = HostedStoreConfig::ObjectStore {
+    config.storage.hosted_backend = HostedStoreConfig::ObjectStore {
         store: Arc::<InMemory>::clone(&store),
         prefix: String::new(),
     };
@@ -472,9 +576,20 @@ async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_stag
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CONFLICT);
-    assert_eq!(store.get(&object).await.unwrap().bytes().await.unwrap(), "winning artifact");
     assert_eq!(
-        app.oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await.unwrap().status(),
+        store
+            .get(&object)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+        "winning artifact",
+    );
+    assert_eq!(
+        app.oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await
+            .unwrap()
+            .status(),
         StatusCode::NOT_FOUND,
     );
     fn staged_files(path: &Path) -> Vec<PathBuf> {
@@ -483,7 +598,9 @@ async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_stag
             let path = entry.unwrap().path();
             if path.is_dir() {
                 staged.extend(staged_files(&path));
-            } else if path.file_name().is_some_and(|name| name.to_string_lossy().contains(".tmp."))
+            } else if path
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().contains(".tmp."))
             {
                 staged.push(path);
             }
@@ -524,21 +641,38 @@ async fn upstream_file_hosts_must_be_approved_by_the_operator() {
         .expect(1)
         .create_async()
         .await;
-    let artifact = files.mock("GET", "/artifact").with_body(bytes).expect(0).create_async().await;
+    let artifact = files
+        .mock("GET", "/artifact")
+        .with_body(bytes)
+        .expect(0)
+        .create_async()
+        .await;
     let tmp = TempDir::new().unwrap();
     let mut config = pypi_config(tmp.path().to_path_buf(), &upstream.url());
     let app = router_with_auth(config.clone(), AuthState::in_memory());
-    let response =
-        app.oneshot(get(&format!("/pypi/files/requests/{filename}"), None)).await.unwrap();
+    let response = app
+        .oneshot(get(&format!("/pypi/files/requests/{filename}"), None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     artifact.assert_async().await;
     artifact.remove_async().await;
 
-    config.route_policy.public.push(PublicRoute { registry: Some(files.url()), package: None });
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(files.url()),
+        package: None,
+    });
     let app = router_with_auth(config, AuthState::in_memory());
-    let artifact = files.mock("GET", "/artifact").with_body(bytes).expect(1).create_async().await;
-    let response =
-        app.oneshot(get(&format!("/pypi/files/requests/{filename}"), None)).await.unwrap();
+    let artifact = files
+        .mock("GET", "/artifact")
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+    let response = app
+        .oneshot(get(&format!("/pypi/files/requests/{filename}"), None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, bytes);
     artifact.assert_async().await;
@@ -557,7 +691,11 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
     let app =
         router_with_auth(pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/"), auth);
     let orphan_path = format!("/pypi/files/demo-pkg/{orphan}");
-    let response = app.clone().oneshot(get(&orphan_path, None)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get(&orphan_path, None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     let published = "demo_pkg-2.0.0-py3-none-any.whl";
@@ -570,10 +708,16 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let response = app.clone().oneshot(get(&orphan_path, None)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get(&orphan_path, None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    let response =
-        app.oneshot(get(&format!("/pypi/files/demo-pkg/{published}"), None)).await.unwrap();
+    let response = app
+        .oneshot(get(&format!("/pypi/files/demo-pkg/{published}"), None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, b"published wheel");
 }
@@ -628,15 +772,26 @@ async fn a_crashed_upload_is_completed_on_startup() {
     recover_publish_journal(&config).await.unwrap();
 
     assert!(!tmp_path.exists(), "the staged file should be promoted away");
-    assert!(std::fs::read_dir(storage.join(".pnpr-journal")).unwrap().next().is_none());
+    assert!(
+        std::fs::read_dir(storage.join(".pnpr-journal"))
+            .unwrap()
+            .next()
+            .is_none(),
+    );
     let app = router_with_auth(config, AuthState::in_memory());
-    let response = app.clone().oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get("/pypi/simple/demo-pkg/", Some(JSON)))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(page["files"][0]["filename"], filename);
     assert_eq!(page["files"][0]["hashes"]["sha256"], sha256_hex(&wheel));
-    let response =
-        app.oneshot(get(&format!("/pypi/files/demo-pkg/{filename}"), None)).await.unwrap();
+    let response = app
+        .oneshot(get(&format!("/pypi/files/demo-pkg/{filename}"), None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, wheel);
 }

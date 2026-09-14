@@ -59,7 +59,11 @@ impl Lockfile {
         let mut paths = Vec::new();
         for entry in entries {
             let entry = entry?;
-            if entry.file_name().to_str().is_some_and(Lockfile::is_git_branch_file_name) {
+            if entry
+                .file_name()
+                .to_str()
+                .is_some_and(Lockfile::is_git_branch_file_name)
+            {
                 paths.push(entry.path());
             }
         }

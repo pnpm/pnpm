@@ -180,14 +180,15 @@ pub(crate) fn synthesize_files_index(
 ) -> Result<HashMap<String, CafsFileInfo>, GitFetcherError> {
     let mut out = HashMap::with_capacity(cas_paths.len());
     for (rel, cas_path) in cas_paths {
-        let digest = cas_path_digest(cas_path).ok_or_else(|| {
-            GitFetcherError::Io(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "CAS path {cas_path:?} for {rel:?} does not match `files/XX/<rest>[-exec]`",
-                ),
-            ))
-        })?;
+        let digest = cas_path_digest(cas_path)
+            .ok_or_else(|| {
+                GitFetcherError::Io(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "CAS path {cas_path:?} for {rel:?} does not match `files/XX/<rest>[-exec]`",
+                    ),
+                ))
+            })?;
         let executable = cas_path_is_executable(cas_path);
         // Match the read-side `cas_file_path_by_mode` round-trip rule:
         // any-exec-bit-set ↔ `-exec` suffix. The exact mode value is

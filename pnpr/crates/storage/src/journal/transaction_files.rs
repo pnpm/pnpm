@@ -17,8 +17,7 @@ pub(super) async fn write_transaction(dir: &Path, packages: &[JournaledPublish<'
             ecosystem: package.ecosystem,
             org: package.org.map(str::to_string),
             document_file,
-            blobs: package
-                .slots
+            blobs: package.slots
                 .iter()
                 .map(|slot| ManifestBlob {
                     filename: slot.filename().to_string(),
@@ -70,15 +69,19 @@ pub(super) async fn roll_back(dir: &Path) {
 /// `<zero-padded unix millis>-<pid>-<counter>`: unique per process and
 /// lexically ordered by seal time across restarts.
 pub(super) fn txn_id() -> String {
-    let millis =
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
     let counter = TXN_COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("{millis:016}-{}-{counter}", std::process::id())
 }
 
 pub(super) fn revision_ref_owner(dir: &Path) -> Result<&str> {
-    let owner =
-        dir.file_name().and_then(|name| name.to_str()).ok_or_else(|| RegistryError::Internal {
+    let owner = dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| RegistryError::Internal {
             reason: format!("publish journal path has no transaction id: {}", dir.display()),
         })?;
     if is_canonical_revision_ref_owner(owner) {

@@ -164,7 +164,7 @@ by crate or name — see below).
 - `just test` — `cargo nextest run`.
 - `just lint` — `cargo clippy --locked --workspace --all-targets -- --deny warnings`.
 - `just check` — `cargo check --locked --workspace --all-targets`.
-- `just fmt` — `cargo fmt` + `taplo format`.
+- `just fmt` — the pinned fork (`node pnpm/scripts/rustfmt.mjs --all`) + `taplo format`.
 - `just cli -- <args>` — run the pacquet binary.
 - `just registry-mock <args>` — manage the mock registry used by tests.
 - `just integrated-benchmark <args>` — compare revisions or compare against

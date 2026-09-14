@@ -8,7 +8,6 @@ use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, symlink_p
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
-use pnpm_config::Config;
 use pnpm_lockfile::{ImporterDepVersion, PackageKey, PackageMetadata, PkgName, ProjectSnapshot};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
@@ -45,72 +44,10 @@ pub struct SymlinkDirectDependencies<'a, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
-    pub config: &'static Config,
-    /// Install-scoped slot-directory mapping (GVS-aware). Drives the
-    /// per-direct-dep symlink target — `node_modules/<dep>` resolves
-    /// to `layout.slot_dir(<key>)/node_modules/<dep>`. See
-    /// [`crate::VirtualStoreLayout`].
-    pub layout: &'a VirtualStoreLayout,
-    pub importers: &'a HashMap<String, ProjectSnapshot>,
-    /// Per-package metadata from the lockfile. Non-registry packages carry
-    /// their manifest version here because their importer version slot is a
-    /// URL or path rather than the package's semantic version.
-    pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    pub context: crate::ImporterLinkContext<'a>,
+    pub graph: crate::ImporterDependencyGraph<'a>,
+    pub policy: crate::DirectLinkPolicy<'a>,
     pub dependency_groups: DependencyGroupList,
-    /// Workspace root. For a single-project install this is the
-    /// directory containing the user's `package.json`; for a real
-    /// workspace it's the directory containing `pnpm-workspace.yaml`.
-    /// Same value as the `lockfileDir` used for
-    /// `pnpm:stage` / `pnpm:summary` events.
-    pub workspace_root: &'a Path,
-    /// Snapshots the installability pass marked optional+incompatible.
-    /// A direct dep whose resolved snapshot key is in this set is
-    /// omitted from `node_modules/<name>` (no symlink, no
-    /// `pnpm:root added` event, no bin linking).
-    pub skipped: &'a SkippedSnapshots,
-
-    /// When `true`, skip every direct dep whose resolved version
-    /// is [`ImporterDepVersion::Regular`] and only materialize
-    /// [`ImporterDepVersion::Link`] entries — workspace siblings
-    /// resolved through `workspace:*` / `link:`. Used by the
-    /// hoisted linker to layer workspace-sibling symlinks on top
-    /// of the real-directory tree the slice 5 linker produced;
-    /// the regular deps already landed under
-    /// `<importer>/node_modules/<alias>/` as real directories
-    /// from the hoisted linker, and re-symlinking them would
-    /// either no-op or corrupt the layout.
-    ///
-    /// In the hoisted branch this runs after
-    /// `linkHoistedModules` with the direct-dependency map filtered to
-    /// only `link:`-shaped entries.
-    pub link_only: bool,
-
-    /// `<alias → resolved-target-path>` for every transitive that the
-    /// hoist pass will publicly hoist into the root's `node_modules/`.
-    /// Folded into the dedupe map alongside the root importer's direct
-    /// deps so a non-root importer's direct dep resolving to the same
-    /// target as a publicly-hoisted alias is also deduped — matching
-    /// pnpm where `linkDirectDepsAndDedupe` reads root's `node_modules/`
-    /// *after* the hoist pass already populated it. Pacquet's pipeline
-    /// runs hoist after this step, so the caller pre-computes the
-    /// hoist plan ([`crate::get_hoisted_dependencies`]) and threads
-    /// the public-side targets in here.
-    pub public_hoist_targets: Option<&'a BTreeMap<String, PathBuf>>,
-
-    /// Importer ids whose project directories the caller *knows* —
-    /// they came from the install's own project list (the programmatic
-    /// API's in-memory projects, or `pnpm-workspace.yaml` discovery),
-    /// not from parsed lockfile input. These bypass
-    /// [`validate_importer_id`]: a declared project may legitimately
-    /// live outside the lockfile dir (importer id `..` or `../foo`) —
-    /// Bit's capsule installs do exactly that, and pnpm v11 linked
-    /// such importers without complaint. Ids *not* in this set keep
-    /// the strict malformed-lockfile rejection.
-    pub trusted_importer_ids: Option<&'a HashSet<String>>,
-
-    /// [`crate::shim_link_options`] output — threaded into the
-    /// per-importer `.bin` shim pass.
-    pub link_options: &'a LinkBinsOptions,
 
     /// Parsed manifests recovered from the store-index prefetch
     /// ([`crate::PackageManifests`]), when the caller has them. Feeds
@@ -173,21 +110,16 @@ where
         // Collect once so the same group order can drive every importer.
         let dependency_groups: Vec<DependencyGroup> = self.dependency_groups.into_iter().collect();
         ImporterPass {
-            config: self.config,
-            layout: self.layout,
-            importers: self.importers,
-            packages: self.packages,
+            context: self.context,
+            graph: self.graph,
+            policy: self.policy,
+
             dependency_groups,
-            workspace_root: self.workspace_root,
-            skipped: self.skipped,
-            link_only: self.link_only,
-            public_hoist_targets: self.public_hoist_targets,
-            trusted_importer_ids: self.trusted_importer_ids,
-            link_options: self.link_options,
+
             // One bin lookup for the whole pass: the `hasBin` gate and
             // the shim probe memo are importer-invariant.
             bin_lookup: crate::PrefetchedBinLookup::new(
-                self.packages,
+                self.graph.packages,
                 self.package_manifests,
                 self.requires_build_by_snapshot,
             ),
@@ -199,17 +131,10 @@ where
 /// [`SymlinkDirectDependencies`] with its group list collected and its
 /// bin lookup built, which every importer's pass reads.
 struct ImporterPass<'a> {
-    config: &'static Config,
-    layout: &'a VirtualStoreLayout,
-    importers: &'a HashMap<String, ProjectSnapshot>,
-    packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    pub context: crate::ImporterLinkContext<'a>,
+    pub graph: crate::ImporterDependencyGraph<'a>,
+    pub policy: crate::DirectLinkPolicy<'a>,
     dependency_groups: Vec<DependencyGroup>,
-    workspace_root: &'a Path,
-    skipped: &'a SkippedSnapshots,
-    link_only: bool,
-    public_hoist_targets: Option<&'a BTreeMap<String, PathBuf>>,
-    trusted_importer_ids: Option<&'a HashSet<String>>,
-    link_options: &'a LinkBinsOptions,
     bin_lookup: crate::PrefetchedBinLookup<'a>,
 }
 
@@ -226,15 +151,19 @@ impl ImporterPass<'_> {
         // of leaving the symlink stage stuck on `node_modules` while
         // other stages (`.modules.yaml` writing, bin linking) use
         // `config.modules_dir`.
-        let modules_dir_name: &OsStr =
-            self.config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+        let modules_dir_name: &OsStr = self.context.config.modules_dir
+            .file_name()
+            .unwrap_or_else(|| OsStr::new("node_modules"));
 
         // Sorted so the fallible upfront validation below rejects a
         // hostile lockfile on a deterministic importer. `pnpm:root`
         // event order is not pinned — the per-importer work runs on
         // rayon, matching pnpm's `Promise.all` over importers — so
         // consumers key events off their `prefix`, never their order.
-        let mut keys: Vec<&str> = self.importers.keys().map(String::as_str).collect();
+        let mut keys: Vec<&str> = self.graph.importers
+            .keys()
+            .map(String::as_str)
+            .collect();
         keys.sort_unstable();
         let root_targets = self.root_dedupe_targets(&keys);
         self.validate_importer_ids(&keys)?;
@@ -245,28 +174,37 @@ impl ImporterPass<'_> {
         // in `root_targets`, not the root importer's on-disk state), and
         // a serial walk would insert a fork-join barrier per importer
         // between the filesystem batches.
-        let task_groups = importer_task_groups(self.workspace_root, keys);
-        task_groups.par_iter().try_for_each(|group| {
-            group.iter().try_for_each(|importer_id| {
-                self.link_importer::<Reporter>(importer_id, modules_dir_name, root_targets.as_ref())
+        let task_groups = importer_task_groups(self.context.workspace_root, keys);
+        task_groups
+            .par_iter()
+            .try_for_each(|group| {
+                group
+                    .iter()
+                    .try_for_each(|importer_id| {
+                        self.link_importer::<Reporter>(
+                            importer_id,
+                            modules_dir_name,
+                            root_targets.as_ref(),
+                        )
+                    })
             })
-        })
     }
 
     /// `dedupeDirectDeps` short-circuits when there is no root importer
     /// or only one importer total — there's nothing to dedupe against.
     fn root_dedupe_targets(&self, keys: &[&str]) -> Option<BTreeMap<String, PathBuf>> {
-        let dedupe =
-            self.config.dedupe_direct_deps && self.importers.contains_key(".") && keys.len() > 1;
+        let dedupe = self.context.config.dedupe_direct_deps
+            && self.graph.importers.contains_key(".")
+            && keys.len() > 1;
         dedupe.then(|| {
             root_dedupe_targets(
-                self.layout,
-                &self.importers["."],
-                &importer_root_dir(self.workspace_root, "."),
+                self.context.layout,
+                &self.graph.importers["."],
+                &importer_root_dir(self.context.workspace_root, "."),
                 &self.dependency_groups,
-                self.skipped,
-                self.link_only,
-                self.public_hoist_targets,
+                self.graph.skipped,
+                self.policy.link_only,
+                self.policy.public_hoist_targets,
             )
         })
     }
@@ -276,13 +214,15 @@ impl ImporterPass<'_> {
     /// create `node_modules` outside the workspace — `Path::join`
     /// discards the base when the RHS is absolute, and `..` components
     /// are otherwise permitted. Importer ids the caller declared as
-    /// projects (see [`SymlinkDirectDependencies::trusted_importer_ids`])
+    /// projects (see [`crate::DirectLinkPolicy::trusted_importer_ids`])
     /// skip the check — an explicitly-configured project may live
     /// outside the lockfile dir. Validated before any importer links, so
     /// a rejected lockfile writes nothing.
     fn validate_importer_ids(&self, keys: &[&str]) -> Result<(), SymlinkDirectDependenciesError> {
         for importer_id in keys {
-            if !self.trusted_importer_ids.is_some_and(|trusted| trusted.contains(*importer_id)) {
+            if !self.policy.trusted_importer_ids.is_some_and(|trusted| {
+                trusted.contains(*importer_id)
+            }) {
                 validate_importer_id(importer_id)?;
             }
         }
@@ -296,8 +236,8 @@ impl ImporterPass<'_> {
         root_targets: Option<&BTreeMap<String, PathBuf>>,
     ) -> Result<(), SymlinkDirectDependenciesError> {
         // Safe: the task groups were built from `importers.keys()`.
-        let project_snapshot = &self.importers[importer_id];
-        let project_dir = importer_root_dir(self.workspace_root, importer_id);
+        let project_snapshot = &self.graph.importers[importer_id];
+        let project_dir = importer_root_dir(self.context.workspace_root, importer_id);
         let modules_dir = project_dir.join(modules_dir_name);
 
         // Only non-root importers get deduped against root: the
@@ -307,17 +247,17 @@ impl ImporterPass<'_> {
 
         link_one_importer::<Reporter>(
             importer_id,
-            self.layout,
+            self.context.layout,
             project_snapshot,
-            self.packages,
+            self.graph.packages,
             &project_dir,
             &modules_dir,
             self.dependency_groups.iter().copied(),
-            self.skipped,
-            self.link_only,
+            self.graph.skipped,
+            self.policy.link_only,
             dedupe_against,
-            self.config.symlink,
-            self.link_options,
+            self.context.config.symlink,
+            self.context.link_options,
             &self.bin_lookup,
         )
     }
@@ -383,7 +323,10 @@ fn importer_task_groups<'a>(workspace_root: &Path, keys: Vec<&'a str>) -> Vec<Ve
     for importer_id in keys {
         let project_dir = importer_root_dir(workspace_root, importer_id);
         match std::fs::canonicalize(&project_dir) {
-            Ok(canonical) => task_groups.entry(canonical).or_default().push(importer_id),
+            Ok(canonical) => task_groups
+                .entry(canonical)
+                .or_default()
+                .push(importer_id),
             Err(_) => unresolved.push(importer_id),
         }
     }
@@ -464,7 +407,7 @@ pub fn validate_importer_id(importer_id: &str) -> Result<(), SymlinkDirectDepend
 /// can run with the same per-importer name set the symlink phase
 /// saw, without re-implementing the filter logic in two places.
 ///
-/// `link_only` mirrors the [`SymlinkDirectDependencies::link_only`]
+/// `link_only` mirrors the [`crate::DirectLinkPolicy::link_only`]
 /// flag — when `true`, only `link:` workspace siblings survive the
 /// filter (used by the hoisted-linker re-link pass; the regular
 /// deps live as real directories under
@@ -483,7 +426,12 @@ where
     dependency_groups
         .into_iter()
         .filter(|group| !matches!(group, DependencyGroup::Peer))
-        .flat_map(|group| snapshot.get_map_by_group(group).into_iter().flatten())
+        .flat_map(|group| {
+            snapshot
+                .get_map_by_group(group)
+                .into_iter()
+                .flatten()
+        })
         .filter(|(name, _)| seen.insert(*name))
         .filter(|(name, spec)| match spec.version.resolved_key(name) {
             Some(resolved) => !skipped.contains(&resolved),
@@ -517,7 +465,7 @@ pub fn importer_root_dir(workspace_root: &Path, importer_id: &str) -> PathBuf {
         // `importer_id` is POSIX in the lockfile; `Path::join` accepts
         // forward slashes and converts to native separators. The
         // empty-key case is rejected upstream by
-        // [`validate_importer_id`], so this branch only runs on
+        // [`crate::validate_importer_id`], so this branch only runs on
         // POSIX-relative sub-importer paths.
         workspace_root.join(importer_id)
     }
@@ -534,13 +482,12 @@ fn link_resolved_entry<Reporter: self::Reporter>(
     let ResolvedEntry { name_str, target, .. } = entry;
 
     if symlink {
-        let outcome = symlink_package(target, &modules_dir.join(name_str)).map_err(|source| {
-            SymlinkDirectDependenciesError::SymlinkPackage {
+        let outcome = symlink_package(target, &modules_dir.join(name_str))
+            .map_err(|source| SymlinkDirectDependenciesError::SymlinkPackage {
                 importer_id: importer_id.to_string(),
                 name: name_str.clone(),
                 source,
-            }
-        })?;
+            })?;
 
         if outcome.reused {
             return Ok(());
@@ -609,9 +556,18 @@ fn link_one_importer<Reporter: self::Reporter>(
     // `try_for_each` short-circuits on the first error and returns it
     // to the caller. The full result collection forces every task to
     // settle before we surface a single error.
-    entries.par_iter().try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
-        link_resolved_entry::<Reporter>(entry, importer_id, modules_dir, symlink, packages, &prefix)
-    })?;
+    entries
+        .par_iter()
+        .try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
+            link_resolved_entry::<Reporter>(
+                entry,
+                importer_id,
+                modules_dir,
+                symlink,
+                packages,
+                &prefix,
+            )
+        })?;
 
     // After the symlinks exist, walk them to discover each
     // direct dep's `package.json` and link declared bins into
@@ -619,22 +575,29 @@ fn link_one_importer<Reporter: self::Reporter>(
     // destination, so the bin pass gets the resolved location for
     // free.
     if symlink {
-        let deps: Vec<crate::PrefetchedDepBin> = entries
-            .iter()
-            .map(|entry| {
-                let snapshot_key = entry.spec.version.resolved_key(entry.name);
-                (entry.name_str.clone(), entry.target.clone(), snapshot_key)
-            })
-            .collect();
+        let deps = resolved_entry_bins(&entries);
         crate::link_direct_dep_bins_prefetched(modules_dir, &deps, bin_lookup, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     } else {
-        let locations: Vec<PathBuf> = entries.iter().map(|entry| entry.target.clone()).collect();
+        let locations: Vec<PathBuf> = entries
+            .iter()
+            .map(|entry| entry.target.clone())
+            .collect();
         crate::link_direct_dep_bins_from_locations(modules_dir, &locations, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     }
 
     Ok(())
+}
+
+fn resolved_entry_bins(entries: &[ResolvedEntry<'_>]) -> Vec<crate::PrefetchedDepBin> {
+    entries
+        .iter()
+        .map(|entry| {
+            let snapshot_key = entry.spec.version.resolved_key(entry.name);
+            (entry.name_str.clone(), entry.target.clone(), snapshot_key)
+        })
+        .collect()
 }
 
 #[cfg(test)]

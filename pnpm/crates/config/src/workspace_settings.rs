@@ -151,8 +151,9 @@ impl Config {
             global_settings.expand_global_dir_home_prefixes::<Sys>();
             global_settings.apply_to(self, start_dir);
             self.workspace_dir = saved_workspace_dir;
-            if let Some(configured_state_dir) =
-                configured_state_dir.as_deref().filter(|value| !value.is_empty())
+            if let Some(configured_state_dir) = configured_state_dir
+                .as_deref()
+                .filter(|value| !value.is_empty())
             {
                 self.state_dir =
                     resolve_configured_state_dir(default_state_dir, configured_state_dir);
@@ -191,9 +192,11 @@ impl Config {
             let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
             match fs::read_to_string(&yaml_path) {
                 Ok(text) => {
-                    let mut settings: WorkspaceSettings =
-                        serde_saphyr::from_str(&text).map_err(Box::new).map_err(|source| {
-                            LoadWorkspaceYamlError::ParseYaml { path: yaml_path, source }
+                    let mut settings: WorkspaceSettings = serde_saphyr::from_str(&text)
+                        .map_err(Box::new)
+                        .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
+                            path: yaml_path,
+                            source,
                         })?;
                     settings.collect_key_issues(&text);
                     Some((env_dir, Some(settings)))
@@ -204,10 +207,14 @@ impl Config {
                 }
             }
         } else {
-            WorkspaceSettings::find_and_load(start_dir)?.map(|(path, settings)| {
-                let base_dir = path.parent().unwrap_or(start_dir).to_path_buf();
-                (base_dir, Some(settings))
-            })
+            WorkspaceSettings::find_and_load(start_dir)?
+                .map(|(path, settings)| {
+                    let base_dir = path
+                        .parent()
+                        .unwrap_or(start_dir)
+                        .to_path_buf();
+                    (base_dir, Some(settings))
+                })
         };
         Ok(workspace_yaml)
     }

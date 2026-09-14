@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 pub mod config_types;
 pub mod esm_node_path_loader;
 pub mod known_settings;
@@ -151,9 +154,9 @@ fn collect_explicit_settings(
         }
         target.insert(key, value);
     }
-    let virtual_store_type = settings
-        .virtual_store_type
-        .or_else(|| settings.enable_global_virtual_store.map(VirtualStoreType::from_enable_global));
+    let virtual_store_type = settings.virtual_store_type.or_else(|| {
+        settings.enable_global_virtual_store.map(VirtualStoreType::from_enable_global)
+    });
     if let Some(virtual_store_type) = virtual_store_type {
         let Ok(named) = serde_json::to_value(virtual_store_type) else { return };
         target.insert("virtualStoreType".to_string(), named);
@@ -187,8 +190,8 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     let mut declared_registries = crate::npmrc_auth::DeclaredRegistries::default();
     trusted_auth.apply_registry_and_warn(&mut config, &mut declared_registries);
     trusted_auth.apply_json_env_registries(&mut config, &declared_registries);
-    trusted_auth.apply_proxy_cascade::<Sys>(&mut config);
-    trusted_auth.apply_tls_and_local_address(&mut config);
+    trusted_auth.proxy.apply_proxy_cascade::<Sys>(&mut config);
+    trusted_auth.tls.apply_tls_and_local_address(&mut config);
     trusted_auth.build_auth_headers(&mut config)?;
     Ok(PackageManagerBootstrap {
         registry: config.registry,

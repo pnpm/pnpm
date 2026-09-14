@@ -18,7 +18,10 @@ fn pacquet(workspace: &std::path::Path) -> Command {
 #[test]
 fn repo_fails_without_package_json() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    let output = pacquet(&workspace).with_arg("repo").output().expect("run pacquet repo");
+    let output = pacquet(&workspace)
+        .with_arg("repo")
+        .output()
+        .expect("run pacquet repo");
 
     assert!(!output.status.success(), "repo without package.json should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -35,7 +38,10 @@ fn repo_fails_without_package_json() {
 fn repo_fails_without_repository_field() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), r#"{"name": "test-pkg"}"#).unwrap();
-    let output = pacquet(&workspace).with_arg("repo").output().expect("run pacquet repo");
+    let output = pacquet(&workspace)
+        .with_arg("repo")
+        .output()
+        .expect("run pacquet repo");
 
     assert!(!output.status.success(), "repo without repository field should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);

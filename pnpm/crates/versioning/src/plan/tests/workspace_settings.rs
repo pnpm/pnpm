@@ -13,8 +13,8 @@ fn dependent_propagation_follows_the_materialized_workspace_range() {
     let intents = [make_intent("one", &[("lib", "major")])];
     let plan = assemble(&projects, &intents, &Ledger::new(), None);
     let cli = release(&plan, "cli");
-    assert_eq!(cli.new_version, "3.0.1");
-    assert_eq!(cli.bump_type, ReleaseBumpType::Patch);
+    assert_eq!(cli.version.next, "3.0.1");
+    assert_eq!(cli.version.bump, ReleaseBumpType::Patch);
     assert_eq!(
         cli.dependency_updates,
         vec![DependencyUpdate { name: "lib".to_string(), new_version: "2.0.0".to_string() }],

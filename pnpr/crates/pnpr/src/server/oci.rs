@@ -180,7 +180,10 @@ async fn dispatch(
         base: api_base(uri.path(), tail),
         method: parts.method,
         digest: query_param(uri.query(), "digest"),
-        query: uri.query().unwrap_or_default().to_string(),
+        query: uri
+            .query()
+            .unwrap_or_default()
+            .to_string(),
         headers: parts.headers,
     };
     let scope_name = match &endpoint {
@@ -288,10 +291,9 @@ impl Request {
         };
         let etag = format!(r#""{digest}""#);
         if let Some(range) = self.requested_download_range(&etag) {
-            let ranged = repo
-                .storage
-                .open_hosted_blob_range(&repo.key, &digest.blob_filename(), &range)
-                .await;
+            let ranged =
+                repo.storage.open_hosted_blob_range(&repo.key, &digest.blob_filename(), &range)
+                    .await;
             let response = match ranged {
                 Ok(Some(blob)) => ranged_blob_response(blob, digest, &etag),
                 Ok(None) => return error(ErrorCode::BlobUnknown, "no such blob"),
@@ -323,8 +325,14 @@ impl Request {
     /// `If-Range` still matches.
     fn requested_download_range(&self, etag: &str) -> Option<pnpr_storage::GetRange> {
         if self.method != Method::GET
-            || self.headers.get(header::IF_RANGE).is_some_and(|value| value != etag)
-            || self.headers.get_all(header::RANGE).iter().count() != 1
+            || self.headers
+                .get(header::IF_RANGE)
+                .is_some_and(|value| value != etag)
+            || self.headers
+                .get_all(header::RANGE)
+                .iter()
+                .count()
+                != 1
         {
             return None;
         }
@@ -367,8 +375,7 @@ impl Request {
 
     /// Whether a bearer token on the request denies pulling `source_key`.
     fn token_forbids_pull(&self, source_key: &str) -> Result<bool, RegistryError> {
-        let Some(raw) = self
-            .headers
+        let Some(raw) = self.headers
             .get(header::AUTHORIZATION)
             .and_then(|value| value.to_str().ok())
             .and_then(super::authentication::token_credentials)
@@ -461,10 +468,12 @@ fn api_base(uri_path: &str, tail: &str) -> String {
 
 /// One named parameter of a raw query string.
 fn query_param(query: Option<&str>, key: &str) -> Option<String> {
-    query?.split('&').find_map(|pair| {
-        let (name, value) = pair.split_once('=')?;
-        (name == key).then(|| percent_decode(value))
-    })
+    query?
+        .split('&')
+        .find_map(|pair| {
+            let (name, value) = pair.split_once('=')?;
+            (name == key).then(|| percent_decode(value))
+        })
 }
 
 #[cfg(test)]

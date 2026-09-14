@@ -179,13 +179,33 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("peers-suffix-max-length", Int(cfg.peers_suffix_max_length as i64)),
         (
             "hoist-pattern",
-            Scalar::Set(cfg.hoist_pattern.clone().unwrap_or_default().into_iter().collect()),
+            Scalar::Set(
+                cfg.hoist_pattern
+                    .clone()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect(),
+            ),
         ),
         (
             "public-hoist-pattern",
-            Scalar::Set(cfg.public_hoist_pattern.clone().unwrap_or_default().into_iter().collect()),
+            Scalar::Set(
+                cfg.public_hoist_pattern
+                    .clone()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect(),
+            ),
         ),
-        ("git-shallow-hosts", Scalar::Set(cfg.git_shallow_hosts.iter().cloned().collect())),
+        (
+            "git-shallow-hosts",
+            Scalar::Set(
+                cfg.git_shallow_hosts
+                    .iter()
+                    .cloned()
+                    .collect(),
+            ),
+        ),
     ]
 }
 
@@ -282,13 +302,14 @@ fn scripts_prepend_node_path_scalar(value: ScriptsPrependNodePath) -> Scalar {
 /// a checked-in copy that could silently drift.
 fn read_pnpm_default_options() -> String {
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../pnpm11/config/reader/src/index.ts");
-    let src = std::fs::read_to_string(path).unwrap_or_else(|err| {
-        panic!(
-            "read pnpm config-reader source at {path}: {err}. \
+    let src = std::fs::read_to_string(path)
+        .unwrap_or_else(|err| {
+            panic!(
+                "read pnpm config-reader source at {path}: {err}. \
              This contract test reads pnpm's `defaultOptions` from the TypeScript \
              tree; if config/reader moved, update the path.",
-        )
-    });
+            )
+        });
     let marker = "const defaultOptions: Partial<KebabCaseConfig> = {";
     let start = src
         .find(marker)
@@ -334,11 +355,19 @@ fn pnpm_raw_value<'a>(block: &'a str, key: &str) -> Option<&'a str> {
     let key_pos = block
         .match_indices(&quoted)
         .map(|(idx, mat)| (idx, mat.len()))
-        .chain(block.match_indices(&bare).map(|(idx, mat)| (idx, mat.len())))
+        .chain(
+            block
+                .match_indices(&bare)
+                .map(|(idx, mat)| (idx, mat.len())),
+        )
         // Only accept a match that sits at the start of a line (after
         // indentation) so a substring of a longer key can't match.
         .find(|&(idx, _)| {
-            block[..idx].chars().rev().take_while(|&ch| ch != '\n').all(char::is_whitespace)
+            block[..idx]
+                .chars()
+                .rev()
+                .take_while(|&ch| ch != '\n')
+                .all(char::is_whitespace)
         })?;
     let after = block[key_pos.0 + key_pos.1..].trim_start();
     if after.starts_with('[') {
@@ -368,10 +397,16 @@ fn parse_scalar(raw: &str, key: &str) -> Scalar {
     if raw == "true" || raw == "false" {
         return Scalar::Bool(raw == "true");
     }
-    if let Some(inner) = raw.strip_prefix('\'').and_then(|rest| rest.strip_suffix('\'')) {
+    if let Some(inner) = raw
+        .strip_prefix('\'')
+        .and_then(|rest| rest.strip_suffix('\''))
+    {
         return Scalar::Str(inner.to_string());
     }
-    if let Some(inner) = raw.strip_prefix('[').and_then(|rest| rest.strip_suffix(']')) {
+    if let Some(inner) = raw
+        .strip_prefix('[')
+        .and_then(|rest| rest.strip_suffix(']'))
+    {
         // Strip comments per line *before* splitting on commas — a
         // comment line inside the array (e.g. the `git-shallow-hosts`
         // provenance note) shares no comma with the element below it.
@@ -389,7 +424,13 @@ fn parse_scalar(raw: &str, key: &str) -> Scalar {
     // (`24 * 60`, `7 * 24 * 60`).
     let product: Option<i64> = raw
         .split('*')
-        .map(|factor| factor.trim().replace('_', "").parse::<i64>().ok())
+        .map(|factor| {
+            factor
+                .trim()
+                .replace('_', "")
+                .parse::<i64>()
+                .ok()
+        })
         .try_fold(1_i64, |acc, factor| Some(acc * factor?));
     match product {
         Some(value) => Scalar::Int(value),
@@ -423,9 +464,10 @@ fn intentional_divergences_still_diverge() {
     let cfg = Config::default();
 
     for (key, pacquet_value, reason) in divergent_rows(&cfg) {
-        let raw = pnpm_raw_value(&block, key).unwrap_or_else(|| {
-            panic!("pnpm `defaultOptions` has no entry for divergent key {key:?}")
-        });
+        let raw = pnpm_raw_value(&block, key)
+            .unwrap_or_else(|| {
+                panic!("pnpm `defaultOptions` has no entry for divergent key {key:?}")
+            });
         let pnpm_value = parse_scalar(raw, key);
         assert_ne!(
             pacquet_value, pnpm_value,
@@ -442,14 +484,22 @@ fn every_pnpm_default_is_classified() {
     let pnpm_keys = pnpm_keys(&block);
     let cfg = Config::default();
 
-    let mapped: BTreeSet<String> =
-        mapped_rows(&cfg).into_iter().map(|(key, _)| key.to_string()).collect();
-    let non_literal: BTreeSet<String> =
-        NON_LITERAL.iter().map(std::string::ToString::to_string).collect();
-    let not_ported: BTreeSet<String> =
-        NOT_PORTED.iter().map(std::string::ToString::to_string).collect();
-    let divergent: BTreeSet<String> =
-        divergent_rows(&cfg).into_iter().map(|(key, _, _)| key.to_string()).collect();
+    let mapped: BTreeSet<String> = mapped_rows(&cfg)
+        .into_iter()
+        .map(|(key, _)| key.to_string())
+        .collect();
+    let non_literal: BTreeSet<String> = NON_LITERAL
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
+    let not_ported: BTreeSet<String> = NOT_PORTED
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
+    let divergent: BTreeSet<String> = divergent_rows(&cfg)
+        .into_iter()
+        .map(|(key, _, _)| key.to_string())
+        .collect();
 
     // The buckets must be disjoint — a key can't be both mapped and
     // skipped.
@@ -465,8 +515,11 @@ fn every_pnpm_default_is_classified() {
         assert!(overlap.is_empty(), "keys classified twice ({label}): {overlap:?}");
     }
 
-    let classified: BTreeSet<String> =
-        [&mapped, &non_literal, &not_ported, &divergent].into_iter().flatten().cloned().collect();
+    let classified: BTreeSet<String> = [&mapped, &non_literal, &not_ported, &divergent]
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect();
 
     let unclassified: Vec<_> = pnpm_keys.difference(&classified).collect();
     assert!(

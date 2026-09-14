@@ -89,7 +89,9 @@ fn caps_throughput_to_the_rate_limit() {
         let (mut socket, _) = upstream.accept().expect("accept");
         let mut scratch = [0u8; 64];
         let _ = socket.read(&mut scratch);
-        socket.write_all(&vec![0u8; PAYLOAD]).expect("write payload");
+        socket
+            .write_all(&vec![0u8; PAYLOAD])
+            .expect("write payload");
     });
 
     // No latency, only a bandwidth cap, so the wall time is the
@@ -138,7 +140,9 @@ fn slow_start_ramps_per_connection_throughput() {
             let (mut socket, _) = upstream.accept().expect("accept");
             let mut buf = [0u8; 64];
             let _ = socket.read(&mut buf).expect("read request");
-            socket.write_all(&vec![0u8; PAYLOAD]).expect("write payload");
+            socket
+                .write_all(&vec![0u8; PAYLOAD])
+                .expect("write payload");
         });
 
         let profile =
@@ -162,7 +166,10 @@ fn slow_start_ramps_per_connection_throughput() {
     };
 
     let best_of = |samples: u32, slow_start: bool| {
-        (0..samples).map(|_| timed_transfer(slow_start)).min().expect("at least one sample")
+        (0..samples)
+            .map(|_| timed_transfer(slow_start))
+            .min()
+            .expect("at least one sample")
     };
     // Flat: ~2×20ms latency + 256KiB/10MB/s ≈ 66 ms. Ramped: the first
     // windows (14.6 KB and doubling) each serialize at cwnd/RTT, adding ~3-4

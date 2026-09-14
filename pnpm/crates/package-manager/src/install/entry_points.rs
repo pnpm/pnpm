@@ -1,10 +1,7 @@
 use super::{
     Install, InstallRunOptions, ProjectMutation, WorkspaceInstallSelection, errors::InstallError,
 };
-use crate::{
-    LockfileVerificationOverride, PolicyExcludes, RebuildOptions, ResolvedPackages,
-    UpdateSeedPolicy,
-};
+use crate::{LockfileVerificationOverride, PolicyExcludes, RebuildOptions, ResolvedPackages};
 use pnpm_config::Config;
 use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_network::ThrottledClient;
@@ -29,39 +26,44 @@ where
         dependency_groups: DependencyGroupList,
     ) -> Self {
         Self {
-            tarball_mem_cache,
-            resolved_packages,
-            http_client: http_client.0,
-            http_client_arc: http_client.1,
-            config,
-            manifest,
-            emit_initial_manifest: true,
-            lockfile,
-            lockfile_path: None,
-            dependency_groups,
-            frozen_lockfile: false,
-            prefer_frozen_lockfile: None,
-            ignore_manifest_check: false,
-            skip_runtimes: config.skip_runtimes,
-            trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
-            mutation: ProjectMutation::InstallWorkspace,
-            installs_only: true,
-            supported_architectures: config.supported_architectures.clone(),
-            node_linker: config.node_linker,
-            lockfile_only: false,
-            dry_run: false,
-            policy_excludes: PolicyExcludes::Skip,
-            update_seed_policy: UpdateSeedPolicy::KeepAll,
-            preferred_versions_override: None,
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
-            disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
+            lockfile_policy: crate::InstallLockfilePolicy {
+                frozen: false,
+                prefer_frozen: None,
+                ignore_manifest_check: false,
+                trust: config.trust_lockfile,
+                update_checksums: false,
+                excludes: PolicyExcludes::Skip,
+                disable_optimistic_repeat: false,
+            },
+            execution: crate::InstallExecution {
+                skip_runtimes: config.skip_runtimes,
+                mutation: ProjectMutation::InstallWorkspace,
+                installs_only: true,
+                node_linker: config.node_linker,
+                lockfile_only: false,
+                dry_run: false,
+            },
+            resolution: crate::ResolutionInputs::default(),
+            context: crate::InstallInvocation {
+                http_client: http_client.0,
+                config,
+                manifest,
+                emit_initial_manifest: true,
+                lockfile,
+                lockfile_path: None,
+            },
+            fetching: crate::InstallFetching {
+                tarball_mem_cache,
+                resolved_packages,
+                http_client_arc: http_client.1,
+            },
+            projects: crate::InstallProjects {
+                dependency_groups,
+                supported_architectures: config.supported_architectures.clone(),
+                catalogs_override: None,
+                pnpmfile_hook_override: None,
+                workspace_projects_override: None,
+            },
         }
     }
 
@@ -94,8 +96,11 @@ where
         read_package_hooked_manifest_paths: HashSet<PathBuf>,
     ) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
-            lockfile_specifier_project_manifests: Some(lockfile_specifier_project_manifests),
-            read_package_hooked_manifest_paths,
+            manifests: crate::install::InstallManifestOptions {
+                specifier_manifests: Some(lockfile_specifier_project_manifests),
+                hooked_paths: read_package_hooked_manifest_paths,
+                ..Default::default()
+            },
             ..Default::default()
         }))
         .await
@@ -145,8 +150,11 @@ where
     ) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             selection: Some(selection),
-            lockfile_specifier_project_manifests: Some(lockfile_specifier_project_manifests),
-            read_package_hooked_manifest_paths,
+            manifests: crate::install::InstallManifestOptions {
+                specifier_manifests: Some(lockfile_specifier_project_manifests),
+                hooked_paths: read_package_hooked_manifest_paths,
+                ..Default::default()
+            },
             ..Default::default()
         }))
         .await
@@ -160,7 +168,10 @@ where
         bumps: &'a crate::ManifestSpecBumps,
     ) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
-            manifest_spec_bumps: Some(bumps),
+            manifests: crate::install::InstallManifestOptions {
+                spec_bumps: Some(bumps),
+                ..Default::default()
+            },
             ..Default::default()
         }))
         .await
@@ -175,7 +186,10 @@ where
     ) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             selection: Some(selection),
-            manifest_spec_bumps: Some(bumps),
+            manifests: crate::install::InstallManifestOptions {
+                spec_bumps: Some(bumps),
+                ..Default::default()
+            },
             ..Default::default()
         }))
         .await
@@ -208,8 +222,11 @@ where
     ) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             root_manifest_as_workspace_root: true,
-            deploy_manifest_hook: true,
             save_lockfile: false,
+            manifests: crate::install::InstallManifestOptions {
+                deploy_hook: true,
+                ..Default::default()
+            },
             ..Default::default()
         }))
         .await
@@ -231,7 +248,7 @@ where
         self,
         rebuild: RebuildOptions,
     ) -> Result<(), InstallError> {
-        assert!(self.frozen_lockfile, "run_rebuild requires frozen_lockfile = true");
+        assert!(self.lockfile_policy.frozen, "run_rebuild requires frozen_lockfile = true");
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             rebuild: Some(rebuild),
             ..Default::default()
@@ -245,7 +262,10 @@ where
         selection: WorkspaceInstallSelection<'_>,
         rebuild: RebuildOptions,
     ) -> Result<(), InstallError> {
-        assert!(self.frozen_lockfile, "run_selected_rebuild requires frozen_lockfile = true");
+        assert!(
+            self.lockfile_policy.frozen,
+            "run_selected_rebuild requires frozen_lockfile = true",
+        );
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             rebuild: Some(rebuild),
             selection: Some(selection),

@@ -14,7 +14,9 @@ impl Resolve for PublicResolver {
         Box::pin(async move {
             let addresses: Vec<_> = future.await?.collect();
             if addresses.is_empty()
-                || addresses.iter().any(|address| !is_public_address(address.ip()))
+                || addresses
+                    .iter()
+                    .any(|address| !is_public_address(address.ip()))
             {
                 return Err(Box::new(blocked()) as Box<dyn std::error::Error + Send + Sync>);
             }

@@ -47,7 +47,13 @@ fn pkg_version_dir(store_dir: &Path, name: &str, version: &str) -> PathBuf {
 fn hash_dirs(pkg_version_dir: &Path) -> Vec<String> {
     let mut names: Vec<String> = fs::read_dir(pkg_version_dir)
         .unwrap_or_else(|err| panic!("read hash dirs under {pkg_version_dir:?}: {err}"))
-        .map(|entry| entry.expect("read hash dir entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .expect("read hash dir entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
     names.sort();
     names
@@ -129,9 +135,9 @@ fn pacquet(workspace: &Path) -> Command {
 }
 
 fn read_modules_manifest(workspace: &Path) -> pnpm_modules_yaml::Modules {
-    pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
-        &workspace.join("node_modules"),
-    )
+    pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace.join(
+        "node_modules",
+    ))
     .expect("read .modules.yaml")
     .expect(".modules.yaml must exist after an install")
 }
@@ -191,13 +197,19 @@ fn using_a_global_virtual_store() {
     };
 
     eprintln!("Fresh install with GVS enabled...");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert_layout("fresh install");
 
     eprintln!("Wiping node_modules and the whole GVS, then reinstalling frozen...");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     fs::remove_dir_all(gvs_root(&store_dir)).expect("remove the GVS root");
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert_layout("frozen reinstall from a cold GVS");
 
     drop((root, mock_instance));
@@ -228,7 +240,10 @@ fn reinstall_from_warm_global_virtual_store_after_deleting_node_modules() {
     );
 
     eprintln!("First install — warms the GVS...");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     let hashes_before = hash_dirs(&version_dir);
@@ -301,7 +316,10 @@ fn a_slot_left_incomplete_by_an_interrupted_import_is_repaired() {
     set_gvs_workspace_yaml(&workspace, "");
     write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     let pkg = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/pkg-with-1-dep");
@@ -312,7 +330,10 @@ fn a_slot_left_incomplete_by_an_interrupted_import_is_repaired() {
     fs::remove_file(&marker).expect("remove the completion marker");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert_eq!(
         fs::read_to_string(&marker).expect("read the repaired marker"),
@@ -338,7 +359,10 @@ fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
         &workspace,
         &serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
     );
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let fixture_files =
         ["package.json", "pnpm-workspace.yaml", ".npmrc", "pnpm-lock.yaml"].map(|name| {
@@ -352,7 +376,9 @@ fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
     // would each get a private store and the test would pass vacuously.
     let worker_dirs = (0..WORKERS)
         .map(|worker| {
-            let dir = root.path().join(format!("concurrent-gvs-{worker}"));
+            let dir = root
+                .path()
+                .join(format!("concurrent-gvs-{worker}"));
             fs::create_dir(&dir).expect("create concurrent-install workspace");
             for (name, bytes) in &fixture_files {
                 fs::write(dir.join(*name), bytes).expect("write concurrent-install fixture");
@@ -425,7 +451,10 @@ fn modules_are_correctly_updated_when_using_a_global_virtual_store() {
     );
 
     eprintln!("Installing with peer-c 1.0.0...");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     eprintln!("Bumping peer-c to 2.0.0 and reinstalling...");
     write_manifest(
@@ -435,7 +464,10 @@ fn modules_are_correctly_updated_when_using_a_global_virtual_store() {
             "@pnpm.e2e/peer-c": "2.0.0",
         }),
     );
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("node_modules/.pnpm/lock.yaml").exists(),
@@ -474,7 +506,10 @@ fn local_directory_dependency_works_with_global_virtual_store() {
     )
     .expect("write dep/package.json");
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let version_dir = pkg_version_dir(&store_dir, "@/dep", "directory");
     let slot_after_install = sole_hash_dir(&version_dir);
@@ -484,7 +519,10 @@ fn local_directory_dependency_works_with_global_virtual_store() {
     );
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert_eq!(
         sole_hash_dir(&version_dir),
@@ -541,15 +579,17 @@ fn injected_local_packages_work_with_global_virtual_store() {
     )
     .expect("write project-2/package.json");
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("project-2/node_modules/project-1").exists(),
         "project-2 must have the injected workspace package installed",
     );
 
-    let injected_deps = read_modules_manifest(&workspace)
-        .injected_deps
+    let injected_deps = read_modules_manifest(&workspace).injected_deps
         .expect(".modules.yaml must record injectedDeps under GVS");
     let locations =
         injected_deps.get("project-1").expect("injectedDeps must have an entry for project-1");
@@ -606,19 +646,27 @@ fn repeat_installs_reuse_the_slots_of_circular_dependencies() {
 
     write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/circular-deps-1-of-2": "1.0.2" }));
     set_gvs_workspace_yaml(&workspace, "");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let version_dirs = [
         pkg_version_dir(&store_dir, "@pnpm.e2e/circular-deps-1-of-2", "1.0.2"),
         pkg_version_dir(&store_dir, "@pnpm.e2e/circular-deps-2-of-2", "1.0.2"),
     ];
-    let slots_after_first: Vec<Vec<String>> =
-        version_dirs.iter().map(|dir| hash_dirs(dir)).collect();
+    let slots_after_first: Vec<Vec<String>> = version_dirs
+        .iter()
+        .map(|dir| hash_dirs(dir))
+        .collect();
 
     // Each repeat is a fresh process, and therefore a fresh set of
     // `HashMap` iteration orders.
     for _ in 0..3 {
-        pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+        pacquet(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
     }
 
     for (version_dir, expected) in version_dirs.iter().zip(&slots_after_first) {
@@ -681,7 +729,10 @@ fn link_dep_in_a_slot_is_symlinked_to_its_target() {
         &serde_json::json!({ "name": "@pnpm.e2e/peer-a", "version": "1.0.0" }),
     );
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let hash_dir = sole_hash_dir(&pkg_version_dir(&store_dir, "@pnpm.e2e/abc", "1.0.0"));
     let linked_peer = pkg_in_slot(&hash_dir, "@pnpm.e2e/peer-a");
@@ -734,15 +785,20 @@ fn no_optional_excludes_an_optional_link_dep_from_a_slot() {
     )
     .expect("write peer manifest");
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
     let snapshots = snapshot_entries(&lockfile, "@pnpm.e2e/abc-optional-peers");
-    let (_, snapshot) = snapshots.as_slice().first().expect("abc optional-peers snapshot");
+    let (_, snapshot) = snapshots
+        .as_slice()
+        .first()
+        .expect("abc optional-peers snapshot");
     let peer_name = "@pnpm.e2e/peer-c".parse().expect("parse peer name");
     assert!(
-        snapshot
-            .optional_dependencies
+        snapshot.optional_dependencies
             .as_ref()
             .and_then(|dependencies| dependencies.get(&peer_name))
             .is_some_and(|dep_ref| dep_ref.as_link_target().is_some()),
@@ -757,7 +813,10 @@ fn no_optional_excludes_an_optional_link_dep_from_a_slot() {
         "the first install must materialize the optional link at {linked_peer:?}",
     );
 
-    pacquet(&workspace).with_args(["install", "--no-optional"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--no-optional"])
+        .assert()
+        .success();
 
     assert!(
         matches!(
@@ -767,7 +826,10 @@ fn no_optional_excludes_an_optional_link_dep_from_a_slot() {
         "--no-optional must leave the optional link out of the slot at {linked_peer:?}",
     );
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(
         is_symlink_or_junction(&linked_peer).unwrap_or(false),
         "re-enabling optional dependencies must restore the link at {linked_peer:?}",
@@ -793,9 +855,15 @@ fn adding_a_dependency_over_a_warm_layout_cache_still_hashes_its_slot() {
     write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
     eprintln!("Installing twice, which is what warms the derived-layout cache...");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let layout_cache = workspace.join(
         fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
@@ -815,7 +883,10 @@ fn adding_a_dependency_over_a_warm_layout_cache_still_hashes_its_slot() {
         &workspace,
         &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0", "@pnpm.e2e/foo": "100.0.0" }),
     );
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let added = fs::read_link(workspace.join("node_modules/@pnpm.e2e/foo"))
         .expect("read the added dependency symlink");
@@ -825,7 +896,12 @@ fn adding_a_dependency_over_a_warm_layout_cache_still_hashes_its_slot() {
             sole_hash_dir(&hash_dir)
                 .join("node_modules")
                 .join("@pnpm.e2e/foo")
-                .strip_prefix(hash_dir.parent().and_then(Path::parent).expect("<links>/<scope>"),)
+                .strip_prefix(
+                    hash_dir
+                        .parent()
+                        .and_then(Path::parent)
+                        .expect("<links>/<scope>"),
+                )
                 .expect("the hash dir sits under the links root"),
         ),
         "the added dependency must be linked from its hashed slot, not from {added:?}",

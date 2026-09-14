@@ -143,7 +143,10 @@ fn collect_own_files(
         .get("bin")
         .map(|bin| match bin {
             Value::String(s) => vec![s.as_str()],
-            Value::Object(map) => map.values().filter_map(Value::as_str).collect(),
+            Value::Object(map) => map
+                .values()
+                .filter_map(Value::as_str)
+                .collect(),
             _ => Vec::new(),
         })
         .unwrap_or_default();
@@ -210,7 +213,9 @@ fn ignore_walk_builder(
         if entry.depth() == 1 && name == OsStr::new("node_modules") {
             return false;
         }
-        !ALWAYS_EXCLUDED_DIR_SEGMENTS.iter().any(|segment| name == OsStr::new(segment))
+        !ALWAYS_EXCLUDED_DIR_SEGMENTS
+            .iter()
+            .any(|segment| name == OsStr::new(segment))
     });
     if has_files_field {
         builder.git_ignore(false);
@@ -282,7 +287,10 @@ fn collect_always_included_at_root(
         if !entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
             continue;
         }
-        let name = entry.file_name().to_string_lossy().into_owned();
+        let name = entry
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
         if !should_always_exclude(&name) && is_always_included_at_root(&name) {
             out.insert(name);
         }
@@ -301,7 +309,9 @@ fn force_include_main_and_bin(
     selection: &FileSelection<'_>,
     out: &mut BTreeSet<String>,
 ) {
-    let declared = selection.main_path.into_iter().chain(selection.bin_paths.iter().copied());
+    let declared = selection.main_path
+        .into_iter()
+        .chain(selection.bin_paths.iter().copied());
     for path in declared {
         let normalized = normalize_field_path(path);
         if is_contained_field_path(&normalized)
@@ -446,7 +456,9 @@ fn is_always_included_at_root(rel: &str) -> bool {
     if lower == "package.json" {
         return true;
     }
-    ALWAYS_INCLUDED_PREFIXES.iter().any(|prefix| lower.starts_with(prefix))
+    ALWAYS_INCLUDED_PREFIXES
+        .iter()
+        .any(|prefix| lower.starts_with(prefix))
 }
 
 fn is_main_or_bin(rel: &str, main: Option<&str>, bins: &[&str]) -> bool {
@@ -455,7 +467,8 @@ fn is_main_or_bin(rel: &str, main: Option<&str>, bins: &[&str]) -> bool {
     {
         return true;
     }
-    bins.iter().any(|bin| normalize_field_path(bin) == rel)
+    bins.iter()
+        .any(|bin| normalize_field_path(bin) == rel)
 }
 
 fn should_always_exclude(rel: &str) -> bool {
@@ -469,15 +482,23 @@ fn should_always_exclude(rel: &str) -> bool {
     // `.git` / `.svn` / `.hg` / `CVS`. Exact-segment match (not
     // prefix) so a regular file `lib/foo.hg-stub` isn't accidentally
     // dropped just because its basename mentions `.hg`.
-    if rel.split('/').any(|seg| ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&seg)) {
+    if rel
+        .split('/')
+        .any(|seg| ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&seg))
+    {
         return true;
     }
-    ALWAYS_EXCLUDED_SUFFIXES.iter().any(|suffix| basename.ends_with(suffix))
+    ALWAYS_EXCLUDED_SUFFIXES
+        .iter()
+        .any(|suffix| basename.ends_with(suffix))
 }
 
 fn relative_forward_slash(root: &Path, full: &Path) -> String {
     let rel = full.strip_prefix(root).unwrap_or(full);
-    let mut buf = PathBuf::from(rel).into_os_string().to_string_lossy().into_owned();
+    let mut buf = PathBuf::from(rel)
+        .into_os_string()
+        .to_string_lossy()
+        .into_owned();
     if std::path::MAIN_SEPARATOR != '/' {
         buf = buf.replace(std::path::MAIN_SEPARATOR, "/");
     }

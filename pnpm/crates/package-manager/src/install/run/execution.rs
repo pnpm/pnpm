@@ -1,7 +1,7 @@
 use super::{
     super::{
         ApplyMaterializationInputs, Arc, AtomicU8, InstallError, LogEvent, LogLevel,
-        MaterializationInputs, PackageManifest, PathBuf, Reporter, SummaryLog, UpdateSeedPolicy,
+        MaterializationInputs, PackageManifest, PathBuf, Reporter, SummaryLog,
         apply_materialization_result, materialize, prior_hoisted_dependencies,
         prior_hoisted_locations,
     },
@@ -13,7 +13,7 @@ impl<'a> RunExecution<'a> {
     fn select_scope(&self) -> InstallScope<'a> {
         InstallScope::select(
             self.install,
-            &self.workspace.workspace_root,
+            &self.workspace.dirs.workspace_root,
             workspace_projects(self.loaded_workspace_projects, self.options.selection.as_ref()),
             self.workspace.workspace_projects_are_overridden,
             &self.options,
@@ -43,7 +43,7 @@ impl<'a> RunExecution<'a> {
             &self.workspace,
             &scope,
             self.options.selection.as_ref(),
-            (&self.options.read_package_hooked_manifest_paths, self.loaded_workspace_projects),
+            (&self.options.manifests.hooked_paths, self.loaded_workspace_projects),
         )
         .await?;
         let manifests = std::mem::take(&mut loaded.manifests);
@@ -61,6 +61,12 @@ impl<'a> RunExecution<'a> {
         self.install_settled::<Reporter>(&scope, &mut loaded, &project_manifests, &lockfiles).await
     }
 
+    fn take_settled_outcome(&mut self) -> InstallRunOutcome {
+        InstallRunOutcome::LockfileSettled {
+            workspace_manifest_dir: std::mem::take(&mut self.workspace.dirs.workspace_manifest_dir),
+        }
+    }
+
     async fn install_settled<Reporter: self::Reporter + 'static>(
         &mut self,
         scope: &InstallScope<'_>,
@@ -74,20 +80,20 @@ impl<'a> RunExecution<'a> {
                 install: self.install,
                 owned: &self.owned,
                 mode: &self.mode,
-                workspace: &self.workspace,
-                scope,
                 loaded,
-                project_manifests,
                 lockfiles,
                 verification: &verification,
+                projects: crate::install::run::dispatch::SettledProjects {
+                    workspace: &self.workspace,
+                    scope,
+                    project_manifests,
+                },
             },
             &mut self.options,
         )
         .await?
         else {
-            return Ok(InstallRunOutcome::LockfileSettled {
-                workspace_manifest_dir: std::mem::take(&mut self.workspace.workspace_manifest_dir),
-            });
+            return Ok(self.take_settled_outcome());
         };
         let materialized = materialize::<Reporter>(self.materialization_inputs(
             (scope, project_manifests),
@@ -115,7 +121,7 @@ impl<'a> RunExecution<'a> {
         dispatched: Dispatched<'a>,
         materialized: super::super::materialize::MaterializationOutput,
     ) -> Result<InstallRunOutcome, InstallError> {
-        let workspace_manifest_dir = self.workspace.workspace_manifest_dir.clone();
+        let workspace_manifest_dir = self.workspace.dirs.workspace_manifest_dir.clone();
         apply_materialization_result::<Reporter>(self.apply_inputs(
             projects,
             loaded,
@@ -146,39 +152,39 @@ impl<'a> RunExecution<'a> {
         let prior_modules = dispatched.modules.previous_modules_metadata.as_ref();
         MaterializationInputs {
             install: self.install,
-            effective_node_version: self.mode.effective_node_version.take(),
-            tarball_mem_cache: Arc::clone(&self.owned.tarball_mem_cache),
-            http_client_arc: Arc::clone(&self.owned.http_client_arc),
-            take_frozen_path: dispatched.take_frozen_path,
-            dependency_groups: std::mem::take(&mut self.owned.dependency_groups),
-            project_manifests,
-            lockfile_specifier_project_manifests: self
-                .options
-                .lockfile_specifier_project_manifests
-                .take(),
-            workspace_projects: workspace_projects(
-                self.loaded_workspace_projects,
-                self.options.selection.as_ref(),
-            ),
-            requested_importer_ids: scope.importers.requested_importer_ids.as_ref(),
-            real_importer_ids: &scope.importers.real_importer_ids,
-            workspace_root: &self.workspace.workspace_root,
-            included: self.mode.included,
-            rebuild: self.options.rebuild.as_ref(),
-            supported_architectures: self.owned.supported_architectures.as_ref(),
-            early_host_detection,
-            modules_manifest: dispatched.modules.old_modules.as_ref(),
-            prior_hoisted_dependencies: prior_hoisted_dependencies(prior_modules),
-            prior_hoisted_locations: prior_hoisted_locations(prior_modules),
-            prune_orphans: !scope.importers.filtered_install,
-            logged_methods,
-            resolve_only: self.mode.resolve_only,
-            can_prompt: self.mode.can_prompt,
-            save_lockfile: self.options.save_lockfile,
-            catalogs: &self.workspace.catalogs,
-            prefix: &self.workspace.prefix,
             resolution,
             lockfiles,
+            workspace: self.workspace.materialization_workspace(
+                (
+                    std::mem::take(&mut self.owned.projects.dependency_groups),
+                    self.options.manifests.specifier_manifests.take(),
+                ),
+                (
+                    project_manifests,
+                    workspace_projects(
+                        self.loaded_workspace_projects,
+                        self.options.selection.as_ref(),
+                    ),
+                ),
+                scope,
+            ),
+            modules: crate::install::materialize::MaterializationModules {
+                included: self.mode.included,
+                rebuild: self.options.rebuild.as_ref(),
+                modules_manifest: dispatched.modules.old_modules.as_ref(),
+                prior_hoisted_dependencies: prior_hoisted_dependencies(prior_modules),
+                prior_hoisted_locations: prior_hoisted_locations(prior_modules),
+                prune_orphans: !scope.importers.filtered_install,
+                logged_methods,
+            },
+            execution: self.mode.materialization_execution(
+                &self.owned,
+                &self.options,
+                dispatched.take_frozen_path,
+                early_host_detection,
+                &self.workspace.prefix,
+            ),
+            downloads: (&self.owned).into(),
         }
     }
 
@@ -187,18 +193,32 @@ impl<'a> RunExecution<'a> {
         loaded: &mut Loaded<'r>,
     ) -> super::super::materialize::MaterializationResolution<'a> {
         super::super::materialize::MaterializationResolution {
-            update_seed_policy: std::mem::replace(
-                &mut self.owned.update_seed_policy,
-                UpdateSeedPolicy::KeepAll,
-            ),
-            preferred_versions_override: self.owned.preferred_versions_override.take(),
-            auth_override: self.owned.auth_override.take(),
-            resolution_observer: self.owned.resolution_observer.take(),
-            peer_issues_sink: self.owned.peer_issues_sink.take(),
-            deps_requiring_build_sink: self.owned.deps_requiring_build_sink.take(),
             pnpmfile_hook: loaded.pnpmfile_hook.take(),
-            deploy_manifest_hook: self.options.deploy_manifest_hook,
-            manifest_spec_bumps: self.options.manifest_spec_bumps,
+            deploy_manifest_hook: self.options.manifests.deploy_hook,
+            manifest_spec_bumps: self.options.manifests.spec_bumps,
+            inputs: std::mem::take(&mut self.owned.resolution),
+        }
+    }
+
+    fn take_completion_context(&mut self) -> crate::install::state_options::ApplyCompletionContext {
+        crate::install::state_options::ApplyCompletionContext {
+            prefix: std::mem::take(&mut self.workspace.prefix),
+            workspace_manifest_dir: std::mem::take(&mut self.workspace.dirs.workspace_manifest_dir),
+            catalogs: std::mem::take(&mut self.workspace.catalogs),
+            catalog_context_present: self.workspace.catalog_context_present,
+            verified_file_integrity_baseline: self.mode.verified_file_integrity_baseline,
+            config: self.install.context.config,
+        }
+    }
+
+    fn take_project_scripts(
+        &mut self,
+    ) -> crate::install::state_options::PendingProjectScripts<'a, 'a> {
+        crate::install::state_options::PendingProjectScripts {
+            mutation: self.install.execution.mutation,
+            manifest_dir: self.workspace.dirs.manifest_dir,
+            selection: self.options.selection.take(),
+            rebuild: self.options.rebuild.take(),
         }
     }
 
@@ -215,38 +235,40 @@ impl<'a> RunExecution<'a> {
     {
         let (scope, project_manifests) = projects;
         ApplyMaterializationInputs {
+            completion: self.take_completion_context(),
+            mode: crate::install::state_options::CompletionMode {
+                resolve_only: self.mode.resolve_only,
+                dry_run: self.install.execution.dry_run,
+                peer_issues_sink_is_none: self.mode.peer_issues_sink_is_none,
+            },
+            prior: crate::install::state_options::ApplyPriorState {
+                lockfile: loaded.current.take(),
+                layout: dispatched.modules.old_modules,
+                metadata: dispatched.modules.previous_modules_metadata,
+                is_inconsistent: dispatched.modules.is_inconsistent,
+            },
+            projects: crate::install::state_options::ApplyProjectSelection {
+                importers: crate::install::state_options::SelectedImporters {
+                    requested_ids: scope.importers.requested_importer_ids.as_ref(),
+                    real_ids: &scope.importers.real_importer_ids,
+                    manifests: project_manifests,
+                },
+                workspace_root: std::mem::take(&mut self.workspace.dirs.workspace_root),
+                included: self.mode.included,
+                node_linker: self.install.execution.node_linker,
+                filtered_install: scope.importers.filtered_install,
+                supported_architectures: self.owned.projects
+                    .supported_architectures
+                    .take(),
+            },
+            resolution: crate::install::state_options::ApplyResolutionState {
+                existing_wanted: lockfiles.wanted.loaded,
+                loaded: lockfiles.wanted.get(),
+                frozen: dispatched.take_frozen_path,
+            },
+            scripts: self.take_project_scripts(),
+            write: lockfiles.write_policy(self.options.save_lockfile),
             materialized,
-            resolve_only: self.mode.resolve_only,
-            dry_run: self.install.dry_run,
-            peer_issues_sink_is_none: self.mode.peer_issues_sink_is_none,
-            existing_wanted_lockfile: lockfiles.wanted.loaded,
-            lockfile: lockfiles.wanted.get(),
-            included: self.mode.included,
-            node_linker: self.install.node_linker,
-            current_lockfile: loaded.current.take(),
-            project_manifests,
-            filtered_install: scope.importers.filtered_install,
-            is_inconsistent: dispatched.modules.is_inconsistent,
-            previous_modules_metadata: dispatched.modules.previous_modules_metadata,
-            config: self.install.config,
-            modules_manifest: dispatched.modules.old_modules,
-            rebuild: self.options.rebuild.take(),
-            take_frozen_path: dispatched.take_frozen_path,
-            lockfile_synthesized_from_current: lockfiles.wanted.synthesized_from_current(),
-            lockfile_was_fast_updated: lockfiles.wanted.was_fast_updated(),
-            save_lockfile: self.options.save_lockfile,
-            mutation: self.install.mutation,
-            manifest_dir: self.workspace.manifest_dir,
-            selection: self.options.selection.take(),
-            supported_architectures: self.owned.supported_architectures.take(),
-            catalog_context_present: self.workspace.catalog_context_present,
-            verified_file_integrity_baseline: self.mode.verified_file_integrity_baseline,
-            prefix: std::mem::take(&mut self.workspace.prefix),
-            requested_importer_ids: scope.importers.requested_importer_ids.as_ref(),
-            workspace_root: std::mem::take(&mut self.workspace.workspace_root),
-            workspace_manifest_dir: std::mem::take(&mut self.workspace.workspace_manifest_dir),
-            real_importer_ids: &scope.importers.real_importer_ids,
-            catalogs: std::mem::take(&mut self.workspace.catalogs),
         }
     }
 }
@@ -264,5 +286,75 @@ pub(super) fn materialization_lockfiles<'r, 'install>(
         current: loaded.current.as_ref(),
         verification,
         verification_override: dispatched.modules.lockfile_verification_override.take(),
+    }
+}
+
+impl super::InstallWorkspace<'_> {
+    fn materialization_workspace<'r>(
+        &'r self,
+        (dependency_groups, lockfile_specifier_project_manifests): (
+            Vec<pnpm_package_manifest::DependencyGroup>,
+            Option<Vec<(PathBuf, PackageManifest)>>,
+        ),
+        (project_manifests, workspace_projects): (
+            &'r [(PathBuf, &'r PackageManifest)],
+            Option<&'r [pnpm_workspace::Project]>,
+        ),
+        scope: &'r InstallScope<'_>,
+    ) -> crate::install::materialize::MaterializationWorkspace<'r> {
+        crate::install::materialize::MaterializationWorkspace {
+            dependency_groups,
+            project_manifests,
+            lockfile_specifier_project_manifests,
+            workspace_projects,
+            requested_importer_ids: scope.importers.requested_importer_ids.as_ref(),
+            real_importer_ids: &scope.importers.real_importer_ids,
+            workspace_root: &self.dirs.workspace_root,
+            catalogs: &self.catalogs,
+        }
+    }
+}
+
+impl super::RunMode {
+    fn materialization_execution<'r>(
+        &mut self,
+        owned: &'r super::InstallOwned,
+        options: &super::InstallRunOptions<'_, '_>,
+        take_frozen_path: bool,
+        early_host_detection: Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
+        prefix: &'r str,
+    ) -> crate::install::materialize::MaterializationExecution<'r> {
+        crate::install::materialize::MaterializationExecution {
+            effective_node_version: self.effective_node_version.take(),
+            take_frozen_path,
+            supported_architectures: owned.projects.supported_architectures.as_ref(),
+            early_host_detection,
+            resolve_only: self.resolve_only,
+            can_prompt: self.can_prompt,
+            save_lockfile: options.save_lockfile,
+            prefix,
+        }
+    }
+}
+
+impl From<&super::InstallOwned> for crate::install::materialize::MaterializationDownloads {
+    fn from(owned: &super::InstallOwned) -> Self {
+        Self {
+            tarball_mem_cache: Arc::clone(&owned.tarball_mem_cache),
+            http_client_arc: Arc::clone(&owned.http_client_arc),
+        }
+    }
+}
+
+impl Lockfiles<'_> {
+    pub(super) fn write_policy(
+        &self,
+        save: bool,
+    ) -> crate::install::state_options::LockfileWritePolicy {
+        crate::install::state_options::LockfileWritePolicy {
+            synthesized_from_current: self.wanted.synthesized_from_current(),
+            fast_updated: self.wanted.was_fast_updated(),
+            save,
+        }
     }
 }

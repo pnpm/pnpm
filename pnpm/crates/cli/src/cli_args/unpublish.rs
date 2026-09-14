@@ -149,7 +149,10 @@ impl UnpublishArgs {
         let context = DeprecateContext::new(config, self.registry.as_ref(), self.otp.clone())?;
 
         let spec = self.params.first().ok_or(UnpublishError::PackageRequired)?;
-        let PackageSpec { name: package_name, version: version_range } = parse_package_spec(spec)?;
+        let PackageSpec {
+            name: package_name,
+            version: version_range,
+        } = parse_package_spec(spec)?;
 
         let registry_url = registry_for_package(&context, &package_name);
         let auth_header = auth_header_for_registry(&context, &registry_url, &package_name);
@@ -205,7 +208,11 @@ impl UnpublishArgs {
         if !self.force {
             return Err(UnpublishError::ConfirmRequired {
                 package_name: pkg.name.clone(),
-                versions_list: pkg.versions.keys().cloned().collect::<Vec<_>>().join(", "),
+                versions_list: pkg.versions
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", "),
             }
             .into());
         }
@@ -220,7 +227,9 @@ impl UnpublishArgs {
             if response.status() == StatusCode::METHOD_NOT_ALLOWED {
                 return Err(UnpublishError::CompletelyForbidden.into());
             }
-            return Err(registry_write_error(response, "unpublish".to_string()).await.into());
+            return Err(registry_write_error(response, "unpublish".to_string())
+                .await
+                .into());
         }
 
         Ok(format!(
@@ -275,7 +284,9 @@ async fn unpublish_versions<Sys: UnpublishHost, Reporter: self::Reporter>(
         )
         .await?;
         if !response.status().is_success() && response.status() != StatusCode::NOT_FOUND {
-            return Err(registry_write_error(response, "unpublish".to_string()).await.into());
+            return Err(registry_write_error(response, "unpublish".to_string())
+                .await
+                .into());
         }
     }
 
@@ -286,8 +297,7 @@ async fn unpublish_versions<Sys: UnpublishHost, Reporter: self::Reporter>(
 fn remove_versions(pkg: &mut Packument, versions: &[String]) -> Vec<String> {
     let mut tarballs: Vec<String> = Vec::new();
     for version in versions {
-        let tarball = pkg
-            .versions
+        let tarball = pkg.versions
             .get(version)
             .and_then(|data| data.get("dist"))
             .and_then(|dist| dist.get("tarball"))
@@ -303,14 +313,19 @@ fn remove_versions(pkg: &mut Packument, versions: &[String]) -> Vec<String> {
 /// Drop the dist-tags that pointed at the removed versions, moving `latest`
 /// to the highest version left.
 fn retag_after_removal(pkg: &mut Packument, versions: &[String]) {
-    let removed: HashSet<&str> = versions.iter().map(String::as_str).collect();
-    let latest_was_removed = pkg
-        .dist_tags
+    let removed: HashSet<&str> = versions
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let latest_was_removed = pkg.dist_tags
         .get("latest")
         .and_then(Value::as_str)
         .is_some_and(|latest| removed.contains(latest));
-    pkg.dist_tags
-        .retain(|_, target| !target.as_str().is_some_and(|target| removed.contains(target)));
+    pkg.dist_tags.retain(|_, target| {
+        !target
+            .as_str()
+            .is_some_and(|target| removed.contains(target))
+    });
     if latest_was_removed && let Some(highest) = highest_version(&pkg.versions) {
         pkg.dist_tags.insert("latest".to_string(), Value::String(highest));
     }
@@ -340,7 +355,11 @@ fn versions_matching_range(versions: &Map<String, Value>, range: &str) -> Vec<St
 fn highest_version(versions: &Map<String, Value>) -> Option<String> {
     versions
         .keys()
-        .filter_map(|ver_str| Version::parse(ver_str).ok().map(|ver| (ver, ver_str)))
+        .filter_map(|ver_str| {
+            Version::parse(ver_str)
+                .ok()
+                .map(|ver| (ver, ver_str))
+        })
         .max_by(|(left, _), (right, _)| left.cmp(right))
         .map(|(_, ver_str)| ver_str.clone())
 }

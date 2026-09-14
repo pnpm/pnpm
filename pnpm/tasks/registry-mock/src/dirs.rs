@@ -19,8 +19,7 @@ pub fn workspace_root() -> &'static Path {
             output.status.success(),
             "Command `cargo locate-project` exits with non-zero status code",
         );
-        output
-            .stdout
+        output.stdout
             .pipe(String::from_utf8)
             .expect("convert stdout to UTF-8")
             .trim_end()
@@ -64,7 +63,11 @@ pub fn runtime_storage() -> &'static Path {
             .map(PathBuf::from)
             .or_else(|| {
                 home::home_dir()
-                    .map(|home| home.join(".cache").join("pnpm-registry").join("storage"))
+                    .map(|home| {
+                        home.join(".cache")
+                            .join("pnpm-registry")
+                            .join("storage")
+                    })
             })
             .expect("locate runtime storage dir: set PNPM_REGISTRY_STORAGE or ensure $HOME is set")
     });

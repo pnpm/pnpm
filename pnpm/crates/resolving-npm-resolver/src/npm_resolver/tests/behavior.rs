@@ -10,8 +10,12 @@ use pnpm_resolving_resolver_base::Resolver;
 #[tokio::test]
 async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared() {
     let mut server = mockito::Server::new_async().await;
-    let _mock =
-        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -21,8 +25,18 @@ async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared
         prev_specifier: Some("~1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let opts = ResolveOptions { calc_specifier: true, ..ResolveOptions::default() };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let opts = ResolveOptions {
+        specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
+            calc_specifier: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("~1.1.0"));
 }
 
@@ -46,13 +60,17 @@ async fn jsr_specifier_routes_through_jsr_registry() {
         bare_specifier: Some("jsr:@foo/bar@^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
-    let name_ver = result.name_ver.as_ref().expect("npm resolver fills name_ver");
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+    let name_ver = result.package.name_ver.as_ref().expect("npm resolver fills name_ver");
     assert_eq!(name_ver.name.to_string(), "@jsr/foo__bar");
     assert_eq!(name_ver.suffix.to_string(), "1.1.0");
     assert_eq!(result.resolved_via, "jsr-registry");
     assert_eq!(result.alias.as_deref(), Some("@foo/bar"));
-    assert_eq!(result.latest.as_deref(), Some("1.1.0"));
+    assert_eq!(result.package.latest.as_deref(), Some("1.1.0"));
     assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
 }
 
@@ -77,13 +95,23 @@ async fn jsr_calculated_specifier_keeps_the_operator_the_previous_specifier_decl
         prev_specifier: Some("jsr:@foo/bar@~1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let opts = ResolveOptions { calc_specifier: true, ..ResolveOptions::default() };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let opts = ResolveOptions {
+        specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
+            calc_specifier: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("jsr:~1.1.0"));
 }
 
 /// `optionalDependencies` and `peerDependenciesMeta` round-trip from the
-/// registry's per-version manifest into [`ResolveResult::manifest`]
+/// registry's per-version manifest into [`ResolvedPackageInfo::manifest`]
 /// (a [`serde_json::Value`]). Downstream
 /// `extract_children` reads the optional-dep edges and
 /// `extract_peer_dependencies` reads the per-peer `optional` flag;
@@ -121,8 +149,12 @@ async fn resolved_manifest_carries_optional_dependencies_and_peer_dependencies_m
     }"#;
 
     let mut server = mockito::Server::new_async().await;
-    let _mock =
-        server.mock("GET", "/consumer").with_status(200).with_body(BODY).create_async().await;
+    let _mock = server
+        .mock("GET", "/consumer")
+        .with_status(200)
+        .with_body(BODY)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -131,8 +163,12 @@ async fn resolved_manifest_carries_optional_dependencies_and_peer_dependencies_m
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
-    let manifest = result.manifest.as_ref().expect("npm resolver populates manifest");
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+    let manifest = result.package.manifest.as_ref().expect("npm resolver populates manifest");
 
     let optional = manifest
         .get("optionalDependencies")
@@ -171,7 +207,10 @@ async fn jsr_specifier_with_invalid_scope_propagates_parser_error() {
         bare_specifier: Some("jsr:foo@^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let err = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+    let err = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap_err();
     let msg = err.to_string();
     // Asserting the error message ties the test to the public
     // `ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE` contract; the resolver seam
@@ -196,13 +235,17 @@ async fn explicit_current_revision_accepts_its_matching_history_record() {
         bare_specifier: Some("1.0.0+r2".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     let LockfileResolution::Tarball(resolution) = &result.resolution else {
         panic!("expected tarball resolution");
     };
     assert_eq!(resolution.revision.map(TarballRevision::get), Some(2));
     assert_eq!(
-        result.manifest.as_ref().expect("manifest")["dependencies"],
+        result.package.manifest.as_ref().expect("manifest")["dependencies"],
         json!({
             "selected-current": "1.0.0",
         }),
@@ -225,13 +268,17 @@ async fn explicit_original_revision_omits_the_lockfile_revision() {
         bare_specifier: Some("1.0.0+r0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     let LockfileResolution::Tarball(resolution) = &result.resolution else {
         panic!("expected tarball resolution");
     };
     assert_eq!(resolution.revision, None);
     assert_eq!(
-        result.manifest.as_ref().expect("manifest")["dependencies"],
+        result.package.manifest.as_ref().expect("manifest")["dependencies"],
         json!({
             "original": "1.0.0",
         }),
@@ -255,7 +302,10 @@ async fn unknown_and_invalid_explicit_revisions_are_hard_errors() {
             bare_specifier: Some(specifier.to_string()),
             ..WantedDependency::default()
         };
-        let error = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+        let error = resolver
+            .resolve(&wanted, &ResolveOptions::default())
+            .await
+            .unwrap_err();
         match expected_kind {
             "missing" => assert!(error.downcast_ref::<NoMatchingRevisionError>().is_some()),
             "invalid" => assert!(error.downcast_ref::<InvalidRevisionSpecifierError>().is_some()),
@@ -272,12 +322,20 @@ async fn current_revision_requires_a_matching_history_entry() {
     let mut body: serde_json::Value =
         serde_json::from_str(&revision_package_body(&tarball, &json!(1))).unwrap();
     body["versions"]["1.0.0"]["dist"]["revisions"] = json!([]);
-    server.mock("GET", "/acme").with_status(200).with_body(body.to_string()).create_async().await;
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(body.to_string())
+        .create_async()
+        .await;
     let (resolver, _tempdir) = build_resolver(&registry);
     let wanted =
         WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
 
-    let error = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+    let error = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap_err();
 
     assert!(error.downcast_ref::<MalformedRevisionHistoryError>().is_some());
 }

@@ -1,6 +1,5 @@
 use super::super::{
-    Arc, Catalogs, Config, Host, IncludedDependencies, InstallError, Lockfile, LogEvent, LogLevel,
-    NodeLinker, PackageManifest, Path, PathBuf, PnpmLog, RebuildOptions, Reporter,
+    Arc, Config, Host, InstallError, Lockfile, LogEvent, LogLevel, Path, PnpmLog, Reporter,
     ResolutionVerifier, Stage, StageLog, SummaryLog, SystemTime, build_workspace_state,
     frozen_tree_intact, gvs_build_marker_present, has_newly_allowed_ignored_builds,
     has_revoked_allowed_builds, map_frozen_lockfile_error, modules_consistent_with,
@@ -14,36 +13,30 @@ use crate::optimistic_repeat_install::filesystem_now_ms;
 /// materialized copy can go stale while every install-state artifact
 /// still says the tree is current.
 pub(super) fn has_directory_snapshot(lockfile: &Lockfile) -> bool {
-    lockfile.packages.iter().flat_map(|packages| packages.values()).any(|metadata| {
-        matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
-    })
+    lockfile.packages
+        .iter()
+        .flat_map(|packages| packages.values())
+        .any(|metadata| {
+            matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+        })
 }
 /// Everything the "nothing to do" verdict rests on.
 pub(super) struct FrozenTreeUpToDate<'a> {
-    pub(super) take_frozen_path: bool,
-    pub(super) filtered_install: bool,
-    pub(super) disable_optimistic_repeat_install: bool,
-    pub(super) config: &'static Config,
-    pub(super) workspace_root: &'a Path,
-    pub(super) node_linker: NodeLinker,
-    pub(super) included: IncludedDependencies,
+    pub(crate) tree: crate::install::state_options::ModulesTreeContext<'a>,
+    pub(crate) repeat: crate::install::state_options::RepeatInstallPolicy<'a>,
     pub(super) lockfile: Option<&'a Lockfile>,
     pub(super) current_lockfile: Option<&'a Lockfile>,
     pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
-    pub(super) supported_architectures:
-        Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    pub(super) rebuild: Option<&'a RebuildOptions>,
-    pub(super) effective_node_version: Option<&'a str>,
 }
 /// The lockfile and modules manifest of a tree nothing has to be done to, or
 /// `None` when the install has to materialize.
 pub(super) fn frozen_tree_up_to_date<'a>(
     context: &FrozenTreeUpToDate<'a>,
 ) -> Option<(&'a Lockfile, &'a pnpm_modules_yaml::ModulesLayout)> {
-    let config = context.config;
-    if context.take_frozen_path
-        && !context.filtered_install
-        && !context.disable_optimistic_repeat_install
+    let config = context.tree.config;
+    if context.repeat.frozen
+        && !context.repeat.filtered
+        && !context.repeat.disable_optimistic_check
         // `--force` reinstalls everything, so an up-to-date tree
         // must not short-circuit the materialization.
         && !config.force
@@ -60,14 +53,14 @@ pub(super) fn frozen_tree_up_to_date<'a>(
         // through materialization in `lockfileToDepGraph`.
         && !has_directory_snapshot(wanted_lockfile)
         && let Some(modules) = context.modules_manifest
-        && modules_consistent_with(modules, config, context.node_linker, context.included)
+        && modules_consistent_with(modules, config, context.tree.node_linker, context.tree.included)
         // A `supportedArchitectures` change alters the skip set
         // without touching the lockfile or `.modules.yaml`, so the
         // unchanged-layout premise doesn't hold and the platform
         // packages must be re-evaluated.
         && crate::optimistic_repeat_install::recorded_supported_architectures_match(
-            context.workspace_root,
-            context.supported_architectures,
+            context.tree.workspace_root,
+            context.repeat.supported_architectures,
         )
         // An `allowBuilds` change that now permits a previously-ignored
         // build must rebuild it, even though the lockfile and layout are
@@ -84,19 +77,19 @@ pub(super) fn frozen_tree_up_to_date<'a>(
         && !gvs_build_marker_present(
             wanted_lockfile,
             config,
-            context.workspace_root,
-            context.effective_node_version,
+            context.tree.workspace_root,
+            context.repeat.effective_node_version,
         )
         // An explicit `pacquet rebuild` always re-runs the build phase,
         // so it never short-circuits here.
-        && context.rebuild.is_none()
+        && context.repeat.rebuild.is_none()
         && !modules_cache_prune_due(config, context.modules_manifest)
         && frozen_tree_intact(
             wanted_lockfile,
             modules,
             config,
-            context.workspace_root,
-            context.node_linker,
+            context.tree.workspace_root,
+            context.tree.node_linker,
         )
     {
         return Some((wanted_lockfile, modules));
@@ -121,25 +114,16 @@ pub(super) fn modules_cache_prune_due(
 }
 /// What the up-to-date early return still has to write and report.
 pub(super) struct UpToDateInstall<'a, 'install> {
-    pub(super) config: &'static Config,
-    pub(super) workspace_root: &'a Path,
-    pub(super) node_linker: NodeLinker,
-    pub(super) included: IncludedDependencies,
+    pub(crate) tree: crate::install::state_options::ModulesTreeContext<'a>,
+    pub(crate) projects: crate::install::state_options::InstallProjectMetadata<'a>,
+    pub(crate) verification:
+        crate::install::state_options::LockfileVerificationInputs<'a, 'install>,
+    pub(crate) write: crate::install::state_options::LockfileWritePolicy,
     pub(super) wanted_lockfile: &'a Lockfile,
     pub(super) modules: &'a pnpm_modules_yaml::ModulesLayout,
     pub(super) supported_architectures:
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    pub(super) catalogs: &'a Catalogs,
-    pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) filtered_install: bool,
-    pub(super) prefix: &'a str,
-    pub(super) resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
-    pub(super) derived_lockfile_path: Option<&'a Path>,
-    pub(super) lockfile_verification_override:
-        Option<super::super::LockfileVerificationOverride<'install>>,
-    pub(super) lockfile_synthesized_from_current: bool,
-    pub(super) lockfile_was_fast_updated: bool,
-    pub(super) save_lockfile: bool,
 }
 /// Up-to-date installs still enforce dependency-name verification and recorded build policy.
 pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
@@ -151,36 +135,32 @@ pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
     // eagerly before the up-to-date early return.
     verify_up_to_date_lockfile::<Reporter>(
         context.wanted_lockfile,
-        context.lockfile_verification_override.take(),
-        context.resolution_verifiers,
-        (context.derived_lockfile_path, &context.config.cache_dir),
+        context.verification.override_check.take(),
+        context.verification.verifiers,
+        (context.verification.path, &context.tree.config.cache_dir),
     )
     .await?;
     enforce_recorded_build_policy(&context)?;
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
         message: "Lockfile is up to date, resolution step is skipped".to_string(),
-        prefix: context.prefix.to_string(),
+        prefix: context.projects.prefix.to_string(),
     }));
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,
-        prefix: context.prefix.to_string(),
+        prefix: context.projects.prefix.to_string(),
         stage: Stage::ImportingDone,
     }));
     save_merged_wanted_lockfile(
         context.wanted_lockfile,
-        context.config,
-        context.workspace_root,
-        (
-            context.lockfile_synthesized_from_current,
-            context.lockfile_was_fast_updated,
-            context.save_lockfile,
-        ),
+        context.tree.config,
+        context.tree.workspace_root,
+        (context.write.synthesized_from_current, context.write.fast_updated, context.write.save),
     )?;
     refresh_up_to_date_workspace(&context)?;
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
-        prefix: context.prefix.to_string(),
+        prefix: context.projects.prefix.to_string(),
     }));
     Ok(())
 }
@@ -188,9 +168,9 @@ pub(super) async fn report_up_to_date<Reporter: self::Reporter + 'static>(
 pub(super) fn enforce_recorded_build_policy(
     context: &UpToDateInstall<'_, '_>,
 ) -> Result<(), InstallError> {
-    if context.config.strict_dep_builds
+    if context.tree.config.strict_dep_builds
         && let Ok(Some(package_names)) =
-            unapproved_recorded_ignored_builds(context.modules, context.config)
+            unapproved_recorded_ignored_builds(context.modules, context.tree.config)
     {
         return Err(InstallError::IgnoredBuilds { package_names });
     }
@@ -200,17 +180,17 @@ pub(super) fn refresh_up_to_date_workspace(
     context: &UpToDateInstall<'_, '_>,
 ) -> Result<(), InstallError> {
     update_workspace_state(
-        context.workspace_root,
+        context.tree.workspace_root,
         &build_workspace_state::<Host>(
-            context.workspace_root,
-            context.config,
-            context.node_linker,
-            context.included,
+            context.tree.workspace_root,
+            context.tree.config,
+            context.tree.node_linker,
+            context.tree.included,
             context.supported_architectures,
-            context.catalogs,
-            context.project_manifests,
+            context.projects.catalogs,
+            context.projects.manifests,
             context.filtered_install,
-            filesystem_now_ms(context.workspace_root),
+            filesystem_now_ms(context.tree.workspace_root),
         ),
     )
     .map_err(InstallError::WriteWorkspaceState)

@@ -21,7 +21,10 @@ async fn parallel_uploads_are_rejected_before_buffering_and_cancellation_release
     let mut uploads = Vec::new();
     for _ in 0..2 {
         let body = pending_upload(started.clone());
-        uploads.push(tokio::spawn(app.clone().oneshot(request(Method::PUT, ENTRY, body))));
+        uploads.push(tokio::spawn(
+            app.clone()
+                .oneshot(request(Method::PUT, ENTRY, body)),
+        ));
     }
     tokio::time::timeout(std::time::Duration::from_secs(10), async {
         receiver.recv().await.unwrap();
@@ -42,13 +45,20 @@ async fn parallel_uploads_are_rejected_before_buffering_and_cancellation_release
     assert_eq!(rejected.status(), StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(rejected.headers()[header::RETRY_AFTER], "1");
     assert_eq!(rejected.headers()[header::CACHE_CONTROL], "private, no-store");
-    let read = app.clone().oneshot(request(Method::GET, ENTRY, Body::empty())).await.unwrap();
+    let read = app
+        .clone()
+        .oneshot(request(Method::GET, ENTRY, Body::empty()))
+        .await
+        .unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
     for upload in uploads {
         upload.abort();
         assert!(upload.await.unwrap_err().is_cancelled(), "upload must be cancelled");
     }
-    let published = app.oneshot(request(Method::PUT, ENTRY, Body::from("compiled"))).await.unwrap();
+    let published = app
+        .oneshot(request(Method::PUT, ENTRY, Body::from("compiled")))
+        .await
+        .unwrap();
     assert_eq!(published.status(), StatusCode::CREATED);
 }
 
@@ -100,29 +110,51 @@ async fn ci_publishes_and_developers_read_but_cannot_publish() {
     let config = config(&directory);
     let ci = app(config.clone(), "ci", false);
     let developer = app(config, "developer", false);
-    let missing =
-        developer.clone().oneshot(request(Method::GET, ENTRY, Body::empty())).await.unwrap();
+    let missing = developer
+        .clone()
+        .oneshot(request(Method::GET, ENTRY, Body::empty()))
+        .await
+        .unwrap();
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
-    let published =
-        ci.clone().oneshot(request(Method::PUT, ENTRY, Body::from("compiled"))).await.unwrap();
+    let published = ci
+        .clone()
+        .oneshot(request(Method::PUT, ENTRY, Body::from("compiled")))
+        .await
+        .unwrap();
     assert_eq!(published.status(), StatusCode::CREATED);
-    let read = developer.clone().oneshot(request(Method::GET, ENTRY, Body::empty())).await.unwrap();
+    let read = developer
+        .clone()
+        .oneshot(request(Method::GET, ENTRY, Body::empty()))
+        .await
+        .unwrap();
     assert_eq!(read.status(), StatusCode::OK);
     assert_eq!(read.headers()[header::CACHE_CONTROL], "private, no-store");
     assert_eq!(read.headers()[header::VARY], "Authorization");
     assert_eq!(to_bytes(read.into_body(), 100).await.unwrap(), "compiled");
-    let head =
-        developer.clone().oneshot(request(Method::HEAD, ENTRY, Body::empty())).await.unwrap();
+    let head = developer
+        .clone()
+        .oneshot(request(Method::HEAD, ENTRY, Body::empty()))
+        .await
+        .unwrap();
     assert_eq!(head.status(), StatusCode::OK);
     assert_eq!(head.headers()[header::CONTENT_LENGTH], "8");
     assert_eq!(to_bytes(head.into_body(), 100).await.unwrap().len(), 0);
-    let denied =
-        developer.oneshot(request(Method::PUT, ENTRY, Body::from("poison"))).await.unwrap();
+    let denied = developer
+        .oneshot(request(Method::PUT, ENTRY, Body::from("poison")))
+        .await
+        .unwrap();
     assert_eq!(denied.status(), StatusCode::FORBIDDEN);
-    let duplicate =
-        ci.clone().oneshot(request(Method::PUT, ENTRY, Body::from("other bytes"))).await.unwrap();
+    let duplicate = ci
+        .clone()
+        .oneshot(request(Method::PUT, ENTRY, Body::from("other bytes")))
+        .await
+        .unwrap();
     assert_eq!(duplicate.status(), StatusCode::OK);
-    let read = ci.clone().oneshot(request(Method::GET, ENTRY, Body::empty())).await.unwrap();
+    let read = ci
+        .clone()
+        .oneshot(request(Method::GET, ENTRY, Body::empty()))
+        .await
+        .unwrap();
     assert_eq!(to_bytes(read.into_body(), 100).await.unwrap(), "compiled");
     let other = ci
         .oneshot(request(Method::GET, &ENTRY.replace("/acme/", "/other/"), Body::empty()))
@@ -152,12 +184,18 @@ async fn unauthorized_or_readonly_publishers_are_rejected_before_reading_bodies(
         assert_eq!(response.status(), expected);
     }
     let response = app(config.clone(), "ci", false)
-        .oneshot(Request::get(ENTRY).body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get(ENTRY)
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     let mut revoked = request(Method::GET, ENTRY, Body::empty());
-    revoked.headers_mut().insert(header::AUTHORIZATION, "Bearer revoked".parse().unwrap());
+    revoked
+        .headers_mut()
+        .insert(header::AUTHORIZATION, "Bearer revoked".parse().unwrap());
     let response = app(config, "ci", false).oneshot(revoked).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -166,7 +204,7 @@ async fn unauthorized_or_readonly_publishers_are_rejected_before_reading_bodies(
 async fn disabled_artifacts_and_undeclared_caches_are_not_served() {
     let directory = TempDir::new().unwrap();
     let mut config = config(&directory);
-    config.artifacts.compiler_caches.clear();
+    config.features.artifacts.compiler_caches.clear();
     assert_eq!(
         app(config.clone(), "ci", false)
             .oneshot(request(Method::GET, ENTRY, Body::empty()))
@@ -175,8 +213,8 @@ async fn disabled_artifacts_and_undeclared_caches_are_not_served() {
             .status(),
         StatusCode::NOT_FOUND,
     );
-    config.artifacts.enabled = false;
-    config.resolver.enabled = true;
+    config.features.artifacts.enabled = false;
+    config.features.resolver.enabled = true;
     assert_eq!(
         app(config, "ci", false)
             .oneshot(request(Method::PUT, ENTRY, Body::empty()))

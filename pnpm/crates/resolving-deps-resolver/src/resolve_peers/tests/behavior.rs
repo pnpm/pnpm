@@ -106,7 +106,10 @@ fn pruned_hoisted_provider_falls_back_to_root_resolution() {
     let result = resolve_peers(
         &mut tree,
         ResolvePeersOptions {
-            hoisted_peer_provider_node_ids: HashSet::from_iter([prov]),
+            scope: crate::PeerResolutionScope {
+                hoisted_peer_provider_node_ids: HashSet::from_iter([prov]),
+                ..Default::default()
+            },
             ..ResolvePeersOptions::default()
         },
     );
@@ -145,13 +148,13 @@ fn the_first_resolvable_pending_edge_keeps_the_slot() {
     }
 
     let first_dep_path = DepPath::from("child@1.0.0");
-    walker.node_dep_paths.insert(first_child, first_dep_path.clone());
-    walker.node_dep_paths.insert(second_child, DepPath::from("child@2.0.0"));
-    walker.graph.insert(parent.clone(), graph_node(&parent));
+    walker.caches.node_dep_paths.insert(first_child, first_dep_path.clone());
+    walker.caches.node_dep_paths.insert(second_child, DepPath::from("child@2.0.0"));
+    walker.output.graph.insert(parent.clone(), graph_node(&parent));
     walker.patch_pending_peer_edges();
 
     assert_eq!(
-        walker.graph[&parent].children.get("child"),
+        walker.output.graph[&parent].edges.children.get("child"),
         Some(&first_dep_path),
         "`or_insert` leaves an already-filled slot alone",
     );
@@ -239,7 +242,9 @@ fn a_backedge_cut_member_merges_to_a_bare_dep_path() {
         &order_test_shape(false),
     );
     assert!(
-        first_order.iter().any(|key| key == "ring02@1.0.0"),
+        first_order
+            .iter()
+            .any(|key| key == "ring02@1.0.0"),
         "ring members merge to bare depPaths; got {first_order:#?}",
     );
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
@@ -263,11 +268,15 @@ fn an_importer_provider_does_not_shadow_a_nearer_entry_provider() {
     let second_order =
         peer_cycle_graph_keys(&[("entry01", 2, "2.0.0"), ("entry00", 0, "1.0.0")], &shape());
     assert!(
-        first_order.iter().any(|key| key == "ring01@1.0.0(p@1.0.0)(w@1.0.0)"),
+        first_order
+            .iter()
+            .any(|key| key == "ring01@1.0.0(p@1.0.0)(w@1.0.0)"),
         "a walked position binds its entry's nearer w; got {first_order:#?}",
     );
     assert!(
-        first_order.iter().any(|key| key == "ring01@1.0.0(p@1.0.0)(w@9.9.9)"),
+        first_order
+            .iter()
+            .any(|key| key == "ring01@1.0.0(p@1.0.0)(w@9.9.9)"),
         "the positionless back-edge occurrence binds the importer's w; got {first_order:#?}",
     );
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");
@@ -284,12 +293,11 @@ fn a_backedge_dependency_stays_in_the_graph() {
     );
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
-    let (_, ring03) = result
-        .graph
+    let (_, ring03) = result.graph
         .iter()
         .find(|(path, _)| path.as_str().starts_with("ring03@1.0.0"))
         .expect("ring03 is walked");
-    let next = ring03.children.get("next").expect("the cut ring03 → ring00 edge is recorded");
+    let next = ring03.edges.children.get("next").expect("the cut ring03 → ring00 edge is recorded");
     assert!(
         next.as_str().starts_with("ring00@1.0.0"),
         "the back-edge references a ring00 occurrence, got {next:?}",
@@ -324,13 +332,17 @@ fn a_backedge_cut_subtree_is_pure() {
     }
 
     assert!(
-        walker.pure_pkgs.contains_key("ring02@1.0.0"),
+        walker.caches.pure_pkgs.contains_key("ring02@1.0.0"),
         "ring02's canonical subtree reaches no peer consumer, so it is pure",
     );
-    let cached_mentions_w = walker.peers_cache.get("ring02@1.0.0").is_some_and(|items| {
-        items.iter().any(|item| {
-            item.resolved_peers.contains_key("w") || item.missing_peers.contains_key("w")
-        })
-    });
+    let cached_mentions_w = walker.caches.peers_cache
+        .get("ring02@1.0.0")
+        .is_some_and(|items| {
+            items
+                .iter()
+                .any(|item| {
+                    item.resolved_peers.contains_key("w") || item.missing_peers.contains_key("w")
+                })
+        });
     assert!(!cached_mentions_w, "no cached ring02 verdict mentions the consumer behind the cut");
 }

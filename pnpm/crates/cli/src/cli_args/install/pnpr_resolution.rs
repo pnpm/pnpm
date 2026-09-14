@@ -46,7 +46,11 @@ pub(super) fn resolve_project(
 ) -> ResolveProject {
     ResolveProject {
         dir,
-        name: manifest.value().get("name").and_then(|value| value.as_str()).map(str::to_string),
+        name: manifest
+            .value()
+            .get("name")
+            .and_then(|value| value.as_str())
+            .map(str::to_string),
         version: manifest
             .value()
             .get("version")
@@ -123,7 +127,7 @@ pub(super) async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let inputs = pnpr_request_inputs(state, &link, lockfile_dir).await?;
 
     if (session.satisfied_without_server
-        || (link.frozen_lockfile && (selection.is_some() || !link.lockfile_only)))
+        || (link.lockfile.frozen && (selection.is_some() || !link.lockfile.only)))
         && let Some(lockfile) = session.previous_wanted
     {
         return install_from_local_lockfile::<Reporter>(
@@ -182,9 +186,11 @@ async fn prepare_pnpr_session<'a, Reporter: self::Reporter + 'static>(
     let merge_wanted = merge_source(state, link, previous_wanted)?;
 
     let selection_importer_ids = selection_importer_ids(state, selection);
-    let partial_selection = selection_importer_ids.as_ref().is_some_and(
-        |(real_importer_ids, selected_importer_ids)| real_importer_ids != selected_importer_ids,
-    );
+    let partial_selection = selection_importer_ids
+        .as_ref()
+        .is_some_and(|(real_importer_ids, selected_importer_ids)| {
+            real_importer_ids != selected_importer_ids
+        });
     let projects = resolve_projects_for_pnpr(state, selection, link.use_state_lockfile)?;
     let full_workspace_importer_ids =
         full_workspace_importer_ids(state, selection, link, &projects);
@@ -219,8 +225,13 @@ pub(super) async fn prefetch_allowed(
     let Some(hook) = pnpmfile_hook else {
         return Ok(true);
     };
-    let fetchers = hook.get_custom_fetchers().await.map_err(|error| miette::miette!("{error}"))?;
-    Ok(!fetchers.iter().any(|fetcher| fetcher.has_can_fetch() && fetcher.has_fetch()))
+    let fetchers = hook
+        .get_custom_fetchers()
+        .await
+        .map_err(|error| miette::miette!("{error}"))?;
+    Ok(!fetchers
+        .iter()
+        .any(|fetcher| fetcher.has_can_fetch() && fetcher.has_fetch()))
 }
 
 /// Whether the resolve streams its packages into a prefetcher, and what
@@ -255,22 +266,21 @@ async fn resolve_via_pnpr(
 
     let result = match prefetcher.as_ref() {
         Some(prefetcher) => {
-            client
-                .resolve_projects_streaming(opts, |pkg| {
-                    let tarball = benchmark_registry_override.map_or_else(
-                        || pkg.tarball.clone(),
-                        |registry| registry.client_tarball_url(&pkg.tarball),
-                    );
-                    prefetcher.prefetch(
-                        pkg.id,
-                        tarball,
-                        &pkg.integrity,
-                        pkg.unpacked_size,
-                        pkg.file_count,
-                        pkg.revision.is_some(),
-                    );
-                })
-                .await
+            client.resolve_projects_streaming(opts, |pkg| {
+                let tarball = benchmark_registry_override.map_or_else(
+                    || pkg.tarball.clone(),
+                    |registry| registry.client_tarball_url(&pkg.tarball),
+                );
+                prefetcher.prefetch(
+                    pkg.id,
+                    tarball,
+                    &pkg.integrity,
+                    pkg.unpacked_size,
+                    pkg.file_count,
+                    pkg.revision.is_some(),
+                );
+            })
+            .await
         }
         None => client.resolve_projects(opts).await,
     };
@@ -302,10 +312,10 @@ fn load_previous_wanted<'a, Reporter: self::Reporter + 'static>(
         return Ok(None);
     }
     let loaded =
-        if link.fix_lockfile { state.lockfile.get_for_fix() } else { state.lockfile.get() };
+        if link.lockfile.fix { state.lockfile.get_for_fix() } else { state.lockfile.get() };
     match loaded {
         Ok(lockfile) => Ok(lockfile),
-        Err(error) if !link.frozen_lockfile => {
+        Err(error) if !link.lockfile.frozen => {
             <Reporter as pnpm_reporter::Reporter>::emit(&pnpm_reporter::LogEvent::Pnpm(
                 pnpm_reporter::PnpmLog {
                     level: pnpm_reporter::LogLevel::Warn,
@@ -333,7 +343,7 @@ fn merge_source<'a>(
     if previous_wanted.is_none() {
         return Ok(None);
     }
-    if !(link.fix_lockfile && link.use_state_lockfile) {
+    if !(link.lockfile.fix && link.use_state_lockfile) {
         return Ok(previous_wanted);
     }
     MaybeLazyLockfile::Repair(&state.lockfile)
@@ -354,11 +364,11 @@ async fn satisfied_without_server(
     catalogs: Option<&Catalogs>,
     partial_selection: bool,
 ) -> bool {
-    let exchange_free = !link.frozen_lockfile
-        && !link.update_patches
-        && !link.fix_lockfile
-        && !link.lockfile_only
-        && link.prefer_frozen_lockfile
+    let exchange_free = !link.lockfile.frozen
+        && !link.lockfile.update_patches
+        && !link.lockfile.fix
+        && !link.lockfile.only
+        && link.lockfile.prefer_frozen
         && !partial_selection;
     let Some(lockfile) = previous_wanted.filter(|_| exchange_free) else {
         return false;
@@ -368,7 +378,7 @@ async fn satisfied_without_server(
         manifest: &state.manifest,
         catalogs: &catalogs.cloned().unwrap_or_default(),
         lockfile,
-        ignore_manifest_check: link.ignore_manifest_check,
+        ignore_manifest_check: link.lockfile.ignore_manifest_check,
     })
     .await
 }
@@ -390,7 +400,7 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
         inputs.benchmark_registry_override.as_ref(),
         ResolveStreaming {
             lockfile_dir,
-            lockfile_only: link.lockfile_only,
+            lockfile_only: link.lockfile.only,
             partial_selection: session.partial_selection,
             prefetch_allowed: inputs.prefetch_allowed,
         },
@@ -411,7 +421,7 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
     // but fetched nothing; pnpm links nothing in this mode, so stop after
     // writing the lockfile rather than running the materialization pass.
     // See [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
-    if link.lockfile_only {
+    if link.lockfile.only {
         return Ok(());
     }
 

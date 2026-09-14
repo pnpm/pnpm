@@ -67,7 +67,11 @@ pub(crate) fn target_order(existing: &[String], new_keys: &[String]) -> Vec<Stri
         return existing.to_vec();
     }
     let layout = detect_key_layout(existing);
-    let mut merged: Vec<String> = existing.iter().chain(new_keys).cloned().collect();
+    let mut merged: Vec<String> = existing
+        .iter()
+        .chain(new_keys)
+        .cloned()
+        .collect();
     if layout != Layout::Unordered {
         sort_keys(&mut merged, layout);
     }

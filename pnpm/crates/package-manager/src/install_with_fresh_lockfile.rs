@@ -39,13 +39,13 @@ mod errors;
 
 mod seed_policy;
 
-use crate::{HoistedDependencies, PolicyExcludes, SkippedSnapshots};
+use crate::{PolicyExcludes, SkippedSnapshots};
 use dashmap::DashMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{
     DeprecationLog, GlobalLog, HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog,
@@ -115,12 +115,34 @@ pub struct InstallWithFreshLockfile<'a> {
 /// The install's borrowed inputs, as one `Copy` value the phases read.
 #[derive(Clone, Copy)]
 pub(crate) struct FreshInputs<'a> {
+    /// Refresh locked integrity values from the registry. Threaded
+    /// into [`ResolveOptions::update_checksums`][pnpm_resolving_resolver_base::ResolutionRefreshOptions::update_checksums] so the picker bypasses
+    /// its in-memory and on-disk metadata caches and always goes to
+    /// the registry with conditional headers.
+    pub(crate) update_checksums: bool,
+    /// Resolution policies used to validate a filtered repair after the
+    /// sanitized merge view has been spliced into the freshly resolved graph.
+    pub(crate) resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
+    pub(crate) drivers: FreshInstallDrivers<'a>,
+    pub(crate) projects: FreshInstallProjects<'a>,
+    pub(crate) execution: FreshInstallExecution,
+    pub(crate) manifests: FreshManifestOptions<'a>,
+    pub(crate) prior: FreshPriorInstall<'a>,
+    pub(crate) lockfiles: FreshLockfileSeeds<'a>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct FreshInstallDrivers<'a> {
     pub(crate) http_client: &'a ThrottledClient,
     pub(crate) config: &'static Config,
-    pub(crate) dependency_groups: &'a [DependencyGroup],
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub(crate) logged_methods: &'a AtomicU8,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct FreshInstallProjects<'a> {
+    pub(crate) dependency_groups: &'a [DependencyGroup],
     /// Install root, threaded into reporter `requester` fields.
     pub(crate) requester: &'a str,
     /// Lockfile root for the install, used by the resolver chain to
@@ -129,22 +151,24 @@ pub(crate) struct FreshInputs<'a> {
     /// parent directory under single-project installs and to the
     /// `pnpm-workspace.yaml` root under monorepos.
     pub(crate) lockfile_dir: &'a Path,
-    /// Refresh locked integrity values from the registry. Threaded
-    /// into [`ResolveOptions::update_checksums`][pnpm_resolving_resolver_base::ResolveOptions::update_checksums] so the picker bypasses
-    /// its in-memory and on-disk metadata caches and always goes to
-    /// the registry with conditional headers.
-    pub(crate) update_checksums: bool,
-    /// Existing `pnpm-lock.yaml` to seed `getPreferredVersionsFromLockfileAndManifests`
-    /// with already-pinned `(name, version)` pairs. `Some` on the
-    /// stale-lockfile / `preferFrozenLockfile: false` rewrite path
-    /// — the resolver biases toward the seeded versions when they
-    /// still satisfy the spec so unrelated dependencies keep their
-    /// pins. `None` on the no-lockfile path. Corresponds to the
-    /// `update: false` resolver mode.
-    pub(crate) wanted_lockfile: Option<&'a Lockfile>,
-    /// Intact prior lockfile used to restore unselected projects after a
-    /// filtered repair resolves against a sanitized seed.
-    pub(crate) merge_wanted_lockfile: Option<&'a Lockfile>,
+    /// CLI-merged `supportedArchitectures` (`pnpm-workspace.yaml` +
+    /// `--cpu`/`--os`/`--libc`). Threaded into the hoisted-linker
+    /// walker so its installability filter honors user-supplied
+    /// accept lists. `None` when no architectures are configured.
+    pub(crate) supported_architectures:
+        Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
+    /// A full workspace install versus a partial one (`pacquet add` and the
+    /// package installs built on it — `dlx`, global add, the engine install).
+    /// See [`crate::ProjectMutation::is_full_install`]. Gates the `--no-optional`
+    /// exclusion: only a full install's `dependency_groups` carries that
+    /// intent, so a partial run must not drop transitive optionals.
+    pub(crate) is_full_install: bool,
+    pub(crate) real_ids: Option<&'a std::collections::HashSet<String>>,
+    pub(crate) selected_ids: Option<&'a std::collections::HashSet<String>>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct FreshInstallExecution {
     /// Resolved [`pnpm_config::Config::node_linker`]. Selects the
     /// materialization shape after the virtual store is populated:
     /// under [`NodeLinker::Hoisted`] the freshly-built lockfile is
@@ -152,17 +176,11 @@ pub(crate) struct FreshInputs<'a> {
     /// [`crate::link_hoisted_modules()`] instead of the isolated
     /// symlink layout.
     pub(crate) node_linker: NodeLinker,
-    /// CLI-merged `supportedArchitectures` (`pnpm-workspace.yaml` +
-    /// `--cpu`/`--os`/`--libc`). Threaded into the hoisted-linker
-    /// walker so its installability filter honors user-supplied
-    /// accept lists. `None` when no architectures are configured.
-    pub(crate) supported_architectures:
-        Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     /// When `true`, resolve the graph and write `pnpm-lock.yaml`, then
     /// return — skipping the tarball prefetch, virtual-store
     /// materialization, symlinks, hoisting, and bin linking. The store
     /// stays untouched (no tarball is fetched) — a dry-run resolve pass.
-    /// See [`crate::Install::lockfile_only`].
+    /// See [`crate::InstallExecution::lockfile_only`].
     pub(crate) lockfile_only: bool,
     /// `config.skip_runtimes || --no-runtime`; see
     /// [`crate::add_direct_runtime_skips`].
@@ -177,93 +195,77 @@ pub(crate) struct FreshInputs<'a> {
     /// state, with an explicit override available to deterministic tests.
     pub(crate) can_prompt: bool,
     /// What the run may do with resolution-policy bypasses; see
-    /// [`crate::Install::policy_excludes`].
+    /// [`crate::InstallLockfilePolicy::excludes`].
     pub(crate) policy_excludes: PolicyExcludes,
-    /// A full workspace install versus a partial one (`pacquet add` and the
-    /// package installs built on it — `dlx`, global add, the engine install).
-    /// See [`crate::ProjectMutation::is_full_install`]. Gates the `--no-optional`
-    /// exclusion: only a full install's `dependency_groups` carries that
-    /// intent, so a partial run must not drop transitive optionals.
-    pub(crate) is_full_install: bool,
-    pub(crate) deploy_manifest_hook: bool,
-    pub(crate) real_importer_ids: Option<&'a std::collections::HashSet<String>>,
-    pub(crate) selected_importer_ids: Option<&'a std::collections::HashSet<String>>,
-    /// What the previous install materialized
-    /// (`<virtual_store_dir>/lock.yaml`). Drives the pre-link
-    /// [`crate::PruneStaleModules`] reconciliation and the hoisted
-    /// linker's previous-graph orphan diff. `None` on a first install.
-    pub(crate) current_lockfile: Option<&'a Lockfile>,
-    /// `hoistedDependencies` recorded by the previous install's
-    /// `.modules.yaml`, for [`crate::PruneStaleModules`]'s orphan
-    /// hoist-link cleanup. `None` on a first install or when the file
-    /// couldn't be fully parsed.
-    pub(crate) prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
-    /// `hoistedLocations` from the previous install for the already-in-place check.
-    pub(crate) prior_hoisted_locations: Option<&'a crate::HoistedLocations>,
-    /// See [`crate::InstallFrozenLockfile::allow_builds_changed`].
-    pub(crate) allow_builds_changed: bool,
-    /// See [`crate::HoistedLinkerInputs::prior_unbuilt_builds`].
-    pub(crate) prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
-    /// See [`crate::PruneStaleModules::prune_orphans`].
-    pub(crate) prune_orphans: bool,
     /// pnpm's `saveLockfile`: whether the freshly built lockfile may be
     /// written to `<lockfile_dir>/pnpm-lock.yaml`. `false` leaves that
     /// file untouched — the resolved graph is still returned and still
     /// drives `<virtual_store_dir>/lock.yaml`. See
     /// [`crate::Install::run_legacy_deploy`].
     pub(crate) save_lockfile: bool,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct FreshManifestOptions<'a> {
+    pub(crate) deploy_hook: bool,
     /// The declared ranges `pacquet update` asks this run to move onto the
     /// versions it resolves, and the sink it reports them back through.
     /// `None` for every other install.
-    pub(crate) manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
-    /// Resolution policies used to validate a filtered repair after the
-    /// sanitized merge view has been spliced into the freshly resolved graph.
-    pub(crate) resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
+    pub(crate) spec_bumps: Option<&'a crate::ManifestSpecBumps>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct FreshPriorInstall<'a> {
+    /// What the previous install materialized
+    /// (`<virtual_store_dir>/lock.yaml`). Drives the pre-link
+    /// [`crate::PruneStaleModules`] reconciliation and the hoisted
+    /// linker's previous-graph orphan diff. `None` on a first install.
+    pub(crate) lockfile: Option<&'a Lockfile>,
+    /// `hoistedDependencies` recorded by the previous install's
+    /// `.modules.yaml`, for [`crate::PruneStaleModules`]'s orphan
+    /// hoist-link cleanup. `None` on a first install or when the file
+    /// couldn't be fully parsed.
+    pub(crate) hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
+    /// `hoistedLocations` from the previous install for the already-in-place check.
+    pub(crate) hoisted_locations: Option<&'a crate::HoistedLocations>,
+    /// See [`pnpm_deps_restorer::PriorMaterialization::allow_builds_changed`].
+    pub(crate) allow_builds_changed: bool,
+    /// See [`pnpm_deps_restorer::PriorHoistedState::unbuilt_builds`].
+    pub(crate) unbuilt_builds: &'a crate::UnbuiltBuilds,
+    /// See [`crate::PruneStaleModules::prune_orphans`].
+    pub(crate) prune_orphans: bool,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct FreshLockfileSeeds<'a> {
+    /// Existing `pnpm-lock.yaml` to seed `getPreferredVersionsFromLockfileAndManifests`
+    /// with already-pinned `(name, version)` pairs. `Some` on the
+    /// stale-lockfile / `preferFrozenLockfile: false` rewrite path
+    /// — the resolver biases toward the seeded versions when they
+    /// still satisfy the spec so unrelated dependencies keep their
+    /// pins. `None` on the no-lockfile path. Corresponds to the
+    /// `update: false` resolver mode.
+    pub(crate) wanted: Option<&'a Lockfile>,
+    /// Intact prior lockfile used to restore unselected projects after a
+    /// filtered repair resolves against a sanitized seed.
+    pub(crate) merge_wanted: Option<&'a Lockfile>,
 }
 
 impl FreshInputs<'_> {
     fn included(&self) -> IncludedDependencies {
         IncludedDependencies {
-            dependencies: self.dependency_groups.contains(&DependencyGroup::Prod),
-            dev_dependencies: self.dependency_groups.contains(&DependencyGroup::Dev),
-            optional_dependencies: self.dependency_groups.contains(&DependencyGroup::Optional),
+            dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Prod),
+            dev_dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Dev),
+            optional_dependencies: self.projects.dependency_groups.contains(
+                &DependencyGroup::Optional,
+            ),
         }
     }
 }
 
 /// The inputs the install consumes rather than borrows.
 pub(crate) struct OwnedInputs {
-    /// Which lockfile pins to withhold from the preferred-versions seed
-    /// so the affected names re-resolve to the highest version
-    /// satisfying their manifest range. Drives `pacquet update`'s
-    /// compatible bump; see [`UpdateSeedPolicy`].
-    pub(crate) update_seed_policy: UpdateSeedPolicy,
-    /// Shared in-memory tarball cache. Held behind [`Arc`] so the
-    /// resolve-time prefetcher ([`PrefetchingResolver`][crate::PrefetchingResolver]) can capture
-    /// an owned clone into the background download task spawned for
-    /// each fresh resolution while the install-side per-package call
-    /// in `install_subtree` still takes `&MemCache` via deref.
-    pub(crate) tarball_mem_cache: Arc<MemCache>,
-    /// Same client behind an [`Arc`] for the [`NpmResolver`][pnpm_resolving_npm_resolver::NpmResolver], whose
-    /// stored `ThrottledClient` outlives any per-call borrow.
-    pub(crate) http_client_arc: Arc<ThrottledClient>,
-    /// Optional per-importer manifest source used only when serializing
-    /// importer specifiers into the lockfile. `update --no-save` resolves
-    /// against an in-memory manifest rewrite, while the lockfile importer
-    /// entry must still reflect the kept on-disk manifest.
-    pub(crate) lockfile_specifier_manifests: Option<BTreeMap<String, PackageManifest>>,
-    /// Catalogs parsed from `pnpm-workspace.yaml`. Empty for projects
-    /// without a workspace manifest.
-    pub(crate) catalogs: Catalogs,
-    /// Workspace-sibling lookup the [`NpmResolver`][pnpm_resolving_npm_resolver::NpmResolver] consults when it
-    /// sees a `workspace:` spec. `None` when this install isn't inside
-    /// a `pnpm-workspace.yaml` workspace; the resolver then errors out
-    /// on any `workspace:` spec via
-    /// `ResolveFromWorkspaceError::WorkspacePackagesNotLoaded` — the
-    /// `Cannot resolve package from workspace because opts.workspacePackages is not defined`
-    /// behavior.
-    pub(crate) workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
-    /// An `Arc` handle to the same document as [`FreshInputs::wanted_lockfile`],
+    /// An `Arc` handle to the same document as [`FreshLockfileSeeds::wanted`],
     /// when the loader holds one; `None` falls back to a deep copy where
     /// the resolver needs an owned handle.
     pub(crate) wanted_lockfile_shared: Option<Arc<Lockfile>>,
@@ -280,39 +282,56 @@ pub(crate) struct OwnedInputs {
     /// `engine_strict`. `None` runs the detection here.
     pub(crate) early_host_detection:
         Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
-    /// Per-install packument cache shared with the lockfile-verifier
-    /// constructed in [`Install::run`](crate::Install::run). The
-    /// resolver writes to it during `pick_package`; the verifier reads
-    /// from it to skip duplicate fetches when both touch the same
-    /// `(registry, name)`.
-    pub(crate) meta_cache: Arc<InMemoryPackageMetaCache>,
-    /// Preferences layered onto the seed, by package name. `add` / `update`
-    /// put a version named on the command line here so the re-resolve lands
-    /// on it instead of on the highest one its range allows.
-    pub(crate) preferred_versions_override: Option<pnpm_resolving_resolver_base::PreferredVersions>,
-    /// Per-invocation `Authorization`-header override; `None` uses
-    /// `config.auth_headers`. See [`crate::Install::auth_override`].
-    pub(crate) auth_override: Option<Arc<AuthHeaders>>,
-    /// Sink notified for each resolved tarball package as the tree walk
-    /// yields it. `None` for every local install; the pnpr server sets
-    /// one. See [`crate::Install::resolution_observer`].
-    pub(crate) resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
-    /// Out-channel for the resolve's per-importer peer-dependency
-    /// issues. See [`crate::Install::peer_issues_sink`].
-    pub(crate) peer_issues_sink: Option<crate::PeerIssuesSink>,
-    /// Out-slot for the dep paths of packages requiring a build. See
-    /// [`crate::Install::deps_requiring_build_sink`].
-    pub(crate) deps_requiring_build_sink: Option<crate::DepsRequiringBuildSink>,
     /// In-process `readPackage`/`afterAllResolved` hooks supplied by an
     /// embedder instead of a `.pnpmfile.cjs` on disk. `Some` replaces the
     /// disk lookup entirely; `None` (every CLI install) falls back to
-    /// [`load_pnpmfile`][pnpm_hooks::finder::load_pnpmfile]. See [`crate::Install::pnpmfile_hook_override`].
+    /// [`load_pnpmfile`][pnpm_hooks::finder::load_pnpmfile]. See [`crate::InstallProjects::pnpmfile_hook_override`].
     pub(crate) pnpmfile_hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     /// The pre-resolve verification of the existing lockfile, running in
     /// the background while this install resolves and materializes. The
     /// verdict is awaited before bin linking, dependency builds, and the
     /// lockfile save. See [`crate::LockfileVerificationGate`].
     pub(crate) lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
+    pub(crate) resolution: crate::ResolutionInputs,
+    pub(crate) fetching: crate::install_with_fresh_lockfile::FreshFetchingInputs,
+    pub(crate) projects: crate::install_with_fresh_lockfile::FreshProjectInputs,
+}
+
+pub(crate) struct FreshFetchingInputs {
+    /// Shared in-memory tarball cache. Held behind [`Arc`] so the
+    /// resolve-time prefetcher ([`PrefetchingResolver`][crate::PrefetchingResolver]) can capture
+    /// an owned clone into the background download task spawned for
+    /// each fresh resolution while the install-side per-package call
+    /// in `install_subtree` still takes `&MemCache` via deref.
+    pub(crate) tarball_mem_cache: Arc<MemCache>,
+    /// Same client behind an [`Arc`] for the [`NpmResolver`][pnpm_resolving_npm_resolver::NpmResolver], whose
+    /// stored `ThrottledClient` outlives any per-call borrow.
+    pub(crate) http_client_arc: Arc<ThrottledClient>,
+    /// Per-install packument cache shared with the lockfile-verifier
+    /// constructed in [`Install::run`](crate::Install::run). The
+    /// resolver writes to it during `pick_package`; the verifier reads
+    /// from it to skip duplicate fetches when both touch the same
+    /// `(registry, name)`.
+    pub(crate) meta_cache: Arc<InMemoryPackageMetaCache>,
+}
+
+pub(crate) struct FreshProjectInputs {
+    /// Optional per-importer manifest source used only when serializing
+    /// importer specifiers into the lockfile. `update --no-save` resolves
+    /// against an in-memory manifest rewrite, while the lockfile importer
+    /// entry must still reflect the kept on-disk manifest.
+    pub(crate) lockfile_specifier_manifests: Option<BTreeMap<String, PackageManifest>>,
+    /// Catalogs parsed from `pnpm-workspace.yaml`. Empty for projects
+    /// without a workspace manifest.
+    pub(crate) catalogs: Catalogs,
+    /// Workspace-sibling lookup the [`NpmResolver`][pnpm_resolving_npm_resolver::NpmResolver] consults when it
+    /// sees a `workspace:` spec. `None` when this install isn't inside
+    /// a `pnpm-workspace.yaml` workspace; the resolver then errors out
+    /// on any `workspace:` spec via
+    /// `ResolveFromWorkspaceError::WorkspacePackagesNotLoaded` — the
+    /// `Cannot resolve package from workspace because opts.workspacePackages is not defined`
+    /// behavior.
+    pub(crate) workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
 }
 
 /// Output of [`InstallWithFreshLockfile::run`].
@@ -325,21 +344,7 @@ pub(crate) struct OwnedInputs {
 /// pointing at incomplete install state.
 #[must_use]
 pub struct InstallWithFreshLockfileResult {
-    pub hoisted_dependencies: HoistedDependencies,
-    /// Per-depPath list of lockfile-relative directory paths the
-    /// hoisted linker placed each package at. Empty under the
-    /// isolated linker (the field is hoisted-only on disk). The
-    /// caller persists it into
-    /// [`pnpm_modules_yaml::Modules::hoisted_locations`] so a
-    /// follow-up install or rebuild can locate every package without
-    /// re-running the walker.
-    pub hoisted_locations: BTreeMap<String, Vec<String>>,
-    /// Per-source-project list of virtual-store package directories
-    /// its injected `file:` copies were materialized at. Round-trips
-    /// through [`pnpm_modules_yaml::Modules::injected_deps`] —
-    /// see [`crate::collect_injected_deps`]. Empty on the
-    /// `lockfile_only` path, which never materializes.
-    pub injected_deps: BTreeMap<String, Vec<String>>,
+    pub hoisted: pnpm_deps_restorer::InstalledHoistedState,
     /// Importers the resolution left a peer-dependency issue under.
     /// Install completion renders its report from
     /// [`Self::wanted_lockfile`] — which carries the resolved versions
@@ -384,11 +389,11 @@ pub struct InstallWithFreshLockfileResult {
 impl InstallWithFreshLockfile<'_> {
     /// Execute the subroutine.
     ///
-    /// Under the isolated linker the [`HoistedDependencies`] result
+    /// Under the isolated linker the [`pnpm_deps_restorer::HoistedDependencies`] result
     /// carries the publicly/privately-hoisted alias map; under
     /// `nodeLinker: hoisted` it is empty (the hoisted linker writes the
     /// on-disk tree directly and reports its placements through
-    /// [`InstallWithFreshLockfileResult::hoisted_locations`] instead).
+    /// [`pnpm_deps_restorer::InstalledHoistedState::locations`] instead).
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
@@ -440,8 +445,7 @@ fn skipped_optional_log_fn<Reporter: self::Reporter>()
                 bare_specifier: skipped.bare_specifier,
             },
             parents: Some(
-                skipped
-                    .parents
+                skipped.parents
                     .into_iter()
                     .map(|parent| SkippedOptionalParent {
                         id: parent.id,
@@ -529,7 +533,10 @@ fn check_patch_usage<Reporter: self::Reporter>(
     }
     match pnpm_patching::verify_patches(
         deps,
-        &applied_patches.iter().cloned().collect(),
+        &applied_patches
+            .iter()
+            .cloned()
+            .collect(),
         config.allow_unused_patches,
     ) {
         Ok(None) => Ok(()),
@@ -592,3 +599,5 @@ async fn warn_stale_convergence_overrides_if_any<Reporter: pnpm_reporter::Report
 
 #[cfg(test)]
 mod tests;
+
+mod resolution_inputs;

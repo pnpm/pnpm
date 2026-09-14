@@ -41,10 +41,11 @@ impl CustomFetcherSession {
         opts: Value,
     ) -> Result<LockfileResolution, InstallPackageBySnapshotError> {
         let lockfile_dir = PathBuf::from(
-            opts.get("lockfileDir").and_then(Value::as_str).unwrap_or(download.requester),
+            opts.get("lockfileDir")
+                .and_then(Value::as_str)
+                .unwrap_or(download.requester),
         );
-        let (resolution, tarball) = match self
-            .fetch::<Reporter>(download.clone(), original, opts)
+        let (resolution, tarball) = match self.fetch::<Reporter>(download.clone(), original, opts)
             .await?
         {
             CustomFetchOutcome::Fetched { resolution, tarball } => (resolution, tarball),
@@ -70,12 +71,12 @@ impl CustomFetcherSession {
         let resolution = decode_resolution(
             serde_json::json!(resolution),
             Some(&tarball.integrity),
-            download.package_id,
+            download.package.id,
         )?;
         self.completed
             .lock()
             .unwrap()
-            .insert((download.package_id.to_owned(), tarball.integrity.to_string()), tarball);
+            .insert((download.package.id.to_owned(), tarball.integrity.to_string()), tarball);
         Ok(resolution)
     }
 
@@ -85,12 +86,14 @@ impl CustomFetcherSession {
         original: &LockfileResolution,
         opts: Value,
     ) -> Result<CustomFetchOutcome, InstallPackageBySnapshotError> {
-        let package_id = download.package_id;
+        let package_id = download.package.id;
         let locked = original.checkable_integrity();
-        let download = IngestTarballToStore { package_integrity: locked, ..download };
+        let download = IngestTarballToStore {
+            package: pnpm_tarball::TarballPackage { integrity: locked, ..download.package },
+            ..download
+        };
         if let Some(integrity) = locked
-            && let Some(tarball) = self
-                .completed
+            && let Some(tarball) = self.completed
                 .lock()
                 .unwrap()
                 .get(&(package_id.to_owned(), integrity.to_string()))
@@ -98,8 +101,7 @@ impl CustomFetcherSession {
         {
             return Ok(CustomFetchOutcome::Fetched { resolution: original.clone(), tarball });
         }
-        let selection = self
-            .picker
+        let selection = self.picker
             .pick_fetcher(package_id, &serde_json::json!(original))
             .await
             .map_err(|error| failure(package_id, error))?;
@@ -109,7 +111,9 @@ impl CustomFetcherSession {
         };
         let selected_resolution = selection.resolution;
         let lockfile_dir = PathBuf::from(
-            opts.get("lockfileDir").and_then(Value::as_str).unwrap_or(download.requester),
+            opts.get("lockfileDir")
+                .and_then(Value::as_str)
+                .unwrap_or(download.requester),
         );
         let (result, verified) = drive_fetcher::<Reporter>(
             fetcher,
@@ -134,7 +138,7 @@ async fn drive_fetcher<Reporter: self::Reporter>(
     selected_resolution: Value,
     opts: Value,
 ) -> Result<(Value, Vec<Arc<FetchedTarball>>), InstallPackageBySnapshotError> {
-    let package_id = download.package_id;
+    let package_id = download.package.id;
     let (callbacks, mut requests) = tokio::sync::mpsc::unbounded_channel();
     let fetch = fetcher.fetch_with_callbacks(package_id, selected_resolution, opts, callbacks);
     tokio::pin!(fetch);
@@ -172,21 +176,23 @@ fn decode_fetch_outcome(
             "unhandled response: expected a delegate or native fetched files",
         ));
     };
-    if !["type", "tarball", "integrity"].iter().any(|key| delegate.get(key).is_some()) {
+    if !["type", "tarball", "integrity"]
+        .iter()
+        .any(|key| delegate.get(key).is_some())
+    {
         return Err(failure(package_id, "invalid delegate resolution"));
     }
     Ok(CustomFetchOutcome::Delegate {
         resolution: decode_resolution(selected_resolution, None, package_id)?,
-        delegate: decode_resolution(delegate.clone(), locked, package_id).map_err(|error| {
-            match error {
+        delegate: decode_resolution(delegate.clone(), locked, package_id)
+            .map_err(|error| match error {
                 InstallPackageBySnapshotError::CustomFetcher(message) => {
                     InstallPackageBySnapshotError::CustomFetcher(format!(
                         "invalid delegate resolution: {message}",
                     ))
                 }
                 error => error,
-            }
-        })?,
+            })?,
     })
 }
 
@@ -199,19 +205,22 @@ fn verified_tarball(
     verified: Vec<Arc<FetchedTarball>>,
     package_id: &str,
 ) -> Result<Arc<FetchedTarball>, InstallPackageBySnapshotError> {
-    let mut matches = verified.into_iter().filter(|verified: &Arc<FetchedTarball>| {
-        verified.files_map == returned.files_map
-            && returned
-                .integrity
-                .as_ref()
-                .is_none_or(|integrity| integrity == &verified.integrity.to_string())
-    });
-    let tarball = matches.next().ok_or_else(|| {
-        failure(
-            package_id,
-            "custom fetcher returned files not verified by a native tarball fetcher",
-        )
-    })?;
+    let mut matches = verified
+        .into_iter()
+        .filter(|verified: &Arc<FetchedTarball>| {
+            verified.files_map == returned.files_map
+                && returned.integrity
+                    .as_ref()
+                    .is_none_or(|integrity| integrity == &verified.integrity.to_string())
+        });
+    let tarball = matches
+        .next()
+        .ok_or_else(|| {
+            failure(
+                package_id,
+                "custom fetcher returned files not verified by a native tarball fetcher",
+            )
+        })?;
     if matches.any(|other| other.integrity != tarball.integrity) {
         return Err(failure(package_id, "custom fetcher returned an ambiguous archive integrity"));
     }
@@ -245,7 +254,10 @@ fn decode_resolution(
     package_id: &str,
 ) -> Result<LockfileResolution, InstallPackageBySnapshotError> {
     if let Some(integrity) = locked {
-        if !value.get("type").is_none_or(|kind| kind.is_null() || kind == "binary") {
+        if !value
+            .get("type")
+            .is_none_or(|kind| kind.is_null() || kind == "binary")
+        {
             return Err(InstallPackageBySnapshotError::CustomFetcherIntegrityMismatch {
                 package_id: package_id.to_owned(),
             });
@@ -280,13 +292,12 @@ async fn fetch_custom_tarball<Reporter: self::Reporter>(
             integrity: resolution.integrity.clone(),
         },
         LockfileResolution::Registry(resolution) => TarballLocation {
-            tarball: download.package_url.to_owned(),
+            tarball: download.package.url.to_owned(),
             integrity: Some(resolution.integrity.clone()),
         },
         _ => return Ok(None),
     };
-    fetch_location::<Reporter>(&download, location, lockfile_dir)
-        .await
+    fetch_location::<Reporter>(&download, location, lockfile_dir).await
         .map_err(InstallPackageBySnapshotError::DownloadTarball)
         .map(Some)
 }
@@ -298,10 +309,16 @@ async fn fetch_location<Reporter: self::Reporter>(
 ) -> Result<Arc<FetchedTarball>, TarballError> {
     let url = local_file_tarball_install_url(location.tarball.as_str().into(), lockfile_dir);
     IngestTarballToStore {
-        package_url: &url,
-        package_integrity: download
-            .package_integrity
-            .or_else(|| location.integrity.as_ref().filter(|value| !value.hashes.is_empty())),
+        package: pnpm_tarball::TarballPackage {
+            integrity: download.package.integrity.or_else(|| {
+                location.integrity
+                    .as_ref()
+                    .filter(|value| !value.hashes.is_empty())
+            }),
+            url: &url,
+            ..download.clone().package
+        },
+
         ..download.clone()
     }
     .fetch_and_extract::<Reporter>()
@@ -317,14 +334,17 @@ async fn run_callback<Reporter: self::Reporter>(
 ) -> Result<Value, FetchErrorDetails> {
     let expects_local_archive = match callback.method {
         FetcherMethod::CafsInfo => {
-            return Ok(serde_json::json!({ "storeDir": download.store_dir.root() }));
+            return Ok(serde_json::json!({ "storeDir": download.store.dir.root() }));
         }
         FetcherMethod::TempDir => return temp_dir(download).await,
         FetcherMethod::LocalTarball => true,
         FetcherMethod::RemoteTarball => false,
     };
     for option in ["ignoreFilePattern", "appendManifest"] {
-        if callback.options.get(option).is_some_and(|value| !value.is_null()) {
+        if callback.options
+            .get(option)
+            .is_some_and(|value| !value.is_null())
+        {
             return Err(callback_error(
                 format!("native custom-fetcher callbacks do not support {option}"),
                 "ERR_PNPM_UNSUPPORTED_FETCHER_OPTION",
@@ -332,8 +352,10 @@ async fn run_callback<Reporter: self::Reporter>(
         }
     }
     let location = callback_location(callback, download, expects_local_archive)?;
-    let lockfile_dir =
-        callback.options.get("lockfileDir").and_then(Value::as_str).map_or(lockfile_dir, Path::new);
+    let lockfile_dir = callback.options
+        .get("lockfileDir")
+        .and_then(Value::as_str)
+        .map_or(lockfile_dir, Path::new);
     let tarball = fetch_location::<Reporter>(download, location, lockfile_dir)
         .await
         .map_err(|error| error.fetch_error_details())?;
@@ -349,9 +371,8 @@ async fn run_callback<Reporter: self::Reporter>(
 
 /// A fresh directory under the store's temp root, kept for the fetcher.
 async fn temp_dir(download: &IngestTarballToStore<'_>) -> Result<Value, FetchErrorDetails> {
-    let root = download.store_dir.tmp();
-    tokio::fs::create_dir_all(&root)
-        .await
+    let root = download.store.dir.tmp();
+    tokio::fs::create_dir_all(&root).await
         .map_err(|error| callback_error(error.to_string(), "ERR_PNPM_FETCHER_TEMP_DIR"))?;
     let directory = tempfile::Builder::new()
         .prefix("fetcher-")
@@ -375,14 +396,15 @@ fn callback_location(
     expects_local_archive: bool,
 ) -> Result<TarballLocation, FetchErrorDetails> {
     let mut location = callback.resolution.clone();
-    if let Some(integrity) = download.package_integrity
+    if let Some(integrity) = download.package.integrity
         && let Some(object) = location.as_object_mut()
     {
         object.insert("integrity".to_owned(), serde_json::json!(integrity.to_string()));
     }
-    let location: TarballLocation = serde_json::from_value(location).map_err(|error| {
-        callback_error(error.to_string(), "ERR_PNPM_INVALID_FETCHER_RESOLUTION")
-    })?;
+    let location: TarballLocation = serde_json::from_value(location)
+        .map_err(|error| {
+            callback_error(error.to_string(), "ERR_PNPM_INVALID_FETCHER_RESOLUTION")
+        })?;
     let scheme_matches_callback = if expects_local_archive {
         location.tarball.starts_with("file:")
     } else {

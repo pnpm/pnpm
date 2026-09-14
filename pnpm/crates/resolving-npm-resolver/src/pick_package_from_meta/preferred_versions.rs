@@ -21,7 +21,10 @@ pub(super) fn sole_lockfile_selector(
     selectors: &VersionSelectors,
 ) -> Option<String> {
     let mut lockfile_version: Option<String> = None;
-    for (selector, entry) in selectors.iter().filter(|(selector, _)| *selector != version_range) {
+    for (selector, entry) in selectors
+        .iter()
+        .filter(|(selector, _)| *selector != version_range)
+    {
         let (selector_type, weight) = selector_info(entry);
         if weight == 0 {
             return None;
@@ -195,10 +198,17 @@ impl PreferredVersionsPrioritizer {
     pub(super) fn versions_by_priority(&self) -> Vec<Vec<String>> {
         let mut by_weight: BTreeMap<u32, Vec<String>> = BTreeMap::new();
         for (version, weight) in &self.preferred_versions {
-            by_weight.entry(*weight).or_default().push(version.clone());
+            by_weight
+                .entry(*weight)
+                .or_default()
+                .push(version.clone());
         }
         // Highest weight first. BTreeMap iterates lowest→highest, so
         // reverse explicitly.
-        by_weight.into_iter().rev().map(|(_, group)| group).collect()
+        by_weight
+            .into_iter()
+            .rev()
+            .map(|(_, group)| group)
+            .collect()
     }
 }

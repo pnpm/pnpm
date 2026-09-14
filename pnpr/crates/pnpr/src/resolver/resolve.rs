@@ -10,21 +10,22 @@ use std::{collections::HashSet, path::Path, sync::Arc};
 
 use dashmap::DashMap;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::Config;
 use pnpm_lockfile::{
     Lockfile, LockfileSettingsCheck, PnpmfileChecksumCheck, check_lockfile_settings,
     satisfies_package_manifest,
 };
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_package_manager::{
-    Install, PolicyExcludes, ProjectMutation, ResolutionObserver, ResolvedPackages,
-};
+use pnpm_package_manager::{Install, ResolutionObserver, ResolvedPackages};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::SilentReporter;
-use pnpm_tarball::MemCache;
 use tokio::io::AsyncWriteExt;
 
 use super::protocol::{ProjectDeps, ResolveRequest};
+
+use install::ResolutionInstall;
+
+mod install;
 
 #[derive(Debug)]
 pub enum ResolveError {
@@ -251,7 +252,10 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
         return None;
     }
     let importer = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY)?;
-    let temp = tempfile::Builder::new().prefix("pnpr-frozen-").tempdir().ok()?;
+    let temp = tempfile::Builder::new()
+        .prefix("pnpr-frozen-")
+        .tempdir()
+        .ok()?;
     let manifest_path = temp.path().join("package.json");
     let manifest_json = serde_json::json!({
         "name": project.name.as_deref().unwrap_or("pnpr-resolve"),
@@ -270,23 +274,30 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
 }
 
 fn request_has_overrides(request: &ResolveRequest) -> bool {
-    request.overrides.as_ref().is_some_and(|value| match value {
-        serde_json::Value::Object(map) => !map.is_empty(),
-        serde_json::Value::Null => false,
-        _ => true,
-    })
+    request.overrides
+        .as_ref()
+        .is_some_and(|value| match value {
+            serde_json::Value::Object(map) => !map.is_empty(),
+            serde_json::Value::Null => false,
+            _ => true,
+        })
 }
 
 /// Whether the config rewrites the dependency graph in a way a lockfile
 /// cannot be checked against without a resolve.
 fn config_transforms_lockfile(config: &Config) -> bool {
-    config.package_extensions.as_ref().is_some_and(|extensions| !extensions.is_empty())
-        || config
-            .ignored_optional_dependencies
+    config.package_extensions
+        .as_ref()
+        .is_some_and(|extensions| !extensions.is_empty())
+        || config.ignored_optional_dependencies
             .as_ref()
             .is_some_and(|patterns| !patterns.is_empty())
-        || config.patched_dependencies.as_ref().is_some_and(|map| !map.is_empty())
-        || config.patched_dependency_hashes_override.as_ref().is_some_and(|map| !map.is_empty())
+        || config.patched_dependencies
+            .as_ref()
+            .is_some_and(|map| !map.is_empty())
+        || config.patched_dependency_hashes_override
+            .as_ref()
+            .is_some_and(|map| !map.is_empty())
         || config.inject_workspace_packages
 }
 
@@ -347,94 +358,17 @@ fn check_frozen_settings(
             package_extensions_checksum: None,
             ignored_optional_dependencies: None,
             patched_dependencies: None,
-            auto_install_peers: config.auto_install_peers,
-            dedupe_peers: config.dedupe_peers,
-            exclude_links_from_lockfile: config.exclude_links_from_lockfile,
-            inject_workspace_packages: config.inject_workspace_packages,
-            peers_suffix_max_length: config.peers_suffix_max_length,
-            pnpmfile_checksum: PnpmfileChecksumCheck::Skip,
+            resolution: pnpm_lockfile::ResolutionSettingsCheck {
+                auto_install_peers: config.auto_install_peers,
+                dedupe_peers: config.dedupe_peers,
+                exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+                inject_workspace_packages: config.inject_workspace_packages,
+                peers_suffix_max_length: config.peers_suffix_max_length,
+                pnpmfile_checksum: PnpmfileChecksumCheck::Skip,
+            },
         },
     )
     .ok()?;
 
     Some(())
-}
-
-/// Explicit metadata refreshes re-resolve pins; other requests default to reuse.
-fn prefer_frozen_lockfile(request: &ResolveRequest) -> Option<bool> {
-    if request.update_patches || request.fix_lockfile {
-        Some(false)
-    } else {
-        request.prefer_frozen_lockfile.or(Some(true))
-    }
-}
-
-fn update_seed_policy(request: &ResolveRequest) -> pnpm_package_manager::UpdateSeedPolicy {
-    if request.update_patches {
-        pnpm_package_manager::UpdateSeedPolicy::RefreshRevisions
-    } else if request.fix_lockfile {
-        pnpm_package_manager::UpdateSeedPolicy::FixLockfile
-    } else {
-        pnpm_package_manager::UpdateSeedPolicy::KeepAll
-    }
-}
-
-/// Resolve using the caller's credentials and catalogs, streaming observations
-/// when requested. The input lockfile must already have passed policy verification.
-struct ResolutionInstall<'a> {
-    config: &'static Config,
-    client: &'a Arc<ThrottledClient>,
-    request: &'a ResolveRequest,
-    auth_headers: &'a Arc<AuthHeaders>,
-    observer: Option<Arc<dyn ResolutionObserver>>,
-}
-
-impl<'a> ResolutionInstall<'a> {
-    fn build(
-        self,
-        resolved_packages: &'a ResolvedPackages,
-        manifest: &'a PackageManifest,
-        lockfile_path: &'a Path,
-    ) -> Install<'a, [DependencyGroup; 3]> {
-        let Self { config, client, request, auth_headers, observer } = self;
-        Install {
-            tarball_mem_cache: Arc::new(MemCache::default()),
-            resolved_packages,
-            http_client: client,
-            http_client_arc: Arc::clone(client),
-            config,
-            manifest,
-            emit_initial_manifest: true,
-            lockfile: pnpm_lockfile::MaybeLazyLockfile::Loaded(request.lockfile.as_ref()),
-            lockfile_path: request.lockfile.as_ref().map(|_| lockfile_path),
-            dependency_groups: [
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-            ],
-            frozen_lockfile: request.frozen_lockfile,
-            prefer_frozen_lockfile: prefer_frozen_lockfile(request),
-            ignore_manifest_check: request.ignore_manifest_check,
-            skip_runtimes: false,
-            trust_lockfile: true,
-            update_checksums: request.update_patches,
-            mutation: ProjectMutation::InstallWorkspace,
-            installs_only: true,
-            supported_architectures: None,
-            node_linker: NodeLinker::Isolated,
-            lockfile_only: true,
-            dry_run: false,
-            policy_excludes: PolicyExcludes::Skip,
-            update_seed_policy: update_seed_policy(request),
-            preferred_versions_override: None,
-            auth_override: Some(Arc::clone(auth_headers)),
-            resolution_observer: observer,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: request.catalogs.clone(),
-            disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
-        }
-    }
 }

@@ -85,7 +85,9 @@ pub(super) async fn next_line_bounded(
 /// cap, and how many to consume. The second value says whether a newline ended
 /// the line.
 fn take_buffered_line(available: &[u8], cap: usize, line: &mut Vec<u8>) -> (usize, bool) {
-    let newline = available.iter().position(|&byte| byte == b'\n');
+    let newline = available
+        .iter()
+        .position(|&byte| byte == b'\n');
     let visible = newline.unwrap_or(available.len());
     let keep = visible.min(cap.saturating_sub(line.len()));
     line.extend_from_slice(&available[..keep]);

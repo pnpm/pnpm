@@ -86,7 +86,10 @@ fn custom_cdn_resolution() -> LockfileResolution {
     );
     extra.insert("integrity".to_string(), serde_json::Value::String(SHA512.to_string()));
     LockfileResolution::Custom(super::CustomResolution {
-        resolution_type: "custom:cdn".to_string().try_into().expect("custom type tag"),
+        resolution_type: "custom:cdn"
+            .to_string()
+            .try_into()
+            .expect("custom type tag"),
         extra,
     })
 }

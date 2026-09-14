@@ -24,13 +24,19 @@ impl BaseProject for GraphPkg<'_> {
     }
 
     fn manifest_name(&self) -> Option<&str> {
-        self.project.manifest.value().get("name").and_then(|name| name.as_str())
+        self.project.manifest
+            .value()
+            .get("name")
+            .and_then(|name| name.as_str())
     }
 }
 
 impl GraphProject for GraphPkg<'_> {
     fn manifest_version(&self) -> Option<&str> {
-        self.project.manifest.value().get("version").and_then(|version| version.as_str())
+        self.project.manifest
+            .value()
+            .get("version")
+            .and_then(|version| version.as_str())
     }
 
     fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)> {

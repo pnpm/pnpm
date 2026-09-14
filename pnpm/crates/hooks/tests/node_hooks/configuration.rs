@@ -42,7 +42,10 @@ async fn update_config_without_hook_returns_config_unchanged() {
 
     let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
     let config = serde_json::json!({ "registry": "https://r/" });
-    let updated = hooks.update_config(config.clone(), noop_context()).await.expect("ok");
+    let updated = hooks
+        .update_config(config.clone(), noop_context())
+        .await
+        .expect("ok");
 
     assert!(!hooks.has_filter_log().await);
     assert_eq!(updated, config, "a pnpmfile without updateConfig leaves config unchanged");

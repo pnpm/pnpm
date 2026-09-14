@@ -145,15 +145,19 @@ fn default_opts(registry: &str) -> PickPackageOptions<'_> {
     PickPackageOptions {
         registry,
         preferred_version_selectors: None,
-        published_by: None,
-        published_by_exclude: None,
         pick_lowest_version: false,
         include_latest_tag: false,
-        dry_run: false,
-        optional: false,
-        update_checksums: false,
-        trust_policy: None,
         blocked_versions: None,
+        policy: crate::PackagePickPolicy {
+            published_by: None,
+            published_by_exclude: None,
+            trust_policy: None,
+        },
+        request: crate::MetadataPickRequest {
+            dry_run: false,
+            optional: false,
+            update_checksums: false,
+        },
     }
 }
 

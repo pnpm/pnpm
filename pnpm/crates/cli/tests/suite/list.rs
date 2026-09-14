@@ -43,7 +43,15 @@ fn recursive_project_names(pacquet: Command, extra_args: &[&str]) -> BTreeSet<St
         String::from_utf8_lossy(&output.stderr),
     );
     let packages: Vec<Value> = serde_json::from_slice(&output.stdout).expect("parse list JSON");
-    packages.iter().map(|pkg| pkg["name"].as_str().expect("package name").to_string()).collect()
+    packages
+        .iter()
+        .map(|pkg| {
+            pkg["name"]
+                .as_str()
+                .expect("package name")
+                .to_string()
+        })
+        .collect()
 }
 
 /// Scaffold a project whose lockfile records exactly one dependency
@@ -111,7 +119,11 @@ fn list_json_reports_extraneous_packages_as_unsaved() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project_with_extraneous_dep(&workspace);
 
-    let output = pacquet.with_arg("list").with_arg("--json").output().expect("spawn pacquet list");
+    let output = pacquet
+        .with_arg("list")
+        .with_arg("--json")
+        .output()
+        .expect("spawn pacquet list");
     assert!(
         output.status.success(),
         "list should succeed:\n{}",
@@ -198,7 +210,10 @@ fn run_ok(dir: &Path, args: &[&str]) -> String {
 }
 
 fn canonical(dir: &Path) -> String {
-    dunce::canonicalize(dir).expect("canonicalize dir").to_string_lossy().into_owned()
+    dunce::canonicalize(dir)
+        .expect("canonicalize dir")
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// Port of upstream's `listing packages`

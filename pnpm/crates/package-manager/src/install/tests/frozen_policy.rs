@@ -27,7 +27,10 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -74,7 +77,10 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         hoist_pattern: config.hoist_pattern.clone(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
         store_dir: config.store_dir.display().to_string(),
-        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir: config
+            .effective_virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
         virtual_store_dir_max_length: config.virtual_store_dir_max_length,
         ..Default::default()
     };
@@ -113,40 +119,52 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
     .expect("seed workspace state");
 
     Install {
-        tarball_mem_cache: Default::default(),
-        http_client: &Default::default(),
-        http_client_arc: std::sync::Arc::new(Default::default()),
-        config,
-        manifest: &manifest,
-        emit_initial_manifest: true,
-        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
-        lockfile_path: None,
-        dependency_groups: [DependencyGroup::Prod],
-        // The only difference vs the optimistic test above.
-        frozen_lockfile: true,
-        prefer_frozen_lockfile: None,
-        ignore_manifest_check: false,
-        skip_runtimes: false,
-        trust_lockfile: true,
-        update_checksums: false,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        supported_architectures: None,
-        node_linker: pnpm_config::NodeLinker::Isolated,
-        lockfile_only: false,
-        dry_run: false,
-        policy_excludes: PolicyExcludes::Persist,
-        resolved_packages: &Default::default(),
-        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
+        lockfile_policy: crate::InstallLockfilePolicy {
+            // The only difference vs the optimistic test above.
+            frozen: true,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: true,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
     }
     .run::<RecordingReporter>()
     .await
@@ -154,10 +172,12 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        !captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Pnpm(log) if log.message == "Already up to date"
-        )),
+        !captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Pnpm(log) if log.message == "Already up to date"
+            )),
         "the optimistic 'Already up to date' log MUST NOT fire under --frozen-lockfile; got events: {captured:#?}",
     );
     // The existing no-op short-circuit still does fire on the frozen
@@ -202,46 +222,60 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
     .expect("parse minimal lockfile");
 
     let result = Install {
-        tarball_mem_cache: Default::default(),
-        http_client: &Default::default(),
-        http_client_arc: std::sync::Arc::new(Default::default()),
-        config,
-        manifest: &manifest,
-        emit_initial_manifest: true,
-        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
-        lockfile_path: None,
-        dependency_groups: [DependencyGroup::Prod],
-        frozen_lockfile: true,
-        prefer_frozen_lockfile: None,
-        ignore_manifest_check: false,
-        skip_runtimes: false,
-        trust_lockfile: false,
-        update_checksums: false,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        resolved_packages: &Default::default(),
-        supported_architectures: None,
-        node_linker: pnpm_config::NodeLinker::default(),
-        lockfile_only: false,
-        dry_run: false,
-        policy_excludes: PolicyExcludes::Persist,
-        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: true,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: false,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
     }
     .run::<SilentReporter>()
     .await;
 
     let err = result.expect_err("packageExtensions drift must surface as a config mismatch");
     match err {
-        InstallError::LockfileConfigMismatch { setting: "packageExtensionsChecksum" } => {}
+        InstallError::LockfileConfigMismatch {
+            setting: "packageExtensionsChecksum",
+        } => {}
         other => {
             panic!("expected LockfileConfigMismatch for `packageExtensionsChecksum`, got {other:?}")
         }
@@ -277,39 +311,51 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
     .unwrap();
 
     let result = Install {
-        tarball_mem_cache: Default::default(),
-        http_client: &Default::default(),
-        http_client_arc: std::sync::Arc::new(Default::default()),
-        config,
-        manifest: &manifest,
-        emit_initial_manifest: true,
-        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
-        lockfile_path: None,
-        dependency_groups: [DependencyGroup::Prod],
-        frozen_lockfile: true,
-        prefer_frozen_lockfile: None,
-        ignore_manifest_check: false,
-        skip_runtimes: false,
-        trust_lockfile: false,
-        update_checksums: false,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        resolved_packages: &Default::default(),
-        supported_architectures: None,
-        node_linker: pnpm_config::NodeLinker::default(),
-        lockfile_only: false,
-        dry_run: false,
-        policy_excludes: PolicyExcludes::Persist,
-        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: true,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: false,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
     }
     .run::<SilentReporter>()
     .await;

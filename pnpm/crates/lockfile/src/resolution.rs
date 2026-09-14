@@ -346,13 +346,17 @@ pub fn select_platform_variant<'a>(
     variants: &'a [PlatformAssetResolution],
     selector: &PlatformSelector,
 ) -> Option<&'a PlatformAssetResolution> {
-    variants.iter().find(|variant| {
-        variant.targets.iter().any(|target| {
-            target.os == selector.os
-                && target.cpu == selector.cpu
-                && libc_matches(target.libc.as_deref(), selector.libc.as_deref())
+    variants
+        .iter()
+        .find(|variant| {
+            variant.targets
+                .iter()
+                .any(|target| {
+                    target.os == selector.os
+                        && target.cpu == selector.cpu
+                        && libc_matches(target.libc.as_deref(), selector.libc.as_deref())
+                })
         })
-    })
 }
 
 /// Check whether a variant's `libc` annotation matches the host
@@ -412,7 +416,8 @@ impl LockfileResolution {
     /// all, and [`Integrity::check`] would panic on it.
     #[must_use]
     pub fn checkable_integrity(&self) -> Option<&'_ Integrity> {
-        self.integrity().filter(|integrity| !integrity.hashes.is_empty())
+        self.integrity()
+            .filter(|integrity| !integrity.hashes.is_empty())
     }
 
     /// Convert an in-memory resolution into the form written to the lockfile.
@@ -431,7 +436,6 @@ impl LockfileResolution {
         version: &str,
         opts: LockfileFormOptions<'_>,
     ) -> Result<LockfileResolution, LockfileFormError> {
-        let LockfileFormOptions { registry, server_type, include_tarball_url } = opts;
         let LockfileResolution::Tarball(tarball) = self else { return Ok(self.clone()) };
         let Some(integrity) = tarball.integrity.as_ref() else {
             return if tarball.revision.is_some() {
@@ -443,7 +447,7 @@ impl LockfileResolution {
 
         let git_hosted = tarball.is_git_hosted();
         let integrity_addressed =
-            is_integrity_addressed_registry_tarball_url(&tarball.tarball, integrity, registry);
+            is_integrity_addressed_registry_tarball_url(&tarball.tarball, integrity, opts.registry);
         if let Some(revision) = tarball.revision.filter(|_| !integrity_addressed) {
             return Err(LockfileFormError::RevisionUrlMismatch { revision });
         }
@@ -456,13 +460,16 @@ impl LockfileResolution {
         let rebuildable = !git_hosted
             && !tarball.tarball.starts_with("file:")
             && (integrity_addressed
-                || (!include_tarball_url
+                || (!opts.include_tarball_url
                     && tarball.revision.is_none()
                     && is_canonical_registry_tarball_url(
                         &tarball.tarball,
                         name,
                         version,
-                        TarballUrlOptions { registry, server_type },
+                        TarballUrlOptions {
+                            registry: opts.registry,
+                            server_type: opts.server_type,
+                        },
                     )));
         if rebuildable {
             return Ok(LockfileResolution::Registry(RegistryResolution {
@@ -474,13 +481,9 @@ impl LockfileResolution {
         // `path` (`repo#commit&path:/sub/dir`, only ever set on git-hosted tarballs)
         // so a git-hosted monorepo tarball still unpacks the right subfolder.
         // See <https://github.com/pnpm/pnpm/issues/12304>.
-        Ok(LockfileResolution::Tarball(TarballResolution {
-            tarball: tarball.tarball.clone(),
-            integrity: Some(integrity.clone()),
-            revision: tarball.revision,
-            git_hosted: git_hosted.then_some(true),
-            path: tarball.path.clone(),
-        }))
+        let mut kept = tarball.clone();
+        kept.git_hosted = git_hosted.then_some(true);
+        Ok(LockfileResolution::Tarball(kept))
     }
 }
 

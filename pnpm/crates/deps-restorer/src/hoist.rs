@@ -262,7 +262,10 @@ pub struct HoistResult {
 fn snapshot_children(snapshot: &SnapshotEntry) -> IndexMap<String, PackageKey> {
     let mut children = IndexMap::new();
     for dependency_map in [&snapshot.dependencies, &snapshot.optional_dependencies] {
-        let mut dep_entries: Vec<_> = dependency_map.iter().flat_map(|map| map.iter()).collect();
+        let mut dep_entries: Vec<_> = dependency_map
+            .iter()
+            .flat_map(|map| map.iter())
+            .collect();
         dep_entries.sort_by_cached_key(|entry| entry.0.to_string());
         for (alias, dep_ref) in dep_entries {
             // `dep_ref.resolve` is `None` for `link:` deps —
@@ -298,7 +301,11 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
     append_dependency_entries(direct_nodes, 0, input.graph, &mut visited, &mut entries);
 
     // pnpm sorts graph-walker results by depth and virtual-store path.
-    entries.sort_by(|a, b| a.depth.cmp(&b.depth).then_with(|| a.sort_key.cmp(&b.sort_key)));
+    entries.sort_by(|a, b| {
+        a.depth
+            .cmp(&b.depth)
+            .then_with(|| a.sort_key.cmp(&b.sort_key))
+    });
 
     let mut pass = HoistPass::new(input);
     // `hoist-workspace-packages`: consider each named workspace project
@@ -377,6 +384,7 @@ fn direct_nodes<'a>(
 /// are visited. An alias is claimed by the first entry that places it,
 /// so visit order is the precedence order.
 struct HoistPass<'a> {
+    pub bins: HoistedBins,
     input: &'a HoistInputs<'a>,
     /// Lowercased aliases already claimed. Seeded with every direct-dep
     /// name of the root importer (`"."`); workspace importers' deps
@@ -385,31 +393,30 @@ struct HoistPass<'a> {
     hoisted_aliases: HashSet<String>,
     hoisted_dependencies: HoistedDependencies,
     hoisted_dependencies_by_node_id: HashMap<PackageKey, HashMap<String, HoistKind>>,
-    hoisted_aliases_with_bins: Vec<(String, PackageKey)>,
-    publicly_hoisted_aliases_with_bins: Vec<String>,
-    /// The bin-alias vectors are emitted as `Vec`s to keep the consumer
-    /// signature simple, so dedup goes through these sets. Private and
-    /// public are separate so an alias can't collide across kinds.
-    private_bins_seen: HashSet<String>,
-    public_bins_seen: HashSet<String>,
     hoisted_workspace_aliases: Vec<(String, HoistKind, PathBuf)>,
 }
 
 impl<'a> HoistPass<'a> {
     fn new(input: &'a HoistInputs<'a>) -> Self {
         HoistPass {
+            bins: HoistedBins {
+                hoisted_aliases_with_bins: Vec::new(),
+                publicly_hoisted_aliases_with_bins: Vec::new(),
+                private_bins_seen: HashSet::new(),
+                public_bins_seen: HashSet::new(),
+            },
             input,
-            hoisted_aliases: input
-                .direct_deps_by_importer
+            hoisted_aliases: input.direct_deps_by_importer
                 .get(".")
-                .map(|map| map.keys().map(|alias| alias.to_lowercase()).collect())
+                .map(|map| {
+                    map.keys()
+                        .map(|alias| alias.to_lowercase())
+                        .collect()
+                })
                 .unwrap_or_default(),
             hoisted_dependencies: HoistedDependencies::new(),
             hoisted_dependencies_by_node_id: HashMap::new(),
-            hoisted_aliases_with_bins: Vec::new(),
-            publicly_hoisted_aliases_with_bins: Vec::new(),
-            private_bins_seen: HashSet::new(),
-            public_bins_seen: HashSet::new(),
+
             hoisted_workspace_aliases: Vec::new(),
         }
     }
@@ -461,7 +468,7 @@ impl<'a> HoistPass<'a> {
             return;
         }
         if node.has_bin {
-            self.record_bin(alias, child_node_id, hoist_kind);
+            self.bins.record_bin(alias, child_node_id, hoist_kind);
         }
         self.hoisted_aliases.insert(alias_norm);
         self.hoisted_dependencies
@@ -470,27 +477,12 @@ impl<'a> HoistPass<'a> {
             .insert(alias.to_owned(), hoist_kind);
     }
 
-    fn record_bin(&mut self, alias: &str, child_node_id: &PackageKey, hoist_kind: HoistKind) {
-        match hoist_kind {
-            HoistKind::Private => {
-                if self.private_bins_seen.insert(alias.to_owned()) {
-                    self.hoisted_aliases_with_bins.push((alias.to_owned(), child_node_id.clone()));
-                }
-            }
-            HoistKind::Public => {
-                if self.public_bins_seen.insert(alias.to_owned()) {
-                    self.publicly_hoisted_aliases_with_bins.push(alias.to_owned());
-                }
-            }
-        }
-    }
-
     fn finish(self) -> HoistResult {
         HoistResult {
             hoisted_dependencies: self.hoisted_dependencies,
             hoisted_dependencies_by_node_id: self.hoisted_dependencies_by_node_id,
-            hoisted_aliases_with_bins: self.hoisted_aliases_with_bins,
-            publicly_hoisted_aliases_with_bins: self.publicly_hoisted_aliases_with_bins,
+            hoisted_aliases_with_bins: self.bins.hoisted_aliases_with_bins,
+            publicly_hoisted_aliases_with_bins: self.bins.publicly_hoisted_aliases_with_bins,
             hoisted_workspace_aliases: self.hoisted_workspace_aliases,
         }
     }
@@ -521,8 +513,7 @@ fn append_dependency_entries<'a>(
         let next_steps: Vec<Vec<&PackageKey>> = nodes
             .iter()
             .map(|node_id| {
-                graph[*node_id]
-                    .children
+                graph[*node_id].children
                     .values()
                     .filter_map(|child_id| {
                         let (graph_key, _) = graph.get_key_value(child_id)?;
@@ -541,3 +532,30 @@ fn append_dependency_entries<'a>(
 
 #[cfg(test)]
 mod tests;
+
+struct HoistedBins {
+    hoisted_aliases_with_bins: Vec<(String, PackageKey)>,
+    publicly_hoisted_aliases_with_bins: Vec<String>,
+    /// The bin-alias vectors are emitted as `Vec`s to keep the consumer
+    /// signature simple, so dedup goes through these sets. Private and
+    /// public are separate so an alias can't collide across kinds.
+    private_bins_seen: HashSet<String>,
+    public_bins_seen: HashSet<String>,
+}
+
+impl HoistedBins {
+    fn record_bin(&mut self, alias: &str, child_node_id: &PackageKey, hoist_kind: HoistKind) {
+        match hoist_kind {
+            HoistKind::Private => {
+                if self.private_bins_seen.insert(alias.to_owned()) {
+                    self.hoisted_aliases_with_bins.push((alias.to_owned(), child_node_id.clone()));
+                }
+            }
+            HoistKind::Public => {
+                if self.public_bins_seen.insert(alias.to_owned()) {
+                    self.publicly_hoisted_aliases_with_bins.push(alias.to_owned());
+                }
+            }
+        }
+    }
+}

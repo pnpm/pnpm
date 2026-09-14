@@ -14,7 +14,7 @@ pub(super) fn version_gte(left: &str, right: &str) -> bool {
 ///
 /// Linked top-parent `NodeIds` (whether the workspace-link arm or the
 /// `excludeLinksFromLockfile` remap) never enter the dependency tree,
-/// so [`Walker::node_dep_paths`](crate::resolve_peers::walker::Walker::node_dep_paths) never maps them. The `link:<rel>`
+/// so [`crate::resolve_peers::discovery::PeerDiscoveryCaches::node_dep_paths`](crate::resolve_peers::discovery::PeerDiscoveryCaches::node_dep_paths) never maps them. The `link:<rel>`
 /// `NodeId` is itself a well-formed pnpm `DepPath`, so the snapshot
 /// child edge can use it verbatim.
 pub(in super::super) fn link_node_id_as_dep_path(node_id: &NodeId) -> Option<DepPath> {
@@ -34,29 +34,31 @@ pub(in super::super) fn importer_relative_link_dep_path(
     let (Some(lockfile_dir), Some(project_dir)) = (lockfile_dir, project_dir) else {
         return dep_path.clone();
     };
-    let relative_target = anchor.target_relative_to_importer(target).unwrap_or_else(|| {
-        let target = Path::new(target);
-        let absolute_target = if target.is_absolute() {
-            pnpm_fs::lexical_normalize(target)
-        } else {
-            pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
-        };
-        // `diff_paths` walks both paths component-wise, so a base still
-        // carrying `.` / `..` segments would consume them as real directories
-        // and count the wrong number of `..` hops back out.
-        let project_dir = pnpm_fs::lexical_normalize(project_dir);
-        pathdiff::diff_paths(&absolute_target, project_dir)
-            .unwrap_or(absolute_target)
-            .display()
-            .to_string()
-            .replace('\\', "/")
-    });
+    let relative_target = anchor
+        .target_relative_to_importer(target)
+        .unwrap_or_else(|| {
+            let target = Path::new(target);
+            let absolute_target = if target.is_absolute() {
+                pnpm_fs::lexical_normalize(target)
+            } else {
+                pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
+            };
+            // `diff_paths` walks both paths component-wise, so a base still
+            // carrying `.` / `..` segments would consume them as real directories
+            // and count the wrong number of `..` hops back out.
+            let project_dir = pnpm_fs::lexical_normalize(project_dir);
+            pathdiff::diff_paths(&absolute_target, project_dir)
+                .unwrap_or(absolute_target)
+                .display()
+                .to_string()
+                .replace('\\', "/")
+        });
     DepPath::from(format!("link:{relative_target}"))
 }
 
 /// Compute the `link:` [`NodeId`] under which a workspace-link parent
 /// should appear in [`ParentRefs`](super::ParentRefs) when
-/// [`ResolvePeersOptions::exclude_links_from_lockfile`] is on.
+/// [`crate::PeerLinkOptions::exclude_links_from_lockfile`] is on.
 ///
 /// Returns `None` when:
 ///
@@ -74,11 +76,11 @@ pub(in super::super) fn remap_link_node_id(
     alias: &str,
     result: &ResolveResult,
 ) -> Option<NodeId> {
-    if !opts.exclude_links_from_lockfile {
+    if !opts.links.exclude_links_from_lockfile {
         return None;
     }
-    let lockfile_dir = opts.lockfile_dir.as_ref()?;
-    let modules_dir = opts.modules_dir.as_ref()?;
+    let lockfile_dir = opts.links.lockfile_dir.as_ref()?;
+    let modules_dir = opts.links.modules_dir.as_ref()?;
     let directory = match &result.resolution {
         pnpm_lockfile::LockfileResolution::Directory(dir) => &dir.directory,
         _ => return None,
@@ -98,14 +100,17 @@ pub(in super::super) fn remap_link_node_id(
     }
     let target = modules_dir.join(alias);
     let rel = pathdiff::diff_paths(&target, lockfile_dir)?;
-    let rel = rel.display().to_string().replace('\\', "/");
+    let rel = rel
+        .display()
+        .to_string()
+        .replace('\\', "/");
     Some(NodeId::leaf(&format!("link:{rel}")))
 }
 
 /// Pull `(name, version)` out of a `ResolveResult` the peer-resolution
 /// stage can hash and compare on.
 ///
-/// The npm-registry resolver always fills [`ResolveResult::name_ver`],
+/// The npm-registry resolver always fills [`pnpm_resolving_resolver_base::ResolvedPackageInfo::name_ver`],
 /// so the fast path lifts it straight out. The git / tarball / local
 /// resolvers leave it `None` (their canonical name lives in the
 /// fetched manifest, which the resolver doesn't read at resolve
@@ -117,8 +122,7 @@ pub(in super::super) fn remap_link_node_id(
 /// peer propagation for non-npm packages without panicking on
 /// `name_ver = None`.
 pub(in super::super) fn pkg_name_version(result: &ResolveResult) -> (String, String) {
-    let version = result
-        .name_ver
+    let version = result.package.name_ver
         .as_ref()
         .map_or_else(|| result.id.as_str().to_string(), |name_ver| name_ver.suffix.to_string());
     (pkg_name(result), version)
@@ -128,10 +132,12 @@ pub(in super::super) fn pkg_name_version(result: &ResolveResult) -> (String, Str
 /// discard the version. `PkgName` holds scope and bare name separately,
 /// so rendering either half allocates.
 pub(in super::super) fn pkg_name(result: &ResolveResult) -> String {
-    if let Some(name_ver) = result.name_ver.as_ref() {
+    if let Some(name_ver) = result.package.name_ver.as_ref() {
         return name_ver.name.to_string();
     }
-    result.alias.clone().unwrap_or_else(|| result.id.as_str().to_string())
+    result.alias
+        .clone()
+        .unwrap_or_else(|| result.id.as_str().to_string())
 }
 
 /// The `name@version` identity a peer contributes to a depPath's peer suffix.
@@ -165,7 +171,10 @@ pub(in super::super) fn peer_segment_names(dep_path: &DepPath) -> Option<Vec<Str
     let suffix = index_of_dep_path_suffix(raw);
     let peers_index = suffix.peers_index?;
     let segments = split_peer_suffix_segments(&raw[peers_index..])?;
-    segments.iter().map(|segment| peer_segment_name(segment).map(str::to_string)).collect()
+    segments
+        .iter()
+        .map(|segment| peer_segment_name(segment).map(str::to_string))
+        .collect()
 }
 
 /// Splits a peer suffix into its segment bodies. `None` when the suffix is

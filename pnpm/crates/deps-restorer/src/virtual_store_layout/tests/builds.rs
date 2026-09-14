@@ -104,7 +104,9 @@ fn full_pkg_id_keeps_patch_hash_when_present() {
         Some(&packages),
         None,
     );
-    let node = graph.get(&patched_key.to_string()).expect("patched snapshot node");
+    let node = graph
+        .get(&patched_key.to_string())
+        .expect("patched snapshot node");
     assert!(
         node.full_pkg_id.starts_with("foo@1.0.0(patch_hash=abc):"),
         "full_pkg_id must keep the patch-hash segment; got {:?}",

@@ -1,9 +1,9 @@
-#[cfg(unix)]
-use super::is_shim_pointing_at;
 use super::{
     Arc, Host, LinkBinsOptions, PackageBinSource, Path, Value, create_dir_all, json,
     link_bins_of_packages, read_file, read_to_string, tempdir, write_file,
 };
+#[cfg(unix)]
+use super::{is_sh_shim_hardened, is_shim_pointing_at};
 #[cfg(unix)]
 use std::fs::metadata;
 
@@ -92,13 +92,13 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     let tmp = tempdir().unwrap();
     let pkg_dir = tmp.path().join("node_modules/foo");
     create_dir_all(&pkg_dir).unwrap();
+    let cli_js = pkg_dir.join("cli.js");
     write_file(
         pkg_dir.join("package.json"),
         json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}).to_string(),
     )
     .unwrap();
-    write_file(pkg_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('hello_world')\n")
-        .unwrap();
+    write_file(&cli_js, "#!/usr/bin/env node\nconsole.log('hello_world')\n").unwrap();
 
     let bins_dir = tmp.path().join("node_modules/.bin");
     let manifest_value: Value =
@@ -106,7 +106,7 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     let options =
         LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() };
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(pkg_dir.clone(), Arc::new(manifest_value))],
+        &[PackageBinSource::new(pkg_dir, Arc::new(manifest_value))],
         &bins_dir,
         &options,
     )
@@ -116,7 +116,10 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     if cfg!(windows) {
         // The setting is inert on Windows: bins keep their shims.
         assert!(
-            std::fs::symlink_metadata(&bin).unwrap().file_type().is_file(),
+            std::fs::symlink_metadata(&bin)
+                .unwrap()
+                .file_type()
+                .is_file(),
             "Windows must keep writing shims under preferSymlinkedExecutables",
         );
         return;
@@ -133,7 +136,11 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     {
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(
-            metadata(pkg_dir.join("cli.js")).unwrap().permissions().mode() & 0o777,
+            metadata(&cli_js)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
             0o755,
             "the target file gets the executable bits, like pnpm's ensureExecutable",
         );
@@ -218,9 +225,71 @@ fn stale_shim_rewrite_replaces_a_symlink_instead_of_writing_through_it() {
 
     assert_eq!(read_to_string(&victim).unwrap(), "precious", "the symlink target is untouched");
     assert!(
-        !std::fs::symlink_metadata(bins_dir.join("foo")).unwrap().file_type().is_symlink(),
+        !std::fs::symlink_metadata(bins_dir.join("foo"))
+            .unwrap()
+            .file_type()
+            .is_symlink(),
         "the shim is a regular file",
     );
     let body = read_to_string(bins_dir.join("foo")).unwrap();
     assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
+}
+
+/// A shim an older pacquet wrote still points at the right target, so the warm
+/// reinstall path had nothing to notice and left it in place. It resolved
+/// `readlink` and its other helpers on the caller's `PATH`, which starts with
+/// the very directory the shim lives in, so upgrading pnpm has to replace it.
+#[cfg(unix)]
+#[test]
+fn a_reinstall_replaces_a_shim_that_looks_its_helpers_up_on_the_callers_path() {
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let target = pkg.join("cli.js");
+    // Pre-created, so the reinstall reads what is there instead of taking the
+    // fresh-write path a newly made bin directory gets.
+    let bins_dir = tmp.path().join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    let shim = bins_dir.join("foo");
+    let outdated = format!(
+        r#"#!/bin/sh
+link="$0"
+hops=0
+while [ -L "$link" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops+1))
+  target=$(readlink "$link")
+  case "$target" in
+    /*) link="$target" ;;
+    *)  link="$(dirname "$link")/$target" ;;
+  esac
+done
+basedir=$(dirname "$(echo "$link" | sed -e 's,\\,/,g')")
+exec node  "$basedir/../foo/cli.js" "$@"
+# cmd-shim-target={}
+"#,
+        target.display(),
+    );
+    write_file(&shim, &outdated).unwrap();
+    assert!(
+        is_shim_pointing_at(&outdated, &target),
+        "precondition: the outdated shim carries a matching target marker, so only the \
+         header tells it apart from a current one",
+    );
+    assert!(!is_sh_shim_hardened(&outdated), "precondition: the outdated shim is not hardened");
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let body = read_to_string(&shim).unwrap();
+    assert!(is_shim_pointing_at(&body, &target), "the rewritten shim keeps its target");
+    assert!(
+        is_sh_shim_hardened(&body),
+        "the reinstall must replace a shim that resolves its helpers on PATH, body was:\n{body}",
+    );
 }

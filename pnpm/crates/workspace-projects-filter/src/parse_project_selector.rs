@@ -12,13 +12,6 @@ pub struct ProjectSelector {
     /// `!`-prefixed: the matched projects are subtracted from the
     /// selection rather than added.
     pub exclude: bool,
-    /// `^` modifier: exclude the matched project itself, keeping only
-    /// its dependencies / dependents.
-    pub exclude_self: bool,
-    /// Trailing `...`: also select the matched projects' dependencies.
-    pub include_dependencies: bool,
-    /// Leading `...`: also select the matched projects' dependents.
-    pub include_dependents: bool,
     /// Name glob (`@pnpm.e2e/*`, `foo`, ...).
     pub name_pattern: Option<String>,
     /// Directory selector (`./pkg`, `{packages/*}`), resolved against
@@ -32,6 +25,18 @@ pub struct ProjectSelector {
     /// selector — follows the mode the whole filter pass runs in, which
     /// `legacyDirFiltering` chooses. Not produced by parsing.
     pub use_glob_dir_filtering: Option<bool>,
+    pub traversal: DependencyTraversal,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct DependencyTraversal {
+    /// `^` modifier: exclude the matched project itself, keeping only
+    /// its dependencies / dependents.
+    pub exclude_self: bool,
+    /// Trailing `...`: also select the matched projects' dependencies.
+    pub include_dependencies: bool,
+    /// Leading `...`: also select the matched projects' dependents.
+    pub include_dependents: bool,
 }
 
 /// Parse one raw `--filter` selector string against `prefix` (the
@@ -46,20 +51,27 @@ struct SelectorModifiers<'a> {
 }
 
 pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelector {
-    let SelectorModifiers { raw, exclude, exclude_self, include_dependencies, include_dependents } =
-        strip_selector_modifiers(raw_selector);
+    let SelectorModifiers {
+        raw,
+        exclude,
+        exclude_self,
+        include_dependencies,
+        include_dependents,
+    } = strip_selector_modifiers(raw_selector);
 
     match match_selector_pattern(raw) {
         Some(SelectorParts { name, brace_inner, bracket_inner }) => ProjectSelector {
             diff: bracket_inner.map(str::to_string),
             exclude,
-            exclude_self,
-            include_dependencies,
-            include_dependents,
             name_pattern: name.map(str::to_string),
             parent_dir: brace_inner.map(|inner| lexical_join(prefix, inner)),
             follow_prod_deps_only: false,
             use_glob_dir_filtering: None,
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                exclude_self,
+                include_dependencies,
+                include_dependents,
+            },
         },
         None => {
             if is_selector_by_location(raw) {
@@ -176,7 +188,8 @@ fn name_candidate_lengths(input: &str) -> Vec<usize> {
 fn match_groups(rest: &str) -> Option<(Option<&str>, Option<&str>)> {
     let (brace_inner, rest) = match_delimited(rest, '{', '}')?;
     let (bracket_inner, rest) = match_delimited(rest, '[', ']')?;
-    rest.is_empty().then_some((brace_inner, bracket_inner))
+    rest.is_empty()
+        .then_some((brace_inner, bracket_inner))
 }
 
 /// Match an optional `<open><inner><close>` group at the start of

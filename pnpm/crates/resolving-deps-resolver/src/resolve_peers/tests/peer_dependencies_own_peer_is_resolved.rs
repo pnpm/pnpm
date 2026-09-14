@@ -39,8 +39,11 @@ fn own_peer_is_resolved_from_peer_relevant_child() {
     let dep_path = DepPath::from("consumer@1.0.0(types@1.0.0)");
 
     assert_eq!(result.direct_dependencies_by_alias.get("consumer"), Some(&dep_path));
-    assert_eq!(result.graph[&dep_path].children.get("types"), Some(&DepPath::from("types@1.0.0")));
-    assert!(result.graph[&dep_path].resolved_peer_names.contains("types"));
+    assert_eq!(
+        result.graph[&dep_path].edges.children.get("types"),
+        Some(&DepPath::from("types@1.0.0")),
+    );
+    assert!(result.graph[&dep_path].edges.resolved_peer_names.contains("types"));
 }
 
 #[test]
@@ -49,7 +52,7 @@ fn named_registry_peer_is_matched_via_extracted_range() {
 
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
-    assert!(result.graph[&dep_path].resolved_peer_names.contains("types"));
+    assert!(result.graph[&dep_path].edges.resolved_peer_names.contains("types"));
     assert!(!result.peer_dependency_issues.bad.contains_key("types"));
 }
 
@@ -445,7 +448,7 @@ fn own_peer_is_resolved_from_aliased_sibling_real_name() {
         result.graph.keys().collect::<Vec<_>>(),
     );
     assert_eq!(
-        result.graph[&dep_path].children.get("peer-c"),
+        result.graph[&dep_path].edges.children.get("peer-c"),
         Some(&DepPath::from("peer-c@2.0.0")),
     );
     assert!(!result.peer_dependency_issues.missing.contains_key("peer-c"));
@@ -510,8 +513,11 @@ fn cached_optional_peer_resolution_does_not_match_later_parent_without_provider(
     assert_eq!(result.direct_dependencies_by_alias.get("cli"), Some(&cli_dep_path));
     assert!(result.graph.contains_key(&config_with_types));
     assert!(result.graph.contains_key(&config_without_types));
-    assert_eq!(result.graph[&cli_dep_path].children.get("config"), Some(&config_without_types));
-    assert!(!result.graph[&cli_dep_path].resolved_peer_names.contains("types"));
+    assert_eq!(
+        result.graph[&cli_dep_path].edges.children.get("config"),
+        Some(&config_without_types),
+    );
+    assert!(!result.graph[&cli_dep_path].edges.resolved_peer_names.contains("types"));
 }
 
 #[test]
@@ -662,17 +668,20 @@ fn shared_package_optional_transitive_peer_resolves_deterministically() {
         // The shallow occurrence resolves the optional peer from its sibling; the
         // deeper occurrence, with no provider in scope, keeps the bare suffix.
         assert_eq!(
-            result.graph[&app_dep_path].children.get("styled-jsx"),
+            result.graph[&app_dep_path].edges.children.get("styled-jsx"),
             Some(&styled_with_babel),
         );
         assert_eq!(
-            result.graph[&mid_dep_path].children.get("styled-jsx"),
+            result.graph[&mid_dep_path].edges.children.get("styled-jsx"),
             Some(&styled_without_babel),
         );
         assert!(result.graph.contains_key(&styled_with_babel));
         assert!(result.graph.contains_key(&styled_without_babel));
 
-        let mut keys: Vec<String> = result.graph.keys().map(DepPath::to_string).collect();
+        let mut keys: Vec<String> = result.graph
+            .keys()
+            .map(DepPath::to_string)
+            .collect();
         keys.sort();
         match &first_keys {
             None => first_keys = Some(keys),

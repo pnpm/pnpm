@@ -80,7 +80,10 @@ pub(super) fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &
         .pipe(executor("git checkout"));
 
     eprintln!("List of branches:");
-    Command::new("git").current_dir(revision_repo).arg("branch").pipe(executor("git branch"));
+    Command::new("git")
+        .current_dir(revision_repo)
+        .arg("branch")
+        .pipe(executor("git branch"));
 }
 /// Prepare the clone and fetch the commit. Reports whether HEAD already
 /// existed, so the caller can reset tracked build outputs before checkout.
@@ -153,7 +156,11 @@ where
 
     let remove_targets = dirs
         .iter()
-        .flat_map(|dir| cleanup.remove.iter().map(move |name| dir.join(name)))
+        .flat_map(|dir| {
+            cleanup.remove
+                .iter()
+                .map(move |name| dir.join(name))
+        })
         .map(|path| path.maybe_quote().to_string())
         .join(" ");
     if !remove_targets.is_empty() {

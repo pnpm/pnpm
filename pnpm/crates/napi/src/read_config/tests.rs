@@ -33,8 +33,7 @@ fn registries_carry_their_static_auth_headers() {
 
     let resolved = project_config(&config);
 
-    let by_name: BTreeMap<&str, Option<&str>> = resolved
-        .registries
+    let by_name: BTreeMap<&str, Option<&str>> = resolved.registries
         .iter()
         .map(|registry| (registry.name.as_str(), registry.auth_header.as_deref()))
         .collect();
@@ -67,8 +66,7 @@ fn scope_registry_prefers_its_scope_credential() {
 
     let resolved = project_config(&config);
 
-    let scope = resolved
-        .registries
+    let scope = resolved.registries
         .iter()
         .find(|registry| registry.name == "@scope")
         .expect("@scope registry");
@@ -80,8 +78,7 @@ fn scope_registry_prefers_its_scope_credential() {
         BTreeMap::from([("@".to_string(), "Bearer registry-wide".to_string())]),
     )])));
     let resolved = project_config(&config);
-    let scope = resolved
-        .registries
+    let scope = resolved.registries
         .iter()
         .find(|registry| registry.name == "@scope")
         .expect("@scope registry");
@@ -150,8 +147,7 @@ fn read_config_resolves_the_project_npmrc_cascade() {
         super::read_config(super::ReadConfigOptions { dir: dir.path().display().to_string() })
             .expect("read config");
 
-    let fixture_registry = resolved
-        .registries
+    let fixture_registry = resolved.registries
         .iter()
         .find(|registry| registry.name == "@fixture")
         .expect("@fixture registry resolved from the project .npmrc");

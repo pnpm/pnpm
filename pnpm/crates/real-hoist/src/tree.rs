@@ -21,8 +21,7 @@ pub(super) fn external_placeholder(dep: &str) -> Rc<HoisterTree> {
 /// output tree is stable across runs (matters for snapshot
 /// tests).
 pub(super) fn sorted_non_root_importers(lockfile: &Lockfile) -> Vec<(&String, &ProjectSnapshot)> {
-    let mut non_root: Vec<(&String, &ProjectSnapshot)> = lockfile
-        .importers
+    let mut non_root: Vec<(&String, &ProjectSnapshot)> = lockfile.importers
         .iter()
         .filter(|(id, _)| id.as_str() != Lockfile::ROOT_IMPORTER_KEY)
         .collect();
@@ -151,8 +150,7 @@ fn build_dep_node(
     // matching the TS wrapper, which reads `pkgSnapshot` from the
     // original depPath while stamping `depPathByPkgId.get(id)` as the
     // reference.
-    let reference = cache
-        .dep_key_by_pkg_id
+    let reference = cache.dep_key_by_pkg_id
         .entry(pkg_id(dep_key))
         .or_insert_with(|| dep_key.clone())
         .to_string();
@@ -181,7 +179,10 @@ fn lookup_snapshot<'a>(
     optional: bool,
     lockfile: &'a Lockfile,
 ) -> Result<Option<&'a SnapshotEntry>, HoistError> {
-    match lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(dep_key)) {
+    match lockfile.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(dep_key))
+    {
         Some(snapshot) => Ok(Some(snapshot)),
         None if optional => Ok(None),
         None => Err(HoistError::LockfileMissingDependency { pkg_key: dep_key.to_string() }),
@@ -201,7 +202,12 @@ fn peer_names_of(
         return BTreeSet::new();
     }
     let mut peer_names = declared_peer_names(dep_key, lockfile);
-    peer_names.extend(snapshot.transitive_peer_dependencies.iter().flatten().cloned());
+    peer_names.extend(
+        snapshot.transitive_peer_dependencies
+            .iter()
+            .flatten()
+            .cloned(),
+    );
     peer_names
 }
 
@@ -212,7 +218,11 @@ fn declared_peer_names(dep_key: &PkgNameVerPeer, lockfile: &Lockfile) -> BTreeSe
     let Some(meta) = packages.get(&dep_key.without_peer()) else {
         return BTreeSet::new();
     };
-    meta.peer_dependencies.iter().flatten().map(|(name, _)| name.clone()).collect()
+    meta.peer_dependencies
+        .iter()
+        .flatten()
+        .map(|(name, _)| name.clone())
+        .collect()
 }
 
 fn collect_snapshot_deps(
@@ -373,8 +383,11 @@ pub(super) fn convert(tree: &HoisterTree, context: &mut ConvertContext) -> Rc<Ho
     // holding the borrow across recursive calls is technically
     // safe, but releasing it keeps the panic surface smaller if
     // the algorithm later grows a mutation pass over the input.
-    let to_convert: Vec<RcByPtr<HoisterTree>> =
-        tree.dependencies.borrow().iter().cloned().collect();
+    let to_convert: Vec<RcByPtr<HoisterTree>> = tree.dependencies
+        .borrow()
+        .iter()
+        .cloned()
+        .collect();
     let mut children: IndexSet<RcByPtr<HoisterResult>> = IndexSet::new();
     for child in to_convert {
         children.insert(RcByPtr(convert(&child.0, context)));

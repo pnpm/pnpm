@@ -94,7 +94,10 @@ fn cursor_ups(output: &str) -> Vec<usize> {
     let mut rest = output;
     while let Some(start) = rest.find("\x1b[") {
         rest = &rest[start + 2..];
-        let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+        let digits: String = rest
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect();
         if !digits.is_empty() && rest[digits.len()..].starts_with('A') {
             result.push(digits.parse().expect("parse the cursor-up distance"));
         }
@@ -114,7 +117,7 @@ fn never_redraws_above_the_top_of_the_terminal() {
     const COLUMNS: usize = 120;
 
     let mut sink = Sink::new();
-    sink.terminal_size = || Some((COLUMNS, Some(ROWS)));
+    sink.viewport.terminal_size = || Some((COLUMNS, Some(ROWS)));
     sink.diff = crate::diff::Diff::new(COLUMNS);
     let mut writes = Vec::new();
 
@@ -151,13 +154,16 @@ fn never_redraws_above_the_top_of_the_terminal() {
 #[test]
 fn a_frame_shorter_than_the_committed_prefix_is_rendered_whole() {
     let mut sink = Sink::new();
-    sink.terminal_size = || Some((120, Some(3)));
+    sink.viewport.terminal_size = || Some((120, Some(3)));
     sink.diff = crate::diff::Diff::new(120);
     let mut writes = Vec::new();
 
-    let tall = (0..12).map(|line| format!("line {line}")).collect::<Vec<_>>().join("\n");
+    let tall = (0..12)
+        .map(|line| format!("line {line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
     sink.write_to(Output::Frame(tall), false, &mut writes);
-    assert!(sink.committed_lines > 0, "the tall frame must have overflowed the terminal");
+    assert!(sink.viewport.committed_lines > 0, "the tall frame must have overflowed the terminal");
 
     writes.clear();
     sink.write_to(Output::Frame("Error: boom".to_string()), false, &mut writes);
@@ -176,7 +182,7 @@ fn a_line_taller_than_the_terminal_is_reprinted_rather_than_revised() {
     const COLUMNS: usize = 20;
 
     let mut sink = Sink::new();
-    sink.terminal_size = || Some((COLUMNS, Some(ROWS)));
+    sink.viewport.terminal_size = || Some((COLUMNS, Some(ROWS)));
     sink.diff = crate::diff::Diff::new(COLUMNS);
     let mut writes = Vec::new();
 
@@ -211,12 +217,12 @@ fn a_resize_starts_a_fresh_frame() {
     let frame = || Output::Frame("resolving\nProgress: resolved 1".to_string());
 
     let mut sink = Sink::new();
-    sink.terminal_size = || Some((80, Some(24)));
+    sink.viewport.terminal_size = || Some((80, Some(24)));
     sink.diff = crate::diff::Diff::new(80);
     let mut writes = Vec::new();
     sink.write_to(frame(), false, &mut writes);
 
-    sink.terminal_size = || Some((40, Some(24)));
+    sink.viewport.terminal_size = || Some((40, Some(24)));
     writes.clear();
     sink.write_to(frame(), false, &mut writes);
 
@@ -240,24 +246,27 @@ fn a_shrinking_window_starts_a_fresh_frame() {
     const COLUMNS: usize = 80;
 
     let mut sink = Sink::new();
-    sink.terminal_size = || Some((COLUMNS, Some(24)));
+    sink.viewport.terminal_size = || Some((COLUMNS, Some(24)));
     sink.diff = crate::diff::Diff::new(COLUMNS);
     let mut writes = Vec::new();
 
     let frame = |resolved: usize| -> Output {
-        let lines: Vec<String> =
-            (0..20).map(|group| format!("install-{group}: resolved {resolved}")).collect();
+        let lines: Vec<String> = (0..20)
+            .map(|group| format!("install-{group}: resolved {resolved}"))
+            .collect();
         Output::Frame(lines.join("\n"))
     };
     sink.write_to(frame(1), false, &mut writes);
 
-    sink.terminal_size = || Some((COLUMNS, Some(6)));
+    sink.viewport.terminal_size = || Some((COLUMNS, Some(6)));
     writes.clear();
     sink.write_to(frame(2), false, &mut writes);
 
     let output = String::from_utf8(writes).expect("utf8 output");
     assert!(
-        cursor_ups(&output).iter().all(|up| *up < 6),
+        cursor_ups(&output)
+            .iter()
+            .all(|up| *up < 6),
         "a frame the window shrank under must not be moved into, got: {:?}",
         cursor_ups(&output),
     );

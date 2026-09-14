@@ -18,8 +18,7 @@ use cache_keys::{
 };
 
 use crate::{
-    CasPathsByPkgId, CustomFetcherSession, InstallPackageBySnapshotError, SkippedSnapshots,
-    store_init::init_store_dir_best_effort,
+    CasPathsByPkgId, InstallPackageBySnapshotError, store_init::init_store_dir_best_effort,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -29,14 +28,8 @@ use pnpm_lockfile::{
     LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName,
     PkgNameVerPeer, SnapshotEntry,
 };
-use pnpm_network::ThrottledClient;
-use pnpm_store_dir::{
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter,
-};
-use pnpm_tarball::{
-    MemCache, PrefetchIntegrityCheck, PrefetchResult, SharedReportedProgressKeys,
-    prefetch_cas_paths,
-};
+use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex};
+use pnpm_tarball::{PrefetchIntegrityCheck, PrefetchResult, prefetch_cas_paths};
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -109,7 +102,7 @@ pub struct CreateVirtualStoreStoreContext<'a> {
 /// planning and materialization — the frozen install path's
 /// installability host detection, whose `node --version` costs more
 /// than the entire prefetch — starts it early via [`Self::start`] and
-/// hands it over through [`CreateVirtualStore::cas_prefetch`], so the
+/// hands it over through [`crate::VirtualStoreFetchInputs::cas_prefetch`], so the
 /// prefetch's store reads run under that work instead of after it.
 pub struct CasPrefetch {
     store_index: Option<SharedReadonlyStoreIndex>,
@@ -160,8 +153,8 @@ impl CasPrefetch {
         // Install-scoped `verifiedFilesCache`: one `Arc<DashSet>` for
         // the duration of the install, so a CAFS path verified for one
         // snapshot is not re-stat'd for another.
-        let verified_files_cache = store_context
-            .map_or_else(SharedVerifiedFilesCache::default, |context| {
+        let verified_files_cache =
+            store_context.map_or_else(SharedVerifiedFilesCache::default, |context| {
                 Arc::clone(context.verified_files_cache)
             });
         let cache_keys = derive_cache_keys(config, entries, supported_architectures);
@@ -208,7 +201,7 @@ pub struct CreateVirtualStoreOutput {
     pub materialized_snapshots: Vec<PackageKey>,
     pub fetch_failed: HashSet<PackageKey>,
     /// Per-package CAS index, populated only when
-    /// [`crate::InstallContext::node_linker`] is
+    /// [`crate::ModuleLinkerContext::kind`] is
     /// [`NodeLinker::Hoisted`](pnpm_modules_yaml::NodeLinker::Hoisted). Threaded into
     /// [`crate::link_hoisted_modules()`] which materializes the
     /// hoisted `node_modules/` tree directly from these CAS paths
@@ -220,11 +213,27 @@ pub struct CreateVirtualStoreOutput {
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
 }
 
+impl CreateVirtualStoreOutput {
+    pub fn build_cache<'a>(
+        &'a self,
+        engine_name: Option<&'a str>,
+        store_index_writer: &'a std::sync::Arc<pnpm_store_dir::StoreIndexWriter>,
+    ) -> crate::BuildPhaseCache<'a> {
+        crate::BuildPhaseCache {
+            maps_by_snapshot: &self.side_effects_maps_by_snapshot,
+            requires_build_by_snapshot: &self.requires_build_by_snapshot,
+            engine_name,
+            store_index_writer,
+        }
+    }
+}
+
 /// This subroutine generates filesystem layout for the virtual store at `node_modules/.pacquet`.
 #[must_use]
 pub struct CreateVirtualStore<'a> {
+    pub fetching: crate::VirtualStoreFetchInputs<'a>,
+    pub selection: crate::SnapshotSelection<'a>,
     pub ctx: &'a crate::InstallContext<'a>,
-    pub http_client: &'a ThrottledClient,
     /// The wanted lockfile's entries — what this run materializes.
     pub entries: LockfileEntries<'a>,
     /// Entries recorded by the previous install, parsed from
@@ -234,57 +243,11 @@ pub struct CreateVirtualStore<'a> {
     /// decision — see [`CreateVirtualStore::run`] and
     /// [`LockfileEntries::of_previous_install`].
     pub current_entries: LockfileEntries<'a>,
-    /// Shared store-index writer for the install. Owned by
-    /// `InstallFrozenLockfile`, threaded down here for the cold-batch
-    /// download path's `InstallPackageBySnapshot` and also reused by
-    /// `BuildModules` for the side-effects-cache WRITE path.
-    pub store_index_writer: &'a std::sync::Arc<StoreIndexWriter>,
-    pub store_context: Option<CreateVirtualStoreStoreContext<'a>>,
-    /// A [`CasPrefetch`] the caller started early so its store reads
-    /// overlap caller-side async work; `None` makes [`Self::run`] start
-    /// one itself. Must have been started with this run's `snapshots` /
-    /// `packages`.
-    pub cas_prefetch: Option<CasPrefetch>,
-    /// Snapshots the installability pass marked optional+incompatible
-    /// on this host. Their virtual-store slots are not created — the
-    /// warm/cold partition skips them, and the bundled-manifest +
-    /// side-effects-cache lookups they would feed downstream phases
-    /// are likewise omitted: only non-skipped snapshots are
-    /// materialized into the graph passed to the build phase.
-    pub skipped: &'a SkippedSnapshots,
-    /// Whether snapshot `optionalDependencies` are included in this
-    /// materialization.
-    pub include_optional_dependencies: bool,
-    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     /// macOS directory-clone materialization cache
     /// ([`crate::dir_clone_cache`]), built by the install entry points
     /// when [`crate::DirCloneCache::eligible`] holds. Threaded into
     /// every slot link that passes `dir_clone_cacheable`.
     pub dir_clone_cache: Option<&'a crate::DirCloneCache<'a>>,
-    /// Cache keys whose package status (`fetched` or `found_in_store`)
-    /// has already been emitted earlier in this install. The warm batch
-    /// still emits `resolved` for those packages, but skips the second
-    /// status event so resolve-time prefetch progress is visible without
-    /// being double-counted.
-    pub progress_reported: &'a SharedReportedProgressKeys,
-    /// Install-scoped shared in-flight tarball cache, threaded into each
-    /// per-snapshot [`InstallPackageBySnapshot`](crate::InstallPackageBySnapshot) so the cold-batch
-    /// download reuses a background prefetcher's in-flight download
-    /// instead of re-fetching. `Some` whenever a prefetcher is active —
-    /// the pnpr client's `TarballPrefetcher` (frozen path) or
-    /// the fresh-resolve path's `PrefetchingResolver` (closing
-    /// <https://github.com/pnpm/pnpm/issues/12241>); `None` otherwise.
-    pub tarball_mem_cache: Option<&'a std::sync::Arc<MemCache>>,
-    /// Custom fetchers from the pnpmfile. Consulted per snapshot
-    /// before the built-in resolution-type dispatch.
-    pub custom_fetcher_session: Option<&'a Arc<CustomFetcherSession>>,
-    /// Fetch-evidence cell filled right after the warm/cold partition
-    /// with the cold registry-resolved snapshots this run downloads —
-    /// see [`pnpm_resolving_resolver_base::PlannedCanonicalFetches`].
-    /// `None` for callers with no concurrent verification fan-out to
-    /// feed (the fresh-resolve path, `--filter` passes, tests).
-    pub planned_canonical_fetches:
-        Option<&'a pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
     #[cfg(test)]
     pub link_concurrency_probe:
         Option<&'a crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe>,
@@ -397,7 +360,9 @@ fn removed_aliases_for<'a>(
     removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
     snapshot_key: &PackageKey,
 ) -> &'a [PkgName] {
-    removed_aliases_by_key.get(snapshot_key).map_or(&[], Vec::as_slice)
+    removed_aliases_by_key
+        .get(snapshot_key)
+        .map_or(&[], Vec::as_slice)
 }
 
 /// Child aliases linked by the previous install (`current`) that are
@@ -455,9 +420,12 @@ fn create_build_marker_source(
     if config.frozen_store || !layout.enable_global_virtual_store() {
         return Ok(None);
     }
-    tempfile::NamedTempFile::new_in(store_dir.root()).map(Some).map_err(|error| {
-        CreateVirtualStoreError::CreateBuildMarker { path: store_dir.root().to_path_buf(), error }
-    })
+    tempfile::NamedTempFile::new_in(store_dir.root())
+        .map(Some)
+        .map_err(|error| CreateVirtualStoreError::CreateBuildMarker {
+            path: store_dir.root().to_path_buf(),
+            error,
+        })
 }
 
 /// Publish the cold-batch fetch plan for the concurrent verification fan-out:

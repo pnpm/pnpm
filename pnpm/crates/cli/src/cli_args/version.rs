@@ -36,48 +36,44 @@ pub struct VersionArgs {
     /// premajor, preminor, prepatch, prerelease, from-git. Omit it and pass `-r` to
     /// apply the pending change intents instead.
     pub params: Vec<String>,
-
     /// Print what the command would do without changing anything.
     #[clap(long = "dry-run")]
     pub dry_run: bool,
-
-    /// Don't check if the working tree is clean.
-    #[clap(long = "no-git-checks")]
-    pub no_git_checks: bool,
-
     /// Sets the prerelease identifier (e.g. alpha, beta, rc).
     #[clap(long)]
     pub preid: Option<String>,
-
     /// Allow bumping to the same version.
     #[clap(long = "allow-same-version")]
     pub allow_same_version: bool,
+    /// Show information in JSON format.
+    #[clap(long)]
+    pub json: bool,
+    #[clap(flatten)]
+    pub git: VersionGitArgs,
+}
 
+#[derive(Debug, Clone, clap::Args)]
+pub struct VersionGitArgs {
+    /// Don't check if the working tree is clean.
+    #[clap(long = "no-git-checks")]
+    pub no_git_checks: bool,
     /// Commit message. "%s" is replaced with the new version. Default is "%s".
     #[clap(long, short = 'm')]
     pub message: Option<String>,
-
     /// Don't create a commit or tag for the version bump. Git commits and
     /// tags are always skipped in recursive mode.
     #[clap(long = "no-git-tag-version")]
     pub no_git_tag_version: bool,
-
     /// Skip running git commit hooks when committing the version bump.
     #[clap(long = "no-commit-hooks")]
     pub no_commit_hooks: bool,
-
     /// Sign the generated git tag with GPG.
     #[clap(long = "sign-git-tag")]
     pub sign_git_tag: bool,
-
     /// Sets the tag prefix. Default is "v". Set to empty string to remove
     /// the prefix.
     #[clap(long = "tag-version-prefix", default_value = "v")]
     pub tag_version_prefix: String,
-
-    /// Show information in JSON format.
-    #[clap(long)]
-    pub json: bool,
 }
 
 /// Errors of `pnpm version`. Codes and messages match the TypeScript CLI.
@@ -160,13 +156,13 @@ impl VersionArgs {
         let raw = self.params[0].as_str();
         let git_cwd = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         let bump = if raw == "from-git" {
-            Bump::Explicit(version_from_git(&git_cwd, &self.tag_version_prefix)?)
+            Bump::Explicit(version_from_git(&git_cwd, &self.git.tag_version_prefix)?)
         } else {
             parse_bump(raw)?
         };
         if !self.dry_run
             && config.git_checks
-            && !self.no_git_checks
+            && !self.git.no_git_checks
             && is_git_repo::<Host>(&git_cwd)
             && !is_working_tree_clean::<Host>(&git_cwd)
         {
@@ -181,7 +177,10 @@ impl VersionArgs {
         // In recursive mode, multiple packages can be bumped to different
         // versions in a single run, and there is no obvious single version to
         // tag the commit with. Skip the git commit and tag entirely then.
-        if !self.dry_run && !recursive && !self.no_git_tag_version && is_git_repo::<Host>(&git_cwd)
+        if !self.dry_run
+            && !recursive
+            && !self.git.no_git_tag_version
+            && is_git_repo::<Host>(&git_cwd)
         {
             self.commit_and_tag(&changes[0], &git_cwd)?;
         }
@@ -219,8 +218,7 @@ impl VersionArgs {
             select_recursive_projects(&projects, config, &base, AutoExcludeRoot::Disabled)?;
         let mut changes = Vec::new();
         for pkg_dir in selection.selected.keys() {
-            if let Some(change) =
-                self.bump_package_version::<Reporter>(pkg_dir, bump, config, dir)?
+            if let Some(change) = self.bump_package_version::<Reporter>(pkg_dir, bump, config, dir)?
             {
                 changes.push(change);
             }
@@ -277,12 +275,9 @@ impl VersionArgs {
         let mut manifest = PackageManifest::from_path(manifest_path.clone())
             .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
 
-        let name = manifest.value().get("name").and_then(Value::as_str).unwrap_or_default();
-        let current = manifest.value().get("version").and_then(Value::as_str).unwrap_or_default();
-        if name.is_empty() || current.is_empty() {
+        let Some((name, current)) = package_version_identity(&manifest) else {
             return Ok(None);
-        }
-        let (name, current) = (name.to_string(), current.to_string());
+        };
 
         let current_version = parse_current_version(pkg_dir, &current)?;
 
@@ -303,7 +298,9 @@ impl VersionArgs {
             .expect("package.json is an object — its version field was just read")
             .insert("version".to_string(), Value::String(new_version.clone()));
         if !self.dry_run {
-            manifest.save().wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
+            manifest
+                .save()
+                .wrap_err_with(|| format!("saving {}", manifest_path.display()))?;
         }
 
         let change = VersionChange {
@@ -355,7 +352,9 @@ impl VersionArgs {
             Bump::Release(release) => inc(
                 current_version,
                 *release,
-                self.preid.as_deref().filter(|preid| !preid.is_empty()),
+                self.preid
+                    .as_deref()
+                    .filter(|preid| !preid.is_empty()),
             ),
         }
         .to_string();
@@ -398,23 +397,22 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
     let root_modules_dir = change.path.join(&config.modules_dir);
     let script_shell = config.script_shell.as_ref().map(PathBuf::from);
     let run_opts = RunPostinstallHooks {
+        environment: super::run::script_environment(config, init_cwd, &config.extra_env),
+        execution: pnpm_executor::ScriptExecutionOptions {
+            extra_bin_paths: &config.extra_bin_paths,
+            node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
+            prepend_node_path: super::run::exec_scripts_prepend_node_path(
+                config.scripts_prepend_node_path,
+            ),
+            shell: script_shell.as_deref(),
+            shell_emulator: config.shell_emulator,
+        },
         dep_path: &change.name,
         pkg_root: &change.path,
         root_modules_dir: &root_modules_dir,
-        init_cwd,
-        extra_bin_paths: &config.extra_bin_paths,
-        extra_env: &config.extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: Some(&config.user_agent),
+
         unsafe_perm: config.unsafe_perm,
-        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-        scripts_prepend_node_path: super::run::exec_scripts_prepend_node_path(
-            config.scripts_prepend_node_path,
-        ),
-        script_shell: script_shell.as_deref(),
-        shell_emulator: config.shell_emulator,
+
         optional: false,
     };
     let parent_env: HashMap<String, String> = std::env::vars().collect();
@@ -431,6 +429,23 @@ struct VersionChange {
     new_version: String,
     path: PathBuf,
     manifest_path: PathBuf,
+}
+
+fn package_version_identity(manifest: &PackageManifest) -> Option<(String, String)> {
+    let name = manifest
+        .value()
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let current = manifest
+        .value()
+        .get("version")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if name.is_empty() || current.is_empty() {
+        return None;
+    }
+    Some((name.to_string(), current.to_string()))
 }
 
 #[cfg(test)]

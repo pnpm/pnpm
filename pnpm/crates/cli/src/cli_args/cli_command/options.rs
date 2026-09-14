@@ -23,32 +23,32 @@ impl CliArgs {
     /// the silent reporter over any `--reporter` choice, mirroring the
     /// reporter selection in pnpm 11's `main.ts`.
     pub(crate) fn effective_reporter(&self) -> ReporterType {
-        if self.loglevel == Some(LogLevelSetting::Silent) {
+        if self.output.presentation.loglevel == Some(LogLevelSetting::Silent) {
             return ReporterType::Silent;
         }
-        self.reporter
+        self.output.presentation.reporter
     }
 
     pub fn validate_command_scoped_global_options(&self) -> Result<(), clap::Error> {
-        if self.resume_from.is_some() {
+        if self.workspace.ordering.resume_from.is_some() {
             self.validate_run_scoped_global_option("--resume-from")?;
         }
-        if self.report_summary {
+        if self.workspace.execution.report_summary {
             self.validate_report_summary_global_option()?;
         }
-        if self.no_bail {
+        if self.workspace.execution.no_bail {
             self.validate_no_bail_global_option()?;
         }
-        if self.if_present {
+        if self.workspace.execution.if_present {
             self.validate_if_present_top_level_option()?;
         }
-        if self.parallel {
+        if self.workspace.ordering.parallel {
             self.validate_parallel_global_option()?;
         }
-        if self.reporter_hide_prefix {
+        if self.output.lifecycle.hide_prefix {
             self.validate_run_scoped_global_option("--reporter-hide-prefix")?;
         }
-        if self.no_reporter_hide_prefix {
+        if self.output.lifecycle.no_hide_prefix {
             self.validate_run_scoped_global_option("--no-reporter-hide-prefix")?;
         }
         Ok(())
@@ -63,18 +63,20 @@ impl CliArgs {
     /// the parsed args before dispatch; both the install fast-path bail
     /// and [`Self::run`] then observe the promoted flag.
     pub fn promote_recursive_for_filter(&mut self) {
-        if !self.filter.is_empty() || !self.filter_prod.is_empty() {
-            self.recursive = true;
+        if !self.workspace.selection.filter.is_empty()
+            || !self.workspace.selection.filter_prod.is_empty()
+        {
+            self.workspace.recursive = true;
         }
     }
 
     /// Apply the recursive-run settings represented by pnpm's
     /// `--parallel` shorthand.
     pub fn apply_parallel_run_options(&mut self) {
-        if self.parallel {
-            self.recursive = true;
-            self.no_sort = true;
-            self.stream = true;
+        if self.workspace.ordering.parallel {
+            self.workspace.recursive = true;
+            self.workspace.ordering.no_sort = true;
+            self.output.lifecycle.stream = true;
         }
     }
 
@@ -89,13 +91,13 @@ impl CliArgs {
     /// A cwd that cannot be read leaves `--dir` at its default, which the
     /// canonicalization in [`Self::run`] then reports on.
     pub fn apply_local_prefix(&mut self) -> miette::Result<()> {
-        if self.dir_from_command_line {
+        if self.paths.dir_from_command_line {
             return Ok(());
         }
         let Ok(cwd) = std::env::current_dir() else {
             return Ok(());
         };
-        self.dir = if self.command.acts_on_the_npm_project() {
+        self.paths.dir = if self.command.acts_on_the_npm_project() {
             super::super::prefix::find_npm_local_prefix(&cwd)?
         } else {
             super::super::prefix::find_local_prefix(&cwd)?
@@ -120,38 +122,43 @@ impl CliArgs {
     /// otherwise walk right back up through its own `..` components and
     /// select the workspace the user pointed away from.
     pub fn apply_workspace_root(&mut self) -> Result<(), WorkspaceRootError> {
-        if !self.workspace_root {
+        if !self.workspace.selection.workspace_root {
             return Ok(());
         }
         if self.command.is_global() {
             return Err(WorkspaceRootError::GlobalConflict);
         }
-        let dir = dunce::canonicalize(&self.dir)
-            .or_else(|_| std::path::absolute(&self.dir))
-            .unwrap_or_else(|_| self.dir.clone())
+        let dir = dunce::canonicalize(&self.paths.dir)
+            .or_else(|_| std::path::absolute(&self.paths.dir))
+            .unwrap_or_else(|_| self.paths.dir.clone())
             .pipe_deref(pnpm_fs::lexical_normalize);
         let workspace_dir = pnpm_workspace::find_workspace_dir(&dir)
             .map_err(WorkspaceRootError::FindWorkspaceDir)?
             .ok_or(WorkspaceRootError::NotInWorkspace)?;
-        self.dir = workspace_dir;
+        self.paths.dir = workspace_dir;
         // pnpm's parser writes the workspace root into `cliOptions.dir`, so
         // `-w` also decides where `init` scaffolds.
-        self.dir_from_command_line = true;
+        self.paths.dir_from_command_line = true;
         Ok(())
     }
 
     /// Promote commands marked recursive-by-default by pnpm when they run
     /// inside a workspace.
     pub fn promote_recursive_by_default(&mut self) {
-        let dir = dunce::canonicalize(&self.dir)
-            .or_else(|_| std::path::absolute(&self.dir))
-            .unwrap_or_else(|_| self.dir.clone())
+        let dir = dunce::canonicalize(&self.paths.dir)
+            .or_else(|_| std::path::absolute(&self.paths.dir))
+            .unwrap_or_else(|_| self.paths.dir.clone())
             .pipe_deref(pnpm_fs::lexical_normalize);
-        if !self.recursive
+        // `--ignore-workspace` runs the project standalone, so there is no
+        // workspace to be recursive over: promoting anyway makes the
+        // selection discover the project's own subdirectories as if they
+        // were workspace projects.
+        if !self.workspace.recursive
+            && !self.paths.ignore_workspace
             && self.command.recursive_by_default()
             && pnpm_workspace::find_workspace_dir(&dir).is_ok_and(|dir| dir.is_some())
         {
-            self.recursive = true;
+            self.workspace.recursive = true;
         }
     }
 
@@ -216,5 +223,18 @@ impl CliArgs {
             return Ok(());
         }
         Err(Self::unexpected_argument_error("--parallel"))
+    }
+}
+
+impl super::CliNetworkArgs {
+    pub(crate) fn apply(&self, config: &mut pnpm_config::Config) {
+        config.apply_proxy_cli_overrides(
+            self.https_proxy.as_deref(),
+            self.http_proxy.as_deref(),
+            self.no_proxy.as_deref(),
+        );
+        if let Some(registry) = self.registry.as_deref() {
+            crate::config_overrides::apply_registry_override(config, registry);
+        }
     }
 }

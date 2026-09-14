@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! The Cargo registry protocol pnpr speaks.
 //!
 //! A Cargo registry is two HTTP surfaces: a **sparse index** (a `config.json`
@@ -80,6 +83,13 @@ pub enum DependencyKind {
 
 /// One dependency of an index entry, in the wire shape `cargo` reads.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "Cargo sparse-index dependency format is flat"
+    )
+)]
 pub struct IndexDependency {
     /// The name the depending crate refers to the dependency by: the
     /// renamed alias when the dependency is renamed, else the package name.
@@ -106,6 +116,13 @@ pub struct IndexDependency {
 
 /// One line of a sparse-index file: one published version of a crate.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "Cargo sparse-index entry format is flat"
+    )
+)]
 pub struct IndexEntry {
     pub name: String,
     pub vers: String,
@@ -222,11 +239,15 @@ impl CrateDocument {
 
     #[must_use]
     pub fn version(&self, vers: &str) -> Option<&IndexEntry> {
-        self.versions.iter().find(|entry| entry.vers == vers)
+        self.versions
+            .iter()
+            .find(|entry| entry.vers == vers)
     }
 
     pub fn version_mut(&mut self, vers: &str) -> Option<&mut IndexEntry> {
-        self.versions.iter_mut().find(|entry| entry.vers == vers)
+        self.versions
+            .iter_mut()
+            .find(|entry| entry.vers == vers)
     }
 
     #[must_use]
@@ -246,7 +267,12 @@ pub const MAX_DESCRIPTION_LEN: usize = 1_000;
 /// crate documents kept one, and a publish that worked should keep working.
 #[must_use]
 pub fn bounded_description(description: Option<&str>) -> Option<String> {
-    description.map(|description| description.chars().take(MAX_DESCRIPTION_LEN).collect())
+    description.map(|description| {
+        description
+            .chars()
+            .take(MAX_DESCRIPTION_LEN)
+            .collect()
+    })
 }
 
 /// One row of `GET api/v1/crates`. `cargo search` reads exactly these three

@@ -35,20 +35,23 @@ pub(super) struct InstallShape {
 }
 impl InstallShape {
     fn derive(install: FreshInputs<'_>, update_seed_policy: &UpdateSeedPolicy) -> Self {
-        let is_hoisted = matches!(install.node_linker, NodeLinker::Hoisted);
+        let is_hoisted = matches!(install.execution.node_linker, NodeLinker::Hoisted);
         let partial_selection = is_partial_workspace_selection(
-            install.real_importer_ids,
-            install.selected_importer_ids,
+            install.projects.real_ids,
+            install.projects.selected_ids,
         );
         Self {
             is_hoisted,
-            link_options: crate::shim_link_options(install.config, install.node_linker),
+            link_options: crate::shim_link_options(
+                install.drivers.config,
+                install.execution.node_linker,
+            ),
             filtered_isolated: partial_selection && !is_hoisted,
             verify_filtered_repair: matches!(update_seed_policy, UpdateSeedPolicy::FixLockfile)
                 && partial_selection,
             include_transitive_optional_dependencies: include_transitive_optional_dependencies(
-                install.is_full_install,
-                install.dependency_groups,
+                install.projects.is_full_install,
+                install.projects.dependency_groups,
             ),
         }
     }
@@ -66,8 +69,9 @@ impl ObserverSettings {
     fn of(observer: Option<&Arc<dyn crate::ResolutionObserver>>) -> Self {
         Self {
             package_version_guard: observer.and_then(|observer| observer.package_version_guard()),
-            minimum_release_age_exclude_override: observer
-                .and_then(|observer| observer.minimum_release_age_exclude_override()),
+            minimum_release_age_exclude_override: observer.and_then(|observer| {
+                observer.minimum_release_age_exclude_override()
+            }),
             can_fast_update_overrides: observer.is_none(),
         }
     }
@@ -79,15 +83,16 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     install: FreshInputs<'_>,
     owned: &mut OwnedInputs,
 ) -> Result<ResolverSetup, InstallWithFreshLockfileError> {
-    let shape = InstallShape::derive(install, &owned.update_seed_policy);
+    let shape = InstallShape::derive(install, &owned.resolution.update_seed_policy);
     // The pnpr override when supplied, else the config's npmrc headers;
     // shared by every registry-touching resolver below.
-    let auth_headers =
-        owned.auth_override.take().unwrap_or_else(|| Arc::clone(&install.config.auth_headers));
-    let resolution_observer = owned.resolution_observer.take();
+    let auth_headers = owned.resolution.auth_override
+        .take()
+        .unwrap_or_else(|| Arc::clone(&install.drivers.config.auth_headers));
+    let resolution_observer = owned.resolution.observer.take();
     let observer = ObserverSettings::of(resolution_observer.as_ref());
 
-    let store_dir: &'static _ = &install.config.store_dir;
+    let store_dir: &'static _ = &install.drivers.config.store_dir;
     // Eagerly create `files/00..ff` under the v11 store root so per-
     // tarball CAFS writes never pay a `create_dir_all` syscall on the
     // hot path.
@@ -95,11 +100,11 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     // policy shared with `create_virtual_store.rs`. Skipped under
     // `frozenStore`: the store is read-only and complete, so no
     // directory creation is attempted under its root.
-    if !install.config.frozen_store {
+    if !install.drivers.config.frozen_store {
         init_store_dir_best_effort(store_dir).await;
     }
 
-    let registries = resolver_setup::resolve_registries(install.config)?;
+    let registries = resolver_setup::resolve_registries(install.drivers.config)?;
 
     // `resolutionMode` / `minimumReleaseAge` derivations. `time_based`
     // and `pick_lowest_direct` steer the deps-resolver's per-depth
@@ -110,7 +115,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     // explicit-spec pre-resolution via [`PickPolicy`] so both pick the
     // same version.
     let policy = crate::resolution_policy::PickPolicy::from_config_with_extra_excludes(
-        install.config,
+        install.drivers.config,
         observer.minimum_release_age_exclude_override.as_deref(),
     )
     .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
@@ -119,7 +124,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     // progress emitted by resolve-time prefetches: `CreateVirtualStore`
     // still emits `resolved` later, but skips duplicate `fetched` /
     // `found_in_store` statuses for keys already reported here.
-    let stores = resolver_setup::open_store_index_handles(install.config, store_dir).await;
+    let stores = resolver_setup::open_store_index_handles(install.drivers.config, store_dir).await;
 
     let chain = build_fresh_resolver_chain::<Reporter>(
         install,
@@ -132,7 +137,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     )
     .await?;
     Ok(ResolverSetup {
-        workspace_packages: owned.workspace_packages.take().map(Arc::new),
+        workspace_packages: owned.projects.workspace_packages.take().map(Arc::new),
         observer,
         shape,
         policy,
@@ -155,28 +160,38 @@ pub(super) async fn build_fresh_resolver_chain<Reporter: self::Reporter + 'stati
     access: ResolverAccess,
 ) -> Result<resolver_setup::ResolverChain, InstallWithFreshLockfileError> {
     resolver_setup::build_resolver_chain::<Reporter>(resolver_setup::ResolverChainInputs {
-        config: install.config,
-        store_dir: &install.config.store_dir,
-        http_client_arc: &owned.http_client_arc,
-        git_source_cache: &stores.caches.git_source_cache,
-        tarball_mem_cache: &owned.tarball_mem_cache,
-        auth_headers: &access.auth_headers,
-        meta_cache: &owned.meta_cache,
-        lockfile_dir: install.lockfile_dir,
-        requester: install.requester,
-        supported_architectures: install.supported_architectures,
-        registries: &registries.by_scope,
-        needs_full_metadata_for: Arc::clone(&policy.needs_full_metadata_for),
-        registries_by_prefix: &registries.named,
-        full_metadata: policy.full_metadata,
-        wanted_lockfile: install.wanted_lockfile,
-        store_index: stores.index.as_ref(),
-        store_index_writer: &stores.writer,
-        verified_files_cache: &stores.caches.verified_files,
-        progress_reported: &stores.caches.progress_reported,
-        prefetch_downloads: prefetch_downloads(install.lockfile_only, shape.filtered_isolated),
-        pnpmfile_hook_override: owned.pnpmfile_hook_override.take(),
-        resolution_observer: access.observer,
+        fetching: crate::install_with_fresh_lockfile::resolution_inputs::ResolverFetchContext {
+            http_client: &owned.fetching.http_client_arc,
+            git_sources: &stores.caches.git_source_cache,
+            tarballs: &owned.fetching.tarball_mem_cache,
+            auth_headers: &access.auth_headers,
+            progress_reported: &stores.caches.progress_reported,
+            prefetch: prefetch_downloads(install.execution.lockfile_only, shape.filtered_isolated),
+        },
+        hooks: crate::install_with_fresh_lockfile::resolution_inputs::ResolverChainHooks {
+            pnpmfile: owned.pnpmfile_hook_override.take(),
+            observer: access.observer,
+        },
+        project: crate::install_with_fresh_lockfile::resolution_inputs::ResolverChainProject {
+            root: install.projects.lockfile_dir,
+            requester: install.projects.requester,
+            supported_architectures: install.projects.supported_architectures,
+            lockfile: install.lockfiles.wanted,
+        },
+        registry: crate::install_with_fresh_lockfile::resolution_inputs::ResolverRegistryContext {
+            named: &registries.by_scope,
+            by_prefix: &registries.named,
+            cache: &owned.fetching.meta_cache,
+            full_metadata: policy.full_metadata,
+            needs_full_metadata: Arc::clone(&policy.needs_full_metadata_for),
+        },
+        store: crate::install_with_fresh_lockfile::resolution_inputs::ResolverStoreContext {
+            dir: &install.drivers.config.store_dir,
+            index: stores.index.as_ref(),
+            index_writer: &stores.writer,
+            verified_files_cache: &stores.caches.verified_files,
+        },
+        config: install.drivers.config,
     })
     .await
 }
@@ -208,8 +223,10 @@ impl PnpmfileHooks {
         pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
         lockfile_dir: &Path,
     ) -> Self {
-        let path =
-            pnpmfile_hook.as_ref().and_then(|hook| hook.source_path()).map(Path::to_path_buf);
+        let path = pnpmfile_hook
+            .as_ref()
+            .and_then(|hook| hook.source_path())
+            .map(Path::to_path_buf);
         let log = |name: &'static str| {
             path.as_ref().map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, name))
         };
@@ -248,8 +265,7 @@ impl TrustGate {
     fn of(config: &Config) -> Result<Self, InstallWithFreshLockfileError> {
         Ok(Self {
             policy: resolver_trust_policy(config.trust_policy),
-            exclude: config
-                .trust_policy_exclude
+            exclude: config.trust_policy_exclude
                 .as_deref()
                 .filter(|patterns| !patterns.is_empty())
                 .map(pnpm_config::version_policy::create_package_version_policy)
@@ -314,34 +330,35 @@ pub(super) async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
     setup: &mut ResolverSetup,
     manifests: &mut ManifestSlots<'a>,
 ) -> Result<ResolutionPrep<Reporter>, InstallWithFreshLockfileError> {
+    let config = install.drivers.config;
+    let lockfile_dir = install.projects.lockfile_dir;
     let early_materializer = start_early_materialization::<Reporter>(install, owned, setup);
-    let trust = TrustGate::of(install.config)?;
+    let trust = TrustGate::of(config)?;
     let transforms = manifests.transform(
-        install.config,
-        &owned.catalogs,
-        install.lockfile_dir,
-        install.deploy_manifest_hook,
+        config,
+        &owned.projects.catalogs,
+        lockfile_dir,
+        install.manifests.deploy_hook,
     )?;
 
     let fixed_wanted_lockfile =
-        fix_lockfile_copy(&owned.update_seed_policy, install.wanted_lockfile);
-    let wanted_lockfile = fixed_wanted_lockfile.as_ref().or(install.wanted_lockfile);
+        fix_lockfile_copy(&owned.resolution.update_seed_policy, install.lockfiles.wanted);
+    let wanted_lockfile = fixed_wanted_lockfile.as_ref().or(install.lockfiles.wanted);
     // The repair copy above replaced the document, so the loader's
     // handle no longer describes `wanted_lockfile`.
-    let wanted_lockfile_shared =
-        fixed_wanted_lockfile.is_none().then_some(owned.wanted_lockfile_shared.take()).flatten();
-    let patches = Patches::resolve(install.config)?;
+    let wanted_lockfile_shared = fixed_wanted_lockfile
+        .is_none()
+        .then_some(owned.wanted_lockfile_shared.take())
+        .flatten();
+    let patches = Patches::resolve(config)?;
 
     // Kept past the resolver hand-off (which consumes `pnpmfile_hook`) so
     // the `afterAllResolved` hook can transform the lockfile before it is
     // written.
-    let hooks =
-        PnpmfileHooks::load::<Reporter>(setup.chain.pnpmfile_hook.take(), install.lockfile_dir);
-    hooks
-        .run_pre_resolution::<Reporter>(install.config, install.lockfile_dir, wanted_lockfile)
-        .await;
+    let hooks = PnpmfileHooks::load::<Reporter>(setup.chain.pnpmfile_hook.take(), lockfile_dir);
+    hooks.run_pre_resolution::<Reporter>(config, lockfile_dir, wanted_lockfile).await;
     let reuse = UpdateReuseScopes::settle(
-        &owned.update_seed_policy,
+        &owned.resolution.update_seed_policy,
         &setup.chain.custom_resolvers,
         wanted_lockfile,
     )

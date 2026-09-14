@@ -217,7 +217,9 @@ fn is_enum<Value: serde::de::DeserializeOwned>(value: &str) -> bool {
 }
 
 fn named_bare_setting_flag(key: &str) -> Option<(&'static str, SettingArity)> {
-    BARE_SETTING_FLAGS.into_iter().find(|&(name, _)| name == key)
+    BARE_SETTING_FLAGS
+        .into_iter()
+        .find(|&(name, _)| name == key)
 }
 
 /// Whether `value` is a spelling the `key` setting takes. `true` for a

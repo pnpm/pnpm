@@ -39,14 +39,25 @@ fn scanning_lists_only_the_branch_lockfiles_and_cleaning_removes_exactly_those()
     let found: Vec<String> = Lockfile::git_branch_lockfiles(dir.path())
         .unwrap()
         .iter()
-        .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+        .map(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
     assert_eq!(found, ["pnpm-lock.feature.x.yaml", "pnpm-lock.main.yaml"]);
 
     Lockfile::clean_git_branch_lockfiles(dir.path()).unwrap();
     let mut left: Vec<String> = fs::read_dir(dir.path())
         .unwrap()
-        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
     left.sort();
     assert_eq!(

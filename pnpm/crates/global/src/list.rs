@@ -42,7 +42,10 @@ pub fn find_global_install_dirs(
     params: &[String],
 ) -> std::io::Result<Vec<PathBuf>> {
     let packages = scan_global_packages(global_dir)?;
-    let patterns: Vec<_> = params.iter().map(|pattern| WildcardMatcher::new(pattern)).collect();
+    let patterns: Vec<_> = params
+        .iter()
+        .map(|pattern| WildcardMatcher::new(pattern))
+        .collect();
     let mut install_dirs: Vec<PathBuf> = Vec::new();
     for pkg in packages {
         let matched = pkg.dependencies.iter().any(|(alias, _)| matches_params(&patterns, alias));
@@ -78,11 +81,16 @@ pub fn list_global_packages(
 
 /// Every installed dependency matching `params`, sorted by alias.
 fn collect_listed_deps(packages: &[GlobalPackageInfo], params: &[String]) -> Vec<ListedDep> {
-    let patterns: Vec<_> = params.iter().map(|pattern| WildcardMatcher::new(pattern)).collect();
+    let patterns: Vec<_> = params
+        .iter()
+        .map(|pattern| WildcardMatcher::new(pattern))
+        .collect();
     let mut deps: Vec<ListedDep> = packages
         .iter()
         .flat_map(|pkg| {
-            get_global_package_details(pkg).into_iter().map(move |installed| (pkg, installed))
+            get_global_package_details(pkg)
+                .into_iter()
+                .map(move |installed| (pkg, installed))
         })
         .filter(|(_, installed)| matches_params(&patterns, &installed.alias))
         .map(|(pkg, installed)| listed_dep(pkg, installed))
@@ -92,8 +100,7 @@ fn collect_listed_deps(packages: &[GlobalPackageInfo], params: &[String]) -> Vec
 }
 
 fn listed_dep(pkg: &GlobalPackageInfo, installed: InstalledGlobalPackage) -> ListedDep {
-    let name = installed
-        .manifest
+    let name = installed.manifest
         .get("name")
         .and_then(Value::as_str)
         .unwrap_or(&installed.alias)
@@ -195,9 +202,15 @@ fn render_tree(global_dir: &str, deps: &[ListedDep], long: bool) -> String {
         let mut label = leaf_label(dep);
         if long && let Some(manifest) = read_dep_manifest(dep) {
             for value in [
-                manifest.get("description").and_then(Value::as_str).map(str::to_string),
+                manifest
+                    .get("description")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
                 repository_url(&manifest),
-                manifest.get("homepage").and_then(Value::as_str).map(str::to_string),
+                manifest
+                    .get("homepage")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
                 Some(dep.path.clone()),
             ]
             .into_iter()
@@ -258,7 +271,11 @@ fn render_node(node: &TreeNode, connector: &str, prefix: &str, out: &mut String)
 fn flatten_groups(node: &TreeNode) -> Vec<(&TreeNode, &str)> {
     node.groups
         .iter()
-        .flat_map(|group| group.nodes.iter().map(|node| (node, group.group.as_str())))
+        .flat_map(|group| {
+            group.nodes
+                .iter()
+                .map(|node| (node, group.group.as_str()))
+        })
         .collect()
 }
 
@@ -317,13 +334,19 @@ fn read_dep_manifest(dep: &ListedDep) -> Option<Value> {
 fn repository_url(manifest: &Value) -> Option<String> {
     match manifest.get("repository") {
         Some(Value::String(url)) => Some(url.clone()),
-        Some(Value::Object(map)) => map.get("url").and_then(Value::as_str).map(str::to_string),
+        Some(Value::Object(map)) => map
+            .get("url")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         _ => None,
     }
 }
 
 fn matches_params(patterns: &[WildcardMatcher], alias: &str) -> bool {
-    patterns.is_empty() || patterns.iter().any(|pattern| pattern.matches(alias))
+    patterns.is_empty()
+        || patterns
+            .iter()
+            .any(|pattern| pattern.matches(alias))
 }
 
 fn dim(text: &str) -> String {

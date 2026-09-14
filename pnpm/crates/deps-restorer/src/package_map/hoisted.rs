@@ -117,16 +117,23 @@ impl<'b> HoistedMapBuilder<'b> {
         node: &crate::DependenciesGraphNode,
     ) {
         let id = self.package_ids_by_graph_key[graph_key].clone();
-        let mut dependencies = BTreeMap::from([(node.name.clone(), id.clone())]);
+        let mut dependencies = BTreeMap::from([(node.package.name.clone(), id.clone())]);
         add_hoisted_graph_dependencies(
             &mut dependencies,
             &node.children,
             &self.package_ids_by_graph_key,
         );
 
-        if let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snapshots| {
-            node.dep_path.as_str().parse::<PackageKey>().ok().and_then(|key| snapshots.get(&key))
-        }) {
+        if let Some(snapshot) = lockfile.snapshots
+            .as_ref()
+            .and_then(|snapshots| {
+                node.package.dep_path
+                    .as_str()
+                    .parse::<PackageKey>()
+                    .ok()
+                    .and_then(|key| snapshots.get(&key))
+            })
+        {
             let package_modules_dir = self.is_loose.then(|| node.dir.join("node_modules"));
             for deps in [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()] {
                 add_hoisted_linked_dependencies(
@@ -178,7 +185,7 @@ pub(super) fn index_graph_nodes(
     for (graph_key, node) in &graph.graph {
         let id = graph_package_id(&node.dir, modules_dir);
         package_ids_by_graph_key.insert(graph_key.clone(), id.clone());
-        if let Ok(key) = node.dep_path.as_str().parse::<PackageKey>() {
+        if let Ok(key) = node.package.dep_path.as_str().parse::<PackageKey>() {
             package_ids_by_pkg_id
                 .entry(pnpm_real_hoist::pkg_id(&key))
                 .or_insert_with(|| id.clone());
@@ -186,7 +193,7 @@ pub(super) fn index_graph_nodes(
         if let Some(loose_index) = loose_index.as_mut()
             && let Some(modules_dir) = get_node_modules_path(&node.dir)
         {
-            loose_index.add(&modules_dir, node.name.clone(), id);
+            loose_index.add(&modules_dir, node.package.name.clone(), id);
         }
     }
 }

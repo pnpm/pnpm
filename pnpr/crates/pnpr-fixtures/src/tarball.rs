@@ -6,11 +6,17 @@ pub(super) fn build_tarball(
     manifest: &Value,
     manifest_text: &str,
 ) -> Vec<u8> {
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or_default();
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let gzip = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(gzip);
     for entry in fixture_files(package_dir) {
-        let relative = entry.path().strip_prefix(package_dir).expect("fixture entry under package");
+        let relative = entry
+            .path()
+            .strip_prefix(package_dir)
+            .expect("fixture entry under package");
         let path_in_archive = Path::new("package").join(relative);
         let content = if relative == Path::new("package.json") {
             manifest_text.as_bytes().to_vec()
@@ -97,17 +103,19 @@ pub(super) fn bundled_node_modules(root: &Path, manifest: &Value) -> Vec<(PathBu
 }
 
 pub(super) fn bundled_dependency_names(manifest: &Value) -> Vec<String> {
-    let bundled =
-        manifest.get("bundleDependencies").or_else(|| manifest.get("bundledDependencies"));
+    let bundled = manifest
+        .get("bundleDependencies")
+        .or_else(|| manifest.get("bundledDependencies"));
     match bundled {
         Some(Value::Bool(true)) => manifest
             .get("dependencies")
             .and_then(Value::as_object)
             .map(|deps| deps.keys().cloned().collect())
             .unwrap_or_default(),
-        Some(Value::Array(names)) => {
-            names.iter().filter_map(|name| name.as_str().map(String::from)).collect()
-        }
+        Some(Value::Array(names)) => names
+            .iter()
+            .filter_map(|name| name.as_str().map(String::from))
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -116,9 +124,17 @@ pub(super) fn resolve_fixture_version(root: &Path, dep: &str, spec: &str) -> Opt
     let range = Range::parse(spec).ok()?;
     let mut best: Option<(Version, String)> = None;
     for entry in fs::read_dir(root.join(dep)).ok()? {
-        let raw = entry.ok()?.file_name().to_string_lossy().into_owned();
+        let raw = entry
+            .ok()?
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
         let Ok(version) = Version::parse(&raw) else { continue };
-        if range.satisfies(&version) && best.as_ref().is_none_or(|(best, _)| version > *best) {
+        if range.satisfies(&version)
+            && best
+                .as_ref()
+                .is_none_or(|(best, _)| version > *best)
+        {
             best = Some((version, raw));
         }
     }
@@ -159,7 +175,9 @@ pub(super) fn file_mode(root: &Path, source: &Path, content: &[u8]) -> io::Resul
     }
     let relative = source.strip_prefix(root).expect("fixture source under root");
     if content.starts_with(b"#!")
-        || relative.components().any(|component| component.as_os_str() == "bin")
+        || relative
+            .components()
+            .any(|component| component.as_os_str() == "bin")
     {
         return Ok(0o755);
     }

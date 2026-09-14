@@ -28,9 +28,13 @@ impl Storage {
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
-        self.hosted
-            .replace_record_if_current(STAGED_DIR, &staged_meta_object(stage_id)?, expected, bytes)
-            .await
+        self.hosted.replace_record_if_current(
+            STAGED_DIR,
+            &staged_meta_object(stage_id)?,
+            expected,
+            bytes,
+        )
+        .await
     }
 
     pub async fn read_staged_body(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {

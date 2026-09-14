@@ -115,7 +115,11 @@ pub fn begin_stats() {
 /// Stop accumulating and return the collected stats (default when none were
 /// accumulated).
 pub fn take_stats() -> InstallStats {
-    stats_slot().lock().ok().and_then(|mut guard| guard.take()).unwrap_or_default()
+    stats_slot()
+        .lock()
+        .ok()
+        .and_then(|mut guard| guard.take())
+        .unwrap_or_default()
 }
 
 /// RAII guard over one engine call's global reporter state. Installs `sink`

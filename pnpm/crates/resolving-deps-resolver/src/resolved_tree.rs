@@ -196,7 +196,7 @@ pub struct LockedResolution {
     pub previous_dep_path: Option<DepPath>,
     /// `peer name → provider DepPath` bindings the wanted lockfile
     /// recorded for this package's snapshot. A second peer-resolution
-    /// pass ([`crate::ResolvePeersOptions::resolved_peer_provider_paths`])
+    /// pass ([`crate::PeerResolutionScope::resolved_peer_provider_paths`])
     /// re-pins a still-compatible locked provider so re-installs keep
     /// the provider choice stable.
     ///

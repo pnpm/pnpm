@@ -28,9 +28,9 @@ use tower::ServiceExt;
 fn s3_config(storage: PathBuf, store: Arc<dyn ObjectStore>) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
-    config.public_url = "http://example.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
-    config.hosted_store = HostedStoreConfig::ObjectStore { store, prefix: String::new() };
+    config.http.public_url = "http://example.test".to_string();
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.storage.hosted_backend = HostedStoreConfig::ObjectStore { store, prefix: String::new() };
     config
 }
 
@@ -49,7 +49,11 @@ async fn publishes_to_and_serves_from_the_object_store() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
     // The hosted store is the bucket, so nothing lands in the local
@@ -58,8 +62,15 @@ async fn publishes_to_and_serves_from_the_object_store() {
 
     // The packument round-trips out of the bucket, with the tarball URL
     // rewritten to the public URL.
-    let response =
-        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let served = body_json(response.into_body()).await;
     assert_eq!(
@@ -69,7 +80,11 @@ async fn publishes_to_and_serves_from_the_object_store() {
 
     // The tarball streams back byte-for-byte out of the bucket.
     let response = app
-        .oneshot(Request::get("/mypkg/-/mypkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/mypkg/-/mypkg-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -101,12 +116,26 @@ async fn a_publish_that_loses_the_tarball_key_is_refused() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CONFLICT);
 
-    let response = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(body_json(response.into_body()).await["versions"], json!({}));
-    let winner = store.get(&ObjectPath::from("mypkg/mypkg-1.0.0.tgz")).await.unwrap();
+    let winner = store
+        .get(&ObjectPath::from("mypkg/mypkg-1.0.0.tgz"))
+        .await
+        .unwrap();
     assert_eq!(winner.bytes().await.unwrap(), "the winning tarball");
 }
 
@@ -155,14 +184,26 @@ async fn unpublish_removes_the_package_from_the_bucket() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
     assert_eq!(bucket_keys(&store, "mypkg").await.len(), 2, "packument + tarball uploaded");
 
     let request = Request::delete("/mypkg/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
-    assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app.oneshot(request).await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     assert!(
         bucket_keys(&store, "mypkg").await.is_empty(),
@@ -214,10 +255,17 @@ async fn add_user_and_get_token(
         .header("content-type", "application/json")
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    let token = payload["token"].as_str().expect("token in response").to_string();
+    let token = payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string();
     (app, token)
 }
 
@@ -232,9 +280,9 @@ async fn a_caller_supplied_prefix_is_normalized_before_it_reaches_the_keys() {
 
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
-    config.public_url = "http://example.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
-    config.hosted_store = HostedStoreConfig::ObjectStore {
+    config.http.public_url = "http://example.test".to_string();
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.storage.hosted_backend = HostedStoreConfig::ObjectStore {
         store: Arc::clone(&store),
         // Deliberately not `/`-terminated.
         prefix: "packages".to_string(),
@@ -257,19 +305,32 @@ async fn a_caller_supplied_prefix_is_normalized_before_it_reaches_the_keys() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    let keys: Vec<String> =
-        store.list(None).map(|entry| entry.unwrap().location.to_string()).collect().await;
+    let keys: Vec<String> = store
+        .list(None)
+        .map(|entry| entry.unwrap().location.to_string())
+        .collect()
+        .await;
     assert!(
-        keys.iter().any(|key| key.starts_with("packages/mypkg/")),
+        keys.iter()
+            .any(|key| key.starts_with("packages/mypkg/")),
         "objects should be keyed under `packages/`, got {keys:?}",
     );
     assert!(
-        !keys.iter().any(|key| key.starts_with("packagesmypkg")),
+        !keys
+            .iter()
+            .any(|key| key.starts_with("packagesmypkg")),
         "an unnormalized prefix would run into the package name: {keys:?}",
     );
 
     // And the package still serves back through the prefixed keys.
-    let response =
-        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 }

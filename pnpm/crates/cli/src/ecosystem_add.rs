@@ -22,11 +22,9 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
             root.join("Cargo.toml"),
             cargo_deps::add::AddOptions {
                 packages: crates,
-                dependency_kind: args
-                    .dependency_options
-                    .cargo_dependency_kind(has_node_packages)?,
-                save_exact: args.save_exact,
-                save_prefix: args.save_prefix.clone(),
+                dependency_kind: args.dependency_options.cargo_dependency_kind(has_node_packages)?,
+                save_exact: args.save.exact,
+                save_prefix: args.save.prefix.clone(),
             },
         )
         .await?;
@@ -37,16 +35,14 @@ pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(
         tasks.push(pnpm_python_installer::plan_add::<Reporter>(
             context.clone().into(),
             &root,
-            pnpm_python_installer::AddOptions {
-                requirements,
-                development: args.dependency_options.python_development()?,
-                exact: args.save_exact,
-                prefix: args.save_prefix.clone(),
-            },
+            python_add_options(args, requirements)?,
         )?);
     }
     let mut plan = InstallPlan::new(
-        context.config.workspace_dir.clone().or(cargo_transaction_root).unwrap_or(root),
+        context.config.workspace_dir
+            .clone()
+            .or(cargo_transaction_root)
+            .unwrap_or(root),
     );
     for task in tasks {
         plan = plan.with_task(task);
@@ -60,7 +56,7 @@ fn validate_add_options(context: &InstallContext, args: &AddArgs) -> miette::Res
             "crate: and pypi: dependencies cannot yet be added through a recursive or filtered selection"
         ));
     }
-    if args.save_catalog || args.save_catalog_name.is_some() {
+    if args.save.catalog || args.save.catalog_name.is_some() {
         return Err(miette::miette!("ecosystem dependencies cannot be saved to an npm catalog"));
     }
     Ok(())
@@ -78,4 +74,16 @@ fn partition_packages(
         }
     }
     (crates, requirements)
+}
+
+fn python_add_options(
+    args: &AddArgs,
+    requirements: Vec<String>,
+) -> miette::Result<pnpm_python_installer::AddOptions> {
+    Ok(pnpm_python_installer::AddOptions {
+        requirements,
+        development: args.dependency_options.python_development()?,
+        exact: args.save.exact,
+        prefix: args.save.prefix.clone(),
+    })
 }

@@ -23,7 +23,7 @@ impl Walker<'_> {
     ) -> Option<&PeersCacheItem> {
         let canonical_scc = self.canonical_scc();
         let query = FastProviderQuery { canonical_scc: &canonical_scc, parent_refs, pkg_id };
-        self.peers_cache
+        self.caches.peers_cache
             .get(pkg_id)?
             .iter()
             .find(|item| matches!(self.fast_cache_item_matches(query, item), FastCacheMatch::Match))
@@ -89,7 +89,7 @@ impl Walker<'_> {
         if &*cached_tree_node.resolved_package_id != child_pkg_id {
             return FastCacheMatch::NoMatch;
         }
-        let child_is_stable = self.pure_pkgs.contains_key(child_pkg_id)
+        let child_is_stable = self.caches.pure_pkgs.contains_key(child_pkg_id)
             || matches!(
                 cached_node_id,
                 NodeId::Leaf(cached_pkg_id) if cached_pkg_id.as_ref() == child_pkg_id,
@@ -107,8 +107,7 @@ impl Walker<'_> {
         let Some(children) = self.tree.children_by_id.get(pkg_id) else {
             return inherited.map_or(FastProvider::Missing, FastProvider::Inherited);
         };
-        let Some(edge_indices) = self
-            .peer_provider_children_by_pkg_id
+        let Some(edge_indices) = self.caches.peer_provider_children_by_pkg_id
             .get(pkg_id)
             .and_then(|providers| providers.edge_indices_by_name.get(name))
         else {

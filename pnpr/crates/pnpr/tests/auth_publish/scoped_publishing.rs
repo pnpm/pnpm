@@ -52,7 +52,11 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
     // On disk: canonical `<basename>-<version>.tgz` path, NOT the
@@ -91,7 +95,10 @@ async fn unpublish_partial_writes_modified_packument() {
             .header("Authorization", format!("Bearer {token}"))
             .body(Body::from(serde_json::to_vec(&body).unwrap()))
             .unwrap();
-        app.clone().oneshot(request).await.unwrap();
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap();
     }
 
     let modified = json!({
@@ -109,17 +116,32 @@ async fn unpublish_partial_writes_modified_packument() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&modified).unwrap()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
     // GET packument back — should only contain 2.0.0.
     let response = app
         .clone()
-        .oneshot(Request::get("/unpub-partial").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/unpub-partial")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let served = body_json(response.into_body()).await;
-    assert_eq!(served["versions"].as_object().unwrap().keys().collect::<Vec<_>>(), vec!["2.0.0"]);
+    assert_eq!(
+        served["versions"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .collect::<Vec<_>>(),
+        vec!["2.0.0"],
+    );
     // The PUT body dropped dist.integrity for the retained version; the server
     // restores the *exact* published hash (2.0.0 was published with its version
     // string as the tarball bytes), so the round-trip can neither strip nor
@@ -135,7 +157,11 @@ async fn unpublish_partial_writes_modified_packument() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     assert!(!storage.join("unpub-partial/unpub-partial-1.0.0.tgz").exists());
     assert!(storage.join("unpub-partial/unpub-partial-2.0.0.tgz").exists());
@@ -168,7 +194,14 @@ async fn unpublish_tarball_also_clears_the_proxied_copy() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     // Plant a stale proxied copy of the same tarball in the cache root,
     // as a `proxy:` rule would have left behind.
@@ -180,14 +213,25 @@ async fn unpublish_tarball_also_clears_the_proxied_copy() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     assert!(!storage.join("blend-pkg/blend-pkg-1.0.0.tgz").exists());
     assert!(!cached.join("blend-pkg-1.0.0.tgz").exists(), "proxied copy must be removed too");
 
     // With both stores cleared and no upstream, the version is gone.
     let response = app
-        .oneshot(Request::get("/blend-pkg/-/blend-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/blend-pkg/-/blend-pkg-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -206,20 +250,33 @@ async fn unpublish_force_removes_entire_package() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    app.clone().oneshot(request).await.unwrap();
+    app.clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert!(storage.join("unpub-force/package.json").exists());
 
     let request = Request::delete("/unpub-force/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     assert!(!storage.join("unpub-force").exists());
 
     // Re-fetch returns 404 (static mode + no on-disk packument).
-    let response =
-        app.oneshot(Request::get("/unpub-force").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/unpub-force")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
@@ -236,7 +293,10 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    app.clone().oneshot(request).await.unwrap();
+    app.clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert!(storage.join("@scope/unpub/unpub-1.0.0.tgz").exists());
 
     // pnpm reconstructs the DELETE URL from the rewritten tarball URL
@@ -269,13 +329,27 @@ async fn missing_unpublish_policy_denies_destructive_writes() {
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     let request = Request::delete("/missing-unpublish/-rev/anything")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::empty())
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN,
+    );
     assert!(storage.join("missing-unpublish/package.json").exists());
 }
 
@@ -299,7 +373,14 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     let packument_path = storage.join("replace-policy/package.json");
     let mut replacement: Value =
@@ -311,7 +392,14 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN,
+    );
     let on_disk: Value = serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
     assert!(on_disk.get("owner").is_none());
 
@@ -320,7 +408,14 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
         .header("Authorization", format!("Bearer {admin}"))
         .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
     let on_disk: Value = serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
     assert_eq!(on_disk["owner"], "admin");
 }
@@ -348,7 +443,9 @@ async fn concurrent_publishes_of_distinct_versions_all_survive() {
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))
                 .unwrap();
-            app.oneshot(request).await.unwrap().status()
+            app.oneshot(request).await
+                .unwrap()
+                .status()
         })
     };
 

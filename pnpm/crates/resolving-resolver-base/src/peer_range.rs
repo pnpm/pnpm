@@ -53,7 +53,10 @@ pub fn get_peer_version_range(version: &str) -> String {
     if is_valid_peer_range(version) {
         return desugar_workspace_range(version);
     }
-    if let Some(colon) = version.find(':').filter(|&colon| colon > 0) {
+    if let Some(colon) = version
+        .find(':')
+        .filter(|&colon| colon > 0)
+    {
         let body = &version[colon + 1..];
         if Range::parse(body).is_ok() {
             return body.to_string();

@@ -9,13 +9,13 @@ impl Walker<'_> {}
 impl Walker<'_> {
     /// `true` when a missing-peer issue for `peer_name` under the
     /// given ancestor chain must not be emitted for the hoist input.
-    /// See [`ResolvePeersOptions::hoist_missing_scope`](crate::ResolvePeersOptions::hoist_missing_scope).
+    /// See [`crate::PeerResolutionScope::hoist_missing_scope`](crate::PeerResolutionScope::hoist_missing_scope).
     pub(in super::super) fn missing_issue_suppressed(
         &self,
         ancestor_pkg_ids: &SharedChain<String>,
         peer_name: &str,
     ) -> bool {
-        let Some(scope) = self.opts.hoist_missing_scope.as_ref() else { return false };
+        let Some(scope) = self.opts.scope.hoist_missing_scope.as_ref() else { return false };
         scope.suppresses_iter(ancestor_pkg_ids.iter(), peer_name)
     }
 
@@ -25,12 +25,15 @@ impl Walker<'_> {
         issue: MissingPeer,
         ancestor_pkg_ids: &SharedChain<String>,
     ) {
-        if self.in_canonical_drain {
+        if self.traversal.in_canonical_drain {
             return;
         }
-        self.issues.missing.entry(peer_name.to_string()).or_default().push(issue);
-        if self.discovery {
-            self.missing_ancestor_pkg_ids
+        self.output.issues.missing
+            .entry(peer_name.to_string())
+            .or_default()
+            .push(issue);
+        if self.traversal.discovery {
+            self.output.missing_ancestor_pkg_ids
                 .entry(peer_name.to_string())
                 .or_default()
                 .push(ancestor_pkg_ids.clone());
@@ -38,7 +41,7 @@ impl Walker<'_> {
     }
 
     pub(in super::super) fn issue_parents(&self, chain: &SharedChain<String>) -> ParentChain {
-        if self.discovery { ParentChain::default() } else { ParentChain(chain.clone()) }
+        if self.traversal.discovery { ParentChain::default() } else { ParentChain(chain.clone()) }
     }
 
     #[expect(
@@ -80,17 +83,20 @@ impl Walker<'_> {
                 );
             }
             Some(parent) => {
-                if !comparable_range.satisfies(&parent.version) && !self.in_canonical_drain {
+                if !comparable_range.satisfies(&parent.version)
+                    && !self.traversal.in_canonical_drain
+                {
                     let parents = self.issue_parents(chain);
-                    self.issues.bad.entry(peer_name.to_string()).or_default().push(
-                        PeerDependencyIssue {
+                    self.output.issues.bad
+                        .entry(peer_name.to_string())
+                        .or_default()
+                        .push(PeerDependencyIssue {
                             wanted_range: comparable_range.text.clone(),
                             found_version: parent.version.clone(),
                             optional,
                             parents,
                             resolved_from: ParentChain::default(),
-                        },
-                    );
+                        });
                 }
                 if let Some(parent_node_id) = parent.node_id.as_ref() {
                     resolved.insert(peer_name.to_string(), parent_node_id.clone());
@@ -157,7 +163,7 @@ impl Walker<'_> {
         {
             return peer_id_pair(&pkg.result);
         }
-        if let Some(dep_path) = self.node_dep_paths.get(peer_node_id) {
+        if let Some(dep_path) = self.caches.node_dep_paths.get(peer_node_id) {
             return PeerId::DepPath(dep_path.clone());
         }
         let tree_node = &self.tree.dependencies_tree[peer_node_id];
@@ -169,7 +175,7 @@ impl Walker<'_> {
     /// Peerless nodes are already final at this point; nodes with peers
     /// may still be missing a pending peer provider's own final suffix.
     pub(in super::super) fn provisional_dep_path_of(&self, node_id: &NodeId) -> DepPath {
-        if let Some(dep_path) = self.node_dep_paths.get(node_id) {
+        if let Some(dep_path) = self.caches.node_dep_paths.get(node_id) {
             return dep_path.clone();
         }
         if let Some(dep_path) = link_node_id_as_dep_path(node_id) {
@@ -188,16 +194,16 @@ impl Walker<'_> {
         let Some(tree_node) = self.tree.dependencies_tree.get(node_id) else { return };
         let Some(pkg) = self.tree.packages.get(&tree_node.resolved_package_id) else { return };
         if self.is_peer_relevant(alias, pkg) {
-            self.parent_pkgs_of_node.insert(node_id.clone(), Arc::clone(parent_context));
+            self.caches.parent_pkgs_of_node.insert(node_id.clone(), Arc::clone(parent_context));
         }
     }
 
     pub(super) fn owned_package(&mut self, pkg_id: &str) -> Arc<ResolvedPackage> {
-        if let Some(pkg) = self.packages_by_id.get(pkg_id) {
+        if let Some(pkg) = self.providers.packages_by_id.get(pkg_id) {
             return Arc::clone(pkg);
         }
         let pkg = Arc::new(self.tree.packages[pkg_id].clone());
-        self.packages_by_id.insert(pkg_id.to_string(), Arc::clone(&pkg));
+        self.providers.packages_by_id.insert(pkg_id.to_string(), Arc::clone(&pkg));
         pkg
     }
 
@@ -206,13 +212,13 @@ impl Walker<'_> {
         node_id: &NodeId,
         dep_path: &DepPath,
     ) {
-        let retain = !self.discovery
-            || self.parent_pkgs_of_node.contains_key(node_id)
-            || self.opts.hoisted_peer_provider_node_ids.contains(node_id);
+        let retain = !self.traversal.discovery
+            || self.caches.parent_pkgs_of_node.contains_key(node_id)
+            || self.opts.scope.hoisted_peer_provider_node_ids.contains(node_id);
         if !retain {
             return;
         }
-        self.node_dep_paths.insert(node_id.clone(), dep_path.clone());
-        self.visited_this_call.insert(node_id.clone());
+        self.caches.node_dep_paths.insert(node_id.clone(), dep_path.clone());
+        self.traversal.visited_this_call.insert(node_id.clone());
     }
 }

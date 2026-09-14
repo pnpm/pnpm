@@ -51,6 +51,13 @@ where
 /// workspace dir.
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror pnpm-workspace.yaml configuration keys."
+    )
+)]
 pub struct WorkspaceSettings {
     pub bail: Option<bool>,
     pub ci: Option<bool>,
@@ -780,7 +787,11 @@ impl WorkspaceSettings {
         };
 
         let mut dropped = DroppedKeys::default();
-        for key in document.iter().filter(|(_, value)| value.is_some()).map(|(key, _)| key) {
+        for key in document
+            .iter()
+            .filter(|(_, value)| value.is_some())
+            .map(|(key, _)| key)
+        {
             if key == SCHEMA_DIRECTIVE_KEY
                 || matches!(kept.get(key), Some(value) if !value.is_null())
             {

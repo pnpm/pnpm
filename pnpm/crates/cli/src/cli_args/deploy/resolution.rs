@@ -299,7 +299,11 @@ pub(super) fn create_file_url_key(
         .and_then(|project| project.name.as_deref())
         .map(str::to_string)
         .or_else(|| package_name.map(PkgName::to_string))
-        .or_else(|| normalized.file_name().map(|name| name.to_string_lossy().into_owned()))
+        .or_else(|| {
+            normalized
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
         .unwrap_or_else(|| normalized.display().to_string());
     format!("{name}@{dep_file_url}{suffix}")
         .parse()

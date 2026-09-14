@@ -23,14 +23,16 @@ async fn body_read_failure_retries_and_writes_mirror() {
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: true,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: fast_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: fast_retry_opts(),
+        },
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("body read retries");
@@ -46,7 +48,12 @@ async fn body_read_failure_retries_and_writes_mirror() {
 
     // A follow-up conditional GET answered 304 proves the persisted body is
     // a usable mirror, not just freshened headers over a missing/stale body.
-    let not_modified = server.mock("GET", "/acme").with_status(304).expect(1).create_async().await;
+    let not_modified = server
+        .mock("GET", "/acme")
+        .with_status(304)
+        .expect(1)
+        .create_async()
+        .await;
     let cached_pkg =
         fetch_full_metadata_cached("acme", &opts).await.expect("mirror body readable after retry");
     assert_eq!(cached_pkg.name, "acme");

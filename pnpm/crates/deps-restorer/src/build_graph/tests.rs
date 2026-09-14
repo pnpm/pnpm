@@ -29,8 +29,10 @@ fn requires<const LEN: usize>(entries: [(PackageKey, bool); LEN]) -> HashMap<Pac
 }
 
 fn snap(deps: &[(&str, &str)]) -> SnapshotEntry {
-    let map: HashMap<PkgName, SnapshotDepRef> =
-        deps.iter().map(|(n, v)| (name(n), SnapshotDepRef::Plain(ver(v)))).collect();
+    let map: HashMap<PkgName, SnapshotDepRef> = deps
+        .iter()
+        .map(|(n, v)| (name(n), SnapshotDepRef::Plain(ver(v))))
+        .collect();
     SnapshotEntry {
         id: None,
         dependencies: (!map.is_empty()).then_some(map),
@@ -67,9 +69,18 @@ fn root_importers(deps: &[(&str, &str)]) -> HashMap<String, ProjectSnapshot> {
 }
 
 fn order(graph: &indexmap::IndexMap<PackageKey, Vec<PackageKey>>) -> Vec<PackageKey> {
-    let edges: HashMap<PackageKey, Vec<PackageKey>> =
-        graph.iter().map(|(key, dependencies)| (key.clone(), dependencies.clone())).collect();
-    graph_sequencer(&edges, &graph.keys().cloned().collect::<Vec<_>>()).order
+    let edges: HashMap<PackageKey, Vec<PackageKey>> = graph
+        .iter()
+        .map(|(key, dependencies)| (key.clone(), dependencies.clone()))
+        .collect();
+    graph_sequencer(
+        &edges,
+        &graph
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+    )
+    .order
 }
 
 #[test]

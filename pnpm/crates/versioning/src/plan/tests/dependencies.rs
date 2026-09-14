@@ -14,10 +14,10 @@ fn direct_bumps_highest_pending_bump_type_wins_per_package() {
     ];
     let plan = assemble(&projects, &intents, &Ledger::new(), None);
     assert_eq!(plan.releases.len(), 2);
-    assert_eq!(release(&plan, "a").new_version, "1.1.0");
-    assert_eq!(release(&plan, "a").bump_type, ReleaseBumpType::Minor);
-    assert_eq!(release(&plan, "b").new_version, "2.4.0");
-    assert_eq!(release(&plan, "b").bump_type, ReleaseBumpType::Minor);
+    assert_eq!(release(&plan, "a").version.next, "1.1.0");
+    assert_eq!(release(&plan, "a").version.bump, ReleaseBumpType::Minor);
+    assert_eq!(release(&plan, "b").version.next, "2.4.0");
+    assert_eq!(release(&plan, "b").version.bump, ReleaseBumpType::Minor);
 }
 
 #[test]
@@ -37,8 +37,8 @@ fn fixed_groups_release_together_at_one_shared_version() {
         ..VersioningSettings::default()
     };
     let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
-    assert_eq!(release(&plan, "a").new_version, "1.3.0");
-    assert_eq!(release(&plan, "b").new_version, "1.3.0");
+    assert_eq!(release(&plan, "a").version.next, "1.3.0");
+    assert_eq!(release(&plan, "b").version.next, "1.3.0");
 }
 
 #[test]
@@ -89,14 +89,14 @@ fn a_package_on_a_lane_emits_tagged_versions_with_an_incrementing_counter() {
     let projects = [make_project("cli", "2.0.0", &[])];
     let intents = [make_intent("one", &[("cli", "minor")])];
     let enter_plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
-    assert_eq!(enter_plan.releases[0].new_version, "2.1.0-alpha.0");
+    assert_eq!(enter_plan.releases[0].version.next, "2.1.0-alpha.0");
 
     let projects = [make_project("cli", "2.1.0-alpha.0", &[])];
     let intents =
         [make_intent("one", &[("cli", "minor")]), make_intent("two", &[("cli", "patch")])];
     let consumed = ledger(&[("cli@2.1.0-alpha.0", &["one"])]);
     let next_plan = assemble(&projects, &intents, &consumed, Some(&versioning));
-    assert_eq!(next_plan.releases[0].new_version, "2.1.0-alpha.1");
+    assert_eq!(next_plan.releases[0].version.next, "2.1.0-alpha.1");
 }
 
 #[test]
@@ -106,7 +106,7 @@ fn a_bigger_bump_landing_later_escalates_the_stable_target_of_the_lane() {
         [make_intent("one", &[("cli", "minor")]), make_intent("two", &[("cli", "major")])];
     let consumed = ledger(&[("cli@2.1.0-alpha.0", &["one"]), ("cli@2.1.0-alpha.1", &[])]);
     let plan = assemble(&projects, &intents, &consumed, Some(&on_lane("cli", "alpha")));
-    assert_eq!(plan.releases[0].new_version, "3.0.0-alpha.0");
+    assert_eq!(plan.releases[0].version.next, "3.0.0-alpha.0");
 }
 
 #[test]
@@ -114,8 +114,8 @@ fn packages_on_the_main_lane_release_stable_versions_from_the_same_run() {
     let projects = [make_project("cli", "2.0.0", &[]), make_project("lib", "1.0.0", &[])];
     let intents = [make_intent("one", &[("cli", "minor"), ("lib", "minor")])];
     let plan = assemble(&projects, &intents, &Ledger::new(), Some(&on_lane("cli", "alpha")));
-    assert_eq!(release(&plan, "cli").new_version, "2.1.0-alpha.0");
-    assert_eq!(release(&plan, "lib").new_version, "1.1.0");
+    assert_eq!(release(&plan, "cli").version.next, "2.1.0-alpha.0");
+    assert_eq!(release(&plan, "lib").version.next, "1.1.0");
 }
 
 #[test]
@@ -127,9 +127,11 @@ fn returning_to_the_main_lane_releases_the_accumulated_stable_version_even_witho
     let consumed = ledger(&[("cli@2.1.0-alpha.0", &["one"]), ("cli@2.1.0-alpha.2", &["two"])]);
     let plan = assemble(&projects, &intents, &consumed, None);
     assert_eq!(plan.releases.len(), 1);
-    assert_eq!(plan.releases[0].new_version, "2.1.0");
-    let mut consumed_ids: Vec<&str> =
-        plan.releases[0].intents.iter().map(|intent| intent.id.as_str()).collect();
+    assert_eq!(plan.releases[0].version.next, "2.1.0");
+    let mut consumed_ids: Vec<&str> = plan.releases[0].intents
+        .iter()
+        .map(|intent| intent.id.as_str())
+        .collect();
     consumed_ids.sort_unstable();
     assert_eq!(consumed_ids, ["one", "two"]);
 }
@@ -154,8 +156,10 @@ fn snapshot_plans_release_the_same_set_under_snapshot_versions() {
         &opts,
     )
     .expect("plan assembles");
-    let versions: Vec<&str> =
-        plan.releases.iter().map(|release| release.new_version.as_str()).collect();
+    let versions: Vec<&str> = plan.releases
+        .iter()
+        .map(|release| release.version.next.as_str())
+        .collect();
     assert_eq!(versions, ["0.0.0-preview-20260712000000", "0.0.0-preview-20260712000000"]);
 }
 
@@ -198,8 +202,8 @@ fn epic_members_move_independently_inside_the_band_while_the_lead_major_holds() 
     let versioning =
         VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
     let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
-    assert_eq!(release(&plan, "pnpm").new_version, "11.2.1");
-    assert_eq!(release(&plan, "lib").new_version, "1101.5.0");
+    assert_eq!(release(&plan, "pnpm").version.next, "11.2.1");
+    assert_eq!(release(&plan, "lib").version.next, "1101.5.0");
 }
 
 #[test]
@@ -210,7 +214,7 @@ fn a_major_intent_bumps_a_member_to_the_next_major_inside_the_band() {
         VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
     let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
     assert_eq!(release_names(&plan), ["lib"]);
-    assert_eq!(release(&plan, "lib").new_version, "1102.0.0");
+    assert_eq!(release(&plan, "lib").version.next, "1102.0.0");
 }
 
 #[test]
@@ -228,7 +232,7 @@ fn epic_membership_resolves_directory_globs_and_honors_negations() {
     };
     let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
     assert_eq!(release_names(&plan), ["@scope/a", "pnpm"]);
-    assert_eq!(release(&plan, "@scope/a").new_version, "1200.0.0");
+    assert_eq!(release(&plan, "@scope/a").version.next, "1200.0.0");
 }
 
 #[test]
@@ -312,9 +316,12 @@ fn a_first_release_publishes_the_current_version_verbatim_ignoring_the_intent_bu
     let intents = [make_intent("one", &[("newpkg", "minor")])];
     let plan = assemble_with_unpublished(&projects, &intents, None, &["newpkg"]);
     let release = release(&plan, "newpkg");
-    assert_eq!(release.new_version, "1100.0.0");
+    assert_eq!(release.version.next, "1100.0.0");
     // The intent is still consumed for the changelog and the ledger.
-    let intent_ids: Vec<&str> = release.intents.iter().map(|intent| intent.id.as_str()).collect();
+    let intent_ids: Vec<&str> = release.intents
+        .iter()
+        .map(|intent| intent.id.as_str())
+        .collect();
     assert_eq!(intent_ids, ["one"]);
 }
 
@@ -323,7 +330,7 @@ fn a_published_current_version_bumps_normally_on_the_second_release() {
     let projects = [make_project("newpkg", "1100.0.0", &[])];
     let intents = [make_intent("one", &[("newpkg", "minor")])];
     let plan = assemble_with_unpublished(&projects, &intents, None, &[]);
-    assert_eq!(release(&plan, "newpkg").new_version, "1100.1.0");
+    assert_eq!(release(&plan, "newpkg").version.next, "1100.1.0");
 }
 
 #[test]
@@ -334,7 +341,7 @@ fn a_first_release_does_not_propagate_to_dependents_since_its_version_does_not_m
     ];
     let intents = [make_intent("one", &[("lib", "minor")])];
     let plan = assemble_with_unpublished(&projects, &intents, None, &["lib"]);
-    assert_eq!(release(&plan, "lib").new_version, "1100.0.0");
+    assert_eq!(release(&plan, "lib").version.next, "1100.0.0");
     assert_eq!(release_names(&plan), ["lib"]);
 }
 
@@ -344,7 +351,7 @@ fn a_first_release_on_a_lane_debuts_at_a_prerelease_of_the_current_version() {
     let intents = [make_intent("one", &[("cli", "minor")])];
     let versioning = on_lane("cli", "alpha");
     let plan = assemble_with_unpublished(&projects, &intents, Some(&versioning), &["cli"]);
-    assert_eq!(release(&plan, "cli").new_version, "12.0.0-alpha.0");
+    assert_eq!(release(&plan, "cli").version.next, "12.0.0-alpha.0");
 }
 
 #[test]
@@ -356,8 +363,8 @@ fn an_unpublished_epic_member_re_bases_to_the_new_band_floor_when_the_lead_cross
     let plan = assemble_with_unpublished(&projects, &intents, Some(&versioning), &["lib"]);
     // Debuting verbatim at 1100.0.0 would land the member outside the new
     // 1200-1299 band, so the epic re-base to the floor supersedes it.
-    assert_eq!(release(&plan, "pnpm").new_version, "12.0.0");
-    assert_eq!(release(&plan, "lib").new_version, "1200.0.0");
+    assert_eq!(release(&plan, "pnpm").version.next, "12.0.0");
+    assert_eq!(release(&plan, "lib").version.next, "1200.0.0");
 }
 
 #[test]
@@ -433,7 +440,10 @@ fn check_versioning_invariants_reports_every_violation_at_once() {
     };
     let violations =
         check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning)).unwrap();
-    let mut codes: Vec<_> = violations.iter().map(|violation| violation.code).collect();
+    let mut codes: Vec<_> = violations
+        .iter()
+        .map(|violation| violation.code)
+        .collect();
     codes.sort_by_key(|code| format!("{code:?}"));
     assert_eq!(
         codes,

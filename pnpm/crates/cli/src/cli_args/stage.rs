@@ -201,18 +201,17 @@ impl StageArgs {
         before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<Option<String>> {
         let StageArgs { params, flags, .. } = self;
-        let json = flags.json;
+        let json = flags.output.json;
         let dry_run = flags.dry_run;
         let publish = PublishArgs { package: params.get(1).cloned(), flags };
-        let published = publish
-            .publish_packages::<Reporter>(
-                dir,
-                config,
-                recursive,
-                /* stage */ true,
-                before_packing_hooks,
-            )
-            .await?;
+        let published = publish.publish_packages::<Reporter>(
+            dir,
+            config,
+            recursive,
+            /* stage */ true,
+            before_packing_hooks,
+        )
+        .await?;
         let summaries = published.summaries();
         if json {
             let keyed = key_by_package_name(summaries);
@@ -234,7 +233,7 @@ impl StageArgs {
         let context = self.stage_context(config, package_filter.as_deref())?;
         let items = fetch_stage_items(&context, package_filter.as_deref()).await?;
 
-        if self.flags.json {
+        if self.flags.output.json {
             return Ok(Some(json_pretty(&Value::Array(items))?));
         }
         if items.is_empty() {
@@ -243,7 +242,10 @@ impl StageArgs {
                 None => "No staged packages found.".to_owned(),
             }));
         }
-        let rendered: Vec<String> = items.iter().map(render_stage_item).collect();
+        let rendered: Vec<String> = items
+            .iter()
+            .map(render_stage_item)
+            .collect();
         Ok(Some(rendered.join("\n\n")))
     }
 
@@ -255,7 +257,7 @@ impl StageArgs {
         let item: Value =
             stage_json_request(&context, url.as_str(), &format!("view staged package {stage_id}"))
                 .await?;
-        if self.flags.json {
+        if self.flags.output.json {
             return Ok(Some(json_pretty(&item)?));
         }
         Ok(Some(render_stage_item(&item)))
@@ -296,7 +298,9 @@ impl StageArgs {
         let output_path = dir.join(&filename);
         // `create_tarball_filename` already rejects separators; this guards
         // the write against any bare-basename assumption it might not cover.
-        if output_path.file_name().map(|name| name.to_string_lossy().into_owned())
+        if output_path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
             != Some(filename.clone())
             || output_path.parent() != Some(dir)
         {
@@ -306,7 +310,7 @@ impl StageArgs {
             .into_diagnostic()
             .wrap_err_with(|| format!("write {}", output_path.display()))?;
 
-        if self.flags.json {
+        if self.flags.output.json {
             let mut keyed = serde_json::Map::new();
             keyed.insert(
                 summary.name.clone(),
@@ -325,14 +329,19 @@ impl StageArgs {
         config: &Config,
         package_name: Option<&str>,
     ) -> miette::Result<StageContext> {
-        let mut registries: HashMap<String, String> =
-            config.resolved_registries().into_iter().collect();
+        let mut registries: HashMap<String, String> = config
+            .resolved_registries()
+            .into_iter()
+            .collect();
         if let Some(registry) = &self.registry {
             registries.insert("default".to_owned(), registry.clone());
         }
         let registry = match package_name {
             Some(package) => pick_registry_for_package(&registries, package, None),
-            None => registries.get("default").cloned().unwrap_or_default(),
+            None => registries
+                .get("default")
+                .cloned()
+                .unwrap_or_default(),
         };
         let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
         let auth_header = config.auth_headers.for_url_with_package(&registry, package_name);
@@ -346,7 +355,7 @@ impl StageArgs {
                 min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
                 max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
             },
-            otp: resolve_otp_from_env::<Host>(self.flags.otp.clone()),
+            otp: resolve_otp_from_env::<Host>(self.flags.registry.otp.clone()),
             web_auth_fetch_options: WebAuthFetchOptions {
                 timeout: Some(config.fetch_timeout),
                 retry: Some(WebAuthRetryOptions {
@@ -367,7 +376,10 @@ fn require_stage_id<'params>(
     params: &'params [String],
     subcommand: &'static str,
 ) -> Result<&'params str, StageError> {
-    let stage_id = params.get(1).map(String::as_str).unwrap_or_default();
+    let stage_id = params
+        .get(1)
+        .map(String::as_str)
+        .unwrap_or_default();
     if stage_id.is_empty() {
         return Err(StageError::StageIdRequired { subcommand });
     }
@@ -380,10 +392,12 @@ fn require_stage_id<'params>(
 /// Whether `value` is a hyphenated UUID (`8-4-4-4-12` hex digits).
 fn is_uuid(value: &str) -> bool {
     value.len() == 36
-        && value.char_indices().all(|(index, char)| match index {
-            8 | 13 | 18 | 23 => char == '-',
-            _ => char.is_ascii_hexdigit(),
-        })
+        && value
+            .char_indices()
+            .all(|(index, char)| match index {
+                8 | 13 | 18 | 23 => char == '-',
+                _ => char.is_ascii_hexdigit(),
+            })
 }
 
 /// The `list` package filter: a bare package name; a version specifier other

@@ -89,7 +89,11 @@ impl StageApprovalItem {
         // hidden character must never be what makes a value valid. A name
         // that fails is not displayed. A valid name is URL-safe, so it is
         // also safe to display.
-        let id = item.get("id").and_then(Value::as_str).filter(|id| is_uuid(id))?.to_owned();
+        let id = item
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| is_uuid(id))?
+            .to_owned();
         let package_name = item
             .get("packageName")
             .and_then(Value::as_str)
@@ -127,8 +131,12 @@ impl StageApprovalItem {
     fn choice(&self) -> String {
         let details: Vec<String> = [
             self.tag.clone(),
-            self.created_at.as_ref().map(|created_at| format!("staged {created_at}")),
-            self.actor.as_ref().map(|actor| format!("by {actor}")),
+            self.created_at
+                .as_ref()
+                .map(|created_at| format!("staged {created_at}")),
+            self.actor
+                .as_ref()
+                .map(|actor| format!("by {actor}")),
         ]
         .into_iter()
         .flatten()
@@ -203,8 +211,7 @@ fn parse_stage_ids(params: &[String]) -> Result<Vec<String>, StageError> {
 }
 
 async fn approval_items(context: &StageContext) -> miette::Result<Vec<StageApprovalItem>> {
-    Ok(fetch_stage_items(context, None)
-        .await?
+    Ok(fetch_stage_items(context, None).await?
         .iter()
         .filter_map(StageApprovalItem::from_value)
         .collect())
@@ -261,7 +268,10 @@ fn with_id(item: &Value, stage_id: &str) -> Value {
 fn prompt_for_staged_packages(
     staged: &[StageApprovalItem],
 ) -> miette::Result<Vec<StageApprovalItem>> {
-    let choices: Vec<String> = staged.iter().map(StageApprovalItem::choice).collect();
+    let choices: Vec<String> = staged
+        .iter()
+        .map(StageApprovalItem::choice)
+        .collect();
     let selected = MultiSelect::new()
         .with_prompt(
             "Choose which staged packages to approve (<space> to select, <enter> to confirm)",
@@ -269,7 +279,11 @@ fn prompt_for_staged_packages(
         .items(&choices)
         .interact_opt()
         .into_diagnostic()?;
-    Ok(selected.unwrap_or_default().into_iter().map(|index| staged[index].clone()).collect())
+    Ok(selected
+        .unwrap_or_default()
+        .into_iter()
+        .map(|index| staged[index].clone())
+        .collect())
 }
 
 async fn approve_staged_packages<Reporter: self::Reporter>(
@@ -338,11 +352,15 @@ async fn approve_staged_package<Reporter: self::Reporter>(
 }
 
 fn is_stage_registry_error(error: &miette::Report) -> bool {
-    error.code().is_some_and(|code| code.to_string() == "ERR_PNPM_STAGE_REGISTRY_ERROR")
+    error
+        .code()
+        .is_some_and(|code| code.to_string() == "ERR_PNPM_STAGE_REGISTRY_ERROR")
 }
 
 fn is_missing_stage_error(error: &miette::Report) -> bool {
-    error.downcast_ref::<StageRegistryError>().is_some_and(|error| error.status == 404)
+    error
+        .downcast_ref::<StageRegistryError>()
+        .is_some_and(|error| error.status == 404)
 }
 
 fn render_package_count(count: usize) -> String {

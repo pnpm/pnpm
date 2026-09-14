@@ -16,17 +16,25 @@ pub(crate) fn crate_archive(root: &str, files: &[(&str, &str)]) -> Vec<u8> {
         header.set_size(contents.len() as u64);
         header.set_mode(0o644);
         header.set_cksum();
-        builder.append_data(&mut header, format!("{root}/{path}"), contents.as_bytes()).unwrap();
+        builder
+            .append_data(&mut header, format!("{root}/{path}"), contents.as_bytes())
+            .unwrap();
     }
-    builder.into_inner().unwrap().finish().unwrap()
+    builder
+        .into_inner()
+        .unwrap()
+        .finish()
+        .unwrap()
 }
 
 pub(crate) fn publish_body(metadata: &serde_json::Value, archive: &[u8]) -> Vec<u8> {
     let metadata = serde_json::to_vec(metadata).unwrap();
     let mut body = Vec::new();
-    body.write_all(&(metadata.len() as u32).to_le_bytes()).unwrap();
+    body.write_all(&(metadata.len() as u32).to_le_bytes())
+        .unwrap();
     body.write_all(&metadata).unwrap();
-    body.write_all(&(archive.len() as u32).to_le_bytes()).unwrap();
+    body.write_all(&(archive.len() as u32).to_le_bytes())
+        .unwrap();
     body.write_all(archive).unwrap();
     body
 }
@@ -88,7 +96,12 @@ fn index_config_for_a_registry_points_back_at_it() {
         }),
     );
     let public = IndexConfig::for_registry("http://pnpr.test/~crates", false);
-    assert!(serde_json::to_value(&public).unwrap().get("auth-required").is_none());
+    assert!(
+        serde_json::to_value(&public)
+            .unwrap()
+            .get("auth-required")
+            .is_none(),
+    );
     let parsed = IndexConfig::parse(
         br#"{"dl":"https://static.crates.io/crates","api":"https://crates.io"}"#,
     )
@@ -178,7 +191,12 @@ fn publish_metadata_without_new_feature_syntax_stays_schema_one() {
     let entry = metadata.into_index_entry("00".to_string());
     assert_eq!(entry.v, 1);
     assert_eq!(entry.features2, None);
-    assert!(serde_json::to_value(&entry).unwrap().get("features2").is_none());
+    assert!(
+        serde_json::to_value(&entry)
+            .unwrap()
+            .get("features2")
+            .is_none(),
+    );
 }
 
 #[test]
@@ -292,8 +310,14 @@ fn crate_archive_rejects_traversal_and_links() {
             header.set_link_name("../../outside").unwrap();
         }
         header.set_cksum();
-        builder.append(&header, std::io::empty()).unwrap();
-        let archive = builder.into_inner().unwrap().finish().unwrap();
+        builder
+            .append(&header, std::io::empty())
+            .unwrap();
+        let archive = builder
+            .into_inner()
+            .unwrap()
+            .finish()
+            .unwrap();
         assert!(
             matches!(
                 validate_crate_archive(&archive, "demo", "0.1.0"),
@@ -431,5 +455,11 @@ fn a_description_is_cut_to_the_documented_length() {
 
     // Cut by character, so a multi-byte description stays valid UTF-8.
     let wide = "é".repeat(MAX_DESCRIPTION_LEN + 1);
-    assert_eq!(bounded_description(Some(&wide)).unwrap().chars().count(), MAX_DESCRIPTION_LEN);
+    assert_eq!(
+        bounded_description(Some(&wide))
+            .unwrap()
+            .chars()
+            .count(),
+        MAX_DESCRIPTION_LEN,
+    );
 }

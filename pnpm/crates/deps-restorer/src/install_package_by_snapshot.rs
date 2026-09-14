@@ -8,20 +8,14 @@ mod runtime;
 
 mod tarball_resolution;
 
-use crate::{CreateVirtualDirError, CustomFetcherSession};
+use crate::CreateVirtualDirError;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_directory_fetcher::DirectoryFetcherError;
 use pnpm_git_fetcher::GitFetcherError;
 use pnpm_lockfile::PlatformSelector;
-use pnpm_network::ThrottledClient;
-use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
-use pnpm_tarball::{MemCache, PrefetchedCasPaths, SharedReportedProgressKeys, TarballError};
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-    sync::{Arc, LazyLock},
-};
+use pnpm_tarball::TarballError;
+use std::{collections::HashMap, path::PathBuf, sync::LazyLock};
 
 /// The running pnpm, which a git-hosted dependency's build is given so it
 /// can install with the package manager it asks for.
@@ -46,44 +40,14 @@ static PNPM_EXECPATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
 /// and each snapshot is passed to [`Self::run`].
 #[derive(Clone, Copy)]
 pub struct InstallPackageBySnapshot<'a> {
+    pub fetching: crate::SnapshotFetchContext<'a>,
     pub ctx: &'a crate::InstallContext<'a>,
-    pub http_client: &'a ThrottledClient,
-    pub store_index: Option<&'a SharedReadonlyStoreIndex>,
-    pub store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
-    /// Install-scoped batched cache lookup result. See
-    /// [`pnpm_tarball::prefetch_cas_paths`].
-    pub prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
-    /// Install-scoped shared in-flight tarball cache. When present, the
-    /// registry/tarball download routes through
-    /// [`IngestTarballToStore::run_with_mem_cache`](pnpm_tarball::IngestTarballToStore::run_with_mem_cache) so it parks on (or
-    /// reuses) a download already in flight or completed for the same
-    /// URL, rather than racing a second fetch of the same bytes. Both
-    /// background prefetchers feed it: the pnpr client's
-    /// `TarballPrefetcher` (frozen materialization) and the
-    /// fresh-resolve path's `PrefetchingResolver` (cold
-    /// batch). `None` keeps the standalone `run_without_mem_cache`
-    /// path for installs with no prefetcher (e.g. a plain
-    /// `--frozen-lockfile` without pnpr).
-    pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
-    /// Install-scoped package-status progress dedupe. Shared with the
-    /// resolve-time prefetcher on the fresh path so the cold fallback
-    /// does not double-count a package whose early prefetch already
-    /// emitted `fetched` or `found_in_store`.
-    pub progress_reported: Option<&'a SharedReportedProgressKeys>,
-    /// Install-scoped `verifiedFilesCache` shared across every
-    /// per-snapshot fetch. See `IngestTarballToStore::verified_files_cache`
-    /// for the rationale.
-    pub verified_files_cache: &'a SharedVerifiedFilesCache,
     /// Snapshots the installability pass ruled out on this host.
     pub skipped: &'a crate::SkippedSnapshots,
     pub include_optional_dependencies: bool,
     /// Platform triple used to select a runtime archive. This is the host
     /// triple unless `supportedArchitectures` targets another platform.
     pub runtime_platform_selector: &'a PlatformSelector,
-    /// Custom fetchers from the pnpmfile's `fetchers` export.
-    /// Consulted before the built-in resolution-type dispatch; `None`
-    /// when no pnpmfile exports fetchers.
-    pub custom_fetcher_session: Option<&'a Arc<CustomFetcherSession>>,
     /// When `true`, return the fetched CAS paths without populating the
     /// virtual-store slot ([`CreateVirtualDirBySnapshot`](crate::CreateVirtualDirBySnapshot)) — the caller
     /// links them itself in a separate parallel pass. The cold batch in
@@ -243,7 +207,7 @@ pub struct InstalledPackage {
     pub cas_paths: HashMap<String, PathBuf>,
     /// Whether [`Self::cas_paths`] points at mutable local source
     /// rather than immutable content-addressed entries. See
-    /// [`crate::CreateVirtualDirBySnapshot::source_is_mutable`].
+    /// [`crate::SlotImportSource::is_mutable`].
     pub source_is_mutable: bool,
 }
 

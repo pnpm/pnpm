@@ -91,7 +91,10 @@ async fn user_store_rejects_invalid_username_before_persisting() {
         );
     }
     assert!(
-        store.users.lock().expect("UserStore mutex poisoned").is_empty(),
+        store.users
+            .lock()
+            .expect("UserStore mutex poisoned")
+            .is_empty(),
         "invalid username should be rejected before any persistence",
     );
 }
@@ -230,7 +233,10 @@ async fn adduser_writes_bcrypt_2y_format() {
     store.add_or_login("alice", "secret").await.unwrap();
 
     let raw = std::fs::read_to_string(&path).unwrap();
-    let (user, hash) = raw.trim_end().split_once(':').expect("user:hash line");
+    let (user, hash) = raw
+        .trim_end()
+        .split_once(':')
+        .expect("user:hash line");
     assert_eq!(user, "alice");
     assert!(hash.starts_with("$2y$"), "expected $2y$ prefix for htpasswd compat, got {hash:?}");
 }
@@ -306,32 +312,57 @@ fn parse_htpasswd_rejects_invalid_usernames() {
 async fn tokens_round_trip() {
     let tokens = TokenStore::in_memory();
     let token = tokens.issue("alice").await.unwrap();
-    assert_eq!(tokens.lookup(&token).await.unwrap().as_deref(), Some("alice"));
-    assert!(tokens.lookup("not-a-token").await.unwrap().is_none());
+    assert_eq!(
+        tokens
+            .lookup(&token)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("alice"),
+    );
+    assert!(
+        tokens
+            .lookup("not-a-token")
+            .await
+            .unwrap()
+            .is_none(),
+    );
 }
 
 #[tokio::test]
 async fn lookup_record_surfaces_token_restrictions() {
     let tokens = TokenStore::in_memory();
     let raw = "restricted-token";
-    tokens.inner.lock().expect("TokenStore mutex poisoned").tokens.insert(
-        sha256_hex(raw.as_bytes()),
-        TokenRecord {
-            username: "alice".to_string(),
-            created_at: 1,
-            last_used_at: 1,
-            readonly: true,
-            cidr_whitelist: vec!["203.0.113.0/24".to_string()],
-        },
-    );
+    tokens.inner
+        .lock()
+        .expect("TokenStore mutex poisoned")
+        .tokens
+        .insert(
+            sha256_hex(raw.as_bytes()),
+            TokenRecord {
+                username: "alice".to_string(),
+                created_at: 1,
+                last_used_at: 1,
+                readonly: true,
+                cidr_whitelist: vec!["203.0.113.0/24".to_string()],
+            },
+        );
 
-    let record = tokens.lookup_record(raw).await.unwrap().expect("seeded token resolves");
+    let record = tokens
+        .lookup_record(raw)
+        .await
+        .unwrap()
+        .expect("seeded token resolves");
     assert_eq!(record.username, "alice");
     assert!(record.readonly, "readonly flag must survive the lookup");
     assert_eq!(record.cidr_whitelist, vec!["203.0.113.0/24".to_string()]);
 
     assert!(
-        tokens.lookup_record("not-a-token").await.unwrap().is_none(),
+        tokens
+            .lookup_record("not-a-token")
+            .await
+            .unwrap()
+            .is_none(),
         "an unknown token resolves to no record",
     );
 }
@@ -355,7 +386,11 @@ async fn tokens_persist_across_reopen() {
 
     let reopened = TokenStore::open(path).unwrap();
     assert_eq!(
-        reopened.lookup(&raw).await.unwrap().as_deref(),
+        reopened
+            .lookup(&raw)
+            .await
+            .unwrap()
+            .as_deref(),
         Some("alice"),
         "token issued before restart must still resolve after reload",
     );
@@ -396,7 +431,10 @@ async fn tokens_db_stores_hash_not_raw() {
     let conn = rusqlite::Connection::open(&path).unwrap();
     let mut stmt = conn.prepare("SELECT token_hash FROM tokens").unwrap();
     let mut rows = stmt.query([]).unwrap();
-    let row = rows.next().unwrap().expect("at least one row");
+    let row = rows
+        .next()
+        .unwrap()
+        .expect("at least one row");
     let stored: String = row.get(0).unwrap();
     assert_ne!(stored, raw, "raw token must not be persisted");
     assert_eq!(stored.len(), 64, "SHA-256 hex is 64 chars");
@@ -407,13 +445,20 @@ async fn token_issue_rolls_back_memory_when_sqlite_persistence_fails() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("tokens.db");
     let store = TokenStore::open(path.clone()).unwrap();
-    rusqlite::Connection::open(&path).unwrap().execute("DROP TABLE tokens", []).unwrap();
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute("DROP TABLE tokens", [])
+        .unwrap();
 
     let err = store.issue("alice").await.unwrap_err();
 
     assert_eq!(err.status_code(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
     assert!(
-        store.inner.lock().expect("TokenStore mutex poisoned").tokens.is_empty(),
+        store.inner
+            .lock()
+            .expect("TokenStore mutex poisoned")
+            .tokens
+            .is_empty(),
         "failed persistence must not leave an in-memory bearer token active",
     );
 }

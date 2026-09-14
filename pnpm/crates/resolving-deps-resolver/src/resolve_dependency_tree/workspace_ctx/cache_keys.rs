@@ -131,7 +131,8 @@ impl WantedKey {
 impl PartialEq for WantedKey {
     fn eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
-            || (self.0.full_hash == other.0.full_hash && self.0.fields == other.0.fields)
+            || (self.0.full_hash == other.0.full_hash
+                && self.0.fields == other.0.fields)
     }
 }
 
@@ -238,13 +239,17 @@ pub(in super::super) struct WorkspaceResolutionOptionsKey {
 impl WorkspaceResolutionOptionsKey {
     pub(in super::super) fn new(options: &ResolveOptions) -> Self {
         Self {
-            workspace_packages: options.workspace_packages.as_ref().map(WorkspacePackagesKey::new),
-            lockfile_dir: PathKey(options.lockfile_dir.clone()),
-            default_tag: options.default_tag.clone(),
-            inject_workspace_packages: options.inject_workspace_packages,
-            calc_specifier: options.calc_specifier,
-            range_spec_style_discriminant: options.range_spec_style.map(|style| style as u8),
-            save_workspace_protocol_discriminant: options.save_workspace_protocol as u8,
+            workspace_packages: options.project.workspace_packages
+                .as_ref()
+                .map(WorkspacePackagesKey::new),
+            lockfile_dir: PathKey(options.project.lockfile_dir.clone()),
+            default_tag: options.version.default_tag.clone(),
+            inject_workspace_packages: options.project.inject_workspace_packages,
+            calc_specifier: options.specifier.calc_specifier,
+            range_spec_style_discriminant: options.specifier.range_spec_style.map(|style| {
+                style as u8
+            }),
+            save_workspace_protocol_discriminant: options.specifier.save_workspace_protocol as u8,
         }
     }
 
@@ -271,7 +276,10 @@ impl WorkspacePackagesKey {
 
 impl std::fmt::Debug for WorkspacePackagesKey {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.debug_tuple("WorkspacePackagesKey").field(&Arc::as_ptr(&self.0)).finish()
+        formatter
+            .debug_tuple("WorkspacePackagesKey")
+            .field(&Arc::as_ptr(&self.0))
+            .finish()
     }
 }
 

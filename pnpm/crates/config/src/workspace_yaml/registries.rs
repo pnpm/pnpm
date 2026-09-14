@@ -173,10 +173,14 @@ pub fn validate(entries: &BTreeMap<String, RegistryEntry>) -> Result<(), LoadWor
         });
     }
 
-    validate_declarations(entries.iter().filter_map(|(registry, entry)| match entry {
-        RegistryEntry::Declaration(declaration) => Some((registry, declaration)),
-        RegistryEntry::ScopeRoute(_) => None,
-    }))
+    validate_declarations(
+        entries
+            .iter()
+            .filter_map(|(registry, entry)| match entry {
+                RegistryEntry::Declaration(declaration) => Some((registry, declaration)),
+                RegistryEntry::ScopeRoute(_) => None,
+            }),
+    )
 }
 
 /// The per-declaration half of [`validate`], over declarations alone.
@@ -209,8 +213,9 @@ fn validate_declaration_fields(
     declaration: &RegistryDeclaration,
 ) -> Result<(), LoadWorkspaceYamlError> {
     let redacted = redact_registry_url(registry);
-    if let Some(field) =
-        declaration.unknown.keys().find(|field| SECRET_REGISTRY_FIELDS.contains(&field.as_str()))
+    if let Some(field) = declaration.unknown
+        .keys()
+        .find(|field| SECRET_REGISTRY_FIELDS.contains(&field.as_str()))
     {
         return Err(LoadWorkspaceYamlError::SecretInRegistryDeclaration {
             registry: redacted,
@@ -407,5 +412,9 @@ fn looks_like_registry_url(key: &str) -> bool {
 }
 
 fn quote_and_join<'a>(values: impl IntoIterator<Item = &'a str>) -> String {
-    values.into_iter().map(|value| format!("{value:?}")).collect::<Vec<_>>().join(", ")
+    values
+        .into_iter()
+        .map(|value| format!("{value:?}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }

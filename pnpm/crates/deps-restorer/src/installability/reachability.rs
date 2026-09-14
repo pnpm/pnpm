@@ -76,7 +76,9 @@ pub(super) fn required_snapshots<'lock>(
         .values()
         .flat_map(importer_edges)
         .filter_map(|(target, edge_optional)| {
-            snapshots.get_key_value(&target).map(|(key, _)| (key, edge_optional))
+            snapshots
+                .get_key_value(&target)
+                .map(|(key, _)| (key, edge_optional))
         })
         .collect();
     while let Some((key, edge_optional)) = pending.pop_front() {
@@ -147,15 +149,13 @@ pub(super) fn push_child_edges<'lock>(
 pub(super) fn importer_edges(
     importer: &ProjectSnapshot,
 ) -> impl Iterator<Item = (PackageKey, bool)> + '_ {
-    let required = importer
-        .dependencies
+    let required = importer.dependencies
         .iter()
         .chain(importer.dev_dependencies.iter())
         .flatten()
         .filter_map(|(name, spec)| spec.version.resolved_key(name))
         .map(|key| (key, false));
-    let optional = importer
-        .optional_dependencies
+    let optional = importer.optional_dependencies
         .iter()
         .flatten()
         .filter_map(|(name, spec)| spec.version.resolved_key(name))
@@ -167,14 +167,12 @@ pub(super) fn importer_edges(
 pub(super) fn snapshot_edges(
     snapshot: &SnapshotEntry,
 ) -> impl Iterator<Item = (PackageKey, bool)> + '_ {
-    let required = snapshot
-        .dependencies
+    let required = snapshot.dependencies
         .iter()
         .flatten()
         .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))
         .map(|key| (key, false));
-    let optional = snapshot
-        .optional_dependencies
+    let optional = snapshot.optional_dependencies
         .iter()
         .flatten()
         .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias))

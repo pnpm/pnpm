@@ -146,12 +146,21 @@ fn writes_shim_for_bin_string() {
     {
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(
-            metadata(&shim_path).unwrap().permissions().mode() & 0o777,
+            metadata(&shim_path)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
             0o755,
             "shim must be 0o755",
         );
         assert!(
-            metadata(pkg_dir.join("bin/cli.js")).unwrap().permissions().mode() & 0o111 != 0,
+            metadata(pkg_dir.join("bin/cli.js"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o111
+                != 0,
             "target must have at least one executable bit",
         );
     }

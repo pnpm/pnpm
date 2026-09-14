@@ -39,6 +39,13 @@ pub struct ResolvedRegistry {
 }
 
 #[napi(object)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct ResolvedConfig {
     pub registries: Vec<ResolvedRegistry>,
     /// Static `Authorization` headers keyed by nerf-darted registry URI
@@ -114,16 +121,20 @@ fn project_config(config: &pnpm_config::Config) -> ResolvedConfig {
     let auth_header_by_uri: HashMap<String, String> = by_scope
         .iter()
         .filter_map(|(uri, by_scope)| {
-            by_scope.get(DEFAULT_REGISTRY_SCOPE).map(|header| (uri.clone(), header.clone()))
+            by_scope
+                .get(DEFAULT_REGISTRY_SCOPE)
+                .map(|header| (uri.clone(), header.clone()))
         })
         .collect();
 
     let registries = resolved_registries(config, &by_scope);
 
-    let no_proxy = config.proxy.no_proxy.as_ref().map(|setting| match setting {
-        NoProxySetting::Bypass => serde_json::Value::Bool(true),
-        NoProxySetting::List(hosts) => serde_json::Value::String(hosts.join(",")),
-    });
+    let no_proxy = config.proxy.no_proxy
+        .as_ref()
+        .map(|setting| match setting {
+            NoProxySetting::Bypass => serde_json::Value::Bool(true),
+            NoProxySetting::List(hosts) => serde_json::Value::String(hosts.join(",")),
+        });
 
     resolved_config_values(config, registries, auth_header_by_uri, no_proxy)
 }
@@ -145,13 +156,12 @@ fn resolved_config_values(
         key: config.tls.key.clone(),
         strict_ssl: config.tls.strict_ssl,
         store_dir: std::path::PathBuf::from(config.store_dir.clone()).display().to_string(),
-        cache_dir: config.cache_dir.display().to_string(),
-        virtual_store_dir_max_length: u32::try_from(config.virtual_store_dir_max_length)
-            .unwrap_or(u32::MAX),
+        cache_dir: display_path(&config.cache_dir),
+        virtual_store_dir_max_length: bounded_u32(config.virtual_store_dir_max_length),
         enable_global_virtual_store: config.enable_global_virtual_store,
-        global_virtual_store_dir: config.global_virtual_store_dir.display().to_string(),
-        virtual_store_dir: config.virtual_store_dir.display().to_string(),
-        effective_virtual_store_dir: config.effective_virtual_store_dir().display().to_string(),
+        global_virtual_store_dir: display_path(&config.global_virtual_store_dir),
+        virtual_store_dir: display_path(&config.virtual_store_dir),
+        effective_virtual_store_dir: display_path(config.effective_virtual_store_dir()),
         network_concurrency: u32::try_from(config.network_concurrency).unwrap_or(u32::MAX),
         max_sockets: config.max_sockets.map(|value| u32::try_from(value).unwrap_or(u32::MAX)),
         fetch_retries: config.fetch_retries,
@@ -170,8 +180,18 @@ fn resolved_config_values(
         shamefully_hoist: config.shamefully_hoist,
         pnpm_home_dir: pnpm_config::default_pnpm_home_dir::<pnpm_config::Host>()
             .map(|dir| dir.display().to_string()),
-        explicit_settings: config.explicit_settings.keys().cloned().collect(),
+        explicit_settings: config.explicit_settings
+            .keys()
+            .cloned()
+            .collect(),
     }
+}
+
+fn bounded_u32(value: u64) -> u32 {
+    u32::try_from(value).unwrap_or(u32::MAX)
+}
+fn display_path(path: impl AsRef<std::path::Path>) -> String {
+    path.as_ref().display().to_string()
 }
 
 /// Embedders supply their own user agent unless configuration explicitly overrides it.
@@ -198,8 +218,9 @@ fn resolved_registries(
     config: &pnpm_config::Config,
     by_scope: &AuthHeadersByScope,
 ) -> Vec<ResolvedRegistry> {
-    let default_entry = (!config.registries_by_scope.contains_key("default"))
-        .then(|| ("default".to_string(), config.registry.clone()));
+    let default_entry = (!config.registries_by_scope.contains_key("default")).then(|| {
+        ("default".to_string(), config.registry.clone())
+    });
     default_entry
         .iter()
         .map(|(name, url)| (name, url))

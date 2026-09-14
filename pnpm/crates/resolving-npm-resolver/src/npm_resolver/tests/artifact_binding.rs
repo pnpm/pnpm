@@ -21,15 +21,25 @@ async fn explicit_revision_selects_its_artifact_and_manifest() {
         bare_specifier: Some("1.0.0+r1".to_string()),
         ..WantedDependency::default()
     };
-    let opts = ResolveOptions { calc_specifier: true, ..ResolveOptions::default() };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let opts = ResolveOptions {
+        specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
+            calc_specifier: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
     let LockfileResolution::Tarball(resolution) = &result.resolution else {
         panic!("expected tarball resolution");
     };
     assert_eq!(resolution.revision.map(TarballRevision::get), Some(1));
     assert!(resolution.tarball.ends_with("sha512/Umd2iCLuYk1I_OFexcp5y9YCy39MIVelFlVpkfIu-Me173sY0f9BxZNw77CFhlHUSpNsEbexRMSP4E3zxqPo2g"));
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("1.0.0+r1"));
-    let manifest = result.manifest.as_ref().expect("manifest");
+    let manifest = result.package.manifest.as_ref().expect("manifest");
     assert_eq!(manifest["name"], "acme");
     assert_eq!(manifest["version"], "1.0.0");
     assert_eq!(manifest["deprecated"], "current warning");
@@ -74,13 +84,20 @@ async fn shasum_only_metadata_resolves_to_a_sha1_integrity() {
 
     let wanted =
         WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
 
     let LockfileResolution::Tarball(tarball) = &result.resolution else {
         panic!("expected a tarball resolution, got {:?}", result.resolution);
     };
     assert_eq!(
-        tarball.integrity.as_ref().map(ToString::to_string).as_deref(),
+        tarball.integrity
+            .as_ref()
+            .map(ToString::to_string)
+            .as_deref(),
         Some("sha1-4hvx0Yt84p0c1F9tjg6LzQpMqLo="),
     );
 }

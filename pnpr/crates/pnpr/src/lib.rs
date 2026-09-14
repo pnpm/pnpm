@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! pnpm-compatible npm registry server.
 //!
 //! Implements a tiny verdaccio-shaped proxy: a [`router`] exposes a

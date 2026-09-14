@@ -164,8 +164,10 @@ fn stash_parallel_lowered<Value: Serialize + Sync>(
         return Ok(None);
     };
     PARALLEL_LOWERINGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let lowered: Result<Vec<serde_json::Value>, serde_json::Error> =
-        entries.par_iter().map(|(_, value)| serde_json::to_value(value)).collect();
+    let lowered: Result<Vec<serde_json::Value>, serde_json::Error> = entries
+        .par_iter()
+        .map(|(_, value)| serde_json::to_value(value))
+        .collect();
     let result = lowered.map(|lowered| {
         let mut map = serde_json::Map::with_capacity(entries.len());
         for ((key, _), value) in entries.iter().zip(lowered) {
@@ -200,8 +202,10 @@ where
     Value: Serialize + Sync,
     Ser: Serializer,
 {
-    let mut entries: Vec<(String, &Value)> =
-        map.iter().map(|(key, value)| (key.to_string(), value)).collect();
+    let mut entries: Vec<(String, &Value)> = map
+        .iter()
+        .map(|(key, value)| (key.to_string(), value))
+        .collect();
     entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
     if entries.len() >= PARALLEL_LOWERING_THRESHOLD
         && let Some(marker) = stash_parallel_lowered(&entries).map_err(serde::ser::Error::custom)?

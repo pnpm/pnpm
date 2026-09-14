@@ -28,7 +28,9 @@ pub const ANY_VERSION_RANGE: &str = "*";
 /// reading a version-selector classifier wants.
 #[must_use]
 pub fn is_any_version_range(range: &str) -> bool {
-    range.split("||").any(|comparator_set| comparator_set.trim().is_empty())
+    range
+        .split("||")
+        .any(|comparator_set| comparator_set.trim().is_empty())
 }
 
 /// The Rust equivalent of JS `semver.validRange(range) != null` — the

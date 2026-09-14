@@ -50,7 +50,13 @@ fn ignore_package_manifest_populates_the_virtual_store_without_linking() {
         }),
         dependency_manifest: None,
     }];
-    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
 
     // Seed the lockfile with an ordinary install, then throw the linked
@@ -70,7 +76,13 @@ fn ignore_package_manifest_populates_the_virtual_store_without_linking() {
     let virtual_store = modules_dir.join(".pnpm");
     let fetched: Vec<String> = std::fs::read_dir(&virtual_store)
         .expect("read the virtual store")
-        .map(|entry| entry.expect("virtual store entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .expect("virtual store entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .filter(|name| name.starts_with("@pnpm.e2e+hello-world-js-bin"))
         .collect();
     dbg!(&fetched);
@@ -104,7 +116,13 @@ fn ignore_package_manifest_survives_an_ambient_lockfile_false() {
         }),
         dependency_manifest: None,
     }];
-    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
 
     options.lockfile_only = Some(true);
@@ -120,7 +138,13 @@ fn ignore_package_manifest_survives_an_ambient_lockfile_false() {
 
     let fetched: Vec<String> = std::fs::read_dir(project_dir.join("node_modules/.pnpm"))
         .expect("read the virtual store")
-        .map(|entry| entry.expect("virtual store entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .expect("virtual store entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .filter(|name| name.starts_with("@pnpm.e2e+hello-world-js-bin"))
         .collect();
     dbg!(&fetched);
@@ -162,7 +186,13 @@ fn ignore_package_manifest_fetches_importers_the_caller_did_not_pass() {
             dependency_manifest: None,
         },
     ];
-    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
 
     options.lockfile_only = Some(true);
@@ -177,7 +207,13 @@ fn ignore_package_manifest_fetches_importers_the_caller_did_not_pass() {
 
     let fetched: Vec<String> = std::fs::read_dir(root_dir.join("node_modules/.pnpm"))
         .expect("read the virtual store")
-        .map(|entry| entry.expect("virtual store entry").file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .expect("virtual store entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .filter(|name| name.starts_with("@pnpm.e2e+hello-world-js-bin"))
         .collect();
     dbg!(&fetched);
@@ -208,7 +244,13 @@ fn repeat_install_uses_changed_in_memory_manifest() {
         }),
         dependency_manifest: None,
     }];
-    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.store_dir = Some(
+        temp_dir
+            .path()
+            .join("store")
+            .to_string_lossy()
+            .into_owned(),
+    );
     options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
 
     run_install_inner(&options, None, EngineMode::Install(None)).expect("first install");

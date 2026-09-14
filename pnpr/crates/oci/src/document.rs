@@ -73,8 +73,13 @@ struct StoredImageDocument {
 
 impl From<StoredImageDocument> for ImageDocument {
     fn from(stored: StoredImageDocument) -> Self {
-        let StoredImageDocument { name, mut manifests, mut tags, generation, deleting_blob } =
-            stored;
+        let StoredImageDocument {
+            name,
+            mut manifests,
+            mut tags,
+            generation,
+            deleting_blob,
+        } = stored;
         manifests.sort_by(|left, right| left.digest.hex().cmp(right.digest.hex()));
         tags.sort_by(|left, right| left.tag.cmp(&right.tag));
         Self { name, manifests, tags, generation, deleting_blob }
@@ -156,14 +161,19 @@ impl ImageDocument {
     pub fn resolve(&self, reference: &str) -> Option<&ManifestEntry> {
         match Digest::parse(reference) {
             Ok(digest) => self.manifest(&digest),
-            Err(_) => self.tag(reference).and_then(|tag| self.manifest(&tag.digest)),
+            Err(_) => self
+                .tag(reference)
+                .and_then(|tag| self.manifest(&tag.digest)),
         }
     }
 
     /// Tag names in lexical order, as `GET /v2/<name>/tags/list` serves them.
     #[must_use]
     pub fn tag_names(&self) -> Vec<&str> {
-        self.tags.iter().map(|entry| entry.tag.as_str()).collect()
+        self.tags
+            .iter()
+            .map(|entry| entry.tag.as_str())
+            .collect()
     }
 
     pub fn insert_manifest(&mut self, entry: ManifestEntry) {
@@ -272,10 +282,11 @@ impl ImageDocument {
     /// change, so re-applying the mapping already held costs no document
     /// write.
     fn tag_supersedes(&self, entry: &TagEntry) -> bool {
-        self.tag(&entry.tag).is_none_or(|held| match held.updated.cmp(&entry.updated) {
-            Ordering::Less => true,
-            Ordering::Equal => held.digest != entry.digest,
-            Ordering::Greater => false,
-        })
+        self.tag(&entry.tag)
+            .is_none_or(|held| match held.updated.cmp(&entry.updated) {
+                Ordering::Less => true,
+                Ordering::Equal => held.digest != entry.digest,
+                Ordering::Greater => false,
+            })
     }
 }

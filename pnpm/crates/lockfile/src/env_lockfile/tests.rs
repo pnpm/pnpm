@@ -27,10 +27,14 @@ fn pkg_metadata(integrity_source: &[u8]) -> PackageMetadata {
 
 fn sample_env_lockfile() -> EnvLockfile {
     let mut env = EnvLockfile::create();
-    env.root_importer_mut().config_dependencies.insert(
-        "@pnpm.e2e/foo".to_string(),
-        SpecifierAndResolution { specifier: "100.0.0".to_string(), version: "100.0.0".to_string() },
-    );
+    env.root_importer_mut().config_dependencies
+        .insert(
+            "@pnpm.e2e/foo".to_string(),
+            SpecifierAndResolution {
+                specifier: "100.0.0".to_string(),
+                version: "100.0.0".to_string(),
+            },
+        );
     let key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
     env.packages.insert(key.clone(), pkg_metadata(b"foo-tarball"));
     env.snapshots.insert(key, SnapshotEntry::default());
@@ -131,7 +135,12 @@ fn write_accepts_symlinked_lockfile_when_unchanged() {
 
     env.write(dir.path()).expect("an unchanged env document must not need a write");
 
-    assert!(std::fs::symlink_metadata(&lockfile_path).unwrap().file_type().is_symlink());
+    assert!(
+        std::fs::symlink_metadata(&lockfile_path)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
     assert_eq!(std::fs::read_to_string(real_lockfile).unwrap(), content);
 }
 
@@ -143,12 +152,21 @@ fn write_leaves_an_unchanged_crlf_lockfile_untouched() {
     env.write(dir.path()).unwrap();
     let crlf_content = std::fs::read_to_string(&path).unwrap().replace('\n', "\r\n");
     std::fs::write(&path, &crlf_content).unwrap();
-    let mtime_before = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let mtime_before = std::fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
 
     env.write(dir.path()).unwrap();
 
     assert_eq!(std::fs::read_to_string(&path).unwrap(), crlf_content);
-    assert_eq!(std::fs::metadata(&path).unwrap().modified().unwrap(), mtime_before);
+    assert_eq!(
+        std::fs::metadata(&path)
+            .unwrap()
+            .modified()
+            .unwrap(),
+        mtime_before,
+    );
 }
 
 #[test]
@@ -183,7 +201,12 @@ fn write_rejects_symlinked_lockfile_without_touching_target() {
     let error = sample_env_lockfile().write(dir.path()).expect_err("symlinked lockfile must fail");
 
     assert!(error.to_string().contains("symlinked lockfile"), "unexpected error: {error:?}");
-    assert!(std::fs::symlink_metadata(&lockfile_path).unwrap().file_type().is_symlink());
+    assert!(
+        std::fs::symlink_metadata(&lockfile_path)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
     assert_eq!(std::fs::read_to_string(real_lockfile).unwrap(), "target content");
 }
 

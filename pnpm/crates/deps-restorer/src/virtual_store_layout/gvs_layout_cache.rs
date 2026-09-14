@@ -31,7 +31,9 @@ fn cache_path(cache_dir: &Path, lockfile_dir: &Path) -> PathBuf {
     let mut hasher = sha2::Sha256::new();
     hasher.update(CACHE_FORMAT_VERSION.as_bytes());
     hasher.update(lockfile_dir.to_string_lossy().as_bytes());
-    cache_dir.join("gvs-layout").join(format!("{:x}.bin", hasher.finalize()))
+    cache_dir
+        .join("gvs-layout")
+        .join(format!("{:x}.bin", hasher.finalize()))
 }
 
 /// Where one project's entry lives and what it must have been
@@ -107,7 +109,10 @@ pub(super) fn load(
     }
     let mut bytes = Vec::new();
     let ceiling = (expected.snapshots.len() as u64 + 1).saturating_mul(MAX_ENTRY_BYTES);
-    handle.take(ceiling).read_to_end(&mut bytes).ok()?;
+    handle
+        .take(ceiling)
+        .read_to_end(&mut bytes)
+        .ok()?;
     let (stored_fingerprint, mut cursor) = read_field(&bytes, 0)?;
     if stored_fingerprint != file.fingerprint {
         return None;
@@ -124,7 +129,10 @@ pub(super) fn load(
         }
         suffixes.insert(package_key, suffix.to_owned());
     }
-    expected.snapshots.keys().all(|key| suffixes.contains_key(key)).then_some(suffixes)
+    expected.snapshots
+        .keys()
+        .all(|key| suffixes.contains_key(key))
+        .then_some(suffixes)
 }
 
 /// Whether `digest` is the hex `calc_graph_node_hash` produces, and
@@ -138,7 +146,9 @@ pub(super) fn load(
 /// suffix into components rather than to judge them.
 fn is_graph_node_digest(digest: &str) -> bool {
     digest.len() == 64
-        && digest.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        && digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 /// The snapshots a cached map has to describe, and the metadata
@@ -168,7 +178,12 @@ impl Expected<'_> {
 
 fn read_field(bytes: &[u8], cursor: usize) -> Option<(&str, usize)> {
     let len_end = cursor.checked_add(4)?;
-    let len = u32::from_le_bytes(bytes.get(cursor..len_end)?.try_into().ok()?) as usize;
+    let len = u32::from_le_bytes(
+        bytes
+            .get(cursor..len_end)?
+            .try_into()
+            .ok()?,
+    ) as usize;
     let field_end = len_end.checked_add(len)?;
     let field = std::str::from_utf8(bytes.get(len_end..field_end)?).ok()?;
     Some((field, field_end))

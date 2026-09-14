@@ -19,7 +19,7 @@ async fn a_failed_shallow_fetch_is_reported_like_a_failed_clone() {
         &store_dir,
         &shim_path,
     );
-    fetcher.git_shallow_hosts = &shallow_hosts;
+    fetcher.source.shallow_hosts = &shallow_hosts;
     let err = fetcher.run::<SilentReporter>().await.expect_err("the shim fails every fetch");
 
     let GitFetcherError::FetchOverSsh { package, host, .. } = &err else {

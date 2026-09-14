@@ -110,7 +110,9 @@ fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
     let tmp = tempdir().expect("tempdir");
     let store = StoreDir::new(tmp.path().to_path_buf());
 
-    let expected_content: Vec<u8> = (0..CONTENT_SIZE).map(|i| (i % 256) as u8).collect();
+    let expected_content: Vec<u8> = (0..CONTENT_SIZE)
+        .map(|i| (i % 256) as u8)
+        .collect();
     let target = cas_path_for(&store, &expected_content);
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).expect("create shard dir");
@@ -140,7 +142,9 @@ fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
     let result_slot_writer = Arc::clone(&result_slot);
     let target_for_verifier = target.clone();
     let verifier = thread::spawn(move || {
-        verifier_started_tx.send(()).expect("send start");
+        verifier_started_tx
+            .send(())
+            .expect("send start");
         let pkg_index = make_index("LICENSE", &verify_content);
         let cache = VerifiedFilesCache::new();
         let result = check_pkg_files_integrity(&verify_store, pkg_index, &cache);

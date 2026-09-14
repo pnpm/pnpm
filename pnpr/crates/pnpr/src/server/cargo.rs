@@ -181,14 +181,16 @@ async fn search_crate(storage: &pnpr_storage::Storage, key: &CanonicalPackageNam
         CrateDocument::parse(&bytes).ok()
     }
     .await;
-    document.as_ref().map_or_else(
-        || SearchCrate {
-            name: key.as_str().to_string(),
-            description: None,
-            max_version: String::new(),
-        },
-        CrateDocument::to_search_crate,
-    )
+    document
+        .as_ref()
+        .map_or_else(
+            || SearchCrate {
+                name: key.as_str().to_string(),
+                description: None,
+                max_version: String::new(),
+            },
+            CrateDocument::to_search_crate,
+        )
 }
 
 /// A registry error in the crates API's JSON shape, so `cargo` prints the
@@ -238,8 +240,10 @@ async fn get_index_file(
     TargetRegistry(registry): TargetRegistry,
     Path(params): Path<HashMap<String, String>>,
 ) -> Response {
-    let segments: Vec<&str> =
-        ["a", "b", "c"].iter().filter_map(|key| params.get(*key).map(String::as_str)).collect();
+    let segments: Vec<&str> = ["a", "b", "c"]
+        .iter()
+        .filter_map(|key| params.get(*key).map(String::as_str))
+        .collect();
     let Some(name) = segments.last().copied() else { return not_found() };
     let Ok(key) = CanonicalPackageName::parse(name, ECOSYSTEM) else { return not_found() };
     let path = sparse_index_path(name);
@@ -286,10 +290,11 @@ async fn load_upstream_index(
 }
 
 fn decode_index_text(bytes: Vec<u8>, path: &str) -> Result<String, RegistryError> {
-    String::from_utf8(bytes).map_err(|err| RegistryError::UpstreamResponse {
-        url: path.to_string(),
-        reason: format!("sparse index is not valid UTF-8: {err}"),
-    })
+    String::from_utf8(bytes)
+        .map_err(|err| RegistryError::UpstreamResponse {
+            url: path.to_string(),
+            reason: format!("sparse index is not valid UTF-8: {err}"),
+        })
 }
 
 /// `GET api/v1/crates/<crate>/<version>/download`.
@@ -363,8 +368,9 @@ async fn download_via_upstream(
         Ok(entries) => entries,
         Err(err) => return error_response(err),
     };
-    let Some(entry) =
-        entries.iter().find(|entry| entry.vers == version && entry.name.eq_ignore_ascii_case(name))
+    let Some(entry) = entries
+        .iter()
+        .find(|entry| entry.vers == version && entry.name.eq_ignore_ascii_case(name))
     else {
         return not_found();
     };
@@ -404,9 +410,12 @@ async fn upstream_index_config(
         limit: INDEX_CONFIG_LIMIT,
     };
     let bytes = load_upstream_document(state, upstream, namespace, request, |document| {
-        IndexConfig::parse(&document.bytes).map(|_| document.bytes).map_err(|err| {
-            RegistryError::UpstreamResponse { url: document.url, reason: err.to_string() }
-        })
+        IndexConfig::parse(&document.bytes)
+            .map(|_| document.bytes)
+            .map_err(|err| RegistryError::UpstreamResponse {
+                url: document.url,
+                reason: err.to_string(),
+            })
     })
     .await?
     .ok_or_else(|| RegistryError::UpstreamResponse {
@@ -417,8 +426,9 @@ async fn upstream_index_config(
 }
 
 fn parse_upstream_index(index: &str, name: &str) -> Result<Vec<IndexEntry>, RegistryError> {
-    parse_index(index).map_err(|err| RegistryError::UpstreamResponse {
-        url: sparse_index_path(name),
-        reason: err.to_string(),
-    })
+    parse_index(index)
+        .map_err(|err| RegistryError::UpstreamResponse {
+            url: sparse_index_path(name),
+            reason: err.to_string(),
+        })
 }

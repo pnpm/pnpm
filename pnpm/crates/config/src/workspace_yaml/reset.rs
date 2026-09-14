@@ -3,6 +3,23 @@ use super::{
     explicit_or_default, explicit_pattern, to_camel_case,
 };
 
+type Reset = fn(&mut Config, &Config);
+fn apply_named_reset(
+    config: &mut Config,
+    defaults: &Config,
+    selection: (&[(String, Reset)], &str),
+) -> bool {
+    let (resets, key) = selection;
+    let Some((_, reset)) = resets
+        .iter()
+        .find(|(name, _)| name == key)
+    else {
+        return false;
+    };
+    reset(config, defaults);
+    true
+}
+
 /// The paths anchored on the lockfile directory, re-anchored the way
 /// pinning it does, so a `modulesDir` still set keeps its shape and a
 /// pinned lockfile directory keeps its paths.
@@ -23,8 +40,7 @@ fn derive_lockfile(config: &mut Config) {
 /// and none at all while hoisting is off. A `virtualStoreOnly` install
 /// still in force keeps both patterns empty.
 fn reset_hoist_pattern(config: &mut Config, defaults: &Config) {
-    config.hoist_pattern = config
-        .hoist
+    config.hoist_pattern = config.hoist
         .then(|| explicit_or_default(config, "hoistPattern", defaults.hoist_pattern.as_deref()))
         .flatten();
     config.apply_virtual_store_only_derivation();
@@ -88,7 +104,6 @@ impl WorkspaceSettings {
     where
         Sys: EnvVar + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        type Reset = fn(&mut Config, &Config);
         macro_rules! same_named {
             ($($field:ident),* $(,)?) => {
                 vec![$((
@@ -124,11 +139,7 @@ impl WorkspaceSettings {
         if Self::reset_derived_setting_to_default::<Sys>(config, defaults, key, base_dir) {
             return true;
         }
-        let Some((_, reset)) = resets.iter().find(|(name, _)| name == key) else {
-            return false;
-        };
-        reset(config, defaults);
-        true
+        apply_named_reset(config, defaults, (&resets, key))
     }
 
     /// [`Self::reset_setting_to_default`] for the settings another setting

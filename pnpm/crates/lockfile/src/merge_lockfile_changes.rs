@@ -25,8 +25,7 @@ use std::{
 pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
     Lockfile {
         lockfile_version: newer_version(ours.lockfile_version, theirs.lockfile_version),
-        pnpmfile_checksum: ours
-            .pnpmfile_checksum
+        pnpmfile_checksum: ours.pnpmfile_checksum
             .clone()
             .or_else(|| theirs.pnpmfile_checksum.clone()),
         ignored_optional_dependencies: union_of_lists(
@@ -75,7 +74,13 @@ fn winner(ours: &str, theirs: &str) -> Winner {
     if ours == theirs {
         return Winner::Ours;
     }
-    let without_peers = |version: &str| version.split('(').next().unwrap_or(version).to_owned();
+    let without_peers = |version: &str| {
+        version
+            .split('(')
+            .next()
+            .unwrap_or(version)
+            .to_owned()
+    };
     match (without_peers(ours).parse::<Version>(), without_peers(theirs).parse::<Version>()) {
         (Ok(ours), Ok(theirs)) if ours > theirs => Winner::Ours,
         _ => Winner::Theirs,
@@ -161,7 +166,9 @@ fn merge_importers(
                 specifiers: None,
                 dependencies: group(|importer| importer.dependencies.as_ref()),
                 dev_dependencies: group(|importer| importer.dev_dependencies.as_ref()),
-                optional_dependencies: group(|importer| importer.optional_dependencies.as_ref()),
+                optional_dependencies: group(|importer| {
+                    importer.optional_dependencies.as_ref()
+                }),
                 dependencies_meta: None,
                 publish_directory: None,
                 link_directory: None,

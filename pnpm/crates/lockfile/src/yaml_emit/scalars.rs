@@ -253,7 +253,10 @@ fn needs_indent_indicator(string: &str) -> bool {
 }
 
 fn drop_ending_newline(string: &str) -> String {
-    string.strip_suffix('\n').unwrap_or(string).to_string()
+    string
+        .strip_suffix('\n')
+        .unwrap_or(string)
+        .to_string()
 }
 
 fn indent_string(string: &str, spaces: usize) -> String {

@@ -2,6 +2,8 @@ use super::{
     BinOrigin, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache, link_bins,
     link_bins_of_packages, link_bins_of_packages_cached, remove_bin,
 };
+#[cfg(unix)]
+use crate::shim::is_sh_shim_hardened;
 use crate::{
     capabilities::{
         DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,

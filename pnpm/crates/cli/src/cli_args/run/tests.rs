@@ -17,7 +17,10 @@ fn specified_scripts_start_fallback() {
         vec!["start".to_string()],
     );
     assert!(
-        ScriptSelector::new("start").unwrap().select(&manifest).is_empty(),
+        ScriptSelector::new("start")
+            .unwrap()
+            .select(&manifest)
+            .is_empty(),
         "the fallback belongs to `run`, not to the recursive selector",
     );
 }
@@ -25,7 +28,12 @@ fn specified_scripts_start_fallback() {
 #[test]
 fn specified_scripts_missing_is_empty() {
     let manifest = json!({ "scripts": { "build": "tsc" } });
-    assert!(ScriptSelector::new("nonexistent").unwrap().select(&manifest).is_empty());
+    assert!(
+        ScriptSelector::new("nonexistent")
+            .unwrap()
+            .select(&manifest)
+            .is_empty(),
+    );
 }
 
 #[test]
@@ -75,7 +83,10 @@ fn specified_scripts_treats_non_literals_as_names() {
     let manifest = json!({ "scripts": { "build": "tsc" } });
     for name in ["/a/b/", "//", "/build", "build/", "/[/"] {
         assert!(
-            ScriptSelector::new(name).unwrap().select(&manifest).is_empty(),
+            ScriptSelector::new(name)
+                .unwrap()
+                .select(&manifest)
+                .is_empty(),
             "{name} is not a regexp selector",
         );
     }

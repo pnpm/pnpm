@@ -82,13 +82,13 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
     let dirs = [tmp_root.path(), tmp_a.path()];
 
     let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
+    opts.peers.auto_install_peers = true;
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         let dir = dirs[next].to_path_buf();
         next += 1;
         let mut opts = importer_opts(dir, None);
-        opts.auto_install_peers = true;
+        opts.peers.auto_install_peers = true;
         opts
     })
     .await
@@ -117,8 +117,8 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
     ];
     let dirs = [tmp_root.path(), tmp_a.path()];
     let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
-    opts.wanted_lockfile = Some(std::sync::Arc::new(pnpm_lockfile::Lockfile {
+    opts.peers.auto_install_peers = true;
+    opts.reuse.lockfile = Some(std::sync::Arc::new(pnpm_lockfile::Lockfile {
         lockfile_version: pnpm_lockfile::LockfileVersion::<9>::try_from(
             pnpm_lockfile::ComVer::new(9, 0),
         )
@@ -144,7 +144,7 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
         let dir = dirs[next].to_path_buf();
         next += 1;
         let mut opts = importer_opts(dir, None);
-        opts.auto_install_peers = true;
+        opts.peers.auto_install_peers = true;
         opts
     })
     .await
@@ -247,14 +247,14 @@ async fn shared_subtree_owner_context_is_available_before_optional_hoisting() {
     ];
     let dirs = [tmp_nested.path(), tmp_owner.path()];
     let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
+    opts.peers.auto_install_peers = true;
     let mut next = 0;
 
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         let dir = dirs[next].to_path_buf();
         next += 1;
         let mut opts = importer_opts(dir, None);
-        opts.auto_install_peers = true;
+        opts.peers.auto_install_peers = true;
         opts
     })
     .await
@@ -282,7 +282,7 @@ async fn skips_an_optional_dependency_for_every_coded_resolver_failure() {
         let skipped = std::sync::Arc::new(Mutex::new(Vec::new()));
         let mut opts = workspace_opts(false, false);
         let sink = std::sync::Arc::clone(&skipped);
-        opts.skipped_optional_log =
+        opts.hooks.skipped_optional_log =
             Some(std::sync::Arc::new(move |notification| sink.lock().unwrap().push(notification)));
         let result = resolve_workspace(
             &resolver,

@@ -167,7 +167,7 @@ struct ShadowingGuard {
 }
 
 impl Walker<'_> {
-    /// Look up [`Self::peers_cache`] for a cached resolution of
+    /// Look up [`crate::resolve_peers::discovery::PeerDiscoveryCaches::peers_cache`] for a cached resolution of
     /// `pkg_id` whose parent peer context is compatible with the
     /// current `parent_refs`.
     ///
@@ -177,11 +177,11 @@ impl Walker<'_> {
     ///    same name with a real `NodeId`.
     /// 2. Either the two `NodeId`s are equal, OR they map to the
     ///    same already-computed [`DepPath`] in
-    ///    [`Self::node_dep_paths`], OR the two tree-nodes' resolved
+    ///    [`crate::resolve_peers::discovery::PeerDiscoveryCaches::node_dep_paths`], OR the two tree-nodes' resolved
     ///    package ids match — and in the package-id match case, the
     ///    deep [`Self::parent_packages_match`] check on the two
     ///    parents' own recorded contexts also succeeds (unless the
-    ///    package id is itself in [`Self::pure_pkgs`], which makes
+    ///    package id is itself in [`crate::resolve_peers::discovery::PeerDiscoveryCaches::pure_pkgs`], which makes
     ///    the deep check vacuous).
     /// 3. None of the cache item's missing-peer names are satisfied
     ///    by the current `parent_refs` — a name the cache walk
@@ -191,18 +191,26 @@ impl Walker<'_> {
         parent_refs: &ParentRefs,
         pkg_id: &str,
     ) -> Option<&PeersCacheItem> {
-        let cache_items = self.peers_cache.get(pkg_id)?;
-        cache_items.iter().find(|item| self.item_matches(item, parent_refs))
+        let cache_items = self.caches.peers_cache.get(pkg_id)?;
+        cache_items
+            .iter()
+            .find(|item| self.item_matches(item, parent_refs))
     }
 
     fn item_matches(&self, item: &PeersCacheItem, parent_refs: &ParentRefs) -> bool {
-        let resolved_still_match = item.resolved_peers.iter().all(|(name, cached_node_id)| {
-            parent_refs.get(name).is_some_and(|current_ref| {
-                self.parent_ref_matches_cached(current_ref, cached_node_id)
-            })
-        });
+        let resolved_still_match = item.resolved_peers
+            .iter()
+            .all(|(name, cached_node_id)| {
+                parent_refs
+                    .get(name)
+                    .is_some_and(|current_ref| {
+                        self.parent_ref_matches_cached(current_ref, cached_node_id)
+                    })
+            });
         resolved_still_match
-            && !item.missing_peers.keys().any(|missing| parent_refs.contains_key(missing))
+            && !item.missing_peers
+                .keys()
+                .any(|missing| parent_refs.contains_key(missing))
     }
 
     /// Compare two `NodeId`s' recorded parent peer contexts:
@@ -214,25 +222,33 @@ impl Walker<'_> {
     /// for the loss of single-occurrence guarantees on the
     /// shallow-equality path.
     fn parent_packages_match(&self, cached_node_id: &NodeId, current_node_id: &NodeId) -> bool {
-        let Some(cached_parents) = self.parent_pkgs_of_node.get(cached_node_id) else {
+        let Some(cached_parents) = self.caches.parent_pkgs_of_node.get(cached_node_id) else {
             return false;
         };
-        let Some(current_parents) = self.parent_pkgs_of_node.get(current_node_id) else {
+        let Some(current_parents) = self.caches.parent_pkgs_of_node.get(current_node_id) else {
             return false;
         };
         if cached_parents.len() != current_parents.len() {
             return false;
         }
         let shadowing = ShadowingGuard {
-            max_depth: current_parents.values().map(|info| info.depth).max().unwrap_or(0),
+            max_depth: current_parents
+                .values()
+                .map(|info| info.depth)
+                .max()
+                .unwrap_or(0),
             peer_deps_not_shadowed: parent_pkgs_have_single_occurrence(cached_parents)
                 && parent_pkgs_have_single_occurrence(current_parents),
         };
-        cached_parents.iter().all(|(name, cached_info)| {
-            current_parents.get(name).is_some_and(|current_info| {
-                self.parent_pkg_matches(cached_info, current_info, shadowing)
+        cached_parents
+            .iter()
+            .all(|(name, cached_info)| {
+                current_parents
+                    .get(name)
+                    .is_some_and(|current_info| {
+                        self.parent_pkg_matches(cached_info, current_info, shadowing)
+                    })
             })
-        })
     }
 
     /// One recorded parent package: a version-only match covers `link:`
@@ -255,7 +271,7 @@ impl Walker<'_> {
         }
         shadowing.peer_deps_not_shadowed
             || current_info.depth == shadowing.max_depth
-            || self.pure_pkgs.contains_key(&**cached_pkg_id)
+            || self.caches.pure_pkgs.contains_key(&**cached_pkg_id)
     }
 
     fn parent_ref_matches_cached(&self, current_ref: &ParentRef, cached_node_id: &NodeId) -> bool {
@@ -265,9 +281,10 @@ impl Walker<'_> {
         if current_node_id == cached_node_id {
             return true;
         }
-        if let (Some(cached_dp), Some(current_dp)) =
-            (self.node_dep_paths.get(cached_node_id), self.node_dep_paths.get(current_node_id))
-            && cached_dp == current_dp
+        if let (Some(cached_dp), Some(current_dp)) = (
+            self.caches.node_dep_paths.get(cached_node_id),
+            self.caches.node_dep_paths.get(current_node_id),
+        ) && cached_dp == current_dp
         {
             return true;
         }
@@ -281,7 +298,7 @@ impl Walker<'_> {
         if parent_pkg_id != &cached_tree_node.resolved_package_id {
             return false;
         }
-        self.pure_pkgs.contains_key(&**parent_pkg_id)
+        self.caches.pure_pkgs.contains_key(&**parent_pkg_id)
             || self.parent_packages_match(cached_node_id, current_node_id)
     }
 
@@ -297,7 +314,11 @@ impl Walker<'_> {
             parent_pkg_ids_chain,
             preview_undo,
         } = context;
-        let CachedNodeOutput { owner_node_id, output, missing_peers_of_children } = cached;
+        let CachedNodeOutput {
+            owner_node_id,
+            output,
+            missing_peers_of_children,
+        } = cached;
         self.undo_realize(node_id, preview_undo, None);
 
         self.record_cache_hit_missing_issues(
@@ -308,12 +329,12 @@ impl Walker<'_> {
         );
         self.remember_resolved_node(node_id, &output.dep_path);
         self.remember_cache_hit_node(node_id, owner_node_id, &output, missing_peers_of_children);
-        if let Some(node) = self.graph.get_mut(&output.dep_path)
+        if let Some(node) = self.output.graph.get_mut(&output.dep_path)
             && node.depth > tree_node_depth
         {
             node.depth = tree_node_depth;
         }
-        self.in_progress.remove(node_id);
+        self.traversal.in_progress.remove(node_id);
         output
     }
 
@@ -355,21 +376,23 @@ impl Walker<'_> {
         output: &NodeOutput,
         missing_peers_of_children: Arc<HashMap<String, MissingPeerInfo>>,
     ) {
-        if self.discovery {
+        if self.traversal.discovery {
             return;
         }
         if &owner_node_id != node_id {
-            let owner_is_fully_walked = !self.cache_owner_by_node_id.contains_key(&owner_node_id);
+            let owner_is_fully_walked = !self.nodes.cache_owners.contains_key(&owner_node_id);
             debug_assert!(
                 owner_is_fully_walked,
                 "cache owner {owner_node_id:?} of {node_id:?} is itself a cache hit",
             );
-            self.cache_owner_by_node_id.insert(node_id.clone(), owner_node_id);
+            self.nodes.cache_owners.insert(node_id.clone(), owner_node_id);
         }
-        self.node_external_peers
-            .insert(node_id.clone(), Arc::clone(&output.external_resolved_peers));
-        self.node_missing_peers.insert(node_id.clone(), Arc::clone(&output.missing_peers));
-        self.node_missing_peers_of_children.insert(node_id.clone(), missing_peers_of_children);
+        self.nodes.external_peers.insert(
+            node_id.clone(),
+            Arc::clone(&output.external_resolved_peers),
+        );
+        self.nodes.missing_peers.insert(node_id.clone(), Arc::clone(&output.missing_peers));
+        self.nodes.children_missing_peers.insert(node_id.clone(), missing_peers_of_children);
     }
 }
 
@@ -396,9 +419,10 @@ fn should_retain_materialized_node(
 ) -> bool {
     retained_peer_node_ids.contains(node_id)
         || output.is_some_and(|output| {
-            output.external_resolved_peers.values().any(|resolved_id| resolved_id == node_id)
-                || output
-                    .auto_install_resolved_peers
+            output.external_resolved_peers
+                .values()
+                .any(|resolved_id| resolved_id == node_id)
+                || output.auto_install_resolved_peers
                     .values()
                     .any(|resolved_id| resolved_id == node_id)
         })
@@ -406,7 +430,9 @@ fn should_retain_materialized_node(
 
 /// Whether every entry in `parents` has `occurrence == 0`.
 fn parent_pkgs_have_single_occurrence(parents: &HashMap<String, ParentPkgInfo>) -> bool {
-    parents.values().all(|info| info.occurrence == 0)
+    parents
+        .values()
+        .all(|info| info.occurrence == 0)
 }
 
 #[cfg(test)]

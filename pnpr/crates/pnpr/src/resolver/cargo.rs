@@ -40,7 +40,7 @@ use futures_util::{StreamExt, TryStreamExt, stream};
 use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
 
 use pnpr_policy::Identity;
-use pnpr_route::{Footprint, RouteContext, RouteHook, url_has_inline_credentials};
+use pnpr_route::{Footprint, url_has_inline_credentials};
 
 use crate::server::StripedLocks;
 
@@ -99,8 +99,7 @@ pub(super) async fn handle_resolve(
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
-    let registry = request
-        .registry
+    let registry = request.registry
         .as_deref()
         .unwrap_or(pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX)
         .trim_end_matches('/')
@@ -160,16 +159,7 @@ fn index_budget_exhausted(name: &str) -> String {
 /// Reads a sparse index for one resolve: cache first, then the registry.
 struct IndexFetcher {
     client: Arc<ThrottledClient>,
-    route: Arc<RouteContext>,
-    identity: Identity,
-    /// The private routes this resolve's fetches touched, recorded by the
-    /// route hook as it selects each credential.
-    footprint: Arc<Mutex<Footprint>>,
-    /// HMAC secret keying a private route's cache namespace.
-    secret: Arc<[u8]>,
-    /// Serializes the fetch of one crate's index file, per cache
-    /// namespace, across concurrent resolves — so a cold graph is fetched
-    /// once rather than once per caller.
+    hook: Arc<pnpr_route::RouteHook>,
     locks: Arc<StripedLocks>,
     /// Where this registry's index files are cached, already namespaced by
     /// registry origin. The route scope adds the last segment; see
@@ -187,17 +177,15 @@ impl IndexFetcher {
     fn new(runtime: &Resolver, identity: Identity, registry: String) -> Self {
         Self {
             client: Arc::clone(&runtime.client),
-            route: Arc::clone(&runtime.route_context),
-            identity,
-            // Auth comes from this server's route policy for the caller, never
-            // from the request — the same rule the npm surface follows, so a
-            // caller cannot borrow the server's reach by describing a registry
-            // it has no credential for.
-            footprint: Arc::new(Mutex::new(Footprint::default())),
-            secret: Arc::clone(&runtime.resolution_cache_secret),
-            locks: Arc::clone(&runtime.cargo_index_locks),
+            hook: Arc::new(pnpr_route::RouteHook::new(
+                Arc::clone(&runtime.route_context),
+                identity,
+                Arc::new(Mutex::new(Footprint::default())),
+                Arc::clone(&runtime.cache.secret),
+            )),
+            locks: Arc::clone(&runtime.index.cargo_locks),
             cache_dir: runtime.cargo_index_cache_dir(&registry),
-            ttl: runtime.cargo_index_ttl,
+            ttl: runtime.index.ttl,
             bytes_held: AtomicUsize::new(0),
             registry,
         }
@@ -290,8 +278,7 @@ impl IndexFetcher {
         url: &str,
         auth: &AuthHeaders,
     ) -> Result<String, String> {
-        let response = self
-            .client
+        let response = self.client
             .get_limited_bytes_with_secure_auth_and_retry(
                 url,
                 auth,
@@ -332,14 +319,11 @@ impl IndexFetcher {
     /// route policy for the caller, with the crate bound in so the
     /// package-blind fetch helpers still classify by it.
     fn auth_for(&self, canonical_name: &str) -> AuthHeaders {
-        let hook = RouteHook::new(
-            Arc::clone(&self.route),
-            self.identity.clone(),
-            Arc::clone(&self.footprint),
-            Arc::clone(&self.secret),
-        );
         AuthHeaders::default()
-            .with_route_hook(Arc::new(PackageRoute::new(hook, canonical_name.to_string())))
+            .with_route_hook(Arc::new(PackageRoute::new(
+                Arc::clone(&self.hook),
+                canonical_name.to_string(),
+            )))
     }
 
     /// Where `url`'s index file is cached. The route scope keys the
@@ -358,7 +342,9 @@ impl IndexFetcher {
     /// truth and refetching is always correct.
     async fn cached(&self, path: &Path) -> Option<String> {
         let metadata = tokio::fs::metadata(path).await.ok()?;
-        let age = SystemTime::now().duration_since(metadata.modified().ok()?).ok()?;
+        let age = SystemTime::now()
+            .duration_since(metadata.modified().ok()?)
+            .ok()?;
         if age >= self.ttl {
             return None;
         }

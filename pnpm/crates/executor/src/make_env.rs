@@ -23,14 +23,9 @@ pub struct EnvOptions<'a> {
     pub stage: &'a str,
     pub script: &'a str,
     pub pkg_root: &'a Path,
-    pub init_cwd: &'a Path,
     pub script_src_dir: &'a Path,
-    pub node_execpath: Option<&'a Path>,
-    pub npm_execpath: Option<&'a Path>,
-    pub node_gyp_path: Option<&'a Path>,
-    pub user_agent: Option<&'a str>,
     pub unsafe_perm: bool,
-    pub extra_env: &'a HashMap<String, String>,
+    pub environment: crate::ScriptEnvironment<'a>,
 }
 
 /// The product of [`build_env`]: a ready-to-spawn env map and the
@@ -86,7 +81,7 @@ fn build_env_for_platform(
     // 3. Per-call stamping.
     env.insert("npm_lifecycle_event".into(), opts.stage.to_string());
 
-    stamp_executables(&mut env, opts);
+    stamp_executables(&mut env, &opts.environment, opts.pkg_root);
 
     // 4. `extra_env` (the user's `updateConfig` `extraEnv` plus any
     //    pnpm-controlled keys the caller merged in, such as
@@ -101,17 +96,17 @@ fn build_env_for_platform(
     //    [`filter_parent_env`] dropped it, so it is refused here — under
     //    the same casing rule that filter uses, since on Windows a
     //    differently-cased entry names the same variable.
-    for (k, v) in opts.extra_env {
+    for (k, v) in opts.environment.extra_env {
         if is_dev_preinstall_marker(k, is_windows) {
             continue;
         }
         env.insert(k.clone(), v.clone());
     }
 
-    env.insert("INIT_CWD".into(), opts.init_cwd.to_string_lossy().into_owned());
+    env.insert("INIT_CWD".into(), opts.environment.init_cwd.to_string_lossy().into_owned());
     env.insert("PNPM_SCRIPT_SRC_DIR".into(), opts.script_src_dir.to_string_lossy().into_owned());
 
-    if let Some(ua) = opts.user_agent {
+    if let Some(ua) = opts.environment.user_agent {
         env.insert("npm_config_user_agent".into(), ua.to_string());
     }
 
@@ -154,7 +149,9 @@ fn build_env_for_platform(
 ///
 /// [`Command::env`]: https://doc.rust-lang.org/std/process/struct.Command.html#method.env
 fn filter_parent_env(env: HashMap<String, String>, is_windows: bool) -> HashMap<String, String> {
-    env.into_iter().filter(|(k, _)| !is_stamping_key(k, is_windows)).collect()
+    env.into_iter()
+        .filter(|(k, _)| !is_stamping_key(k, is_windows))
+        .collect()
 }
 
 /// Whether `key` must be dropped from the inherited parent env: an
@@ -182,7 +179,9 @@ fn is_stamping_key(key: &str, is_windows: bool) -> bool {
     const DROPPED: [&str; 4] =
         ["NODE", "INIT_CWD", "PNPM_SCRIPT_SRC_DIR", DEV_PREINSTALL_ALREADY_RAN_ENV];
     if is_windows {
-        return DROPPED.iter().any(|name| key.eq_ignore_ascii_case(name));
+        return DROPPED
+            .iter()
+            .any(|name| key.eq_ignore_ascii_case(name));
     }
     DROPPED.contains(&key)
 }
@@ -224,7 +223,8 @@ fn strip_env_prefix<'key>(key: &'key str, prefix: &str, is_windows: bool) -> Opt
 /// returning the value here lets the rest of [`build_env`] stay
 /// independent of casing.
 pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
-    env.iter().find_map(|(k, v)| k.eq_ignore_ascii_case("PATH").then(|| v.clone()))
+    env.iter()
+        .find_map(|(k, v)| k.eq_ignore_ascii_case("PATH").then(|| v.clone()))
 }
 
 /// Look up `node` along the supplied `PATH`. Driven by the filtered
@@ -234,10 +234,11 @@ pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
 fn find_node_in_path(path: Option<&str>) -> Option<PathBuf> {
     let path = path?;
     let node_name = if cfg!(windows) { "node.exe" } else { "node" };
-    env::split_paths(path).find_map(|dir| {
-        let candidate = dir.join(node_name);
-        candidate.is_file().then_some(candidate)
-    })
+    env::split_paths(path)
+        .find_map(|dir| {
+            let candidate = dir.join(node_name);
+            candidate.is_file().then_some(candidate)
+        })
 }
 
 /// Recursively stamp `npm_package_*` env vars from the manifest. JSON
@@ -249,8 +250,15 @@ fn find_node_in_path(path: Option<&str>) -> Option<PathBuf> {
 /// recursed under one of those, everything is kept.
 fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value) {
     let pairs: Vec<(String, &Value)> = match value {
-        Value::Object(map) => map.iter().map(|(k, v)| (k.clone(), v)).collect(),
-        Value::Array(arr) => arr.iter().enumerate().map(|(i, v)| (i.to_string(), v)).collect(),
+        Value::Object(map) => map
+            .iter()
+            .map(|(k, v)| (k.clone(), v))
+            .collect(),
+        Value::Array(arr) => arr
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (i.to_string(), v))
+            .collect(),
         _ => return,
     };
 
@@ -285,10 +293,13 @@ fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value)
 /// `npm_config_node_gyp` is a default pnpm supplies, not a reserved stamp: TS
 /// `npm-lifecycle` sets it before spreading `extraEnv`, so a user `extraEnv`
 /// overrides it. It is stamped before `extra_env` to match.
-fn stamp_executables(env: &mut HashMap<String, String>, opts: &EnvOptions<'_>) {
+fn stamp_executables(
+    env: &mut HashMap<String, String>,
+    opts: &crate::ScriptEnvironment<'_>,
+    pkg_root: &Path,
+) {
     let parent_path = path_value(env);
-    let node_execpath = opts
-        .node_execpath
+    let node_execpath = opts.node_execpath
         .map(Path::to_path_buf)
         .or_else(|| find_node_in_path(parent_path.as_deref()));
     if let Some(node) = node_execpath {
@@ -299,10 +310,15 @@ fn stamp_executables(env: &mut HashMap<String, String>, opts: &EnvOptions<'_>) {
 
     env.insert(
         "npm_package_json".into(),
-        opts.pkg_root.join("package.json").to_string_lossy().into_owned(),
+        pkg_root
+            .join("package.json")
+            .to_string_lossy()
+            .into_owned(),
     );
 
-    let npm_execpath = opts.npm_execpath.map(Path::to_path_buf).or_else(|| env::current_exe().ok());
+    let npm_execpath = opts.npm_execpath
+        .map(Path::to_path_buf)
+        .or_else(|| env::current_exe().ok());
     if let Some(path) = npm_execpath {
         env.insert("npm_execpath".into(), path.to_string_lossy().into_owned());
     }
@@ -328,7 +344,9 @@ fn stamps_manifest_field(prefix: &str, key: &str) -> bool {
 /// Replace every character that is not `[a-zA-Z0-9_]` with `_`, the
 /// sanitization an env key derived from a manifest field needs.
 fn sanitize_env_key(raw: &str) -> String {
-    raw.chars().map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' { ch } else { '_' }).collect()
+    raw.chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' { ch } else { '_' })
+        .collect()
 }
 
 /// JSON-encode multi-line strings (those containing `\n`) so child

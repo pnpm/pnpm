@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use super::{InstallPnpmResult, reuse_global_engine};
 use super::{
     PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, assert_release_is_installable,
     exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, link_exe_platform_binary,
@@ -147,10 +149,17 @@ fn links_the_host_platform_binary_into_the_wrapper() {
 
     link_exe_platform_binary(temp.path(), "pnpm").expect("linking should succeed");
 
-    let dest = temp.path().join("node_modules").join("pnpm").join("pnpm");
+    let dest = temp
+        .path()
+        .join("node_modules")
+        .join("pnpm")
+        .join("pnpm");
     assert!(dest.exists(), "the native binary is linked into the wrapper");
     assert_eq!(fs::read(&dest).expect("read linked binary"), b"#!/bin/sh\necho pnpm\n");
-    let mode = fs::metadata(&dest).expect("stat linked binary").permissions().mode();
+    let mode = fs::metadata(&dest)
+        .expect("stat linked binary")
+        .permissions()
+        .mode();
     assert_eq!(mode & 0o777, 0o755, "the linked binary is executable");
 }
 
@@ -221,7 +230,9 @@ fn links_native_binary_from_a_sibling_global_virtual_store_slot() {
     let platform_dir = exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
     std::os::unix::fs::symlink(
         &native_pkg_dir,
-        slot.join("node_modules").join("@pnpm").join(platform_dir),
+        slot.join("node_modules")
+            .join("@pnpm")
+            .join(platform_dir),
     )
     .expect("symlink platform package to the sibling slot");
 
@@ -242,7 +253,9 @@ fn links_native_binary_from_a_sibling_slot_into_the_scoped_wrapper() {
     let platform_dir = exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
     std::os::unix::fs::symlink(
         &native_pkg_dir,
-        slot.join("node_modules").join("@pnpm").join(platform_dir),
+        slot.join("node_modules")
+            .join("@pnpm")
+            .join(platform_dir),
     )
     .expect("symlink platform package to the sibling slot");
 
@@ -266,7 +279,9 @@ fn rejects_native_binary_that_escapes_the_global_virtual_store() {
     fs::write(outside_pkg_dir.join("pnpm"), b"outside").expect("write outside binary");
     std::os::unix::fs::symlink(
         &outside_pkg_dir,
-        slot.join("node_modules").join("@pnpm").join(platform_dir),
+        slot.join("node_modules")
+            .join("@pnpm")
+            .join(platform_dir),
     )
     .expect("symlink platform package outside the store");
 
@@ -284,7 +299,12 @@ fn rejects_wrapper_symlink_that_escapes_the_install_dir() {
     fs::create_dir_all(&outside_wrapper).expect("create outside wrapper");
     fs::write(outside_wrapper.join("pnpm"), b"outside").expect("write outside placeholder");
 
-    fs::create_dir_all(temp.path().join("node_modules").join("@pnpm")).expect("create scope dir");
+    fs::create_dir_all(
+        temp.path()
+            .join("node_modules")
+            .join("@pnpm"),
+    )
+    .expect("create scope dir");
     std::os::unix::fs::symlink(&outside_wrapper, package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME))
         .expect("symlink wrapper outside install dir");
 
@@ -304,7 +324,11 @@ fn rejects_native_binary_symlink_that_escapes_the_install_dir() {
     fake_engine_install(temp.path(), false);
 
     let platform_dir = exe_platform_pkg_dir_name_next(host_platform(), host_arch(), host_libc());
-    let src_dir = temp.path().join("node_modules").join("@pnpm").join(platform_dir);
+    let src_dir = temp
+        .path()
+        .join("node_modules")
+        .join("@pnpm")
+        .join(platform_dir);
     fs::create_dir_all(&src_dir).expect("create platform dir");
     std::os::unix::fs::symlink(&outside_binary, src_dir.join("pnpm"))
         .expect("symlink native binary outside install dir");
@@ -328,8 +352,13 @@ fn rejects_native_binary_scope_symlink_that_escapes_the_install_dir() {
     let outside_platform_dir = outside_scope.join(platform_dir);
     fs::create_dir_all(&outside_platform_dir).expect("create outside platform dir");
     fs::write(outside_platform_dir.join("pnpm"), b"outside").expect("write outside binary");
-    std::os::unix::fs::symlink(&outside_scope, temp.path().join("node_modules").join("@pnpm"))
-        .expect("symlink native scope outside install dir");
+    std::os::unix::fs::symlink(
+        &outside_scope,
+        temp.path()
+            .join("node_modules")
+            .join("@pnpm"),
+    )
+    .expect("symlink native scope outside install dir");
 
     let err =
         link_exe_platform_binary(temp.path(), "pnpm").expect_err("escaped native source rejected");
@@ -365,6 +394,68 @@ fn reuse_cached_engine_accepts_a_healthy_slot() {
     assert!(reuse_cached_engine(temp.path(), pnpm_package_to_install("11.10.0"), "11.10.0"));
     // The relink repaired the slot in place: the native binary is now linked.
     assert!(package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME).join("pnpm").exists());
+}
+
+/// `pnpm_package_to_install` resolves v12 to `pnpm`, but the standalone
+/// install script installs the engine as `@pnpm/exe` (pnpm/pnpm#14823).
+#[cfg(unix)]
+#[test]
+fn reuse_global_engine_accepts_a_v12_engine_installed_as_pnpm_exe() {
+    let global_dir = tempfile::tempdir().expect("tempdir");
+    let install_dir = seed_global_group(global_dir.path(), PNPM_EXE_PACKAGE_NAME, "12.3.4", true);
+
+    let reused = reuse_target_engine(global_dir.path(), "12.3.4").expect("the group is reused");
+
+    assert!(reused.already_existed);
+    assert_eq!(reused.package_name, PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(reused.install_dir, fs::canonicalize(&install_dir).expect("canonicalize"));
+}
+
+/// Every seeded group records the target version, so the relink is the only
+/// thing separating a reusable engine from a dead one.
+#[cfg(unix)]
+#[test]
+fn reuse_global_engine_skips_a_group_it_cannot_relink() {
+    let global_dir = tempfile::tempdir().expect("tempdir");
+    seed_global_group(global_dir.path(), "cowsay", "12.3.4", false);
+    seed_global_group(global_dir.path(), PNPM_PACKAGE_NAME, "12.3.4", false);
+
+    assert!(
+        reuse_target_engine(global_dir.path(), "12.3.4").is_none(),
+        "a wrapper with no platform binary is not a reusable engine",
+    );
+
+    let install_dir = seed_global_group(global_dir.path(), PNPM_EXE_PACKAGE_NAME, "12.3.4", true);
+    let reused = reuse_target_engine(global_dir.path(), "12.3.4").expect("the group is reused");
+
+    assert_eq!(reused.package_name, PNPM_EXE_PACKAGE_NAME);
+    assert_eq!(reused.install_dir, fs::canonicalize(&install_dir).expect("canonicalize"));
+}
+
+#[cfg(unix)]
+fn reuse_target_engine(global_dir: &std::path::Path, version: &str) -> Option<InstallPnpmResult> {
+    reuse_global_engine(global_dir, pnpm_package_to_install(version), version)
+        .expect("scan the global packages dir")
+}
+
+/// `scan_global_packages` enumerates the hash symlinks, not the install dirs,
+/// so a seeded group is only visible to it once it is linked.
+#[cfg(unix)]
+fn seed_global_group(
+    global_dir: &std::path::Path,
+    wrapper_pkg_name: &str,
+    version: &str,
+    with_native_binary: bool,
+) -> std::path::PathBuf {
+    let slot = format!("{}-{version}", wrapper_pkg_name.replace(['@', '/'], "-"));
+    let install_dir = global_dir.join(format!("engine-{slot}"));
+    fake_engine_install_for(&install_dir, wrapper_pkg_name, with_native_binary);
+    write_wrapper_version(&install_dir, wrapper_pkg_name, version);
+    let manifest = format!(r#"{{"dependencies":{{"{wrapper_pkg_name}":"{version}"}}}}"#);
+    fs::write(install_dir.join("package.json"), manifest).expect("write the group manifest");
+    pnpm_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{slot}")))
+        .expect("link the group");
+    install_dir
 }
 
 #[test]
@@ -405,7 +496,12 @@ fn reuse_cached_engine_rejects_a_wrapper_that_escapes_the_slot() {
     fs::write(outside_wrapper.join("package.json"), r#"{"name":"@pnpm/exe","version":"11.10.0"}"#)
         .expect("write outside wrapper manifest");
 
-    fs::create_dir_all(temp.path().join("node_modules").join("@pnpm")).expect("create scope dir");
+    fs::create_dir_all(
+        temp.path()
+            .join("node_modules")
+            .join("@pnpm"),
+    )
+    .expect("create scope dir");
     std::os::unix::fs::symlink(&outside_wrapper, package_dir(temp.path(), PNPM_EXE_PACKAGE_NAME))
         .expect("symlink wrapper outside slot");
 

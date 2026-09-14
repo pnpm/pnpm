@@ -30,16 +30,14 @@ fn render_parseable_for_project(
 ) -> String {
     let root_already_seen = dep_paths.contains(&project.path);
     dep_paths.insert(project.path.clone());
-    let all_deps: Vec<&DependencyNode> = project
-        .hierarchy
-        .optional_dependencies
+    let all_deps: Vec<&DependencyNode> = project.hierarchy.optional_dependencies
         .iter()
         .chain(&project.hierarchy.dependencies)
         .chain(&project.hierarchy.dev_dependencies)
         .chain(&project.hierarchy.unsaved_dependencies)
         .collect();
     let mut flattened = flatten(dep_paths, &all_deps);
-    flattened.sort_by(|a, b| a.name.cmp(&b.name));
+    flattened.sort_by(|a, b| a.package.name.cmp(&b.package.name));
     if root_already_seen && flattened.is_empty() {
         return String::new();
     }
@@ -78,12 +76,12 @@ fn parseable_project_line(project: &ProjectHierarchy, long: bool) -> String {
 /// specifier it resolves as — including the `npm:` alias form.
 fn parseable_node_line(node: &DependencyNode, long: bool) -> String {
     if !long {
-        return plain(&node.path);
+        return plain(&node.package.path);
     }
-    let path = plain(&node.path);
+    let path = plain(&node.package.path);
     let alias = plain(&node.alias);
-    let name = plain(&node.name);
-    let version = plain(&node.version);
+    let name = plain(&node.package.name);
+    let version = plain(&node.package.version);
     if alias == name {
         return if version.contains('@') {
             format!("{path}:{version}")
@@ -106,8 +104,8 @@ pub(super) fn flatten<'a>(
     for node in nodes {
         // Parseable output is flat, so packages that several parents
         // depend on are printed once.
-        if !dep_paths.contains(&node.path) {
-            dep_paths.insert(node.path.clone());
+        if !dep_paths.contains(&node.package.path) {
+            dep_paths.insert(node.package.path.clone());
             packages.push(node);
         }
         if !node.dependencies.is_empty() {
@@ -162,22 +160,22 @@ fn to_json_result(nodes: &[DependencyNode], long: bool) -> Map<String, Value> {
 /// One package's JSON object, with its own dependencies nested under it.
 fn node_to_json(node: &DependencyNode, long: bool) -> Map<String, Value> {
     let mut dep = Map::new();
-    dep.insert("from".to_string(), json!(node.name));
-    dep.insert("version".to_string(), json!(node.version));
-    if let Some(resolved) = &node.resolved {
+    dep.insert("from".to_string(), json!(node.package.name));
+    dep.insert("version".to_string(), json!(node.package.version));
+    if let Some(resolved) = &node.package.resolved {
         dep.insert("resolved".to_string(), json!(resolved));
     }
     if long {
-        insert_long_pkg_info(&mut dep, &read_long_pkg_info(Path::new(&node.path)));
+        insert_long_pkg_info(&mut dep, &read_long_pkg_info(Path::new(&node.package.path)));
     }
-    dep.insert("path".to_string(), json!(node.path));
+    dep.insert("path".to_string(), json!(node.package.path));
     let sub_dependencies = to_json_result(&node.dependencies, long);
     if !sub_dependencies.is_empty() {
         dep.insert("dependencies".to_string(), Value::Object(sub_dependencies));
     }
-    if node.deduped {
+    if node.status.deduped {
         dep.insert("deduped".to_string(), json!(true));
-        if let Some(count) = node.deduped_dependencies_count {
+        if let Some(count) = node.status.deduped_dependencies_count {
             dep.insert("dedupedDependenciesCount".to_string(), json!(count));
         }
     }

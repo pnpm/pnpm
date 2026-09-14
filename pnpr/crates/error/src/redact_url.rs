@@ -117,7 +117,11 @@ pub(super) fn redact_url_query(url: &mut url::Url) -> bool {
     if changed {
         url.query_pairs_mut()
             .clear()
-            .extend_pairs(pairs.iter().map(|(key, value)| (&**key, &**value)));
+            .extend_pairs(
+                pairs
+                    .iter()
+                    .map(|(key, value)| (&**key, &**value)),
+            );
     }
     changed
 }
@@ -171,7 +175,9 @@ pub(super) fn redact_sensitive_query_values(candidate: &str) -> Option<String> {
     redacted.push_str(&candidate[..=query_start]);
     let mut changed = false;
     for segment in query.split_inclusive('&') {
-        let (pair, separator) = segment.strip_suffix('&').map_or((segment, ""), |pair| (pair, "&"));
+        let (pair, separator) = segment
+            .strip_suffix('&')
+            .map_or((segment, ""), |pair| (pair, "&"));
         if let Some(value_start) = pair.find('=') {
             let key = &pair[..value_start];
             if is_sensitive_query_key(key) {

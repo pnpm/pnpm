@@ -2,11 +2,16 @@ use super::{ApproveBuildsArgs, ApproveBuildsError, partition_params, sort_unique
 use pnpm_reporter::SilentReporter;
 
 fn pending(names: &[&str]) -> Vec<String> {
-    names.iter().map(|name| (*name).to_string()).collect()
+    names
+        .iter()
+        .map(|name| (*name).to_string())
+        .collect()
 }
 
 fn params(args: &[&str]) -> Vec<String> {
-    args.iter().map(|arg| (*arg).to_string()).collect()
+    args.iter()
+        .map(|arg| (*arg).to_string())
+        .collect()
 }
 
 fn args(packages: &[&str]) -> ApproveBuildsArgs {

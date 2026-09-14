@@ -197,7 +197,10 @@ fn remove_dir_all_failure_restores_preserved_node_modules() {
     for entry in walkdir::WalkDir::new(tmp.path()) {
         let path = entry.unwrap().into_path();
         assert!(
-            !path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.contains("pacquet-stage")),
+            !path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.contains("pacquet-stage")),
             "staging directory leaked at {path:?}",
         );
     }
@@ -247,7 +250,10 @@ fn node_modules_inspect_permission_denied_surfaces() {
     for entry in walkdir::WalkDir::new(tmp.path()) {
         let path = entry.unwrap().into_path();
         assert!(
-            !path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.contains("pacquet-stage")),
+            !path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.contains("pacquet-stage")),
             "staging directory leaked at {path:?}",
         );
     }

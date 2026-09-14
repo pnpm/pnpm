@@ -57,7 +57,7 @@ pub(super) async fn serve_authorized_upstream_tarball(
     if let Err(err) = screen_parsed_version(state, name, parsed_version) {
         return err.into_response();
     }
-    let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
+    let ttl = upstream.maxage().unwrap_or(state.inner.config.http.packument_ttl);
     // Serve a cached hit before touching the packument: a cached entry was
     // bound to a declared version and verified against `dist.integrity` when
     // it was written, and the client re-verifies what it receives, so no
@@ -194,7 +194,12 @@ pub(super) async fn fetch_upstream_tarball(
     upstream: &Upstream,
     tarball: UpstreamTarball<'_>,
 ) -> Response {
-    let UpstreamTarball { namespace, name, filename, integrity } = tarball;
+    let UpstreamTarball {
+        namespace,
+        name,
+        filename,
+        integrity,
+    } = tarball;
     let fetched = timed(
         "tarball:upstream_fetch",
         name.as_str(),

@@ -55,7 +55,12 @@ impl Resolve for RecordingResolver {
 }
 
 fn list(entries: &[&str]) -> NoProxySetting {
-    NoProxySetting::List(entries.iter().map(|s| (*s).to_string()).collect())
+    NoProxySetting::List(
+        entries
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect(),
+    )
 }
 
 // --- TLS / local-address tests ---

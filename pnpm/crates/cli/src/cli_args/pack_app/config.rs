@@ -30,9 +30,14 @@ pub(super) fn default_runtime_version() -> String {
 pub(super) fn escapes_project(raw: &str) -> bool {
     let path = Path::new(raw);
     path.is_absolute()
-        || path.components().any(|component| {
-            matches!(component, Component::ParentDir | Component::RootDir | Component::Prefix(_))
-        })
+        || path
+            .components()
+            .any(|component| {
+                matches!(
+                    component,
+                    Component::ParentDir | Component::RootDir | Component::Prefix(_),
+                )
+            })
 }
 
 /// Whether `path` resolves (symlinks included) to a location inside `base`.
@@ -106,7 +111,11 @@ pub(super) fn parse_runtime(spec: &str) -> Result<String, PackAppError> {
 /// Win32 reserved device names (case-insensitive, with or without an
 /// extension).
 pub(super) fn is_reserved_windows_name(name: &str) -> bool {
-    let stem = name.split('.').next().unwrap_or(name).to_ascii_lowercase();
+    let stem = name
+        .split('.')
+        .next()
+        .unwrap_or(name)
+        .to_ascii_lowercase();
     matches!(stem.as_str(), "con" | "prn" | "aux" | "nul")
         || (stem.len() == 4
             && (stem.starts_with("com") || stem.starts_with("lpt"))
@@ -118,8 +127,9 @@ pub(super) fn is_reserved_windows_name(name: &str) -> bool {
 /// or that would fail filesystem-level validation on any supported host.
 pub(super) fn validate_output_name(name: &str) -> Result<String, PackAppError> {
     let basename = Path::new(name).file_name().and_then(|n| n.to_str());
-    let invalid_chars =
-        name.chars().any(|c| matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*' | '\0'));
+    let invalid_chars = name
+        .chars()
+        .any(|c| matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*' | '\0'));
     let trailing_dot_or_space = name.ends_with('.') || name.ends_with(' ');
     if basename != Some(name)
         || name.is_empty()
@@ -162,10 +172,11 @@ pub(super) fn read_project_app_config(
     let Ok(raw) = fs::read_to_string(&manifest_path) else {
         return Ok(ReadProjectAppConfigResult::default());
     };
-    let manifest: Value = parse_manifest(&raw).map_err(|err| PackAppError::InvalidPackageJson {
-        path: manifest_path.display().to_string(),
-        message: err.to_string(),
-    })?;
+    let manifest: Value = parse_manifest(&raw)
+        .map_err(|err| PackAppError::InvalidPackageJson {
+            path: manifest_path.display().to_string(),
+            message: err.to_string(),
+        })?;
     let Some(manifest) = manifest.as_object() else {
         return Ok(ReadProjectAppConfigResult::default());
     };
@@ -240,9 +251,11 @@ fn app_targets(raw: &serde_json::Map<String, Value>) -> Result<Vec<String>, Pack
         Some(Value::Array(items)) => items
             .iter()
             .map(|item| {
-                item.as_str().map(ToString::to_string).ok_or_else(|| PackAppError::InvalidConfig {
-                    message: r#""pnpm.app.targets" must be an array of strings."#.to_string(),
-                })
+                item.as_str()
+                    .map(ToString::to_string)
+                    .ok_or_else(|| PackAppError::InvalidConfig {
+                        message: r#""pnpm.app.targets" must be an array of strings."#.to_string(),
+                    })
             })
             .collect::<Result<Vec<_>, _>>()?,
         Some(_) => {

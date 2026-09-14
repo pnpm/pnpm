@@ -457,8 +457,7 @@ fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
                 && tarball.git_hosted != Some(true)
                 && !is_git_hosted_tarball_url(&tarball.tarball)
         }
-        LockfileResolution::Variations(variations) => variations
-            .variants
+        LockfileResolution::Variations(variations) => variations.variants
             .iter()
             .all(|variant| is_registry_shaped_resolution(&variant.resolution)),
         // Custom resolutions are opaque to the npm verifier — they are
@@ -513,14 +512,24 @@ fn collect_invalid_dependency_names(lockfile: &Lockfile) -> std::collections::BT
         for deps in
             [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
         {
-            push_invalid_aliases(deps.iter().flatten().map(|(alias, _)| alias), &mut invalid);
+            push_invalid_aliases(
+                deps.iter()
+                    .flatten()
+                    .map(|(alias, _)| alias),
+                &mut invalid,
+            );
         }
     }
     let Some(snapshots) = lockfile.snapshots.as_ref() else { return invalid };
     for (key, snapshot) in snapshots {
         push_invalid_aliases(std::iter::once(&key.name), &mut invalid);
         for deps in [&snapshot.dependencies, &snapshot.optional_dependencies] {
-            push_invalid_aliases(deps.iter().flatten().map(|(alias, _)| alias), &mut invalid);
+            push_invalid_aliases(
+                deps.iter()
+                    .flatten()
+                    .map(|(alias, _)| alias),
+                &mut invalid,
+            );
         }
     }
     invalid

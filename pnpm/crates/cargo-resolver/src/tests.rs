@@ -110,15 +110,22 @@ fn resolves_newest_non_yanked_versions_into_a_cargo_lockfile() {
 
     assert_eq!(lockfile.version, cargo_lock::ResolveVersion::V4);
     assert_eq!(lockfile.packages.len(), 3);
-    assert!(lockfile.packages.iter().any(|package| {
-        package.name.as_str() == "foo" && package.version == semver::Version::new(1, 1, 0)
-    }));
-    assert!(lockfile.packages.iter().any(|package| {
-        package.name.as_str() == "bar" && package.version == semver::Version::new(2, 0, 0)
-    }));
     assert!(
-        lockfile
-            .packages
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(1, 1, 0)
+            }),
+    );
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "bar" && package.version == semver::Version::new(2, 0, 0)
+            }),
+    );
+    assert!(
+        lockfile.packages
             .iter()
             .any(|package| package.name.as_str() == "app" && package.source.is_none()),
     );
@@ -209,7 +216,11 @@ fn propagates_features_from_the_selected_older_candidate() {
         Lockfile::from_str(&resolve_lockfile(metadata, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
 
     assert_eq!(lockfile.packages.len(), 4);
-    assert!(lockfile.packages.iter().any(|package| package.name.as_str() == "baz"));
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| package.name.as_str() == "baz"),
+    );
 }
 
 #[test]
@@ -249,10 +260,18 @@ fn ignores_features_from_an_unselected_newer_candidate() {
     let lockfile =
         Lockfile::from_str(&resolve_lockfile(metadata, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
 
-    assert!(lockfile.packages.iter().any(|package| {
-        package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
-    }));
-    assert!(!lockfile.packages.iter().any(|package| package.name.as_str() == "baz"));
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+            }),
+    );
+    assert!(
+        !lockfile.packages
+            .iter()
+            .any(|package| package.name.as_str() == "baz"),
+    );
 }
 
 #[test]
@@ -274,7 +293,11 @@ fn propagates_dependency_features_without_default_features() {
         Lockfile::from_str(&resolve_lockfile(&metadata, &files, CRATES_IO_SOURCE).unwrap())
             .unwrap();
 
-    assert!(lockfile.packages.iter().any(|package| package.name.as_str() == "baz"));
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| package.name.as_str() == "baz"),
+    );
 }
 
 #[test]
@@ -293,10 +316,18 @@ fn backtracks_when_a_candidate_feature_conflicts_with_that_candidate() {
     let lockfile =
         Lockfile::from_str(&resolve_lockfile(METADATA, &files, CRATES_IO_SOURCE).unwrap()).unwrap();
 
-    assert!(lockfile.packages.iter().any(|package| {
-        package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
-    }));
-    assert!(!lockfile.packages.iter().any(|package| package.name.as_str() == "qux"));
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+            }),
+    );
+    assert!(
+        !lockfile.packages
+            .iter()
+            .any(|package| package.name.as_str() == "qux"),
+    );
 }
 
 #[test]
@@ -322,9 +353,13 @@ fn selects_an_older_candidate_that_provides_a_requested_feature() {
         Lockfile::from_str(&resolve_lockfile(&metadata, &files, CRATES_IO_SOURCE).unwrap())
             .unwrap();
 
-    assert!(lockfile.packages.iter().any(|package| {
-        package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
-    }));
+    assert!(
+        lockfile.packages
+            .iter()
+            .any(|package| {
+                package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+            }),
+    );
 }
 
 #[test]
@@ -389,7 +424,9 @@ fn resolve_inputs_keeps_the_features_a_dependency_requests() {
         Lockfile::from_str(&resolve_lockfile(&reduced, &index_files, CRATES_IO_SOURCE).unwrap())
             .unwrap();
     assert!(
-        lockfile.packages.iter().any(|package| package.name.as_str() == "bar"),
+        lockfile.packages
+            .iter()
+            .any(|package| package.name.as_str() == "bar"),
         "the feature that activates bar survived the reduction: {lockfile:?}",
     );
 }

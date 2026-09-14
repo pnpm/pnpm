@@ -188,14 +188,16 @@ impl ConfigArgs {
                 config_set(config, dir, flags, &key, Some(value))?;
             }
             ConfigSubcommand::Delete(args) => {
-                let key = args
-                    .key
+                let key = args.key
                     .filter(|key| !key.is_empty())
                     .ok_or_else(|| ConfigError::NoParams { subcommand: "delete".to_string() })?;
                 config_set(config, dir, flags, &key, None)?;
             }
             ConfigSubcommand::Get(args) => {
-                let output = match args.key.as_deref().filter(|key| !key.is_empty()) {
+                let output = match args.key
+                    .as_deref()
+                    .filter(|key| !key.is_empty())
+                {
                     Some(key) => config_get(config, flags, key)?,
                     None => config_list(config),
                 };

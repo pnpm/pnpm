@@ -11,32 +11,34 @@ pub(in super::super) fn install_test<'a>(
     let install_args = args.install_args;
     let mut run_args = super::super::run::RunArgs {
         script: super::super::run::RunArgs::script("test", args.args),
-        if_present: ctx.if_present,
-        resume_from: ctx.recursive_resume_from.map(str::to_string),
-        report_summary: ctx.recursive_report_summary,
-        no_bail: false,
-        sort: true,
-        reverse: false,
-        parallel: ctx.recursive_parallel,
+        if_present: ctx.workspace.if_present,
         sequential: false,
         dry_run: false,
         json: false,
+        workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
+            resume_from: ctx.workspace.resume_from.map(str::to_string),
+            report_summary: ctx.workspace.report_summary,
+            no_bail: false,
+            sort: true,
+            reverse: false,
+            parallel: ctx.workspace.parallel,
+        },
     };
 
     let install_future = install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)?;
 
-    let dir = ctx.dir;
-    let recursive = ctx.recursive;
-    let config = ctx.config;
+    let dir = ctx.locations.dir;
+    let recursive = ctx.workspace.recursive;
+    let config = ctx.loaders.config;
     let reporter = ctx.reporter;
 
     Ok(Box::pin(async move {
         install_future.await?;
 
         let cfg = config()?;
-        run_args.no_bail = !cfg.bail;
-        run_args.sort = cfg.sort;
-        run_args.reverse = cfg.reverse;
+        run_args.workspace.no_bail = !cfg.bail;
+        run_args.workspace.sort = cfg.sort;
+        run_args.workspace.reverse = cfg.reverse;
         if recursive {
             run_args.run_recursive(cfg, dir, reporter)?;
         } else {
@@ -51,25 +53,25 @@ pub(in super::super) fn pipeline<'a>(
     ctx: &RunCtx<'a>,
     args: PipelineArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    if args.watch {
-        let config = ctx.config;
+    if args.agent.watch {
+        let config = ctx.loaders.config;
         return Ok(Box::pin(async move {
             let cfg = config()?;
             run_watch(&watch_invocation(args, cfg), &cfg.state_dir)
         }));
     }
     let (invocation, mut install_args) = pipeline_invocation(args);
-    install_args.frozen_lockfile = true;
-    install_args.dry_run = false;
+    install_args.lockfile.frozen = true;
+    install_args.materialization.dry_run = false;
 
     let install_future = if invocation.dry_run {
         None
     } else {
         Some(install_with_config(ctx, install_args, UpdateCheckPolicy::Skip)?)
     };
-    let dir = ctx.dir;
+    let dir = ctx.locations.dir;
     let reporter = ctx.reporter;
-    let config = ctx.config;
+    let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         let cfg = if let Some(install) = install_future { install.await? } else { config()? };
         let outcome = run_pipeline(&invocation, cfg, dir, reporter)?;
@@ -93,14 +95,16 @@ pub(in super::super) fn pipeline<'a>(
 fn watch_invocation(args: PipelineArgs, cfg: &Config) -> WatchInvocation {
     WatchInvocation {
         pipeline_name: args.name,
-        repo: args.repo.expect("clap requires --repo with --watch"),
-        branch: args.branch,
-        interval: std::time::Duration::from_secs(args.interval),
-        once: args.once,
         no_cache: args.no_cache,
-        report: args.report || args.report_to.is_some(),
-        report_to: args.report_to,
+        report: args.reporting.report || args.reporting.report_to.is_some(),
+        report_to: args.reporting.report_to,
         npmrc_auth_file: cfg.npmrc_auth_file.clone(),
+        polling: crate::cli_args::pipeline::WatchPolling {
+            repo: args.agent.repo.expect("clap requires --repo with --watch"),
+            branch: args.agent.branch,
+            interval: std::time::Duration::from_secs(args.agent.interval),
+            once: args.agent.once,
+        },
     }
 }
 
@@ -110,13 +114,13 @@ fn pipeline_invocation(args: PipelineArgs) -> (PipelineInvocation, InstallArgs) 
         name: args.name,
         // `--dry-run` prints the task graph and runs nothing, the
         // install included.
-        dry_run: args.install_args.dry_run,
+        dry_run: args.install_args.materialization.dry_run,
         json: args.json,
         no_cache: args.no_cache,
         full: args.full,
         base: args.base,
-        report: args.report || args.report_to.is_some(),
-        report_to: args.report_to,
+        report: args.reporting.report || args.reporting.report_to.is_some(),
+        report_to: args.reporting.report_to,
     };
     (invocation, args.install_args)
 }

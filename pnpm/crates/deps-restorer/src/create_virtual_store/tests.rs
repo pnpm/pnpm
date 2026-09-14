@@ -52,7 +52,12 @@ fn dep_map(children: &[&str]) -> Option<HashMap<PkgName, SnapshotDepRef>> {
     }
     // The ref value is irrelevant to `removed_child_aliases`; only the
     // alias keys matter. A bare version is the simplest valid ref.
-    Some(children.iter().map(|child| (name(child), "1.0.0".parse().expect("ref"))).collect())
+    Some(
+        children
+            .iter()
+            .map(|child| (name(child), "1.0.0".parse().expect("ref")))
+            .collect(),
+    )
 }
 
 fn snapshot(deps: &[&str], optional: &[&str]) -> SnapshotEntry {
@@ -195,34 +200,45 @@ impl SeededStoreInstall {
         let requester = self.workspace_root.to_string_lossy().into_owned();
 
         let output = CreateVirtualStore {
+            fetching: crate::VirtualStoreFetchInputs {
+                http_client: &pnpm_network::ThrottledClient::default(),
+                store_index_writer: &store_index_writer,
+                store_context: None,
+                cas_prefetch: None,
+                progress_reported: &progress_reported,
+                tarball_mem_cache: None,
+                custom_fetcher_session: None,
+                planned_canonical_fetches: None,
+            },
+            selection: crate::SnapshotSelection {
+                skipped: &skipped,
+                include_optional: true,
+                supported_architectures: None,
+            },
             ctx: &crate::InstallContext {
+                linker: crate::ModuleLinkerContext {
+                    layout: &layout,
+                    kind: NodeLinker::Isolated,
+                    bin_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+                },
                 config: self.config,
                 workspace_root: &self.workspace_root,
                 requester: &requester,
-                layout: &layout,
-                node_linker: NodeLinker::Isolated,
+
                 allow_build_policy: &allow_build_policy,
-                link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+
                 logged_methods: &logged_methods,
                 git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
             },
-            http_client: &pnpm_network::ThrottledClient::default(),
+
             entries: LockfileEntries {
                 packages: Some(&self.packages),
                 snapshots: Some(&self.snapshots),
             },
             current_entries: LockfileEntries::default(),
-            store_index_writer: &store_index_writer,
-            store_context: None,
-            cas_prefetch: None,
-            skipped: &skipped,
-            include_optional_dependencies: true,
-            supported_architectures: None,
+
             dir_clone_cache: None,
-            progress_reported: &progress_reported,
-            tarball_mem_cache: None,
-            custom_fetcher_session: None,
-            planned_canonical_fetches: None,
+
             link_concurrency_probe: None,
         }
         .run::<SilentReporter>()
@@ -360,13 +376,12 @@ fn slot_link<'a>(
     removed_aliases: &'a [PkgName],
 ) -> crate::create_virtual_store::slot_linking::SlotLink<'a> {
     crate::create_virtual_store::slot_linking::SlotLink {
+        source: crate::SlotImportSource { is_mutable: true, force: false, build_marker: None },
         snapshot_key,
         snapshot,
         cas_paths,
         warm_cache_key: None,
-        source_is_mutable: true,
-        force_import: false,
-        needs_build_marker_source: None,
+
         dir_clone_cacheable: false,
         removed_aliases,
     }

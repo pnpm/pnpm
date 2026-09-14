@@ -6,8 +6,13 @@ use assert_cmd::assert::OutputAssertExt;
 
 #[test]
 fn deploy_refuses_non_empty_target_without_force() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     fs::create_dir_all(workspace.join("deploy")).unwrap();
@@ -30,8 +35,13 @@ fn deploy_refuses_non_empty_target_without_force() {
 
 #[test]
 fn force_deploy_rejects_out_of_scope_target_without_deleting_it() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     let outside = root.path().join("outside-deploy");
@@ -59,8 +69,13 @@ fn force_deploy_rejects_out_of_scope_target_without_deleting_it() {
 fn deploy_all_files_rejects_symlink_escape() {
     use std::os::unix::fs::symlink;
 
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
@@ -96,8 +111,13 @@ fn deploy_all_files_rejects_symlink_escape() {
 fn deploy_rejects_symlinked_target_parent() {
     use std::os::unix::fs::symlink;
 
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     let outside = root.path().join("outside-target");
@@ -127,8 +147,13 @@ fn deploy_rejects_symlinked_target_parent() {
 #[cfg(windows)]
 #[test]
 fn deploy_rejects_linked_target_parent() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     let outside = root.path().join("outside-target");
@@ -160,8 +185,13 @@ fn deploy_rejects_linked_target_parent() {
 /// file set.
 #[test]
 fn deployed_files_field_does_not_match_at_depth() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, true);
     write_project(
@@ -181,7 +211,10 @@ fn deployed_files_field_does_not_match_at_depth() {
         fs::write(file, "").unwrap();
     }
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     pacquet_cmd(&workspace)
         .with_args(["--filter", "packs-its-own-src", "deploy", "deploy"])
         .assert()

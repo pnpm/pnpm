@@ -92,7 +92,12 @@ async fn open_circuit_short_circuits_without_hitting_the_upstream() {
     let mut server = mockito::Server::new_async().await;
     // `max_fails: 1` trips after the first 500; the breaker must then
     // short-circuit, so the upstream is hit exactly once.
-    let mock = server.mock("GET", "/foo").with_status(500).expect(1).create_async().await;
+    let mock = server
+        .mock("GET", "/foo")
+        .with_status(500)
+        .expect(1)
+        .create_async()
+        .await;
 
     let upstream = breaking_upstream(server.url(), 1);
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
@@ -114,7 +119,12 @@ async fn client_error_status_does_not_open_the_circuit() {
     // A 401 is an authoritative answer, not an availability failure: even
     // at `max_fails: 1` it must not trip the breaker, so the upstream is
     // reached on both requests rather than masked behind a 503.
-    let mock = server.mock("GET", "/foo").with_status(401).expect(2).create_async().await;
+    let mock = server
+        .mock("GET", "/foo")
+        .with_status(401)
+        .expect(2)
+        .create_async()
+        .await;
 
     let upstream = breaking_upstream(server.url(), 1);
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();

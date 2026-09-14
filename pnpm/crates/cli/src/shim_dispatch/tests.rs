@@ -18,7 +18,10 @@ use pnpm_config::{Config, NodeLinker, ShimPolicy};
 use std::{ffi::OsString, fs, path::Path};
 
 fn strings(items: &[&str]) -> Vec<OsString> {
-    items.iter().map(OsString::from).collect()
+    items
+        .iter()
+        .map(OsString::from)
+        .collect()
 }
 
 #[test]
@@ -99,7 +102,10 @@ fn no_candidate_without_a_bin_or_pin() {
 #[test]
 fn local_bin_ignores_directories() {
     let root = tempfile::tempdir().unwrap();
-    let bin_dir = root.path().join("node_modules").join(".bin");
+    let bin_dir = root
+        .path()
+        .join("node_modules")
+        .join(".bin");
     fs::create_dir_all(bin_dir.join("tsc")).unwrap();
     assert!(local_bin_path(root.path(), "tsc").is_none());
 }
@@ -175,7 +181,10 @@ fn runtime_pin_candidate_found_walking_up() {
 #[test]
 fn runtime_candidates_never_use_project_bin_entries() {
     let root = tempfile::tempdir().unwrap();
-    let bin_dir = root.path().join("node_modules").join(".bin");
+    let bin_dir = root
+        .path()
+        .join("node_modules")
+        .join(".bin");
     fs::create_dir_all(&bin_dir).unwrap();
     fs::write(bin_dir.join("node"), "compromised").unwrap();
 
@@ -207,7 +216,13 @@ fn managed_runtime_must_resolve_inside_the_global_store() {
     std::os::unix::fs::symlink(&package, environment_modules.join("node")).unwrap();
 
     assert_eq!(
-        managed_runtime_bin(root.path().join("state/environment").as_path(), "node", &store),
+        managed_runtime_bin(
+            root.path()
+                .join("state/environment")
+                .as_path(),
+            "node",
+            &store
+        ),
         Some(fs::canonicalize(package.join("bin/node")).unwrap()),
     );
 
@@ -219,7 +234,13 @@ fn managed_runtime_must_resolve_inside_the_global_store() {
     fs::write(outside.join("bin/node"), "runtime").unwrap();
     std::os::unix::fs::symlink(outside, environment_modules.join("node")).unwrap();
     assert_eq!(
-        managed_runtime_bin(root.path().join("state/environment").as_path(), "node", &store),
+        managed_runtime_bin(
+            root.path()
+                .join("state/environment")
+                .as_path(),
+            "node",
+            &store
+        ),
         None,
     );
 }
@@ -243,7 +264,10 @@ fn hardened_runtime_install_pins_the_isolated_linker() {
 #[test]
 fn trust_decisions_round_trip_last_record_wins() {
     let root = tempfile::tempdir().unwrap();
-    let trust_file = root.path().join("state").join("global-bin-trust.jsonl");
+    let trust_file = root
+        .path()
+        .join("state")
+        .join("global-bin-trust.jsonl");
 
     assert_eq!(read_trust_decision(&trust_file, "/a", "candidate-a"), None);
     append_trust_decision(&trust_file, "/a", "candidate-a", true).unwrap();
@@ -338,7 +362,10 @@ fn local_bin_fingerprint_binds_the_executed_flavor() {
         bin_dir.join("tool"),
         format!(
             "#!/bin/sh\nexec x\n# cmd-shim-target={}\n",
-            modules.join("tool").join("cli.js").display(),
+            modules
+                .join("tool")
+                .join("cli.js")
+                .display(),
         ),
     )
     .unwrap();
@@ -390,7 +417,10 @@ fn revalidation_rejects_a_bin_swapped_after_approval() {
         &bin,
         format!(
             "#!/bin/sh\nexec x\n# cmd-shim-target={}\n",
-            modules.join("tool").join("cli.js").display(),
+            modules
+                .join("tool")
+                .join("cli.js")
+                .display(),
         ),
     )
     .unwrap();
@@ -402,7 +432,10 @@ fn revalidation_rejects_a_bin_swapped_after_approval() {
         &bin,
         format!(
             "#!/bin/sh\nexec swapped\n# cmd-shim-target={}\n",
-            modules.join("tool").join("cli.js").display(),
+            modules
+                .join("tool")
+                .join("cli.js")
+                .display(),
         ),
     )
     .unwrap();
@@ -453,7 +486,10 @@ fn local_bin_identity_resolves_symlinks_and_trailers() {
         &scripted,
         format!(
             "#!/bin/sh\nexec x\n# cmd-shim-target={}\n",
-            modules.join("tool").join("cli.js").display(),
+            modules
+                .join("tool")
+                .join("cli.js")
+                .display(),
         ),
     )
     .unwrap();

@@ -144,7 +144,10 @@ pub fn diff_lockfiles(
 
     let mut diff = LockfileDiff::default();
 
-    let mut importer_ids: BTreeSet<&str> = new.importers.keys().map(String::as_str).collect();
+    let mut importer_ids: BTreeSet<&str> = new.importers
+        .keys()
+        .map(String::as_str)
+        .collect();
     if let Some(old) = old {
         importer_ids.extend(old.importers.keys().map(String::as_str));
     }
@@ -188,7 +191,11 @@ fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut Loc
             Some(_) => {}
         }
     }
-    for key in old_snapshots.into_iter().flatten().map(|(key, _)| key) {
+    for key in old_snapshots
+        .into_iter()
+        .flatten()
+        .map(|(key, _)| key)
+    {
         if new_snapshots.is_none_or(|snapshots| !snapshots.contains_key(key)) {
             diff.removed_packages.push(key.to_string());
         }

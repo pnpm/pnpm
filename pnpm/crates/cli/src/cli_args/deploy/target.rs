@@ -165,9 +165,11 @@ fn create_workspace_child_target_component(component: &Path) -> miette::Result<(
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
         Err(error) => {
-            return Err(error).into_diagnostic().wrap_err_with(|| {
-                format!("create deploy target component {}", component.display())
-            });
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| {
+                    format!("create deploy target component {}", component.display())
+                });
         }
     }
     let metadata = fs::symlink_metadata(component)
@@ -244,8 +246,8 @@ pub(super) fn copy_project<ReporterT: Reporter>(
 }
 
 pub(super) fn apply_deploy_hook(manifest_path: &Path) -> miette::Result<()> {
-    let mut manifest = PackageManifest::from_path(manifest_path.to_path_buf())
-        .wrap_err("read deployed manifest")?;
+    let mut manifest =
+        PackageManifest::from_path(manifest_path.to_path_buf()).wrap_err("read deployed manifest")?;
     apply_deploy_manifest_hook(manifest.value_mut());
     manifest.save().wrap_err("write deployed manifest")
 }
@@ -285,7 +287,14 @@ fn path_components_match(left: &Path, right: &Path) -> bool {
 
 fn comparable_path_components(path: &Path) -> Vec<String> {
     path.components()
-        .map(|component| comparison_component(component.as_os_str().to_string_lossy().as_ref()))
+        .map(|component| {
+            comparison_component(
+                component
+                    .as_os_str()
+                    .to_string_lossy()
+                    .as_ref(),
+            )
+        })
         .collect()
 }
 
@@ -323,8 +332,7 @@ pub(super) fn write_deploy_files(
 ) -> miette::Result<()> {
     let mut manifest = serde_json::to_string_pretty(&deploy_files.manifest).into_diagnostic()?;
     manifest.push('\n');
-    let lockfile = deploy_files
-        .lockfile
+    let lockfile = deploy_files.lockfile
         .to_yaml_string()
         .map_err(miette::Report::new)
         .wrap_err("serialize deployed lockfile")?;

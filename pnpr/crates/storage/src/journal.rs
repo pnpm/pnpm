@@ -284,7 +284,10 @@ impl PublishJournal {
             let _ = fs::remove_dir_all(&dir).await;
             return Err(err);
         }
-        let base_versions = packages.iter().map(|package| package.base_version.cloned()).collect();
+        let base_versions = packages
+            .iter()
+            .map(|package| package.base_version.cloned())
+            .collect();
         Ok(SealedTxn { dir, revision_ref_owner, base_versions })
     }
 }
@@ -387,22 +390,26 @@ impl SealedTxn {
         };
         let target = PackageTarget { store, name };
         let mut lost_blobs = promote_blobs(&target, package, lost_tmp_paths).await?;
-        let claimed = self
-            .claim_revision_refs(&target, package, &mut lost_blobs, &mut context.progress.outcome)
-            .await?;
+        let claimed = self.claim_revision_refs(
+            &target,
+            package,
+            &mut lost_blobs,
+            &mut context.progress.outcome,
+        )
+        .await?;
         self.write_package_document(&target, package, index, &lost_blobs, context).await?;
         for revision_ref in claimed.into_values().flatten() {
-            target
-                .store
-                .commit_hosted_revision_ref(
-                    &revision_ref.digest,
-                    &revision_ref.ref_id,
-                    &self.revision_ref_owner,
-                )
-                .await?;
+            target.store.commit_hosted_revision_ref(
+                &revision_ref.digest,
+                &revision_ref.ref_id,
+                &self.revision_ref_owner,
+            )
+            .await?;
         }
         context.progress.outcome.lost_blobs.extend(
-            lost_blobs.into_iter().map(|filename| LostBlob { package: package.id(), filename }),
+            lost_blobs
+                .into_iter()
+                .map(|filename| LostBlob { package: package.id(), filename }),
         );
         Ok(())
     }
@@ -421,18 +428,19 @@ impl SealedTxn {
             if lost_blobs.contains(&revision_ref.filename) {
                 continue;
             }
-            let write = target
-                .store
-                .write_hosted_revision_ref(
-                    &revision_ref.digest,
-                    &revision_ref.ref_id,
-                    &self.revision_ref_owner,
-                    &revision_ref.bytes,
-                )
-                .await;
+            let write = target.store.write_hosted_revision_ref(
+                &revision_ref.digest,
+                &revision_ref.ref_id,
+                &self.revision_ref_owner,
+                &revision_ref.bytes,
+            )
+            .await;
             match write {
                 Ok(HostedRevisionRefWrite::Claimed | HostedRevisionRefWrite::AlreadyClaimed) => {
-                    claimed.entry(&revision_ref.filename).or_default().push(revision_ref);
+                    claimed
+                        .entry(&revision_ref.filename)
+                        .or_default()
+                        .push(revision_ref);
                 }
                 Ok(HostedRevisionRefWrite::Committed) => {}
                 Err(RegistryError::RevisionReferenceLimit { limit }) => {
@@ -454,14 +462,12 @@ impl SealedTxn {
         claimed: Option<Vec<&JournaledRevisionRef>>,
     ) -> Result<()> {
         for claimed_ref in claimed.into_iter().flatten() {
-            target
-                .store
-                .remove_hosted_revision_ref(
-                    &claimed_ref.digest,
-                    &claimed_ref.ref_id,
-                    &self.revision_ref_owner,
-                )
-                .await?;
+            target.store.remove_hosted_revision_ref(
+                &claimed_ref.digest,
+                &claimed_ref.ref_id,
+                &self.revision_ref_owner,
+            )
+            .await?;
         }
         Ok(())
     }
@@ -483,32 +489,32 @@ impl SealedTxn {
         if lost_blobs.is_empty()
             && let Some(base_version) = self.base_versions.get(index)
         {
-            let write = target
-                .store
-                .write_hosted_document_if_current(&target.name, &journaled, base_version.as_ref())
-                .await?;
+            let write = target.store.write_hosted_document_if_current(
+                &target.name,
+                &journaled,
+                base_version.as_ref(),
+            )
+            .await?;
             if matches!(write, DocumentWrite::Written) {
                 context.progress.wrote_documents.insert(package.id());
                 return Ok(());
             }
         }
         let documents = context.documents;
-        let update = target
-            .store
-            .update_hosted_document_with_retry(
-                &target.name,
-                COMMIT_DOCUMENT_WRITE_RETRIES,
-                |existing| {
-                    documents.merge(DocumentMerge {
-                        ecosystem: package.ecosystem,
-                        name: &target.name,
-                        existing,
-                        journaled: &journaled,
-                        lost_blobs,
-                    })
-                },
-            )
-            .await?;
+        let update = target.store.update_hosted_document_with_retry(
+            &target.name,
+            COMMIT_DOCUMENT_WRITE_RETRIES,
+            |existing| {
+                documents.merge(DocumentMerge {
+                    ecosystem: package.ecosystem,
+                    name: &target.name,
+                    existing,
+                    journaled: &journaled,
+                    lost_blobs,
+                })
+            },
+        )
+        .await?;
         match update {
             DocumentUpdate::Written => {
                 context.progress.wrote_documents.insert(package.id());
@@ -573,8 +579,11 @@ pub async fn recover_publish_journal(
     config: &Config,
     documents: &dyn HostedDocuments,
 ) -> Result<()> {
-    let storage =
-        Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?;
+    let storage = Storage::new(
+        &config.storage.hosted_backend,
+        config.storage.hosted_dir.clone(),
+        config.storage.cache_dir.clone(),
+    )?;
     storage.publish_journal().recover(&storage, documents).await
 }
 

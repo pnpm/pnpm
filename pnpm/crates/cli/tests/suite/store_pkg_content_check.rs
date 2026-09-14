@@ -16,23 +16,38 @@ fn make_the_store_row_hold_another_package(store_dir: &Path) {
         .into_iter()
         .find(|key| key.ends_with("\tis-odd@3.0.1"))
         .expect("the install wrote a row for is-odd@3.0.1");
-    let mut entry = index.get(&key).expect("read the row").expect("the row exists");
+    let mut entry = index
+        .get(&key)
+        .expect("read the row")
+        .expect("the row exists");
     entry.manifest = Some(serde_json::json!({ "name": "not-is-odd", "version": "3.0.1" }));
     index.set(&key, &entry).expect("rewrite the row");
 }
 
 #[test]
 fn install_fails_when_the_store_holds_another_package() {
-    let CommandTempCwd { mut pacquet, workspace, root: _root, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        mut pacquet,
+        workspace,
+        root: _root,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
-    pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
+    pacquet
+        .arg("add")
+        .arg("is-odd@3.0.1")
+        .assert()
+        .success();
     make_the_store_row_hold_another_package(&npmrc_info.store_dir);
     fs::remove_dir_all(workspace.join("node_modules")).expect("drop the materialized modules");
 
     let mut reinstall = std::process::Command::cargo_bin("pnpm").unwrap();
     reinstall.current_dir(&workspace);
-    let output = reinstall.arg("install").assert().failure();
+    let output = reinstall
+        .arg("install")
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(stderr.contains("ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE"), "{stderr}");
     assert!(stderr.contains("Actual package in the store: not-is-odd@3.0.1."), "{stderr}");
@@ -40,10 +55,19 @@ fn install_fails_when_the_store_holds_another_package() {
 
 #[test]
 fn strict_store_pkg_content_check_false_downgrades_the_failure_to_a_warning() {
-    let CommandTempCwd { mut pacquet, workspace, root: _root, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        mut pacquet,
+        workspace,
+        root: _root,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
-    pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
+    pacquet
+        .arg("add")
+        .arg("is-odd@3.0.1")
+        .assert()
+        .success();
     make_the_store_row_hold_another_package(&npmrc_info.store_dir);
     fs::remove_dir_all(workspace.join("node_modules")).expect("drop the materialized modules");
 
@@ -54,7 +78,10 @@ fn strict_store_pkg_content_check_false_downgrades_the_failure_to_a_warning() {
 
     let mut reinstall = std::process::Command::cargo_bin("pnpm").unwrap();
     reinstall.current_dir(&workspace);
-    let output = reinstall.arg("install").assert().success();
+    let output = reinstall
+        .arg("install")
+        .assert()
+        .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert!(
         stdout.contains(

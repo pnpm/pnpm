@@ -117,13 +117,13 @@ impl TestRegistryInstance {
             RegistryMode::Proxy => Config::proxy(listen, storage),
             RegistryMode::Static => Config::static_serve(listen, storage),
         };
-        config.public_url = url.trim_end_matches('/').to_string();
+        config.http.public_url = url.trim_end_matches('/').to_string();
         // Registration is opt-in; tests that forward credentials create
         // accounts via adduser against this registry.
-        config.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
+        config.identity.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
         // A long TTL keeps the fixture packuments (whose `time` values are static)
         // from being treated as stale and refetched from the upstream.
-        config.packument_ttl = std::time::Duration::from_hours(8760);
+        config.http.packument_ttl = std::time::Duration::from_hours(8760);
         thread::Builder::new()
             .name("pacquet-test-registry".to_string())
             .spawn(move || run_registry(config, listener))

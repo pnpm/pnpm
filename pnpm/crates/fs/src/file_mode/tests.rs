@@ -32,7 +32,11 @@ fn make_file_executable_sets_exec_bits() {
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
     let file = tmp.as_file();
     make_file_executable(file).expect("set permissions");
-    let mode = file.metadata().expect("stat").permissions().mode();
+    let mode = file
+        .metadata()
+        .expect("stat")
+        .permissions()
+        .mode();
     assert_eq!(mode & EXEC_MASK, EXEC_MASK, "all exec bits should be set, got {mode:o}");
 }
 
@@ -47,12 +51,27 @@ fn make_file_executable_fills_partial_bits_and_preserves_full() {
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
     let file = tmp.as_file();
 
-    file.set_permissions(std::fs::Permissions::from_mode(0o744)).expect("seed 0o744");
+    file.set_permissions(std::fs::Permissions::from_mode(0o744))
+        .expect("seed 0o744");
     make_file_executable(file).expect("fill partial exec bits");
-    assert_eq!(file.metadata().unwrap().permissions().mode() & 0o777, 0o755);
+    assert_eq!(
+        file.metadata()
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755,
+    );
 
     make_file_executable(file).expect("already executable");
-    assert_eq!(file.metadata().unwrap().permissions().mode() & 0o777, 0o755);
+    assert_eq!(
+        file.metadata()
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755,
+    );
 }
 
 /// The `0o644` seed stands in for a target a reflink left non-executable.
@@ -70,7 +89,11 @@ fn restore_exec_bit_adds_bits_for_exec_suffix() {
 
     restore_exec_bit_from_cas_suffix(cas_path, &target).expect("restore exec bit");
 
-    let mode = fs::metadata(&target).expect("stat").permissions().mode() & 0o777;
+    let mode = fs::metadata(&target)
+        .expect("stat")
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o755, "exec-suffixed CAS entry must land executable, got {mode:o}");
 }
 
@@ -90,6 +113,10 @@ fn restore_exec_bit_does_not_widen_non_exec_suffix() {
 
     restore_exec_bit_from_cas_suffix(cas_path, &target).expect("restore is a no-op here");
 
-    let mode = fs::metadata(&target).expect("stat").permissions().mode() & 0o777;
+    let mode = fs::metadata(&target)
+        .expect("stat")
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o600, "non-exec CAS entry must not gain exec bits, got {mode:o}");
 }

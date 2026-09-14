@@ -6,13 +6,12 @@ use side_effects::{
     upload_side_effects_cache,
 };
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 
 use super::{
-    AllowBuildPolicy, BTreeSet, BuildModulesError, HashMap, LogEvent, LogLevel, Mutex,
-    NEEDS_BUILD_MARKER, PackageImportMethod, PackageKey, Path, PathBuf, PkgRoots, RebuildOptions,
-    Reporter, RunPostinstallHooks, ScriptsPrependNodePath, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalReason, SnapshotEntry,
+    AllowBuildPolicy, BuildModulesError, HashMap, LogEvent, LogLevel, NEEDS_BUILD_MARKER,
+    PackageKey, Path, PathBuf, PkgRoots, RebuildOptions, Reporter, RunPostinstallHooks,
+    SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
     allow_build_key_from_ignored_build, apply_patch_to_dir, bin_dirs_in_all_parent_dirs,
     discard_failed_global_virtual_store_slot, get_pkg_id_with_patch_hash,
     parse_name_version_from_key, run_postinstall_hooks, slot_carries_overlay,
@@ -21,49 +20,18 @@ use super::{
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,
 /// the policies that gate it, and the environment its scripts run in.
 pub(crate) struct BuildOneSnapshot<'a> {
-    pub(crate) snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
-    pub(crate) packages: Option<&'a HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
-    pub(crate) patches: Option<&'a HashMap<PackageKey, pnpm_patching::ExtendedPatchInfo>>,
-    pub(crate) requires_build_map: &'a HashMap<PackageKey, bool>,
+    pub cache: crate::BuildCacheContext<'a>,
+    pub directories: crate::BuildLayout<'a>,
+    pub graph: crate::BuildSnapshotInputs<'a>,
+    pub progress: crate::BuildProgress<'a>,
+    pub scripts: crate::BuildScriptOptions<'a>,
     pub(crate) allow_build_policy: &'a AllowBuildPolicy,
-    pub(crate) side_effects_maps_by_snapshot: Option<&'a crate::SideEffectsMapsBySnapshot>,
-    pub(crate) engine_name: Option<&'a str>,
-    pub(crate) side_effects_cache: bool,
-    pub(crate) side_effects_cache_write: bool,
-    pub(crate) shared_side_effects_publisher:
-        Option<&'a crate::shared_side_effects::SharedSideEffectsPublisher>,
-    pub(crate) store_dir: Option<&'a pnpm_store_dir::StoreDir>,
-    pub(crate) store_index_writer: Option<&'a std::sync::Arc<pnpm_store_dir::StoreIndexWriter>>,
-    pub(crate) dep_graph:
-        Option<&'a HashMap<PackageKey, pnpm_graph_hasher::DepsGraphNode<PackageKey>>>,
-    pub(crate) deps_state_cache: &'a Mutex<pnpm_graph_hasher::DepsStateCache<PackageKey>>,
-    pub(crate) ignored_builds: &'a Mutex<BTreeSet<String>>,
-    pub(crate) layout: &'a crate::VirtualStoreLayout,
-    pub(crate) pkg_roots_by_key: Option<&'a HashMap<PackageKey, Vec<PathBuf>>>,
-    pub(crate) gather_ancestor_bin_paths: bool,
-    pub(crate) modules_dir: &'a Path,
-    pub(crate) lockfile_dir: &'a Path,
-    pub(crate) extra_env: &'a HashMap<String, String>,
-    pub(crate) user_agent: &'a str,
-    pub(crate) scripts_prepend_node_path: ScriptsPrependNodePath,
-    pub(crate) script_shell: Option<&'a Path>,
-    pub(crate) shell_emulator: bool,
-    pub(crate) unsafe_perm: bool,
-    pub(crate) frozen_store: bool,
-    pub(crate) ignore_scripts: bool,
-    pub(crate) import_method: PackageImportMethod,
-    pub(crate) logged_methods: &'a std::sync::atomic::AtomicU8,
-    /// Raised before any write that can change a linked slot's contents
-    /// (side-effects overlay, patch, lifecycle script) — set pre-attempt, so a
-    /// half-applied write still counts. See
-    /// [`crate::BuildModulesOutput::mutated_slots`].
-    pub(crate) slot_mutations: &'a AtomicBool,
     pub(crate) rebuild: Option<&'a RebuildOptions>,
 }
 
 impl<'a> BuildOneSnapshot<'a> {
     fn pkg_roots(&self) -> PkgRoots<'a> {
-        PkgRoots { layout: self.layout, by_key: self.pkg_roots_by_key }
+        PkgRoots { layout: self.directories.layout, by_key: self.directories.pkg_roots_by_key }
     }
 }
 
@@ -83,7 +51,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
         return Ok(());
     }
 
-    let optional = context.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
+    let optional = context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional);
     if reject_frozen_store_build::<Reporter>(
         context,
         snapshot_key,
@@ -119,8 +87,8 @@ fn build_candidate<Reporter: self::Reporter>(
     // hoisted gathers every ancestor's `node_modules/.bin` up to
     // `lockfile_dir` so a lifecycle script invoked at a nested
     // hoisted location can resolve bins added by parents.
-    let extra_bin_paths = if context.gather_ancestor_bin_paths {
-        bin_dirs_in_all_parent_dirs(&pkg_dir, context.lockfile_dir)
+    let extra_bin_paths = if context.directories.gather_ancestor_bin_paths {
+        bin_dirs_in_all_parent_dirs(&pkg_dir, context.directories.lockfile_dir)
     } else {
         Vec::new()
     };
@@ -193,8 +161,11 @@ struct BuildCandidate<'c> {
 impl<'c> BuildCandidate<'c> {
     fn of(context: &BuildOneSnapshot<'c>, snapshot_key: &PackageKey) -> Option<Self> {
         let metadata_key = snapshot_key.without_peer();
-        let patch = context.patches.and_then(|patches| patches.get(&metadata_key));
-        let requires_build = context.requires_build_map.get(snapshot_key).copied().unwrap_or(false);
+        let patch = context.graph.patches.and_then(|patches| patches.get(&metadata_key));
+        let requires_build = context.graph.requires_build_map
+            .get(snapshot_key)
+            .copied()
+            .unwrap_or(false);
         if !is_build_candidate(requires_build, patch.is_some()) {
             return None;
         }
@@ -221,7 +192,7 @@ fn report_broken_slot<Reporter: self::Reporter>(
     error: BuildModulesError,
 ) -> Result<(), BuildModulesError> {
     let (name, version) = named;
-    if !context.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional) {
+    if !context.graph.snapshots.get(snapshot_key).is_some_and(|entry| entry.optional) {
         return Err(error);
     }
     Reporter::emit(&LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
@@ -233,7 +204,7 @@ fn report_broken_slot<Reporter: self::Reporter>(
             version: version.to_string(),
         },
         parents: None,
-        prefix: context.lockfile_dir.to_string_lossy().into_owned(),
+        prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
         reason: SkippedOptionalReason::BuildFailure,
     }));
     Ok(())
@@ -256,15 +227,19 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
     writes: &FrozenStoreWrites,
 ) -> Result<bool, BuildModulesError> {
     let (name, version) = named;
-    let &FrozenStoreWrites { optional, has_patch, should_run_scripts } = writes;
-    if !context.frozen_store
-        || !context.layout.enable_global_virtual_store()
+    let &FrozenStoreWrites {
+        optional,
+        has_patch,
+        should_run_scripts,
+    } = writes;
+    if !context.cache.frozen_store
+        || !context.directories.layout.enable_global_virtual_store()
         || !(has_patch || should_run_scripts)
     {
         return Ok(false);
     }
     if !optional {
-        return Err(BuildModulesError::FrozenStoreNeedsBuild {
+        return Err(crate::BuildModulesError::FrozenStoreNeedsBuild {
             package: format!("{name}@{version}"),
         });
     }
@@ -285,7 +260,7 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
             version: version.to_string(),
         },
         parents: None,
-        prefix: context.lockfile_dir.to_string_lossy().into_owned(),
+        prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
         reason: SkippedOptionalReason::BuildFailure,
     }));
     Ok(true)
@@ -304,17 +279,19 @@ fn apply_configured_patch(
     patch: Option<&pnpm_patching::ExtendedPatchInfo>,
 ) -> Result<bool, BuildModulesError> {
     let Some(patch) = patch else { return Ok(false) };
-    let patch_file_path = patch.patch_file_path.as_deref().ok_or_else(|| {
-        BuildModulesError::PatchFilePathMissing { dep_path: snapshot_key.to_string() }
-    })?;
-    context.slot_mutations.store(true, Ordering::Relaxed);
+    let patch_file_path = patch.patch_file_path
+        .as_deref()
+        .ok_or_else(|| BuildModulesError::PatchFilePathMissing {
+            dep_path: snapshot_key.to_string(),
+        })?;
+    context.progress.slot_mutations.store(true, Ordering::Relaxed);
     for patched_dir in context.pkg_roots().all(snapshot_key) {
         if !patched_dir.exists() {
             continue;
         }
         apply_patch_to_dir(&patched_dir, patch_file_path)
             .inspect_err(|_| {
-                discard_failed_global_virtual_store_slot(context.layout, snapshot_key);
+                discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
             })
             .map_err(BuildModulesError::PatchApply)?;
     }
@@ -327,7 +304,7 @@ fn global_slot_carries_overlay(
     snapshot_key: &PackageKey,
     overlay: &HashMap<String, PathBuf>,
 ) -> bool {
-    context.layout.enable_global_virtual_store()
+    context.directories.layout.enable_global_virtual_store()
         && context
             .pkg_roots()
             .canonical(snapshot_key)
@@ -347,7 +324,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
     if !should_run_scripts {
         return Ok(Some(false));
     }
-    context.slot_mutations.store(true, Ordering::Relaxed);
+    context.progress.slot_mutations.store(true, Ordering::Relaxed);
     let result =
         run_candidate_hooks::<Reporter>(context, snapshot_key, pkg_dir, extra_bin_paths, optional);
     match result {
@@ -355,7 +332,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
         Err(err) => {
             // Before the optional-skip return, so a failed optional build
             // leaves no half-built slot behind either.
-            discard_failed_global_virtual_store_slot(context.layout, snapshot_key);
+            discard_failed_global_virtual_store_slot(context.directories.layout, snapshot_key);
             if !optional {
                 return Err(BuildModulesError::LifecycleScript(err));
             }
@@ -368,7 +345,7 @@ fn run_snapshot_scripts<Reporter: self::Reporter>(
                     version: version.to_string(),
                 },
                 parents: None,
-                prefix: context.lockfile_dir.to_string_lossy().into_owned(),
+                prefix: context.directories.lockfile_dir.to_string_lossy().into_owned(),
                 reason: SkippedOptionalReason::BuildFailure,
             }));
             Ok(None)
@@ -384,21 +361,27 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
     optional: bool,
 ) -> Result<bool, pnpm_executor::LifecycleScriptError> {
     run_postinstall_hooks::<Reporter>(&RunPostinstallHooks {
+        environment: pnpm_executor::ScriptEnvironment {
+            init_cwd: context.directories.lockfile_dir,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: Some(context.scripts.user_agent),
+            extra_env: context.scripts.extra_env,
+        },
+        execution: pnpm_executor::ScriptExecutionOptions {
+            extra_bin_paths,
+            node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
+            prepend_node_path: context.scripts.prepend_node_path,
+            shell: context.scripts.shell,
+            shell_emulator: context.scripts.shell_emulator,
+        },
         dep_path: &snapshot_key.to_string(),
         pkg_root: pkg_dir,
-        root_modules_dir: context.modules_dir,
-        init_cwd: context.lockfile_dir,
-        extra_bin_paths,
-        extra_env: context.extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: Some(context.user_agent),
-        unsafe_perm: context.unsafe_perm,
-        node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-        scripts_prepend_node_path: context.scripts_prepend_node_path,
-        script_shell: context.script_shell,
-        shell_emulator: context.shell_emulator,
+        root_modules_dir: context.directories.modules_dir,
+
+        unsafe_perm: context.scripts.unsafe_perm,
+
         optional,
     })
 }
@@ -410,7 +393,9 @@ fn clear_global_virtual_store_build_markers(
     snapshot_key: &PackageKey,
     built: bool,
 ) {
-    if !built || !context.layout.enable_global_virtual_store() || context.pkg_roots_by_key.is_some()
+    if !built
+        || !context.directories.layout.enable_global_virtual_store()
+        || context.directories.pkg_roots_by_key.is_some()
     {
         return;
     }
@@ -460,7 +445,7 @@ fn snapshot_runs_scripts(
     build: (bool, bool),
 ) -> bool {
     let (requires_build, force_rebuild) = build;
-    if !requires_build || context.ignore_scripts {
+    if !requires_build || context.scripts.ignore {
         return false;
     }
     if context.rebuild.is_some() && !force_rebuild {
@@ -492,8 +477,7 @@ fn scripts_are_allowed(
             // same reason. `dep_path` has already lost it, so it is re-derived
             // from the full key.
             let ignored_key = get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string();
-            context
-                .ignored_builds
+            context.progress.ignored_builds
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .insert(ignored_key);

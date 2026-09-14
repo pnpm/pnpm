@@ -190,7 +190,7 @@ impl NpmrcAuth {
     /// Fold a parsed [`JsonAuth`] into `self` (last-write-wins, so the env
     /// object applied after the global one overrides on conflict): each
     /// entry becomes a `//host/:_authToken` credential and an inferred
-    /// registry route (see [`Self::json_env_registries`]).
+    /// registry route (see [`crate::npmrc_auth::NpmrcRoutes::json_env`]).
     fn apply_json_auth(&mut self, parsed: JsonAuth, origin: JsonAuthOrigin) {
         for (registry, scopes) in parsed.0 {
             for (scope, creds) in scopes {
@@ -220,13 +220,13 @@ impl NpmrcAuth {
             JsonAuthScope::Package(scope) => scope,
         };
         let routes = match origin {
-            JsonAuthOrigin::Env => &mut self.json_env_registries,
-            JsonAuthOrigin::File => &mut self.json_file_registries,
+            JsonAuthOrigin::Env => &mut self.routes.json_env,
+            JsonAuthOrigin::File => &mut self.routes.json_file,
         };
         routes.insert(route_key, registry.normalized.clone());
     }
 
-    /// Apply the [`Self::json_env_registries`] routes. Unlike
+    /// Apply the [`crate::npmrc_auth::NpmrcRoutes::json_env`] routes. Unlike
     /// [`Self::apply_registry_and_warn`] (which runs *before* workspace
     /// yaml), this is called *after* yaml so the inferred routes win over
     /// repo-controlled registries.
@@ -241,15 +241,18 @@ impl NpmrcAuth {
         config: &mut Config,
         declared: &DeclaredRegistries,
     ) {
-        let file_routes = std::mem::take(&mut self.json_file_registries);
-        for (scope, url) in file_routes.into_iter().filter(|(scope, _)| !declared.covers(scope)) {
+        let file_routes = std::mem::take(&mut self.routes.json_file);
+        for (scope, url) in file_routes
+            .into_iter()
+            .filter(|(scope, _)| !declared.covers(scope))
+        {
             if scope == "default" {
                 config.registry.clone_from(&url);
                 continue;
             }
             config.registries_by_scope.insert(scope, url);
         }
-        for (scope, url) in std::mem::take(&mut self.json_env_registries) {
+        for (scope, url) in std::mem::take(&mut self.routes.json_env) {
             if scope == "default" {
                 config.registry.clone_from(&url);
             }

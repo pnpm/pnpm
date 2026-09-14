@@ -22,7 +22,10 @@ pub(super) fn check_a_project_has_the_script(
     if script_name == "test" || args.if_present {
         return Ok(());
     }
-    if task_graph.values().any(|node| node.requested && !node.scripts.is_empty()) {
+    if task_graph
+        .values()
+        .any(|node| node.requested && !node.scripts.is_empty())
+    {
         return Ok(());
     }
     Err(no_requested_script_error(script_name, all_packages_selected).into())
@@ -82,7 +85,7 @@ pub(super) fn resume_task_graph(
     full_task_graph: &TaskGraph,
     script_name: &str,
 ) -> miette::Result<TaskGraph> {
-    let Some(resume_from) = args.resume_from.as_ref() else {
+    let Some(resume_from) = args.workspace.resume_from.as_ref() else {
         return Ok(full_task_graph.clone());
     };
     let anchor = find_resume_root(resume_from, graph)?;
@@ -105,7 +108,10 @@ pub(super) fn print_selected_project_commands(
     if graph.len() != 1 {
         return Err(RecursiveRunError::ScriptNameRequired.into());
     }
-    let project = graph.values().next().expect("graph contains exactly one project");
+    let project = graph
+        .values()
+        .next()
+        .expect("graph contains exactly one project");
     let root_manifest = projects
         .iter()
         .find(|candidate| {
@@ -159,7 +165,7 @@ pub(super) fn filter_hidden_requested_scripts(
 /// one at a time, and the default follows the workspace concurrency
 /// setting.
 pub(super) fn run_concurrency(args: &RunArgs, config: &Config, task_count: usize) -> usize {
-    if args.parallel {
+    if args.workspace.parallel {
         return task_count;
     }
     if args.sequential {
@@ -183,9 +189,15 @@ pub(super) fn report_run_outcome(
     result: &IndexMap<String, ExecutionStatus>,
     bail_prefix: Option<String>,
 ) -> miette::Result<()> {
-    let RunReporting { args, script_name, workspace_root, task_run_state, .. } = *reporting;
+    let RunReporting {
+        args,
+        script_name,
+        workspace_root,
+        task_run_state,
+        ..
+    } = *reporting;
     if let Some(prefix) = bail_prefix {
-        if args.report_summary {
+        if args.workspace.report_summary {
             write_recursive_summary(workspace_root, result)?;
         }
         return Err(RecursiveRunError::RecursiveRunFirstFail { prefix }.into());
@@ -204,7 +216,7 @@ pub(super) fn report_run_outcome(
         return Err(no_requested_script_error(script_name, reporting.all_packages_selected).into());
     }
 
-    if args.report_summary {
+    if args.workspace.report_summary {
         write_recursive_summary(workspace_root, result)?;
     }
     if failures > 0 {
@@ -237,17 +249,22 @@ pub(super) fn build_run_task_graph(
     selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
     emit: fn(&LogEvent),
 ) -> miette::Result<TaskGraph> {
-    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = if args.sort {
-        filtered_projects_dependencies(
-            graph,
-            selection.full_graph(),
-            selection.prod_all.as_ref(),
-            &selection.prod_only_selected,
-        )
-    } else {
-        warn_ignored_task_declarations(config, emit);
-        graph.keys().cloned().map(|root| (root, Vec::new())).collect()
-    };
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> =
+        if args.workspace.sort {
+            filtered_projects_dependencies(
+                graph,
+                selection.full_graph(),
+                selection.prod_all.as_ref(),
+                &selection.prod_only_selected,
+            )
+        } else {
+            warn_ignored_task_declarations(config, emit);
+            graph
+                .keys()
+                .cloned()
+                .map(|root| (root, Vec::new()))
+                .collect()
+        };
     let select_scripts = |project: &Path, task_name: &str| -> Vec<String> {
         let manifest = graph[project].package.project.manifest.value();
         if task_name == script_name {
@@ -264,9 +281,9 @@ pub(super) fn build_run_task_graph(
         project_dependencies: &project_dependencies,
         select_scripts,
         task_name: script_name,
-        tasks: (args.sort && !config.tasks.is_empty()).then_some(&config.tasks),
+        tasks: (args.workspace.sort && !config.tasks.is_empty()).then_some(&config.tasks),
     });
-    if args.reverse {
+    if args.workspace.reverse {
         task_graph = reverse_task_graph(&task_graph);
     }
     Ok(task_graph)

@@ -119,7 +119,10 @@ fn client_builder(
 pub(super) fn configured_proxy(
     raw: Option<&str>,
 ) -> Result<Option<reqwest::Url>, ForInstallsError> {
-    Ok(raw.filter(|value| !value.is_empty()).map(parse_proxy_url).transpose()?)
+    Ok(raw
+        .filter(|value| !value.is_empty())
+        .map(parse_proxy_url)
+        .transpose()?)
 }
 
 /// Apply the redirect policy: an allowlist guard when one is wired up, else
@@ -172,8 +175,7 @@ impl Resolve for NativeDnsResolver {
     fn resolve(&self, name: Name) -> Resolving {
         let host = name.as_str().to_owned();
         Box::pin(async move {
-            tokio::net::lookup_host((host, 0))
-                .await
+            tokio::net::lookup_host((host, 0)).await
                 .map(|addrs| Box::new(addrs) as Addrs)
                 .map_err(|error| Box::new(error) as Box<dyn std::error::Error + Send + Sync>)
         })

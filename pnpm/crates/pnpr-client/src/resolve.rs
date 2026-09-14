@@ -12,7 +12,10 @@ fn verify_transform_support(
     requested: bool,
 ) -> Result<(), PnprClientError> {
     if requested
-        && response.headers().get(PROJECT_TRANSFORMS_HEADER).and_then(|value| value.to_str().ok())
+        && response
+            .headers()
+            .get(PROJECT_TRANSFORMS_HEADER)
+            .and_then(|value| value.to_str().ok())
             != Some(PROJECT_TRANSFORMS_VERSION)
     {
         return Err(PnprClientError::Protocol(
@@ -40,7 +43,10 @@ where
     let mut buf: Vec<u8> = Vec::new();
     while let Some(chunk) = stream.next().await {
         buf.extend_from_slice(&chunk?);
-        while let Some(newline) = buf.iter().position(|&byte| byte == b'\n') {
+        while let Some(newline) = buf
+            .iter()
+            .position(|&byte| byte == b'\n')
+        {
             let line: Vec<u8> = buf.drain(..=newline).collect();
             let line = &line[..line.len() - 1];
             if line.is_empty() {
@@ -60,38 +66,16 @@ fn permitted_importers(opts: &ResolveProjectsOptions) -> HashSet<String> {
     opts.projects
         .iter()
         .map(|project| project.dir.clone())
-        .chain(opts.lockfile.iter().flat_map(|lockfile| lockfile.importers.keys().cloned()))
+        .chain(
+            opts.reuse.lockfile
+                .iter()
+                .flat_map(|lockfile| lockfile.importers.keys().cloned()),
+        )
         .collect()
 }
 
 fn resolve_request_body(opts: &ResolveProjectsOptions) -> serde_json::Value {
-    serde_json::json!({
-        "projects": opts.projects,
-        "registry": opts.registry,
-        "registries": opts.registries,
-        "overrides": opts.overrides,
-        "patchedDependencies": opts.patched_dependencies,
-        "packageExtensions": opts.package_extensions,
-        "allowUnusedPatches": opts.allow_unused_patches,
-        "catalogs": opts.catalogs,
-        "autoInstallPeers": opts.auto_install_peers,
-        "dedupePeers": opts.dedupe_peers,
-        "excludeLinksFromLockfile": opts.exclude_links_from_lockfile,
-        "lockfile": opts.lockfile,
-        "frozenLockfile": opts.frozen_lockfile,
-        "preferFrozenLockfile": opts.prefer_frozen_lockfile,
-        "updatePatches": opts.update_patches,
-        "fixLockfile": opts.fix_lockfile,
-        "ignoreManifestCheck": opts.ignore_manifest_check,
-        "trustLockfile": opts.trust_lockfile,
-        "resolutionMode": opts.resolution_mode,
-        "minimumReleaseAge": opts.minimum_release_age,
-        "minimumReleaseAgeExclude": opts.minimum_release_age_exclude,
-        "minimumReleaseAgeIgnoreMissingTime": opts.minimum_release_age_ignore_missing_time,
-        "trustPolicy": opts.trust_policy,
-        "trustPolicyExclude": opts.trust_policy_exclude,
-        "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
-    })
+    serde_json::to_value(opts).expect("resolution request serializes to JSON")
 }
 
 fn handle_resolve_frame(
@@ -142,8 +126,9 @@ fn assert_requested_importers(
     lockfile: &Lockfile,
     permitted: &HashSet<String>,
 ) -> Result<(), PnprClientError> {
-    let Some(unexpected) =
-        lockfile.importers.keys().find(|importer| !permitted.contains(*importer))
+    let Some(unexpected) = lockfile.importers
+        .keys()
+        .find(|importer| !permitted.contains(*importer))
     else {
         return Ok(());
     };
@@ -153,8 +138,12 @@ fn assert_requested_importers(
 }
 
 fn has_project_transforms(opts: &ResolveProjectsOptions) -> bool {
-    opts.patched_dependencies.as_ref().is_some_and(|patches| !patches.is_empty())
-        || opts.package_extensions.as_ref().is_some_and(|extensions| !extensions.is_empty())
+    opts.transforms.patched_dependencies
+        .as_ref()
+        .is_some_and(|patches| !patches.is_empty())
+        || opts.transforms.package_extensions
+            .as_ref()
+            .is_some_and(|extensions| !extensions.is_empty())
 }
 
 pub(super) const PROJECT_TRANSFORMS_HEADER: &str = "pnpr-project-transforms";
@@ -165,7 +154,9 @@ fn assert_transform_metadata(
     lockfile: &Lockfile,
     opts: &ResolveProjectsOptions,
 ) -> Result<(), PnprClientError> {
-    if let Some(expected) = opts.patched_dependencies.as_ref().filter(|patches| !patches.is_empty())
+    if let Some(expected) = opts.transforms.patched_dependencies
+        .as_ref()
+        .filter(|patches| !patches.is_empty())
         && !equal_patch_hashes(lockfile.patched_dependencies.as_ref(), expected)
     {
         return Err(PnprClientError::Protocol(
@@ -173,8 +164,9 @@ fn assert_transform_metadata(
         ));
     }
 
-    if let Some(package_extensions) =
-        opts.package_extensions.as_ref().filter(|extensions| !extensions.is_empty())
+    if let Some(package_extensions) = opts.transforms.package_extensions
+        .as_ref()
+        .filter(|extensions| !extensions.is_empty())
     {
         let value = serde_json::to_value(package_extensions)
             .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
@@ -196,7 +188,9 @@ fn equal_patch_hashes(
 ) -> bool {
     actual.is_some_and(|actual| {
         actual.len() == expected.len()
-            && expected.iter().all(|(selector, hash)| actual.get(selector) == Some(hash))
+            && expected
+                .iter()
+                .all(|(selector, hash)| actual.get(selector) == Some(hash))
     })
 }
 
@@ -289,11 +283,10 @@ impl PnprClient {
         // downstream by the lockfile merge, not a way to inject dependencies.
         let permitted_importers = permitted_importers(&opts);
         let project_transforms_requested = has_project_transforms(&opts);
-        let mut post = self
-            .http
+        let mut post = self.http
             .post(format!("{}-/pnpr/v0/resolve", self.base_url))
             .json(&resolve_request_body(&opts));
-        if let Some(authorization) = opts.authorization.as_deref() {
+        if let Some(authorization) = opts.routing.authorization.as_deref() {
             post = post.header("authorization", authorization);
         }
         let response = post.send().await?;

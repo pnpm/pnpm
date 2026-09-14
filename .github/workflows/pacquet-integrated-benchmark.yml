@@ -57,7 +57,6 @@ concurrency:
 # the base-repo privilege context via `workflow_run`.
 permissions:
   contents: read
-  checks: write
 
 jobs:
   revisions:
@@ -371,7 +370,7 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
+        uses: taiki-e/install-action@9534c84618278caac52cb373bb164ed464dbd8af # v2.87.11
         with:
           tool: just
 
@@ -644,6 +643,9 @@ jobs:
     needs: [revisions, benchmark]
     name: Combine benchmark results
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      checks: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

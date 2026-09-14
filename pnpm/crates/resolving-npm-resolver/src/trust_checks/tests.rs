@@ -49,8 +49,10 @@ fn version_json(name: &str, version: &str, evidence: Evidence) -> serde_json::Va
 }
 
 fn make_package(name: &str, versions: &[(&str, &str, Evidence)]) -> Package {
-    let versions_json: serde_json::Map<String, serde_json::Value> =
-        versions.iter().map(|(v, _, ev)| ((*v).to_string(), version_json(name, v, *ev))).collect();
+    let versions_json: serde_json::Map<String, serde_json::Value> = versions
+        .iter()
+        .map(|(v, _, ev)| ((*v).to_string(), version_json(name, v, *ev)))
+        .collect();
     let time_json: serde_json::Map<String, serde_json::Value> = versions
         .iter()
         .map(|(v, t, _)| ((*v).to_string(), serde_json::Value::String((*t).to_string())))
@@ -434,7 +436,10 @@ mod ignore_missing_time_field {
                 ("2.0.0", "2025-02-01T00:00:00.000Z", Evidence::None),
             ],
         );
-        meta.time.as_mut().expect("fixture builds a time map").remove("2.0.0");
+        meta.time
+            .as_mut()
+            .expect("fixture builds a time map")
+            .remove("2.0.0");
         let opts = TrustCheckOptions { ignore_missing_time_field: true, ..Default::default() };
         let err = fail_if_trust_downgraded(&meta, "2.0.0", &opts)
             .expect_err("a per-version hole is not a registry that omits the field");
@@ -485,7 +490,7 @@ mod get_trust_evidence {
         assert!(matches!(
             get_trust_evidence(&parse(version)),
             Some(TrustEvidence::TrustedPublisher)
-        ));
+        ),);
     }
 
     #[test]

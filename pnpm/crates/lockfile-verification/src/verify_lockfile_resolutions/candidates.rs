@@ -72,12 +72,14 @@ pub(super) fn collect_candidates(
             "{name}@{version}@{}@{resolution_json}",
             registry_name.as_deref().unwrap_or_default(),
         );
-        deduped.entry(key).or_insert_with(|| Candidate {
-            name,
-            version,
-            registry_name,
-            resolution: metadata.resolution.clone(),
-        });
+        deduped
+            .entry(key)
+            .or_insert_with(|| Candidate {
+                name,
+                version,
+                registry_name,
+                resolution: metadata.resolution.clone(),
+            });
     }
     (deduped.into_values().collect(), shape_violations)
 }

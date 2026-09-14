@@ -14,10 +14,14 @@ fn duplicate_metadata_dedupes_reporter_events() {
     let snapshot_key_b = snapshot_key("not-compatible-with-any-os@1.0.0(react@18.0.0)");
 
     let mut snapshots = HashMap::new();
-    snapshots
-        .insert(snapshot_key_a.clone(), SnapshotEntry { optional: true, ..Default::default() });
-    snapshots
-        .insert(snapshot_key_b.clone(), SnapshotEntry { optional: true, ..Default::default() });
+    snapshots.insert(
+        snapshot_key_a.clone(),
+        SnapshotEntry { optional: true, ..Default::default() },
+    );
+    snapshots.insert(
+        snapshot_key_b.clone(),
+        SnapshotEntry { optional: true, ..Default::default() },
+    );
     let mut packages = HashMap::new();
     packages.insert(
         metadata_key,

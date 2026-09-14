@@ -57,8 +57,7 @@ fn collect_importer_components(
     importer: &pnpm_lockfile::ProjectSnapshot,
     walk: &mut ImporterWalk<'_>,
 ) {
-    let parent_purl = walk
-        .ws_purl_by_importer
+    let parent_purl = walk.ws_purl_by_importer
         .get(importer_id)
         .cloned()
         .unwrap_or_else(|| inputs.root_purl.to_owned());
@@ -138,8 +137,11 @@ fn collect_linked_workspace_component(
         .and_then(|value| value.as_str())
         .unwrap_or(&name.to_string())
         .to_string();
-    let ws_version =
-        ws_manifest.get("version").and_then(|value| value.as_str()).unwrap_or("0.0.0").to_string();
+    let ws_version = ws_manifest
+        .get("version")
+        .and_then(|value| value.as_str())
+        .unwrap_or("0.0.0")
+        .to_string();
     let ws_purl = build_purl(&ws_name, &ws_version);
     walk.relationships.push(SbomRelationship { from: parent_purl.to_owned(), to: ws_purl.clone() });
     // A sibling reached both ways is a production dependency.
@@ -241,9 +243,9 @@ fn skipped_optional_package(
     if ctx.virtual_store_dirs.is_empty() {
         return false;
     }
-    let optional = ctx
-        .snapshots
-        .is_some_and(|snapshots| snapshots.get(key).is_some_and(|snapshot| snapshot.optional));
+    let optional = ctx.snapshots.is_some_and(|snapshots| {
+        snapshots.get(key).is_some_and(|snapshot| snapshot.optional)
+    });
     platform_incompatible_optional(&key.name.bare, optional, pkg_meta, &ctx.installability)
 }
 
@@ -265,7 +267,10 @@ fn snapshot_component(
         }),
         name,
         version,
-        dep_type: ctx.dep_types.get(key).copied().unwrap_or(DepType::ProdOnly),
+        dep_type: ctx.dep_types
+            .get(key)
+            .copied()
+            .unwrap_or(DepType::ProdOnly),
         license: store_meta.license,
         description: store_meta.description,
         author: store_meta.author,
@@ -281,13 +286,11 @@ fn snapshot_children<'a>(
     snapshot: &'a SnapshotEntry,
     ctx: &WalkContext<'_>,
 ) -> impl Iterator<Item = PkgNameVerPeer> + 'a {
-    let optional_iter = ctx
-        .include_optional_transitive
+    let optional_iter = ctx.include_optional_transitive
         .then(|| snapshot.optional_dependencies.iter().flatten())
         .into_iter()
         .flatten();
-    snapshot
-        .dependencies
+    snapshot.dependencies
         .iter()
         .flatten()
         .chain(optional_iter)
@@ -341,13 +344,15 @@ pub(super) fn component_walk_context<'a>(
 fn importer_dependency_names(
     importer: &pnpm_lockfile::ProjectSnapshot,
 ) -> (HashSet<String>, HashSet<String>) {
-    let dev_dep_names: HashSet<String> = importer
-        .dev_dependencies
+    let dev_dep_names: HashSet<String> = importer.dev_dependencies
         .as_ref()
-        .map(|deps| deps.keys().map(ToString::to_string).collect())
+        .map(|deps| {
+            deps.keys()
+                .map(ToString::to_string)
+                .collect()
+        })
         .unwrap_or_default();
-    let prod_dep_names: HashSet<String> = importer
-        .dependencies
+    let prod_dep_names: HashSet<String> = importer.dependencies
         .iter()
         .chain(importer.optional_dependencies.iter())
         .flat_map(|deps| deps.keys())

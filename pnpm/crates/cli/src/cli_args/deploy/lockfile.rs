@@ -46,8 +46,7 @@ pub(super) fn create_deploy_files(
     config: &Config,
     dependency_groups: &[DependencyGroup],
 ) -> miette::Result<DeployFiles> {
-    let input_snapshot = lockfile
-        .importers
+    let input_snapshot = lockfile.importers
         .get(project_id)
         .ok_or_else(|| DeployError::MissingImporter { project_id: project_id.to_string() })?;
     let deployed_project_root =
@@ -88,8 +87,10 @@ pub(super) fn create_deploy_files(
 /// The names the project declares as dependencies, and the peers it does
 /// not also depend on itself.
 fn dependency_name_sets(manifest: &PackageManifest) -> (HashSet<String>, HashSet<String>) {
-    let declared_dependencies =
-        manifest.available_dependency_names(None).into_iter().collect::<HashSet<_>>();
+    let declared_dependencies = manifest
+        .available_dependency_names(None)
+        .into_iter()
+        .collect::<HashSet<_>>();
     let peer_only_dependencies = manifest
         .dependencies([DependencyGroup::Peer])
         .map(|(name, _)| name.to_string())
@@ -137,9 +138,12 @@ fn fill_target_dependencies(
         let included = deployed.dependency_groups.contains(&group);
         fill_target_dependency_map(
             target,
-            source.iter().flatten().filter(|(name, _)| {
-                included || deployed.peer_only_dependencies.contains(&name.to_string())
-            }),
+            source
+                .iter()
+                .flatten()
+                .filter(|(name, _)| {
+                    included || deployed.peer_only_dependencies.contains(&name.to_string())
+                }),
             deployed.ctx,
             &selected_bases,
         )?;
@@ -437,8 +441,9 @@ fn finish_deploy_files(
     Ok(DeployFiles {
         manifest,
         lockfile: deploy_lockfile,
-        workspace_manifest: (!workspace_manifest.is_empty())
-            .then_some(Value::Object(workspace_manifest)),
+        workspace_manifest: (!workspace_manifest.is_empty()).then_some(Value::Object(
+            workspace_manifest,
+        )),
         workspace_config,
     })
 }

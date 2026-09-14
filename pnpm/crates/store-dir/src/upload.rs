@@ -99,7 +99,11 @@ pub fn calculate_diff(
     // separately by `SideEffectsDiff.added`'s sorted-map
     // serializer (see `serialize_sorted_map_opt` in `store_index.rs`),
     // since `HashMap` iteration on its own remains unordered.
-    let all_files: BTreeSet<&str> = base.keys().chain(current.keys()).map(String::as_str).collect();
+    let all_files: BTreeSet<&str> = base
+        .keys()
+        .chain(current.keys())
+        .map(String::as_str)
+        .collect();
     for file in all_files {
         match (base.get(file), current.get(file)) {
             (Some(_), None) => deleted.push(file.to_string()),

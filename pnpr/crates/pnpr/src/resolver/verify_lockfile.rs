@@ -23,14 +23,10 @@ pub(crate) async fn handle_verify_lockfile(
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
 
-    if let Some(response) = reject_invalid_registries(&request) {
-        return response;
-    }
-    if let Some(response) = reject_inline_url_auth(&request) {
-        return response;
-    }
-
-    if let Some(response) = reject_off_allowlist_fetches(&request, &runtime.route_context) {
+    if let Some(response) = reject_invalid_registries(&request)
+        .or_else(|| reject_inline_url_auth(&request))
+        .or_else(|| reject_off_allowlist_fetches(&request, &runtime.route_context))
+    {
         return response;
     }
 
@@ -55,7 +51,10 @@ pub(crate) async fn handle_verify_lockfile(
         Arc::clone(&runtime.route_context),
         identity.clone(),
         runtime.public_url.clone(),
-        config.resolved_registries().into_iter().collect(),
+        config
+            .resolved_registries()
+            .into_iter()
+            .collect(),
     );
     let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
 
@@ -124,12 +123,11 @@ pub(super) async fn verify_input_lockfile(
             return Err(VerifyFailure::Internal(json_error(StatusCode::BAD_GATEWAY, &message)));
         }
     };
-    let osv_violations = runtime
-        .osv_index
+    let osv_violations = runtime.osv_index
         .as_ref()
         .map_or_else(Vec::new, |index| osv_violations_for_lockfile(index, lockfile));
     if violations.is_empty() && osv_violations.is_empty() {
-        if let Some(cache) = runtime.verdict_cache.as_ref() {
+        if let Some(cache) = runtime.cache.verdicts.as_ref() {
             cache.record(&hash, &merge_policies(&verifiers, runtime.osv_index.as_ref()));
         }
         return Ok(Some(dist_stats));
@@ -147,12 +145,18 @@ pub(super) fn past_verdict_trusted(
     hash: &str,
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> bool {
-    runtime.verdict_cache.as_ref().is_some_and(|cache| {
-        cache.is_verified(hash, |policy| {
-            verifiers.iter().all(|verifier| verifier.can_trust_past_check(policy))
-                && runtime.osv_index.as_ref().is_none_or(|index| index.can_trust_policy(policy))
+    runtime.cache.verdicts
+        .as_ref()
+        .is_some_and(|cache| {
+            cache.is_verified(hash, |policy| {
+                verifiers
+                    .iter()
+                    .all(|verifier| verifier.can_trust_past_check(policy))
+                    && runtime.osv_index
+                        .as_ref()
+                        .is_none_or(|index| index.can_trust_policy(policy))
+            })
         })
-    })
 }
 
 pub(super) fn render_violations(

@@ -38,8 +38,8 @@ use tower::ServiceExt;
 fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
-    config.public_url = "http://example.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.http.public_url = "http://example.test".to_string();
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -71,7 +71,7 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     std::fs::write(&config_path, yaml).unwrap();
     let mut config =
         Config::from_yaml(&config_path, listen, Some("http://example.test".to_string())).unwrap();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     (config, storage)
 }
 
@@ -110,9 +110,16 @@ async fn add_user_and_get_token(
         "type": "user",
         "roles": [],
     });
-    let response = app.clone().oneshot(put_json(&path, body)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(put_json(&path, body))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    let token = payload["token"].as_str().expect("token in response").to_string();
+    let token = payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string();
     (app, token)
 }

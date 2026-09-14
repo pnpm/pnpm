@@ -11,7 +11,7 @@ fn resolver_block_present_but_empty_defaults_to_enabled() {
     // empty map; both must mean "enabled", not fail to deserialize.
     for yaml in ["resolver:\n", "resolver: {}\n"] {
         let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-        assert!(config.resolver.enabled, "for {yaml:?}");
+        assert!(config.features.resolver.enabled, "for {yaml:?}");
     }
 }
 
@@ -42,7 +42,7 @@ fn unknown_key_in_feature_block_is_a_config_error() {
 #[test]
 fn shared_artifacts_are_an_explicit_top_level_opt_in() {
     let default = Config::from_yaml_str("", Path::new("/x"), listen(), None).unwrap();
-    assert!(!default.artifacts.enabled);
+    assert!(!default.features.artifacts.enabled);
 
     let enabled = Config::from_yaml_str(
         "resolver:\n  enabled: false\nartifacts:\n  enabled: true\n",
@@ -51,8 +51,8 @@ fn shared_artifacts_are_an_explicit_top_level_opt_in() {
         None,
     )
     .unwrap();
-    assert!(!enabled.resolver.enabled);
-    assert!(enabled.artifacts.enabled);
+    assert!(!enabled.features.resolver.enabled);
+    assert!(enabled.features.artifacts.enabled);
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn artifact_override_is_independent_from_the_resolver_override() {
         FeatureOverrides::default(),
     )
     .unwrap();
-    assert!(enabled.artifacts.enabled);
+    assert!(enabled.features.artifacts.enabled);
 
     let error = Config::from_yaml_str_with_overrides(
         yaml,
@@ -117,21 +117,24 @@ fn resolve_relative_joins_relative_paths_to_base() {
 fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
     use pnpr_registry::{ConcreteKind, Resolved};
     let config = Config::proxy(listen(), PathBuf::from("/tmp"));
-    assert!(config.upstreams.contains_key("npmjs"));
-    assert_eq!(config.registries.default_registry(), Some("main"));
+    assert!(config.routing.upstreams.contains_key("npmjs"));
+    assert_eq!(config.routing.registries.default_registry(), Some("main"));
     // The flat-root hosted org serves the registry-mock fixture scopes.
-    assert_eq!(config.hosted["local"].org, "");
+    assert_eq!(config.routing.hosted["local"].org, "");
     assert_eq!(
-        config.registries.resolve_default(Ecosystem::Npm, "@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        config.routing.registries.resolve_default(
+            Ecosystem::Npm,
+            "@pnpm.e2e/dep-of-pkg-with-1-dep"
+        ),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
-        config.registries.resolve_default(Ecosystem::Npm, "create-touch-file-one-bin"),
+        config.routing.registries.resolve_default(Ecosystem::Npm, "create-touch-file-one-bin"),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     // Everything else proxies to the npm upstream.
     assert_eq!(
-        config.registries.resolve_default(Ecosystem::Npm, "is-positive"),
+        config.routing.registries.resolve_default(Ecosystem::Npm, "is-positive"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
@@ -140,7 +143,7 @@ fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
 fn backend_defaults_to_local_without_a_block() {
     let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    assert!(matches!(config.backend, BackendConfig::Local));
+    assert!(matches!(config.identity.backend, BackendConfig::Local));
 }
 
 #[test]
@@ -184,7 +187,7 @@ backend:
 upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    match config.backend {
+    match config.identity.backend {
         BackendConfig::Postgres(settings) => {
             assert_eq!(settings.url, "postgres://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, Some(12));
@@ -205,7 +208,7 @@ backend:
 upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    match config.backend {
+    match config.identity.backend {
         BackendConfig::Postgres(settings) => {
             assert_eq!(settings.url, "postgresql://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, None);
@@ -229,7 +232,7 @@ backend:
 upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
-    match config.backend {
+    match config.identity.backend {
         BackendConfig::Mysql(settings) => {
             assert_eq!(settings.url, "mysql://pnpr:secret@db.example/pnpr");
             assert_eq!(settings.max_connections, None);
@@ -248,7 +251,7 @@ fn resolve_bundled_when_no_path_supplied() {
     let (config, source) = Config::resolve(None, None, listen(), None).unwrap();
     assert_eq!(source, ConfigSource::Bundled);
     // The bundled config has the `npmjs` upstream + `**` route.
-    assert!(config.upstreams.contains_key("npmjs"));
+    assert!(config.routing.upstreams.contains_key("npmjs"));
 }
 
 #[test]
@@ -286,7 +289,7 @@ fn resolve_cli_wins_over_default_path() {
     let (config, source) = Config::resolve(Some(&cli), Some(&default), listen(), None).unwrap();
     assert_eq!(source, ConfigSource::Cli(cli));
     // Confirms the *content* came from the CLI file, not the default.
-    assert_eq!(config.storage, cli_storage);
+    assert_eq!(config.storage.hosted_dir, cli_storage);
 }
 
 #[test]
@@ -296,7 +299,7 @@ fn resolve_public_url_override_threads_through() {
     let (config, _) =
         Config::resolve(Some(&path), None, listen(), Some("http://override.test".to_string()))
             .unwrap();
-    assert_eq!(config.public_url, "http://override.test");
+    assert_eq!(config.http.public_url, "http://override.test");
 }
 
 #[test]
@@ -304,7 +307,7 @@ fn resolve_bundled_branch_honors_public_url_override() {
     let (config, source) =
         Config::resolve(None, None, listen(), Some("http://from-cli.test".to_string())).unwrap();
     assert_eq!(source, ConfigSource::Bundled);
-    assert_eq!(config.public_url, "http://from-cli.test");
+    assert_eq!(config.http.public_url, "http://from-cli.test");
 }
 
 #[test]
@@ -318,7 +321,7 @@ fn most_specific_key_wins_regardless_of_declaration_order() {
         "      '**':\n        access: $all\n      '@secret/*':\n        access: $authenticated\n";
     for packages in [scope_then_catch_all, catch_all_then_scope] {
         let config = hosted_rules_config(packages);
-        let rules = &config.hosted["local"].rules;
+        let rules = &config.routing.hosted["local"].rules;
         assert!(!rules.for_package("@secret/x").access.allows(&Identity::Anonymous), "{packages}");
         assert!(rules.for_package("anything").access.allows(&Identity::Anonymous), "{packages}");
     }
@@ -328,7 +331,7 @@ fn most_specific_key_wins_regardless_of_declaration_order() {
 fn empty_and_null_map_values_mean_default_rules() {
     for value in ["{}", "", "~"] {
         let config = hosted_rules_config(&format!("      'lodash': {value}\n"));
-        let rules = &config.hosted["local"].rules;
+        let rules = &config.routing.hosted["local"].rules;
         let effective = rules.for_package("lodash");
         assert!(effective.access.allows(&Identity::Anonymous), "value {value:?}");
         assert!(!effective.publish.allows(&Identity::Anonymous), "value {value:?}");
@@ -340,7 +343,7 @@ fn empty_and_null_map_values_mean_default_rules() {
 #[test]
 fn rule_missing_unpublish_denies_destructive_writes() {
     let config = hosted_rules_config("      '@team/*':\n        publish: alice\n");
-    let team = config.hosted["local"].rules.for_package("@team/x");
+    let team = config.routing.hosted["local"].rules.for_package("@team/x");
     assert!(team.publish.allows(&user("alice")));
     assert!(!team.publish.allows(&user("bob")));
     assert!(!team.unpublish.allows(&user("alice")));
@@ -354,7 +357,7 @@ fn rule_empty_unpublish_denies_destructive_writes() {
         "      '@team/*':\n        publish: $authenticated\n        unpublish: []\n";
     for packages in [as_null, as_empty_sequence] {
         let config = hosted_rules_config(packages);
-        let team = config.hosted["local"].rules.for_package("@team/x");
+        let team = config.routing.hosted["local"].rules.for_package("@team/x");
         assert!(team.publish.allows(&user("alice")), "{packages}");
         assert!(!team.unpublish.allows(&Identity::Anonymous), "{packages}");
         assert!(!team.unpublish.allows(&user("alice")), "{packages}");
@@ -379,7 +382,7 @@ fn rule_empty_string_value_is_a_config_error() {
 #[test]
 fn rule_anonymous_token_is_wired() {
     let config = hosted_rules_config("      '@anon/*':\n        access: $anonymous\n");
-    let anon = config.hosted["local"].rules.for_package("@anon/x");
+    let anon = config.routing.hosted["local"].rules.for_package("@anon/x");
     assert!(anon.access.allows(&Identity::Anonymous));
     assert!(!anon.access.allows(&user("alice")));
 }
@@ -514,7 +517,7 @@ fn bundled_default_config_enforces_its_protections() {
     // The bundled YAML is the only place the registry-mock protections are
     // declared, so building from it must yield every one of them.
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
-    let rules = &config.hosted["local"].rules;
+    let rules = &config.routing.hosted["local"].rules;
     // The exact needs-auth key wins over the '@pnpm.e2e/*' scope key by
     // specificity (both are declared, in either order).
     let needs_auth = rules.for_package("@pnpm.e2e/needs-auth");
@@ -531,7 +534,7 @@ fn bundled_default_config_enforces_its_protections() {
     // resolves to the npmjs catch-all through the router.
     use pnpr_registry::{ConcreteKind, Resolved};
     assert_eq!(
-        config.registries.resolve_default(Ecosystem::Npm, "lodash"),
+        config.routing.registries.resolve_default(Ecosystem::Npm, "lodash"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
@@ -539,7 +542,7 @@ fn bundled_default_config_enforces_its_protections() {
 #[test]
 fn route_policy_defaults_when_absent() {
     let config = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
-    assert!(config.route_policy.public.is_empty());
+    assert!(config.routing.route_policy.public.is_empty());
 }
 
 /// `AmazonS3Builder::from_env` imports `AWS_ENDPOINT_URL_S3` into the
@@ -570,7 +573,9 @@ fn an_absent_allow_http_pins_https_only() {
 
     let builder = crate::s3::s3_builder(&s3_settings_for(None, None));
     assert_eq!(
-        builder.get_config_value(&AmazonS3ConfigKey::Client(ClientConfigKey::AllowHttp)).as_deref(),
+        builder
+            .get_config_value(&AmazonS3ConfigKey::Client(ClientConfigKey::AllowHttp))
+            .as_deref(),
         Some("false"),
     );
 }
@@ -579,7 +584,9 @@ fn an_absent_allow_http_pins_https_only() {
 fn an_explicit_allow_http_is_honoured() {
     let builder = crate::s3::s3_builder(&s3_settings_for(None, Some(true)));
     assert_eq!(
-        builder.get_config_value(&AmazonS3ConfigKey::Client(ClientConfigKey::AllowHttp)).as_deref(),
+        builder
+            .get_config_value(&AmazonS3ConfigKey::Client(ClientConfigKey::AllowHttp))
+            .as_deref(),
         Some("true"),
     );
 }
@@ -620,13 +627,13 @@ fn oci_limits_are_positive_and_preserve_defaults() {
         None,
     )
     .unwrap();
-    assert_eq!(config.oci.max_blob_bytes, 123);
-    assert_eq!(config.oci.max_manifest_bytes, 456);
-    assert!(config.oci.bearer_auth);
+    assert_eq!(config.http.oci.max_blob_bytes, 123);
+    assert_eq!(config.http.oci.max_manifest_bytes, 456);
+    assert!(config.http.oci.bearer_auth);
     let config = Config::from_yaml_str("{}", Path::new("/config"), listen(), None).unwrap();
-    assert_eq!(config.oci.max_blob_bytes, 10 * 1024 * 1024 * 1024);
-    assert_eq!(config.oci.max_manifest_bytes, 4 * 1024 * 1024);
-    assert!(!config.oci.bearer_auth);
+    assert_eq!(config.http.oci.max_blob_bytes, 10 * 1024 * 1024 * 1024);
+    assert_eq!(config.http.oci.max_manifest_bytes, 4 * 1024 * 1024);
+    assert!(!config.http.oci.bearer_auth);
     for yaml in [
         "oci: {maxBlobBytes: 0}",
         "oci: {maxManifestBytes: 0}",

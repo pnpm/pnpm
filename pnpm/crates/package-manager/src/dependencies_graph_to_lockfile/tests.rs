@@ -67,28 +67,36 @@ fn single_importer_opts<'a>(
         ImporterLockfileInput { manifest, direct_dependencies_by_alias: direct },
     );
     GraphToLockfileOptions {
-        registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
-        registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         importers,
         graph,
-        auto_install_peers,
-        dedupe_peers: false,
-        exclude_links_from_lockfile,
-        inject_workspace_packages: false,
-        peers_suffix_max_length: None,
-        overrides,
-        ignored_optional_dependencies,
-        patched_dependencies: None,
-        package_extensions_checksum: None,
-        pnpmfile_checksum: None,
         catalogs: &EMPTY_CATALOGS,
-        registry: "https://registry.npmjs.org",
-        lockfile_include_tarball_url: false,
-        previous_importers: None,
-        previous_packages: None,
-        update_reuse_scope: UpdateReuseScope::All,
-        update_reuse_scopes_by_importer: BTreeMap::new(),
         time: BTreeMap::new(),
+        settings: pnpm_lockfile::LockfileSettings {
+            auto_install_peers,
+            dedupe_peers: None,
+            exclude_links_from_lockfile,
+            inject_workspace_packages: false,
+            peers_suffix_max_length: None,
+        },
+        metadata_sources: crate::PackageMetadataSources {
+            registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
+            registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
+            registry: "https://registry.npmjs.org",
+            lockfile_include_tarball_url: false,
+            previous_packages: None,
+        },
+        manifest_settings: crate::LockfileManifestSettings {
+            overrides,
+            ignored_optional_dependencies,
+            patched_dependencies: None,
+            package_extensions_checksum: None,
+            pnpmfile_checksum: None,
+        },
+        reuse: crate::LockfileImporterReuse {
+            previous_importers: None,
+            scope: UpdateReuseScope::All,
+            scopes_by_importer: BTreeMap::new(),
+        },
     }
 }
 
@@ -105,15 +113,17 @@ fn make_resolve_result(name: &str, version: &str, manifest: serde_json::Value) -
     let name_ver: PkgNameVer = format!("{name}@{version}").parse().expect("parse fake PkgNameVer");
     ResolveResult {
         id: (&name_ver).into(),
-        name_ver: Some(name_ver),
-        latest: None,
-        published_at: None,
-        manifest: Some(std::sync::Arc::new(manifest)),
         resolution: make_registry_resolution(),
         resolved_via: "npm-registry".to_string(),
         normalized_bare_specifier: None,
         alias: Some(name.to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: Some(name_ver),
+            latest: None,
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(manifest)),
+        },
     }
 }
 
@@ -150,15 +160,17 @@ fn make_node_with_optional(
         dep_path,
         resolved_package_id: format!("{name}@{version}"),
         resolve_result: std::sync::Arc::new(make_resolve_result(name, version, manifest)),
-        children,
-        optional_children: HashSet::default(),
-        peer_dependencies,
-        transitive_peer_dependencies,
-        resolved_peer_names: HashSet::default(),
         depth: 1,
         installable: true,
         is_pure: true,
         optional,
+        edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
+            children,
+            optional_children: HashSet::default(),
+            peer_dependencies,
+            transitive_peer_dependencies,
+            resolved_peer_names: HashSet::default(),
+        },
     }
 }
 
@@ -187,10 +199,6 @@ fn git_hosted_node(alias: &str) -> (DepPath, DependenciesGraphNode) {
     let dep_path = DepPath::from(format!("is-negative@{GIT_TARBALL_URL}"));
     let resolve_result = ResolveResult {
         id: PkgResolutionId::from(GIT_TARBALL_URL),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(Arc::new(json!({ "name": "is-negative", "version": "1.0.0" }))),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: GIT_TARBALL_URL.to_string(),
             integrity: None,
@@ -202,20 +210,28 @@ fn git_hosted_node(alias: &str) -> (DepPath, DependenciesGraphNode) {
         normalized_bare_specifier: Some("github:kevva/is-negative#1.0.0".to_string()),
         alias: Some(alias.to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(Arc::new(json!({ "name": "is-negative", "version": "1.0.0" }))),
+        },
     };
     let node = DependenciesGraphNode {
         dep_path: dep_path.clone(),
         resolved_package_id: dep_path.to_string(),
         resolve_result: Arc::new(resolve_result),
-        children: BTreeMap::new(),
-        optional_children: HashSet::default(),
-        peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::default(),
-        resolved_peer_names: HashSet::default(),
         depth: 1,
         installable: true,
         is_pure: true,
         optional: false,
+        edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
+            children: BTreeMap::new(),
+            optional_children: HashSet::default(),
+            peer_dependencies: BTreeMap::new(),
+            transitive_peer_dependencies: HashSet::default(),
+            resolved_peer_names: HashSet::default(),
+        },
     };
     (dep_path, node)
 }
@@ -257,10 +273,6 @@ fn make_link_node(target: &str, manifest: serde_json::Value) -> DependenciesGrap
     let id_text = format!("link:{target}");
     let resolve_result = ResolveResult {
         id: PkgResolutionId::from(id_text.clone()),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(std::sync::Arc::new(manifest)),
         resolution: LockfileResolution::Directory(DirectoryResolution {
             directory: target.to_string(),
         }),
@@ -268,20 +280,28 @@ fn make_link_node(target: &str, manifest: serde_json::Value) -> DependenciesGrap
         normalized_bare_specifier: None,
         alias: None,
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(manifest)),
+        },
     };
     DependenciesGraphNode {
         dep_path: DepPath::from(id_text.clone()),
         resolved_package_id: id_text,
         resolve_result: std::sync::Arc::new(resolve_result),
-        children: BTreeMap::new(),
-        optional_children: HashSet::default(),
-        peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::default(),
-        resolved_peer_names: HashSet::default(),
         depth: 0,
         installable: true,
         is_pure: true,
         optional: false,
+        edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
+            children: BTreeMap::new(),
+            optional_children: HashSet::default(),
+            peer_dependencies: BTreeMap::new(),
+            transitive_peer_dependencies: HashSet::default(),
+            resolved_peer_names: HashSet::default(),
+        },
     }
 }
 
@@ -294,10 +314,6 @@ fn make_file_node(name: &str, directory: &str) -> DependenciesGraphNode {
     let dep_path = DepPath::from(format!("{name}@{id_text}"));
     let resolve_result = ResolveResult {
         id: PkgResolutionId::from(id_text),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(Arc::new(json!({ "name": name, "version": "1.0.0" }))),
         resolution: LockfileResolution::Directory(DirectoryResolution {
             directory: directory.to_string(),
         }),
@@ -305,20 +321,28 @@ fn make_file_node(name: &str, directory: &str) -> DependenciesGraphNode {
         normalized_bare_specifier: None,
         alias: None,
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(Arc::new(json!({ "name": name, "version": "1.0.0" }))),
+        },
     };
     DependenciesGraphNode {
         resolved_package_id: dep_path.to_string(),
         dep_path,
         resolve_result: Arc::new(resolve_result),
-        children: BTreeMap::new(),
-        optional_children: HashSet::default(),
-        peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::default(),
-        resolved_peer_names: HashSet::default(),
         depth: 1,
         installable: true,
         is_pure: true,
         optional: false,
+        edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
+            children: BTreeMap::new(),
+            optional_children: HashSet::default(),
+            peer_dependencies: BTreeMap::new(),
+            transitive_peer_dependencies: HashSet::default(),
+            resolved_peer_names: HashSet::default(),
+        },
     }
 }
 
@@ -374,10 +398,6 @@ fn make_named_registry_node(
     let name_ver: PkgNameVer = format!("{name}@{version}").parse().expect("parse PkgNameVer");
     let resolve_result = ResolveResult {
         id: PkgResolutionId::from(format!("{name}@{registry_name}:{version}")),
-        name_ver: Some(name_ver),
-        latest: None,
-        published_at: None,
-        manifest: Some(std::sync::Arc::new(json!({ "name": name, "version": version }))),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: tarball_url.to_string(),
             integrity: Some(Integrity::from_str(FAKE_INTEGRITY).expect("parse fake integrity")),
@@ -389,20 +409,28 @@ fn make_named_registry_node(
         normalized_bare_specifier: None,
         alias: Some(name.to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: Some(name_ver),
+            latest: None,
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(json!({ "name": name, "version": version }))),
+        },
     };
     DependenciesGraphNode {
         dep_path,
         resolved_package_id: format!("{name}@{registry_name}:{version}"),
         resolve_result: std::sync::Arc::new(resolve_result),
-        children: BTreeMap::new(),
-        optional_children: HashSet::default(),
-        peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::default(),
-        resolved_peer_names: HashSet::default(),
         depth: 1,
         installable: true,
         is_pure: true,
         optional: false,
+        edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
+            children: BTreeMap::new(),
+            optional_children: HashSet::default(),
+            peer_dependencies: BTreeMap::new(),
+            transitive_peer_dependencies: HashSet::default(),
+            resolved_peer_names: HashSet::default(),
+        },
     }
 }
 

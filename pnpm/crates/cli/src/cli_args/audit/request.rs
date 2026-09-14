@@ -78,7 +78,9 @@ pub(crate) fn env_roots(deps: &BTreeMap<String, SpecifierAndResolution>) -> Vec<
         .filter_map(|(name, spec)| {
             let name = name.parse::<PkgName>().ok()?;
             let version = spec.version.parse::<ImporterDepVersion>().ok()?;
-            version.resolved_key(&name).map(|key| Edge { key })
+            version
+                .resolved_key(&name)
+                .map(|key| Edge { key })
         })
         .collect()
 }
@@ -141,7 +143,10 @@ pub(crate) fn collect_optional_only_keys(
     let with_optional = walk_reachable(graph, include, true);
     let without_optional =
         walk_reachable(graph, Include { optional_dependencies: false, ..include }, false);
-    with_optional.difference(&without_optional).cloned().collect()
+    with_optional
+        .difference(&without_optional)
+        .cloned()
+        .collect()
 }
 
 pub(crate) fn walk_reachable(
@@ -156,7 +161,12 @@ pub(crate) fn walk_reachable(
         if !seen.insert(key.clone()) {
             continue;
         }
-        stack.extend(graph.children(&key, include_optional_edges).into_iter().map(|edge| edge.key));
+        stack.extend(
+            graph
+                .children(&key, include_optional_edges)
+                .into_iter()
+                .map(|edge| edge.key),
+        );
     }
     seen
 }
@@ -165,13 +175,14 @@ pub(crate) fn selected_root_edges<'a>(
     graph: &'a AuditGraph<'a>,
     include: Include,
 ) -> impl Iterator<Item = &'a Edge> {
-    graph.importers.iter().flat_map(move |importer| {
-        importer
-            .roots
-            .iter()
-            .filter(move |(kind, _)| root_included(*kind, include))
-            .map(|(_, edge)| edge)
-    })
+    graph.importers
+        .iter()
+        .flat_map(move |importer| {
+            importer.roots
+                .iter()
+                .filter(move |(kind, _)| root_included(*kind, include))
+                .map(|(_, edge)| edge)
+        })
 }
 
 pub(crate) fn root_included(kind: DepKind, include: Include) -> bool {
@@ -246,7 +257,10 @@ impl AuditRequestBuilder {
                 version.clone(),
                 VersionState { dev_only: class.dev_only, optional_only: class.optional_only },
             );
-            self.request.entry(name).or_default().push(version);
+            self.request
+                .entry(name)
+                .or_default()
+                .push(version);
             self.count_first_occurrence(class);
             return;
         };

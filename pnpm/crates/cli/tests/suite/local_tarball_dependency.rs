@@ -22,8 +22,13 @@ fn write_tarball(workspace: &Path, file_name: &str, manifest: &serde_json::Value
 
 #[test]
 fn local_tarball_dependency_is_recorded_and_installed() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_tarball(
@@ -42,7 +47,10 @@ fn local_tarball_dependency_is_recorded_and_installed() {
     )
     .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
@@ -85,8 +93,13 @@ fn local_tarball_dependency_is_recorded_and_installed() {
 /// Covers <https://github.com/pnpm/pnpm/issues/13410>.
 #[test]
 fn local_tarball_without_a_bundled_manifest_installs_under_its_alias() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(workspace.join("no-manifest-1.0.0.tgz"), tarball_without_manifest())
@@ -102,7 +115,10 @@ fn local_tarball_without_a_bundled_manifest_installs_under_its_alias() {
     )
     .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
@@ -115,8 +131,9 @@ fn local_tarball_without_a_bundled_manifest_installs_under_its_alias() {
         "a package with no manifest is recorded at version 0.0.0:\n{lockfile}",
     );
 
-    let installed = workspace
-        .join("node_modules/.pnpm/no-manifest@file+no-manifest-1.0.0.tgz/node_modules/no-manifest");
+    let installed = workspace.join(
+        "node_modules/.pnpm/no-manifest@file+no-manifest-1.0.0.tgz/node_modules/no-manifest",
+    );
     assert!(installed.join("README.md").exists(), "the archive's contents must be extracted");
     let placeholder =
         fs::read_to_string(installed.join("package.json")).expect("read the placeholder manifest");
@@ -137,8 +154,13 @@ fn local_tarball_without_a_bundled_manifest_installs_under_its_alias() {
 /// Covers <https://github.com/pnpm/pnpm/issues/14701>.
 #[test]
 fn local_tarball_with_a_root_level_entry_installs() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     // macOS `bsdtar` emits the zero-length `AppleDouble` `._package` when
@@ -161,7 +183,10 @@ fn local_tarball_with_a_root_level_entry_installs() {
     )
     .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let installed = workspace.join(
         "node_modules/.pnpm/pkg-root-entry@file+pkg-root-entry-1.0.0.tgz/node_modules/pkg-root-entry",
@@ -186,8 +211,13 @@ fn local_tarball_with_a_root_level_entry_installs() {
 /// two CLIs disagree about fails a `--frozen-lockfile` install.
 #[test]
 fn flat_local_tarball_is_recorded_under_its_bundled_name() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -210,7 +240,10 @@ fn flat_local_tarball_is_recorded_under_its_bundled_name() {
     )
     .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
@@ -244,8 +277,13 @@ fn flat_local_tarball_is_recorded_under_its_bundled_name() {
 /// read from a second angle: the dep path alone would not reveal them.
 #[test]
 fn local_tarball_dependency_pulls_in_its_own_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_tarball(
@@ -268,7 +306,10 @@ fn local_tarball_dependency_pulls_in_its_own_dependencies() {
     )
     .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");

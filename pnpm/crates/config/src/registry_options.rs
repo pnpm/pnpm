@@ -57,13 +57,11 @@ impl Config {
     #[must_use]
     pub fn resolved_registry_lookups(&self) -> RegistryLookups {
         let mut lookups = self.registry_lookups(Some(self.registry.clone()));
-        lookups
-            .registries_by_scope
+        lookups.registries_by_scope
             .entry("@jsr".to_string())
             .or_insert_with(|| DEFAULT_JSR_REGISTRY.to_string());
         for (prefix, registry) in BUILTIN_REGISTRIES_BY_PREFIX {
-            lookups
-                .registries_by_prefix
+            lookups.registries_by_prefix
                 .entry((*prefix).to_string())
                 .or_insert_with(|| (*registry).to_string());
         }
@@ -101,8 +99,9 @@ impl Config {
     pub fn resolved_audit_settings(&self) -> Option<AuditSettings> {
         let audit = AuditSettings {
             level: self.audit_level,
-            ignore: (!self.audit_config.ignore_ghsas.is_empty())
-                .then(|| self.audit_config.ignore_ghsas.clone()),
+            ignore: (!self.audit_config.ignore_ghsas.is_empty()).then(|| {
+                self.audit_config.ignore_ghsas.clone()
+            }),
             ignore_prune: self.audit_ignore_prune,
         };
         (audit != AuditSettings::default()).then_some(audit)
@@ -155,8 +154,9 @@ impl Config {
     ///
     /// [`WorkspaceSettings::clear_self_update_policy`]: crate::WorkspaceSettings::clear_self_update_policy
     pub fn resolved_minimum_release_age_strict(&self) -> bool {
-        self.minimum_release_age_strict
-            .unwrap_or_else(|| self.explicit_settings.contains_key("minimumReleaseAge"))
+        self.minimum_release_age_strict.unwrap_or_else(|| {
+            self.explicit_settings.contains_key("minimumReleaseAge")
+        })
     }
 
     /// Effective [`Self::minimum_release_age`], with `Some(0)` treated

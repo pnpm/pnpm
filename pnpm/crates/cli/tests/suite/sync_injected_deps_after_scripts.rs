@@ -75,18 +75,29 @@ fn write_workspace(workspace: &Path, sync_after: &str) {
 
 #[test]
 fn a_listed_script_refreshes_every_injected_copy() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_workspace(&workspace, "syncInjectedDepsAfterScripts:\n  - build\n");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let copies = injected_copies(&workspace);
     assert!(!copies.is_empty(), "the install should have injected project-1 somewhere");
 
-    pacquet_in(&workspace.join("project-1")).with_args(["run", "build"]).assert().success();
+    pacquet_in(&workspace.join("project-1"))
+        .with_args(["run", "build"])
+        .assert()
+        .success();
 
     for copy in &copies {
         assert_eq!(
@@ -102,18 +113,29 @@ fn a_listed_script_refreshes_every_injected_copy() {
 
 #[test]
 fn an_unlisted_script_leaves_the_injected_copies_alone() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_workspace(&workspace, "");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let copies = injected_copies(&workspace);
     assert!(!copies.is_empty(), "the install should have injected project-1 somewhere");
 
-    pacquet_in(&workspace.join("project-1")).with_args(["run", "build"]).assert().success();
+    pacquet_in(&workspace.join("project-1"))
+        .with_args(["run", "build"])
+        .assert()
+        .success();
 
     for copy in &copies {
         assert!(
@@ -162,7 +184,10 @@ fn bin_dirs_holding(dir: &Path, bin_name: &str) -> Vec<std::path::PathBuf> {
             if !path.is_dir() {
                 continue;
             }
-            if path.file_name().is_some_and(|name| name == ".bin") {
+            if path
+                .file_name()
+                .is_some_and(|name| name == ".bin")
+            {
                 let holds =
                     [bin_name.to_string(), format!("{bin_name}.CMD"), format!("{bin_name}.ps1")]
                         .iter()
@@ -182,8 +207,13 @@ fn bin_dirs_holding(dir: &Path, bin_name: &str) -> Vec<std::path::PathBuf> {
 
 #[test]
 fn a_listed_script_removes_the_link_of_a_bin_it_dropped() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_workspace(&workspace, "syncInjectedDepsAfterScripts:\n  - build\n");
@@ -218,14 +248,20 @@ fn a_listed_script_removes_the_link_of_a_bin_it_dropped() {
     )
     .expect("write drop-bin.cjs");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         !bin_dirs_holding(&workspace, "dropped-cli").is_empty(),
         "the install should have linked the bin somewhere",
     );
 
-    pacquet_in(&workspace.join("project-1")).with_args(["run", "build"]).assert().success();
+    pacquet_in(&workspace.join("project-1"))
+        .with_args(["run", "build"])
+        .assert()
+        .success();
 
     assert_eq!(
         bin_dirs_holding(&workspace, "dropped-cli"),

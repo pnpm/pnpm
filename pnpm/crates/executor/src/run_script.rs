@@ -1,5 +1,5 @@
 use crate::{
-    extend_path::{ScriptsPrependNodePath, extend_path},
+    extend_path::extend_path,
     lifecycle::{StreamedScript, push_script_arg},
     make_env::{EnvOptions, build_env, path_value},
     process_tracker::{ProcessTracker, spawn_child},
@@ -16,7 +16,7 @@ use std::{
     env,
     ffi::OsString,
     io::{self, Write},
-    path::{Path, PathBuf},
+    path::Path,
     process::{Command, Stdio},
 };
 
@@ -71,63 +71,39 @@ pub enum ScriptOutput<'a> {
 pub struct RunScript<'a> {
     /// The package manifest, used to stamp `npm_package_*` env vars.
     pub manifest: &'a Value,
-    /// The lifecycle stage, written into `npm_lifecycle_event` (the
-    /// script name for `pnpm run <name>`, or `pre`/`post` variants).
-    pub stage: &'a str,
-    /// The script body to run.
-    pub script: &'a str,
-    /// Arguments appended to the script after shell-quoting. Only the
-    /// main stage receives these; `pre`/`post` stages pass `&[]`.
-    pub args: &'a [String],
     /// The project directory the script runs in.
     pub pkg_root: &'a Path,
-    /// Value written into `INIT_CWD`.
-    pub init_cwd: &'a Path,
-    /// Extra directories prepended to `PATH` (the `extraBinPaths` config).
-    pub extra_bin_paths: &'a [PathBuf],
-    /// Custom shell from the `scriptShell` config, if any.
-    pub script_shell: Option<&'a Path>,
-    /// The `shellEmulator` config: run the script through pacquet's
-    /// built-in shell rather than the platform's.
-    pub shell_emulator: bool,
-    /// The `scriptsPrependNodePath` config.
-    pub scripts_prepend_node_path: ScriptsPrependNodePath,
-    /// Path to a `node` binary for `npm_node_execpath` / `NODE`.
-    pub node_execpath: Option<&'a Path>,
-    /// Path written into `npm_execpath`.
-    pub npm_execpath: Option<&'a Path>,
-    /// Value written into `npm_config_user_agent`.
-    pub user_agent: Option<&'a str>,
-    /// Extra environment variables (the `extraEnv` / `NODE_OPTIONS` set).
-    pub extra_env: &'a HashMap<String, String>,
     /// When `true`, suppress the `$ <script>` echo to stderr.
     pub silent: bool,
     /// Where the script's output goes.
     pub output: ScriptOutput<'a>,
     /// Tracks this script for cancellation when a recursive command bails.
     pub process_tracker: Option<&'a ProcessTracker>,
+    pub environment: crate::ScriptEnvironment<'a>,
+    pub execution: crate::ScriptExecutionOptions<'a>,
+    pub invocation: crate::ScriptInvocation<'a>,
 }
 
 /// Run a single user script in the foreground, sending its output where
 /// [`RunScript::output`] says.
 pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
     let command = build_command(
-        opts.script,
-        opts.args,
-        parsed_by_windows_shell(cfg!(windows), opts.shell_emulator),
+        opts.invocation.script,
+        opts.invocation.args,
+        parsed_by_windows_shell(cfg!(windows), opts.execution.shell_emulator),
     );
 
     // The `scriptShell` value is validated even when the emulator will
     // run the script, matching pnpm's `runLifecycleHook`, which rejects a
     // `.bat` / `.cmd` shell before it looks at `shellEmulator`.
     let shell =
-        select_shell(opts.script_shell, cfg!(windows)).map_err(RunScriptError::ScriptShell)?;
+        select_shell(opts.execution.shell, cfg!(windows)).map_err(RunScriptError::ScriptShell)?;
 
     let child_env = child_env(opts, &command);
 
     if let ScriptOutput::Streamed { dep_path, emit } = opts.output {
         let wd = opts.pkg_root.to_string_lossy().into_owned();
-        let streamed = StreamedScript { dep_path, stage: opts.stage, wd: &wd, emit };
+        let streamed = StreamedScript { dep_path, stage: opts.invocation.stage, wd: &wd, emit };
         return run_streamed(opts, &shell, &command, &child_env, streamed);
     }
 
@@ -138,7 +114,7 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
         let _ = writeln!(stderr, "$ {command}");
     }
 
-    if opts.shell_emulator {
+    if opts.execution.shell_emulator {
         return execute_emulated(
             &command,
             opts.pkg_root,
@@ -158,19 +134,23 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
 fn child_env(opts: &RunScript<'_>, command: &str) -> HashMap<String, String> {
     let parent_env: HashMap<String, String> = env::vars().collect();
     let env_opts = EnvOptions {
-        stage: opts.stage,
+        environment: crate::ScriptEnvironment {
+            init_cwd: opts.environment.init_cwd,
+            node_execpath: opts.environment.node_execpath,
+            npm_execpath: opts.environment.npm_execpath,
+            node_gyp_path: None,
+            user_agent: opts.environment.user_agent,
+            extra_env: opts.environment.extra_env,
+        },
+        stage: opts.invocation.stage,
         script: command,
         pkg_root: opts.pkg_root,
-        init_cwd: opts.init_cwd,
+
         script_src_dir: opts.pkg_root,
-        node_execpath: opts.node_execpath,
-        npm_execpath: opts.npm_execpath,
-        node_gyp_path: None,
-        user_agent: opts.user_agent,
+
         // Explicit `pnpm run` invocations are trusted, so the temp-dir /
         // privilege-drop path is skipped (`unsafe_perm: true`).
         unsafe_perm: true,
-        extra_env: opts.extra_env,
     };
     let built = build_env(&env_opts, opts.manifest, parent_env);
 
@@ -179,9 +159,9 @@ fn child_env(opts: &RunScript<'_>, command: &str) -> HashMap<String, String> {
         opts.pkg_root,
         original_path.as_ref(),
         crate::bundled_node_gyp_bin(),
-        opts.extra_bin_paths,
-        opts.scripts_prepend_node_path,
-        opts.node_execpath,
+        opts.execution.extra_bin_paths,
+        opts.execution.prepend_node_path,
+        opts.environment.node_execpath,
     );
 
     let mut child_env = built.env;
@@ -198,7 +178,7 @@ fn run_streamed(
     streamed: StreamedScript<'_>,
 ) -> Result<ScriptExit, RunScriptError> {
     streamed.started(command);
-    let status = if opts.shell_emulator {
+    let status = if opts.execution.shell_emulator {
         let emit_line = |stdio, line| streamed.emit_line(stdio, line);
         execute_emulated(
             command,
@@ -229,7 +209,9 @@ fn run_in_shell(
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     push_script_arg(&mut cmd, command, shell.windows_verbatim_args);
-    cmd.current_dir(opts.pkg_root).env_clear().envs(child_env);
+    cmd.current_dir(opts.pkg_root)
+        .env_clear()
+        .envs(child_env);
     let mut child = spawn_child(&mut cmd, opts.process_tracker)
         .map_err(|source| RunScriptError::Spawn { script: command.to_string(), source })?;
     let status = child
@@ -278,9 +260,15 @@ fn build_command(script: &str, args: &[String], windows_shell: bool) -> String {
         return script.to_string();
     }
     let quoted = if windows_shell {
-        args.iter().map(|arg| Value::String(arg.clone()).to_string()).collect::<Vec<_>>().join(" ")
+        args.iter()
+            .map(|arg| Value::String(arg.clone()).to_string())
+            .collect::<Vec<_>>()
+            .join(" ")
     } else {
-        args.iter().map(|arg| posix_quote(arg)).collect::<Vec<_>>().join(" ")
+        args.iter()
+            .map(|arg| posix_quote(arg))
+            .collect::<Vec<_>>()
+            .join(" ")
     };
     format!("{script} {quoted}")
 }
@@ -293,7 +281,9 @@ fn posix_quote(arg: &str) -> String {
     if arg.is_empty() {
         return "''".to_string();
     }
-    let safe = arg.chars().all(|ch| ch.is_ascii_alphanumeric() || "_@%+=:,./-".contains(ch));
+    let safe = arg
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || "_@%+=:,./-".contains(ch));
     if safe { arg.to_string() } else { format!("'{}'", arg.replace('\'', r#"'"'"'"#)) }
 }
 

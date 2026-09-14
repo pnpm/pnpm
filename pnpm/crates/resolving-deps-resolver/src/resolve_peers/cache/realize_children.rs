@@ -10,7 +10,7 @@ impl Walker<'_> {
         parent_refs: &ParentRefs,
         pkg_id: &Arc<str>,
     ) -> DeferredChildResolution {
-        if let Some(dep_path) = self.pure_pkgs.get(&**pkg_id)
+        if let Some(dep_path) = self.caches.pure_pkgs.get(&**pkg_id)
             && self.tree.packages[&**pkg_id].peer_dependencies.is_empty()
         {
             return DeferredChildResolution::Pure(dep_path.clone());
@@ -43,16 +43,16 @@ impl Walker<'_> {
                     ),
                 );
                 let output = self.resolve_node(&context.node_id, context.walk);
-                if !self.parent_pkgs_of_node.contains_key(&context.node_id)
+                if !self.caches.parent_pkgs_of_node.contains_key(&context.node_id)
                     && !should_retain_materialized_node(
-                        &self.retained_peer_node_ids,
+                        &self.caches.retained_peer_node_ids,
                         Some(&output),
                         &context.node_id,
                     )
                 {
                     self.tree.dependencies_tree.remove(&context.node_id);
-                    self.node_dep_paths.remove(&context.node_id);
-                    self.visited_this_call.remove(&context.node_id);
+                    self.caches.node_dep_paths.remove(&context.node_id);
+                    self.traversal.visited_this_call.remove(&context.node_id);
                 }
                 output
             }
@@ -66,13 +66,14 @@ impl Walker<'_> {
         current_pkg_id: &str,
     ) -> BTreeMap<String, NodeId> {
         let mut children = BTreeMap::new();
-        if !parent_pkg_ids_chain.iter().any(|pkg_id| pkg_id == current_pkg_id) {
+        if !parent_pkg_ids_chain
+            .iter()
+            .any(|pkg_id| pkg_id == current_pkg_id)
+        {
             return children;
         }
         for parent_node_id in parent_node_ids.iter() {
-            let same_pkg = self
-                .tree
-                .dependencies_tree
+            let same_pkg = self.tree.dependencies_tree
                 .get(parent_node_id)
                 .is_some_and(|node| &*node.resolved_package_id == current_pkg_id);
             if !same_pkg {
@@ -90,8 +91,7 @@ impl Walker<'_> {
         pkg_id: &str,
         edges: &BTreeMap<String, NodeId>,
     ) -> HashSet<String> {
-        self.tree
-            .children_by_id
+        self.tree.children_by_id
             .get(pkg_id)
             .into_iter()
             .flat_map(|children| children.iter())
@@ -122,8 +122,7 @@ impl Walker<'_> {
         children
             .iter()
             .filter(|(alias, child_node_id)| {
-                self.tree
-                    .dependencies_tree
+                self.tree.dependencies_tree
                     .get(*child_node_id)
                     .and_then(|child| self.tree.packages.get(&child.resolved_package_id))
                     .is_some_and(|pkg| self.is_peer_relevant(alias, pkg))
@@ -139,9 +138,11 @@ impl Walker<'_> {
         &mut self,
         lazy: LazyProviders,
     ) -> (BTreeMap<String, NodeId>, Option<UndoRealize>) {
-        let children = self.tree.children_by_id.get(&lazy.pkg_id).cloned().unwrap_or_default();
-        let provider_edge_indices = self
-            .peer_provider_children_by_pkg_id
+        let children = self.tree.children_by_id
+            .get(&lazy.pkg_id)
+            .cloned()
+            .unwrap_or_default();
+        let provider_edge_indices = self.caches.peer_provider_children_by_pkg_id
             .get(&*lazy.pkg_id)
             .map_or(&[][..], |providers| providers.relevant_edge_indices.as_slice());
         let canonical_scc = self.canonical_scc();
@@ -218,8 +219,9 @@ impl Walker<'_> {
         };
         // No spec means the first walk never recorded children for this
         // package id — defensive empty case.
-        let children_spec =
-            self.tree.children_by_id.get(&pkg_id).map_or_else(|| Arc::new(Vec::new()), Arc::clone);
+        let children_spec = self.tree.children_by_id
+            .get(&pkg_id)
+            .map_or_else(|| Arc::new(Vec::new()), Arc::clone);
         let canonical_scc = self.canonical_scc();
         let context = EdgeRealization {
             canonical_scc: &canonical_scc,
@@ -324,13 +326,17 @@ impl Walker<'_> {
     ) {
         let Some(undo) = undo else { return };
         for child_id in &undo.newly_inserted {
-            if should_retain_materialized_node(&self.retained_peer_node_ids, output, child_id) {
+            if should_retain_materialized_node(
+                &self.caches.retained_peer_node_ids,
+                output,
+                child_id,
+            ) {
                 continue;
             }
             self.tree.dependencies_tree.remove(child_id);
-            self.parent_pkgs_of_node.remove(child_id);
-            self.node_dep_paths.remove(child_id);
-            self.visited_this_call.remove(child_id);
+            self.caches.parent_pkgs_of_node.remove(child_id);
+            self.caches.node_dep_paths.remove(child_id);
+            self.traversal.visited_this_call.remove(child_id);
         }
         if let Some(node) = self.tree.dependencies_tree.get_mut(node_id) {
             node.children = TreeChildren::Lazy { parent_ids: undo.prev_parent_ids };

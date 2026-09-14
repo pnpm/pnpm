@@ -96,16 +96,25 @@ pub(super) fn manifest_matches_diff(manifest: &ArtifactManifest, diff: &SideEffe
     }
     for file in &manifest.added {
         let Ok(digest) = blob_id(&file.integrity) else { return false };
-        if !added.get(&file.path).is_some_and(|stored| {
-            stored.digest == digest && stored.mode == file.mode && stored.size == file.size
-        }) {
+        if !added
+            .get(&file.path)
+            .is_some_and(|stored| {
+                stored.digest == digest && stored.mode == file.mode && stored.size == file.size
+            })
+        {
             return false;
         }
     }
     let deleted = diff.deleted.as_deref().unwrap_or_default();
     deleted.len() == manifest.deleted.len()
-        && deleted.iter().collect::<HashSet<_>>().len() == deleted.len()
-        && deleted.iter().all(|path| manifest.deleted.contains(path))
+        && deleted
+            .iter()
+            .collect::<HashSet<_>>()
+            .len()
+            == deleted.len()
+        && deleted
+            .iter()
+            .all(|path| manifest.deleted.contains(path))
 }
 pub(super) async fn stored_remote_side_effects_blobs_are_valid(
     diff: &SideEffectsDiff,
@@ -116,8 +125,7 @@ pub(super) async fn stored_remote_side_effects_blobs_are_valid(
         if !store_holds(path, &info.digest).await? {
             return Ok(false);
         }
-        let metadata = tokio::fs::metadata(path)
-            .await
+        let metadata = tokio::fs::metadata(path).await
             .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
         if metadata.len() != info.size {
             return Ok(false);
@@ -156,7 +164,9 @@ pub(super) fn quarantine_remote_side_effects(
 pub(super) fn decoded_trusted_keys(
     settings: &pnpm_config::RemoteSideEffectsCacheSettings,
 ) -> Option<BTreeMap<String, Vec<u8>>> {
-    let encoded = settings.trusted_keys.as_ref().filter(|keys| !keys.is_empty())?;
+    let encoded = settings.trusted_keys
+        .as_ref()
+        .filter(|keys| !keys.is_empty())?;
     let mut trusted_keys = BTreeMap::new();
     for (key_id, public_key) in encoded {
         let public_key = match BASE64.decode(public_key) {

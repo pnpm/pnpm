@@ -44,8 +44,12 @@ pub(super) fn lockfile_to_dep_graph(
         let children = crate::deps_graph::build_children_with(snapshot, |alias, dep_ref| {
             child_graph_key(alias, dep_ref, lockfile_dir)
         });
-        link_target_nodes
-            .extend(children.values().filter(|child_key| child_key.starts_with("link:")).cloned());
+        link_target_nodes.extend(
+            children
+                .values()
+                .filter(|child_key| child_key.starts_with("link:"))
+                .cloned(),
+        );
         graph.insert(
             snapshot_key.to_string(),
             DepsGraphNode { full_pkg_id: full_pkg_id_of(snapshot_key, packages), children },
@@ -196,7 +200,10 @@ impl<'h> GvsHasher<'h> {
             return hasher.update([0_u8]);
         };
         hasher.update([1_u8]);
-        let mut sorted: Vec<&str> = paths.iter().map(String::as_str).collect();
+        let mut sorted: Vec<&str> = paths
+            .iter()
+            .map(String::as_str)
+            .collect();
         sorted.sort_unstable();
         write_field(hasher, &sorted.join("\u{0}"));
     }

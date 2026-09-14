@@ -12,7 +12,9 @@ fn resolve_budget_bounds_combined_scanned_and_serialized_bytes() {
     let empty_response_size =
         serde_json::to_vec(&ResolveArtifactsResponse { artifacts: Vec::new() }).unwrap().len();
     let mut scan_budget = ResolveBudget { used_bytes: 0 };
-    scan_budget.add_scan(MAX_RESOLVE_RESPONSE_SIZE as u64).unwrap();
+    scan_budget
+        .add_scan(MAX_RESOLVE_RESPONSE_SIZE as u64)
+        .unwrap();
     assert!(scan_budget.add_scan(1).is_err());
 
     let artifact = ResolvedArtifact {
@@ -30,7 +32,9 @@ fn resolve_budget_bounds_combined_scanned_and_serialized_bytes() {
     assert!(response_budget.add_response(&artifact, false).is_err());
 
     let mut combined_budget = ResolveBudget { used_bytes: empty_response_size };
-    combined_budget.add_scan((MAX_RESOLVE_RESPONSE_SIZE - empty_response_size) as u64).unwrap();
+    combined_budget
+        .add_scan((MAX_RESOLVE_RESPONSE_SIZE - empty_response_size) as u64)
+        .unwrap();
     assert!(combined_budget.add_response(&artifact, false).is_err());
 }
 
@@ -55,9 +59,16 @@ async fn concurrent_duplicate_publications_are_charged_once() {
 
     assert_ne!(first.unwrap(), second.unwrap());
     let usage_path = object_store::path::Path::from(".pnpr-artifacts/v0/quota.json");
-    let usage: ArtifactUsage =
-        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
-            .unwrap();
+    let usage: ArtifactUsage = serde_json::from_slice(
+        &backend
+            .get(&usage_path)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(usage.global_bytes, expected);
 }
 
@@ -67,14 +78,17 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
         inner: InMemory::new(),
         commit_before_error: true,
         fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: None,
-        usage_writes: None,
+
+        quota: super::QuotaFaults {
+            fail_next_write: None,
+            claim_slot_first: None,
+            fail_slot_read_after_first: None,
+            usage_writes: None,
+        },
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -85,11 +99,24 @@ async fn committed_blob_writes_without_an_envelope_are_reclaimed() {
     store.publish("acme", request).await.unwrap_err();
 
     let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
-    let usage: ArtifactUsage =
-        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
-            .unwrap();
+    let usage: ArtifactUsage = serde_json::from_slice(
+        &backend
+            .get(&usage_path)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(usage.global_bytes, 0);
-    assert_eq!(usage.owner_bytes.values().copied().sum::<u64>(), 0);
+    assert_eq!(
+        usage.owner_bytes
+            .values()
+            .copied()
+            .sum::<u64>(),
+        0,
+    );
     let mut objects = backend.list(None);
     let mut physical_bytes = 0_u64;
     while let Some(object) = objects.next().await {
@@ -116,7 +143,10 @@ async fn reclamation_waits_for_publications_on_other_replicas() {
 
     let owner = owner_key("acme", &OwnerScope::organization("acme")).unwrap();
     let orphan = ObjectPath::from(format!(".pnpr-artifacts/v0/{owner}/blobs/orphan"));
-    backend.put(&orphan, PutPayload::from_static(b"orphan")).await.unwrap();
+    backend
+        .put(&orphan, PutPayload::from_static(b"orphan"))
+        .await
+        .unwrap();
     first.reserve_quota(&owner, 6).await.unwrap();
 
     first.finish_publication(&first_publication, true).await.unwrap();
@@ -127,9 +157,16 @@ async fn reclamation_waits_for_publications_on_other_replicas() {
     second.try_reclaim_unreferenced_blobs().await.unwrap();
     assert!(matches!(backend.head(&orphan).await, Err(object_store::Error::NotFound { .. })));
     let usage_path = ObjectPath::from(".pnpr-artifacts/v0/quota.json");
-    let usage: ArtifactUsage =
-        serde_json::from_slice(&backend.get(&usage_path).await.unwrap().bytes().await.unwrap())
-            .unwrap();
+    let usage: ArtifactUsage = serde_json::from_slice(
+        &backend
+            .get(&usage_path)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(usage.global_bytes, 0);
     assert!(usage.active_publications.is_empty());
     assert!(!usage.reclamation_needed);
@@ -151,7 +188,10 @@ async fn reclamation_preserves_blobs_referenced_by_committed_envelopes() {
     store.begin_publication(&publication).await.unwrap();
     let owner = owner_key("acme", &OwnerScope::organization("acme")).unwrap();
     let orphan = ObjectPath::from(format!(".pnpr-artifacts/v0/{owner}/blobs/orphan"));
-    backend.put(&orphan, PutPayload::from_static(b"orphan")).await.unwrap();
+    backend
+        .put(&orphan, PutPayload::from_static(b"orphan"))
+        .await
+        .unwrap();
     store.reserve_quota(&owner, 6).await.unwrap();
     store.finish_publication(&publication, true).await.unwrap();
     store.try_reclaim_unreferenced_blobs().await.unwrap();
@@ -209,7 +249,10 @@ async fn an_entry_crowded_with_overlapping_artifacts_refuses_publication() {
             "republishing into a crowded entry is refused, got {error:?}",
         );
     }
-    let error = store.publish("acme", publication("ci/third")).await.unwrap_err();
+    let error = store
+        .publish("acme", publication("ci/third"))
+        .await
+        .unwrap_err();
     assert!(
         matches!(error, RegistryError::ArtifactAlreadyPublished { .. }),
         "a genuinely new artifact still conflicts, got {error:?}",
@@ -230,7 +273,10 @@ async fn artifacts_no_consumer_can_share_are_published_side_by_side() {
         "pnpm:v1:win32-x64-node22-windows10.0.17763",
     ] {
         assert!(
-            store.publish("acme", publication_tagged("ci/matrix", &[tag])).await.unwrap(),
+            store
+                .publish("acme", publication_tagged("ci/matrix", &[tag]))
+                .await
+                .unwrap(),
             "{tag} should not conflict with any other platform",
         );
     }
@@ -274,7 +320,11 @@ async fn a_publication_that_never_finished_stops_holding_reclamation_shut() {
     store.try_reclaim_unreferenced_blobs().await.unwrap();
 
     assert!(
-        store.read_object_bounded(&marker, 128).await.unwrap().is_none(),
+        store
+            .read_object_bounded(&marker, 128)
+            .await
+            .unwrap()
+            .is_none(),
         "the scope goes back once the publication holding the gate is written off",
     );
 }
@@ -290,8 +340,10 @@ async fn publications_that_never_finished_stop_filling_the_limit() {
     let names: Vec<String> = (0..super::super::MAX_ACTIVE_PUBLICATIONS)
         .map(|index| format!("stranded-{index}"))
         .collect();
-    let times: serde_json::Map<String, serde_json::Value> =
-        names.iter().map(|name| (name.clone(), serde_json::json!(long_ago))).collect();
+    let times: serde_json::Map<String, serde_json::Value> = names
+        .iter()
+        .map(|name| (name.clone(), serde_json::json!(long_ago)))
+        .collect();
     store
         .create_object(
             ".locks/usage.json",
@@ -350,14 +402,17 @@ async fn a_publication_that_cannot_register_again_does_not_leave_its_artifact() 
         inner: InMemory::new(),
         commit_before_error: false,
         fail_deletes: false,
-        fail_next_quota_write: None,
-        claim_slot_first: None,
-        fail_slot_read_after_first: None,
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
         fail_only: Some(FailOnly::RegistrationAfter(variant.clone())),
-        usage_writes: None,
+
+        quota: super::QuotaFaults {
+            fail_next_write: None,
+            claim_slot_first: None,
+            fail_slot_read_after_first: None,
+            usage_writes: None,
+        },
     });
     let config =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&backend), prefix: String::new() };
@@ -377,7 +432,10 @@ async fn a_publication_that_cannot_register_again_does_not_leave_its_artifact() 
 
     assert!(matches!(error, RegistryError::ObjectStore(_)), "{error:?}");
     assert!(
-        backend.head(&ObjectPath::from(variant.as_str())).await.is_err(),
+        backend
+            .head(&ObjectPath::from(variant.as_str()))
+            .await
+            .is_err(),
         "the artifact it could not vouch for is taken back out",
     );
 }
@@ -409,7 +467,11 @@ async fn a_publication_still_working_says_so() {
     store.renew_publication(&publication).await.unwrap();
 
     let mut usage: ArtifactUsage = serde_json::from_slice(
-        &store.read_object_bounded(".locks/usage.json", 1 << 20).await.unwrap().unwrap(),
+        &store
+            .read_object_bounded(".locks/usage.json", 1 << 20)
+            .await
+            .unwrap()
+            .unwrap(),
     )
     .unwrap();
     assert!(
@@ -425,7 +487,17 @@ async fn a_publication_still_working_says_so() {
 async fn republishing_the_same_artifact_stays_idempotent() {
     let storage = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, storage.path()).unwrap();
-    assert!(store.publish("acme", publication("ci/first")).await.unwrap());
+    assert!(
+        store
+            .publish("acme", publication("ci/first"))
+            .await
+            .unwrap(),
+    );
 
-    assert!(!store.publish("acme", publication("ci/first")).await.unwrap());
+    assert!(
+        !store
+            .publish("acme", publication("ci/first"))
+            .await
+            .unwrap(),
+    );
 }

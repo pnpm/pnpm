@@ -269,6 +269,10 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfec
 pedantic = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 
+# Windows sizes `PathBuf` 8 bytes wider, carrying `InstallFrozenLockfileError` past the
+# 128-byte threshold it clears on unix, and with it every `install`, `add`, `update` and
+# `remove` signature that wraps that error.
+result_large_err = "allow" # deferred: shrink `SymlinkDirectDependenciesError::SymlinkPackage`, the variant at the root of that chain
 doc_link_with_quotes = "allow" # false positive: matches markdown link titles
 unreadable_literal = "allow" # false positive: octal file modes
 case_sensitive_file_extension_comparisons = "allow" # extension checks are intentionally case-sensitive

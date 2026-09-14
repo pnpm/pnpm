@@ -138,8 +138,10 @@ impl VerifyError {
     #[must_use]
     pub fn from_rendered(violations: &[RenderedViolation]) -> Self {
         debug_assert!(!violations.is_empty(), "no violations → no error");
-        let distinct_codes: std::collections::BTreeSet<&str> =
-            violations.iter().map(|violation| violation.code).collect();
+        let distinct_codes: std::collections::BTreeSet<&str> = violations
+            .iter()
+            .map(|violation| violation.code)
+            .collect();
         let mixed = distinct_codes.len() > 1;
         let count = violations.len();
         let breakdown = violation_breakdown(violations, mixed);
@@ -148,7 +150,10 @@ impl VerifyError {
             VerifyError::LockfileResolutionVerification { count, breakdown }
         } else {
             // Safe: distinct_codes has exactly one element.
-            let code = *distinct_codes.iter().next().expect("at least one code");
+            let code = *distinct_codes
+                .iter()
+                .next()
+                .expect("at least one code");
             match code {
                 pnpm_resolving_npm_resolver_violation_codes::MINIMUM_RELEASE_AGE_VIOLATION => {
                     VerifyError::MinimumReleaseAgeViolation { count, breakdown }

@@ -68,7 +68,9 @@ where
         reverse_graph: &indexed.reverse_graph,
         // A non-included node is born removed: the order never contains it
         // and the cycle search does not walk through it.
-        removed: (0..indexed.adjacency.len()).map(|id| id >= included_count).collect(),
+        removed: (0..indexed.adjacency.len())
+            .map(|id| id >= included_count)
+            .collect(),
         out_degree: indexed.out_degree,
         next: Vec::new(),
     };
@@ -79,8 +81,9 @@ where
     let mut remaining = included_count;
     // The ids whose degree is zero, i.e. the next ready set. Kept sorted in
     // `included` order.
-    let mut current: Vec<usize> =
-        (0..included_count).filter(|&id| sweep.out_degree[id] == 0).collect();
+    let mut current: Vec<usize> = (0..included_count)
+        .filter(|&id| sweep.out_degree[id] == 0)
+        .collect();
     while remaining > 0 {
         if current.is_empty() {
             for cycle in sweep.break_cycles(&indexed.adjacency, included_count) {
@@ -243,14 +246,18 @@ impl<'graph, Node: Eq + Hash + Clone> Interner<'graph, Node> {
     }
 
     fn intern(&mut self, node: &'graph Node) -> usize {
-        *self.index_of.entry(node).or_insert_with(|| {
-            self.nodes.push(node);
-            self.nodes.len() - 1
-        })
+        *self.index_of
+            .entry(node)
+            .or_insert_with(|| {
+                self.nodes.push(node);
+                self.nodes.len() - 1
+            })
     }
 
     fn to_nodes(&self, ids: &[usize]) -> Vec<Node> {
-        ids.iter().map(|&id| self.nodes[id].clone()).collect()
+        ids.iter()
+            .map(|&id| self.nodes[id].clone())
+            .collect()
     }
 }
 
@@ -421,7 +428,10 @@ fn find_cycle(
     }
 
     found_cycles.sort_by_key(|cycle| std::cmp::Reverse(cycle.len()));
-    found_cycles.into_iter().next().unwrap_or_default()
+    found_cycles
+        .into_iter()
+        .next()
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

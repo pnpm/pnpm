@@ -12,24 +12,27 @@ use super::{
 async fn should_throw_error_on_checksum_mismatch() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
     IngestTarballToStore {
-        http_client: &ThrottledClient::default(),
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        package_integrity: Some(&integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),
-        package_unpacked_size: Some(16697),
-        package_file_count: None,
-        package_url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
-        package_id: "@fastify/error@3.3.0",
+fetching: crate::ArchiveFetchOptions {http_client: &ThrottledClient::default(),auth_headers: &AuthHeaders::default(),retry_opts: test_retry_opts(),offline: false},
+package: crate::TarballPackage {integrity: Some(&integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),unpacked_size: Some(16697),file_count: None,url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",id: "@fastify/error@3.3.0"},
+store: crate::ArchiveStoreContext {dir: store_path,index: None,index_writer: None,verify_integrity: true,strict_pkg_content_check: true,verified_files_cache: SharedVerifiedFilesCache::default(),prefetched_cas_paths: None},
+
+
+
+
+
+
+
+
+
+
+
         requester: "",
-        prefetched_cas_paths: None,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
+
+
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -132,24 +135,33 @@ async fn falls_through_when_digest_is_malformed() {
     drop(index);
 
     let err = IngestTarballToStore {
-        http_client: &fast_fail_client(),
-        store_dir: store_path,
-        store_index: StoreIndex::shared_readonly_in(store_path),
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: "http://127.0.0.1:1/unreachable.tgz",
-        package_id: pkg_id,
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &fast_fail_client(),
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: "http://127.0.0.1:1/unreachable.tgz",
+            id: pkg_id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: StoreIndex::shared_readonly_in(store_path),
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         requester: "",
-        prefetched_cas_paths: None,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -170,8 +182,7 @@ async fn read_local_tarball_metadata_reads_integrity_and_bundled_manifest() {
     let tarball_path = local_dir.path().join("pkg.tgz");
     std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path)
-        .await
+    let metadata = read_local_tarball_metadata(&tarball_path).await
         .expect("read the local tarball's metadata");
 
     assert_eq!(metadata.integrity.to_string(), FASTIFY_ERROR_INTEGRITY);
@@ -198,24 +209,33 @@ async fn fetch_and_extract_records_expected_or_computed_integrity() {
         let (store_dir, store_path) = tempdir_with_leaked_path();
         let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
         let result = IngestTarballToStore {
-            http_client: &client,
-            store_dir: store_path,
-            store_index: None,
-            store_index_writer: Some(Arc::clone(&writer)),
-            verify_store_integrity: true,
-            strict_store_pkg_content_check: true,
-            package_integrity,
-            package_unpacked_size: Some(16697),
-            package_file_count: None,
-            package_url: &package_url,
-            package_id,
+            fetching: crate::ArchiveFetchOptions {
+                http_client: &client,
+                auth_headers: &AuthHeaders::default(),
+                retry_opts: test_retry_opts(),
+                offline: true,
+            },
+            package: crate::TarballPackage {
+                integrity: package_integrity,
+                unpacked_size: Some(16697),
+                file_count: None,
+                url: &package_url,
+                id: package_id,
+            },
+            store: crate::ArchiveStoreContext {
+                dir: store_path,
+                index: None,
+                index_writer: Some(Arc::clone(&writer)),
+                verify_integrity: true,
+                strict_pkg_content_check: true,
+                verified_files_cache: SharedVerifiedFilesCache::default(),
+                prefetched_cas_paths: None,
+            },
+
             requester: "",
-            prefetched_cas_paths: None,
-            verified_files_cache: SharedVerifiedFilesCache::default(),
-            retry_opts: test_retry_opts(),
-            auth_headers: &AuthHeaders::default(),
+
             ignore_file_pattern: None,
-            offline: true,
+
             progress_reported: None,
             store_projection: ArchiveStoreProjection::Package { append_manifest: None },
         }
@@ -235,7 +255,10 @@ async fn fetch_and_extract_records_expected_or_computed_integrity() {
         let index = StoreIndex::open_in(store_path).expect("open store index");
         let key = store_index_key(&expected.to_string(), package_id);
         assert_eq!(index.keys().expect("read index keys"), vec![key.clone()]);
-        let entry = index.get(&key).expect("read index entry").expect("archive is indexed");
+        let entry = index
+            .get(&key)
+            .expect("read index entry")
+            .expect("archive is indexed");
         assert_eq!(entry.manifest, Some(manifest));
         assert_eq!(entry.requires_build, Some(false));
         drop((index, store_dir));

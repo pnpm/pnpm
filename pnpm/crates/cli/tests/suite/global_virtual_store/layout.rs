@@ -15,13 +15,19 @@ fn pnp_without_symlinks_repairs_a_missing_global_virtual_store_package() {
     set_gvs_workspace_yaml(&workspace, "nodeLinker: pnp\nsymlink: false\n");
     write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     let package_dir = pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/pkg-with-1-dep");
     fs::remove_dir_all(&package_dir).expect("remove package from the GVS slot");
 
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert!(
         package_dir.join("package.json").is_file(),
         "a frozen PnP install must repair a missing GVS package when symlinks are disabled",
@@ -41,7 +47,10 @@ fn virtual_store_only_populates_standard_virtual_store_without_importer_symlinks
     write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
     append_workspace_yaml_key(&workspace, "virtualStoreOnly", true);
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         workspace
@@ -71,7 +80,10 @@ fn virtual_store_only_with_no_modules_dir_is_a_config_conflict() {
     append_workspace_yaml_key(&workspace, "virtualStoreOnly", true);
     append_workspace_yaml_key(&workspace, "enableModulesDir", false);
 
-    let output = pacquet(&workspace).with_arg("install").assert().failure();
+    let output = pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
     assert!(
         stderr.contains("ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR"),
@@ -94,14 +106,20 @@ fn virtual_store_only_with_no_modules_dir_works_when_gvs_is_enabled() {
 
     eprintln!("First install with the modules dir enabled, to produce a lockfile...");
     set_gvs_workspace_yaml(&workspace, "");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     fs::remove_dir_all(gvs_root(&store_dir)).expect("remove the GVS root");
 
     eprintln!("Now virtualStoreOnly + enableModulesDir=false + GVS — must not throw...");
     set_gvs_workspace_yaml(&workspace, "virtualStoreOnly: true\nenableModulesDir: false\n");
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     let hash_dir = sole_hash_dir(&version_dir);
@@ -124,7 +142,10 @@ fn virtual_store_only_with_gvs_populates_the_store_without_importer_links() {
     write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
     set_gvs_workspace_yaml(&workspace, "virtualStoreOnly: true\n");
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     let hash_dir = sole_hash_dir(&version_dir);
@@ -154,14 +175,20 @@ fn virtual_store_only_with_frozen_lockfile_populates_the_gvs_without_importer_sy
 
     eprintln!("First install to produce a lockfile...");
     set_gvs_workspace_yaml(&workspace, "");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     fs::remove_dir_all(gvs_root(&store_dir)).expect("remove the GVS root");
 
     eprintln!("Frozen reinstall with virtualStoreOnly...");
     set_gvs_workspace_yaml(&workspace, "virtualStoreOnly: true\n");
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     let hash_dir = sole_hash_dir(&version_dir);
@@ -190,13 +217,19 @@ fn virtual_store_only_with_frozen_lockfile_populates_the_standard_store() {
     write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
     eprintln!("First install to produce a lockfile...");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
     eprintln!("Frozen reinstall with virtualStoreOnly...");
     append_workspace_yaml_key(&workspace, "virtualStoreOnly", true);
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert!(
         workspace
@@ -224,7 +257,10 @@ fn virtual_store_only_suppresses_hoisting_even_with_explicit_hoist_pattern() {
     append_workspace_yaml_key(&workspace, "hoistPattern", "['*']");
     append_workspace_yaml_key(&workspace, "publicHoistPattern", "['*']");
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         workspace
@@ -255,7 +291,10 @@ fn ordinary_install_after_virtual_store_only_completes_the_linking() {
     append_workspace_yaml_key(&workspace, "hoistPattern", "['*']");
 
     eprintln!("virtualStoreOnly install...");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert_eq!(
         read_modules_manifest(&workspace).virtual_store_only,
         Some(true),
@@ -267,7 +306,10 @@ fn ordinary_install_after_virtual_store_only_completes_the_linking() {
     let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
     fs::write(&yaml_path, yaml.replace("virtualStoreOnly: true\n", ""))
         .expect("write pnpm-workspace.yaml");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep/package.json").exists(),
@@ -313,8 +355,14 @@ fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
     )
     .expect("write check.mjs");
 
-    pacquet(&workspace).with_arg("install").assert().success();
-    pacquet(&workspace).with_args(["run", "check"]).assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet(&workspace)
+        .with_args(["run", "check"])
+        .assert()
+        .success();
 
     let node_path =
         fs::read_to_string(workspace.join("node-path.txt")).expect("read node-path.txt");
@@ -361,7 +409,10 @@ fn virtual_store_type_selects_where_packages_are_materialized() {
             .expect("write pnpm-workspace.yaml");
         write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
-        pacquet(&workspace).with_arg("install").assert().success();
+        pacquet(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
 
         let project_local_slot =
             workspace.join("node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0");
@@ -405,7 +456,10 @@ fn an_isolated_install_clears_a_package_map_it_stops_maintaining() {
 
     write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
     set_gvs_workspace_yaml(&workspace, "nodeExperimentalPackageMap: true\n");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let package_map = workspace.join("node_modules/.package-map.json");
     assert!(package_map.is_file(), "the setting must produce a map to begin with");
@@ -416,7 +470,10 @@ fn an_isolated_install_clears_a_package_map_it_stops_maintaining() {
         &workspace,
         &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0", "@pnpm.e2e/foo": "100.0.0" }),
     );
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         !package_map.exists(),

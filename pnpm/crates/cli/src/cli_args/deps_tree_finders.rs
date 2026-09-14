@@ -44,10 +44,14 @@ pub(crate) async fn resolve_finders(
             .map_err(|err| miette::miette!("loading finders from a pnpmfile: {err}"))?;
         for name in names {
             if let Some(first) = finders_by_name.get(&name) {
-                let first =
-                    first.source_path().expect("loaded pnpmfile has a source path").display();
-                let second =
-                    hooks.source_path().expect("loaded pnpmfile has a source path").display();
+                let first = first
+                    .source_path()
+                    .expect("loaded pnpmfile has a source path")
+                    .display();
+                let second = hooks
+                    .source_path()
+                    .expect("loaded pnpmfile has a source path")
+                    .display();
                 return Err(miette::miette!(
                     code = "ERR_PNPM_DUPLICATE_FINDER",
                     r#"Finder "{name}" defined in both {first} and {second}"#,
@@ -108,10 +112,10 @@ pub(crate) fn finder_candidates(
 fn link_base_dir(env: &PkgInfoEnv<'_>, parent_id: &TreeNodeId) -> std::path::PathBuf {
     match parent_id {
         TreeNodeId::Importer(importer_id) => {
-            pnpm_deps_inspection::build::safe_importer_dir(&env.lockfile_dir, importer_id)
-                .unwrap_or_else(|| env.lockfile_dir.clone())
+            pnpm_deps_inspection::build::safe_importer_dir(&env.layout.lockfile_dir, importer_id)
+                .unwrap_or_else(|| env.layout.lockfile_dir.clone())
         }
-        TreeNodeId::Package(_) => env.lockfile_dir.clone(),
+        TreeNodeId::Package(_) => env.layout.lockfile_dir.clone(),
     }
 }
 
@@ -130,8 +134,10 @@ fn edge_candidate<'a>(
             Some((Some(target), source.clone()))
         }
         Some(target @ TreeNodeId::Importer(importer_id)) => {
-            let importer_dir =
-                pnpm_deps_inspection::build::safe_importer_dir(&env.lockfile_dir, importer_id)?;
+            let importer_dir = pnpm_deps_inspection::build::safe_importer_dir(
+                &env.layout.lockfile_dir,
+                importer_id,
+            )?;
             Some((
                 Some(target),
                 ManifestSource {
@@ -165,8 +171,9 @@ pub(crate) async fn evaluate_finders(
     finders: &[FinderHandle],
     candidates: Vec<(String, Option<TreeNodeId>, ManifestSource)>,
 ) -> miette::Result<HashMap<(String, Option<TreeNodeId>), SearchMatch>> {
-    let store_index =
-        env.store_dir.as_ref().and_then(|store_dir| StoreIndex::open_readonly(store_dir).ok());
+    let store_index = env.layout.store_dir
+        .as_ref()
+        .and_then(|store_dir| StoreIndex::open_readonly(store_dir).ok());
 
     let mut results = HashMap::new();
     for (alias, node_id, source) in candidates {
@@ -193,8 +200,7 @@ async fn finder_verdicts(
     let mut messages: Vec<String> = Vec::new();
     let mut found = false;
     for finder in finders {
-        let verdict = finder
-            .hooks
+        let verdict = finder.hooks
             .run_finder(&finder.name, ctx.clone())
             .await
             .map_err(|err| miette::miette!("running finder {}: {err}", finder.name))?;
@@ -221,7 +227,9 @@ fn truthy(value: &serde_json::Value) -> bool {
     match value {
         serde_json::Value::Null => false,
         serde_json::Value::Bool(value) => *value,
-        serde_json::Value::Number(number) => number.as_f64().is_some_and(|n| n != 0.0),
+        serde_json::Value::Number(number) => number
+            .as_f64()
+            .is_some_and(|n| n != 0.0),
         serde_json::Value::String(text) => !text.is_empty(),
         serde_json::Value::Array(_) | serde_json::Value::Object(_) => true,
     }
@@ -251,11 +259,15 @@ fn read_manifest_from_cafs(
 ) -> Option<serde_json::Value> {
     let store_index = store_index?;
     let integrity = source.integrity.as_deref()?;
-    let store_dir = StoreDir::new(env.store_dir.as_ref()?.clone());
+    let store_dir = StoreDir::new(env.layout.store_dir.as_ref()?.clone());
     let pkg_id = format!("{}@{}", source.name, source.version);
-    let index = store_index.get(&store_index_key(integrity, &pkg_id)).ok()??;
+    let index = store_index
+        .get(&store_index_key(integrity, &pkg_id))
+        .ok()??;
     let manifest_entry = index.files.get("package.json")?;
     let manifest_path =
         store_dir.cas_file_path_by_mode(&manifest_entry.digest, manifest_entry.mode)?;
-    std::fs::read(manifest_path).ok().and_then(|bytes| parse_manifest_bytes(&bytes).ok())
+    std::fs::read(manifest_path)
+        .ok()
+        .and_then(|bytes| parse_manifest_bytes(&bytes).ok())
 }

@@ -124,24 +124,21 @@ pub(super) async fn resolve_importer_scoped_update_direct(
         seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
-    opts.wanted_lockfile = Some(std::sync::Arc::new(importer_scoped_update_lockfile(
+    opts.reuse.lockfile = Some(std::sync::Arc::new(importer_scoped_update_lockfile(
         &["selected", "unselected"],
         "pkg",
         "^100.0.0",
         "100.0.0",
         None,
     )));
-    opts.update_reuse_scopes_by_importer =
-        BTreeMap::from([("selected".to_string(), selected_scope)]);
+    opts.reuse.scopes_by_importer = BTreeMap::from([("selected".to_string(), selected_scope)]);
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
         })
         .await
         .expect("resolve importer-scoped update");
-    result
-        .peers
-        .direct_dependencies_by_importer
+    result.peers.direct_dependencies_by_importer
         .into_iter()
         .map(|(importer_id, dependencies)| (importer_id, dependencies["pkg"].as_str().to_string()))
         .collect()
@@ -296,13 +293,16 @@ pub(super) fn reuse_graph_lockfile(
     let catalog_snapshots = (!catalogs.is_empty()).then(|| {
         let mut snapshot: pnpm_lockfile::CatalogSnapshots = BTreeMap::new();
         for (catalog, alias, specifier, version) in catalogs {
-            snapshot.entry((*catalog).to_string()).or_default().insert(
-                (*alias).to_string(),
-                ResolvedCatalogEntry {
-                    specifier: (*specifier).to_string(),
-                    version: (*version).to_string(),
-                },
-            );
+            snapshot
+                .entry((*catalog).to_string())
+                .or_default()
+                .insert(
+                    (*alias).to_string(),
+                    ResolvedCatalogEntry {
+                        specifier: (*specifier).to_string(),
+                        version: (*version).to_string(),
+                    },
+                );
         }
         snapshot
     });
@@ -328,9 +328,7 @@ pub(super) fn graph_versions_of(
     name: &str,
 ) -> Vec<String> {
     let prefix = format!("{name}@");
-    let mut versions: Vec<String> = result
-        .peers
-        .graph
+    let mut versions: Vec<String> = result.peers.graph
         .keys()
         .filter_map(|dep_path| dep_path.as_str().strip_prefix(&prefix))
         .map(str::to_string)
@@ -394,7 +392,7 @@ pub(super) async fn resolve_pinned_versus_fresh(slow: (&str, &str)) -> crate::Re
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
 
     let mut opts = workspace_opts(false, false);
-    opts.wanted_lockfile = Some(Arc::new(reuse_graph_lockfile(
+    opts.reuse.lockfile = Some(Arc::new(reuse_graph_lockfile(
         ".",
         &[("reused", "1.0.0", "1.0.0")],
         &[

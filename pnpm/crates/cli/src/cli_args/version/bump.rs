@@ -130,8 +130,9 @@ fn increment_prerelease(pre_release: &mut Vec<Identifier>, preid: Option<&str>) 
     }
 
     if let Some(preid) = preid {
-        let first_matches =
-            pre_release.first().is_some_and(|first| identifier_text(first) == preid);
+        let first_matches = pre_release
+            .first()
+            .is_some_and(|first| identifier_text(first) == preid);
         let second_is_numeric = matches!(pre_release.get(1), Some(Identifier::Numeric(_)));
         if !(first_matches && second_is_numeric) {
             *pre_release = vec![make_identifier(preid), Identifier::Numeric(0)];
@@ -163,11 +164,12 @@ fn bump_major(next: &mut Version) {
 }
 
 pub(super) fn parse_current_version(pkg_dir: &Path, current: &str) -> miette::Result<Version> {
-    Version::parse(current).map_err(|_| {
-        VersionError::InvalidVersion {
-            dir: pkg_dir.display().to_string(),
-            version: current.to_owned(),
-        }
-        .into()
-    })
+    Version::parse(current)
+        .map_err(|_| {
+            VersionError::InvalidVersion {
+                dir: pkg_dir.display().to_string(),
+                version: current.to_owned(),
+            }
+            .into()
+        })
 }

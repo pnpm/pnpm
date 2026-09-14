@@ -7,7 +7,10 @@
 //! command-specific error codes) live in `run/recursive.rs` and
 //! `exec/recursive.rs`.
 
+pub use execution_args::RecursiveExecutionArgs;
 pub use summary::{ExecutionStatus, Status, count_failures, write_recursive_summary};
+
+mod execution_args;
 
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -70,7 +73,10 @@ pub fn filtered_projects_dependencies<Pkg: Sync>(
     prod_all: Option<&ProjectGraph<Pkg>>,
     prod_only_selected: &HashSet<PathBuf>,
 ) -> IndexMap<PathBuf, Vec<PathBuf>> {
-    let sorted: HashSet<&Path> = selected.keys().map(PathBuf::as_path).collect();
+    let sorted: HashSet<&Path> = selected
+        .keys()
+        .map(PathBuf::as_path)
+        .collect();
     // Each project's tunneling walk reads only shared references, so
     // the projects fan out across the rayon pool; collecting the
     // parallel iterator into a `Vec` keeps the selection order.
@@ -109,7 +115,10 @@ fn sequence_graph_by_project<'g, Pkg: 'g>(
     full_graph_for: impl Fn(&Path) -> &'g ProjectGraph<Pkg>,
 ) -> GraphSequencerResult<PathBuf> {
     let sorted_dirs: Vec<PathBuf> = projects_graph.keys().cloned().collect();
-    let sorted: HashSet<&Path> = sorted_dirs.iter().map(PathBuf::as_path).collect();
+    let sorted: HashSet<&Path> = sorted_dirs
+        .iter()
+        .map(PathBuf::as_path)
+        .collect();
     let dependency_graph: HashMap<PathBuf, Vec<PathBuf>> = projects_graph
         .keys()
         .map(|project_dir| {
@@ -146,7 +155,12 @@ fn sorted_dependencies<Pkg>(
     let mut visited: rustc_hash::FxHashSet<&Path> = rustc_hash::FxHashSet::default();
     let mut stack: Vec<&Path> = projects_graph
         .get(project_dir)
-        .map(|node| node.dependencies.iter().map(PathBuf::as_path).collect())
+        .map(|node| {
+            node.dependencies
+                .iter()
+                .map(PathBuf::as_path)
+                .collect()
+        })
         .unwrap_or_default();
     while let Some(dependency_dir) = stack.pop() {
         if dependency_dir == project_dir || !visited.insert(dependency_dir) {
@@ -390,8 +404,7 @@ pub fn selected_importer_ids(
     selection: &RecursiveSelection<'_>,
     lockfile_dir: &Path,
 ) -> Vec<String> {
-    selection
-        .selected
+    selection.selected
         .keys()
         .map(|project_dir| importer_id_from_root_dir(lockfile_dir, project_dir))
         .collect()
@@ -402,8 +415,14 @@ fn build_graph(
     projects: &[Project],
     options: CreateProjectsGraphOptions,
 ) -> ProjectGraph<GraphPkg<'_>> {
-    create_projects_graph(projects.iter().map(|project| GraphPkg { project }).collect(), &options)
-        .graph
+    create_projects_graph(
+        projects
+            .iter()
+            .map(|project| GraphPkg { project })
+            .collect(),
+        &options,
+    )
+    .graph
 }
 
 /// Apply one group of selectors (regular or `--filter-prod`) against the
@@ -486,8 +505,7 @@ impl AutoExcludeRoot<'_> {
         }
         // An inclusion selector already pins the selected set, so the
         // root is kept only if it matches one.
-        if config
-            .filter
+        if config.filter
             .iter()
             .chain(config.filter_prod.iter())
             .any(|filter| !filter.starts_with('!'))
@@ -531,7 +549,10 @@ fn recursive_filter_options(config: &Config, prefix: &Path) -> FilterWorkspacePr
         // generated `!{<workspace-root>}` selector pins itself to glob
         // matching instead — see `filter_against`.
         use_glob_dir_filtering: !config.legacy_dir_filtering,
-        workspace_dir: config.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf(),
+        workspace_dir: config.workspace_dir
+            .as_deref()
+            .unwrap_or(prefix)
+            .to_path_buf(),
         test_pattern: config.test_pattern.clone(),
         changed_files_ignore_pattern: config.changed_files_ignore_pattern.clone(),
     }

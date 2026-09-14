@@ -143,12 +143,13 @@ impl PatchArgs {
         dir: &Path,
         state: State,
     ) -> Result<(), PatchError> {
-        let PatchArgs { package_name, edit_dir, ignore_existing } = self;
+        let PatchArgs {
+            package_name,
+            edit_dir,
+            ignore_existing,
+        } = self;
         let package_name = package_name.ok_or(PatchError::MissingPackageName)?;
-        if let Some(edit_dir) = edit_dir.as_ref().map(|path| resolve_path(dir, path)) {
-            reject_edit_dir_symlink_components_under(dir, &edit_dir)?;
-            reject_non_empty_custom_edit_dir(&edit_dir)?;
-        }
+        validate_custom_edit_dir(dir, edit_dir.as_deref())?;
         let current_lockfile =
             Lockfile::load_current_from_virtual_store_dir(&state.config.virtual_store_dir)
                 .map_err(PatchError::LoadLockfile)?
@@ -186,6 +187,14 @@ impl PatchArgs {
         print_success(&edit_dir);
         Ok(())
     }
+}
+
+fn validate_custom_edit_dir(dir: &Path, edit_dir: Option<&Path>) -> Result<(), PatchError> {
+    if let Some(edit_dir) = edit_dir.map(|path| resolve_path(dir, path)) {
+        reject_edit_dir_symlink_components_under(dir, &edit_dir)?;
+        reject_non_empty_custom_edit_dir(&edit_dir)?;
+    }
+    Ok(())
 }
 
 fn select_patch_target(set: &PatchCandidateSet) -> Result<PatchTarget, PatchError> {

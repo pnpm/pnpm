@@ -123,22 +123,12 @@ use self::{
 /// a multi-server test process keeps its own store.
 pub(crate) struct Resolver {
     store_dir: StoreDir,
-    cache_dir: PathBuf,
     client: Arc<ThrottledClient>,
-    /// Held behind an [`Arc`] so the detached streaming-resolve task can
-    /// own a clone and record its result after the response body has
-    /// already started flowing to the client.
-    resolution_cache: Arc<Mutex<HashMap<String, Vec<CachedResolution>>>>,
-    resolution_cache_ttl: Duration,
     /// One leaked `Config` per distinct client registry configuration,
     /// keyed by its canonical JSON. Capped at [`MAX_INTERNED_CONFIGS`] so a
     /// caller varying its registry/policy fields can't grow the leak
     /// without bound; see [`intern_config`].
     configs: Mutex<HashMap<String, &'static PacquetConfig>>,
-    /// SQLite-backed whole-lockfile verification verdict cache. `None`
-    /// only if the database couldn't be opened — verification then runs
-    /// every time (uncached) rather than failing the server.
-    verdict_cache: Option<VerdictCache>,
     osv_index: Option<Arc<OsvIndex>>,
     /// Route-classification inputs (public/private rules, pnpr-managed
     /// upstream credentials, hosted origin, package policy), resolved once
@@ -148,19 +138,59 @@ pub(crate) struct Resolver {
     /// Public URL clients use for pnpr-hosted and `/~<name>/` endpoint
     /// tarball URLs.
     public_url: String,
-    /// How long a cached Cargo sparse-index file stays fresh: the
-    /// server's `packument_ttl`, so index metadata ages out on the same
-    /// schedule npm packuments do.
-    cargo_index_ttl: Duration,
-    /// Serializes the fetch of one Cargo sparse-index file, so concurrent
-    /// resolves of the same cold graph fetch each entry once.
-    cargo_index_locks: Arc<crate::server::StripedLocks>,
-    /// The same, for a Python index's project pages and metadata files.
-    python_index_locks: Arc<crate::server::StripedLocks>,
+    cache: ResolverCache,
+    index: IndexCache,
+}
+struct ResolverCache {
+    dir: PathBuf,
+    /// Held behind an [`Arc`] so the detached streaming-resolve task can
+    /// own a clone and record its result after the response body has
+    /// already started flowing to the client.
+    entries: Arc<Mutex<HashMap<String, Vec<CachedResolution>>>>,
+    ttl: Duration,
+    /// SQLite-backed whole-lockfile verification verdict cache. `None`
+    /// only if the database couldn't be opened — verification then runs
+    /// every time (uncached) rather than failing the server.
+    verdicts: Option<VerdictCache>,
     /// HMAC secret namespacing a private footprint's cache descriptor.
     /// Part 1 uses it only to label each resolve's cache class in the
     /// operator debug log; Part 2 keys private cache entries by it.
-    resolution_cache_secret: Arc<[u8]>,
+    secret: Arc<[u8]>,
+}
+
+struct IndexCache {
+    /// How long a cached Cargo sparse-index file stays fresh: the
+    /// server's `packument_ttl`, so index metadata ages out on the same
+    /// schedule npm packuments do.
+    ttl: Duration,
+    /// Serializes the fetch of one Cargo sparse-index file, so concurrent
+    /// resolves of the same cold graph fetch each entry once.
+    cargo_locks: Arc<crate::server::StripedLocks>,
+    /// The same, for a Python index's project pages and metadata files.
+    python_locks: Arc<crate::server::StripedLocks>,
+}
+
+impl ResolverCache {
+    fn new(cache_dir: PathBuf, config: &RegistryConfig) -> Self {
+        let verdict_cache = VerdictCache::open(&cache_dir.join("lockfile-verdicts.sqlite")).ok();
+        Self {
+            dir: cache_dir,
+            entries: Arc::new(Mutex::new(HashMap::new())),
+            ttl: config.http.packument_ttl,
+            verdicts: verdict_cache,
+            secret: Arc::clone(&config.resolution_cache_secret),
+        }
+    }
+}
+
+impl IndexCache {
+    fn new(cargo_index_ttl: Duration) -> Self {
+        Self {
+            ttl: cargo_index_ttl,
+            cargo_locks: Arc::new(crate::server::StripedLocks::new()),
+            python_locks: Arc::new(crate::server::StripedLocks::new()),
+        }
+    }
 }
 
 impl Resolver {
@@ -173,14 +203,13 @@ impl Resolver {
     }
 
     fn build(config: &RegistryConfig, osv_index: Option<Arc<OsvIndex>>) -> Resolver {
-        let store_dir = config.cache_storage.join("pnpr-store");
-        let cache_dir = config.cache_storage.join("pnpr-cache");
+        let store_dir = config.storage.cache_dir.join("pnpr-store");
+        let cache_dir = config.storage.cache_dir.join("pnpr-cache");
         // Best-effort: a real failure here (e.g. a permission problem)
         // resurfaces with a precise error on the first store/cache write
         // during resolution, so there's nothing actionable to report yet.
         let _ = std::fs::create_dir_all(&store_dir);
         let _ = std::fs::create_dir_all(&cache_dir);
-        let verdict_cache = VerdictCache::open(&cache_dir.join("lockfile-verdicts.sqlite")).ok();
         let route_context = Arc::new(RouteContext::from_config(config));
         // Re-validate every redirect hop against the same fetch allowlist the
         // request boundary uses, so an allowlisted registry that redirects to
@@ -191,19 +220,13 @@ impl Resolver {
         }));
         Resolver {
             store_dir: StoreDir::new(store_dir),
-            cache_dir,
             client,
-            resolution_cache: Arc::new(Mutex::new(HashMap::new())),
-            resolution_cache_ttl: config.packument_ttl,
             configs: Mutex::new(HashMap::new()),
-            verdict_cache,
             osv_index,
             route_context,
-            public_url: config.public_url.clone(),
-            cargo_index_ttl: config.packument_ttl,
-            cargo_index_locks: Arc::new(crate::server::StripedLocks::new()),
-            python_index_locks: Arc::new(crate::server::StripedLocks::new()),
-            resolution_cache_secret: Arc::clone(&config.resolution_cache_secret),
+            public_url: config.http.public_url.clone(),
+            cache: ResolverCache::new(cache_dir, config),
+            index: IndexCache::new(config.http.packument_ttl),
         }
     }
 
@@ -223,7 +246,7 @@ impl Resolver {
             Arc::clone(&self.route_context),
             identity.clone(),
             Arc::clone(footprint),
-            Arc::clone(&self.resolution_cache_secret),
+            Arc::clone(&self.cache.secret),
         ));
         Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()).with_route_hook(hook))
     }
@@ -233,19 +256,23 @@ impl Resolver {
     /// name never share an entry; the caller's route scope adds the last
     /// namespace segment at fetch time.
     fn cargo_index_cache_dir(&self, registry: &str) -> PathBuf {
-        self.cache_dir.join("cargo-index").join(pnpm_crypto_hash::create_hex_hash(registry))
+        self.cache.dir
+            .join("cargo-index")
+            .join(pnpm_crypto_hash::create_hex_hash(registry))
     }
 
     /// Where `index`'s Python documents are cached. As with Cargo, the
     /// origin is hashed into the path so two indexes serving the same
     /// project never share an entry.
     fn python_index_cache_dir(&self, index: &str) -> PathBuf {
-        self.cache_dir.join("python-index").join(pnpm_crypto_hash::create_hex_hash(index))
+        self.cache.dir
+            .join("python-index")
+            .join(pnpm_crypto_hash::create_hex_hash(index))
     }
 
     /// Resolve (or build + intern) the `&'static Config` for a request's
     /// registry configuration. Pacquet's install path resolves against
-    /// `config.registry` / `registries_by_prefix` / `overrides`, so a request
+    /// `config.features.registry` / `registries_by_prefix` / `overrides`, so a request
     /// from a client with a different registry setup gets its own Config.
     ///
     /// `None` once [`MAX_INTERNED_CONFIGS`] distinct configurations have
@@ -254,7 +281,7 @@ impl Resolver {
         intern_config(
             &self.configs,
             &self.store_dir,
-            &self.cache_dir,
+            &self.cache.dir,
             request,
             MAX_INTERNED_CONFIGS,
             MAX_CONFIG_KEY_BYTES,
@@ -492,8 +519,8 @@ fn cached_resolution_response(
     key: Option<&String>,
 ) -> Option<Response> {
     let lockfile = cached_resolution(
-        &runtime.resolution_cache,
-        runtime.resolution_cache_ttl,
+        &runtime.cache.entries,
+        runtime.cache.ttl,
         key?,
         &runtime.route_context,
         identity,
@@ -514,7 +541,10 @@ struct StoreCandidate<'a> {
 /// Offer a finished resolution to the cache, logging what a private one was
 /// judged on.
 fn store_resolution_candidate(candidate: StoreCandidate<'_>) {
-    let footprint = candidate.footprint.lock().expect("footprint poisoned").clone();
+    let footprint = candidate.footprint
+        .lock()
+        .expect("footprint poisoned")
+        .clone();
     let descriptor = footprint.digest(candidate.cache_secret);
     let cached = store_resolution(
         candidate.cache,
@@ -538,7 +568,11 @@ fn store_resolution_candidate(candidate: StoreCandidate<'_>) {
 /// rides an NDJSON frame, where miette's rendered report would arrive as
 /// an unreadable block of escaped newlines.
 fn report_message(report: &miette::Report) -> String {
-    report.chain().map(ToString::to_string).collect::<Vec<_>>().join(": ")
+    report
+        .chain()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(": ")
 }
 
 fn json_error(status: StatusCode, message: &str) -> Response {
@@ -562,6 +596,9 @@ fn request_tarball_router(
         Arc::clone(&runtime.route_context),
         identity.clone(),
         runtime.public_url.clone(),
-        config.resolved_registries().into_iter().collect(),
+        config
+            .resolved_registries()
+            .into_iter()
+            .collect(),
     )
 }

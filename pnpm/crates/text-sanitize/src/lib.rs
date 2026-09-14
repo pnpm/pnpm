@@ -11,7 +11,9 @@ use std::borrow::Cow;
 /// reaches the terminal, keeping `\n` and `\t`.
 #[must_use]
 pub fn sanitize(text: &str) -> Cow<'_, str> {
-    if text.chars().any(|ch| is_format_character(ch) || ch.is_control() && ch != '\n' && ch != '\t')
+    if text
+        .chars()
+        .any(|ch| is_format_character(ch) || ch.is_control() && ch != '\n' && ch != '\t')
     {
         Cow::Owned(
             text.chars()
@@ -29,9 +31,14 @@ pub fn sanitize(text: &str) -> Cow<'_, str> {
 /// single-line field.
 #[must_use]
 pub fn sanitize_inline(text: &str) -> Cow<'_, str> {
-    if text.chars().any(|ch| ch.is_control() || is_format_character(ch)) {
+    if text
+        .chars()
+        .any(|ch| ch.is_control() || is_format_character(ch))
+    {
         Cow::Owned(
-            text.chars().filter(|ch| !ch.is_control() && !is_format_character(*ch)).collect(),
+            text.chars()
+                .filter(|ch| !ch.is_control() && !is_format_character(*ch))
+                .collect(),
         )
     } else {
         Cow::Borrowed(text)

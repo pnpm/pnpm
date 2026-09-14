@@ -89,7 +89,11 @@ async fn rejects_config_dep_with_path_traversal_name() {
     .unwrap();
 
     let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
-    let spec = env.root_importer_mut().config_dependencies.remove("@pnpm.e2e/foo").unwrap();
+    let spec = env
+        .root_importer_mut()
+        .config_dependencies
+        .remove("@pnpm.e2e/foo")
+        .unwrap();
     let malicious_name = "../../PWNED_CFGDEP".to_string();
     env.root_importer_mut().config_dependencies.insert(malicious_name.clone(), spec.clone());
     let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
@@ -128,7 +132,11 @@ async fn rejects_config_dep_named_dunder_proto() {
     .unwrap();
 
     let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
-    let spec = env.root_importer_mut().config_dependencies.remove("@pnpm.e2e/foo").unwrap();
+    let spec = env
+        .root_importer_mut()
+        .config_dependencies
+        .remove("@pnpm.e2e/foo")
+        .unwrap();
     let malicious_name = "__proto__".to_string();
     env.root_importer_mut().config_dependencies.insert(malicious_name.clone(), spec.clone());
     let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
@@ -169,7 +177,12 @@ async fn rejects_invalid_manifest_config_dep_name_before_writing_lockfile() {
         "unexpected error: {error:?}",
     );
 
-    assert!(!root.path().join("pnpm-lock.yaml").exists());
+    assert!(
+        !root
+            .path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
 }
 
 #[tokio::test]
@@ -197,7 +210,12 @@ async fn rejects_invalid_manifest_config_dep_version_before_writing_lockfile() {
         "unexpected error: {error:?}",
     );
 
-    assert!(!root.path().join("pnpm-lock.yaml").exists());
+    assert!(
+        !root
+            .path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
 }
 
 #[tokio::test]
@@ -218,8 +236,10 @@ async fn rejects_config_dep_with_path_traversal_version() {
 
     let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
     let malicious_version = "../../../PWNED";
-    env.root_importer_mut().config_dependencies.get_mut("@pnpm.e2e/foo").unwrap().version =
-        malicious_version.to_string();
+    env.root_importer_mut().config_dependencies
+        .get_mut("@pnpm.e2e/foo")
+        .unwrap()
+        .version = malicious_version.to_string();
     let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
     let pkg = env.packages[&legit_key].clone();
     let malicious_key: PackageKey = format!("@pnpm.e2e/foo@{malicious_version}").parse().unwrap();
@@ -306,7 +326,10 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            CONFIG_DEP_EVENTS.lock().unwrap().push(event.clone());
+            CONFIG_DEP_EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -328,7 +351,10 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     let mut config_deps = BTreeMap::new();
     config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
 
-    CONFIG_DEP_EVENTS.lock().unwrap().clear();
+    CONFIG_DEP_EVENTS
+        .lock()
+        .unwrap()
+        .clear();
     resolve_and_install_config_deps::<RecordingReporter>(
         &config_deps,
         &resolver,
@@ -370,7 +396,11 @@ async fn removed_config_dep_is_pruned_from_lockfile_and_pnpm_config() {
     )
     .await
     .unwrap();
-    assert!(root.path().join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists());
+    assert!(
+        root.path()
+            .join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json")
+            .exists(),
+    );
 
     // Re-resolve with the dep no longer declared.
     let empty = BTreeMap::new();
@@ -392,7 +422,10 @@ async fn removed_config_dep_is_pruned_from_lockfile_and_pnpm_config() {
         "its package entry pruned",
     );
     assert!(
-        !root.path().join("node_modules/.pnpm-config/@pnpm.e2e/foo").exists(),
+        !root
+            .path()
+            .join("node_modules/.pnpm-config/@pnpm.e2e/foo")
+            .exists(),
         "its .pnpm-config link removed",
     );
 }

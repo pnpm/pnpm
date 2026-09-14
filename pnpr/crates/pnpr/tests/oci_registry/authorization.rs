@@ -12,12 +12,21 @@ async fn reads_of_a_private_repository_are_kept_out_of_shared_caches() {
     push_image(&app, &auth, "acme/app", "1.0").await;
 
     for path in ["/v2/acme/app/manifests/1.0", "/v2/acme/app/tags/list", "/v2/_catalog"] {
-        let request =
-            Request::get(path).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
-        let response = app.clone().oneshot(request).await.unwrap();
+        let request = Request::get(path)
+            .header(header::AUTHORIZATION, &auth)
+            .body(Body::empty())
+            .unwrap();
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{path}");
         assert_eq!(
-            response.headers().get(header::CACHE_CONTROL).map(|value| value.to_str().unwrap()),
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .map(|value| value.to_str().unwrap()),
             Some("private, no-store"),
             "{path} must not be storable by a shared cache",
         );
@@ -28,7 +37,7 @@ async fn reads_of_a_private_repository_are_kept_out_of_shared_caches() {
 async fn deletion_requires_read_access_even_with_a_permissive_unpublish_rule() {
     let tmp = TempDir::new().unwrap();
     let mut config = oci_config(tmp.path().to_path_buf(), "alice");
-    let hosted = config.hosted.get_mut("images").unwrap();
+    let hosted = config.routing.hosted.get_mut("images").unwrap();
     hosted.rules =
         std::mem::take(&mut hosted.rules).with_default_unpublish(AccessList::from_tokens(["$all"]));
     let app = router_with_auth(config, AuthState::in_memory());
@@ -38,8 +47,15 @@ async fn deletion_requires_read_access_even_with_a_permissive_unpublish_rule() {
     for path in
         ["/v2/acme/app/manifests/latest".to_string(), format!("/v2/acme/app/blobs/{digest}")]
     {
-        let response =
-            app.clone().oneshot(Request::delete(path).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::delete(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
     let response = app
@@ -58,7 +74,7 @@ async fn deletion_requires_read_access_even_with_a_permissive_unpublish_rule() {
 async fn token_scopes_ignore_unknown_resources_and_count_distinct_repositories() {
     let tmp = TempDir::new().unwrap();
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    config.oci.bearer_auth = true;
+    config.http.oci.bearer_auth = true;
     let app = router_with_auth(config, AuthState::in_memory());
     let mut query = url::form_urlencoded::Serializer::new(String::new());
     for index in 0..32 {

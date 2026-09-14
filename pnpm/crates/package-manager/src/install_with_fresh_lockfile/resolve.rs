@@ -17,7 +17,7 @@ use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::LogLevel;
 use pnpm_resolving_deps_resolver::{
-    DependencyOverrider, ManifestHook, ResolveImporterError, ResolveImporterOptions,
+    DependencyOverrider, ResolveImporterError, ResolveImporterOptions,
 };
 use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
 use std::{
@@ -69,13 +69,9 @@ pub(super) async fn run_pre_resolution_hook<Reporter: pnpm_reporter::Reporter>(
 /// for the fast-override pre-pass. Only the consuming project's directory
 /// and its preferred-versions seed vary — see [`Self::build`].
 pub(super) struct SharedResolveOptions<'a> {
+    pub policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions,
     pub config: &'a Config,
     pub lockfile_dir: &'a Path,
-    pub published_by: Option<chrono::DateTime<chrono::Utc>>,
-    pub published_by_exclude: Option<pnpm_config::version_policy::PackageVersionPolicy>,
-    pub trust_policy: Option<pnpm_config::TrustPolicy>,
-    pub trust_policy_exclude: Option<pnpm_config::version_policy::PackageVersionPolicy>,
-    pub package_version_guard: Option<Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
     pub workspace_packages: Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
     /// See [`super::FreshInputs::update_checksums`].
     pub update_checksums: bool,
@@ -89,23 +85,33 @@ impl SharedResolveOptions<'_> {
         preferred_versions: Arc<PreferredVersions>,
     ) -> ResolveOptions {
         ResolveOptions {
-            preferred_versions,
-            default_tag: Some("latest".to_string()),
-            published_by: self.published_by,
-            published_by_exclude: self.published_by_exclude.clone(),
-            trust_policy: self.trust_policy,
-            trust_policy_exclude: self.trust_policy_exclude.clone(),
-            trust_policy_ignore_after: self.config.trust_policy_ignore_after,
-            package_version_guard: self.package_version_guard.clone(),
-            project_dir,
-            lockfile_dir: self.lockfile_dir.to_path_buf(),
-            workspace_packages: self.workspace_packages.clone(),
-            block_exotic_subdeps: self.config.block_exotic_subdeps,
-            link_workspace_packages: self.config.link_workspace_packages,
-            inject_workspace_packages: self.config.inject_workspace_packages,
-            prefer_workspace_packages: self.config.prefer_workspace_packages,
-            update_checksums: self.update_checksums,
-            update: self.update_behavior,
+            project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+                project_dir,
+                lockfile_dir: self.lockfile_dir.to_path_buf(),
+                workspace_packages: self.workspace_packages.clone(),
+                link_workspace_packages: self.config.link_workspace_packages,
+                inject_workspace_packages: self.config.inject_workspace_packages,
+                prefer_workspace_packages: self.config.prefer_workspace_packages,
+            },
+            version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+                preferred_versions,
+                default_tag: Some("latest".to_string()),
+                ..Default::default()
+            },
+            refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+                update_checksums: self.update_checksums,
+                update: self.update_behavior,
+                ..Default::default()
+            },
+            policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                published_by: self.policy.published_by,
+                published_by_exclude: self.policy.published_by_exclude.clone(),
+                trust_policy: self.policy.trust_policy,
+                trust_policy_exclude: self.policy.trust_policy_exclude.clone(),
+                trust_policy_ignore_after: self.config.trust_policy_ignore_after,
+                package_version_guard: self.policy.package_version_guard.clone(),
+                block_exotic_subdeps: self.config.block_exotic_subdeps,
+            },
             ..ResolveOptions::default()
         }
     }
@@ -132,11 +138,20 @@ pub(super) async fn warn_stale_convergence_overrides<Reporter: pnpm_reporter::Re
 
     let declared_ranges = versions_overrider.converge_declared_ranges();
     let resolve_options = ResolveOptions {
-        project_dir: lockfile_dir.to_path_buf(),
-        lockfile_dir: lockfile_dir.to_path_buf(),
-        default_tag: Some("latest".to_string()),
-        published_by,
-        published_by_exclude: published_by_exclude.cloned(),
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: lockfile_dir.to_path_buf(),
+            lockfile_dir: lockfile_dir.to_path_buf(),
+            ..Default::default()
+        },
+        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+            default_tag: Some("latest".to_string()),
+            ..Default::default()
+        },
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by,
+            published_by_exclude: published_by_exclude.cloned(),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let stale_overrides = stale::find_stale_convergence_overrides(
@@ -161,48 +176,28 @@ pub(super) struct ResolvePassInputs<'a> {
 /// What the workspace walk consumes as a whole: the hooks and the reuse
 /// policy the resolver takes ownership of.
 pub(super) struct WorkspaceWalk {
+    pub hooks: crate::install_with_fresh_lockfile::resolution_inputs::WorkspaceLifecycleHooks,
+    pub reuse: pnpm_resolving_deps_resolver::WorkspaceLockfileReuse,
     /// See
     /// [`WorkspaceResolveOptions::share_workspace_resolutions`](pnpm_resolving_deps_resolver::WorkspaceResolveOptions::share_workspace_resolutions).
     pub share_workspace_resolutions: bool,
-    /// Consumed by the resolver; the caller keeps its own clone for the
-    /// `afterAllResolved` hook.
-    pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    pub read_package_log: Option<pnpm_hooks::LogFn>,
-    pub finalized_package: Option<pnpm_resolving_deps_resolver::FinalizedPackageFn>,
     pub time_based: bool,
-    /// The prior lockfile the walk resolves against — the granted
-    /// [`lockfile_reuse_seed`], or the raw wanted lockfile when the seed
-    /// was withheld and only per-edge version pinning remains safe.
-    pub resolution_lockfile: Option<Arc<Lockfile>>,
-    /// Whether [`Self::resolution_lockfile`] is a granted reuse seed the
-    /// walk may reuse whole subtrees from. `false` restricts it to
-    /// per-edge version pinning.
-    pub reuse_lockfile_subtrees: bool,
-    pub update_reuse_scope: pnpm_resolving_deps_resolver::UpdateReuseScope,
-    pub update_reuse_scopes_by_importer:
-        BTreeMap<String, pnpm_resolving_deps_resolver::UpdateReuseScope>,
-    pub update_depth: pnpm_resolving_deps_resolver::UpdateDepth,
     pub registries: HashMap<String, String>,
     pub registries_by_prefix: HashMap<String, String>,
 }
 
 /// What every importer's resolve reads, and the walk reads alongside.
 pub(super) struct ImporterInputs<'a> {
+    pub hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks,
+    pub versions: crate::install_with_fresh_lockfile::resolution_inputs::ImporterVersionSeeds<'a>,
     pub config: &'a Config,
     pub catalogs: &'a Catalogs,
     pub lockfile_dir: &'a Path,
     /// The `ResolveOptions` half every importer shares; the per-importer
     /// half is its own `project_dir` and preferred-versions seed.
     pub shared_resolve_options: &'a SharedResolveOptions<'a>,
-    pub preferred_versions_seed: &'a Arc<PreferredVersions>,
-    pub preferred_versions_seeds_by_importer: &'a BTreeMap<String, Arc<PreferredVersions>>,
     pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
     pub patched_dependencies: Option<Arc<pnpm_patching::PatchGroupRecord>>,
-    pub manifest_hook: Option<ManifestHook>,
-    pub overrides_hook: Option<ManifestHook>,
-    /// See [`crate::resolution_policy::PickPolicy`].
-    pub pick_lowest_direct: bool,
-    pub published_by: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 impl ImporterInputs<'_> {
@@ -215,44 +210,45 @@ impl ImporterInputs<'_> {
         importer: &pnpm_resolving_deps_resolver::WorkspaceImporter<'_>,
         modules_basename: &std::ffi::OsStr,
     ) -> ResolveImporterOptions {
-        let preferred_versions = self
-            .preferred_versions_seeds_by_importer
-            .get(&importer.id)
-            .unwrap_or(self.preferred_versions_seed);
-        let project_dir = importer
-            .manifest
+        let preferred_versions = self.versions.for_importer(&importer.id);
+        let project_dir = importer.manifest
             .path()
             .parent()
             .expect("manifest path always has a parent dir")
             .to_path_buf();
+        let modules_dir = Some(project_dir.join(modules_basename));
         ResolveImporterOptions {
-            auto_install_peers: self.config.auto_install_peers,
-            auto_install_peers_from_highest_match: self
-                .config
-                .auto_install_peers_from_highest_match,
-            resolve_peers_from_workspace_root: self.config.resolve_peers_from_workspace_root,
-            dedupe_peers: self.config.dedupe_peers,
-            dedupe_peer_dependents: self.config.dedupe_peer_dependents,
-            all_preferred_versions: Arc::clone(preferred_versions),
-            override_bare_specifier: self.override_bare_specifier.clone(),
-            patched_dependencies: self.patched_dependencies.clone(),
-            // `resolve_workspace` computes the workspace-wide
-            // time-based cutoff and overrides both of these per
-            // importer; the values here only satisfy the struct.
-            pick_lowest_direct: self.pick_lowest_direct,
-            subdep_published_by: self.published_by,
-            modules_dir: Some(project_dir.join(modules_basename)),
-            base_opts: self
-                .shared_resolve_options
-                .build(project_dir, Arc::clone(preferred_versions)),
-            catalogs: self.catalogs.clone(),
-            exclude_links_from_lockfile: self.config.exclude_links_from_lockfile,
-            lockfile_dir: Some(self.lockfile_dir.to_path_buf()),
+            base_opts: self.shared_resolve_options.build(
+                project_dir,
+                Arc::clone(preferred_versions),
+            ),
             peers_suffix_max_length: self.peers_suffix_max_length(),
-            catalog_server: false,
-            manifest_hook: self.manifest_hook.clone(),
-            overrides_hook: self.overrides_hook.clone(),
-            pnpmfile_hook: None,
+            peers: pnpm_resolving_deps_resolver::ImporterPeerOptions {
+                auto_install_peers: self.config.auto_install_peers,
+                auto_install_peers_from_highest_match: self.config
+                    .auto_install_peers_from_highest_match,
+                resolve_peers_from_workspace_root: self.config.resolve_peers_from_workspace_root,
+                dedupe_peers: self.config.dedupe_peers,
+                dedupe_peer_dependents: self.config.dedupe_peer_dependents,
+            },
+            links: pnpm_resolving_deps_resolver::PeerLinkOptions {
+                modules_dir,
+                exclude_links_from_lockfile: self.config.exclude_links_from_lockfile,
+                lockfile_dir: Some(self.lockfile_dir.to_path_buf()),
+            },
+            resolution: pnpm_resolving_deps_resolver::ImporterResolutionInputs {
+                all_preferred_versions: Arc::clone(preferred_versions),
+                override_bare_specifier: self.override_bare_specifier.clone(),
+                patched_dependencies: self.patched_dependencies.clone(),
+                // `resolve_workspace` computes the workspace-wide
+                // time-based cutoff and overrides both of these per
+                // importer; the values here only satisfy the struct.
+                pick_lowest_direct: self.versions.pick_lowest,
+                subdep_published_by: self.versions.published_by,
+                catalogs: self.catalogs.clone(),
+                catalog_server: false,
+            },
+            hooks: self.hooks.clone(),
         }
     }
 }
@@ -269,30 +265,34 @@ impl WorkspaceWalk {
                 registries_by_prefix: self.registries_by_prefix,
                 registry_options_by_url: config.registry_options_by_url.clone(),
             },
-            dedupe_peers: config.dedupe_peers,
-            dedupe_injected_deps: config.dedupe_injected_deps,
-            dedupe_peer_dependents: config.dedupe_peer_dependents,
-            resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
-            exclude_links_from_lockfile: config.exclude_links_from_lockfile,
-            lockfile_dir: shared.lockfile_dir.to_path_buf(),
-            peers_suffix_max_length: shared.peers_suffix_max_length(),
             share_workspace_resolutions: self.share_workspace_resolutions,
-            manifest_hook: shared.manifest_hook.clone(),
-            overrides_hook: shared.overrides_hook.clone(),
-            pnpmfile_hook: self.pnpmfile_hook,
-            read_package_log: self.read_package_log,
-            skipped_optional_log: Some(super::skipped_optional_log_fn::<Reporter>()),
-            finalized_package: self.finalized_package,
-            pick_lowest_direct: shared.pick_lowest_direct,
-            time_based: self.time_based,
-            wanted_lockfile: self.resolution_lockfile,
-            reuse_lockfile_subtrees: self.reuse_lockfile_subtrees,
-            update_reuse_scope: self.update_reuse_scope,
-            update_reuse_scopes_by_importer: self.update_reuse_scopes_by_importer,
-            update_depth: self.update_depth,
-            auto_install_peers: config.auto_install_peers,
             allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
-            deprecation_log: Some(super::deprecation_log_fn::<Reporter>()),
+            peers: pnpm_resolving_deps_resolver::WorkspacePeerResolutionOptions {
+                dedupe_peers: config.dedupe_peers,
+                dedupe_injected_deps: config.dedupe_injected_deps,
+                dedupe_peer_dependents: config.dedupe_peer_dependents,
+                resolve_peers_from_workspace_root: config.resolve_peers_from_workspace_root,
+                exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+                lockfile_dir: shared.lockfile_dir.to_path_buf(),
+                peers_suffix_max_length: shared.peers_suffix_max_length(),
+                auto_install_peers: config.auto_install_peers,
+            },
+            hooks: pnpm_resolving_deps_resolver::WorkspaceResolveHooks {
+                read_package_log: self.hooks.read_package_log,
+                skipped_optional_log: Some(super::skipped_optional_log_fn::<Reporter>()),
+                finalized_package: self.hooks.finalized_package,
+                deprecation_log: Some(super::deprecation_log_fn::<Reporter>()),
+                manifests: pnpm_resolving_deps_resolver::ManifestTransformHooks {
+                    manifest_hook: shared.hooks.manifest_hook.clone(),
+                    overrides_hook: shared.hooks.overrides_hook.clone(),
+                    pnpmfile_hook: self.hooks.pnpmfile,
+                },
+            },
+            reuse: self.reuse,
+            version: pnpm_resolving_deps_resolver::WorkspaceVersionResolution {
+                pick_lowest_direct: shared.versions.pick_lowest,
+                time_based: self.time_based,
+            },
         }
     }
 }
@@ -308,8 +308,13 @@ impl WorkspaceWalk {
 pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
     inputs: ResolvePassInputs<'_>,
 ) -> Result<pnpm_resolving_deps_resolver::ResolveWorkspaceResult, InstallWithFreshLockfileError> {
-    let ResolvePassInputs { resolver, importer_manifests, dependency_groups, walk, per_importer } =
-        inputs;
+    let ResolvePassInputs {
+        resolver,
+        importer_manifests,
+        dependency_groups,
+        walk,
+        per_importer,
+    } = inputs;
     let workspace_importers: Vec<pnpm_resolving_deps_resolver::WorkspaceImporter<'_>> =
         importer_manifests
             .iter()
@@ -318,9 +323,7 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
                 manifest,
             })
             .collect();
-    let modules_basename = per_importer
-        .config
-        .modules_dir
+    let modules_basename = per_importer.config.modules_dir
         .file_name()
         .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
     pnpm_resolving_deps_resolver::resolve_workspace(

@@ -25,8 +25,7 @@ pub(crate) fn current_pkg_from_lockfile(
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
     let name = metadata_key.name.to_string();
     let registry_qualified = metadata_key.suffix.registry_qualified();
-    let version = metadata
-        .version
+    let version = metadata.version
         .clone()
         .or_else(|| metadata_key.suffix.version_semver().map(ToString::to_string))
         .or_else(|| registry_qualified.map(|(_, version)| version.to_string()));
@@ -49,11 +48,14 @@ pub(crate) fn prior_child_key(
     bare_specifier: &str,
 ) -> Option<PkgNameVerPeer> {
     let name: PkgName = alias.parse().ok()?;
-    let dep_ref = snapshot
-        .dependencies
+    let dep_ref = snapshot.dependencies
         .as_ref()
         .and_then(|deps| deps.get(&name))
-        .or_else(|| snapshot.optional_dependencies.as_ref().and_then(|deps| deps.get(&name)))?;
+        .or_else(|| {
+            snapshot.optional_dependencies
+                .as_ref()
+                .and_then(|deps| deps.get(&name))
+        })?;
     let key = dep_ref.resolve(&name)?;
     let satisfied = if let Some((registry_name, version)) = key.suffix.registry_qualified() {
         let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
@@ -87,7 +89,10 @@ fn reduce_named_registry_spec<'a>(
     let body = bare_specifier.strip_prefix(registry_name)?.strip_prefix(':')?;
     // `@scope/name@range` splits at the last `@`; a bare `range` has none
     // (or only the leading one of a scope, which never delimits a version).
-    let Some(index) = body.rfind('@').filter(|index| *index > 0) else {
+    let Some(index) = body
+        .rfind('@')
+        .filter(|index| *index > 0)
+    else {
         return Some(body);
     };
     let (spec_name, range) = (&body[..index], &body[index + 1..]);
@@ -111,7 +116,9 @@ pub(crate) fn reusable_importer_dep(
     let name: PkgName = alias.parse().ok()?;
     let spec = importer_dep(lockfile.importers.get(importer_id)?, &name)?;
     let key = spec.version.resolved_key(&name)?;
-    let metadata = lockfile.packages.as_ref()?.get(&key.without_peer())?;
+    let metadata = lockfile.packages
+        .as_ref()?
+        .get(&key.without_peer())?;
     let is_git = matches!(metadata.resolution, LockfileResolution::Git(_))
         || matches!(
             metadata.resolution,
@@ -145,12 +152,19 @@ fn importer_dep<'a>(
     importer: &'a ProjectSnapshot,
     name: &PkgName,
 ) -> Option<&'a ResolvedDependencySpec> {
-    importer
-        .dependencies
+    importer.dependencies
         .as_ref()
         .and_then(|deps| deps.get(name))
-        .or_else(|| importer.optional_dependencies.as_ref().and_then(|deps| deps.get(name)))
-        .or_else(|| importer.dev_dependencies.as_ref().and_then(|deps| deps.get(name)))
+        .or_else(|| {
+            importer.optional_dependencies
+                .as_ref()
+                .and_then(|deps| deps.get(name))
+        })
+        .or_else(|| {
+            importer.dev_dependencies
+                .as_ref()
+                .and_then(|deps| deps.get(name))
+        })
 }
 
 /// Whether `version` satisfies `range`, keeping a prerelease eligible
@@ -218,20 +232,23 @@ pub(crate) fn synthesize_reused_result(
         let name_ver = PkgNameVer::new(metadata_key.name.clone(), registry_version?);
         (name_ver.to_string(), Some(name_ver), "npm-registry")
     };
-    let manifest_version =
-        metadata.version.clone().or_else(|| name_ver.as_ref().map(|nv| nv.suffix.to_string()));
+    let manifest_version = metadata.version
+        .clone()
+        .or_else(|| name_ver.as_ref().map(|nv| nv.suffix.to_string()));
     let manifest = synthesize_manifest(&metadata_key.name, manifest_version.as_deref(), metadata);
     Some(ResolveResult {
         id: PkgResolutionId::from(id),
-        name_ver,
-        latest: None,
-        published_at: None,
-        manifest: Some(std::sync::Arc::new(manifest)),
         resolution: metadata.resolution.clone(),
         resolved_via: resolved_via.to_string(),
         normalized_bare_specifier: None,
         alias: Some(alias.to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver,
+            latest: None,
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(manifest)),
+        },
     })
 }
 
@@ -325,7 +342,12 @@ fn insert_platform_fields(
 }
 
 fn string_array(items: &[String]) -> Value {
-    Value::Array(items.iter().map(|item| Value::String(item.clone())).collect())
+    Value::Array(
+        items
+            .iter()
+            .map(|item| Value::String(item.clone()))
+            .collect(),
+    )
 }
 
 #[cfg(test)]

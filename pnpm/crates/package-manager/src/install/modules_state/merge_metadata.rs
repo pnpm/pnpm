@@ -33,11 +33,18 @@ where
             && rebuild.settles_dependency(entry)
             && policy.check(pnpm_deps_path::remove_suffix(entry)) == Some(true)
     };
-    let retained = previous.iter().filter(|entry| {
-        current.is_some_and(|current| current_contains_dep_path(current, entry)) && !settled(entry)
-    });
+    let retained = previous
+        .iter()
+        .filter(|entry| {
+            current.is_some_and(|current| current_contains_dep_path(current, entry))
+                && !settled(entry)
+        });
     let mut seen = HashSet::new();
-    retained.cloned().chain(deferred).filter(|entry| seen.insert(entry.clone())).collect()
+    retained
+        .cloned()
+        .chain(deferred)
+        .filter(|entry| seen.insert(entry.clone()))
+        .collect()
 }
 pub(in super::super) fn merge_filtered_modules_metadata(
     next: &mut Modules,
@@ -177,13 +184,16 @@ pub(in super::super) fn retained_only_dep_path(
     current_contains_dep_path(current, dep_path) && !current_contains_dep_path(selected, dep_path)
 }
 pub(in super::super) fn injected_source_paths(lockfile: &Lockfile) -> HashSet<String> {
-    lockfile
-        .snapshots
+    lockfile.snapshots
         .iter()
         .flat_map(|snapshots| snapshots.keys())
         .chain(lockfile.packages.iter().flat_map(|packages| packages.keys()))
         .filter_map(|key| match key.suffix.version() {
-            VersionPart::File(path) => Some(path.strip_prefix("./").unwrap_or(path).to_string()),
+            VersionPart::File(path) => Some(
+                path.strip_prefix("./")
+                    .unwrap_or(path)
+                    .to_string(),
+            ),
             VersionPart::Semver(_)
             | VersionPart::NonSemver(_)
             | VersionPart::RegistryQualified { .. } => None,
@@ -195,9 +205,10 @@ pub(in super::super) fn current_contains_dep_path(current: &Lockfile, dep_path: 
         return true;
     }
     let Ok(key) = dep_path.parse::<pnpm_lockfile::PackageKey>() else { return false };
-    current.snapshots.as_ref().is_some_and(|snapshots| snapshots.contains_key(&key))
-        || current
-            .packages
+    current.snapshots
+        .as_ref()
+        .is_some_and(|snapshots| snapshots.contains_key(&key))
+        || current.packages
             .as_ref()
             .is_some_and(|packages| packages.contains_key(&key.without_peer()))
 }

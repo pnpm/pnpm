@@ -96,31 +96,42 @@ async fn cold_batch_links_slots_in_parallel() {
         crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::waiting_for_overlap();
 
     let output = CreateVirtualStore {
+        fetching: crate::VirtualStoreFetchInputs {
+            http_client: &pnpm_network::ThrottledClient::default(),
+            store_index_writer: &store_index_writer,
+            store_context: None,
+            cas_prefetch: None,
+            progress_reported: &progress_reported,
+            tarball_mem_cache: Some(&mem_cache),
+            custom_fetcher_session: None,
+            planned_canonical_fetches: None,
+        },
+        selection: crate::SnapshotSelection {
+            skipped: &skipped,
+            include_optional: true,
+            supported_architectures: None,
+        },
         ctx: &crate::InstallContext {
+            linker: crate::ModuleLinkerContext {
+                layout: &layout,
+                kind: NodeLinker::Isolated,
+                bin_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            },
             config,
             workspace_root: &workspace_root,
             requester: &requester,
-            layout: &layout,
-            node_linker: NodeLinker::Isolated,
+
             allow_build_policy: &allow_build_policy,
-            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
         },
-        http_client: &pnpm_network::ThrottledClient::default(),
+
         entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
         current_entries: LockfileEntries::default(),
-        store_index_writer: &store_index_writer,
-        store_context: None,
-        cas_prefetch: None,
-        skipped: &skipped,
-        include_optional_dependencies: true,
-        supported_architectures: None,
+
         dir_clone_cache: None,
-        progress_reported: &progress_reported,
-        tarball_mem_cache: Some(&mem_cache),
-        custom_fetcher_session: None,
-        planned_canonical_fetches: None,
+
         link_concurrency_probe: Some(&probe),
     }
     .run::<SilentReporter>()
@@ -277,31 +288,42 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
     let probe = crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::default();
 
     CreateVirtualStore {
+        fetching: crate::VirtualStoreFetchInputs {
+            http_client: &pnpm_network::ThrottledClient::default(),
+            store_index_writer: &store_index_writer,
+            store_context: None,
+            cas_prefetch: None,
+            progress_reported: &progress_reported,
+            tarball_mem_cache: Some(&mem_cache),
+            custom_fetcher_session: None,
+            planned_canonical_fetches: None,
+        },
+        selection: crate::SnapshotSelection {
+            skipped: &skipped,
+            include_optional: true,
+            supported_architectures: None,
+        },
         ctx: &crate::InstallContext {
+            linker: crate::ModuleLinkerContext {
+                layout: &layout,
+                kind: NodeLinker::Isolated,
+                bin_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            },
             config,
             workspace_root: &workspace_root,
             requester: &requester,
-            layout: &layout,
-            node_linker: NodeLinker::Isolated,
+
             allow_build_policy: &allow_build_policy,
-            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
         },
-        http_client: &pnpm_network::ThrottledClient::default(),
+
         entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
         current_entries: LockfileEntries::default(),
-        store_index_writer: &store_index_writer,
-        store_context: None,
-        cas_prefetch: None,
-        skipped: &skipped,
-        include_optional_dependencies: true,
-        supported_architectures: None,
+
         dir_clone_cache: None,
-        progress_reported: &progress_reported,
-        tarball_mem_cache: Some(&mem_cache),
-        custom_fetcher_session: None,
-        planned_canonical_fetches: None,
+
         link_concurrency_probe: Some(&probe),
     }
     .run::<SilentReporter>()
@@ -407,8 +429,11 @@ fn group_slots_by_dir_collapses_hash_equal_peer_variants() {
 
     assert_eq!(groups.len(), 1, "hash-equal variants must share one link task");
     assert_eq!(groups[0].duplicates.len(), 1);
-    let mut merged: Vec<String> =
-        groups[0].removed_aliases().iter().map(PkgName::to_string).collect();
+    let mut merged: Vec<String> = groups[0]
+        .removed_aliases()
+        .iter()
+        .map(PkgName::to_string)
+        .collect();
     merged.sort();
     assert_eq!(
         merged,

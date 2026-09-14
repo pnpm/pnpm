@@ -26,7 +26,10 @@ pub(super) fn provider_of_target(target: &Path) -> Option<Provider> {
     let package_dir = package_dir_of_target(&target)?;
     let manifest = std::fs::read(package_dir.join("package.json")).ok()?;
     let parsed: Value = serde_json::from_slice(&manifest).ok()?;
-    let name = parsed.get("name").and_then(Value::as_str)?.to_string();
+    let name = parsed
+        .get("name")
+        .and_then(Value::as_str)?
+        .to_string();
     Some(Provider { name, package_dir, manifest_hash: create_hex_hash_bytes(&manifest) })
 }
 
@@ -114,13 +117,18 @@ pub(super) fn small_file_hash(path: &Path, expected_len: u64) -> Option<String> 
         return None;
     }
     let mut bytes = Vec::with_capacity(expected_len as usize);
-    std::fs::File::open(path).ok()?.take(MAX_HASHED_BIN_SIZE + 1).read_to_end(&mut bytes).ok()?;
+    std::fs::File::open(path)
+        .ok()?
+        .take(MAX_HASHED_BIN_SIZE + 1)
+        .read_to_end(&mut bytes)
+        .ok()?;
     (bytes.len() as u64 <= MAX_HASHED_BIN_SIZE).then(|| create_hex_hash_bytes(&bytes))
 }
 
 #[cfg(windows)]
 pub(super) fn windows_file_identity(path: &Path) -> Option<String> {
     use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
+    use windows_sys::Win32::Foundation::HANDLE;
     use windows_sys::Win32::Storage::FileSystem::{
         BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
     };
@@ -129,7 +137,8 @@ pub(super) fn windows_file_identity(path: &Path) -> Option<String> {
     let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::uninit();
     // SAFETY: `file` owns a valid handle for this call and `info` points to
     // writable storage of the exact structure the API initializes.
-    if unsafe { GetFileInformationByHandle(file.as_raw_handle() as _, info.as_mut_ptr()) } == 0 {
+    if unsafe { GetFileInformationByHandle(file.as_raw_handle() as HANDLE, info.as_mut_ptr()) } == 0
+    {
         return None;
     }
     // SAFETY: a successful `GetFileInformationByHandle` initializes `info`.

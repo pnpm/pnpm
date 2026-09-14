@@ -184,8 +184,11 @@ fn a_boolean_setting_claims_the_next_token_only_when_it_spells_a_boolean() {
         (vec!["--side-effects-cache", "false", "install"], false),
         (vec!["--side-effects-cache", "true", "install"], true),
     ] {
-        let (overrides, remaining) =
-            ConfigOverrides::extract(argv(["pacquet"]).into_iter().chain(argv(tokens)));
+        let (overrides, remaining) = ConfigOverrides::extract(
+            argv(["pacquet"])
+                .into_iter()
+                .chain(argv(tokens)),
+        );
         assert_eq!(remaining, argv(["pacquet", "install"]));
 
         let mut config = Config::default();
@@ -218,7 +221,13 @@ fn no_bare_setting_flag_shadows_a_global_option() {
     let declared: Vec<&str> = grammar
         .get_arguments()
         .flat_map(|arg| {
-            arg.get_long().into_iter().chain(arg.get_all_aliases().into_iter().flatten())
+            arg.get_long()
+                .into_iter()
+                .chain(
+                    arg.get_all_aliases()
+                        .into_iter()
+                        .flatten(),
+                )
         })
         .collect();
     let shadowed: Vec<&str> = super::super::tokens::BARE_SETTING_FLAGS

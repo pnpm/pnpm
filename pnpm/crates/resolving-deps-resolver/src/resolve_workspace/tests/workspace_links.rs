@@ -22,8 +22,9 @@ async fn workspace_resolution_is_shared_and_rendered_per_importer() {
     let workspace_packages = std::sync::Arc::new(std::collections::BTreeMap::default());
     let hook_calls: RecordedReadPackageCalls = Arc::new(Mutex::new(Vec::new()));
     let mut opts = workspace_opts(false, false);
-    opts.lockfile_dir.clone_from(&lockfile_dir);
-    opts.pnpmfile_hook = Some(Arc::new(RecordingHooks { calls: Arc::clone(&hook_calls) }));
+    opts.peers.lockfile_dir.clone_from(&lockfile_dir);
+    opts.hooks.manifests.pnpmfile_hook =
+        Some(Arc::new(RecordingHooks { calls: Arc::clone(&hook_calls) }));
 
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
@@ -34,10 +35,11 @@ async fn workspace_resolution_is_shared_and_rendered_per_importer() {
                 _ => unreachable!("unexpected importer"),
             };
             let mut opts = importer_opts(project_dir, None);
-            opts.lockfile_dir = Some(lockfile_dir.clone());
-            opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
-            opts.base_opts.link_workspace_packages = LinkWorkspacePackages::Deep;
-            opts.base_opts.workspace_packages = Some(std::sync::Arc::clone(&workspace_packages));
+            opts.links.lockfile_dir = Some(lockfile_dir.clone());
+            opts.base_opts.project.lockfile_dir.clone_from(&lockfile_dir);
+            opts.base_opts.project.link_workspace_packages = LinkWorkspacePackages::Deep;
+            opts.base_opts.project.workspace_packages =
+                Some(std::sync::Arc::clone(&workspace_packages));
             opts
         })
         .await
@@ -89,7 +91,7 @@ async fn semver_workspace_matches_stay_scoped_to_each_importer() {
     let lockfile_dir = std::path::PathBuf::from("/repo");
     let workspace_packages = std::sync::Arc::new(std::collections::BTreeMap::default());
     let mut opts = workspace_opts(false, false);
-    opts.lockfile_dir.clone_from(&lockfile_dir);
+    opts.peers.lockfile_dir.clone_from(&lockfile_dir);
 
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
@@ -99,10 +101,11 @@ async fn semver_workspace_matches_stay_scoped_to_each_importer() {
                 _ => unreachable!("unexpected importer"),
             };
             let mut opts = importer_opts(project_dir, None);
-            opts.lockfile_dir = Some(lockfile_dir.clone());
-            opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
-            opts.base_opts.link_workspace_packages = LinkWorkspacePackages::Deep;
-            opts.base_opts.workspace_packages = Some(std::sync::Arc::clone(&workspace_packages));
+            opts.links.lockfile_dir = Some(lockfile_dir.clone());
+            opts.base_opts.project.lockfile_dir.clone_from(&lockfile_dir);
+            opts.base_opts.project.link_workspace_packages = LinkWorkspacePackages::Deep;
+            opts.base_opts.project.workspace_packages =
+                Some(std::sync::Arc::clone(&workspace_packages));
             opts
         })
         .await
@@ -137,7 +140,7 @@ async fn canonical_snapshot_link_keeps_direct_links_relative_to_each_importer() 
         WorkspaceImporter { id: "packages/consumer".to_string(), manifest: &shallow_manifest },
     ];
     let mut opts = workspace_opts(false, false);
-    opts.lockfile_dir.clone_from(&lockfile_dir);
+    opts.peers.lockfile_dir.clone_from(&lockfile_dir);
 
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
@@ -147,10 +150,11 @@ async fn canonical_snapshot_link_keeps_direct_links_relative_to_each_importer() 
                 _ => unreachable!("unexpected importer"),
             };
             let mut opts = importer_opts(project_dir, None);
-            opts.lockfile_dir = Some(lockfile_dir.clone());
-            opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
-            opts.base_opts.link_workspace_packages = LinkWorkspacePackages::Deep;
-            opts.base_opts.workspace_packages = Some(std::sync::Arc::clone(&workspace_packages));
+            opts.links.lockfile_dir = Some(lockfile_dir.clone());
+            opts.base_opts.project.lockfile_dir.clone_from(&lockfile_dir);
+            opts.base_opts.project.link_workspace_packages = LinkWorkspacePackages::Deep;
+            opts.base_opts.project.workspace_packages =
+                Some(std::sync::Arc::clone(&workspace_packages));
             opts
         })
         .await
@@ -164,9 +168,13 @@ async fn canonical_snapshot_link_keeps_direct_links_relative_to_each_importer() 
         result.peers.direct_dependencies_by_importer["packages/consumer"]["shared"].as_str(),
         "link:../shared",
     );
-    let wrapper =
-        result.peers.graph.get(&crate::DepPath::from("wrapper@1.0.0")).expect("wrapper graph node");
-    assert_eq!(wrapper.children.get("shared"), Some(&crate::DepPath::from("link:packages/shared")));
+    let wrapper = result.peers.graph
+        .get(&crate::DepPath::from("wrapper@1.0.0"))
+        .expect("wrapper graph node");
+    assert_eq!(
+        wrapper.edges.children.get("shared"),
+        Some(&crate::DepPath::from("link:packages/shared")),
+    );
     assert!(result.merged_tree.packages.contains_key("link:packages/shared"));
     assert!(!result.merged_tree.packages.contains_key("link:../../../packages/shared"));
     assert_eq!(resolver.workspace_resolution_count(), 1);
@@ -182,14 +190,6 @@ async fn catalogs_work_in_injected_workspace_packages() {
                 ("project2".to_string(), "workspace:*".to_string()),
                 ResolveResult {
                     id: PkgResolutionId::from("file:packages/project2".to_string()),
-                    name_ver: None,
-                    latest: None,
-                    published_at: None,
-                    manifest: Some(std::sync::Arc::new(serde_json::json!({
-                        "name": "project2",
-                        "version": "0.0.0",
-                        "dependencies": { "is-positive": "catalog:" },
-                    }))),
                     resolution: LockfileResolution::Directory(DirectoryResolution {
                         directory: "packages/project2".to_string(),
                     }),
@@ -197,6 +197,16 @@ async fn catalogs_work_in_injected_workspace_packages() {
                     normalized_bare_specifier: None,
                     alias: Some("project2".to_string()),
                     policy_violation: None,
+                    package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                        name_ver: None,
+                        latest: None,
+                        published_at: None,
+                        manifest: Some(std::sync::Arc::new(serde_json::json!({
+                            "name": "project2",
+                            "version": "0.0.0",
+                            "dependencies": { "is-positive": "catalog:" },
+                        }))),
+                    },
                 },
             ),
             (
@@ -228,7 +238,7 @@ async fn catalogs_work_in_injected_workspace_packages() {
         |importer| {
             let mut opts =
                 importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
-            opts.catalogs = catalogs.clone();
+            opts.resolution.catalogs = catalogs.clone();
             opts
         },
     )
@@ -237,9 +247,7 @@ async fn catalogs_work_in_injected_workspace_packages() {
 
     assert!(result.merged_tree.packages.contains_key("project2@file:packages/project2"));
     assert!(result.merged_tree.packages.contains_key("is-positive@1.0.0"));
-    let children = result
-        .merged_tree
-        .children_by_id
+    let children = result.merged_tree.children_by_id
         .get("project2@file:packages/project2")
         .expect("injected workspace package children");
     assert_eq!(children.len(), 1);
@@ -298,7 +306,7 @@ async fn unchanged_catalog_dep_keeps_dependent_subtree_pins() {
         seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
-    opts.wanted_lockfile = Some(std::sync::Arc::new(reuse_graph_lockfile(
+    opts.reuse.lockfile = Some(std::sync::Arc::new(reuse_graph_lockfile(
         "proj",
         &[("tool", "catalog:", "1.0.0"), ("parent", "^1.0.0", "1.0.0")],
         &[("tool@1.0.0", &[]), ("parent@1.0.0", &[("tool", "1.0.0")])],
@@ -308,7 +316,7 @@ async fn unchanged_catalog_dep_keeps_dependent_subtree_pins() {
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             let mut opts =
                 importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
-            opts.catalogs = BTreeMap::from([(
+            opts.resolution.catalogs = BTreeMap::from([(
                 "default".to_string(),
                 BTreeMap::from([("tool".to_string(), "^1.0.0".to_string())]),
             )]);
@@ -375,7 +383,7 @@ async fn catalog_range_bump_refreshes_dependent_pins() {
         seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
-    opts.wanted_lockfile = Some(std::sync::Arc::new(reuse_graph_lockfile(
+    opts.reuse.lockfile = Some(std::sync::Arc::new(reuse_graph_lockfile(
         "proj",
         &[("tool", "catalog:", "1.0.0"), ("parent", "^1.0.0", "1.0.0")],
         &[("tool@1.0.0", &[]), ("parent@1.0.0", &[("tool", "1.0.0")])],
@@ -385,7 +393,7 @@ async fn catalog_range_bump_refreshes_dependent_pins() {
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             let mut opts =
                 importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
-            opts.catalogs = BTreeMap::from([(
+            opts.resolution.catalogs = BTreeMap::from([(
                 "default".to_string(),
                 BTreeMap::from([("tool".to_string(), "^2.0.0".to_string())]),
             )]);

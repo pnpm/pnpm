@@ -89,7 +89,10 @@ fn check_settings_returns_drift_when_catalog_snapshot_specifier_changes() {
         Some("^18.2.0"),
     );
     assert_eq!(
-        config.get("default").and_then(|catalog| catalog.get("react")).map(String::as_str),
+        config
+            .get("default")
+            .and_then(|catalog| catalog.get("react"))
+            .map(String::as_str),
         Some("^19.0.0"),
     );
 }
@@ -134,8 +137,11 @@ fn check_settings_passes_when_inject_workspace_packages_both_true() {
         check_lockfile_settings(
             &lockfile,
             LockfileSettingsCheck {
-                auto_install_peers: false,
-                inject_workspace_packages: true,
+                resolution: crate::freshness::ResolutionSettingsCheck {
+                    auto_install_peers: false,
+                    inject_workspace_packages: true,
+                    ..settings_check(&Catalogs::new()).resolution
+                },
                 ..settings_check(&Catalogs::new())
             }
         )
@@ -152,7 +158,10 @@ fn check_settings_returns_drift_when_config_enables_inject_workspace_packages() 
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
-            inject_workspace_packages: true,
+            resolution: crate::freshness::ResolutionSettingsCheck {
+                inject_workspace_packages: true,
+                ..settings_check(&Catalogs::new()).resolution
+            },
             ..settings_check(&Catalogs::new())
         },
     )
@@ -175,7 +184,13 @@ fn check_settings_returns_drift_when_config_disables_inject_workspace_packages()
     .expect("parse lockfile with inject on");
     let err = check_lockfile_settings(
         &lockfile,
-        LockfileSettingsCheck { auto_install_peers: false, ..settings_check(&Catalogs::new()) },
+        LockfileSettingsCheck {
+            resolution: crate::freshness::ResolutionSettingsCheck {
+                auto_install_peers: false,
+                ..settings_check(&Catalogs::new()).resolution
+            },
+            ..settings_check(&Catalogs::new())
+        },
     )
     .expect_err("disabling inject must surface drift");
     assert_eq!(

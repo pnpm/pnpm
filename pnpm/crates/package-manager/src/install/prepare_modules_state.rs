@@ -8,38 +8,20 @@ use purge::{
 };
 
 use super::{
-    Arc, Catalogs, Config, HashSet, Host, IncludedDependencies, InstallError, Lockfile, Modules,
-    NodeLinker, PackageManifest, Path, PathBuf, RebuildOptions, Reporter, ResolutionVerifier,
+    Config, Host, InstallError, Lockfile, Modules, NodeLinker, Reporter,
     modules_layout_consistent_with,
 };
 
 pub(super) struct PrepareModulesStateInputs<'a, 'install> {
+    pub(crate) tree: crate::install::state_options::ModulesTreeContext<'a>,
+    pub(crate) lockfiles: crate::install::state_options::PreparedLockfiles<'a>,
+    pub(crate) projects: crate::install::state_options::InstallProjectMetadata<'a>,
+    pub(crate) repeat: crate::install::state_options::RepeatInstallPolicy<'a>,
+    pub(crate) verification:
+        crate::install::state_options::LockfileVerificationInputs<'a, 'install>,
+    pub(crate) write: crate::install::state_options::LockfileWritePolicy,
     pub(super) resolve_only: bool,
-    pub(super) take_frozen_path: bool,
-    pub(super) config: &'static Config,
-    pub(super) filtered_install: bool,
     pub(super) installs_only: bool,
-    pub(super) workspace_root: &'a Path,
-    pub(super) included: IncludedDependencies,
-    pub(super) current_lockfile: Option<&'a Lockfile>,
-    pub(super) requested_importer_ids: Option<&'a HashSet<String>>,
-    pub(super) node_linker: NodeLinker,
-    pub(super) disable_optimistic_repeat_install: bool,
-    pub(super) lockfile: Option<&'a Lockfile>,
-    pub(super) supported_architectures:
-        Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    pub(super) rebuild: Option<&'a RebuildOptions>,
-    pub(super) resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
-    pub(super) derived_lockfile_path: Option<&'a Path>,
-    pub(super) lockfile_verification_override:
-        Option<super::LockfileVerificationOverride<'install>>,
-    pub(super) lockfile_synthesized_from_current: bool,
-    pub(super) lockfile_was_fast_updated: bool,
-    pub(super) save_lockfile: bool,
-    pub(super) catalogs: &'a Catalogs,
-    pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
-    pub(super) effective_node_version: Option<&'a str>,
-    pub(super) prefix: &'a str,
 }
 
 pub(super) struct PreparedModulesState<'install> {
@@ -68,15 +50,15 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
     inputs: PrepareModulesStateInputs<'_, 'install>,
 ) -> Result<Option<PreparedModulesState<'install>>, InstallError> {
     let old_modules =
-        read_old_modules(inputs.resolve_only, inputs.take_frozen_path, inputs.config)?;
+        read_old_modules(inputs.resolve_only, inputs.repeat.frozen, inputs.tree.config)?;
     let modules_manifest = old_modules.as_ref();
     let previous_modules_metadata = read_previous_modules_metadata(
         inputs.resolve_only,
-        inputs.filtered_install,
-        inputs.config,
+        inputs.repeat.filtered,
+        inputs.tree.config,
     )?;
     let is_inconsistent =
-        modules_layout_drifted(modules_manifest, inputs.config, inputs.node_linker);
+        modules_layout_drifted(modules_manifest, inputs.tree.config, inputs.tree.node_linker);
 
     prepare_modules_layout(&inputs, modules_manifest, is_inconsistent)?;
 
@@ -90,7 +72,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         old_modules,
         previous_modules_metadata,
         is_inconsistent,
-        lockfile_verification_override: inputs.lockfile_verification_override,
+        lockfile_verification_override: inputs.verification.override_check,
     }))
 }
 
@@ -101,24 +83,27 @@ fn prepare_modules_layout(
 ) -> Result<(), InstallError> {
     if !inputs.resolve_only && is_inconsistent {
         purge_inconsistent_modules_dir(&InconsistentModulesDir {
-            config: inputs.config,
-            workspace_root: inputs.workspace_root,
+            config: inputs.tree.config,
+            workspace_root: inputs.tree.workspace_root,
             modules_manifest,
             installs_only: inputs.installs_only,
-            filtered_install: inputs.filtered_install,
+            filtered_install: inputs.repeat.filtered,
         })?;
     }
 
     prune_excluded_direct_deps(&ExcludedGroupPrune {
-        resolve_only: inputs.resolve_only,
-        is_inconsistent,
-        filtered_install: inputs.filtered_install,
-        config: inputs.config,
-        workspace_root: inputs.workspace_root,
-        included: inputs.included,
+        eligibility: crate::install::state_options::PruneEligibility {
+            resolve_only: inputs.resolve_only,
+            is_inconsistent,
+            filtered_install: inputs.repeat.filtered,
+        },
+
+        config: inputs.tree.config,
+        workspace_root: inputs.tree.workspace_root,
+        included: inputs.tree.included,
         modules_manifest,
-        current_lockfile: inputs.current_lockfile,
-        requested_importer_ids: inputs.requested_importer_ids,
+        current_lockfile: inputs.lockfiles.current,
+        requested_importer_ids: inputs.lockfiles.importer_ids,
     })?;
 
     Ok(())
@@ -130,23 +115,33 @@ async fn report_prepared_up_to_date<Reporter: self::Reporter + 'static>(
     modules: &pnpm_modules_yaml::ModulesLayout,
 ) -> Result<(), InstallError> {
     report_up_to_date::<Reporter>(UpToDateInstall {
-        config: inputs.config,
-        workspace_root: inputs.workspace_root,
-        node_linker: inputs.node_linker,
-        included: inputs.included,
+        tree: crate::install::state_options::ModulesTreeContext {
+            config: inputs.tree.config,
+            workspace_root: inputs.tree.workspace_root,
+            node_linker: inputs.tree.node_linker,
+            included: inputs.tree.included,
+        },
+        projects: crate::install::state_options::InstallProjectMetadata {
+            catalogs: inputs.projects.catalogs,
+            manifests: inputs.projects.manifests,
+            prefix: inputs.projects.prefix,
+        },
+        verification: crate::install::state_options::LockfileVerificationInputs {
+            verifiers: inputs.verification.verifiers,
+            path: inputs.verification.path,
+            override_check: inputs.verification.override_check,
+        },
+        write: crate::install::state_options::LockfileWritePolicy {
+            synthesized_from_current: inputs.write.synthesized_from_current,
+            fast_updated: inputs.write.fast_updated,
+            save: inputs.write.save,
+        },
+
         wanted_lockfile,
         modules,
-        supported_architectures: inputs.supported_architectures,
-        catalogs: inputs.catalogs,
-        project_manifests: inputs.project_manifests,
-        filtered_install: inputs.filtered_install,
-        prefix: inputs.prefix,
-        resolution_verifiers: inputs.resolution_verifiers,
-        derived_lockfile_path: inputs.derived_lockfile_path,
-        lockfile_verification_override: inputs.lockfile_verification_override,
-        lockfile_synthesized_from_current: inputs.lockfile_synthesized_from_current,
-        lockfile_was_fast_updated: inputs.lockfile_was_fast_updated,
-        save_lockfile: inputs.save_lockfile,
+        supported_architectures: inputs.repeat.supported_architectures,
+
+        filtered_install: inputs.repeat.filtered,
     })
     .await
 }
@@ -156,19 +151,24 @@ fn frozen_tree_inputs<'a>(
     modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
 ) -> FrozenTreeUpToDate<'a> {
     FrozenTreeUpToDate {
-        take_frozen_path: inputs.take_frozen_path,
-        filtered_install: inputs.filtered_install,
-        disable_optimistic_repeat_install: inputs.disable_optimistic_repeat_install,
-        config: inputs.config,
-        workspace_root: inputs.workspace_root,
-        node_linker: inputs.node_linker,
-        included: inputs.included,
-        lockfile: inputs.lockfile,
-        current_lockfile: inputs.current_lockfile,
+        tree: crate::install::state_options::ModulesTreeContext {
+            config: inputs.tree.config,
+            workspace_root: inputs.tree.workspace_root,
+            node_linker: inputs.tree.node_linker,
+            included: inputs.tree.included,
+        },
+        repeat: crate::install::state_options::RepeatInstallPolicy {
+            frozen: inputs.repeat.frozen,
+            filtered: inputs.repeat.filtered,
+            disable_optimistic_check: inputs.repeat.disable_optimistic_check,
+            supported_architectures: inputs.repeat.supported_architectures,
+            rebuild: inputs.repeat.rebuild,
+            effective_node_version: inputs.repeat.effective_node_version,
+        },
+
+        lockfile: inputs.lockfiles.wanted,
+        current_lockfile: inputs.lockfiles.current,
         modules_manifest,
-        supported_architectures: inputs.supported_architectures,
-        rebuild: inputs.rebuild,
-        effective_node_version: inputs.effective_node_version,
     }
 }
 
@@ -236,8 +236,7 @@ fn modules_layout_drifted(
 ) -> bool {
     let Some(modules) = modules_manifest else {
         // Treat existence-check errors conservatively as inconsistent.
-        return config
-            .modules_dir
+        return config.modules_dir
             .join(pnpm_modules_yaml::MODULES_FILENAME)
             .try_exists()
             .unwrap_or(true);

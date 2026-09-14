@@ -75,7 +75,9 @@ fn compatible_snapshots_are_not_skipped() {
     assert!(skipped.is_empty());
     let events = take_events();
     assert!(
-        events.iter().all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
+        events
+            .iter()
+            .all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
         "expected no skipped-optional events, got {events:?}",
     );
 }
@@ -102,7 +104,9 @@ fn non_optional_incompatible_is_not_skipped() {
     assert!(skipped.is_empty());
     let events = take_events();
     assert!(
-        events.iter().all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
+        events
+            .iter()
+            .all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
         "non-optional must not fire skipped-optional events",
     );
 }
@@ -129,7 +133,9 @@ fn no_constraints_skips_the_per_snapshot_pass() {
     assert!(skipped.is_empty());
     let events = take_events();
     assert!(
-        events.iter().all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
+        events
+            .iter()
+            .all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
         "fast path must not fire skipped-optional events",
     );
 }
@@ -220,7 +226,9 @@ fn supported_architectures_widens_accept_set_so_optional_stays() {
     assert!(skipped.is_empty(), "supportedArchitectures.os=['darwin'] should keep the package");
     let events = take_events();
     assert!(
-        events.iter().all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
+        events
+            .iter()
+            .all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
         "no skipped-optional event expected, got {events:?}",
     );
 }
@@ -280,7 +288,9 @@ fn seeded_still_incompatible_snapshot_stays_skipped() {
     assert!(skipped.contains(&key), "seeded key must survive the recompute");
     let events = take_events();
     assert!(
-        events.iter().any(|event| matches!(event, LogEvent::SkippedOptionalDependency(_))),
+        events
+            .iter()
+            .any(|event| matches!(event, LogEvent::SkippedOptionalDependency(_))),
         "the skip is re-evaluated and re-reported on every install, got {events:?}",
     );
 }
@@ -295,8 +305,10 @@ fn seeded_snapshot_compatible_with_new_host_is_unskipped() {
     let mut snapshots = HashMap::new();
     snapshots.insert(key.clone(), SnapshotEntry { optional: true, ..Default::default() });
     let mut packages = HashMap::new();
-    packages
-        .insert(key.clone(), synthetic_metadata(None, Some(&["arm64"]), Some(&["darwin"]), None));
+    packages.insert(
+        key.clone(),
+        synthetic_metadata(None, Some(&["arm64"]), Some(&["darwin"]), None),
+    );
 
     let seed = SkippedSnapshots::from_set(std::iter::once(key.clone()).collect());
     let skipped = compute_skipped_snapshots::<RecordingReporter>(
@@ -338,7 +350,9 @@ fn seeded_non_optional_snapshot_is_rechecked() {
     assert!(!skipped.contains(&key), "non-optional snapshots must not stay seeded as skipped");
     let events = take_events();
     assert!(
-        events.iter().all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
+        events
+            .iter()
+            .all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
         "non-optional incompatibility must not emit skipped-optional events, got {events:?}",
     );
 }
@@ -659,7 +673,9 @@ fn engine_strict_fails_incompatible_regular_dep_of_installed_optional() {
     assert!(lenient.is_empty(), "without engine_strict the required dep is warned, not skipped");
     let events = take_events();
     assert!(
-        events.iter().all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
+        events
+            .iter()
+            .all(|event| !matches!(event, LogEvent::SkippedOptionalDependency(_))),
         "a warned required dep must not fire skipped-optional events, got {events:?}",
     );
 }

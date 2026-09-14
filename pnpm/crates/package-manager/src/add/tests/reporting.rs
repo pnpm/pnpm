@@ -85,20 +85,24 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
     let resolved_packages = ResolvedPackages::default();
     let package_names = ["@private/foo".to_string()];
     Add {
-        tarball_mem_cache: Arc::default(),
-        resolved_packages: &resolved_packages,
-        http_client: &http_client,
-        http_client_arc: Arc::new(ThrottledClient::default()),
-        config,
         manifest: &mut manifest,
-        lockfile: None,
-        lockfile_path: None,
-        dependency_groups: Some([DependencyGroup::Prod]),
-        package_names: &package_names,
-        range_spec_style: RangeSpecStyle::Patch,
-        save_catalog_name: None,
-        supported_architectures: None,
-        lockfile_only: true,
+        options: crate::AddOptions {
+            resolved_packages: &resolved_packages,
+            http_client: &http_client,
+            config,
+            lockfile: None,
+            lockfile_path: None,
+            package_names: &package_names,
+            range_spec_style: RangeSpecStyle::Patch,
+            lockfile_only: true,
+        },
+        resources: crate::AddResources {
+            tarball_mem_cache: Arc::default(),
+            http_client_arc: Arc::new(ThrottledClient::default()),
+            dependency_groups: Some([DependencyGroup::Prod]),
+            save_catalog_name: None,
+            supported_architectures: None,
+        },
     }
     .run::<SilentReporter>()
     .await
@@ -116,7 +120,10 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -249,20 +256,24 @@ async fn add_resolves_package_selectors_concurrently_and_reports_in_selector_ord
     let http_client = ThrottledClient::default();
     let resolved_packages = ResolvedPackages::default();
     Add {
-        tarball_mem_cache: Arc::default(),
-        resolved_packages: &resolved_packages,
-        http_client: &http_client,
-        http_client_arc: Arc::new(ThrottledClient::default()),
-        config,
         manifest: &mut manifest,
-        lockfile: None,
-        lockfile_path: None,
-        dependency_groups: Some([DependencyGroup::Prod]),
-        package_names: &package_names,
-        range_spec_style: RangeSpecStyle::Patch,
-        save_catalog_name: None,
-        supported_architectures: None,
-        lockfile_only: true,
+        options: crate::AddOptions {
+            resolved_packages: &resolved_packages,
+            http_client: &http_client,
+            config,
+            lockfile: None,
+            lockfile_path: None,
+            package_names: &package_names,
+            range_spec_style: RangeSpecStyle::Patch,
+            lockfile_only: true,
+        },
+        resources: crate::AddResources {
+            tarball_mem_cache: Arc::default(),
+            http_client_arc: Arc::new(ThrottledClient::default()),
+            dependency_groups: Some([DependencyGroup::Prod]),
+            save_catalog_name: None,
+            supported_architectures: None,
+        },
     }
     .run::<RecordingReporter>()
     .await
@@ -336,20 +347,24 @@ async fn add_reports_resolution_errors_in_selector_order() {
     let http_client = ThrottledClient::default();
     let resolved_packages = ResolvedPackages::default();
     let error = Add {
-        tarball_mem_cache: Arc::default(),
-        resolved_packages: &resolved_packages,
-        http_client: &http_client,
-        http_client_arc: Arc::new(ThrottledClient::default()),
-        config,
         manifest: &mut manifest,
-        lockfile: None,
-        lockfile_path: None,
-        dependency_groups: Some([DependencyGroup::Prod]),
-        package_names: &package_names,
-        range_spec_style: RangeSpecStyle::Patch,
-        save_catalog_name: None,
-        supported_architectures: None,
-        lockfile_only: true,
+        options: crate::AddOptions {
+            resolved_packages: &resolved_packages,
+            http_client: &http_client,
+            config,
+            lockfile: None,
+            lockfile_path: None,
+            package_names: &package_names,
+            range_spec_style: RangeSpecStyle::Patch,
+            lockfile_only: true,
+        },
+        resources: crate::AddResources {
+            tarball_mem_cache: Arc::default(),
+            http_client_arc: Arc::new(ThrottledClient::default()),
+            dependency_groups: Some([DependencyGroup::Prod]),
+            save_catalog_name: None,
+            supported_architectures: None,
+        },
     }
     .run::<SilentReporter>()
     .await

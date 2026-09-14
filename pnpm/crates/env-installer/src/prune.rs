@@ -34,8 +34,7 @@ fn direct_keys(env: &EnvLockfile) -> Vec<PackageKey> {
     let Some(importer) = env.importers.get(EnvLockfile::ROOT_IMPORTER_KEY) else {
         return Vec::new();
     };
-    importer
-        .config_dependencies
+    importer.config_dependencies
         .iter()
         .chain(importer.package_manager_dependencies.iter().flatten())
         .filter_map(|(name, spec)| format!("{name}@{}", spec.version).parse::<PackageKey>().ok())

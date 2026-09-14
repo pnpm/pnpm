@@ -21,7 +21,10 @@ pub struct OidcLogin {
 
 impl std::fmt::Debug for OidcLogin {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.debug_struct("OidcLogin").field("users", &self.users).finish_non_exhaustive()
+        formatter
+            .debug_struct("OidcLogin")
+            .field("users", &self.users)
+            .finish_non_exhaustive()
     }
 }
 

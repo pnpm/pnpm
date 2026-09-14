@@ -63,7 +63,10 @@ fn store_path_should_return_store_dir_from_pnpm_workspace_yaml() {
         .expect("write to pnpm-workspace.yaml");
 
     eprintln!("Executing pacquet store path...");
-    let output = pacquet.with_args(["store", "path"]).output().expect("run pacquet store path");
+    let output = pacquet
+        .with_args(["store", "path"])
+        .output()
+        .expect("run pacquet store path");
     dbg!(&output);
 
     eprintln!("Exit status code");
@@ -108,7 +111,10 @@ fn store_path_resolves_global_and_dotted_overrides_from_workspace_root() {
         assert!(output.status.success());
         assert_eq!(
             String::from_utf8_lossy(&output.stdout).trim_end(),
-            canonicalize(&workspace).join(expected_name).join(STORE_VERSION).to_string_lossy(),
+            canonicalize(&workspace)
+                .join(expected_name)
+                .join(STORE_VERSION)
+                .to_string_lossy(),
         );
     }
 
@@ -133,7 +139,10 @@ fn store_path_expands_a_quoted_home_override() {
     assert!(output.status.success());
     assert_eq!(
         String::from_utf8_lossy(&output.stdout).trim_end(),
-        home_dir.join("pacquet-quoted-store").join(STORE_VERSION).to_string_lossy(),
+        home_dir
+            .join("pacquet-quoted-store")
+            .join(STORE_VERSION)
+            .to_string_lossy(),
     );
 
     drop(root);
@@ -173,9 +182,14 @@ fn empty_store_dir_override_restores_the_platform_default() {
 
 #[test]
 fn store_status_reports_an_untouched_store() {
-    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet
+        .arg("add")
+        .arg("is-odd@3.0.1")
+        .assert()
+        .success();
 
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
@@ -191,9 +205,14 @@ fn store_status_reports_an_untouched_store() {
 
 #[test]
 fn store_status_reports_a_package_edited_after_it_was_linked_out() {
-    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet
+        .arg("add")
+        .arg("is-odd@3.0.1")
+        .assert()
+        .success();
 
     let installed_index = workspace.join("node_modules/.pnpm/is-odd@3.0.1/node_modules/is-odd");
     fs::write(installed_index.join("index.js"), "module.exports = 'tampered'\n")
@@ -214,10 +233,18 @@ fn store_status_reports_a_package_edited_after_it_was_linked_out() {
 
 #[test]
 fn store_add_fetches_a_package_without_touching_the_project() {
-    let CommandTempCwd { pacquet, workspace, root: _root, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        workspace,
+        root: _root,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
-    pacquet.with_args(["store", "add", "is-odd@3.0.1"]).assert().success();
+    pacquet
+        .with_args(["store", "add", "is-odd@3.0.1"])
+        .assert()
+        .success();
 
     assert!(!workspace.join("node_modules").exists(), "store add must not install anything");
     assert!(!workspace.join("package.json").exists(), "store add must not write a manifest");
@@ -230,7 +257,8 @@ fn store_add_fetches_a_package_without_touching_the_project() {
         .expect("open the store index store add just wrote");
     let keys = store_index.keys().expect("read the store index keys");
     assert!(
-        keys.iter().any(|key| key.contains("is-odd@3.0.1")),
+        keys.iter()
+            .any(|key| key.contains("is-odd@3.0.1")),
         "store add must record is-odd@3.0.1 in the store index, got {keys:?}",
     );
 }

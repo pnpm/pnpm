@@ -202,7 +202,9 @@ upstream. pnpr applies registry routing and access rules to returned entries and
 uses only the upstream credentials from its configuration, never a browser
 caller's authorization header. Discovery refuses redirects and sends configured
 upstream headers only over HTTPS or loopback HTTP. Search totals count only
-visible, deduplicated results and are exact across every participating source.
+visible results: a source small enough to scan completely contributes an exact
+deduplicated count, and one too large to scan adds its remaining advertised
+results as an estimate, so the total can overstate what paging can reach.
 Hosted npm packages and Cargo crates can be browsed without a search term:
 
 ```text
@@ -215,10 +217,22 @@ Browse results follow registry routing and access rules, exclude upstreams and
 staged publications, and use the same response format and pagination limits as
 search. An empty search without `browse=true` still returns no results.
 
-To bound work from a single browser request, pnpr rejects upstream searches
-that would scan more than 2,000 upstream results or eight upstream pages.
-Offsets that would require a larger upstream scan are also rejected. Refine the
-search term when a query reaches that limit.
+To bound work from a single browser request, pnpr retains at most 2,000
+upstream results per search and spends at most eight budgeted page fetches
+across all sources. Separately from those budgets, every search-enabled
+upstream whose access and package rules admit the caller gets one request
+even after they are spent, sized to whatever result budget remains, down to
+a single entry, so a source listed after a large one is never silently
+dropped from the results or the total. The exception is a hard ceiling of 32
+upstream requests for the whole search: a registry routing more eligible
+upstreams than that never queries the ones past it, so they contribute
+neither results nor totals. An upstream the caller may not reach is skipped and
+never queried at all. A source that advertises more than the budget allows
+(the public npm registry does for almost any term) is
+truncated rather than rejected: the requested page is served from what was
+downloaded, every downloaded result keeps its position, and the rest only
+counts toward the estimated total. Pages beyond the downloaded results come
+back empty.
 
 ## Cargo and Python registries
 

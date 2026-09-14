@@ -53,7 +53,11 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
         get_drive_letter(home_dir).expect("home dir is an absolute path with drive letter");
 
     if current_drive == home_drive {
-        return home_dir.join("AppData").join("Local").join("pnpm").join("store");
+        return home_dir
+            .join("AppData")
+            .join("Local")
+            .join("pnpm")
+            .join("store");
     }
 
     PathBuf::from(format!(r"{current_drive}:\.pnpm-store"))
@@ -87,7 +91,10 @@ where
     }
 
     if let Some(xdg_data_home) = Sys::var("XDG_DATA_HOME") {
-        return PathBuf::from(xdg_data_home).join("pnpm").join("store").into();
+        return PathBuf::from(xdg_data_home)
+            .join("pnpm")
+            .join("store")
+            .into();
     }
 
     // Using ~ (tilde) for defining home path is not supported in Rust and
@@ -232,17 +239,21 @@ where
     let home_dir = Sys::home_dir().expect("Home directory is not available");
     match env::consts::OS {
         "macos" => home_dir.join("Library/Caches/pnpm"),
-        "windows" => Sys::var("LOCALAPPDATA").map_or_else(
-            || home_dir.join(".pnpm-cache"),
-            |local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"),
-        ),
+        "windows" => Sys::var("LOCALAPPDATA")
+            .map_or_else(
+                || home_dir.join(".pnpm-cache"),
+                |local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"),
+            ),
         _ => home_dir.join(".cache/pnpm"),
     }
 }
 
 pub fn default_virtual_store_dir() -> PathBuf {
     // TODO: find directory with package.json
-    env::current_dir().expect("current directory is unavailable").join("node_modules").join(".pnpm")
+    env::current_dir()
+        .expect("current directory is unavailable")
+        .join("node_modules")
+        .join(".pnpm")
 }
 
 /// Default for `enableGlobalVirtualStore`: `false` — every project keeps
@@ -408,7 +419,9 @@ pub fn default_workspace_concurrency() -> u32 {
 /// Available CPU parallelism. Floors at 1.
 #[must_use]
 pub fn available_parallelism() -> u32 {
-    std::thread::available_parallelism().map_or(1, |count| count.get() as u32).max(1)
+    std::thread::available_parallelism()
+        .map_or(1, |count| count.get() as u32)
+        .max(1)
 }
 
 /// Resolve `childConcurrency` from a possibly-negative yaml value

@@ -6,13 +6,20 @@ use super::{
 async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
-    config.registry.enabled = false;
-    config.resolver.enabled = false;
-    config.artifacts.enabled = true;
+    config.features.registry.enabled = false;
+    config.features.resolver.enabled = false;
+    config.features.artifacts.enabled = true;
     let app = router(config);
 
-    let handshake =
-        app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
+    let handshake = app
+        .clone()
+        .oneshot(
+            Request::get("/-/pnpr")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(handshake.status(), StatusCode::OK);
     assert_eq!(
         body_json(handshake.into_body()).await,
@@ -30,7 +37,11 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
 
     let artifact = app
         .clone()
-        .oneshot(Request::post("/-/pnpr/v0/artifacts/resolve").body(Body::from("{}")).unwrap())
+        .oneshot(
+            Request::post("/-/pnpr/v0/artifacts/resolve")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(artifact.status(), StatusCode::UNAUTHORIZED);
@@ -40,7 +51,11 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
     );
 
     let resolve = app
-        .oneshot(Request::post("/-/pnpr/v0/resolve").body(Body::from("{}")).unwrap())
+        .oneshot(
+            Request::post("/-/pnpr/v0/resolve")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(resolve.status(), StatusCode::NOT_FOUND);

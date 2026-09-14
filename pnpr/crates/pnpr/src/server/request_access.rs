@@ -17,7 +17,7 @@ pub(super) fn authorized_upstream<'a>(
     identity: &Identity,
     upstream: &str,
 ) -> Result<&'a Upstream, RegistryError> {
-    let Some(config) = state.inner.config.upstreams.get(upstream) else {
+    let Some(config) = state.inner.config.routing.upstreams.get(upstream) else {
         return Err(RegistryError::NotFound);
     };
     // A private upstream registry gates by its `access:` list; a public registry
@@ -34,7 +34,7 @@ pub(super) fn authorized_upstream<'a>(
             resource: format!("upstream {upstream:?}"),
         });
     }
-    state.inner.upstreams.get(upstream).ok_or_else(|| RegistryError::NotFound)
+    state.inner.proxy.upstreams.get(upstream).ok_or_else(|| RegistryError::NotFound)
 }
 
 pub(super) fn authorized_revision_upstream<'a>(
@@ -42,10 +42,13 @@ pub(super) fn authorized_revision_upstream<'a>(
     identity: &Identity,
     registry: &str,
 ) -> Result<&'a Upstream, RegistryError> {
-    if !matches!(state.inner.config.registries.get(registry), Some(Registry::Upstream { .. })) {
+    if !matches!(
+        state.inner.config.routing.registries.get(registry),
+        Some(Registry::Upstream { .. }),
+    ) {
         return Err(RegistryError::NotFound);
     }
-    let Some(config) = state.inner.config.upstreams.get(registry) else {
+    let Some(config) = state.inner.config.routing.upstreams.get(registry) else {
         return Err(RegistryError::NotFound);
     };
     if config.rules.refines_access() {
@@ -55,7 +58,9 @@ pub(super) fn authorized_revision_upstream<'a>(
 }
 
 pub(super) fn revision_registry_is_private(state: &AppState, registry: &str) -> bool {
-    state.inner.config.upstreams.get(registry).is_some_and(|config| config.access.is_some())
+    state.inner.config.routing.upstreams
+        .get(registry)
+        .is_some_and(|config| config.access.is_some())
 }
 
 pub(super) fn revision_source_registry<'a>(
@@ -66,18 +71,16 @@ pub(super) fn revision_source_registry<'a>(
     if addressed_registry != source {
         return None;
     }
-    let config = state.inner.config.upstreams.get(source)?;
+    let config = state.inner.config.routing.upstreams.get(source)?;
     (!config.rules.refines_access()).then_some(config.url.as_str())
 }
 
 /// The disposable cache namespace for an upstream registry's `/~<name>/` route —
-/// the entry precomputed in [`AppInner::upstream_cache_namespaces`](super::AppInner::upstream_cache_namespaces), falling back
-/// to a fresh computation only for a name outside [`Config::upstreams`] (which
+/// the entry precomputed in [`ProxyState::cache_namespaces`](super::state::ProxyState::cache_namespaces), falling back
+/// to a fresh computation only for a name outside [`pnpr_config::RoutingConfig::upstreams`] (which
 /// the registry dispatch never produces).
 pub(super) fn upstream_cache_namespace(state: &AppState, upstream: &str) -> String {
-    state
-        .inner
-        .upstream_cache_namespaces
+    state.inner.proxy.cache_namespaces
         .get(upstream)
         .cloned()
         .unwrap_or_else(|| compute_upstream_cache_namespace(&state.inner.config, upstream))
@@ -105,9 +108,10 @@ pub(super) fn upstream_cache_namespace(state: &AppState, upstream: &str) -> Stri
 /// (`~public/<digest-of-registry-name-and-url>`) that is shared across process
 /// restarts.
 pub(super) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) -> String {
-    let url =
-        config.upstreams.get(upstream).map_or("", |upstream_config| upstream_config.url.as_str());
-    if let Some(upstream_config) = config.upstreams.get(upstream)
+    let url = config.routing.upstreams
+        .get(upstream)
+        .map_or("", |upstream_config| upstream_config.url.as_str());
+    if let Some(upstream_config) = config.routing.upstreams.get(upstream)
         && upstream_config.access.is_some()
     {
         // The credential epoch covers the origin URL and every header the
@@ -149,11 +153,11 @@ pub(super) async fn caller_username(
 ) -> Result<Option<String>, RegistryError> {
     let authorization = single_authorization_header(headers)?;
     if let Some(raw) = authorization.and_then(authentication::bearer_credentials)
-        && let Some(username) = state.inner.oidc.session(raw)?
+        && let Some(username) = state.inner.identity.oidc.session(raw)?
     {
         return Ok(Some(username));
     }
-    identify(authorization, state.inner.auth.tokens.as_ref()).await
+    identify(authorization, state.inner.identity.auth.tokens.as_ref()).await
 }
 
 pub(super) async fn require_resolver_caller(
@@ -207,7 +211,10 @@ pub(super) fn single_authorization_header(
             reason: "multiple Authorization headers are not allowed".to_string(),
         });
     }
-    value.to_str().map(Some).map_err(|_| RegistryError::BadRequest {
-        reason: "Authorization header is not valid text".to_string(),
-    })
+    value
+        .to_str()
+        .map(Some)
+        .map_err(|_| RegistryError::BadRequest {
+            reason: "Authorization header is not valid text".to_string(),
+        })
 }

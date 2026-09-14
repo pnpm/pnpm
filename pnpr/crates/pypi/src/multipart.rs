@@ -116,7 +116,10 @@ fn content_disposition(headers: &str) -> Result<(String, Option<String>), Multip
     let mut filename = None;
     for param in disposition.split(';').skip(1) {
         let Some((key, value)) = param.trim().split_once('=') else { continue };
-        let value = value.trim().trim_matches('"').to_string();
+        let value = value
+            .trim()
+            .trim_matches('"')
+            .to_string();
         match key.trim() {
             "name" => name = Some(value),
             "filename" => filename = Some(value),
@@ -130,5 +133,7 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() {
         return Some(0);
     }
-    haystack.windows(needle.len()).position(|window| window == needle)
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
 }

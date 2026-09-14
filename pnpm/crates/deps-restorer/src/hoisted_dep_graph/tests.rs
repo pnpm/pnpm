@@ -115,11 +115,15 @@ fn host_aware_opts() -> LockfileToHoistedDepGraphOptions<'static> {
     // incompatible) by setting metadata that targets *this*
     // value or its opposite.
     LockfileToHoistedDepGraphOptions {
+        installability: crate::HoistedInstallability {
+            current_node_version: "20.0.0".to_string(),
+            current_os: "linux".to_string(),
+            current_cpu: "x64".to_string(),
+            current_libc: "glibc".to_string(),
+            ..LockfileToHoistedDepGraphOptions::default().installability
+        },
         lockfile_dir: PathBuf::from("/repo"),
-        current_node_version: "20.0.0".to_string(),
-        current_os: "linux".to_string(),
-        current_cpu: "x64".to_string(),
-        current_libc: "glibc".to_string(),
+
         ..LockfileToHoistedDepGraphOptions::default()
     }
 }

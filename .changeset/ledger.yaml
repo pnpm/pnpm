@@ -104,10 +104,18 @@
   dir: pnpm11/building/during-install
   intents:
     - calm-runtimes-build
+"@pnpm/building.during-install@1102.2.1":
+  dir: pnpm11/building/during-install
+  intents:
+    - patched-install-scripts-need-approval
 "@pnpm/building.pkg-requires-build@1100.0.11":
   dir: pnpm11/building/pkg-requires-build
   intents:
     - republish-all-lib-packages
+"@pnpm/building.pkg-requires-build@1100.0.17":
+  dir: pnpm11/building/pkg-requires-build
+  intents:
+    - patched-install-scripts-need-approval
 "@pnpm/building.policy@1100.0.15":
   dir: pnpm11/building/policy
   intents:
@@ -128,6 +136,10 @@
   dir: pnpm11/cache/api
   intents:
     - republish-all-lib-packages
+"@pnpm/cache.api@1100.0.43":
+  dir: pnpm11/cache/api
+  intents:
+    - path-aware-registry-cache-key
 "@pnpm/cache.commands@1100.0.29":
   dir: pnpm11/cache/commands
   intents:
@@ -342,6 +354,13 @@
     - curly-shells-resolve
     - global-dirs-from-the-global-config-file
     - side-effects-cache-boolean-keeps-remote-tier
+"@pnpm/config.reader@1102.2.0":
+  dir: pnpm11/config/reader
+  intents:
+    - engine-pins-follow-the-workspace-root
+    - node-download-mirrors-global-and-env
+    - npmrc-registry-beats-auth-file
+    - trust-policy-exclude-prune
 "@pnpm/config.registry-auth-key@1100.0.0":
   dir: pnpm11/config/registry-auth-key
   intents:
@@ -416,6 +435,10 @@
   dir: pnpm11/crypto/shasums-file
   intents:
     - authenticated-node-mirrors
+"@pnpm/crypto.shasums-file@1100.2.4":
+  dir: pnpm11/crypto/shasums-file
+  intents:
+    - release-refresh-node-release-keys
 "@pnpm/deps.compliance.audit@1101.0.26":
   dir: pnpm11/deps/compliance/audit
   intents:
@@ -452,6 +475,10 @@
   intents:
     - audit-fix-bare-flag-and-save-exact
     - audit-summary-net-of-ignored
+"@pnpm/deps.compliance.commands@1102.1.2":
+  dir: pnpm11/deps/compliance/commands
+  intents:
+    - sbom-blank-authors
 "@pnpm/deps.compliance.license-resolver@1100.0.1":
   dir: pnpm11/deps/compliance/license-resolver
   intents:
@@ -472,6 +499,10 @@
   dir: pnpm11/deps/compliance/license-scanner
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/deps.compliance.license-scanner@1101.0.4":
+  dir: pnpm11/deps/compliance/license-scanner
+  intents:
+    - licenses-skip-runtime-deps
 "@pnpm/deps.compliance.sbom@1100.3.8":
   dir: pnpm11/deps/compliance/sbom
   intents:
@@ -490,6 +521,11 @@
   dir: pnpm11/deps/compliance/sbom
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/deps.compliance.sbom@1101.0.3":
+  dir: pnpm11/deps/compliance/sbom
+  intents:
+    - sbom-blank-authors
+    - sbom-spdx-timestamp-seconds
 "@pnpm/deps.github-actions@1100.1.0":
   dir: pnpm11/deps/github-actions
   intents:
@@ -503,6 +539,10 @@
   dir: pnpm11/deps/github-actions
   intents:
     - github-actions-self-repository-refs
+"@pnpm/deps.github-actions@1100.1.9":
+  dir: pnpm11/deps/github-actions
+  intents:
+    - github-actions-safe-updates
 "@pnpm/deps.graph-builder@1100.0.26":
   dir: pnpm11/deps/graph-builder
   intents:
@@ -640,6 +680,10 @@
   dir: pnpm11/deps/peer-range
   intents:
     - republish-all-lib-packages
+"@pnpm/deps.peer-range@1100.1.2":
+  dir: pnpm11/deps/peer-range
+  intents:
+    - fix-bare-workspace-peer-range
 "@pnpm/deps.security.signatures@1101.2.7":
   dir: pnpm11/deps/security/signatures
   intents:
@@ -863,6 +907,10 @@
   dir: pnpm11/fetching/binary-fetcher
   intents:
     - authenticated-node-mirrors
+"@pnpm/fetching.binary-fetcher@1102.0.14":
+  dir: pnpm11/fetching/binary-fetcher
+  intents:
+    - wild-poems-tickle
 "@pnpm/fetching.binary-fetcher@1102.0.4":
   dir: pnpm11/fetching/binary-fetcher
   intents:
@@ -933,6 +981,10 @@
   dir: pnpm11/fs/graceful-fs
   intents:
     - hoisted-hard-link-keeps-node-modules
+"@pnpm/fs.graceful-fs@1100.2.1":
+  dir: pnpm11/fs/graceful-fs
+  intents:
+    - short-windows-permission-retries
 "@pnpm/fs.hard-link-dir@1100.0.3":
   dir: pnpm11/fs/hard-link-dir
   intents:
@@ -1011,6 +1063,10 @@
   dir: pnpm11/global/commands
   intents:
     - allow-build-negation-support
+"@pnpm/global.commands@1102.0.1":
+  dir: pnpm11/global/commands
+  intents:
+    - fail-closed-global-bin-enumeration
 "@pnpm/global.packages@1100.0.13":
   dir: pnpm11/global/packages
   intents:
@@ -1027,6 +1083,10 @@
   dir: pnpm11/global/packages
   intents:
     - global-update-leaves-pnpm-to-self-update
+"@pnpm/global.packages@1101.1.2":
+  dir: pnpm11/global/packages
+  intents:
+    - fail-closed-global-bin-enumeration
 "@pnpm/hooks.pnpmfile@1100.0.22":
   dir: pnpm11/hooks/pnpmfile
   intents:
@@ -1155,6 +1215,10 @@
     - import-lockfile-directory
     - remove-trust-lockfile-flags
     - unsafe-perm-flag
+"@pnpm/installing.commands@1101.3.0":
+  dir: pnpm11/installing/commands
+  intents:
+    - trust-policy-exclude-prune
 "@pnpm/installing.context@1100.0.28":
   dir: pnpm11/installing/context
   intents:
@@ -1292,6 +1356,10 @@
     - calm-runtimes-build
     - no-cataloging-of-local-paths
     - relink-publish-directories
+"@pnpm/installing.deps-installer@1104.1.2":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - skip-unread-package-map
 "@pnpm/installing.deps-resolver@1100.2.11":
   dir: pnpm11/installing/deps-resolver
   intents:
@@ -1351,6 +1419,11 @@
     - no-cataloging-of-local-paths
     - optional-peer-hoist-skips-a-rejected-root-pin
     - relink-publish-directories
+"@pnpm/installing.deps-resolver@1102.2.1":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - fix-lockfile-peer-dependencies-rewrite
+    - fix-transitive-auto-install-peers
 "@pnpm/installing.deps-restorer@1102.1.10":
   dir: pnpm11/installing/deps-restorer
   intents:
@@ -1391,6 +1464,10 @@
   intents:
     - calm-runtimes-build
     - hoisted-install-refetches-skipped-optionals
+"@pnpm/installing.deps-restorer@1103.1.2":
+  dir: pnpm11/installing/deps-restorer
+  intents:
+    - skip-unread-package-map
 "@pnpm/installing.env-installer@1102.0.12":
   dir: pnpm11/installing/env-installer
   intents:
@@ -1670,6 +1747,10 @@
   intents:
     - authenticated-node-mirrors
     - network-retry-url-redaction
+"@pnpm/network.fetch@1100.1.16":
+  dir: pnpm11/network/fetch
+  intents:
+    - fetch-timeout-measures-inactivity
 "@pnpm/network.fetch@1100.1.8":
   dir: pnpm11/network/fetch
   intents:
@@ -2139,6 +2220,10 @@
   intents:
     - refresh-registry-revisions
     - tidy-ravens-revise
+"@pnpm/resolving.npm-resolver@1104.1.2":
+  dir: pnpm11/resolving/npm-resolver
+  intents:
+    - path-aware-registry-cache-key
 "@pnpm/resolving.parse-wanted-dependency@1100.0.2":
   dir: pnpm11/resolving/parse-wanted-dependency
   intents:
@@ -2319,6 +2404,10 @@
   dir: pnpm11/store/pkg-finder
   intents:
     - republish-all-lib-packages
+"@pnpm/store.pkg-finder@1100.0.33":
+  dir: pnpm11/store/pkg-finder
+  intents:
+    - licenses-skip-runtime-deps
 "@pnpm/test-fixtures@1100.0.1":
   dir: pnpm11/__utils__/test-fixtures
   intents:
@@ -2533,6 +2622,10 @@
   intents:
     - approve-builds-clears-legacy-settings
     - prune-allow-builds-on-remove
+"@pnpm/workspace.workspace-manifest-writer@1100.2.0":
+  dir: pnpm11/workspace/workspace-manifest-writer
+  intents:
+    - trust-policy-exclude-prune
 "@pnpm/yaml.document-sync@1100.0.1":
   dir: pnpm11/yaml/document-sync
   intents:
@@ -4269,3 +4362,26 @@ pnpm@11.26.0:
     - unpublish-otp-challenge
     - unsafe-perm-flag
     - workspace-protocol-catalogs
+pnpm@11.27.0:
+  dir: pnpm11/pnpm
+  intents:
+    - engine-pins-follow-the-workspace-root
+    - fail-closed-global-bin-enumeration
+    - fetch-timeout-measures-inactivity
+    - fix-bare-workspace-peer-range
+    - fix-lockfile-peer-dependencies-rewrite
+    - fix-transitive-auto-install-peers
+    - github-actions-safe-updates
+    - licenses-skip-runtime-deps
+    - lockfile-false-honors-devengines-download
+    - node-download-mirrors-global-and-env
+    - npmrc-registry-beats-auth-file
+    - patched-install-scripts-need-approval
+    - path-aware-registry-cache-key
+    - release-refresh-node-release-keys
+    - sbom-blank-authors
+    - sbom-spdx-timestamp-seconds
+    - short-windows-permission-retries
+    - skip-unread-package-map
+    - trust-policy-exclude-prune
+    - wild-poems-tickle

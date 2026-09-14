@@ -35,7 +35,7 @@ pub(super) async fn resolve_override(
         ..WantedDependency::default()
     };
     let result = context.resolver.resolve(&wanted, context.resolve_options).await.ok()??;
-    let manifest = result.manifest.as_ref().map(Arc::clone)?;
+    let manifest = result.package.manifest.as_ref().map(Arc::clone)?;
     let manifest = match context.manifest_hook {
         Some(hook) => hook(manifest),
         None => manifest,
@@ -54,13 +54,16 @@ pub(super) fn build_rewrite_plan(
     resolved_overrides: &IndexMap<String, String>,
 ) -> Option<RewritePlan> {
     let old_overrides = lockfile.overrides.as_ref();
-    if old_overrides
-        .is_some_and(|old| old.keys().any(|selector| !resolved_overrides.contains_key(selector)))
-    {
+    if old_overrides.is_some_and(|old| {
+        old.keys()
+            .any(|selector| !resolved_overrides.contains_key(selector))
+    }) {
         return None;
     }
-    let parsed_by_selector: HashMap<&str, &VersionOverride> =
-        parsed_overrides.iter().map(|entry| (entry.selector.as_str(), entry)).collect();
+    let parsed_by_selector: HashMap<&str, &VersionOverride> = parsed_overrides
+        .iter()
+        .map(|entry| (entry.selector.as_str(), entry))
+        .collect();
     let mut overrides = Vec::new();
     for (selector, new_value) in resolved_overrides {
         let old_value = old_overrides.and_then(|old| old.get(selector));
@@ -88,10 +91,12 @@ pub(super) fn fast_override(
 ) -> Option<FastOverride> {
     if parsed.target_pkg.bare_specifier.is_some()
         || parsed.converge
-        || parsed_overrides.iter().any(|candidate| {
-            candidate.selector != parsed.selector
-                && candidate.target_pkg.name == parsed.target_pkg.name
-        })
+        || parsed_overrides
+            .iter()
+            .any(|candidate| {
+                candidate.selector != parsed.selector
+                    && candidate.target_pkg.name == parsed.target_pkg.name
+            })
     {
         return None;
     }
@@ -150,7 +155,11 @@ pub(crate) fn build_replacement_plan(
     if overrides
         .iter()
         .enumerate()
-        .any(|(index, entry)| overrides[..index].iter().any(|other| other.name == entry.name))
+        .any(|(index, entry)| {
+            overrides[..index]
+                .iter()
+                .any(|other| other.name == entry.name)
+        })
     {
         return None;
     }
@@ -205,7 +214,9 @@ pub(super) fn override_replacement(
         return None;
     }
     let old_snapshot = lockfile.snapshots.as_ref()?.get(key)?;
-    let old_metadata = lockfile.packages.as_ref()?.get(&key.without_peer())?;
+    let old_metadata = lockfile.packages
+        .as_ref()?
+        .get(&key.without_peer())?;
     let safe_resolution = matches!(old_metadata.resolution, LockfileResolution::Registry(_))
         || matches!(
             old_metadata.resolution,
@@ -221,22 +232,40 @@ pub(super) fn override_replacement(
     {
         return None;
     }
-    let new_suffix: PkgVerPeer = override_entry.new_version.as_ref()?.to_string().parse().ok()?;
+    let new_suffix: PkgVerPeer = override_entry.new_version
+        .as_ref()?
+        .to_string()
+        .parse()
+        .ok()?;
     Some(PkgNameVerPeer::new(alias.clone(), new_suffix))
 }
 pub(super) fn get_peer_names(lockfile: &Lockfile) -> HashSet<PkgName> {
     let mut result = HashSet::new();
-    for metadata in lockfile.packages.as_ref().into_iter().flat_map(|map| map.values()) {
+    for metadata in lockfile.packages
+        .as_ref()
+        .into_iter()
+        .flat_map(|map| map.values())
+    {
         insert_parsed_names(
             &mut result,
-            metadata.peer_dependencies.as_ref().into_iter().flat_map(|map| map.keys()),
+            metadata.peer_dependencies
+                .as_ref()
+                .into_iter()
+                .flat_map(|map| map.keys()),
         );
         insert_parsed_names(
             &mut result,
-            metadata.peer_dependencies_meta.as_ref().into_iter().flat_map(|map| map.keys()),
+            metadata.peer_dependencies_meta
+                .as_ref()
+                .into_iter()
+                .flat_map(|map| map.keys()),
         );
     }
-    for snapshot in lockfile.snapshots.as_ref().into_iter().flat_map(|map| map.values()) {
+    for snapshot in lockfile.snapshots
+        .as_ref()
+        .into_iter()
+        .flat_map(|map| map.values())
+    {
         insert_parsed_names(&mut result, snapshot.transitive_peer_dependencies.iter().flatten());
     }
     result
@@ -254,19 +283,24 @@ pub(super) fn insert_parsed_names<'a>(
     }
 }
 pub(super) fn all_dependency_keys(lockfile: &Lockfile) -> Vec<(&PkgName, Option<PackageKey>)> {
-    let importer_keys = lockfile.importers.values().flat_map(|importer| {
-        [
-            importer.dependencies.as_ref(),
-            importer.dev_dependencies.as_ref(),
-            importer.optional_dependencies.as_ref(),
-        ]
+    let importer_keys = lockfile.importers
+        .values()
+        .flat_map(|importer| {
+            [
+                importer.dependencies.as_ref(),
+                importer.dev_dependencies.as_ref(),
+                importer.optional_dependencies.as_ref(),
+            ]
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|(alias, spec)| (alias, spec.version.resolved_key(alias)))
+        });
+    let snapshot_keys = lockfile.snapshots
+        .as_ref()
         .into_iter()
-        .flatten()
-        .flatten()
-        .map(|(alias, spec)| (alias, spec.version.resolved_key(alias)))
-    });
-    let snapshot_keys =
-        lockfile.snapshots.as_ref().into_iter().flat_map(|map| map.values()).flat_map(|snapshot| {
+        .flat_map(|map| map.values())
+        .flat_map(|snapshot| {
             [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
                 .into_iter()
                 .flatten()
@@ -283,9 +317,11 @@ pub(super) fn is_safe_registry_result(
 ) -> bool {
     result.resolved_via == "npm-registry"
         && result.policy_violation.is_none()
-        && result.name_ver.as_ref().is_some_and(|name_ver| {
-            name_ver.name.to_string() == name && name_ver.suffix.to_string() == version
-        })
+        && result.package.name_ver
+            .as_ref()
+            .is_some_and(|name_ver| {
+                name_ver.name.to_string() == name && name_ver.suffix.to_string() == version
+            })
         && manifest.get("name").and_then(Value::as_str) == Some(name)
         && manifest.get("version").and_then(Value::as_str) == Some(version)
         && manifest
@@ -297,9 +333,13 @@ pub(super) fn is_safe_registry_result(
         && manifest.get("deprecated").is_none()
         && manifest.get("bundledDependencies").is_none()
         && manifest.get("bundleDependencies").is_none()
-        && manifest.get("engines").is_none_or(|value| {
-            value.as_object().is_some_and(|engines| !engines.contains_key("runtime"))
-        })
+        && manifest
+            .get("engines")
+            .is_none_or(|value| {
+                value
+                    .as_object()
+                    .is_some_and(|engines| !engines.contains_key("runtime"))
+            })
         && matches!(
             result.resolution,
             LockfileResolution::Tarball(ref tarball)
@@ -314,15 +354,21 @@ pub(super) fn package_metadata(
         resolution,
         version: None,
         engines: string_map(manifest, "engines")
-            .map(|map| map.into_iter().filter(|(_, range)| range != "*").collect())
+            .map(|map| {
+                map.into_iter()
+                    .filter(|(_, range)| range != "*")
+                    .collect()
+            })
             .filter(|map: &HashMap<_, _>| !map.is_empty()),
         cpu: string_list(manifest, "cpu"),
         os: string_list(manifest, "os"),
-        libc: manifest.get("libc").and_then(|value| match value {
-            Value::String(value) => Some(StringOrList::String(value.clone())),
-            Value::Array(_) => string_list(manifest, "libc").map(StringOrList::List),
-            _ => None,
-        }),
+        libc: manifest
+            .get("libc")
+            .and_then(|value| match value {
+                Value::String(value) => Some(StringOrList::String(value.clone())),
+                Value::Array(_) => string_list(manifest, "libc").map(StringOrList::List),
+                _ => None,
+            }),
         deprecated: None,
         has_bin: crate::dependencies_graph_to_lockfile::manifest_has_bin(Some(manifest)),
         prepare: None,
@@ -341,7 +387,10 @@ pub(super) fn string_map(manifest: &Value, key: &str) -> Option<HashMap<String, 
 }
 pub(super) fn string_list(manifest: &Value, key: &str) -> Option<Vec<String>> {
     let values = manifest.get(key)?.as_array()?;
-    let values: Vec<String> =
-        values.iter().filter_map(Value::as_str).map(ToString::to_string).collect();
+    let values: Vec<String> = values
+        .iter()
+        .filter_map(Value::as_str)
+        .map(ToString::to_string)
+        .collect();
     (!values.is_empty()).then_some(values)
 }

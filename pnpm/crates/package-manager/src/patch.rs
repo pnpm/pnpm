@@ -113,8 +113,10 @@ pub fn patch_candidates_from_lockfile(
     current_lockfile: &Lockfile,
 ) -> Result<PatchCandidateSet, PatchTargetError> {
     let parsed = parse_wanted_dependency(raw_dependency);
-    let package_name =
-        parsed.alias.as_deref().or(parsed.bare_specifier.as_deref()).unwrap_or(raw_dependency);
+    let package_name = parsed.alias
+        .as_deref()
+        .or(parsed.bare_specifier.as_deref())
+        .unwrap_or(raw_dependency);
     let alias = parsed.alias.clone().unwrap_or_else(|| raw_dependency.to_string());
     let bare_specifier = parsed.bare_specifier.clone();
 
@@ -150,14 +152,19 @@ pub fn patch_candidates_from_lockfile(
 fn lockfile_candidates(current_lockfile: &Lockfile, package_name: &str) -> Vec<PatchCandidate> {
     let mut versions = Vec::new();
     let mut seen = BTreeSet::new();
-    for (key, metadata) in current_lockfile.packages.as_ref().into_iter().flatten() {
+    for (key, metadata) in current_lockfile.packages
+        .as_ref()
+        .into_iter()
+        .flatten()
+    {
         let package_key = key.without_peer();
         let name = package_key.name.to_string();
         if name != package_name {
             continue;
         }
-        let version =
-            metadata.version.clone().unwrap_or_else(|| package_key.suffix.version().to_string());
+        let version = metadata.version
+            .clone()
+            .unwrap_or_else(|| package_key.suffix.version().to_string());
         let git_tarball_url = git_tarball_url(&metadata.resolution);
         if seen.insert((name.clone(), version.clone(), git_tarball_url.clone())) {
             versions.push(PatchCandidate { name, version, git_tarball_url, package_key });
@@ -188,9 +195,7 @@ pub fn default_patch_target(set: &PatchCandidateSet) -> Option<PatchTarget> {
 impl WritePackageForPatch<'_> {
     pub async fn run<Reporter: self::Reporter>(self) -> Result<(), WritePackageForPatchError> {
         self.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
-        let metadata = self
-            .current_lockfile
-            .packages
+        let metadata = self.current_lockfile.packages
             .as_ref()
             .and_then(|packages| packages.get(&self.target.package_key))
             .ok_or_else(|| WritePackageForPatchError::MissingPackageMetadata {
@@ -219,16 +224,15 @@ impl WritePackageForPatch<'_> {
         let (store_index_writer, writer_task) =
             StoreIndexWriter::spawn_for(&self.config.store_dir, self.config.frozen_store);
 
-        let result = self
-            .import_for_patch::<Reporter>(
-                &metadata.resolution,
-                &tarball_url,
-                integrity,
-                &package_id,
-                store_index,
-                &store_index_writer,
-            )
-            .await;
+        let result = self.import_for_patch::<Reporter>(
+            &metadata.resolution,
+            &tarball_url,
+            integrity,
+            &package_id,
+            store_index,
+            &store_index_writer,
+        )
+        .await;
 
         shutdown_store_index_writer_for_patch(store_index_writer, writer_task).await;
         result
@@ -242,15 +246,14 @@ impl WritePackageForPatch<'_> {
         store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
         store_index_writer: &Arc<StoreIndexWriter>,
     ) -> Result<(), WritePackageForPatchError> {
-        let cas_paths = self
-            .download_for_patch::<Reporter>(
-                tarball_url,
-                integrity,
-                package_id,
-                store_index,
-                store_index_writer,
-            )
-            .await?;
+        let cas_paths = self.download_for_patch::<Reporter>(
+            tarball_url,
+            integrity,
+            package_id,
+            store_index,
+            store_index_writer,
+        )
+        .await?;
         let cas_paths = git_hosted_cas_paths::<Reporter>(
             self.config,
             resolution,
@@ -277,24 +280,33 @@ impl WritePackageForPatch<'_> {
         store_index_writer: &Arc<StoreIndexWriter>,
     ) -> Result<Arc<std::collections::HashMap<String, PathBuf>>, WritePackageForPatchError> {
         IngestTarballToStore {
-            http_client: self.http_client,
-            store_dir: &self.config.store_dir,
-            store_index,
-            store_index_writer: Some(Arc::clone(store_index_writer)),
-            verify_store_integrity: self.config.verify_store_integrity,
-            strict_store_pkg_content_check: self.config.strict_store_pkg_content_check,
-            verified_files_cache: SharedVerifiedFilesCache::default(),
-            package_integrity: integrity,
-            package_unpacked_size: None,
-            package_file_count: None,
-            package_url: tarball_url,
-            package_id,
-            auth_headers: &self.config.auth_headers,
+            fetching: pnpm_tarball::ArchiveFetchOptions {
+                http_client: self.http_client,
+                auth_headers: &self.config.auth_headers,
+                retry_opts: retry_opts_from_config(self.config),
+                offline: self.config.offline,
+            },
+            package: pnpm_tarball::TarballPackage {
+                integrity,
+                unpacked_size: None,
+                file_count: None,
+                url: tarball_url,
+                id: package_id,
+            },
+            store: pnpm_tarball::ArchiveStoreContext {
+                dir: &self.config.store_dir,
+                index: store_index,
+                index_writer: Some(Arc::clone(store_index_writer)),
+                verify_integrity: self.config.verify_store_integrity,
+                strict_pkg_content_check: self.config.strict_store_pkg_content_check,
+                verified_files_cache: SharedVerifiedFilesCache::default(),
+                prefetched_cas_paths: None,
+            },
+
             requester: "",
-            prefetched_cas_paths: None,
-            retry_opts: retry_opts_from_config(self.config),
+
             ignore_file_pattern: None,
-            offline: self.config.offline,
+
             progress_reported: None,
             store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
                 append_manifest: None,
@@ -323,24 +335,29 @@ async fn git_hosted_cas_paths<Reporter: self::Reporter>(
     let allow_build_closure = |_dep_path: &str| false;
     let files_index_file = git_hosted_store_index_key(package_id, !config.ignore_scripts);
     let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
+        scripts: pnpm_git_fetcher::PrepareScriptOptions {
+            ignore: config.ignore_scripts,
+            unsafe_perm: config.unsafe_perm,
+            user_agent: Some(&config.user_agent),
+            prepend_node_path: exec_scripts_prepend_node_path(config),
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: pnpm_git_fetcher::GitStoreContext {
+            dir: &config.store_dir,
+            index_writer: Some(store_index_writer),
+            files_index_file: &files_index_file,
+        },
         cas_paths,
         path: tarball.path.as_deref(),
         allow_build: &allow_build_closure,
-        ignore_scripts: config.ignore_scripts,
-        unsafe_perm: config.unsafe_perm,
-        user_agent: Some(&config.user_agent),
-        scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
+
         // Nothing here is allowed to build, so no package
         // manager has to be provided to it.
-        pnpm_execpath: None,
-        store_dir: &config.store_dir,
         package_id,
         requester: "",
-        store_index_writer: Some(store_index_writer),
-        files_index_file: &files_index_file,
     }
     .run::<Reporter>()
     .await
@@ -375,8 +392,9 @@ async fn shutdown_store_index_writer_for_patch(
 
 fn git_tarball_url(resolution: &LockfileResolution) -> Option<String> {
     let LockfileResolution::Tarball(tarball) = resolution else { return None };
-    (tarball.is_git_hosted() || tarball.tarball.starts_with("https://pkg.pr.new/"))
-        .then(|| tarball.tarball.clone())
+    (tarball.is_git_hosted() || tarball.tarball.starts_with("https://pkg.pr.new/")).then(|| {
+        tarball.tarball.clone()
+    })
 }
 
 fn version_satisfies(version: &str, range: &str) -> bool {

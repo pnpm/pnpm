@@ -1,5 +1,4 @@
-use crate::{AllowBuildPolicy, VirtualStoreLayout};
-use pnpm_cmd_shim::LinkBinsOptions;
+use crate::AllowBuildPolicy;
 use pnpm_config::{Config, NodeLinker};
 use std::{path::Path, sync::atomic::AtomicU8};
 
@@ -14,6 +13,7 @@ use std::{path::Path, sync::atomic::AtomicU8};
 /// the near miss: phases mutate it between one another, so it stays a
 /// parameter of its own.
 pub struct InstallContext<'a> {
+    pub linker: crate::ModuleLinkerContext<'a>,
     pub config: &'static Config,
     /// Install root — the directory containing `pnpm-lock.yaml`. For a
     /// real workspace this is the workspace root; for a single project,
@@ -22,14 +22,9 @@ pub struct InstallContext<'a> {
     /// [`Self::workspace_root`] as the reporter spells it, for the
     /// `prefix` field of every emitted event.
     pub requester: &'a str,
-    /// Install-scoped slot-directory mapping (GVS-aware). Every consumer
-    /// that needs to know where a snapshot's slot is routes through it.
-    pub layout: &'a VirtualStoreLayout,
-    pub node_linker: NodeLinker,
     /// The `allowBuilds` gate, shared by the fetch phase's git fetcher
     /// and the build phase's lifecycle scripts.
     pub allow_build_policy: &'a AllowBuildPolicy,
-    pub link_options: &'a LinkBinsOptions,
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub logged_methods: &'a AtomicU8,
@@ -43,7 +38,7 @@ impl InstallContext<'_> {
     /// trees rather than into a virtual store.
     #[must_use]
     pub fn is_hoisted(&self) -> bool {
-        matches!(self.node_linker, NodeLinker::Hoisted)
+        matches!(self.linker.kind, NodeLinker::Hoisted)
     }
 }
 

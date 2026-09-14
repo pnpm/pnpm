@@ -1,6 +1,6 @@
 use super::{
-    Arc, Config, Context, DeployArgs, DeployInstallMode, Install, LazyLockfile, Lockfile,
-    NodeLinker, NodeLinkerArg, Path, PreferredVersions, Reporter, State, WantedLockfileSelection,
+    Arc, Config, Context, DeployArgs, DeployInstallMode, LazyLockfile, Lockfile, NodeLinker,
+    NodeLinkerArg, Path, PreferredVersions, Reporter, State, WantedLockfileSelection,
     deployed_workspace_projects, get_preferred_versions_from_lockfile_and_manifests,
     resolve_bool_override, warn,
 };
@@ -164,34 +164,35 @@ impl DeployArgs {
         let config = state.config;
         let workspace_projects_override = deployed_workspace_projects(state, deploy_dir, legacy);
 
-        let supported_architectures = self
-            .install_args
-            .supported_architectures
-            .apply_to(config.supported_architectures.clone());
+        let supported_architectures = self.install_args.supported_architectures.apply_to(
+            config.supported_architectures.clone(),
+        );
         let trust_lockfile = resolve_bool_override(
-            self.install_args.trust_lockfile,
-            self.install_args.no_trust_lockfile,
+            self.install_args.lockfile_updates.trust_lockfile,
+            self.install_args.lockfile_updates.no_trust_lockfile,
             config.trust_lockfile,
         );
         let lockfile_path = config.lockfile.then(|| deploy_dir.join(Lockfile::FILE_NAME));
-        let dependency_groups = self
-            .install_args
-            .dependency_options
+        let dependency_groups = self.install_args.dependency_options
             .dependency_groups(config.optional)
             .collect::<Vec<_>>();
 
-        let install = Install {
-            lockfile_path: lockfile_path.as_deref(),
-            frozen_lockfile,
-            prefer_frozen_lockfile: frozen_lockfile.then_some(true).or(Some(false)),
-            skip_runtimes: config.skip_runtimes || self.install_args.no_runtime,
-            trust_lockfile,
-            supported_architectures,
-            preferred_versions_override,
-            disable_optimistic_repeat_install: true,
-            pnpmfile_hook_override: pnpmfile_hook,
-            workspace_projects_override,
-            ..state.install(dependency_groups)
+        let install = {
+            let mut base_install = state.install(dependency_groups);
+            base_install.lockfile_policy.frozen = frozen_lockfile;
+            base_install.lockfile_policy.prefer_frozen = frozen_lockfile
+                .then_some(true)
+                .or(Some(false));
+            base_install.lockfile_policy.trust = trust_lockfile;
+            base_install.lockfile_policy.disable_optimistic_repeat = true;
+            base_install.execution.skip_runtimes =
+                config.skip_runtimes || self.install_args.materialization.no_runtime;
+            base_install.resolution.preferred_versions_override = preferred_versions_override;
+            base_install.context.lockfile_path = lockfile_path.as_deref();
+            base_install.projects.supported_architectures = supported_architectures;
+            base_install.projects.pnpmfile_hook_override = pnpmfile_hook;
+            base_install.projects.workspace_projects_override = workspace_projects_override;
+            base_install
         };
         if legacy {
             install.run_legacy_deploy::<ReporterT>().await
@@ -211,16 +212,16 @@ impl DeployArgs {
         frozen_lockfile: bool,
         ignore_pnpmfile: bool,
     ) -> &'static Config {
-        let node_linker = self
-            .install_args
-            .node_linker
-            .map_or(base_config.node_linker, NodeLinkerArg::into_config);
+        let node_linker = self.install_args.materialization.node_linker.map_or(
+            base_config.node_linker,
+            NodeLinkerArg::into_config,
+        );
         let mut deploy_config = create_deploy_install_config(base_config, deploy_dir, node_linker);
         deploy_config.prefer_frozen_lockfile = frozen_lockfile;
         // pnpm's deploy forwards `--force` into the install, where it
         // bypasses the installability check so optional dependencies of
         // every platform are materialized (see `Config::force`).
-        deploy_config.force = self.install_args.force;
+        deploy_config.force = self.install_args.materialization.force;
         // `source_hooks` is the whole of the pnpmfile this install runs.
         // With none to run there is nothing left to discover either: the
         // install must not fall back to looking next to the deployed

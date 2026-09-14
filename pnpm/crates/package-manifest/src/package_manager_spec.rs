@@ -55,13 +55,17 @@ pub fn is_version_request(reference: &str) -> bool {
 /// The `devEngines.packageManager` declarations, in the order the manifest
 /// lists them. The field holds either one entry or a list of them.
 pub fn dev_engines_package_managers(manifest: &Value) -> impl Iterator<Item = &Value> {
-    let declared = manifest.get("devEngines").and_then(|engines| engines.get("packageManager"));
+    let declared = manifest
+        .get("devEngines")
+        .and_then(|engines| engines.get("packageManager"));
     let (single, list) = match declared {
         Some(Value::Array(entries)) => (None, Some(entries)),
         Some(entry) => (Some(entry), None),
         None => (None, None),
     };
-    single.into_iter().chain(list.into_iter().flatten())
+    single
+        .into_iter()
+        .chain(list.into_iter().flatten())
 }
 
 /// The package manager one `devEngines.packageManager` entry declares.

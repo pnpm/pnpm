@@ -41,8 +41,7 @@ impl<'a> InstallTask<'a> {
         Self {
             metadata,
             prepare: Box::pin(async move {
-                Ok(prepare
-                    .await?
+                Ok(prepare.await?
                     .into_iter()
                     .map(|projection| Box::new(projection) as Box<dyn PreparedInstall>)
                     .collect())
@@ -86,11 +85,12 @@ impl<'a> InstallPlan<'a> {
     }
 
     pub async fn run(self) -> Result<()> {
-        let (metadata, preparations): (Vec<_>, Vec<_>) =
-            self.tasks.into_iter().map(|task| (task.metadata, task.prepare)).unzip();
+        let (metadata, preparations): (Vec<_>, Vec<_>) = self.tasks
+            .into_iter()
+            .map(|task| (task.metadata, task.prepare))
+            .unzip();
         let mutation =
-            MetadataMutation::capture(self.transaction_root, metadata.into_iter().flatten())
-                .await?;
+            MetadataMutation::capture(self.transaction_root, metadata.into_iter().flatten()).await?;
         let results = join_all(preparations).await;
         let outcome = results
             .into_iter()

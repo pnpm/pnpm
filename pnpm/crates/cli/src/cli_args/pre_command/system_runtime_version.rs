@@ -21,7 +21,10 @@ pub(crate) fn system_runtime_version(runtime: &str) -> Option<String> {
 /// repository run a `deno.exe` / `bun.exe` checked in beside it.
 fn run_version_command(program: &str) -> Option<String> {
     let program = which::which(program).ok()?;
-    let output = Command::new(program).arg("--version").output().ok()?;
+    let output = Command::new(program)
+        .arg("--version")
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -31,14 +34,16 @@ fn run_version_command(program: &str) -> Option<String> {
 /// `deno --version` prints several lines, the first of them
 /// `deno <version> (release, <target>)`.
 fn parse_deno_version(stdout: &str) -> Option<String> {
-    stdout.lines().find_map(|line| {
-        let rest = line.strip_prefix("deno")?;
-        if !rest.starts_with(char::is_whitespace) {
-            return None;
-        }
-        let version = rest.split_whitespace().next()?;
-        accept_version(version)
-    })
+    stdout
+        .lines()
+        .find_map(|line| {
+            let rest = line.strip_prefix("deno")?;
+            if !rest.starts_with(char::is_whitespace) {
+                return None;
+            }
+            let version = rest.split_whitespace().next()?;
+            accept_version(version)
+        })
 }
 
 /// `bun --version` prints the bare version and nothing else.

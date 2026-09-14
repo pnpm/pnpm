@@ -161,9 +161,11 @@ impl<'a> HoistSymlinkPlan<'a> {
         dirs: &HoistedModulesDirs<'_>,
     ) -> Result<(), crate::SymlinkPackageError> {
         let mkdir = |path: &std::path::Path| -> Result<(), crate::SymlinkPackageError> {
-            std::fs::create_dir_all(path).map_err(|error| {
-                crate::SymlinkPackageError::CreateParentDir { dir: path.to_path_buf(), error }
-            })
+            std::fs::create_dir_all(path)
+                .map_err(|error| crate::SymlinkPackageError::CreateParentDir {
+                    dir: path.to_path_buf(),
+                    error,
+                })
         };
         mkdir(dirs.private)?;
         mkdir(dirs.public)?;
@@ -231,7 +233,9 @@ pub(super) fn update_stale_hoist_symlink(
         return Ok(());
     };
     let existing = if existing_raw.is_relative() {
-        dest.parent().unwrap_or_else(|| std::path::Path::new("")).join(&existing_raw)
+        dest.parent()
+            .unwrap_or_else(|| std::path::Path::new(""))
+            .join(&existing_raw)
     } else {
         existing_raw
     };
@@ -243,14 +247,16 @@ pub(super) fn update_stale_hoist_symlink(
     {
         return Ok(());
     }
-    pnpm_fs::remove_symlink_dir(dest).map_err(|error| crate::SymlinkPackageError::SymlinkDir {
-        symlink_target: dep_dir.to_path_buf(),
-        symlink_path: dest.to_path_buf(),
-        error,
-    })?;
-    pnpm_fs::symlink_dir(dep_dir, dest).map_err(|error| crate::SymlinkPackageError::SymlinkDir {
-        symlink_target: dep_dir.to_path_buf(),
-        symlink_path: dest.to_path_buf(),
-        error,
-    })
+    pnpm_fs::remove_symlink_dir(dest)
+        .map_err(|error| crate::SymlinkPackageError::SymlinkDir {
+            symlink_target: dep_dir.to_path_buf(),
+            symlink_path: dest.to_path_buf(),
+            error,
+        })?;
+    pnpm_fs::symlink_dir(dep_dir, dest)
+        .map_err(|error| crate::SymlinkPackageError::SymlinkDir {
+            symlink_target: dep_dir.to_path_buf(),
+            symlink_path: dest.to_path_buf(),
+            error,
+        })
 }

@@ -25,6 +25,26 @@ struct Args {
     #[arg(long, default_value = Config::DEFAULT_LISTEN, env = "PNPR_LISTEN")]
     listen: SocketAddr,
 
+    #[command(flatten)]
+    paths: StorageArgs,
+
+    /// URL clients should use to reach this server. Used when
+    /// rewriting `dist.tarball` URLs in served packuments. Defaults
+    /// to `http://<listen>`.
+    #[arg(long, env = "PNPR_PUBLIC_URL")]
+    public_url: Option<String>,
+
+    /// Seconds before a cached packument is considered stale and
+    /// refetched. When omitted, the loaded config's value wins.
+    #[arg(long, env = "PNPR_PACKUMENT_TTL_SECS")]
+    packument_ttl_secs: Option<u64>,
+    #[command(flatten)]
+    osv_options: OsvArgs,
+    #[command(flatten)]
+    features: FeatureArgs,
+}
+#[derive(Debug, clap::Args)]
+struct StorageArgs {
     /// Override the storage path from the loaded config (bundled or
     /// `-c`). Useful for tests and benchmarks that want their own
     /// storage directory without writing a custom YAML. Unless
@@ -39,18 +59,10 @@ struct Args {
     /// cached upstream content on different volumes.
     #[arg(long, env = "PNPR_CACHE")]
     cache: Option<PathBuf>,
+}
 
-    /// URL clients should use to reach this server. Used when
-    /// rewriting `dist.tarball` URLs in served packuments. Defaults
-    /// to `http://<listen>`.
-    #[arg(long, env = "PNPR_PUBLIC_URL")]
-    public_url: Option<String>,
-
-    /// Seconds before a cached packument is considered stale and
-    /// refetched. When omitted, the loaded config's value wins.
-    #[arg(long, env = "PNPR_PACKUMENT_TTL_SECS")]
-    packument_ttl_secs: Option<u64>,
-
+#[derive(Debug, clap::Args)]
+struct OsvArgs {
     /// Enable local OSV npm vulnerability checks. Requires a local OSV
     /// npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`.
     #[arg(long, env = "PNPR_OSV", value_parser = BoolishValueParser::new())]
@@ -59,7 +71,10 @@ struct Args {
     /// Path to the local OSV npm database zip or extracted JSON directory.
     #[arg(long, env = "PNPR_OSV_DB")]
     osv_db: Option<PathBuf>,
+}
 
+#[derive(Debug, clap::Args)]
+struct FeatureArgs {
     /// Disable the npm-registry surface (packument/tarball reads, publish,
     /// unpublish, dist-tag, search) on this tier. Without the flag the
     /// surface is served whenever the loaded config declares at least one
@@ -98,9 +113,9 @@ enum Command {
 impl Args {
     fn feature_overrides(&self) -> pnpr::FeatureOverrides {
         pnpr::FeatureOverrides {
-            disable_registry: self.disable_registry,
-            disable_resolver: self.disable_resolver,
-            disable_artifacts: self.disable_artifacts,
+            disable_registry: self.features.disable_registry,
+            disable_resolver: self.features.disable_resolver,
+            disable_artifacts: self.features.disable_artifacts,
         }
     }
 }
@@ -144,24 +159,24 @@ async fn main() -> miette::Result<()> {
 
 /// Fold the command-line overrides into the resolved config.
 fn apply_cli_overrides(config: &mut Config, args: &mut Args, source: &ConfigSource) {
-    if let Some(storage) = args.storage.take() {
+    if let Some(storage) = args.paths.storage.take() {
         relocate_bundled_auth_state(config, &storage, source);
         // Keep the cache co-located under the overridden storage dir so a
         // `--storage`-only run stays self-contained, unless the caller
         // pins the cache explicitly below.
-        config.cache_storage = default_cache_dir(&storage);
-        config.storage = storage;
+        config.storage.cache_dir = default_cache_dir(&storage);
+        config.storage.hosted_dir = storage;
     }
-    if let Some(cache) = args.cache.take() {
-        config.cache_storage = cache;
+    if let Some(cache) = args.paths.cache.take() {
+        config.storage.cache_dir = cache;
     }
     if let Some(ttl_secs) = args.packument_ttl_secs {
-        config.packument_ttl = Duration::from_secs(ttl_secs);
+        config.http.packument_ttl = Duration::from_secs(ttl_secs);
     }
-    if args.osv {
+    if args.osv_options.osv {
         config.osv.enabled = true;
     }
-    if let Some(osv_db) = args.osv_db.take() {
+    if let Some(osv_db) = args.osv_options.osv_db.take() {
         config.osv.path = Some(osv_db);
     }
 }
@@ -174,11 +189,11 @@ fn relocate_bundled_auth_state(config: &mut Config, storage: &Path, source: &Con
     if !matches!(source, ConfigSource::Bundled) {
         return;
     }
-    if config.auth.htpasswd.file.is_some() {
-        config.auth.htpasswd.file = Some(storage.join("htpasswd"));
+    if config.identity.auth.htpasswd.file.is_some() {
+        config.identity.auth.htpasswd.file = Some(storage.join("htpasswd"));
     }
-    if config.auth.tokens.file.is_some() {
-        config.auth.tokens.file = Some(storage.join("tokens.db"));
+    if config.identity.auth.tokens.file.is_some() {
+        config.identity.auth.tokens.file = Some(storage.join("tokens.db"));
     }
 }
 
@@ -209,7 +224,11 @@ fn init_logging(logs: &LogConfig) {
         // `method`/`uri` fields attached to the single access event;
         // `with_span_list(false)` drops the redundant entered-span
         // array so each JSON line stays one flat access record.
-        LogFormat::Json => builder.json().with_current_span(true).with_span_list(false).init(),
+        LogFormat::Json => builder
+            .json()
+            .with_current_span(true)
+            .with_span_list(false)
+            .init(),
         LogFormat::Pretty => builder.compact().init(),
     }
     if !logs.sink_is_supported() {

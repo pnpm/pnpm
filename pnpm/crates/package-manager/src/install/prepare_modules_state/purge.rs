@@ -91,10 +91,12 @@ pub(super) fn purge_modules_entry(
         return Ok(());
     }
     let entry_path = entry.path();
-    if entry.file_type().is_ok_and(|file_type| file_type.is_dir()) {
-        return remove_modules_dir(&entry_path);
+    if let Err(error) = pnpm_fs::remove_dirent(&entry_path)
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        return Err(InstallError::RemoveModulesDir { path: entry_path, error });
     }
-    remove_modules_file(&entry_path)
+    Ok(())
 }
 pub(super) fn is_pnpm_owned_entry(
     file_name: &str,
@@ -103,7 +105,9 @@ pub(super) fn is_pnpm_owned_entry(
 ) -> bool {
     file_name == ".bin"
         || file_name == ".modules.yaml"
-        || config.virtual_store_dir.file_name().is_some_and(|name| name == file_name)
+        || config.virtual_store_dir
+            .file_name()
+            .is_some_and(|name| name == file_name)
         || modules_manifest.is_some_and(|manifest| {
             recorded_virtual_store_name(manifest, config).is_some_and(|name| name == file_name)
         })
@@ -123,33 +127,9 @@ pub(super) fn recorded_virtual_store_name(
     }
     recorded.file_name().map(std::ffi::OsStr::to_os_string)
 }
-pub(super) fn remove_modules_dir(entry_path: &Path) -> Result<(), InstallError> {
-    #[cfg(windows)]
-    let is_removed = pnpm_fs::remove_symlink_dir(entry_path).is_ok();
-    #[cfg(not(windows))]
-    let is_removed = false;
-
-    if !is_removed
-        && let Err(error) = std::fs::remove_dir_all(entry_path)
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        return Err(InstallError::RemoveModulesDir { path: entry_path.to_path_buf(), error });
-    }
-    Ok(())
-}
-pub(super) fn remove_modules_file(entry_path: &Path) -> Result<(), InstallError> {
-    if let Err(error) = std::fs::remove_file(entry_path)
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        return Err(InstallError::RemoveModulesDir { path: entry_path.to_path_buf(), error });
-    }
-    Ok(())
-}
 /// What decides whether direct links excluded by this run have to be pruned.
 pub(super) struct ExcludedGroupPrune<'a> {
-    pub(super) resolve_only: bool,
-    pub(super) is_inconsistent: bool,
-    pub(super) filtered_install: bool,
+    pub(crate) eligibility: crate::install::state_options::PruneEligibility,
     pub(super) config: &'static Config,
     pub(super) workspace_root: &'a Path,
     pub(super) included: IncludedDependencies,
@@ -165,12 +145,12 @@ pub(super) struct ExcludedGroupPrune<'a> {
 pub(super) fn prune_excluded_direct_deps(
     context: &ExcludedGroupPrune<'_>,
 ) -> Result<(), InstallError> {
-    if context.resolve_only || context.is_inconsistent {
+    if context.eligibility.resolve_only || context.eligibility.is_inconsistent {
         return Ok(());
     }
     let Some(modules) = context.modules_manifest else { return Ok(()) };
     let Some(current) = context.current_lockfile else { return Ok(()) };
-    if !context.filtered_install && modules.included == context.included {
+    if !context.eligibility.filtered_install && modules.included == context.included {
         return Ok(());
     }
     let selected_prune_importer_ids = context.requested_importer_ids.map(|requested| {
@@ -183,7 +163,7 @@ pub(super) fn prune_excluded_direct_deps(
         )
         .importer_ids
     });
-    let previously_included = if context.filtered_install {
+    let previously_included = if context.eligibility.filtered_install {
         IncludedDependencies {
             dependencies: true,
             dev_dependencies: true,

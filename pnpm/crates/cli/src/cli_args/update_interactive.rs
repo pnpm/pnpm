@@ -111,13 +111,13 @@ impl UpdatePrompt {
                     })
                     .collect();
                 let prompt = match style {
-                    PromptStyle::Dependencies => {
-                        CheckboxPrompt::new(message, items).required(true).theme(CheckboxTheme {
+                    PromptStyle::Dependencies => CheckboxPrompt::new(message, items)
+                        .required(true)
+                        .theme(CheckboxTheme {
                             checked: "●".to_string(),
                             unchecked: "○".to_string(),
                             highlight_active: false,
-                        })
-                    }
+                        }),
                     PromptStyle::GlobalGroups => CheckboxPrompt::new(message, items),
                 };
                 match prompt
@@ -192,8 +192,7 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
     http_client: &Arc<ThrottledClient>,
     options: InteractiveUpdateOptions<'_>,
 ) -> miette::Result<Option<Vec<String>>> {
-    let projects = selection
-        .projects
+    let projects = selection.projects
         .iter()
         .filter(|project| selection.selected_dirs.contains(&project.root_dir))
         .map(|project| InteractiveUpdateProject {
@@ -258,16 +257,26 @@ async fn collect_choices(
         include_deprecated: false,
     };
     let run = OutdatedRun::new(config, Arc::clone(http_client))?;
-    let choices = futures_util::future::join_all(projects.iter().map(|project| {
-        collect_outdated_for_importer_in_run(
-            project.manifest,
-            lockfile,
-            &project.importer_id,
-            &query,
-            &run,
-        )
-    }))
+    let choices = futures_util::future::join_all(
+        projects
+            .iter()
+            .map(|project| {
+                collect_outdated_for_importer_in_run(
+                    project.manifest,
+                    lockfile,
+                    &project.importer_id,
+                    &query,
+                    &run,
+                )
+            }),
+    )
     .await;
+    unique_choices(choices)
+}
+
+fn unique_choices(
+    choices: Vec<miette::Result<Vec<OutdatedPackage>>>,
+) -> miette::Result<Vec<OutdatedPackage>> {
     // Keyed by workspace as well, so an entry each project contributed
     // survives to [`choices::update_choices`] — that is what lets a
     // collapsed row name every project it covers instead of the first.
@@ -280,7 +289,7 @@ async fn collect_choices(
                 choice.package_name.clone(),
                 choice.current.to_string(),
                 choice.target.to_string(),
-                choice.workspace.clone(),
+                choice.metadata.workspace.clone(),
             );
             if unique.insert(key) {
                 collected.push(choice);
@@ -290,6 +299,15 @@ async fn collect_choices(
     Ok(collected)
 }
 
+fn print_up_to_date(latest: bool) {
+    let message = if latest {
+        "All of your dependencies are already up to date"
+    } else {
+        "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
+    };
+    println!("{message}");
+}
+
 fn prompt_for_packages<Reporter: self::Reporter>(
     choices: &[OutdatedPackage],
     latest: bool,
@@ -297,12 +315,7 @@ fn prompt_for_packages<Reporter: self::Reporter>(
     prompt: UpdatePrompt,
 ) -> miette::Result<Option<Vec<String>>> {
     if choices.is_empty() {
-        let message = if latest {
-            "All of your dependencies are already up to date"
-        } else {
-            "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
-        };
-        println!("{message}");
+        print_up_to_date(latest);
         return Ok(None);
     }
 
@@ -339,14 +352,18 @@ fn flatten_groups(groups: &[choices::ChoiceGroup]) -> Vec<PromptRow> {
     for group in groups {
         let heading = format!("── {} ──", group.message);
         rows.push(PromptRow::Separator(bold(&heading)));
-        rows.extend(group.rows.iter().map(|row| match &row.value {
-            None => PromptRow::Separator(format!("  {}", row.label)),
-            Some(value) => PromptRow::Choice {
-                label: row.label.clone(),
-                short: sanitize_inline(value).into_owned(),
-                value: value.clone(),
-            },
-        }));
+        rows.extend(
+            group.rows
+                .iter()
+                .map(|row| match &row.value {
+                    None => PromptRow::Separator(format!("  {}", row.label)),
+                    Some(value) => PromptRow::Choice {
+                        label: row.label.clone(),
+                        short: sanitize_inline(value).into_owned(),
+                        value: value.clone(),
+                    },
+                }),
+        );
     }
     rows
 }

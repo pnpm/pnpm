@@ -73,7 +73,9 @@ pub fn have_default_values() {
 pub fn global_dirs_expand_a_leading_tilde() {
     let home = tempdir().expect("home tempdir");
     static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    HOME_PATH.set(home.path().to_path_buf()).expect("set once");
+    HOME_PATH
+        .set(home.path().to_path_buf())
+        .expect("set once");
     let config_dir = home.path().join("xdg").join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
     fs::write(config_dir.join("config.yaml"), "globalDir: ~/global\nglobalBinDir: ~/bin\n")
@@ -83,8 +85,15 @@ pub fn global_dirs_expand_a_leading_tilde() {
     impl EnvVar for HostWithHome {
         fn var(name: &str) -> Option<String> {
             if name == "XDG_CONFIG_HOME" {
-                let xdg = HOME_PATH.get().expect("home path").join("xdg");
-                return Some(xdg.to_str().expect("utf-8 home path").to_string());
+                let xdg = HOME_PATH
+                    .get()
+                    .expect("home path")
+                    .join("xdg");
+                return Some(
+                    xdg.to_str()
+                        .expect("utf-8 home path")
+                        .to_string(),
+                );
             }
             safe_host_var(name)
         }
@@ -105,7 +114,14 @@ pub fn global_dirs_expand_a_leading_tilde() {
     let project = tempdir().expect("project tempdir");
     let config =
         Config::new().current::<HostWithHome>(project.path()).expect("global config.yaml loads");
-    assert_eq!(config.global_pkg_dir, Some(home.path().join("global").join(GLOBAL_LAYOUT_VERSION)));
+    assert_eq!(
+        config.global_pkg_dir,
+        Some(
+            home.path()
+                .join("global")
+                .join(GLOBAL_LAYOUT_VERSION)
+        ),
+    );
     assert_eq!(config.global_bin, Some(home.path().join("bin")));
 }
 
@@ -179,7 +195,9 @@ pub fn test_current_folder_fallback_to_default() {
     // `symlink: false` override) is what surfaces.
     let home_dir = tempdir().unwrap();
     static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    HOME_PATH.set(home_dir.path().to_path_buf()).expect("set once");
+    HOME_PATH
+        .set(home_dir.path().to_path_buf())
+        .expect("set once");
     struct HostWithHome;
     impl EnvVar for HostWithHome {
         fn var(name: &str) -> Option<String> {
@@ -375,7 +393,9 @@ pub fn the_branch_pattern_decides_merging_for_the_current_branch() {
     )
     .unwrap();
     static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    REPO_DIR
+        .set(repo.path().to_path_buf())
+        .expect("set once");
     host_in_repo!(HostOnRelease);
 
     let config = Config::new().current::<HostOnRelease>(repo.path()).expect("yaml is valid");
@@ -391,7 +411,9 @@ pub fn the_branch_pattern_leaves_an_unmatched_branch_alone() {
     )
     .unwrap();
     static REPO_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    REPO_DIR.set(repo.path().to_path_buf()).expect("set once");
+    REPO_DIR
+        .set(repo.path().to_path_buf())
+        .expect("set once");
     host_in_repo!(HostOnDevelop);
 
     let config = Config::new().current::<HostOnDevelop>(repo.path()).expect("yaml is valid");

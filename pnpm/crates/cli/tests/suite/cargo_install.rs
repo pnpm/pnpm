@@ -22,9 +22,15 @@ pub(crate) fn crate_archive(name: &str, version: &str) -> Vec<u8> {
         header.set_size(contents.len() as u64);
         header.set_mode(0o644);
         header.set_cksum();
-        builder.append_data(&mut header, format!("{root}/{path}"), contents.as_bytes()).unwrap();
+        builder
+            .append_data(&mut header, format!("{root}/{path}"), contents.as_bytes())
+            .unwrap();
     }
-    builder.into_inner().unwrap().finish().unwrap()
+    builder
+        .into_inner()
+        .unwrap()
+        .finish()
+        .unwrap()
 }
 
 fn cargo_workspace(index_url: &str, dependencies: &str, source: &str) -> TempDir {
@@ -88,8 +94,11 @@ fn install_resolves_and_downloads_through_the_configured_registry() {
         ))
         .expect(1)
         .create();
-    let download_mock =
-        registry.mock("GET", "/dl/demo/1.0.0").with_body(&archive).expect(1).create();
+    let download_mock = registry
+        .mock("GET", "/dl/demo/1.0.0")
+        .with_body(&archive)
+        .expect(1)
+        .create();
     let root = cargo_workspace(&registry.url(), "demo = \"1\"\n", "pub use demo::answer;\n");
 
     install_in(&root, &["install"]);
@@ -97,7 +106,11 @@ fn install_resolves_and_downloads_through_the_configured_registry() {
     let lockfile =
         std::fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo.lock");
     assert!(lockfile.contains(&format!(r#"source = "sparse+{}/""#, registry.url())), "{lockfile}");
-    assert!(root.path().join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs").is_file());
+    assert!(
+        root.path()
+            .join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs")
+            .is_file(),
+    );
     Command::new("cargo")
         .with_current_dir(root.path())
         .with_args(["check", "--offline"])
@@ -163,7 +176,10 @@ fn install_vendors_a_git_patched_crate_beside_the_registry_crates() {
             .to_string(),
         )
         .create();
-    let _download_mock = registry.mock("GET", "/dl/demo/1.0.0").with_body(&archive).create();
+    let _download_mock = registry
+        .mock("GET", "/dl/demo/1.0.0")
+        .with_body(&archive)
+        .create();
     let root = cargo_workspace(
         &registry.url(),
         "demo = \"1\"\npatched = \"1\"\n",
@@ -204,9 +220,21 @@ fn install_vendors_a_git_patched_crate_beside_the_registry_crates() {
     install_in(&root, &["install", "--frozen-lockfile"]);
 
     assert_eq!(fs::read_to_string(root.path().join("Cargo.lock")).unwrap(), lockfile);
-    assert!(root.path().join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs").is_file());
-    assert!(root.path().join(".pnpm/crates/git/patched-1.0.0/src/lib.rs").is_file());
-    assert!(root.path().join(".pnpm/crates/git/sibling-1.0.0/src/lib.rs").is_file());
+    assert!(
+        root.path()
+            .join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs")
+            .is_file(),
+    );
+    assert!(
+        root.path()
+            .join(".pnpm/crates/git/patched-1.0.0/src/lib.rs")
+            .is_file(),
+    );
+    assert!(
+        root.path()
+            .join(".pnpm/crates/git/sibling-1.0.0/src/lib.rs")
+            .is_file(),
+    );
     let config = fs::read_to_string(root.path().join(".cargo/config.toml")).unwrap();
     assert!(
         config.contains(&format!(r#"[source."git+{repository_url}?rev={commit}"]"#)),
@@ -306,4 +334,64 @@ fn reuses_workspace_metadata_with_aliased_paths_and_nested_workspaces() {
             .success();
         assert_eq!(fs::read_to_string(&log).unwrap(), "metadata\nmetadata\n", "{alias:?}");
     }
+}
+
+#[test]
+fn install_does_not_parse_or_modify_excluded_cargo_workspaces() {
+    let root = TempDir::new().unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - 'crates/*'\n  - '!fixtures/**'\ncargo:\n  enabled: true\n",
+    )
+    .unwrap();
+    fs::write(
+        root.path().join("Cargo.toml"),
+        "[workspace]\nresolver = \"2\"\nmembers = [\"crates/selected\"]\nexclude = [\"fixtures/excluded\"]\n",
+    )
+    .unwrap();
+    let selected = root.path().join("crates/selected");
+    fs::create_dir_all(selected.join("src")).unwrap();
+    fs::write(selected.join("src/lib.rs"), "").unwrap();
+    fs::write(
+        selected.join("Cargo.toml"),
+        "[package]\nname = \"selected\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    let excluded = root.path().join("fixtures/excluded");
+    fs::create_dir_all(&excluded).unwrap();
+    fs::write(excluded.join("Cargo.toml"), "not valid TOML\n").unwrap();
+    Command::new("cargo")
+        .with_current_dir(root.path())
+        .with_args(["generate-lockfile", "--offline"])
+        .assert()
+        .success();
+
+    let args = ["install", "--frozen-lockfile", "--ignore-scripts", "--offline"];
+    install_in(&root, &args);
+    eprintln!("The selected Cargo workspace must receive source configuration");
+    assert!(
+        root.path()
+            .join(".cargo/config.toml")
+            .is_file(),
+    );
+
+    fs::create_dir_all(excluded.join("src")).unwrap();
+    fs::write(excluded.join("src/lib.rs"), "").unwrap();
+    fs::write(
+        excluded.join("Cargo.toml"),
+        "[package]\nname = \"excluded\"\nversion = \"0.0.0\"\nedition = \"2021\"\n[workspace]\n",
+    )
+    .unwrap();
+    Command::new("cargo")
+        .with_current_dir(&excluded)
+        .with_args(["generate-lockfile", "--offline"])
+        .assert()
+        .success();
+    let excluded_lock = fs::read(excluded.join("Cargo.lock")).unwrap();
+
+    install_in(&root, &args);
+    assert_eq!(fs::read(excluded.join("Cargo.lock")).unwrap(), excluded_lock);
+    eprintln!("The excluded workspace must not receive pnpm files");
+    assert!(!excluded.join(".cargo").exists());
+    assert!(!excluded.join(".pnpm").exists());
 }

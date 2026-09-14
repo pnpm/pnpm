@@ -15,8 +15,20 @@ async fn a_full_chunk_list_still_accepts_an_empty_completion_request() {
         closed: false,
     };
     let version = backend.write(&id, &record, PutMode::Create).await.unwrap();
-    let upload = backend.handle(&id, VersionedRecord { record, version }).await.unwrap();
-    assert_eq!(upload.append().await.unwrap().finish().await.unwrap(), 0);
+    let upload = backend
+        .handle(&id, VersionedRecord { record, version })
+        .await
+        .unwrap();
+    assert_eq!(
+        upload
+            .append()
+            .await
+            .unwrap()
+            .finish()
+            .await
+            .unwrap(),
+        0,
+    );
     let mut writer = upload.append().await.unwrap();
     writer.write_all(b"overflow").await.unwrap();
     assert!(writer.finish().await.is_err());
@@ -38,9 +50,19 @@ async fn expiry_removes_unrecorded_chunks_even_when_they_are_listed_first() {
         closed: false,
     };
     backend.write(&id, &record, PutMode::Create).await.unwrap();
-    backend.store.put(&backend.key(&id, &"b".repeat(32)), b"orphan".to_vec().into()).await.unwrap();
+    backend.store
+        .put(&backend.key(&id, &"b".repeat(32)), b"orphan".to_vec().into())
+        .await
+        .unwrap();
     assert_eq!(backend.sweep(std::time::Duration::ZERO).await.unwrap(), 1);
-    assert!(backend.store.list(None).try_collect::<Vec<_>>().await.unwrap().is_empty());
+    assert!(
+        backend.store
+            .list(None)
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap()
+            .is_empty(),
+    );
 }
 
 #[tokio::test]
@@ -50,13 +72,11 @@ async fn unreadable_sessions_do_not_prevent_other_uploads_from_expiring() {
     let backend = RemoteUploadStore::new(Arc::new(InMemory::new()), "", disk.path().into());
     let unreadable = "a".repeat(32);
     let expired = "c".repeat(32);
-    backend
-        .store
+    backend.store
         .put(&backend.key(&unreadable, "session.json"), b"corrupt".to_vec().into())
         .await
         .unwrap();
-    backend
-        .store
+    backend.store
         .put(&backend.key(&unreadable, &"b".repeat(32)), b"keep".to_vec().into())
         .await
         .unwrap();
@@ -69,10 +89,15 @@ async fn unreadable_sessions_do_not_prevent_other_uploads_from_expiring() {
     };
     backend.write(&expired, &record, PutMode::Create).await.unwrap();
     assert_eq!(backend.sweep(std::time::Duration::ZERO).await.unwrap(), 1);
-    assert!(backend.read(&expired).await.unwrap().is_none());
-    assert_eq!(
+    assert!(
         backend
-            .store
+            .read(&expired)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(
+        backend.store
             .get(&backend.key(&unreadable, "session.json"))
             .await
             .unwrap()
@@ -82,5 +107,10 @@ async fn unreadable_sessions_do_not_prevent_other_uploads_from_expiring() {
             .as_ref(),
         b"corrupt",
     );
-    assert!(backend.store.head(&backend.key(&unreadable, &"b".repeat(32))).await.is_ok());
+    assert!(
+        backend.store
+            .head(&backend.key(&unreadable, &"b".repeat(32)))
+            .await
+            .is_ok(),
+    );
 }

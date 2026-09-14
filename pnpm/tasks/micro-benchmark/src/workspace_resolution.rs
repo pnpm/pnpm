@@ -98,7 +98,10 @@ impl Resolver for GraphResolver {
         wanted: &'a WantedDependency,
         _opts: &'a ResolveOptions,
     ) -> ResolveFuture<'a> {
-        let result = wanted.alias.as_ref().and_then(|alias| self.packages.get(alias)).cloned();
+        let result = wanted.alias
+            .as_ref()
+            .and_then(|alias| self.packages.get(alias))
+            .cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
     }
 
@@ -183,10 +186,6 @@ fn benchmark_resolution(name: &str, manifest: serde_json::Value) -> ResolveResul
     );
     ResolveResult {
         id: PkgResolutionId::from(&name_ver),
-        name_ver: Some(name_ver),
-        latest: Some("1.0.0".to_string()),
-        published_at: None,
-        manifest: Some(Arc::new(manifest)),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://registry.example/{name}-1.0.0.tgz"),
             integrity: None,
@@ -198,12 +197,20 @@ fn benchmark_resolution(name: &str, manifest: serde_json::Value) -> ResolveResul
         normalized_bare_specifier: None,
         alias: Some(name.to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: Some(name_ver),
+            latest: Some("1.0.0".to_string()),
+            published_at: None,
+            manifest: Some(Arc::new(manifest)),
+        },
     }
 }
 
 fn importer_manifest(index: usize, shape: Shape) -> PackageManifest {
     let roots: Vec<usize> = if shape == Shape::PeersHoisted {
-        (0..ROOTS_PER_IMPORTER).map(|offset| (index + offset) % PACKAGES_PER_LAYER).collect()
+        (0..ROOTS_PER_IMPORTER)
+            .map(|offset| (index + offset) % PACKAGES_PER_LAYER)
+            .collect()
     } else {
         (0..PACKAGES_PER_LAYER).collect()
     };
@@ -213,8 +220,10 @@ fn importer_manifest(index: usize, shape: Shape) -> PackageManifest {
         .collect();
     if shape == Shape::PeersProvided {
         for framework in 0..FRAMEWORK_COUNT {
-            dependencies
-                .insert(framework_name(framework), serde_json::Value::String("1.0.0".to_string()));
+            dependencies.insert(
+                framework_name(framework),
+                serde_json::Value::String("1.0.0".to_string()),
+            );
         }
     }
     PackageManifest::from_value(
@@ -229,59 +238,80 @@ fn importer_manifest(index: usize, shape: Shape) -> PackageManifest {
 
 fn importer_options(importer: &WorkspaceImporter<'_>) -> ResolveImporterOptions {
     ResolveImporterOptions {
-        auto_install_peers: true,
-        auto_install_peers_from_highest_match: false,
-        resolve_peers_from_workspace_root: false,
-        dedupe_peers: true,
-        dedupe_peer_dependents: true,
-        all_preferred_versions: Arc::new(PreferredVersions::new()),
-        override_bare_specifier: None,
-        patched_dependencies: None,
         base_opts: ResolveOptions {
-            project_dir: PathBuf::from("/workspace").join(&importer.id),
+            project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+                project_dir: PathBuf::from("/workspace").join(&importer.id),
+                ..Default::default()
+            },
             ..ResolveOptions::default()
         },
-        pick_lowest_direct: false,
-        subdep_published_by: None,
-        catalogs: pnpm_catalogs_types::Catalogs::new(),
-        exclude_links_from_lockfile: false,
-        lockfile_dir: Some(PathBuf::from("/workspace")),
-        modules_dir: Some(PathBuf::from("/workspace/node_modules")),
         peers_suffix_max_length: 1000,
-        catalog_server: false,
-        manifest_hook: None,
-        overrides_hook: None,
-        pnpmfile_hook: None,
+        peers: pnpm_resolving_deps_resolver::ImporterPeerOptions {
+            auto_install_peers: true,
+            auto_install_peers_from_highest_match: false,
+            resolve_peers_from_workspace_root: false,
+            dedupe_peers: true,
+            dedupe_peer_dependents: true,
+        },
+        links: pnpm_resolving_deps_resolver::PeerLinkOptions {
+            exclude_links_from_lockfile: false,
+            lockfile_dir: Some(PathBuf::from("/workspace")),
+            modules_dir: Some(PathBuf::from("/workspace/node_modules")),
+        },
+        resolution: pnpm_resolving_deps_resolver::ImporterResolutionInputs {
+            all_preferred_versions: Arc::new(PreferredVersions::new()),
+            override_bare_specifier: None,
+            patched_dependencies: None,
+            pick_lowest_direct: false,
+            subdep_published_by: None,
+            catalogs: pnpm_catalogs_types::Catalogs::new(),
+            catalog_server: false,
+        },
+        hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks {
+            manifest_hook: None,
+            overrides_hook: None,
+            pnpmfile_hook: None,
+        },
     }
 }
 
 fn workspace_options() -> WorkspaceResolveOptions {
     WorkspaceResolveOptions {
         registry_context: RegistryContext::default(),
-        dedupe_peers: true,
-        dedupe_injected_deps: true,
-        dedupe_peer_dependents: true,
-        resolve_peers_from_workspace_root: false,
-        exclude_links_from_lockfile: false,
-        lockfile_dir: PathBuf::from("/workspace"),
-        peers_suffix_max_length: 1000,
         share_workspace_resolutions: true,
-        manifest_hook: None,
-        overrides_hook: None,
-        pick_lowest_direct: false,
-        time_based: false,
-        wanted_lockfile: None,
-        reuse_lockfile_subtrees: true,
-        update_reuse_scope: UpdateReuseScope::All,
-        update_reuse_scopes_by_importer: BTreeMap::new(),
-        update_depth: UpdateDepth::UNLIMITED,
-        pnpmfile_hook: None,
-        read_package_log: None,
-        skipped_optional_log: None,
-        finalized_package: None,
         allowed_deprecated_versions: BTreeMap::new(),
-        deprecation_log: None,
-        auto_install_peers: true,
+        peers: pnpm_resolving_deps_resolver::WorkspacePeerResolutionOptions {
+            dedupe_peers: true,
+            dedupe_injected_deps: true,
+            dedupe_peer_dependents: true,
+            resolve_peers_from_workspace_root: false,
+            exclude_links_from_lockfile: false,
+            lockfile_dir: PathBuf::from("/workspace"),
+            peers_suffix_max_length: 1000,
+            auto_install_peers: true,
+        },
+        hooks: pnpm_resolving_deps_resolver::WorkspaceResolveHooks {
+            read_package_log: None,
+            skipped_optional_log: None,
+            finalized_package: None,
+            deprecation_log: None,
+            manifests: pnpm_resolving_deps_resolver::ManifestTransformHooks {
+                manifest_hook: None,
+                overrides_hook: None,
+                pnpmfile_hook: None,
+            },
+        },
+        reuse: pnpm_resolving_deps_resolver::WorkspaceLockfileReuse {
+            lockfile: None,
+            subtrees: true,
+            scope: UpdateReuseScope::All,
+            scopes_by_importer: BTreeMap::new(),
+            depth: UpdateDepth::UNLIMITED,
+        },
+        version: pnpm_resolving_deps_resolver::WorkspaceVersionResolution {
+            pick_lowest_direct: false,
+            time_based: false,
+        },
     }
 }
 

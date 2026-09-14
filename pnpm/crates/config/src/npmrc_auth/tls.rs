@@ -17,7 +17,10 @@ pub(super) fn resolve_cafile(value: String, npmrc_dir: &Path) -> String {
         return value;
     }
     let resolved: PathBuf = npmrc_dir.join(&value);
-    resolved.into_os_string().into_string().unwrap_or(value)
+    resolved
+        .into_os_string()
+        .into_string()
+        .unwrap_or(value)
 }
 
 /// Parse a `strict-ssl=…` value. Only the literal `true` and `false`
@@ -68,7 +71,11 @@ pub(crate) fn parse_no_proxy(raw: &str) -> NoProxySetting {
         return NoProxySetting::Bypass;
     }
     NoProxySetting::List(
-        raw.split(',').map(str::trim).filter(|item| !item.is_empty()).map(String::from).collect(),
+        raw.split(',')
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(String::from)
+            .collect(),
     )
 }
 

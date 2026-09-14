@@ -211,7 +211,10 @@ fn adding_a_shim_migrates_the_legacy_shim_for_the_same_package() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let global_bin = root.path().join("pnpm-home").join("bin");
+    let global_bin = root
+        .path()
+        .join("pnpm-home")
+        .join("bin");
     fs::create_dir_all(&global_bin).unwrap();
     let dispatcher = global_bin.join(".pnpm-shim-v1");
     fs::write(&dispatcher, "#!/bin/sh\nexit 1\n").unwrap();
@@ -223,7 +226,10 @@ fn adding_a_shim_migrates_the_legacy_shim_for_the_same_package() {
     .unwrap();
     fs::set_permissions(&legacy, fs::Permissions::from_mode(0o755)).unwrap();
 
-    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let added = pnpm_command(&root, &project)
+        .with_args(["shim", "add", "yarn"])
+        .output()
+        .unwrap();
 
     assert!(stdout_of(&added).contains("yarn, yarnpkg"));
     assert_eq!(fs::read(global_bin.join(".pnpm-shim-v1-yarn-target")).unwrap(), b"pkg:yarn");
@@ -242,7 +248,10 @@ fn removing_a_shim_migrates_the_legacy_shim_first() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let global_bin = root.path().join("pnpm-home").join("bin");
+    let global_bin = root
+        .path()
+        .join("pnpm-home")
+        .join("bin");
     fs::create_dir_all(&global_bin).unwrap();
     let legacy = global_bin.join("yarn");
     fs::write(
@@ -251,7 +260,10 @@ fn removing_a_shim_migrates_the_legacy_shim_first() {
     )
     .unwrap();
 
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "yarn"])
+        .output()
+        .unwrap();
 
     assert!(stdout_of(&removed).contains("Removed yarn"));
     assert!(!legacy.exists());

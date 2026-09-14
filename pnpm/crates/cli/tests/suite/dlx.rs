@@ -89,7 +89,11 @@ fn dlx_resolves_caller_catalog_references_in_overrides() {
     )
     .expect("write caller project workspace yaml");
 
-    pacquet.with_arg("dlx").with_arg("@foo/touch-file-one-bin").assert().success();
+    pacquet
+        .with_arg("dlx")
+        .with_arg("@foo/touch-file-one-bin")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("touch.txt").exists(),
@@ -111,7 +115,11 @@ fn dlx_resolves_a_package_spec_against_the_callers_default_catalog() {
 
     append_workspace_yaml_key(&workspace, "catalog", "{ '@foo/touch-file-one-bin': 1.0.0 }");
 
-    pacquet.with_arg("dlx").with_arg("@foo/touch-file-one-bin@catalog:").assert().success();
+    pacquet
+        .with_arg("dlx")
+        .with_arg("@foo/touch-file-one-bin@catalog:")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("touch.txt").exists(),
@@ -171,7 +179,10 @@ fn dlx_fails_when_a_package_spec_is_missing_from_the_catalog() {
         std::fs::write(workspace.join("pnpm-workspace.yaml"), catalogs_yaml)
             .expect("write the caller's catalogs");
 
-        let output = pacquet.with_args(["dlx", spec]).output().expect("run pacquet dlx");
+        let output = pacquet
+            .with_args(["dlx", spec])
+            .output()
+            .expect("run pacquet dlx");
         let stderr = String::from_utf8_lossy(&output.stderr);
         eprintln!("STDERR:\n{stderr}\n");
         assert!(!output.status.success(), "dlx with a missing catalog entry must fail");
@@ -180,9 +191,10 @@ fn dlx_fails_when_a_package_spec_is_missing_from_the_catalog() {
             "the failure must carry the missing-entry error code: {stderr}",
         );
         assert!(
-            flatten_report(&stderr).contains(&format!(
-                "Nocatalogentry'@foo/touch-file-one-bin'wasfoundforcatalog'{catalog_name}'."
-            )),
+            flatten_report(&stderr)
+                .contains(&format!(
+                    "Nocatalogentry'@foo/touch-file-one-bin'wasfoundforcatalog'{catalog_name}'."
+                )),
             "the failure must name the missing entry and its catalog: {stderr}",
         );
 
@@ -222,7 +234,11 @@ fn dlx_ignores_the_caller_projects_patched_dependencies() {
     );
     std::fs::write(&workspace_yaml_path, workspace_yaml).expect("add the caller's patch entry");
 
-    pacquet.with_arg("dlx").with_arg("@foo/touch-file-one-bin").assert().success();
+    pacquet
+        .with_arg("dlx")
+        .with_arg("@foo/touch-file-one-bin")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("touch.txt").exists(),
@@ -245,15 +261,24 @@ fn dlx_ignores_the_caller_projects_patched_dependencies() {
 #[cfg(unix)]
 #[test]
 fn dlx_ignores_an_ambient_workspace_manifest_above_the_cache_dir() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     // `root` is the parent of both the caller's workspace and the
     // `pacquet-cache` dir the dlx prepare dir is created under.
     std::fs::write(root.path().join("pnpm-workspace.yaml"), "allowBuilds:\n  esbuild: true\n")
         .expect("write ambient workspace manifest above the cache dir");
 
-    pacquet.with_arg("dlx").with_arg("@foo/touch-file-one-bin").assert().success();
+    pacquet
+        .with_arg("dlx")
+        .with_arg("@foo/touch-file-one-bin")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("touch.txt").exists(),

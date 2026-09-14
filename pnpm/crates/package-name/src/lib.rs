@@ -42,17 +42,22 @@ fn is_excluded(name: &str) -> bool {
 
 fn matches_ignore_ascii_case(input: &str, target: &str) -> bool {
     input.len() == target.len()
-        && input.bytes().zip(target.bytes()).all(|(a, b)| a.eq_ignore_ascii_case(&b))
+        && input
+            .bytes()
+            .zip(target.bytes())
+            .all(|(a, b)| a.eq_ignore_ascii_case(&b))
 }
 
 /// `true` when `s` round-trips through `encodeURIComponent`. The set of
 /// characters JS leaves unescaped is ASCII alphanumerics plus
 /// `- _ . ! ~ * ' ( )`.
 fn is_url_friendly(string: &str) -> bool {
-    string.chars().all(|ch| {
-        ch.is_ascii_alphanumeric()
-            || matches!(ch, '-' | '_' | '.' | '!' | '~' | '*' | '\'' | '(' | ')')
-    })
+    string
+        .chars()
+        .all(|ch| {
+            ch.is_ascii_alphanumeric()
+                || matches!(ch, '-' | '_' | '.' | '!' | '~' | '*' | '\'' | '(' | ')')
+        })
 }
 
 /// Match upstream's

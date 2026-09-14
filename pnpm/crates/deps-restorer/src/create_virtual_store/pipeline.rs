@@ -34,14 +34,13 @@ impl<'a> CreateVirtualStore<'a> {
         let prefetch = self.prefetch(wanted).await;
         let marker_source = self.prepare_store().await?;
         let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
-        let prefetched = self
-            .settle_prefetch(
-                prefetch.task,
-                &prefetch.verified_files_cache,
-                wanted.packages,
-                &mut plan,
-            )
-            .await?;
+        let prefetched = self.settle_prefetch(
+            prefetch.task,
+            &prefetch.verified_files_cache,
+            wanted.packages,
+            &mut plan,
+        )
+        .await?;
         self.materialize_plan::<Reporter>(
             wanted,
             plan,
@@ -68,7 +67,7 @@ impl<'a> CreateVirtualStore<'a> {
             &plan.skipped_entries,
             prefetched,
             &plan.marker_rebuilds,
-            self.ctx.node_linker,
+            self.ctx.linker.kind,
         );
 
         // Publish the cold-batch fetch plan for the concurrent
@@ -80,10 +79,10 @@ impl<'a> CreateVirtualStore<'a> {
         // First fill wins; entries outside the plan keep the
         // metadata-backed path.
         publish_planned_canonical_fetches(
-            self.planned_canonical_fetches,
+            self.fetching.planned_canonical_fetches,
             &partition.cold,
             wanted.packages,
-            self.custom_fetcher_session.is_some(),
+            self.fetching.custom_fetcher_session.is_some(),
         );
 
         let links = self.link_plan(&plan);
@@ -95,13 +94,12 @@ impl<'a> CreateVirtualStore<'a> {
             &links,
             marker_source.map(tempfile::NamedTempFile::path),
         )?;
-        let fetch_failed = self
-            .download_cold::<Reporter>(
-                ColdInputs { wanted, store, prefetched, marker_source, links: &links },
-                &mut partition,
-                &mut indexes,
-            )
-            .await?;
+        let fetch_failed = self.download_cold::<Reporter>(
+            ColdInputs { wanted, store, prefetched, marker_source, links: &links },
+            &mut partition,
+            &mut indexes,
+        )
+        .await?;
         self.apply_side_effects(wanted, &mut partition, &indexes.shared_base).await;
 
         // The writer is owned by the caller now. They drop their
@@ -121,7 +119,7 @@ impl<'a> CreateVirtualStore<'a> {
     }
 
     fn is_hoisted(&self) -> bool {
-        matches!(self.ctx.node_linker, NodeLinker::Hoisted)
+        matches!(self.ctx.linker.kind, NodeLinker::Hoisted)
     }
 
     fn wanted(&self) -> Result<Option<WantedEntries<'a>>, CreateVirtualStoreError> {
@@ -135,7 +133,7 @@ impl<'a> CreateVirtualStore<'a> {
     }
 
     async fn prefetch(&mut self, wanted: WantedEntries<'a>) -> CasPrefetch {
-        match self.cas_prefetch.take() {
+        match self.fetching.cas_prefetch.take() {
             Some(prefetch) => prefetch,
             None => {
                 CasPrefetch::start(
@@ -144,8 +142,8 @@ impl<'a> CreateVirtualStore<'a> {
                         packages: Some(wanted.packages),
                         snapshots: Some(wanted.snapshots),
                     },
-                    self.supported_architectures,
-                    self.store_context.as_ref(),
+                    self.selection.supported_architectures,
+                    self.fetching.store_context.as_ref(),
                 )
                 .await
             }
@@ -157,10 +155,10 @@ impl<'a> CreateVirtualStore<'a> {
     ) -> Result<Option<tempfile::NamedTempFile>, CreateVirtualStoreError> {
         let config = self.ctx.config;
         let store_dir: &'static _ = &config.store_dir;
-        if self.store_context.is_none() {
+        if self.fetching.store_context.is_none() {
             init_store_dir_unless_frozen(config, store_dir).await;
         }
-        create_build_marker_source(config, self.ctx.layout, store_dir)
+        create_build_marker_source(config, self.ctx.linker.layout, store_dir)
     }
 
     /// The plan pass consumes the keys [`CasPrefetch::start`] derived
@@ -177,16 +175,19 @@ impl<'a> CreateVirtualStore<'a> {
     ) -> Result<snapshot_plan::SnapshotPlan<'a>, CreateVirtualStoreError> {
         let config = self.ctx.config;
         let plan = snapshot_plan::plan_snapshots::<Reporter>(snapshot_plan::SnapshotPlanInputs {
+            policy: crate::create_virtual_store::snapshot_plan::SnapshotReusePolicy {
+                skipped: self.selection.skipped,
+                link_dependencies: !self.is_hoisted() && config.symlink,
+                force: config.force,
+                is_hoisted: self.is_hoisted(),
+                include_optional: self.selection.include_optional,
+            },
             snapshots: wanted.snapshots,
             packages: wanted.packages,
             current_entries: self.current_entries,
-            layout: self.ctx.layout,
+            layout: self.ctx.linker.layout,
             allow_build_policy: self.ctx.allow_build_policy,
-            skipped: self.skipped,
-            link_dependencies: !self.is_hoisted() && config.symlink,
-            force: config.force,
-            is_hoisted: self.is_hoisted(),
-            include_optional_dependencies: self.include_optional_dependencies,
+
             cache_keys: &mut cache_keys,
         })?;
 
@@ -303,22 +304,31 @@ impl<'a> CreateVirtualStore<'a> {
                 self.current_entries.snapshots,
                 &plan.survivors,
             ),
-            shared_packages: config
-                .remote_side_effects_cache
+            shared_packages: config.remote_side_effects_cache
                 .as_ref()
-                .map(|settings| settings.packages.iter().map(String::as_str).collect()),
+                .map(|settings| {
+                    settings.packages
+                        .iter()
+                        .map(String::as_str)
+                        .collect()
+                }),
             template: LinkSlotsParallel {
+                import: crate::PackageImportOptions {
+                    method: config.package_import_method,
+                    logged_methods: self.ctx.logged_methods,
+                    requester: self.ctx.requester,
+                },
+                link: crate::VirtualStoreLinkOptions {
+                    layout: self.ctx.linker.layout,
+                    dir_clone_cache: self.dir_clone_cache,
+                    symlink: config.symlink,
+                    skipped: self.selection.skipped,
+                    include_optional: self.selection.include_optional,
+                },
                 batch: "warm",
                 slots: &[],
-                layout: self.ctx.layout,
-                dir_clone_cache: self.dir_clone_cache,
-                symlink: config.symlink,
-                import_method: config.package_import_method,
-                logged_methods: self.ctx.logged_methods,
-                requester: self.ctx.requester,
-                skipped: self.skipped,
-                include_optional_dependencies: self.include_optional_dependencies,
-                progress_reported: self.progress_reported,
+
+                progress_reported: self.fetching.progress_reported,
                 #[cfg(test)]
                 link_concurrency_probe: self.link_concurrency_probe,
             },
@@ -360,7 +370,8 @@ impl<'a> CreateVirtualStore<'a> {
         partition: &mut partition::Partition<'_>,
         indexes: &mut CasIndexes,
     ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
-        let runtime_platform_selector = runtime_platform_selector(self.supported_architectures);
+        let runtime_platform_selector =
+            runtime_platform_selector(self.selection.supported_architectures);
         let mut fetch_failed = HashSet::new();
         let mut cold_cas_paths = Vec::new();
         run_cold_batch::<Reporter>(
@@ -373,7 +384,6 @@ impl<'a> CreateVirtualStore<'a> {
                 removed_aliases_by_key: &inputs.links.removed_aliases_by_key,
                 link_template: &inputs.links.template,
                 shared_packages: inputs.links.shared_packages.as_ref(),
-                is_hoisted: self.is_hoisted(),
             },
             &mut ColdBatchState {
                 fetch_failed: &mut fetch_failed,
@@ -394,18 +404,22 @@ impl<'a> CreateVirtualStore<'a> {
         runtime_platform_selector: &'i PlatformSelector,
     ) -> InstallPackageBySnapshot<'i> {
         InstallPackageBySnapshot {
+            fetching: crate::SnapshotFetchContext {
+                http_client: self.fetching.http_client,
+                store_index: inputs.store.index,
+                store_index_writer: Some(self.fetching.store_index_writer),
+                prefetched_cas_paths: Some(&inputs.prefetched.cas_paths),
+                tarball_mem_cache: self.fetching.tarball_mem_cache,
+                progress_reported: Some(self.fetching.progress_reported),
+                verified_files_cache: inputs.store.verified_files_cache,
+                custom_fetcher_session: self.fetching.custom_fetcher_session,
+            },
             ctx: self.ctx,
-            http_client: self.http_client,
-            store_index: inputs.store.index,
-            store_index_writer: Some(self.store_index_writer),
-            prefetched_cas_paths: Some(&inputs.prefetched.cas_paths),
-            tarball_mem_cache: self.tarball_mem_cache,
-            progress_reported: Some(self.progress_reported),
-            verified_files_cache: inputs.store.verified_files_cache,
-            skipped: self.skipped,
-            include_optional_dependencies: self.include_optional_dependencies,
+
+            skipped: self.selection.skipped,
+            include_optional_dependencies: self.selection.include_optional,
             runtime_platform_selector,
-            custom_fetcher_session: self.custom_fetcher_session,
+
             // The slot link is deferred to the parallel pass in
             // `drain_cold_downloads` so it doesn't serialize
             // inside this cooperative task.
@@ -423,18 +437,21 @@ impl<'a> CreateVirtualStore<'a> {
     ) {
         crate::shared_side_effects::apply_shared_side_effects(
             crate::shared_side_effects::ApplySharedSideEffectsOptions {
+                cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
+                    base_cas_paths,
+                    by_snapshot: &partition.side_effects_by_snapshot,
+                    quarantine_by_snapshot: &partition.remote_side_effects_quarantine_by_snapshot,
+                    store_index_keys_by_snapshot: &partition.store_index_keys_by_snapshot,
+                },
                 config: self.ctx.config,
                 snapshots: wanted.snapshots,
                 packages: wanted.packages,
                 requires_build_by_snapshot: &partition.requires_build_by_snapshot,
                 allow_build_policy: self.ctx.allow_build_policy,
-                base_cas_paths,
+
                 side_effects_maps_by_snapshot: &mut partition.side_effects_maps_by_snapshot,
-                side_effects_by_snapshot: &partition.side_effects_by_snapshot,
-                remote_side_effects_quarantine_by_snapshot: &partition
-                    .remote_side_effects_quarantine_by_snapshot,
-                store_index_keys_by_snapshot: &partition.store_index_keys_by_snapshot,
-                store_index_writer: self.store_index_writer,
+
+                store_index_writer: self.fetching.store_index_writer,
             },
         )
         .await;

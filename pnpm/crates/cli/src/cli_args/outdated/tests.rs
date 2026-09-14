@@ -29,9 +29,11 @@ fn pkg(name: &str, current: &str, target: &str, group: DependencyGroup) -> Outda
         target: v(target),
         wanted: v(current),
         github_action: false,
-        deprecated: None,
-        homepage: None,
-        workspace: None,
+        metadata: crate::cli_args::outdated::query::OutdatedMetadata {
+            deprecated: None,
+            homepage: None,
+            workspace: None,
+        },
     }
 }
 
@@ -119,7 +121,10 @@ fn default_sort_orders_by_change_then_name() {
         pkg("feature-a", "1.0.0", "1.1.0", DependencyGroup::Prod),
     ];
     sort_outdated(&mut outdated, None);
-    let order: Vec<&str> = outdated.iter().map(|item| item.package_name.as_str()).collect();
+    let order: Vec<&str> = outdated
+        .iter()
+        .map(|item| item.package_name.as_str())
+        .collect();
     assert_eq!(order, vec!["fix-a", "fix-b", "feature-a", "breaking-z"]);
 }
 
@@ -143,7 +148,7 @@ fn json_report_has_expected_shape() {
 #[test]
 fn render_latest_outdated_and_deprecated() {
     let mut item = pkg("foo", "0.0.1", "1.0.0", DependencyGroup::Prod);
-    item.deprecated = Some("This package is deprecated".to_string());
+    item.metadata.deprecated = Some("This package is deprecated".to_string());
     let output = render_latest(&item);
     assert!(output.contains("1.0.0"), "shows the latest version: {output}");
     assert!(output.contains("(deprecated)"), "flags the deprecation: {output}");
@@ -191,7 +196,10 @@ fn skip_sgr_escape(chars: &mut std::str::Chars<'_>) {
 
 fn assert_borders_aligned(table: &str) {
     let mut rows = table.lines();
-    let expected = rows.next().map(border_columns).unwrap_or_default();
+    let expected = rows
+        .next()
+        .map(border_columns)
+        .unwrap_or_default();
     assert!(!expected.is_empty(), "expected box-drawing borders in:\n{table}");
     for row in table.lines() {
         assert_eq!(
@@ -244,8 +252,8 @@ fn colored_table_borders_stay_aligned() {
 #[test]
 fn json_report_long_includes_latest_manifest() {
     let mut item = pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    item.deprecated = Some("do not use".to_string());
-    item.homepage = Some("https://example.com".to_string());
+    item.metadata.deprecated = Some("do not use".to_string());
+    item.metadata.homepage = Some("https://example.com".to_string());
     let value: serde_json::Value =
         serde_json::from_str(&render_json(&[item], true)).expect("valid JSON");
     let manifest = &value["foo"]["latestManifest"];
@@ -313,14 +321,23 @@ fn recursive_table_wraps_the_dependents_column() {
 }
 
 fn last_column_cells(table: &str) -> Vec<&str> {
-    table.lines().filter_map(|line| line.rsplit('│').nth(1)).map(str::trim).collect()
+    table
+        .lines()
+        .filter_map(|line| line.rsplit('│').nth(1))
+        .map(str::trim)
+        .collect()
 }
 
 /// Content width of the table's rightmost column, excluding its border and
 /// padding.
 fn last_column_width(table: &str) -> usize {
     const PADDING: usize = 2;
-    let borders = border_columns(table.lines().next().expect("top border"));
+    let borders = border_columns(
+        table
+            .lines()
+            .next()
+            .expect("top border"),
+    );
     let [.., left, right] = borders[..] else {
         panic!("expected at least two column boundaries in:\n{table}");
     };

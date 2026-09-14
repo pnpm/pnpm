@@ -28,7 +28,7 @@ pub(super) fn plan_eligible_roots(
         options.snapshots,
         options.requires_build_by_snapshot,
         options.allow_build_policy,
-        options.base_cas_paths,
+        options.cached.base_cas_paths,
         &setup.eligible_packages,
     );
     tracing::debug!(
@@ -51,7 +51,10 @@ pub(super) fn eligible_roots(
     in_lockfile_order(snapshots)
         .into_iter()
         .filter(|(snapshot_key, _)| {
-            requires_build_by_snapshot.get(*snapshot_key).copied().unwrap_or(false)
+            requires_build_by_snapshot
+                .get(*snapshot_key)
+                .copied()
+                .unwrap_or(false)
                 && eligible_packages.contains(&snapshot_key.name.to_string())
                 && allow_build_policy.check(&snapshot_key.without_peer().to_string()) == Some(true)
                 && base_cas_paths.contains_key(*snapshot_key)

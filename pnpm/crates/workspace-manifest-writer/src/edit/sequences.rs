@@ -71,7 +71,13 @@ fn item_layout(text: &str, key: &str, current: &[String]) -> Option<ItemLayout> 
             .iter()
             .enumerate()
             .map(|(position, &start)| {
-                (start, starts.get(position + 1).copied().unwrap_or(block_items_end))
+                (
+                    start,
+                    starts
+                        .get(position + 1)
+                        .copied()
+                        .unwrap_or(block_items_end),
+                )
             })
             .collect(),
         indent,
@@ -92,7 +98,9 @@ fn item_lines(
     body: Range<usize>,
     current: &[String],
 ) -> Option<(usize, Vec<usize>)> {
-    let indent = body.clone().find_map(|idx| structural_indent(all[idx].content))?;
+    let indent = body
+        .clone()
+        .find_map(|idx| structural_indent(all[idx].content))?;
     let item_idxs: Vec<usize> = body
         .filter(|&idx| {
             structural_indent(all[idx].content) == Some(indent)
@@ -117,7 +125,10 @@ fn rebuild_items(text: &str, layout: &ItemLayout, current: &[String], items: &[S
     // writer's node reuse: duplicate values claim their lines in order.
     let mut unclaimed: HashMap<&str, VecDeque<usize>> = HashMap::with_capacity(current.len());
     for (idx, value) in current.iter().enumerate() {
-        unclaimed.entry(value.as_str()).or_default().push_back(idx);
+        unclaimed
+            .entry(value.as_str())
+            .or_default()
+            .push_back(idx);
     }
     let indent = " ".repeat(layout.indent);
     let mut body = String::new();
@@ -196,7 +207,10 @@ pub(super) fn upsert_sequence_entry(
     key: &str,
     items: &[String],
 ) -> String {
-    let rendered_items: Vec<String> = items.iter().map(|item| render::render_value(item)).collect();
+    let rendered_items: Vec<String> = items
+        .iter()
+        .map(|item| render::render_value(item))
+        .collect();
     if let Inline::Flow(collection) = locate_sequence(text, &[block_name, key]) {
         return flow::set_items(text, &collection, &rendered_items);
     }
@@ -206,7 +220,10 @@ pub(super) fn upsert_sequence_entry(
     let mapping = locate(text, &[block_name]).expect("block exists");
     let rendered = render_block_sequence_entry(mapping.entry_indent, key, items);
 
-    if let Some(entry) = mapping.entries.iter().find(|entry| entry.key == key) {
+    if let Some(entry) = mapping.entries
+        .iter()
+        .find(|entry| entry.key == key)
+    {
         let mut out = text.to_string();
         out.replace_range(entry.line_start..entry.block_end, &rendered);
         return out;

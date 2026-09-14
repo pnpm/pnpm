@@ -41,7 +41,9 @@ fn hierarchy_nests_recursively() {
     root_children.insert(PathBuf::from("/repo/node_modules/accepts"), inner.clone());
     let root = DepHierarchy(root_children);
 
-    let accepts = root.0.get(&PathBuf::from("/repo/node_modules/accepts")).expect("accepts entry");
+    let accepts = root.0
+        .get(&PathBuf::from("/repo/node_modules/accepts"))
+        .expect("accepts entry");
     assert_eq!(accepts, &inner);
     assert_eq!(accepts.0.len(), 1);
 }
@@ -49,12 +51,12 @@ fn hierarchy_nests_recursively() {
 fn options_default_is_empty() {
     let opts = LockfileToHoistedDepGraphOptions::default();
     assert_eq!(opts.lockfile_dir, PathBuf::new());
-    assert!(!opts.auto_install_peers);
+    assert!(!opts.placement.auto_install_peers);
     assert!(opts.skipped.is_empty());
     assert!(!opts.force);
-    assert!(!opts.engine_strict);
-    assert!(opts.current_node_version.is_empty());
-    assert!(opts.supported_architectures.is_none());
+    assert!(!opts.installability.engine_strict);
+    assert!(opts.installability.current_node_version.is_empty());
+    assert!(opts.installability.supported_architectures.is_none());
 }
 #[test]
 fn walker_transitive_dep_flattens_under_root() {
@@ -84,11 +86,16 @@ fn walker_transitive_dep_flattens_under_root() {
 
     let modules = lockfile_dir.join("node_modules");
     assert_eq!(
-        result.graph.keys().cloned().collect::<Vec<_>>(),
+        result.graph
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
         vec![modules.join("a"), modules.join("b")],
         "both nodes hoisted to root, sorted by dir",
     );
-    let a_node = result.graph.get(&modules.join("a")).expect("a in graph");
+    let a_node = result.graph
+        .get(&modules.join("a"))
+        .expect("a in graph");
     assert_eq!(
         a_node.children.get("b"),
         Some(&modules.join("b")),
@@ -136,8 +143,8 @@ fn walker_version_conflict_keeps_loser_nested() {
     assert!(result.graph.contains_key(&c_dir), "c at root");
     assert!(result.graph.contains_key(&a2_dir), "a@2 nested under c");
 
-    assert_eq!(result.graph[&a1_dir].dep_path, DepPath::from("a@1.0.0".to_string()));
-    assert_eq!(result.graph[&a2_dir].dep_path, DepPath::from("a@2.0.0".to_string()));
+    assert_eq!(result.graph[&a1_dir].package.dep_path, DepPath::from("a@1.0.0".to_string()));
+    assert_eq!(result.graph[&a2_dir].package.dep_path, DepPath::from("a@2.0.0".to_string()));
 
     assert_eq!(result.hoisted_locations["a@1.0.0"], vec!["node_modules/a".to_string()]);
     assert_eq!(
@@ -254,7 +261,13 @@ fn walker_errors_on_engine_strict_mismatch() {
     snapshots.insert(dep_key("a", "1.0.0"), SnapshotEntry::default());
 
     let lockfile = lockfile_with(root_deps, packages, snapshots);
-    let opts = LockfileToHoistedDepGraphOptions { engine_strict: true, ..host_aware_opts() };
+    let opts = LockfileToHoistedDepGraphOptions {
+        installability: crate::HoistedInstallability {
+            engine_strict: true,
+            ..host_aware_opts().installability
+        },
+        ..host_aware_opts()
+    };
     let err = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts)
         .expect_err("engine_strict + engine mismatch should error");
     match err {
@@ -315,11 +328,15 @@ fn prev_graph_includes_orphan_even_when_now_incompatible() {
 
     let lockfile_dir = PathBuf::from("/repo");
     let opts = LockfileToHoistedDepGraphOptions {
+        installability: crate::HoistedInstallability {
+            current_node_version: "20.0.0".to_string(),
+            current_os: "linux".to_string(),
+            current_cpu: "x64".to_string(),
+            current_libc: "glibc".to_string(),
+            ..LockfileToHoistedDepGraphOptions::default().installability
+        },
         lockfile_dir: lockfile_dir.clone(),
-        current_node_version: "20.0.0".to_string(),
-        current_os: "linux".to_string(),
-        current_cpu: "x64".to_string(),
-        current_libc: "glibc".to_string(),
+
         ..LockfileToHoistedDepGraphOptions::default()
     };
     let result = lockfile_to_hoisted_dep_graph(&wanted_lockfile, Some(&current_lockfile), &opts)

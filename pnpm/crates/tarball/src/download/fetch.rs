@@ -115,7 +115,7 @@ pub(super) async fn fetch_local_tarball<Reporter: self::Reporter>(
 pub(super) async fn read_gzip_prefix<Body>(
     stream: &mut Body,
     package_url: &str,
-) -> Result<(Vec<bytes::Bytes>, usize), TarballError>
+) -> Result<super::body::GzipPrefix, TarballError>
 where
     Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
 {
@@ -127,7 +127,7 @@ where
         prefix_len += chunk.len();
         prefix.push(chunk);
     }
-    Ok((prefix, prefix_len))
+    Ok(super::body::GzipPrefix { chunks: prefix, len: prefix_len })
 }
 
 pub(super) fn fetch_error(package_url: &str, error: reqwest::Error) -> TarballError {
@@ -162,24 +162,28 @@ impl TarballDownload<'_> {
         let expected_size = response.content_length();
         let mut stream = response.bytes_stream();
         let mut progress = BodyProgress::new(expected_size, self.package_id);
-        let (prefix, prefix_len) = read_gzip_prefix(&mut stream, self.package_url).await?;
-        let is_gzip = starts_with_gzip_magic(&prefix);
+        let prefix = read_gzip_prefix(&mut stream, self.package_url).await?;
+        let is_gzip = starts_with_gzip_magic(&prefix.chunks);
         // Retries remain buffered to preserve whole-archive decode diagnostics.
         if is_gzip
             && attempt == 0
             && advertises_large_body(expected_size)
             && let Ok(permit) = streaming_extract_semaphore().try_acquire()
         {
-            progress.on_chunks::<Reporter>(&prefix);
-            return self
-                .stream_body::<Reporter, _, _>(prefix, stream, progress, client, permit)
-                .await;
+            progress.on_chunks::<Reporter>(&prefix.chunks);
+            return self.stream_body::<Reporter, _, _>(
+                prefix.chunks,
+                stream,
+                progress,
+                client,
+                permit,
+            )
+            .await;
         }
         let buffered = buffer_body::<Reporter, _>(BufferBody {
             stream: &mut stream,
             progress: &mut progress,
             prefix,
-            prefix_len,
             expected_size,
             expected_integrity: self.expected_integrity,
             is_gzip,
@@ -208,15 +212,14 @@ impl TarballDownload<'_> {
                     .acquire()
                     .await
                     .expect("streaming-extract semaphore shouldn't be closed this soon");
-                return self
-                    .stream_body::<Reporter, _, _>(
-                        vec![bytes::Bytes::from(buffer)],
-                        stream,
-                        progress,
-                        client,
-                        permit,
-                    )
-                    .await;
+                return self.stream_body::<Reporter, _, _>(
+                    vec![bytes::Bytes::from(buffer)],
+                    stream,
+                    progress,
+                    client,
+                    permit,
+                )
+                .await;
             }
         };
         drop(stream);

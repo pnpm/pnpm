@@ -21,9 +21,10 @@ fn private_cached_resolution_requires_current_alias_authorization() {
     ));
 
     let mut config = registry_config();
-    config
-        .upstreams
-        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "alice"));
+    config.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "alice"),
+    );
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
@@ -35,7 +36,7 @@ fn private_cached_resolution_requires_current_alias_authorization() {
     // Rotate the upstream credential (new token → new credential digest). The
     // resolution cached under the old credential must no longer be reused, even
     // for a still-authorized caller.
-    config.upstreams.insert(
+    config.routing.upstreams.insert(
         "corp".to_string(),
         upstream_with_token("https://npm.corp.example/", "alice", "Bearer rotated-secret"),
     );
@@ -60,7 +61,7 @@ fn same_alias_authorized_users_share_private_resolution_cache() {
     ));
 
     let mut config = registry_config();
-    config.upstreams.insert(
+    config.routing.upstreams.insert(
         "corp".to_string(),
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
@@ -93,17 +94,19 @@ fn revoked_alias_access_stops_matching_private_resolution_hits() {
     ));
 
     let mut config = registry_config();
-    config
-        .upstreams
-        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "alice"));
+    config.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "alice"),
+    );
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
     );
 
-    config
-        .upstreams
-        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "bob"));
+    config.routing.upstreams.insert(
+        "corp".to_string(),
+        upstream_with_access("https://npm.corp.example/", "bob"),
+    );
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_none(),
@@ -151,7 +154,7 @@ fn revoked_hosted_package_access_stops_matching_private_resolution_hits() {
 fn private_alias_lockfile_routing_uses_gateway_url() {
     let pnpm_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
-    registry.upstreams.insert(
+    registry.routing.upstreams.insert(
         "corp".to_string(),
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
@@ -174,7 +177,7 @@ fn private_alias_lockfile_routing_uses_gateway_url() {
 fn private_alias_lockfile_routing_encodes_scoped_packages_as_one_gateway_segment() {
     let pnpm_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
-    registry.upstreams.insert(
+    registry.routing.upstreams.insert(
         "corp".to_string(),
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );

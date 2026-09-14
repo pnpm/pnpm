@@ -33,14 +33,16 @@ async fn a_full_doc_served_for_an_abbreviated_request_is_normalized_before_cachi
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata: false,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("200 → ok");
@@ -57,7 +59,10 @@ async fn a_full_doc_served_for_an_abbreviated_request_is_normalized_before_cachi
     assert!(!manifest.other.contains_key("exports"));
     // Install-relevant fields kept, so resolution is unchanged.
     assert_eq!(
-        manifest.dependencies.as_ref().and_then(|deps| deps.get("bar")).map(String::as_str),
+        manifest.dependencies
+            .as_ref()
+            .and_then(|deps| deps.get("bar"))
+            .map(String::as_str),
         Some("^1.0.0"),
     );
 }

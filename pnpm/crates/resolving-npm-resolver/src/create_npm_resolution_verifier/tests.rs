@@ -68,29 +68,34 @@ fn registries_with_default(default: &str) -> HashMap<String, String> {
 /// given registry URL. Tests override individual fields after.
 fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
     CreateNpmResolutionVerifierOptions {
-        minimum_release_age: None,
-        minimum_release_age_exclude: None,
-        minimum_release_age_exclude_patterns: Vec::new(),
-        ignore_missing_time_field: false,
-        registry_supports_time_field: false,
-        trust_policy: None,
-        trust_policy_exclude: None,
-        trust_policy_exclude_patterns: Vec::new(),
-        trust_policy_ignore_after: None,
         registries: registries_with_default(registry_url),
         registries_by_prefix: HashMap::new(),
-        http_client: Arc::new(ThrottledClient::default()),
-        auth_headers: Arc::new(AuthHeaders::default()),
-        cache_dir: None,
-        meta_cache: None,
-        offline: false,
-        // No retries: tests that point an endpoint at an unmocked /
-        // erroring upstream would otherwise wait out the full pnpm
-        // backoff (10 s + 60 s) on every run.
-        retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
         now: None,
-        observed_dist_stats: None,
-        planned_canonical_fetches: None,
+        release_age: crate::VerificationReleaseAgeOptions {
+            minimum_minutes: None,
+            exclude: None,
+            exclude_patterns: Vec::new(),
+        },
+        trust: crate::VerificationTrustOptions {
+            policy: None,
+            exclude: None,
+            exclude_patterns: Vec::new(),
+            ignore_after: None,
+        },
+        metadata: crate::VerificationMetadataClient {
+            ignore_missing_time_field: false,
+            registry_supports_time_field: false,
+            http_client: Arc::new(ThrottledClient::default()),
+            auth_headers: Arc::new(AuthHeaders::default()),
+            cache_dir: None,
+            meta_cache: None,
+            offline: false,
+            // No retries: tests that point an endpoint at an unmocked /
+            // erroring upstream would otherwise wait out the full pnpm
+            // backoff (10 s + 60 s) on every run.
+            retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
+        },
+        artifacts: crate::VerificationArtifacts { observed_stats: None, canonical_fetches: None },
     }
 }
 
@@ -228,7 +233,9 @@ fn revision_integrity(digest: &str) -> Integrity {
 /// walk.
 fn time_free_trust_packument(name: &str) -> serde_json::Value {
     let mut body = trust_downgrade_packument(name);
-    body.as_object_mut().expect("packument is an object").remove("time");
+    body.as_object_mut()
+        .expect("packument is an object")
+        .remove("time");
     body
 }
 

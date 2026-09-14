@@ -73,10 +73,19 @@ fn one_transitive_dep_hoists_to_root() {
     let result = hoist(&lockfile, &HoistOpts::default()).expect("happy hoist should succeed");
     assert_eq!(result.name, ".");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["a", "b"], "both a and b sit at root: {result:#?}");
-    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let dep_a = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "a")
+            .unwrap()
+            .0,
+    );
     assert!(dep_a.dependencies.borrow().is_empty(), "a's b moved to root: {dep_a:#?}");
 }
 
@@ -124,18 +133,35 @@ fn diamond_dep_hoists_once_to_root() {
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["a", "b", "c"], "diamond flattens at root: {result:#?}");
-    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
-    let dep_c = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "c").unwrap().0);
+    let dep_a = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "a")
+            .unwrap()
+            .0,
+    );
+    let dep_c = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "c")
+            .unwrap()
+            .0,
+    );
     assert!(dep_a.dependencies.borrow().is_empty(), "a stripped of its b: {dep_a:#?}");
     assert!(dep_c.dependencies.borrow().is_empty(), "c stripped of its b: {dep_c:#?}");
 
     let mut b_ptrs: std::collections::HashSet<*const HoisterResult> =
         std::collections::HashSet::new();
-    let mut stack: Vec<Rc<HoisterResult>> =
-        root_children.iter().map(|dep| Rc::clone(&dep.0)).collect();
+    let mut stack: Vec<Rc<HoisterResult>> = root_children
+        .iter()
+        .map(|dep| Rc::clone(&dep.0))
+        .collect();
     let mut walked: std::collections::HashSet<*const HoisterResult> =
         std::collections::HashSet::new();
     while let Some(node) = stack.pop() {
@@ -202,19 +228,37 @@ fn peer_check_uses_post_hoist_ancestor_path_not_queue_time_path() {
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(
         names,
         ["app", "mid", "react", "terminal"],
         "mid and terminal hoist freely: {result:#?}",
     );
-    let app = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "app").unwrap().0);
+    let app = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "app")
+            .unwrap()
+            .0,
+    );
     let app_deps = app.dependencies.borrow();
-    let app_names: Vec<&str> = app_deps.iter().map(|dep| dep.0.name.as_str()).collect();
+    let app_names: Vec<&str> = app_deps
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     assert_eq!(app_names, ["react"], "app retains conflicting react@17: {app_names:?}");
     drop(app_deps);
-    let mid = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "mid").unwrap().0);
+    let mid = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "mid")
+            .unwrap()
+            .0,
+    );
     assert!(mid.dependencies.borrow().is_empty(), "mid stripped of terminal: {mid:#?}");
 }
 
@@ -261,10 +305,19 @@ fn peer_constrained_node_hoists_when_ancestor_and_root_agree() {
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("peer-aware hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["app", "react", "widget"], "widget hoists past app: {result:#?}");
-    let app = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "app").unwrap().0);
+    let app = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "app")
+            .unwrap()
+            .0,
+    );
     assert!(
         app.dependencies.borrow().is_empty(),
         "app stripped of its hoisted widget + dedup'd react: {app:#?}",
@@ -318,14 +371,23 @@ fn multi_round_unlocks_peer_friendly_hoist_after_blocker_moves() {
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("multi-round should converge");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(
         names,
         ["app", "widget", "x"],
         "widget hoists in round 2 after x clears app in round 1: {result:#?}",
     );
-    let app = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "app").unwrap().0);
+    let app = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "app")
+            .unwrap()
+            .0,
+    );
     assert!(app.dependencies.borrow().is_empty(), "app stripped after multi-round: {app:#?}");
 }
 
@@ -371,12 +433,24 @@ fn hoisting_limits_border_keeps_descendants_nested() {
 
     let result = hoist(&lockfile, &opts).expect("hoist with limits should succeed");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["a"], "border node a sits at root; b did not flatten: {result:#?}");
-    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let dep_a = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "a")
+            .unwrap()
+            .0,
+    );
     let a_deps = dep_a.dependencies.borrow();
-    let a_names: Vec<&str> = a_deps.iter().map(|dep| dep.0.name.as_str()).collect();
+    let a_names: Vec<&str> = a_deps
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     assert_eq!(a_names, ["b"], "b stays nested under the border a: {a_names:?}");
 }
 
@@ -426,12 +500,24 @@ fn hoisting_limits_border_keeps_all_descendants_nested() {
 
     let result = hoist(&lockfile, &opts).expect("hoist with limits should succeed");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["a"], "only the border a sits at root: {result:#?}");
-    let dep_a = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "a").unwrap().0);
+    let dep_a = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "a")
+            .unwrap()
+            .0,
+    );
     let a_deps = dep_a.dependencies.borrow();
-    let mut a_names: Vec<&str> = a_deps.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut a_names: Vec<&str> = a_deps
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     a_names.sort_unstable();
     assert_eq!(
         a_names,
@@ -483,7 +569,10 @@ fn hoisting_limits_keyed_on_unrelated_importer_is_inert() {
 
     let result = hoist(&lockfile, &opts).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["a", "b"], "limits keyed elsewhere don't affect root hoist: {result:#?}");
 }
@@ -550,8 +639,10 @@ fn nested_hoist_uses_the_nested_root_locator() {
             .0,
     );
     let workspace_deps = workspace.dependencies.borrow();
-    let mut workspace_names: Vec<&str> =
-        workspace_deps.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut workspace_names: Vec<&str> = workspace_deps
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     workspace_names.sort_unstable();
     assert_eq!(
         workspace_names,
@@ -559,10 +650,17 @@ fn nested_hoist_uses_the_nested_root_locator() {
         "the root border no longer applies inside the workspace, while its own b border does",
     );
     let dep_b = Rc::clone(
-        &workspace_deps.iter().find(|dep| dep.0.name == "b").expect("b hoists within workspace").0,
+        &workspace_deps
+            .iter()
+            .find(|dep| dep.0.name == "b")
+            .expect("b hoists within workspace")
+            .0,
     );
     let b_deps = dep_b.dependencies.borrow();
-    let b_names: Vec<&str> = b_deps.iter().map(|dep| dep.0.name.as_str()).collect();
+    let b_names: Vec<&str> = b_deps
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     assert_eq!(b_names, ["c"], "the workspace's b border keeps c below b");
 }
 
@@ -625,14 +723,22 @@ fn nested_hoist_keeps_conflicting_dep_reachable_from_every_parent_of_a_shared_no
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["b", "c1", "c2", "d"], "root keeps its direct b@1 and d@1");
 
     let mut b_under_parents: Vec<Rc<HoisterResult>> = Vec::new();
     for parent_name in ["c1", "c2"] {
-        let parent =
-            Rc::clone(&root_children.iter().find(|dep| dep.0.name == parent_name).unwrap().0);
+        let parent = Rc::clone(
+            &root_children
+                .iter()
+                .find(|dep| dep.0.name == parent_name)
+                .unwrap()
+                .0,
+        );
         let parent_kids = parent.dependencies.borrow();
         let nested_b = Rc::clone(
             &parent_kids
@@ -645,8 +751,7 @@ fn nested_hoist_keeps_conflicting_dep_reachable_from_every_parent_of_a_shared_no
 
         // `d@2` must resolve from this parent's copy of `b@2`: either
         // nested under `b@2` itself or as a sibling inside the parent.
-        let d_under_b = nested_b
-            .dependencies
+        let d_under_b = nested_b.dependencies
             .borrow()
             .iter()
             .any(|dep| dep.0.name == "d" && dep.0.references.borrow().contains("d@2.0.0"));
@@ -706,17 +811,28 @@ fn peer_suffix_variants_collapse_to_one_hoisted_copy() {
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("variant hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["c1", "c2", "x"], "one hoisted x, no nested variant copies");
     for parent in ["c1", "c2"] {
-        let parent = &root_children.iter().find(|dep| dep.0.name == parent).unwrap().0;
+        let parent = &root_children
+            .iter()
+            .find(|dep| dep.0.name == parent)
+            .unwrap()
+            .0;
         assert!(
             parent.dependencies.borrow().is_empty(),
             "the variant edge dedups against the root copy: {parent:#?}",
         );
     }
-    let hoisted_x = &root_children.iter().find(|dep| dep.0.name == "x").unwrap().0;
+    let hoisted_x = &root_children
+        .iter()
+        .find(|dep| dep.0.name == "x")
+        .unwrap()
+        .0;
     assert!(
         hoisted_x.references.borrow().contains("x@1.0.0(p@1.0.0)"),
         "the first-seen variant is the canonical reference: {hoisted_x:#?}",

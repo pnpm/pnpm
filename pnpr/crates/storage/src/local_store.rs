@@ -247,11 +247,14 @@ impl Store {
         entry: &fs::DirEntry,
         name: &str,
     ) -> Result<IndexEntry> {
-        let component = entry.file_name().to_string_lossy().into_owned();
+        let component = entry
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
         if component == ".present" {
             // A marker whose document is gone is a stale index entry.
-            let present = !name.is_empty()
-                && fs::try_exists(self.root.join(name).join(DOCUMENT_FILE)).await?;
+            let present =
+                !name.is_empty() && fs::try_exists(self.root.join(name).join(DOCUMENT_FILE)).await?;
             return Ok(if present { IndexEntry::Package } else { IndexEntry::Ignored });
         }
         if component.starts_with('.') || !entry.file_type().await?.is_dir() {
@@ -299,7 +302,10 @@ impl Store {
     }
 
     pub(super) fn revision_blob_path(&self, digest: &str) -> PathBuf {
-        self.root.join(".revisions").join("sha512").join(digest)
+        self.root
+            .join(".revisions")
+            .join("sha512")
+            .join(digest)
     }
 
     /// A record's path. The key's `/` separators become path components, so a
@@ -428,40 +434,6 @@ pub(super) async fn classify_hosted_entry(
         return HostedEntry::Child(path, name);
     }
     HostedEntry::Ignored
-}
-
-/// The next file below `root`, walking the directory stack depth-first.
-pub(super) async fn next_blob_file(
-    root: &Path,
-    directories: &mut Vec<fs::ReadDir>,
-) -> Result<Option<HostedBlobFile>> {
-    while let Some(entries) = directories.last_mut() {
-        let Some(entry) = entries.next_entry().await? else {
-            directories.pop();
-            continue;
-        };
-        if entry.file_name().to_string_lossy().starts_with('.') {
-            continue;
-        }
-        let kind = entry.file_type().await?;
-        if kind.is_dir() {
-            directories.push(fs::read_dir(entry.path()).await?);
-        } else if kind.is_file() {
-            return blob_file(root, &entry).await.map(Some);
-        }
-    }
-    Ok(None)
-}
-
-pub(super) async fn blob_file(root: &Path, entry: &fs::DirEntry) -> Result<HostedBlobFile> {
-    let metadata = entry.metadata().await?;
-    let path = entry
-        .path()
-        .strip_prefix(root)
-        .expect("entry is below the store root")
-        .to_string_lossy()
-        .replace('\\', "/");
-    Ok(HostedBlobFile { path, modified: metadata.modified()?, size: metadata.len() })
 }
 
 /// A record key from the walk's directory prefix and one entry name.

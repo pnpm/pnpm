@@ -29,7 +29,7 @@ use super::{
 ///    key on `ctx.applied_patches` so the post-walk
 ///    `ERR_PNPM_UNUSED_PATCH` check sees the hit.
 ///
-/// Packages whose resolver didn't supply [`pnpm_resolving_resolver_base::ResolveResult::name_ver`]
+/// Packages whose resolver didn't supply [`pnpm_resolving_resolver_base::ResolvedPackageInfo::name_ver`]
 /// use the manifest's `name` and, for non-directory resolutions, its
 /// `version`. Local directories remain linked rather than patched, matching
 /// the TypeScript CLI and the lockfile format, which omits their manifest
@@ -50,22 +50,19 @@ pub(super) async fn build_pkg_id_with_patch_hash(
     // the prefix would leave `(` as the first paren-bearing character in
     // the downstream depPath, which `PkgNameVerPeer`'s `@`-split parser
     // can't recover from (it finds the `@` inside the peer suffix first).
-    let manifest_name = result
-        .manifest
-        .as_ref()
+    let manifest = result.package.manifest.as_deref();
+    let manifest_name = manifest
         .and_then(|manifest| manifest.get("name"))
         .and_then(serde_json::Value::as_str);
     let manifest_version =
         (!matches!(result.resolution, pnpm_lockfile::LockfileResolution::Directory(_)))
             .then(|| {
-                result
-                    .manifest
-                    .as_ref()
+                manifest
                     .and_then(|manifest| manifest.get("version"))
                     .and_then(serde_json::Value::as_str)
             })
             .flatten();
-    let (name, version) = match (result.name_ver.as_ref(), manifest_name) {
+    let (name, version) = match (result.package.name_ver.as_ref(), manifest_name) {
         (Some(name_ver), _) => (name_ver.name.to_string(), name_ver.suffix.to_string()),
         (None, Some(name)) => (name.to_string(), manifest_version.unwrap_or_default().to_string()),
         (None, None) => return Ok(raw_id.to_string()),
@@ -87,15 +84,14 @@ pub(super) async fn build_pkg_id_with_patch_hash(
     let Some(patch) = get_patch_info(Some(groups), &name, &version)? else {
         return Ok(prefixed);
     };
-    lock_recoverable(&ctx.workspace.applied_patches).insert(patch.key.clone());
+    lock_recoverable(&ctx.workspace.policy.applied_patches).insert(patch.key.clone());
     Ok(format!("{prefixed}(patch_hash={})", patch.hash))
 }
 
 /// A `link:` id re-anchored on the lockfile directory, so the same external
 /// target renders the same way from every importer.
 fn link_pkg_id(ctx: &TreeCtx, target: &str) -> String {
-    let relative_target = ctx
-        .link_anchor
+    let relative_target = ctx.importer.link_anchor
         .target_relative_to_lockfile_root(target)
         .unwrap_or_else(|| lockfile_relative_target(ctx, target));
     let relative_target = if relative_target.is_empty() { "." } else { &relative_target };
@@ -109,9 +105,9 @@ fn lockfile_relative_target(ctx: &TreeCtx, target: &str) -> String {
     let absolute_target = if target.is_absolute() {
         pnpm_fs::lexical_normalize(target)
     } else {
-        pnpm_fs::lexical_normalize(&ctx.base_opts.project_dir.join(target))
+        pnpm_fs::lexical_normalize(&ctx.options.base.project.project_dir.join(target))
     };
-    pathdiff::diff_paths(&absolute_target, &ctx.lockfile_dir)
+    pathdiff::diff_paths(&absolute_target, &ctx.importer.lockfile_dir)
         .unwrap_or(absolute_target)
         .display()
         .to_string()
@@ -148,7 +144,7 @@ fn lockfile_relative_target(ctx: &TreeCtx, target: &str) -> String {
 pub(super) fn extract_children(
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
-    let Some(manifest) = result.manifest.as_ref() else { return Ok(Vec::new()) };
+    let Some(manifest) = result.package.manifest.as_ref() else { return Ok(Vec::new()) };
     let parent = render_parent(result);
     let bundled = bundled_dependency_names(manifest);
     let mut out = Vec::new();
@@ -156,8 +152,11 @@ pub(super) fn extract_children(
     let mut optional = Vec::new();
     collect_deps(manifest, "optionalDependencies", true, &parent, &bundled, &mut optional)?;
     if !optional.is_empty() {
-        let dependency_positions: HashMap<String, usize> =
-            out.iter().enumerate().map(|(index, (name, ..))| (name.clone(), index)).collect();
+        let dependency_positions: HashMap<String, usize> = out
+            .iter()
+            .enumerate()
+            .map(|(index, (name, ..))| (name.clone(), index))
+            .collect();
         for spec in optional {
             match dependency_positions.get(&spec.0) {
                 Some(&index) => out[index].2 = true,
@@ -178,14 +177,21 @@ pub(super) fn extract_children(
 fn bundled_dependency_names(manifest: &Value) -> HashSet<&str> {
     let bundled = ["bundledDependencies", "bundleDependencies"]
         .into_iter()
-        .find_map(|key| manifest.get(key).filter(|value| !value.is_null()));
+        .find_map(|key| {
+            manifest
+                .get(key)
+                .filter(|value| !value.is_null())
+        });
     match bundled {
         Some(Value::Bool(true)) => manifest
             .get("dependencies")
             .and_then(Value::as_object)
             .map(|map| map.keys().map(String::as_str).collect())
             .unwrap_or_default(),
-        Some(Value::Array(names)) => names.iter().filter_map(Value::as_str).collect(),
+        Some(Value::Array(names)) => names
+            .iter()
+            .filter_map(Value::as_str)
+            .collect(),
         _ => HashSet::default(),
     }
 }
@@ -225,7 +231,7 @@ fn collect_deps(
 }
 
 fn render_parent(result: &pnpm_resolving_resolver_base::ResolveResult) -> String {
-    if let Some(name_ver) = result.name_ver.as_ref() {
+    if let Some(name_ver) = result.package.name_ver.as_ref() {
         format!(r#"Package "{}@{}""#, name_ver.name, name_ver.suffix)
     } else {
         format!(r#"Package "{}""#, result.id)
@@ -251,11 +257,15 @@ pub(super) fn extract_peer_dependencies(
     peer_shadowed: &HashSet<String>,
     catalogs: Option<&Catalogs>,
 ) -> Result<BTreeMap<String, PeerDep>, ResolveDependencyTreeError> {
-    let Some(manifest) = result.manifest.as_ref() else { return Ok(BTreeMap::new()) };
+    let Some(manifest) = result.package.manifest.as_ref() else { return Ok(BTreeMap::new()) };
     let mut peers: BTreeMap<String, PeerDep> = BTreeMap::new();
 
     let dep_names = |key| {
-        manifest.get(key).and_then(Value::as_object).into_iter().flat_map(|map| map.keys().cloned())
+        manifest
+            .get(key)
+            .and_then(Value::as_object)
+            .into_iter()
+            .flat_map(|map| map.keys().cloned())
     };
     // Only `dependencies` are shadowed, so an entry that is *also* an
     // optional dependency still supplies the name itself.
@@ -326,7 +336,7 @@ fn insert_optional_meta_peers(
 /// there is none of. Resolutions reaching here always carry one, real
 /// or synthesized by `walk::fallback_manifest`.
 pub(super) fn pkg_is_leaf(result: &pnpm_resolving_resolver_base::ResolveResult) -> bool {
-    let Some(manifest) = result.manifest.as_ref() else { return false };
+    let Some(manifest) = result.package.manifest.as_ref() else { return false };
     is_empty_or_absent(manifest.get("dependencies"))
         && is_empty_or_absent(manifest.get("optionalDependencies"))
         && is_empty_or_absent(manifest.get("peerDependencies"))
@@ -345,7 +355,8 @@ pub(super) fn emit_deprecation_if_needed(
     id: &str,
     depth: i32,
 ) {
-    let Some(deprecated) = extract_deprecated_from_manifest(result.manifest.as_deref()) else {
+    let Some(deprecated) = extract_deprecated_from_manifest(result.package.manifest.as_deref())
+    else {
         return;
     };
     if deprecated.is_empty() {
@@ -354,17 +365,21 @@ pub(super) fn emit_deprecation_if_needed(
     let Some((pkg_name, pkg_version)) = deprecated_pkg_name_ver(result) else {
         return;
     };
-    if is_deprecation_allowed(&pkg_name, &pkg_version, &ctx.workspace.allowed_deprecated_versions) {
+    if is_deprecation_allowed(
+        &pkg_name,
+        &pkg_version,
+        &ctx.workspace.policy.allowed_deprecated_versions,
+    ) {
         return;
     }
-    let Some(log) = ctx.workspace.deprecation_log.as_ref() else {
+    let Some(log) = ctx.workspace.hooks.deprecation_log.as_ref() else {
         return;
     };
     log(Deprecation {
         pkg_name,
         pkg_version,
         pkg_id: id.to_string(),
-        prefix: ctx.base_opts.project_dir.display().to_string(),
+        prefix: ctx.options.base.project.project_dir.display().to_string(),
         deprecated,
         depth,
     });
@@ -373,23 +388,26 @@ pub(super) fn emit_deprecation_if_needed(
 /// A missing manifest, an absent `deprecated` field, and a non-string
 /// one all count as not deprecated.
 fn extract_deprecated_from_manifest(manifest: Option<&Value>) -> Option<String> {
-    manifest?.get("deprecated")?.as_str().map(str::to_string)
+    manifest?
+        .get("deprecated")?
+        .as_str()
+        .map(str::to_string)
 }
 
 /// The name/version a `pnpm:deprecation` payload reports:
-/// [`ResolveResult::name_ver`] when the resolver filled it, otherwise
+/// [`pnpm_resolving_resolver_base::ResolvedPackageInfo::name_ver`] when the resolver filled it, otherwise
 /// the manifest's `name`/`version` — the canonical source for non-npm
 /// resolutions (see the `name_ver` field doc). `None`, suppressing the
 /// warning, when neither carries both fields.
 ///
-/// [`ResolveResult::name_ver`]: pnpm_resolving_resolver_base::ResolveResult::name_ver
+/// [`pnpm_resolving_resolver_base::ResolvedPackageInfo::name_ver`]: pnpm_resolving_resolver_base::ResolvedPackageInfo::name_ver
 fn deprecated_pkg_name_ver(
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Option<(String, String)> {
-    if let Some(nv) = result.name_ver.as_ref() {
+    if let Some(nv) = result.package.name_ver.as_ref() {
         return Some((nv.name.to_string(), nv.suffix.to_string()));
     }
-    let manifest = result.manifest.as_deref()?;
+    let manifest = result.package.manifest.as_deref()?;
     let name = manifest.get("name")?.as_str()?;
     let version = manifest.get("version")?.as_str()?;
     Some((name.to_string(), version.to_string()))

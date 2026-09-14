@@ -106,7 +106,8 @@ impl FsAtomicWrite for Host {
                 .ok()
                 .filter(std::fs::Metadata::is_file)
                 .map_or(0o644, |metadata| metadata.permissions().mode() & 0o777);
-            tmp.as_file().set_permissions(std::fs::Permissions::from_mode(mode))?;
+            tmp.as_file()
+                .set_permissions(std::fs::Permissions::from_mode(mode))?;
         }
         tmp.as_file().sync_all()?;
         tmp.persist(dest).map_err(|error| error.error)?;

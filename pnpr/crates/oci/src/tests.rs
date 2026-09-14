@@ -46,7 +46,13 @@ fn resolves_a_reference_as_tag_or_digest() {
     document.set_tag(tag("latest", "one", 1));
 
     assert_eq!(document.resolve("latest").unwrap().digest, digest_of("one"));
-    assert_eq!(document.resolve(&digest_of("one").to_string()).unwrap().digest, digest_of("one"));
+    assert_eq!(
+        document
+            .resolve(&digest_of("one").to_string())
+            .unwrap()
+            .digest,
+        digest_of("one"),
+    );
     assert!(document.resolve("missing").is_none());
 }
 
@@ -80,7 +86,11 @@ fn removing_a_tag_keeps_the_manifest() {
     document.set_tag(tag("latest", "one", 1));
 
     assert!(document.remove_tag("latest"));
-    assert!(document.manifest(&digest_of("one")).is_some());
+    assert!(
+        document
+            .manifest(&digest_of("one"))
+            .is_some(),
+    );
     assert!(!document.remove_tag("latest"));
 }
 
@@ -275,8 +285,16 @@ fn a_document_stored_out_of_order_still_finds_its_entries() {
     let stored = stored_out_of_order();
     let document = ImageDocument::parse(&serde_json::to_vec(&stored).unwrap()).unwrap();
 
-    assert!(document.manifest(&digest_of("one")).is_some());
-    assert!(document.manifest(&digest_of("two")).is_some());
+    assert!(
+        document
+            .manifest(&digest_of("one"))
+            .is_some(),
+    );
+    assert!(
+        document
+            .manifest(&digest_of("two"))
+            .is_some(),
+    );
     assert_eq!(document.resolve("alpha").unwrap().digest, digest_of("two"));
     assert_eq!(document.resolve("zeta").unwrap().digest, digest_of("one"));
     assert_eq!(document.tag_names(), ["alpha", "zeta"]);
@@ -286,7 +304,11 @@ fn a_document_stored_out_of_order_still_finds_its_entries() {
 fn deserializing_directly_sorts_as_parsing_does() {
     let document: ImageDocument = serde_json::from_value(stored_out_of_order()).unwrap();
 
-    assert!(document.manifest(&digest_of("one")).is_some());
+    assert!(
+        document
+            .manifest(&digest_of("one"))
+            .is_some(),
+    );
     assert_eq!(document.tag_names(), ["alpha", "zeta"]);
 }
 
@@ -311,7 +333,13 @@ fn an_image_referrer_requires_an_artifact_type_or_config_media_type() {
             manifest["artifactType"] = "application/example.signature".into();
             let parsed = Manifest::parse(&serde_json::to_vec(&manifest).unwrap(), None).unwrap();
             assert_eq!(parsed.artifact_type(), Some("application/example.signature"));
-            assert!(manifest.as_object_mut().unwrap().remove("artifactType").is_some());
+            assert!(
+                manifest
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("artifactType")
+                    .is_some(),
+            );
             manifest["config"]["mediaType"] = "application/example.config".into();
             let parsed = Manifest::parse(&serde_json::to_vec(&manifest).unwrap(), None).unwrap();
             assert_eq!(parsed.artifact_type(), Some("application/example.config"));

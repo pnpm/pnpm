@@ -53,10 +53,11 @@ pub(super) fn sort_outdated(outdated: &mut [OutdatedPackage], sort_by: Option<So
 
 pub(super) fn sort_workspace_outdated(outdated: &mut [OutdatedInWorkspace]) {
     outdated.sort_by(|left, right| {
-        compare_outdated(&left.package, &right.package, None).then_with(|| {
-            dependency_group_priority(left.package.belongs_to)
-                .cmp(&dependency_group_priority(right.package.belongs_to))
-        })
+        compare_outdated(&left.package, &right.package, None)
+            .then_with(|| {
+                dependency_group_priority(left.package.belongs_to)
+                    .cmp(&dependency_group_priority(right.package.belongs_to))
+            })
     });
 }
 
@@ -81,7 +82,11 @@ fn compare_outdated(
         .cmp(&change_priority(classify(&right.current, &right.target)));
     by_change
         .then_with(|| left.package_name.cmp(&right.package_name))
-        .then_with(|| left.current.to_string().cmp(&right.current.to_string()))
+        .then_with(|| {
+            left.current
+                .to_string()
+                .cmp(&right.current.to_string())
+        })
 }
 
 pub(super) fn render_table(outdated: &[OutdatedPackage], long: bool) -> String {
@@ -91,8 +96,10 @@ pub(super) fn render_table(outdated: &[OutdatedPackage], long: bool) -> String {
     use tabled::builder::Builder;
     use tabled::settings::Style;
 
-    let mut header: Vec<String> =
-        ["Package", "Current", "Latest"].iter().map(|h| bright_blue(h)).collect();
+    let mut header: Vec<String> = ["Package", "Current", "Latest"]
+        .iter()
+        .map(|h| bright_blue(h))
+        .collect();
     if long {
         header.push(bright_blue("Details"));
     }
@@ -144,15 +151,15 @@ pub(super) fn render_json(outdated: &[OutdatedPackage], long: bool) -> String {
             "current": pkg.current.to_string(),
             "latest": pkg.target.to_string(),
             "wanted": pkg.wanted.to_string(),
-            "isDeprecated": pkg.deprecated.is_some(),
+            "isDeprecated": pkg.metadata.deprecated.is_some(),
             "dependencyType": dependency_type,
         });
         if long {
             entry["latestManifest"] = serde_json::json!({
                 "name": pkg.package_name,
                 "version": pkg.target.to_string(),
-                "deprecated": pkg.deprecated,
-                "homepage": pkg.homepage,
+                "deprecated": pkg.metadata.deprecated,
+                "homepage": pkg.metadata.homepage,
             });
         }
         map.insert(pkg.package_name.clone(), entry);
@@ -244,7 +251,7 @@ pub(super) fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool
             "current": package.current.to_string(),
             "latest": package.target.to_string(),
             "wanted": package.current.to_string(),
-            "isDeprecated": package.deprecated.is_some(),
+            "isDeprecated": package.metadata.deprecated.is_some(),
             "dependencyType": dependency_type,
             "dependentPackages": entry.dependents.iter().map(|dependent| serde_json::json!({
                 "name": dependent.name,
@@ -255,8 +262,8 @@ pub(super) fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool
             value["latestManifest"] = serde_json::json!({
                 "name": package.package_name,
                 "version": package.target.to_string(),
-                "deprecated": package.deprecated,
-                "homepage": package.homepage,
+                "deprecated": package.metadata.deprecated,
+                "homepage": package.metadata.homepage,
             });
         }
         map.insert(package.package_name.clone(), value);
@@ -266,8 +273,7 @@ pub(super) fn render_recursive_json(outdated: &[OutdatedInWorkspace], long: bool
 }
 
 pub(super) fn render_dependents(entry: &OutdatedInWorkspace) -> String {
-    let mut names: Vec<String> = entry
-        .dependents
+    let mut names: Vec<String> = entry.dependents
         .iter()
         .map(|dependent| sanitize_inline(&dependent.name).into_owned())
         .collect();
@@ -300,14 +306,18 @@ pub(crate) fn colorize_target(pkg: &OutdatedPackage) -> String {
 pub(super) fn render_latest(pkg: &OutdatedPackage) -> String {
     let change = classify(&pkg.current, &pkg.target);
     if change == Change::None {
-        return if pkg.deprecated.is_some() {
+        return if pkg.metadata.deprecated.is_some() {
             red_bold("Deprecated")
         } else {
             pkg.target.to_string()
         };
     }
     let colored = colorize_version(&pkg.target, change);
-    if pkg.deprecated.is_some() { format!("{colored} {}", red("(deprecated)")) } else { colored }
+    if pkg.metadata.deprecated.is_some() {
+        format!("{colored} {}", red("(deprecated)"))
+    } else {
+        colored
+    }
 }
 
 /// Highlight the version segment that changed: the whole string for a
@@ -318,9 +328,14 @@ fn colorize_version(version: &Version, change: Change) -> String {
     let split = match change {
         Change::Breaking => 0,
         Change::Feature => text.find('.').map_or(0, |i| i + 1),
-        Change::Fix => {
-            text.find('.').and_then(|i| text[i + 1..].find('.').map(|j| i + 1 + j + 1)).unwrap_or(0)
-        }
+        Change::Fix => text
+            .find('.')
+            .and_then(|i| {
+                text[i + 1..]
+                    .find('.')
+                    .map(|j| i + 1 + j + 1)
+            })
+            .unwrap_or(0),
         // Nothing is highlighted for an `unknown` (or no) change, so the
         // version renders plain.
         Change::None | Change::Unknown => return text,
@@ -337,12 +352,12 @@ fn colorize_version(version: &Version, change: Change) -> String {
 
 fn render_details(pkg: &OutdatedPackage) -> String {
     let mut outputs = Vec::new();
-    if let Some(reason) = &pkg.deprecated
+    if let Some(reason) = &pkg.metadata.deprecated
         && !reason.is_empty()
     {
         outputs.push(red(reason));
     }
-    if let Some(homepage) = &pkg.homepage {
+    if let Some(homepage) = &pkg.metadata.homepage {
         outputs.push(underline(homepage));
     }
     outputs.join("\n")
@@ -361,7 +376,8 @@ pub(super) fn red(text: &str) -> String {
 
 fn red_bold(text: &str) -> String {
     let style = owo_colors::Style::new().red().bold();
-    text.if_supports_color(Stream::Stdout, |t| t.style(style)).to_string()
+    text.if_supports_color(Stream::Stdout, |t| t.style(style))
+        .to_string()
 }
 
 pub(super) fn green(text: &str) -> String {

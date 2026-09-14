@@ -70,14 +70,14 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
             seen: Mutex::new(HashMap::default()),
         };
         let mut opts = workspace_opts(false, false);
-        opts.wanted_lockfile = Some(std::sync::Arc::new(importer_scoped_update_lockfile(
+        opts.reuse.lockfile = Some(std::sync::Arc::new(importer_scoped_update_lockfile(
             &["selected", "unselected"],
             "parent",
             "^1.0.0",
             "1.0.0",
             Some(("pkg", "100.0.0")),
         )));
-        opts.update_reuse_scopes_by_importer = BTreeMap::from([(
+        opts.reuse.scopes_by_importer = BTreeMap::from([(
             "selected".to_string(),
             crate::UpdateReuseScope::Except(std::iter::once(("pkg".to_string(), None)).collect()),
         )]);
@@ -155,9 +155,10 @@ async fn deprecation_attribution_does_not_depend_on_importer_listing_order() {
         let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
         let sink = std::sync::Arc::clone(&notifications);
         let mut opts = workspace_opts(false, false);
-        opts.deprecation_log = Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
-            sink.lock().unwrap().push(deprecation);
-        }));
+        opts.hooks.deprecation_log =
+            Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
+                sink.lock().unwrap().push(deprecation);
+            }));
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
         })

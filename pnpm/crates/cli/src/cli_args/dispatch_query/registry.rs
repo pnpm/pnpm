@@ -10,7 +10,7 @@ use super::{
 // pipeline. It needs an async future for the request but no reporter-typed
 // fan-out, so it dispatches off `config()` like the other read-only commands.
 pub(in super::super) fn whoami<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         let username = super::super::whoami::whoami(cfg).await?;
         println!("{}", super::super::sanitize::sanitize(&username));
@@ -22,7 +22,7 @@ pub(in super::super) fn star<'a>(
     ctx: &RunCtx<'a>,
     args: StarArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move { args.run(cfg).await }))
 }
 
@@ -30,7 +30,7 @@ pub(in super::super) fn unstar<'a>(
     ctx: &RunCtx<'a>,
     args: UnstarArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move { args.run(cfg).await }))
 }
 
@@ -38,7 +38,7 @@ pub(in super::super) fn stars<'a>(
     ctx: &RunCtx<'a>,
     args: StarsArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         if let Some(output) = args.run(cfg).await?
             && !output.is_empty()
@@ -53,7 +53,7 @@ pub(in super::super) fn access<'a>(
     ctx: &RunCtx<'a>,
     args: AccessArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         if let Some(output) = args.run(cfg).await? {
             let output = super::super::sanitize::sanitize(&output);
@@ -70,7 +70,7 @@ pub(in super::super) fn dist_tag<'a>(
     ctx: &RunCtx<'a>,
     args: DistTagArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         if let Some(output) = args.run(cfg).await? {
             let output = super::super::sanitize::sanitize(&output);
@@ -87,7 +87,7 @@ pub(in super::super) fn deprecate<'a>(
     ctx: &RunCtx<'a>,
     args: DeprecateArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         if let Some(output) = args.run(cfg).await? {
             let output = super::super::sanitize::sanitize(&output);
@@ -104,7 +104,7 @@ pub(in super::super) fn undeprecate<'a>(
     ctx: &RunCtx<'a>,
     args: UndeprecateArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         if let Some(output) = args.run(cfg).await? {
             let output = super::super::sanitize::sanitize(&output);
@@ -121,7 +121,7 @@ pub(in super::super) fn unpublish<'a>(
     ctx: &RunCtx<'a>,
     args: UnpublishArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     async fn print_output<Reporter: pnpm_reporter::Reporter>(
         args: UnpublishArgs,
         cfg: &Config,
@@ -147,7 +147,7 @@ pub(in super::super) fn team<'a>(
     ctx: &RunCtx<'a>,
     args: TeamArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         if let Some(output) = args.run(cfg).await? {
             let output = super::super::sanitize::sanitize(&output);
@@ -164,7 +164,7 @@ pub(in super::super) fn owner<'a>(
     ctx: &RunCtx<'a>,
     args: OwnerArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         if let Some(output) = args.run(cfg).await? {
             let output = super::super::sanitize::sanitize(&output);
@@ -185,7 +185,7 @@ pub(in super::super) fn ping<'a>(
     ctx: &RunCtx<'a>,
     args: PingArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         let report = args.run(cfg).await?;
         println!("{report}");
@@ -195,15 +195,15 @@ pub(in super::super) fn ping<'a>(
 
 // `view` is a read-only registry query: it resolves the package metadata
 // (and, when the package name is omitted, the nearest manifest's name from
-// `ctx.dir`), then prints the requested fields, a JSON dump, or the formatted
+// `ctx.locations.dir`), then prints the requested fields, a JSON dump, or the formatted
 // summary its handler returns. No lockfile or install pipeline, so it
 // dispatches off `config()` like the other read-only registry commands.
 pub(in super::super) fn view<'a>(
     ctx: &RunCtx<'a>,
     args: ViewArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
-    let dir = ctx.dir;
+    let cfg: &Config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
     Ok(Box::pin(async move {
         let output = args.run(cfg, dir).await?;
         // A single-field selection of an absent field renders as an empty
@@ -227,7 +227,7 @@ pub(in super::super) fn login<'a>(
     ctx: &RunCtx<'a>,
     args: LoginArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let config: &Config = (ctx.config)()?;
+    let config: &Config = (ctx.loaders.config)()?;
     macro_rules! run_login {
         ($reporter:ty) => {
             Box::pin(async move { args.run::<$reporter>(config).await })
@@ -249,8 +249,8 @@ pub(in super::super) fn logout<'a>(
     ctx: &RunCtx<'a>,
     args: LogoutArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let config: &Config = (ctx.config)()?;
-    let prefix = ctx.dir.to_string_lossy().into_owned();
+    let config: &Config = (ctx.loaders.config)()?;
+    let prefix = ctx.locations.dir.to_string_lossy().into_owned();
     macro_rules! run_logout {
         ($reporter:ty) => {
             Box::pin(async move { args.run::<$reporter>(config, &prefix).await })
@@ -267,7 +267,7 @@ pub(in super::super) fn search<'a>(
     ctx: &RunCtx<'a>,
     args: SearchArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         let output = args.run(cfg).await?;
         if !output.is_empty() {

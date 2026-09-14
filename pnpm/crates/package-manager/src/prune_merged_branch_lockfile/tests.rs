@@ -165,7 +165,13 @@ snapshots:
     )
     .expect("the root importer lost a dependency");
     assert!(pruned.importers["packages/other"].dependencies.is_some());
-    assert_eq!(pruned.packages.as_ref().expect("packages").len(), 2);
+    assert_eq!(
+        pruned.packages
+            .as_ref()
+            .expect("packages")
+            .len(),
+        2,
+    );
 }
 
 /// Severing the last non-optional path to a package makes it optional,

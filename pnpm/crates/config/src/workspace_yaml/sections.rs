@@ -38,7 +38,10 @@ impl AllowBuild {
 /// policy, dropping the ones still awaiting a decision.
 #[must_use]
 pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMap<String, bool> {
-    allow_builds.into_iter().filter_map(|(pkg, value)| Some((pkg, value.decided()?))).collect()
+    allow_builds
+        .into_iter()
+        .filter_map(|(pkg, value)| Some((pkg, value.decided()?)))
+        .collect()
 }
 
 /// Organization-owned dependency build artifacts eligible for this workspace.
@@ -55,6 +58,13 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 /// global config yaml and the environment.
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror a pnpm-workspace.yaml configuration section."
+    )
+)]
 pub struct RemoteSideEffectsCacheSettings {
     /// `org` is what pnpr calls this namespace in its own configuration and
     /// what its endpoints are built from.
@@ -250,6 +260,13 @@ pub struct UpdateSettings {
 /// project.
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase", default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror a pnpm-workspace.yaml configuration section."
+    )
+)]
 pub struct TaskSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub concurrency: Option<i64>,

@@ -51,31 +51,38 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
     let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     let cas_paths = super::super::InstallPackageBySnapshot {
+        fetching: crate::SnapshotFetchContext {
+            http_client: &pnpm_network::ThrottledClient::default(),
+            store_index: None,
+            store_index_writer: None,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: Some(&mem_cache),
+            progress_reported: None,
+            verified_files_cache: &verified_files_cache,
+            custom_fetcher_session: None,
+        },
         ctx: &crate::InstallContext {
+            linker: crate::ModuleLinkerContext {
+                layout: &layout,
+                kind: pnpm_config::NodeLinker::Hoisted,
+                bin_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            },
             config,
             workspace_root: store_tmp.path(),
             requester: "/project",
-            layout: &layout,
-            node_linker: pnpm_config::NodeLinker::Hoisted,
+
             allow_build_policy: &allow_build_policy,
-            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
         },
-        http_client: &pnpm_network::ThrottledClient::default(),
-        store_index: None,
-        store_index_writer: None,
-        prefetched_cas_paths: None,
-        progress_reported: None,
-        tarball_mem_cache: Some(&mem_cache),
-        verified_files_cache: &verified_files_cache,
+
         skipped: &skipped,
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
         // Hoisted skips slot materialization, so the test exercises
         // only the download-coordination branch and gets the CAS map
         // back directly.
-        custom_fetcher_session: None,
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -130,28 +137,36 @@ async fn without_mem_cache_skips_coordination_and_downloads() {
     let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     let err = super::super::InstallPackageBySnapshot {
+        fetching: crate::SnapshotFetchContext {
+            http_client: &pnpm_network::ThrottledClient::default(),
+            store_index: None,
+            store_index_writer: None,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: None,
+            progress_reported: None,
+            verified_files_cache: &verified_files_cache,
+            custom_fetcher_session: None,
+        },
         ctx: &crate::InstallContext {
+            linker: crate::ModuleLinkerContext {
+                layout: &layout,
+                kind: pnpm_config::NodeLinker::Hoisted,
+                bin_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            },
             config,
             workspace_root: store_tmp.path(),
             requester: "/project",
-            layout: &layout,
-            node_linker: pnpm_config::NodeLinker::Hoisted,
+
             allow_build_policy: &allow_build_policy,
-            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
         },
-        http_client: &pnpm_network::ThrottledClient::default(),
-        store_index: None,
-        store_index_writer: None,
-        prefetched_cas_paths: None,
-        progress_reported: None,
-        tarball_mem_cache: None,
-        verified_files_cache: &verified_files_cache,
+
         skipped: &skipped,
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
-        custom_fetcher_session: None,
+
         defer_link: false,
         link_concurrency_probe: None,
     }

@@ -44,12 +44,12 @@ async fn auto_install_dedupes_via_range_intersection_when_identical() {
         .await
         .unwrap();
 
-    let direct: Vec<&str> =
-        result.peers_result.direct_dependencies_by_alias.keys().map(String::as_str).collect();
+    let direct: Vec<&str> = result.peers_result.direct_dependencies_by_alias
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert!(direct.contains(&"peer-c"), "single intersected peer-c should be hoisted: {direct:?}");
-    let peer_c_entries: Vec<&DepPath> = result
-        .peers_result
-        .graph
+    let peer_c_entries: Vec<&DepPath> = result.peers_result.graph
         .keys()
         .filter(|dp| dp.to_string().starts_with("peer-c@"))
         .collect();

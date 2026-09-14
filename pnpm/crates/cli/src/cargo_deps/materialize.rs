@@ -43,33 +43,32 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
     let (registry_config, auth_headers) =
         registry_download_config(config, &options.http_client).await?;
     let verified_files_cache = SharedVerifiedFilesCache::default();
-    let concurrency = config.network_concurrency.clamp(1, 16);
 
+    let fetching = CrateDownload::new(&options, registry_config.dl, auth_headers);
+    let store = CrateStore {
+        dir: store_dir,
+        index: store_index,
+        index_writer: Arc::clone(&store_index_writer),
+        verified_files_cache,
+        logged_methods: options.logged_methods,
+        import_method: config.package_import_method,
+        verify_integrity: config.verify_store_integrity,
+        strict_pkg_content_check: config.strict_store_pkg_content_check,
+    };
     let slots = stream::iter(options.packages)
         .map(|package| {
             materialize::<Reporter>(MaterializeOptions {
                 package,
-                store_dir,
-                store_index: store_index.as_ref().map(Arc::clone),
-                store_index_writer: Arc::clone(&store_index_writer),
-                http_client: Arc::clone(&options.http_client),
-                auth_headers: Arc::clone(&auth_headers),
-                download_template: registry_config.dl.clone(),
-                verified_files_cache: Arc::clone(&verified_files_cache),
-                logged_methods: Arc::clone(&options.logged_methods),
-                package_import_method: config.package_import_method,
-                retry_opts: config.retry_opts(),
-                verify_store_integrity: config.verify_store_integrity,
-                strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-                offline: config.offline,
-                requester: options.requester.clone(),
+                fetching: fetching.clone(),
+                store: store.clone(),
             })
         })
-        .buffer_unordered(concurrency)
+        .buffer_unordered(config.network_concurrency.clamp(1, 16))
         .collect::<Vec<_>>()
         .await
         .into_iter()
         .collect::<Result<Vec<_>>>();
+    drop(store);
     drop(store_index_writer);
     StoreIndexWriter::drain(writer_task, "; some Cargo rows may not be persisted").await;
     slots
@@ -77,41 +76,51 @@ pub(super) async fn download_crates<Reporter: self::Reporter + 'static>(
 
 pub(super) struct MaterializeOptions {
     pub(super) package: LockedCrate,
-    pub(super) store_dir: &'static StoreDir,
-    pub(super) store_index: Option<SharedReadonlyStoreIndex>,
-    pub(super) store_index_writer: Arc<StoreIndexWriter>,
+    pub(super) fetching: CrateDownload,
+    pub(super) store: CrateStore,
+}
+
+#[derive(Clone)]
+pub(crate) struct CrateDownload {
     pub(super) http_client: Arc<ThrottledClient>,
     pub(super) auth_headers: Arc<AuthHeaders>,
     pub(super) download_template: String,
-    pub(super) verified_files_cache: SharedVerifiedFilesCache,
-    pub(super) logged_methods: Arc<AtomicU8>,
-    pub(super) package_import_method: pnpm_config::PackageImportMethod,
     pub(super) retry_opts: RetryOpts,
-    pub(super) verify_store_integrity: bool,
-    pub(super) strict_store_pkg_content_check: bool,
     pub(super) offline: bool,
     pub(super) requester: String,
+}
+
+#[derive(Clone)]
+pub(crate) struct CrateStore {
+    pub(super) dir: &'static StoreDir,
+    pub(super) index: Option<SharedReadonlyStoreIndex>,
+    pub(super) index_writer: Arc<StoreIndexWriter>,
+    pub(super) verified_files_cache: SharedVerifiedFilesCache,
+    pub(super) logged_methods: Arc<AtomicU8>,
+    pub(super) import_method: pnpm_config::PackageImportMethod,
+    pub(super) verify_integrity: bool,
+    pub(super) strict_pkg_content_check: bool,
 }
 
 pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
     options: MaterializeOptions,
 ) -> Result<(String, PathBuf)> {
     let link_name = options.package.link_name();
-    let slot = options.package.store_slot(options.store_dir.root());
+    let slot = options.package.store_slot(options.store.dir.root());
     let mut cas_paths = ingest_crate::<Reporter>(&options).await?;
 
     let slot_for_import = slot.clone();
     tokio::task::spawn_blocking(move || {
         checksum_cache::ChecksumCache {
-            store_dir: options.store_dir,
-            index: options.store_index.as_ref(),
-            writer: &options.store_index_writer,
-            verified_files: &options.verified_files_cache,
+            store_dir: options.store.dir,
+            index: options.store.index.as_ref(),
+            writer: &options.store.index_writer,
+            verified_files: &options.store.verified_files_cache,
         }
         .add(&mut cas_paths, &options.package.checksum)?;
         import_indexed_dir::<Reporter>(
-            &options.logged_methods,
-            options.package_import_method,
+            &options.store.logged_methods,
+            options.store.import_method,
             &slot_for_import,
             &cas_paths,
             ImportIndexedDirOpts {
@@ -164,7 +173,7 @@ async fn ingest_crate<Reporter: self::Reporter + 'static>(
     options: &MaterializeOptions,
 ) -> Result<HashMap<String, PathBuf>> {
     let package_url = pnpm_cargo_resolver::download_url(
-        &options.download_template,
+        &options.fetching.download_template,
         &options.package.name,
         &options.package.version,
         &options.package.checksum,
@@ -174,24 +183,20 @@ async fn ingest_crate<Reporter: self::Reporter + 'static>(
         .into_diagnostic()
         .wrap_err_with(|| format!("decode checksum for {package_id}"))?;
     let cas_paths = IngestTarballToStore {
-        http_client: &options.http_client,
-        store_dir: options.store_dir,
-        store_index: options.store_index.as_ref().map(Arc::clone),
-        store_index_writer: Some(Arc::clone(&options.store_index_writer)),
-        verify_store_integrity: options.verify_store_integrity,
-        strict_store_pkg_content_check: options.strict_store_pkg_content_check,
-        verified_files_cache: Arc::clone(&options.verified_files_cache),
-        package_integrity: Some(&integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &package_url,
-        package_id: &package_id,
-        auth_headers: &options.auth_headers,
-        requester: &options.requester,
-        prefetched_cas_paths: None,
-        retry_opts: options.retry_opts,
+        fetching: options.fetching.archive_options(),
+        package: pnpm_tarball::TarballPackage {
+            integrity: Some(&integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: &package_url,
+            id: &package_id,
+        },
+        store: options.store.archive_context(),
+
+        requester: &options.fetching.requester,
+
         ignore_file_pattern: None,
-        offline: options.offline,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::RawArchive,
     }
@@ -201,4 +206,44 @@ async fn ingest_crate<Reporter: self::Reporter + 'static>(
     .wrap_err_with(|| format!("download {package_id}"))?;
 
     Ok(cas_paths)
+}
+
+impl CrateDownload {
+    fn new(
+        options: &DownloadOptions,
+        download_template: String,
+        auth_headers: Arc<AuthHeaders>,
+    ) -> Self {
+        Self {
+            http_client: Arc::clone(&options.http_client),
+            auth_headers,
+            download_template,
+            retry_opts: options.config.retry_opts(),
+            offline: options.config.offline,
+            requester: options.requester.clone(),
+        }
+    }
+
+    fn archive_options(&self) -> pnpm_tarball::ArchiveFetchOptions<'_> {
+        pnpm_tarball::ArchiveFetchOptions {
+            http_client: &self.http_client,
+            auth_headers: &self.auth_headers,
+            retry_opts: self.retry_opts,
+            offline: self.offline,
+        }
+    }
+}
+
+impl CrateStore {
+    fn archive_context(&self) -> pnpm_tarball::ArchiveStoreContext<'_> {
+        pnpm_tarball::ArchiveStoreContext {
+            dir: self.dir,
+            index: self.index.as_ref().map(Arc::clone),
+            index_writer: Some(Arc::clone(&self.index_writer)),
+            verify_integrity: self.verify_integrity,
+            strict_pkg_content_check: self.strict_pkg_content_check,
+            verified_files_cache: Arc::clone(&self.verified_files_cache),
+            prefetched_cas_paths: None,
+        }
+    }
 }

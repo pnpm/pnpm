@@ -61,7 +61,10 @@ const ENV_DOC: &str = text_block! {
 
 fn write_lockfile(content: &str) -> tempfile::TempDir {
     let tmp = tempdir().expect("create tempdir");
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
     std::fs::create_dir_all(&virtual_store_dir).expect("mkdir virtual_store_dir");
     std::fs::write(virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), content)
         .expect("write lock.yaml");
@@ -88,14 +91,20 @@ fn an_unreadable_lockfile_is_an_error_for_both_the_strict_and_the_repair_loader(
 fn parses_main_document_from_combined_yaml() {
     let combined = format!("---\n{ENV_DOC}\n---\n{MAIN_DOC}");
     let tmp = write_lockfile(&combined);
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
 
     let combined_loaded = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("load combined lockfile")
         .expect("combined lockfile should be present");
 
     let tmp_main = write_lockfile(MAIN_DOC);
-    let main_only_dir = tmp_main.path().join("node_modules").join(".pacquet");
+    let main_only_dir = tmp_main
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
     let main_only_loaded = Lockfile::load_current_from_virtual_store_dir(&main_only_dir)
         .expect("load main-only lockfile")
         .expect("main-only lockfile should be present");
@@ -135,18 +144,28 @@ fn fix_loader_discards_broken_and_derived_package_fields() {
     .expect("write wanted lockfile");
 
     let lazy = LazyLockfile::deferred(tmp.path().to_path_buf(), WantedLockfileSelection::default());
-    let lockfile = lazy.get_for_fix().expect("load for repair").expect("lockfile present");
+    let lockfile = lazy
+        .get_for_fix()
+        .expect("load for repair")
+        .expect("lockfile present");
     assert!(lockfile.settings.is_none());
     let packages = lockfile.packages.as_ref().expect("packages present");
     assert!(!packages.contains_key(&"broken@1.0.0".parse().expect("broken key")));
-    let valid = packages.get(&"valid@1.0.0".parse().expect("valid key")).expect("valid entry");
+    let valid = packages
+        .get(&"valid@1.0.0".parse().expect("valid key"))
+        .expect("valid entry");
     assert!(valid.engines.is_none());
     assert!(valid.deprecated.is_none());
 
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots present");
-    let valid =
-        snapshots.get(&"valid@1.0.0".parse().expect("valid snapshot key")).expect("valid snapshot");
-    assert!(valid.dependencies.as_ref().is_some_and(|deps| deps.len() == 1));
+    let valid = snapshots
+        .get(&"valid@1.0.0".parse().expect("valid snapshot key"))
+        .expect("valid snapshot");
+    assert!(
+        valid.dependencies
+            .as_ref()
+            .is_some_and(|deps| deps.len() == 1),
+    );
     assert!(valid.transitive_peer_dependencies.is_none());
 }
 
@@ -158,14 +177,20 @@ fn fix_loader_discards_broken_and_derived_package_fields() {
 fn parses_main_document_from_crlf_combined_yaml() {
     let combined = format!("---\n{ENV_DOC}\n---\n{MAIN_DOC}").replace('\n', "\r\n");
     let tmp = write_lockfile(&combined);
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
 
     let crlf_loaded = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("load CRLF combined lockfile")
         .expect("CRLF combined lockfile should be present");
 
     let tmp_main = write_lockfile(MAIN_DOC);
-    let main_only_dir = tmp_main.path().join("node_modules").join(".pacquet");
+    let main_only_dir = tmp_main
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
     let main_only_loaded = Lockfile::load_current_from_virtual_store_dir(&main_only_dir)
         .expect("load main-only lockfile")
         .expect("main-only lockfile should be present");
@@ -177,7 +202,10 @@ fn parses_main_document_from_crlf_combined_yaml() {
 fn env_only_lockfile_loads_as_none() {
     let env_only = format!("---\n{ENV_DOC}\n");
     let tmp = write_lockfile(&env_only);
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
 
     let result = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("env-only lockfile should not error");
@@ -225,8 +253,9 @@ fn parses_lockfile_larger_than_default_yaml_scalar_byte_budget() {
 #[test]
 fn snapshot_key_over_simple_key_limit_round_trips() {
     let long_key = (0..40).fold(String::from("@scope/pkg@1.0.0"), |mut key, index| {
-        write!(key, "(@scope/very-long-peer-dependency-name-{index:02}@33.44.55)")
-            .expect("write peer suffix");
+        write!(key, "(@scope/very-long-peer-dependency-name-{index:02}@33.44.55)").expect(
+            "write peer suffix",
+        );
         key
     });
     assert!(long_key.len() > 1024, "fixture key must exceed the simple-key limit");
@@ -238,7 +267,12 @@ fn snapshot_key_over_simple_key_limit_round_trips() {
         .expect("parse lockfile with explicit long key")
         .expect("lockfile should be present");
     let key: PackageKey = long_key.parse().expect("parse long snapshot key");
-    assert!(lockfile.snapshots.as_ref().expect("snapshots").contains_key(&key));
+    assert!(
+        lockfile.snapshots
+            .as_ref()
+            .expect("snapshots")
+            .contains_key(&key),
+    );
 
     let emitted = lockfile.to_yaml_string().expect("emit lockfile");
     assert!(emitted.contains("? '@scope/pkg@1.0.0"), "long key must be emitted in explicit form");
@@ -258,11 +292,19 @@ fn parse_error_does_not_include_lockfile_content() {
     let error = Lockfile::load_wanted_from_dir(dir.path()).expect_err("lockfile must be broken");
     let message = error.to_string();
 
-    assert_eq!(error.code().expect("diagnostic code").to_string(), "ERR_PNPM_BROKEN_LOCKFILE");
+    assert_eq!(
+        error
+            .code()
+            .expect("diagnostic code")
+            .to_string(),
+        "ERR_PNPM_BROKEN_LOCKFILE",
+    );
     assert!(
         message.starts_with(&format!(
             r#"The lockfile at "{}" is broken: "#,
-            dir.path().join(Lockfile::FILE_NAME).display()
+            dir.path()
+                .join(Lockfile::FILE_NAME)
+                .display()
         )),
         "unexpected error: {message}",
     );
@@ -294,7 +336,10 @@ fn reconstructs_dropped_directory_resolution_for_pruned_file_peer_variant() {
         "  mixed@file:vendor/mixed-1.0.0.Tar.Gz(peer@1.0.0): {}"
     };
     let tmp = write_lockfile(pruned);
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
     let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("load pruned lockfile")
         .expect("pruned lockfile should be present");
@@ -357,7 +402,10 @@ snapshots:
 ",
     );
     let tmp = write_lockfile(&yaml);
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
     let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("load codeload-url lockfile")
         .expect("codeload-url lockfile should be present");
@@ -397,7 +445,10 @@ fn parses_pnpm_10_patched_dependencies_entries() {
         "  .: {}"
     };
     let tmp = write_lockfile(lockfile_text);
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
 
     let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("load lockfile with pnpm 10 patchedDependencies")
@@ -466,7 +517,10 @@ fn parses_link_dep_in_injected_snapshot() {
         "      c: link:packages/c"
     };
     let tmp = write_lockfile(lockfile_text);
-    let virtual_store_dir = tmp.path().join("node_modules").join(".pacquet");
+    let virtual_store_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pacquet");
 
     let lockfile = Lockfile::load_current_from_virtual_store_dir(&virtual_store_dir)
         .expect("load lockfile with link: snapshot dep")

@@ -17,7 +17,11 @@ fn recursive_run_without_script_name_errors_with_script_name_is_required() {
         ],
     );
 
-    let output = pacquet.with_arg("-r").with_arg("run").output().expect("spawn pacquet");
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .output()
+        .expect("spawn pacquet");
     assert!(!output.status.success(), "missing script name in recursive mode must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -93,17 +97,28 @@ fn test_pattern_from_workspace_yaml_is_respected_by_the_test_script() {
     git(&["add", "."]);
     git(&["commit", "-m", "changes", "--no-gpg-sign"]);
 
-    pacquet.with_arg("--filter").with_arg("...[origin/main]").with_arg("test").assert().success();
+    pacquet
+        .with_arg("--filter")
+        .with_arg("...[origin/main]")
+        .with_arg("test")
+        .assert()
+        .success();
 
     for name in ["project-2", "project-4"] {
         assert!(
-            workspace.join(name).join("tested.txt").exists(),
+            workspace
+                .join(name)
+                .join("tested.txt")
+                .exists(),
             "{name} changed, so its test script should run",
         );
     }
     for name in ["project-1", "project-3"] {
         assert!(
-            !workspace.join(name).join("tested.txt").exists(),
+            !workspace
+                .join(name)
+                .join("tested.txt")
+                .exists(),
             "{name} depends on project-2 whose only change matches testPattern, so it must not run",
         );
     }
@@ -147,9 +162,24 @@ fn recursive_run_executes_every_script_matching_a_regexp_selector() {
         .assert()
         .success();
 
-    assert!(workspace.join("both").join("backend.txt").exists());
-    assert!(workspace.join("both").join("frontend.txt").exists());
-    assert!(!workspace.join("both").join("test.txt").exists());
+    assert!(
+        workspace
+            .join("both")
+            .join("backend.txt")
+            .exists(),
+    );
+    assert!(
+        workspace
+            .join("both")
+            .join("frontend.txt")
+            .exists(),
+    );
+    assert!(
+        !workspace
+            .join("both")
+            .join("test.txt")
+            .exists(),
+    );
 
     let statuses = summary_statuses(&workspace);
     assert_eq!(statuses.get("both").map(String::as_str), Some("passed"));
@@ -389,7 +419,10 @@ fn aggregate_output_keeps_each_project_in_one_block() {
     eprintln!("STDOUT:\n{stdout}\n");
     // The faster project finishes first, and each project's four lines
     // land together.
-    let blocks = stdout.trim().split("project-1 test$").collect::<Vec<_>>();
+    let blocks = stdout
+        .trim()
+        .split("project-1 test$")
+        .collect::<Vec<_>>();
     assert_eq!(blocks.len(), 2, "project-1's block must be contiguous: {stdout}");
     assert!(
         !blocks[1].contains("project-2"),

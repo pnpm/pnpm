@@ -193,7 +193,13 @@ fn scope(selected: usize, total: Option<usize>, workspace_prefix: Option<&str>) 
 }
 
 fn scope_reporting_state() -> ReporterState {
-    state_with_options(ReporterOptions { reports_scope: true, ..ReporterOptions::default() })
+    state_with_options(ReporterOptions {
+        scope: pnpm_default_reporter::state::ScopeOptions {
+            reports_scope: true,
+            ..Default::default()
+        },
+        ..ReporterOptions::default()
+    })
 }
 
 // --- embedder reporting options ---------------------------------------
@@ -201,7 +207,10 @@ fn scope_reporting_state() -> ReporterState {
 fn ignored_scripts(names: &[&str]) -> LogEvent {
     LogEvent::IgnoredScripts(IgnoredScriptsLog {
         level: LogLevel::Info,
-        package_names: names.iter().map(|name| (*name).to_string()).collect(),
+        package_names: names
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect(),
         strict_dep_builds: false,
     })
 }

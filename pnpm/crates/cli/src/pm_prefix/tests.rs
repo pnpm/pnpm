@@ -3,9 +3,16 @@ use pretty_assertions::assert_eq;
 use std::ffi::OsString;
 
 fn stripped(tokens: &[&str]) -> (Vec<String>, bool) {
-    let (argv, forced) = strip_prefix(tokens.iter().map(OsString::from).collect());
-    let argv =
-        argv.into_iter().map(|token| token.into_string().expect("test tokens are UTF-8")).collect();
+    let (argv, forced) = strip_prefix(
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    );
+    let argv = argv
+        .into_iter()
+        .map(|token| token.into_string().expect("test tokens are UTF-8"))
+        .collect();
     (argv, forced)
 }
 

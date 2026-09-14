@@ -1,11 +1,11 @@
 use super::{
     CliArgs, CliCommand, KeyIssueReporting, PackageManagerToSync, PinRoots, PreCommandInput,
-    PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource, pre_command_plan_from_input,
-    switch_target,
+    PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource, load_pre_command_config,
+    pre_command_plan_from_input, switch_target,
 };
 use crate::{
     boolean_negations::with_boolean_negations,
-    cli_args::pre_command::input::{PinFlags, frozen_lockfile_flag},
+    cli_args::pre_command::input::{PinFlags, SwitchPaths, frozen_lockfile_flag},
     config_overrides::ConfigOverrides,
 };
 use clap::{CommandFactory, FromArgMatches};
@@ -99,14 +99,18 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
     ];
 
     for case in cases {
-        let argv = case.argv.iter().copied().map(OsString::from).collect::<Vec<_>>();
+        let argv = case.argv
+            .iter()
+            .copied()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
         let input = SwitchInput::from_version_argv(&argv);
 
         if let Some(dir) = case.dir {
-            assert_eq!(input.dir, PathBuf::from(dir), "case: {}", case.name);
+            assert_eq!(input.paths.dir, PathBuf::from(dir), "case: {}", case.name);
         }
         assert_eq!(
-            input.npmrc_auth_file,
+            input.paths.npmrc_auth_file,
             case.npmrc_auth_file.map(PathBuf::from),
             "case: {}",
             case.name,
@@ -120,7 +124,93 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         OsString::from("/tmp/state"),
         OsString::from("--version"),
     ]);
-    assert_eq!(input.state_dir.as_deref(), Some(Path::new("/tmp/state")));
+    assert_eq!(input.paths.state_dir.as_deref(), Some(Path::new("/tmp/state")));
+
+    for spelling in ["--store-dir", "--store"] {
+        let input = SwitchInput::from_version_argv(&[
+            OsString::from("pnpm"),
+            OsString::from(spelling),
+            OsString::from("/tmp/store"),
+            OsString::from("--version"),
+        ]);
+        assert_eq!(
+            input.paths.store_dir.as_deref(),
+            Some(Path::new("/tmp/store")),
+            "spelling: {spelling}",
+        );
+    }
+}
+
+#[test]
+fn the_warning_carries_the_code_and_help_of_a_diagnostic() {
+    #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
+    #[display("the engine could not be installed")]
+    #[diagnostic(code(ERR_PNPM_TEST), help("Pin an exact version."))]
+    struct Failed;
+
+    let warning = super::warning_for_unusable_pin(&miette::Report::new(Failed));
+
+    assert!(warning.contains("ERR_PNPM_TEST"), "{warning}");
+    assert!(warning.contains("the engine could not be installed"), "{warning}");
+    assert!(warning.contains("Pin an exact version."), "{warning}");
+}
+
+#[test]
+fn the_reported_causes_redact_registry_credentials() {
+    let error = miette::miette!("fetch https://user:hunter2@registry.example.com/pnpm failed");
+
+    let causes = super::error_causes(&error);
+
+    assert!(!causes.contains("hunter2"), "credentials reached the warning: {causes}");
+    assert!(causes.contains("registry.example.com"), "the host should survive: {causes}");
+}
+
+#[test]
+fn the_pre_command_config_resolves_the_store_dir_flag() {
+    let root = TempDir::new().expect("tmp dir");
+    let dir = dunce::canonicalize(root.path()).expect("canonicalize the project directory");
+    let mut switch = SwitchInput::from_version_argv(&[
+        OsString::from("pnpm"),
+        OsString::from("--store-dir"),
+        OsString::from("relative-store"),
+        OsString::from("--version"),
+    ]);
+    switch.paths.dir = dir.clone();
+
+    let config = load_pre_command_config(&switch, &ConfigOverrides::default(), &dir)
+        .expect("load the pre-command config");
+
+    assert_eq!(
+        config.store_dir.root(),
+        dir.join("relative-store").join(pnpm_store_dir::STORE_VERSION),
+    );
+}
+
+/// `pnpm --version` still reconciles the `packageManager` pin, so its argv
+/// scan has to see `--ignore-workspace` too — otherwise the pass reports
+/// the key issues of a `pnpm-workspace.yaml` the user asked it to ignore.
+/// [`resolve_boolean_values`](crate::boolean_values::resolve_boolean_values)
+/// has already folded a `=<bool>` spelling into one of the bare forms by the
+/// time the scan runs.
+#[test]
+fn the_version_scan_reads_ignore_workspace_from_the_command_line() {
+    let flag_of = |argv: &[&str]| {
+        SwitchInput::from_version_argv(
+            &argv
+                .iter()
+                .copied()
+                .map(OsString::from)
+                .collect::<Vec<_>>(),
+        )
+        .ignore_workspace
+    };
+    assert!(flag_of(&["pnpm", "--ignore-workspace", "--version"]));
+    assert!(!flag_of(&["pnpm", "--no-ignore-workspace", "--version"]));
+    assert!(!flag_of(&["pnpm", "--version"]));
+    assert!(
+        flag_of(&["pnpm", "--dir", "/tmp/scanned", "--ignore-workspace", "--version"]),
+        "a preceding value-taking flag must not swallow it",
+    );
 }
 
 #[test]
@@ -513,13 +603,17 @@ fn config_overrides(argv: &[&str]) -> ConfigOverrides {
 fn pre_command_input(dir: &Path) -> PreCommandInput {
     PreCommandInput {
         switch: SwitchInput {
-            dir: dir.to_path_buf(),
-            state_dir: None,
-            npmrc_auth_file: None,
+            paths: SwitchPaths {
+                dir: dir.to_path_buf(),
+                state_dir: None,
+                store_dir: None,
+                npmrc_auth_file: None,
+            },
             command: Some("run".to_string()),
             frozen_lockfile: None,
             pin_flags: PinFlags::default(),
             color: None,
+            ignore_workspace: false,
         },
         global: false,
         skip_pm_handling: false,
@@ -557,8 +651,11 @@ fn pin_flags_cover_every_command_declaring_them() {
         if super::should_skip_command_name(name) {
             continue;
         }
-        let declares =
-            |long: &str| subcommand.get_arguments().any(|arg| arg.get_long() == Some(long));
+        let declares = |long: &str| {
+            subcommand
+                .get_arguments()
+                .any(|arg| arg.get_long() == Some(long))
+        };
         if declares("lockfile-dir") {
             let flags = PinFlags::of(&parse_with_positional(name, &["--lockfile-dir", "lf"]));
             assert_eq!(
@@ -620,10 +717,11 @@ fn parse_with_positional(name: &str, args: &[&str]) -> CliCommand {
             .and_then(|matches| CliArgs::from_arg_matches(&matches))
             .map(|args| args.command)
     };
-    parse(&argv).unwrap_or_else(|_| {
-        argv.push("placeholder");
-        parse(&argv).unwrap_or_else(|error| panic!("parse `pnpm {name}`: {error}"))
-    })
+    parse(&argv)
+        .unwrap_or_else(|_| {
+            argv.push("placeholder");
+            parse(&argv).unwrap_or_else(|error| panic!("parse `pnpm {name}`: {error}"))
+        })
 }
 
 fn parse_command(argv: &[&str]) -> CliCommand {

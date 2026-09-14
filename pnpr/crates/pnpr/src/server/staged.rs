@@ -18,6 +18,9 @@
 //! shares, so an approval claims the record it is about to replay: a stage is
 //! approved once no matter which replica each request reaches.
 
+mod record;
+use record::staged_record;
+
 mod list_query;
 use list_query::{MAX_PER_PAGE, StagedListQuery, parse_staged_list_query};
 
@@ -43,10 +46,7 @@ use super::{
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_search::percent_decode;
-use pnpr_storage::{
-    DocumentWrite,
-    publish::{extract_attachments, now_iso},
-};
+use pnpr_storage::{DocumentWrite, publish::extract_attachments};
 use std::time::Duration;
 
 /// One staged publish's metadata, stored next to the held publish body and
@@ -54,6 +54,13 @@ use std::time::Duration;
 /// routing state rather than metadata).
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "persisted staged publication record format is flat"
+    )
+)]
 struct StagedRecord {
     id: String,
     package_name: String,
@@ -238,43 +245,6 @@ async fn serve_staged_publish(
     json_response(StatusCode::CREATED, &json!({ "ok": true, "stageId": stage_id }))
 }
 
-fn staged_record(
-    validated: &ValidatedPublish,
-    identity: &Identity,
-    registry: Option<&str>,
-    stage_id: &str,
-) -> StagedRecord {
-    let (version, dist) = validated.prepared.first().map_or((None, Value::Null), |attachment| {
-        (Some(attachment.version.clone()), attachment.dist.clone())
-    });
-    let (actor, actor_type) = actor_of(identity);
-    StagedRecord {
-        id: stage_id.to_string(),
-        package_name: validated.name.as_str().to_string(),
-        tag: staged_tag(&validated.incoming, version.as_deref()),
-        version,
-        created_at: now_iso(),
-        actor,
-        actor_type,
-        shasum: dist.get("shasum").and_then(Value::as_str).map(str::to_string),
-        registry: registry.map(str::to_string),
-        approving_since: None,
-    }
-}
-
-/// The dist-tag naming the staged version, else the first tag declared.
-fn staged_tag(incoming: &Value, version: Option<&str>) -> Option<String> {
-    let tags = incoming.get("dist-tags").and_then(Value::as_object)?;
-    match version {
-        Some(version) => tags
-            .iter()
-            .find(|(_, tagged)| tagged.as_str() == Some(version))
-            .or_else(|| tags.iter().next())
-            .map(|(tag, _)| tag.clone()),
-        None => tags.keys().next().cloned(),
-    }
-}
-
 /// Body first, metadata last: a record whose metadata exists always has
 /// its body. On a metadata failure the body is cleaned up best-effort.
 async fn store_staged(
@@ -328,7 +298,9 @@ async fn serve_staged_list(
         records.push(record);
     }
     records.sort_by(|left, right| {
-        left.created_at.cmp(&right.created_at).then_with(|| left.id.cmp(&right.id))
+        left.created_at
+            .cmp(&right.created_at)
+            .then_with(|| left.id.cmp(&right.id))
     });
 
     let total = records.len();
@@ -478,15 +450,6 @@ async fn read_staged_record(
     Ok(Some(StoredStagedRecord { bytes, record }))
 }
 
-fn actor_of(identity: &Identity) -> (String, String) {
-    match identity {
-        Identity::User { username, .. } => (username.clone(), "user".to_string()),
-        // Reachable only when the registry's publish rule allows anonymous
-        // writes; the record still needs an actor to display.
-        Identity::Anonymous => ("anonymous".to_string(), "user".to_string()),
-    }
-}
-
 /// A fresh random (version 4) UUID from the OS CSPRNG — the stage id
 /// clients quote back on view/approve/reject/download.
 fn generate_stage_id() -> String {
@@ -494,11 +457,13 @@ fn generate_stage_id() -> String {
     getrandom::fill(&mut bytes).expect("OS CSPRNG must be available");
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    let hex = bytes.iter().fold(String::with_capacity(32), |mut hex, byte| {
-        use std::fmt::Write;
-        write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
-        hex
-    });
+    let hex = bytes
+        .iter()
+        .fold(String::with_capacity(32), |mut hex, byte| {
+            use std::fmt::Write;
+            write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
+            hex
+        });
     format!("{}-{}-{}-{}-{}", &hex[0..8], &hex[8..12], &hex[12..16], &hex[16..20], &hex[20..32])
 }
 

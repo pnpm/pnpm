@@ -111,13 +111,13 @@ async fn shared_subtree_miss_unsatisfied_by_first_importer_still_hoists() {
     let dirs = [tmp_root.path(), tmp_a.path()];
 
     let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
+    opts.peers.auto_install_peers = true;
     let mut next = 0;
     let result = resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         let dir = dirs[next].to_path_buf();
         next += 1;
         let mut opts = importer_opts(dir, None);
-        opts.auto_install_peers = true;
+        opts.peers.auto_install_peers = true;
         opts
     })
     .await
@@ -167,9 +167,10 @@ async fn deprecated_manifests_notify_the_deprecation_sink_unless_allowed() {
             opts.allowed_deprecated_versions =
                 BTreeMap::from([("old".to_string(), range.to_string())]);
         }
-        opts.deprecation_log = Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
-            sink.lock().unwrap().push(deprecation);
-        }));
+        opts.hooks.deprecation_log =
+            Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
+                sink.lock().unwrap().push(deprecation);
+            }));
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
         })
@@ -193,7 +194,10 @@ async fn deprecated_manifests_notify_the_deprecation_sink_unless_allowed() {
         assert_eq!(deprecation.depth, 0);
         assert_eq!(
             deprecation.prefix,
-            std::path::PathBuf::from("/repo").join("root").display().to_string(),
+            std::path::PathBuf::from("/repo")
+                .join("root")
+                .display()
+                .to_string(),
         );
     }
 }
@@ -243,9 +247,10 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
     let notifications = std::sync::Arc::new(Mutex::new(Vec::new()));
     let sink = std::sync::Arc::clone(&notifications);
     let mut opts = workspace_opts(false, false);
-    opts.deprecation_log = Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
-        sink.lock().unwrap().push(deprecation);
-    }));
+    opts.hooks.deprecation_log =
+        Some(std::sync::Arc::new(move |deprecation: crate::Deprecation| {
+            sink.lock().unwrap().push(deprecation);
+        }));
 
     resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
         importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
@@ -260,7 +265,10 @@ async fn deprecated_package_is_reported_only_on_its_first_occurrence() {
     assert_eq!(deprecation.depth, 1);
     assert_eq!(
         deprecation.prefix,
-        std::path::PathBuf::from("/repo").join("a-transitive").display().to_string(),
+        std::path::PathBuf::from("/repo")
+            .join("a-transitive")
+            .display()
+            .to_string(),
     );
 }
 

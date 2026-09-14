@@ -91,7 +91,7 @@ impl ReuseSource {
         ctx: &TreeCtx,
         wanted: &WantedDependency,
     ) -> Option<PkgNameVerPeer> {
-        let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
+        let lockfile = ctx.workspace.reuse.lockfile.as_ref()?;
         match self {
             ReuseSource::Importer { importer_id } => reusable_importer_dep(
                 lockfile,
@@ -133,7 +133,7 @@ pub(super) fn try_reuse_node(
     prior_key: Option<&PkgNameVerPeer>,
     depth: i32,
 ) -> Option<ReusedNode> {
-    let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
+    let lockfile = ctx.workspace.reuse.lockfile.as_ref()?;
     let scope = ctx.update_scope();
     if matches!(scope.reuse, UpdateReuseScope::None) && scope.max_depth.reaches(depth) {
         return None;
@@ -196,7 +196,10 @@ pub(super) fn wanted_lockfile_contains_satisfying_entry(
     let Some(packages) = lockfile.and_then(|lockfile| lockfile.packages.as_ref()) else {
         return false;
     };
-    let Some(alias) = wanted.alias.as_deref().filter(|alias| !alias.is_empty()) else {
+    let Some(alias) = wanted.alias
+        .as_deref()
+        .filter(|alias| !alias.is_empty())
+    else {
         return false;
     };
     let (pkg_name, range) =
@@ -207,10 +210,14 @@ pub(super) fn wanted_lockfile_contains_satisfying_entry(
     let Ok(pkg_name) = PkgName::parse(pkg_name) else {
         return false;
     };
-    packages.keys().any(|key| {
-        key.name == pkg_name
-            && key.suffix.version_semver().is_some_and(|version| range.satisfies(version))
-    })
+    packages
+        .keys()
+        .any(|key| {
+            key.name == pkg_name
+                && key.suffix
+                    .version_semver()
+                    .is_some_and(|version| range.satisfies(version))
+        })
 }
 
 /// Normalize an `npm:` alias specifier into the real package name and
@@ -250,11 +257,15 @@ pub fn real_package_name_of<'edge>(
 ) -> Option<Cow<'edge, str>> {
     let bare = bare_specifier?;
     if let Some(rest) = bare.strip_prefix("npm:") {
-        let alias_keeps_name = alias
-            .is_some_and(|alias| !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok());
+        let alias_keeps_name = alias.is_some_and(|alias| {
+            !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok()
+        });
         if !alias_keeps_name {
-            let last_at =
-                rest.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
+            let last_at = rest
+                .bytes()
+                .enumerate()
+                .rev()
+                .find_map(|(i, b)| (b == b'@').then_some(i));
             let name = match last_at {
                 Some(idx) if idx >= 1 => &rest[..idx],
                 _ => rest,
@@ -320,7 +331,7 @@ pub(super) fn is_update_target(
 /// `true` when `key` and its entire transitive subtree can be
 /// synthesized from `lockfile` (every node a plain-semver registry
 /// package present in `packages:`, every snapshot child non-`link:`).
-/// Memoised on [`WorkspaceTreeCtx::subtree_reusable`] so each package is
+/// Memoised on [`crate::resolve_dependency_tree::workspace_ctx::WorkspaceResolutionCache::subtree_reusable`] so each package is
 /// checked once.
 ///
 /// A snapshot cycle is treated as **non**-reusable at the back-edge: the
@@ -333,7 +344,7 @@ pub(super) fn is_update_target(
 /// cycle), wrongly reusing it. SCC-aware reuse of acyclic-equivalent
 /// cycles is possible but not worth the complexity for an uncommon case.
 ///
-/// [`WorkspaceTreeCtx::subtree_reusable`]: super::WorkspaceTreeCtx::subtree_reusable
+/// [`crate::resolve_dependency_tree::workspace_ctx::WorkspaceResolutionCache::subtree_reusable`]: crate::resolve_dependency_tree::workspace_ctx::WorkspaceResolutionCache::subtree_reusable
 fn subtree_fully_reusable(
     ctx: &TreeCtx,
     lockfile: &pnpm_lockfile::Lockfile,
@@ -342,13 +353,13 @@ fn subtree_fully_reusable(
 ) -> bool {
     let scope = ctx.update_scope();
     let memo_key = (ctx.update_cache_scope(), key.clone(), scope.max_depth.memo_bucket(depth));
-    if let Some(&cached) = lock_recoverable(&ctx.workspace.subtree_reusable).get(&memo_key) {
+    if let Some(&cached) = lock_recoverable(&ctx.workspace.cache.subtree_reusable).get(&memo_key) {
         return cached;
     }
     // Provisionally mark non-reusable so a cycle back to `key` resolves to
     // `false` (re-resolve) instead of recursing forever — see the doc above
     // for why `false` rather than `true`.
-    lock_recoverable(&ctx.workspace.subtree_reusable).insert(memo_key.clone(), false);
+    lock_recoverable(&ctx.workspace.cache.subtree_reusable).insert(memo_key.clone(), false);
     // A `pacquet update` target anywhere in the subtree forces the whole
     // subtree to re-resolve so the bump's new transitive deps are picked
     // up — update names match at every depth the update reaches.
@@ -356,7 +367,7 @@ fn subtree_fully_reusable(
     let reusable = !update_excludes(scope, &name, key.suffix.version_semver(), depth)
         && synthesize_reused_result(lockfile, key, &name).is_some()
         && subtree_children_reusable(ctx, lockfile, key, depth);
-    lock_recoverable(&ctx.workspace.subtree_reusable).insert(memo_key, reusable);
+    lock_recoverable(&ctx.workspace.cache.subtree_reusable).insert(memo_key, reusable);
     reusable
 }
 
@@ -370,7 +381,10 @@ fn subtree_children_reusable(
     key: &PkgNameVerPeer,
     depth: i32,
 ) -> bool {
-    let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snaps| snaps.get(key)) else {
+    let Some(snapshot) = lockfile.snapshots
+        .as_ref()
+        .and_then(|snaps| snaps.get(key))
+    else {
         // No snapshot entry → the lockfile doesn't record this node's
         // children, so the reuse walk can't reproduce its subtree.
         // Force a fresh resolve rather than risk silently dropping
@@ -441,8 +455,6 @@ where
         emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
     }
 
-    let next_ancestors: Vec<String> =
-        edge.ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
     attach_reused_children(
         ctx,
         resolver,
@@ -452,11 +464,7 @@ where
             key: &reused.key,
             snapshot: identity.snapshot,
             child_refs: &identity.child_refs,
-            ancestor_ids: edge.ancestor_ids,
-            next_ancestors: &Arc::new(next_ancestors),
-            depth: edge.depth,
-            current_is_optional,
-            parent_pkg_aliases: edge.parent_pkg_aliases,
+            ancestry: snapshot_children::ReusedNodeAncestry::new(edge, &id, current_is_optional),
         },
         &identity.node_id,
     )
@@ -487,9 +495,7 @@ fn reused_identity<'l>(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     key: &PkgNameVerPeer,
 ) -> Result<ReusedIdentity<'l>, ResolveDependencyTreeError> {
-    let snapshot = ctx
-        .workspace
-        .wanted_lockfile
+    let snapshot = ctx.workspace.reuse.lockfile
         .as_ref()
         .and_then(|lockfile| lockfile.snapshots.as_ref())
         .and_then(|snaps| snaps.get(key));
@@ -543,7 +549,7 @@ fn register_reused_package(
     current_is_optional: bool,
     is_leaf: bool,
 ) -> bool {
-    let mut packages = lock_recoverable(&ctx.workspace.packages);
+    let mut packages = lock_recoverable(&ctx.workspace.tree.packages);
     if let Some(existing) = packages.get_mut(id) {
         existing.optional = existing.optional && current_is_optional;
         return false;
@@ -565,10 +571,10 @@ fn register_reused_package(
 }
 
 fn record_peer_dep_names(ctx: &TreeCtx, peer_dependencies: &BTreeMap<String, PeerDep>) {
-    let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
+    let mut all_peers = lock_recoverable(&ctx.workspace.tree.all_peer_dep_names);
     for name in peer_dependencies.keys() {
         if all_peers.insert(name.clone()) {
-            ctx.workspace.record_peer_dep_name(name);
+            ctx.workspace.tree.record_peer_dep_name(name);
         }
     }
 }

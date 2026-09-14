@@ -134,10 +134,19 @@ fn patches_to_remove(
     if patched_dependencies.is_empty() {
         return Err(PatchRemoveError::NoPatchesToRemove);
     }
-    let all_patches: Vec<String> = patched_dependencies.keys().cloned().collect();
-    prompt.select_patches(&all_patches).and_then(|selected| {
-        if selected.is_empty() { Err(PatchRemoveError::NoPatchesToRemove) } else { Ok(selected) }
-    })
+    let all_patches: Vec<String> = patched_dependencies
+        .keys()
+        .cloned()
+        .collect();
+    prompt
+        .select_patches(&all_patches)
+        .and_then(|selected| {
+            if selected.is_empty() {
+                Err(PatchRemoveError::NoPatchesToRemove)
+            } else {
+                Ok(selected)
+            }
+        })
 }
 
 trait PatchRemovePrompt {
@@ -169,7 +178,10 @@ fn select_patches_from_indices(
 }
 
 fn patches_from_selected_indices(patches: &[String], selected_indices: Vec<usize>) -> Vec<String> {
-    selected_indices.into_iter().map(|index| patches[index].clone()).collect()
+    selected_indices
+        .into_iter()
+        .map(|index| patches[index].clone())
+        .collect()
 }
 
 struct PatchRemovalContext {
@@ -190,7 +202,10 @@ impl PatchRemovalContext {
             });
         }
         let real_patches_dir = realpath_if_exists(&patches_dir);
-        if real_patches_dir.as_ref().is_some_and(|real| !is_subdir(&real_project_root, real)) {
+        if real_patches_dir
+            .as_ref()
+            .is_some_and(|real| !is_subdir(&real_project_root, real))
+        {
             return Err(PatchRemoveError::PatchesDirOutsideProject {
                 patches_dir: patches_dir_setting.to_string(),
             });

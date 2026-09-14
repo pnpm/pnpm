@@ -37,12 +37,18 @@ impl ProjectRefIndex {
             let dir = normalize_project_dir(reference);
             return if self.dirs.contains(&dir) { vec![dir] } else { Vec::new() };
         }
-        self.dirs_by_name.get(reference).cloned().unwrap_or_default()
+        self.dirs_by_name
+            .get(reference)
+            .cloned()
+            .unwrap_or_default()
     }
 
     #[must_use]
     pub fn name_to_dirs(&self, name: &str) -> Vec<String> {
-        self.dirs_by_name.get(name).cloned().unwrap_or_default()
+        self.dirs_by_name
+            .get(name)
+            .cloned()
+            .unwrap_or_default()
     }
 }
 
@@ -54,7 +60,10 @@ pub fn index_project_refs(projects: &[WorkspaceProject], workspace_dir: &Path) -
         let dir = to_project_dir(workspace_dir, &project.root_dir);
         dirs.insert(dir.clone());
         if let Some(name) = &project.name {
-            dirs_by_name.entry(name.clone()).or_default().push(dir);
+            dirs_by_name
+                .entry(name.clone())
+                .or_default()
+                .push(dir);
         }
     }
     ProjectRefIndex { dirs, dirs_by_name }
@@ -137,7 +146,10 @@ fn internal_deps_of<'a>(
             .collect();
         let target_dir = match target_dirs.len() {
             0 => continue,
-            1 => target_dirs.into_iter().next().expect("one element"),
+            1 => target_dirs
+                .into_iter()
+                .next()
+                .expect("one element"),
             // A workspace: range naming an ambiguous package cannot be
             // linked at install time, so the release engine never
             // legitimately sees one.
@@ -191,9 +203,15 @@ fn internal_dep_target_name(alias: &str, spec: &str, refs: &ProjectRefIndex) -> 
 /// `WorkspaceSpec.parse` from `@pnpm/workspace.spec-parser`: the alias must
 /// not start with `.`, `_`, or `/` and ends at the last `@`.
 pub(super) fn parse_workspace_spec_alias(rest: &str) -> Option<&str> {
-    let at_index = rest.rfind('@').filter(|&index| index > 0)?;
+    let at_index = rest
+        .rfind('@')
+        .filter(|&index| index > 0)?;
     let alias = &rest[..at_index];
-    if alias.starts_with(['.', '_', '/']) || alias.chars().skip(1).any(|character| character == '@')
+    if alias.starts_with(['.', '_', '/'])
+        || alias
+            .chars()
+            .skip(1)
+            .any(|character| character == '@')
     {
         return None;
     }

@@ -39,7 +39,10 @@ fn patch_state_write_creates_pnpm_state_file() {
 
     let state_path = modules_dir.join(".pnpm_patches").join("state.json");
     let text = fs::read_to_string(state_path).expect("state file");
-    let key = dunce::canonicalize(&edit_dir).expect("canonical edit dir").display().to_string();
+    let key = dunce::canonicalize(&edit_dir)
+        .expect("canonical edit dir")
+        .display()
+        .to_string();
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(&text).expect("valid JSON"),
         json!({

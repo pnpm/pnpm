@@ -115,8 +115,7 @@ pub enum MetadataCacheScope {
 /// [`AuthHeaders::for_url`].
 /// Memo of resolved `tokenHelper` results keyed by `scope + map key`. Each
 /// entry is a per-key [`OnceLock`] so a resolving subprocess runs without the
-/// shared [`Mutex`] held. See the `resolved_token_helpers` field on
-/// [`AuthHeaders`].
+/// shared [`Mutex`] held. Cloning the headers shares the cache.
 type TokenHelperCache = Arc<Mutex<HashMap<String, Arc<OnceLock<Option<String>>>>>>;
 
 #[derive(Default, Clone)]
@@ -147,6 +146,11 @@ pub struct AuthHeaders {
     /// touches the resolution cache only on a `TokenHelper` match, so a
     /// map of only baked headers pays nothing regardless.
     has_token_helpers: bool,
+    token_helpers: TokenHelpers,
+}
+
+#[derive(Default, Clone)]
+struct TokenHelpers {
     /// Memoizes each resolved `tokenHelper`: a helper runs at most once
     /// per process, keyed by its map key. Each key maps to a per-key
     /// [`OnceLock`] so the resolving subprocess runs without the shared
@@ -204,7 +208,9 @@ impl AuthHeaders {
     /// authorization for any URL.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.by_uri.is_empty() && self.scoped_by_scope.is_empty() && self.route_hook.is_none()
+        self.by_uri.is_empty()
+            && self.scoped_by_scope.is_empty()
+            && self.route_hook.is_none()
     }
 
     /// Overlay a ready-to-send `Authorization` header at `url`.
@@ -269,7 +275,10 @@ impl AuthHeaders {
         for (uri, value) in headers {
             let uri = normalize_auth_key(uri);
             if let Some((registry_uri, scope)) = split_scoped_auth_key(&uri) {
-                scoped_by_uri.entry(registry_uri).or_default().insert(scope, value);
+                scoped_by_uri
+                    .entry(registry_uri)
+                    .or_default()
+                    .insert(scope, value);
             } else {
                 by_uri.insert(uri, value);
             }
@@ -335,8 +344,9 @@ impl AuthHeaders {
     ) -> Self {
         let mut scoped_by_scope: HashMap<String, HashMap<String, AuthEntry>> = HashMap::new();
         let mut max_scoped_parts_by_scope: HashMap<String, usize> = HashMap::new();
-        let mut has_token_helpers =
-            by_uri.values().any(|entry| matches!(entry, AuthEntry::TokenHelper(_)));
+        let mut has_token_helpers = by_uri
+            .values()
+            .any(|entry| matches!(entry, AuthEntry::TokenHelper(_)));
         for (uri, scoped) in scoped_by_uri {
             let parts = uri.split('/').count();
             for (scope, value) in scoped {
@@ -345,10 +355,17 @@ impl AuthHeaders {
                     .entry(scope.clone())
                     .and_modify(|max| *max = (*max).max(parts))
                     .or_insert(parts);
-                scoped_by_scope.entry(scope).or_default().insert(uri.clone(), value);
+                scoped_by_scope
+                    .entry(scope)
+                    .or_default()
+                    .insert(uri.clone(), value);
             }
         }
-        let max_parts = by_uri.keys().map(|key| key.split('/').count()).max().unwrap_or(0);
+        let max_parts = by_uri
+            .keys()
+            .map(|key| key.split('/').count())
+            .max()
+            .unwrap_or(0);
         AuthHeaders {
             by_uri,
             scoped_by_scope,
@@ -357,8 +374,7 @@ impl AuthHeaders {
             route_hook: None,
             require_secure_transport: false,
             has_token_helpers,
-            resolved_token_helpers: Arc::default(),
-            token_helper_runner: None,
+            token_helpers: TokenHelpers::default(),
         }
     }
 
@@ -367,7 +383,7 @@ impl AuthHeaders {
     /// and spawns real processes.
     #[must_use]
     pub fn with_token_helper_runner(mut self, runner: TokenHelperRunner) -> Self {
-        self.token_helper_runner = Some(runner);
+        self.token_helpers.token_helper_runner = Some(runner);
         self
     }
 
@@ -384,7 +400,10 @@ impl AuthHeaders {
                 if scope == DEFAULT_REGISTRY_SCOPE {
                     by_uri.insert(uri.clone(), value);
                 } else {
-                    scoped_by_uri.entry(uri.clone()).or_default().insert(scope, value);
+                    scoped_by_uri
+                        .entry(uri.clone())
+                        .or_default()
+                        .insert(scope, value);
                 }
             }
         }
@@ -468,7 +487,9 @@ impl AuthHeaders {
     /// [`UpstreamRouteHook::allows_fetch`].
     #[must_use]
     pub fn allows_fetch(&self, url: &str) -> bool {
-        self.route_hook.as_ref().is_none_or(|hook| hook.allows_fetch(url))
+        self.route_hook
+            .as_ref()
+            .is_none_or(|hook| hook.allows_fetch(url))
     }
 
     /// Record the route for a metadata/tarball fetch that is about to be

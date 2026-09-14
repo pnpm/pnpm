@@ -1,7 +1,7 @@
 use super::{
-    BTreeSet, ConfigOverlay, HashMap, InstallOptions, IpAddr, NetworkConfigInput, NoProxySetting,
-    NodeApiProject, PackageExtensionInput, PackageManifest, PathBuf, ProxyConfig, ProxyConfigInput,
-    TlsConfig, unsupported_option_error,
+    Arc, BTreeSet, ConfigOverlay, HashMap, InstallOptions, IpAddr, NetworkConfigInput,
+    NoProxySetting, NodeApiProject, PackageExtensionInput, PackageManifest, PathBuf, ProxyConfig,
+    ProxyConfigInput, ThrottledClient, TlsConfig, to_napi_error, unsupported_option_error,
 };
 
 pub(super) fn build_workspace_projects_override(
@@ -18,8 +18,7 @@ pub(super) fn build_workspace_projects_override(
                 let manifest_path = root_dir.join("package.json");
                 let manifest =
                     PackageManifest::from_value(manifest_path.clone(), project.manifest.clone());
-                let dependency_manifest = project
-                    .dependency_manifest
+                let dependency_manifest = project.dependency_manifest
                     .as_ref()
                     .map(|value| PackageManifest::from_value(manifest_path.clone(), value.clone()));
                 pnpm_workspace::Project { root_dir, manifest, dependency_manifest }
@@ -58,15 +57,19 @@ fn build_layout_overlay(
         virtual_store_only: fetch_shaped.then_some(true),
         enable_modules_dir: fetch_shaped.then_some(true),
         registry: None,
-        registries: options.registries.as_ref().map(|map| map.clone().into_iter().collect()),
-        proxy: options.proxy_config.as_ref().map(build_proxy_config).transpose()?,
+        registries: options.registries
+            .as_ref()
+            .map(|map| map.clone().into_iter().collect()),
+        proxy: options.proxy_config
+            .as_ref()
+            .map(build_proxy_config)
+            .transpose()?,
         tls: network_config.map(build_tls_config).transpose()?,
         node_linker: options.node_linker.as_deref().and_then(parse_node_linker),
         link_workspace_packages: parse_link_workspace_packages(
             options.link_workspace_packages.as_ref(),
         )?,
-        package_import_method: options
-            .package_import_method
+        package_import_method: options.package_import_method
             .as_deref()
             .and_then(parse_import_method),
         virtual_store_dir_max_length: options.virtual_store_dir_max_length.map(u64::from),
@@ -82,20 +85,26 @@ fn build_dependencies_overlay(
     overlay: ConfigOverlay,
 ) -> ConfigOverlay {
     ConfigOverlay {
-        package_extensions: options.package_extensions.as_ref().map(|extensions| {
-            extensions
-                .iter()
-                .map(|(selector, extension)| (selector.clone(), package_extension(extension)))
-                .collect()
-        }),
+        package_extensions: options.package_extensions
+            .as_ref()
+            .map(|extensions| {
+                extensions
+                    .iter()
+                    .map(|(selector, extension)| (selector.clone(), package_extension(extension)))
+                    .collect()
+            }),
         patched_dependencies: options.patched_dependencies.clone(),
         allow_unused_patches: options.allow_unused_patches,
         hoist_pattern: options.hoist_pattern.clone(),
         public_hoist_pattern: options.public_hoist_pattern.clone(),
-        external_dependencies: options
-            .external_dependencies
+        external_dependencies: options.external_dependencies
             .as_ref()
-            .map(|items| items.iter().cloned().collect::<BTreeSet<_>>()),
+            .map(|items| {
+                items
+                    .iter()
+                    .cloned()
+                    .collect::<BTreeSet<_>>()
+            }),
         overrides: options.overrides.clone(),
         auto_install_peers: options.auto_install_peers,
         exclude_links_from_lockfile: options.exclude_links_from_lockfile,
@@ -126,19 +135,18 @@ fn build_dependencies_overlay(
 fn build_network_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> ConfigOverlay {
     let network_config = options.network_config.as_ref();
     ConfigOverlay {
-        network_concurrency: options
-            .network_concurrency
+        network_concurrency: options.network_concurrency
             .or_else(|| network_config.and_then(|config| config.network_concurrency))
             .map(|value| value as usize),
         max_sockets: network_config
             .and_then(|config| config.max_sockets)
             .map(|value| value as usize),
-        fetch_retries: options
-            .fetch_retries
-            .or_else(|| network_config.and_then(|config| config.fetch_retries)),
-        fetch_retry_factor: options
-            .fetch_retry_factor
-            .or_else(|| network_config.and_then(|config| config.fetch_retry_factor)),
+        fetch_retries: options.fetch_retries.or_else(|| {
+            network_config.and_then(|config| config.fetch_retries)
+        }),
+        fetch_retry_factor: options.fetch_retry_factor.or_else(|| {
+            network_config.and_then(|config| config.fetch_retry_factor)
+        }),
         ..overlay
     }
 }
@@ -146,28 +154,22 @@ fn build_network_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> Co
 fn build_fetch_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> ConfigOverlay {
     let network_config = options.network_config.as_ref();
     ConfigOverlay {
-        fetch_retry_mintimeout: options
-            .fetch_retry_mintimeout
+        fetch_retry_mintimeout: options.fetch_retry_mintimeout
             .or_else(|| network_config.and_then(|config| config.fetch_retry_mintimeout))
             .map(u64::from),
-        fetch_retry_maxtimeout: options
-            .fetch_retry_maxtimeout
+        fetch_retry_maxtimeout: options.fetch_retry_maxtimeout
             .or_else(|| network_config.and_then(|config| config.fetch_retry_maxtimeout))
             .map(u64::from),
-        fetch_timeout: options
-            .fetch_timeout
+        fetch_timeout: options.fetch_timeout
             .or_else(|| network_config.and_then(|config| config.fetch_timeout))
             .map(u64::from),
-        fetch_warn_timeout_ms: options
-            .fetch_warn_timeout_ms
+        fetch_warn_timeout_ms: options.fetch_warn_timeout_ms
             .or_else(|| network_config.and_then(|config| config.fetch_warn_timeout_ms))
             .map(u64::from),
-        fetch_min_speed_ki_bps: options
-            .fetch_min_speed_ki_bps
+        fetch_min_speed_ki_bps: options.fetch_min_speed_ki_bps
             .or_else(|| network_config.and_then(|config| config.fetch_min_speed_ki_bps))
             .map(u64::from),
-        user_agent: options
-            .user_agent
+        user_agent: options.user_agent
             .clone()
             .or_else(|| network_config.and_then(|config| config.user_agent.clone())),
         ..overlay
@@ -178,7 +180,9 @@ fn build_policy_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> Con
     ConfigOverlay {
         // Embedders gate builds themselves, so default to report-not-fail.
         strict_dep_builds: Some(options.strict_dep_builds.unwrap_or(false)),
-        allow_builds: options.allow_builds.clone().map(|map| map.into_iter().collect()),
+        allow_builds: options.allow_builds
+            .clone()
+            .map(|map| map.into_iter().collect()),
         dangerously_allow_all_builds: options.dangerously_allow_all_builds,
         ignore_scripts: options.ignore_scripts,
         trust_lockfile: options.trust_lockfile,
@@ -186,36 +190,44 @@ fn build_policy_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> Con
         node_version: options.node_version.clone(),
         minimum_release_age: options.minimum_release_age.map(u64::from),
         minimum_release_age_exclude: options.minimum_release_age_exclude.clone(),
-        peer_dependency_rules: options.peer_dependency_rules.as_ref().map(|rules| {
-            crate::config::PeerDependencyRulesOverlay {
+        peer_dependency_rules: options.peer_dependency_rules
+            .as_ref()
+            .map(|rules| crate::config::PeerDependencyRulesOverlay {
                 ignore_missing: rules.ignore_missing.clone(),
                 allow_any: rules.allow_any.clone(),
-                allowed_versions: rules
-                    .allowed_versions
+                allowed_versions: rules.allowed_versions
                     .as_ref()
                     .map(|map| map.clone().into_iter().collect()),
-            }
-        }),
-        auth_header_by_uri: options.auth_header_by_uri.clone().map(|map| map.into_iter().collect()),
+            }),
+        auth_header_by_uri: options.auth_header_by_uri
+            .clone()
+            .map(|map| map.into_iter().collect()),
         ..overlay
     }
 }
 
 fn package_extension(input: &PackageExtensionInput) -> pnpm_config::PackageExtension {
     let to_sorted = |map: &Option<HashMap<String, String>>| {
-        map.as_ref().map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+        map.as_ref()
+            .map(|map| {
+                map.iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            })
     };
     pnpm_config::PackageExtension {
         dependencies: to_sorted(&input.dependencies),
         optional_dependencies: to_sorted(&input.optional_dependencies),
         peer_dependencies: to_sorted(&input.peer_dependencies),
-        peer_dependencies_meta: input.peer_dependencies_meta.as_ref().map(|meta| {
-            meta.iter()
-                .map(|(name, entry)| {
-                    (name.clone(), pnpm_config::PeerDependencyMeta { optional: entry.optional })
-                })
-                .collect()
-        }),
+        peer_dependencies_meta: input.peer_dependencies_meta
+            .as_ref()
+            .map(|meta| {
+                meta.iter()
+                    .map(|(name, entry)| {
+                        (name.clone(), pnpm_config::PeerDependencyMeta { optional: entry.optional })
+                    })
+                    .collect()
+            }),
     }
 }
 
@@ -223,7 +235,11 @@ fn build_proxy_config(input: &ProxyConfigInput) -> napi::Result<ProxyConfig> {
     Ok(ProxyConfig {
         https_proxy: input.https_proxy.clone(),
         http_proxy: input.http_proxy.clone(),
-        no_proxy: input.no_proxy.as_ref().map(parse_no_proxy).transpose()?.flatten(),
+        no_proxy: input.no_proxy
+            .as_ref()
+            .map(parse_no_proxy)
+            .transpose()?
+            .flatten(),
     })
 }
 
@@ -245,12 +261,19 @@ fn parse_no_proxy(value: &serde_json::Value) -> napi::Result<Option<NoProxySetti
 
 fn build_tls_config(input: &NetworkConfigInput) -> napi::Result<TlsConfig> {
     Ok(TlsConfig {
-        ca: input.ca.as_ref().map(parse_string_list).transpose()?.unwrap_or_default(),
-        cert: input.cert.as_ref().map(parse_single_string).transpose()?.flatten(),
+        ca: input.ca
+            .as_ref()
+            .map(parse_string_list)
+            .transpose()?
+            .unwrap_or_default(),
+        cert: input.cert
+            .as_ref()
+            .map(parse_single_string)
+            .transpose()?
+            .flatten(),
         key: input.key.clone(),
         strict_ssl: input.strict_ssl,
-        local_address: input
-            .local_address
+        local_address: input.local_address
             .as_deref()
             .and_then(|value| value.parse::<IpAddr>().ok()),
     })
@@ -315,4 +338,19 @@ pub(crate) fn parse_import_method(value: &str) -> Option<pnpm_config::PackageImp
         "clone-or-copy" => Some(pnpm_config::PackageImportMethod::CloneOrCopy),
         _ => None,
     }
+}
+
+pub(crate) fn install_http_client(
+    config: &pnpm_config::Config,
+) -> napi::Result<Arc<ThrottledClient>> {
+    Ok(Arc::new(
+        ThrottledClient::for_installs(
+            &config.proxy,
+            &config.tls,
+            &config.tls_by_uri,
+            &config.network_settings(),
+        )
+        .map_err(|error| to_napi_error(&error))?
+        .with_max_sockets_per_host(config.max_sockets),
+    ))
 }

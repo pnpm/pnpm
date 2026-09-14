@@ -12,8 +12,10 @@ use std::time::Duration;
 
 fn parse_stars_response(body: &Value) -> Option<String> {
     if let Some(arr) = body.as_array() {
-        let res: Vec<String> =
-            arr.iter().filter_map(|val| val.as_str().map(String::from)).collect();
+        let res: Vec<String> = arr
+            .iter()
+            .filter_map(|val| val.as_str().map(String::from))
+            .collect();
         Some(res.join("\n"))
     } else if let Some(obj) = body.as_object() {
         let res: Vec<String> = obj.keys().cloned().collect();
@@ -146,7 +148,10 @@ impl StarsRequest<'_> {
             }
             return Err(StarsError::Failed {
                 status: status.as_u16(),
-                status_text: status.canonical_reason().unwrap_or_default().to_string(),
+                status_text: status
+                    .canonical_reason()
+                    .unwrap_or_default()
+                    .to_string(),
             }
             .into());
         }

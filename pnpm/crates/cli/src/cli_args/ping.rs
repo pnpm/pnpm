@@ -104,9 +104,12 @@ async fn fetch_ping(
         .into());
     }
 
-    let body = response.text().await.map_err(|error| PingError::Unreachable {
-        message: redact_and_sanitize(&error.to_string()),
-    })?;
+    let body = response
+        .text()
+        .await
+        .map_err(|error| PingError::Unreachable {
+            message: redact_and_sanitize(&error.to_string()),
+        })?;
     let time = start.elapsed().as_millis();
     drop(client);
     Ok((time, body))

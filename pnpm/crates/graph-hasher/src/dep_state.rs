@@ -331,7 +331,10 @@ where
             }
         }
     }
-    build_required.into_iter().cloned().collect()
+    build_required
+        .into_iter()
+        .cloned()
+        .collect()
 }
 
 /// Return every node that is, or transitively depends on, a node
@@ -354,7 +357,10 @@ where
     let mut parents_by_child: HashMap<&Key, Vec<&Key>> = HashMap::new();
     for (parent, node) in graph {
         for child in node.children.values() {
-            parents_by_child.entry(child).or_default().push(parent);
+            parents_by_child
+                .entry(child)
+                .or_default()
+                .push(parent);
         }
     }
     parents_by_child

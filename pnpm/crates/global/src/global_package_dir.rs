@@ -53,6 +53,7 @@ pub fn create_install_dir(global_dir: &Path) -> io::Result<PathBuf> {
             Err(error) => return Err(error),
         }
     }
-    Err(last_err
-        .unwrap_or_else(|| io::Error::other("could not create a unique global install dir")))
+    Err(last_err.unwrap_or_else(|| {
+        io::Error::other("could not create a unique global install dir")
+    }))
 }

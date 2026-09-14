@@ -105,10 +105,13 @@ pub(crate) fn modified_lockfile_conflict_check_failure(
 fn open_for_conflict_scan(path: &Path) -> Option<fs::File> {
     let file = fs::File::open(path).ok()?;
     let metadata = file.metadata().ok()?;
-    (metadata.file_type().is_file() && metadata.len() < MAX_LOCKFILE_CONFLICT_SCAN_BYTES)
-        .then_some(file)
+    (metadata.file_type().is_file() && metadata.len() < MAX_LOCKFILE_CONFLICT_SCAN_BYTES).then_some(
+        file,
+    )
 }
 
 fn chunk_contains_marker(bytes: &[u8]) -> bool {
-    bytes.windows(CONFLICT_MARKER.len()).any(|window| window == CONFLICT_MARKER)
+    bytes
+        .windows(CONFLICT_MARKER.len())
+        .any(|window| window == CONFLICT_MARKER)
 }

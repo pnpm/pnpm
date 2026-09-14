@@ -106,7 +106,13 @@ pub(super) async fn create_tmp_file_with(
     let mut last_already_exists = None;
     for _ in 0..MAX_TEMP_CREATE_ATTEMPTS {
         let tmp_path = next_path(base);
-        match fs::OpenOptions::new().read(true).write(true).create_new(true).open(&tmp_path).await {
+        match fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&tmp_path)
+            .await
+        {
             Ok(file) => return Ok((file, tmp_path)),
             Err(err) if err.kind() == ErrorKind::AlreadyExists => {
                 last_already_exists = Some(err);
@@ -133,7 +139,10 @@ pub fn unique_tmp_path(base: &Path) -> PathBuf {
         Ok(()) => u64::from_ne_bytes(random),
         Err(_) => 0,
     };
-    let mut name = base.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
+    let mut name = base
+        .file_name()
+        .map(std::ffi::OsStr::to_os_string)
+        .unwrap_or_default();
     name.push(format!(".tmp.{pid}.{counter}.{random:016x}"));
     match base.parent() {
         Some(parent) => parent.join(name),

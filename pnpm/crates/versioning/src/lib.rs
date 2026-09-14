@@ -28,8 +28,8 @@ pub use pending::{
 };
 pub use plan::{
     AssembleReleasePlanOptions, DependencyField, DependencyUpdate, ManifestDependency,
-    PlannedRelease, ProjectRefIndex, ReleaseCause, ReleasePlan, VersioningInvariantCode,
-    VersioningInvariantViolation, WorkspaceProject, assemble_release_plan,
+    PlannedRelease, ProjectRefIndex, ReleaseCause, ReleasePlan, ReleaseVersion,
+    VersioningInvariantCode, VersioningInvariantViolation, WorkspaceProject, assemble_release_plan,
     check_versioning_invariants, index_project_refs, is_dir_ref, materialize_workspace_range,
     to_project_dir,
 };

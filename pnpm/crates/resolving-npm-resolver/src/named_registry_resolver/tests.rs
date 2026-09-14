@@ -73,19 +73,25 @@ fn build_resolver(
     let resolver = NamedRegistryResolver {
         registries_by_prefix: merged,
         registry_names,
-        http_client: Arc::new(ThrottledClient::default()),
-        auth_headers: Arc::new(AuthHeaders::default()),
-        meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
-        fetch_locker: shared_packument_fetch_locker(),
-        picked_manifest_cache: shared_picked_manifest_cache(),
-        cache_dir: Some(cache_dir.path().to_path_buf()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
-        full_metadata: false,
-        needs_full_metadata_for: None,
-        filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        metadata: crate::RegistryMetadataClient {
+            http_client: Arc::new(ThrottledClient::default()),
+            auth_headers: Arc::new(AuthHeaders::default()),
+            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(cache_dir.path().to_path_buf()),
+            retry_opts: RetryOpts::default(),
+        },
+        format: crate::RegistryMetadataFormat {
+            full_metadata: false,
+            needs_full_metadata_for: None,
+            filter_metadata: false,
+        },
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
     };
     (resolver, cache_dir)
 }
@@ -111,10 +117,14 @@ async fn resolves_via_builtin_gh_alias() {
         bare_specifier: Some("gh:^2.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.resolved_via, "named-registry");
     assert_eq!(result.id.as_str(), "@acme/private@gh:2.1.0");
-    assert_eq!(result.latest.as_deref(), Some("2.1.0"));
+    assert_eq!(result.package.latest.as_deref(), Some("2.1.0"));
     assert_eq!(result.alias.as_deref(), Some("@acme/private"));
 }
 
@@ -140,7 +150,11 @@ async fn preserves_scoped_pkg_name_when_alias_differs() {
         bare_specifier: Some("gh:@acme/private@^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.resolved_via, "named-registry");
     assert_eq!(result.id.as_str(), "@acme/private@gh:1.0.0");
     assert_eq!(
@@ -173,7 +187,11 @@ async fn user_config_overrides_builtin_gh_alias() {
         bare_specifier: Some("gh:^2.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.resolved_via, "named-registry");
     assert_eq!(result.id.as_str(), "@acme/private@gh:2.1.0");
 }
@@ -198,7 +216,11 @@ async fn resolves_user_defined_named_registry() {
         bare_specifier: Some("work:^2.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.resolved_via, "named-registry");
     assert_eq!(result.id.as_str(), "@acme/private@work:2.1.0");
     assert_eq!(result.alias.as_deref(), Some("@acme/private"));
@@ -217,7 +239,10 @@ async fn declines_non_named_specifiers() {
             bare_specifier: Some(bare.to_string()),
             ..WantedDependency::default()
         };
-        let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+        let result = resolver
+            .resolve(&wanted, &ResolveOptions::default())
+            .await
+            .unwrap();
         assert!(result.is_none(), "expected None for {bare:?}");
     }
 }
@@ -235,7 +260,10 @@ async fn declines_github_git_shortcut() {
             bare_specifier: Some(bare.to_string()),
             ..WantedDependency::default()
         };
-        let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+        let result = resolver
+            .resolve(&wanted, &ResolveOptions::default())
+            .await
+            .unwrap();
         assert!(result.is_none(), "expected None for {bare:?}");
     }
 }
@@ -251,7 +279,10 @@ async fn declines_named_alias_for_bare_version_without_package_alias() {
         bare_specifier: Some("gh:2.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap();
     assert!(result.is_none());
 }
 
@@ -315,8 +346,14 @@ async fn update_requested_keeps_preferred_versions() {
         .resolve(
             &wanted,
             &ResolveOptions {
-                preferred_versions: std::sync::Arc::new(preferred),
-                update_requested: true,
+                version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+                    preferred_versions: std::sync::Arc::new(preferred),
+                    ..Default::default()
+                },
+                refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+                    update_requested: true,
+                    ..Default::default()
+                },
                 ..ResolveOptions::default()
             },
         )
@@ -378,8 +415,14 @@ async fn update_requested_keeps_non_version_selectors() {
         .resolve(
             &wanted,
             &ResolveOptions {
-                preferred_versions: std::sync::Arc::new(preferred),
-                update_requested: true,
+                version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+                    preferred_versions: std::sync::Arc::new(preferred),
+                    ..Default::default()
+                },
+                refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+                    update_requested: true,
+                    ..Default::default()
+                },
                 ..ResolveOptions::default()
             },
         )
@@ -413,9 +456,19 @@ async fn calculates_prefixed_specifier_for_named_registry_update_latest() {
         ..WantedDependency::default()
     };
 
-    let opts = ResolveOptions { calc_specifier: true, ..ResolveOptions::default() };
+    let opts = ResolveOptions {
+        specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
+            calc_specifier: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
 
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:^2.1.0"));
 }
 
@@ -441,9 +494,19 @@ async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared
         ..WantedDependency::default()
     };
 
-    let opts = ResolveOptions { calc_specifier: true, ..ResolveOptions::default() };
+    let opts = ResolveOptions {
+        specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
+            calc_specifier: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
 
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:~2.1.0"));
 }
 
@@ -468,9 +531,19 @@ async fn calculates_prefixed_specifier_for_aliased_named_registry() {
         ..WantedDependency::default()
     };
 
-    let opts = ResolveOptions { calc_specifier: true, ..ResolveOptions::default() };
+    let opts = ResolveOptions {
+        specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
+            calc_specifier: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
 
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:@acme/private@^1.0.0"));
 }
 
@@ -498,12 +571,19 @@ async fn latest_is_suppressed_when_published_by_holds_back_raw_latest() {
         ..WantedDependency::default()
     };
     let opts = ResolveOptions {
-        published_by: Some(chrono::Utc.with_ymd_and_hms(2024, 7, 1, 0, 0, 0).unwrap()),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: Some(chrono::Utc.with_ymd_and_hms(2024, 7, 1, 0, 0, 0).unwrap()),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.id.as_str(), "@acme/private@gh:2.0.0");
-    assert!(result.latest.is_none(), "immature dist-tags.latest suppresses the hint");
+    assert!(result.package.latest.is_none(), "immature dist-tags.latest suppresses the hint");
 }
 
 /// The resolution id is registry-qualified so the same name@version
@@ -529,13 +609,20 @@ async fn resolves_registry_qualified_id() {
         ..WantedDependency::default()
     };
     let opts = ResolveOptions::default();
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(result.resolved_via, "named-registry");
     assert_eq!(result.id.as_str(), "@acme/private@work:2.1.0");
     // `name_ver` keeps the bare `name@version` shape for display / peer
     // resolution.
     assert_eq!(
-        result.name_ver.as_ref().map(ToString::to_string).as_deref(),
+        result.package.name_ver
+            .as_ref()
+            .map(ToString::to_string)
+            .as_deref(),
         Some("@acme/private@2.1.0"),
     );
 }

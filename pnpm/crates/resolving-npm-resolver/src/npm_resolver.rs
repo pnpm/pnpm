@@ -23,9 +23,7 @@
 //!   store. Pacquet today goes through the picker unconditionally;
 //!   adding the fast path is a separate item.
 
-pub(crate) use resolution_result::{
-    BuildResolveResult, build_resolve_result, prefixed_calculated_specifier,
-};
+pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier};
 
 pub(crate) use package_revision::validate_revision_selector;
 
@@ -126,6 +124,12 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     /// for this port); kept here so the install layer can build one
     /// resolver instance with the full registry view.
     pub registries_by_prefix: HashMap<String, String>,
+    pub metadata: RegistryMetadataClient<Cache>,
+    pub format: RegistryMetadataFormat,
+    pub cache_policy: crate::MetadataCachePolicy,
+}
+
+pub struct RegistryMetadataClient<Cache: PackageMetaCache> {
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     pub meta_cache: Arc<Cache>,
@@ -145,9 +149,13 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     /// disk read/write — the picker goes straight to the network on
     /// each cache miss.
     pub cache_dir: Option<PathBuf>,
-    pub offline: bool,
-    pub prefer_offline: bool,
-    pub ignore_missing_time_field: bool,
+    /// Retry budget threaded through to
+    /// [`crate::MetadataHttpClient::retry_opts`]. Sourced from the install's
+    /// `fetch-retries` config.
+    pub retry_opts: RetryOpts,
+}
+
+pub struct RegistryMetadataFormat {
     /// Install-wide bias toward full metadata. Threaded through to
     /// [`PickPackageContext::full_metadata`].
     pub full_metadata: bool,
@@ -159,10 +167,6 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     /// When full metadata is forced, read and write pnpm's filtered
     /// full-metadata mirror.
     pub filter_metadata: bool,
-    /// Retry budget threaded through to
-    /// [`PickPackageContext::retry_opts`]. Sourced from the install's
-    /// `fetch-retries` config.
-    pub retry_opts: RetryOpts,
 }
 
 impl<Cache: PackageMetaCache + 'static> Resolver for NpmResolver<Cache> {
@@ -189,7 +193,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         wanted_dependency: &WantedDependency,
         opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
-        let default_tag = opts.default_tag.as_deref().unwrap_or("latest");
+        let default_tag = opts.version.default_tag.as_deref().unwrap_or("latest");
 
         if let Some(bare) = wanted_dependency.bare_specifier.as_deref()
             && bare.starts_with("workspace:")
@@ -252,19 +256,38 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             }
         };
 
-        fail_if_trust_downgraded_for_pick(opts, &picked, self.ignore_missing_time_field)?;
-
-        if let Some(result) = workspace_shadow_pick(
-            workspace_packages_active,
-            &spec,
-            &picked,
+        self.finish_registry_pick(
             wanted_dependency,
             opts,
-        ) {
+            &spec,
+            &registry,
+            &picked,
+            workspace_packages_active,
+        )
+    }
+
+    fn finish_registry_pick(
+        &self,
+        wanted_dependency: &WantedDependency,
+        opts: &ResolveOptions,
+        spec: &RegistryPackageSpec,
+        registry: &str,
+        picked: &PickedFromRegistry,
+        workspace_packages_active: Option<&Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
+    ) -> Result<Option<ResolveResult>, ResolveError> {
+        fail_if_trust_downgraded_for_pick(
+            opts,
+            picked,
+            self.cache_policy.ignore_missing_time_field,
+        )?;
+
+        if let Some(result) =
+            workspace_shadow_pick(workspace_packages_active, spec, picked, wanted_dependency, opts)
+        {
             return Ok(Some(result));
         }
 
-        self.registry_pick_result(wanted_dependency, opts, &spec, &registry, &picked)
+        self.registry_pick_result(wanted_dependency, opts, spec, registry, picked)
     }
 
     fn registry_pick_result(
@@ -275,21 +298,22 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         registry: &str,
         picked: &PickedFromRegistry,
     ) -> Result<Option<ResolveResult>, ResolveError> {
-        let result = build_resolve_result(BuildResolveResult {
-            meta: &picked.meta,
-            picked: &picked.version,
-            spec,
-            alias: wanted_dependency.alias.as_deref(),
+        crate::npm_resolver::RegistryResolutionSource {
             resolved_via: NPM_REGISTRY_RESOLVED_VIA,
             registry,
             registry_name: None,
-            published_by: opts.published_by,
-            published_by_exclude: opts.published_by_exclude.as_ref(),
-            picked_manifest_cache: &self.picked_manifest_cache,
-            calculated_specifier: calculated_specifier(wanted_dependency, opts, spec, picked),
-        })?;
-
-        Ok(Some(result))
+        }
+        .build_result(
+            picked,
+            &opts.policy,
+            &self.metadata.picked_manifest_cache,
+            crate::npm_resolver::ResolvedSpecifier {
+                spec,
+                alias: wanted_dependency.alias.as_deref(),
+                calculated_specifier: calculated_specifier(wanted_dependency, opts, spec, picked),
+            },
+        )
+        .map(Some)
     }
 
     /// `workspace:` resolves against the workspace alone; `workspace:.` is
@@ -310,12 +334,12 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             wanted_dependency.bare_specifier.as_deref(),
         );
         let ws_opts = ResolveFromWorkspaceOptions {
-            project_dir: opts.project_dir.as_path(),
-            lockfile_dir: opts.lockfile_dir.as_path(),
+            project_dir: opts.project.project_dir.as_path(),
+            lockfile_dir: opts.project.lockfile_dir.as_path(),
             registry: &registry,
             default_tag,
-            workspace_packages: opts.workspace_packages.as_deref(),
-            inject_workspace_packages: opts.inject_workspace_packages,
+            workspace_packages: opts.project.workspace_packages.as_deref(),
+            inject_workspace_packages: opts.project.inject_workspace_packages,
             saved_specifier: saved_specifier_options(opts),
         };
         try_resolve_from_workspace(wanted_dependency, &ws_opts)
@@ -359,21 +383,16 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             }
         };
 
-        let result = build_resolve_result(BuildResolveResult {
-            meta: &picked.meta,
-            picked: &picked.version,
-            spec: &jsr_spec.spec,
-            alias: Some(jsr_spec.jsr_pkg_name.as_str()),
+        crate::npm_resolver::RegistryResolutionSource {
             resolved_via: JSR_REGISTRY_RESOLVED_VIA,
             registry,
             registry_name: None,
-            published_by: opts.published_by,
-            published_by_exclude: opts.published_by_exclude.as_ref(),
-            picked_manifest_cache: &self.picked_manifest_cache,
-            // The entry stays a JSR dependency, so it round-trips under
-            // the `jsr:` protocol rather than as the npm-shaped range
-            // `calc_specifier` would build.
-            calculated_specifier: prefixed_calculated_specifier(
+        }
+        .build_result(
+            &picked,
+            &opts.policy,
+            &self.metadata.picked_manifest_cache,
+            crate::npm_resolver::ResolvedSpecifier::prefixed(
                 wanted_dependency,
                 opts,
                 &jsr_spec.spec,
@@ -381,28 +400,8 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 &jsr_spec.jsr_pkg_name,
                 &picked.version,
             ),
-        })?;
-
-        Ok(Some(result))
-    }
-
-    /// Common picker invocation shared by [`Self::resolve_impl`] and
-    /// [`Self::resolve_jsr_impl`].
-    fn pick_context(&self) -> PickPackageContext<'_, Cache> {
-        PickPackageContext {
-            http_client: &self.http_client,
-            auth_headers: &self.auth_headers,
-            meta_cache: self.meta_cache.as_ref(),
-            fetch_locker: &self.fetch_locker,
-            cache_dir: self.cache_dir.as_deref(),
-            offline: self.offline,
-            prefer_offline: self.prefer_offline,
-            ignore_missing_time_field: self.ignore_missing_time_field,
-            full_metadata: self.full_metadata,
-            needs_full_metadata_for: self.needs_full_metadata_for.as_deref(),
-            filter_metadata: self.filter_metadata,
-            retry_opts: self.retry_opts,
-        }
+        )
+        .map(Some)
     }
 
     async fn pick_from_registry(
@@ -414,9 +413,10 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
     ) -> Result<RegistryPick, ResolveError> {
         let overlay_selectors =
             crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
-        let base_selectors =
-            overlay_selectors.as_ref().or_else(|| opts.preferred_versions.get(&spec.name));
-        let ctx = self.pick_context();
+        let base_selectors = overlay_selectors
+            .as_ref()
+            .or_else(|| opts.version.preferred_versions.get(&spec.name));
+        let ctx = self.metadata.pick_context(&self.format, self.cache_policy);
 
         let picked = pick_from_registry_with_guard(
             &ctx,
@@ -424,15 +424,20 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 registry,
                 spec,
                 preferred_version_selectors: base_selectors,
-                published_by: opts.published_by,
-                published_by_exclude: opts.published_by_exclude.as_ref(),
-                pick_lowest_version: opts.pick_lowest_version,
-                include_latest_tag: opts.update == UpdateBehavior::Latest,
-                dry_run: opts.dry_run,
-                optional,
-                update_checksums: opts.update_checksums || opts.update == UpdateBehavior::Patches,
-                trust_policy: opts.trust_policy,
-                package_version_guard: opts.package_version_guard.as_ref(),
+                pick_lowest_version: opts.version.pick_lowest_version,
+                include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
+                package_version_guard: opts.policy.package_version_guard.as_ref(),
+                policy: crate::PackagePickPolicy {
+                    published_by: opts.policy.published_by,
+                    published_by_exclude: opts.policy.published_by_exclude.as_ref(),
+                    trust_policy: opts.policy.trust_policy,
+                },
+                request: crate::MetadataPickRequest {
+                    dry_run: opts.refresh.dry_run,
+                    optional,
+                    update_checksums: opts.refresh.update_checksums
+                        || opts.refresh.update == UpdateBehavior::Patches,
+                },
             },
         )
         .await?;
@@ -468,7 +473,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         }
         let mut resolve_opts = opts.clone();
         if !query.compatible {
-            resolve_opts.update = UpdateBehavior::Latest;
+            resolve_opts.refresh.update = UpdateBehavior::Latest;
         }
         let result = match self.resolve_impl(&wanted, &resolve_opts).await {
             Ok(result) => result,
@@ -480,16 +485,40 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let Some(result) = result else {
             return Ok(None);
         };
-        if result
-            .policy_violation
+        if result.policy_violation
             .as_ref()
             .is_some_and(|violation| violation.code == MINIMUM_RELEASE_AGE_VIOLATION_CODE)
         {
             return Ok(Some(LatestInfo { latest_manifest: None }));
         }
-        Ok(Some(LatestInfo { latest_manifest: result.manifest }))
+        Ok(Some(LatestInfo { latest_manifest: result.package.manifest }))
     }
 }
 
 #[cfg(test)]
 mod tests;
+
+impl<Cache: PackageMetaCache> RegistryMetadataClient<Cache> {
+    pub(crate) fn pick_context<'a>(
+        &'a self,
+        format: &'a RegistryMetadataFormat,
+        cache_policy: crate::MetadataCachePolicy,
+    ) -> PickPackageContext<'a, Cache> {
+        PickPackageContext {
+            full_metadata: format.full_metadata,
+            needs_full_metadata_for: format.needs_full_metadata_for.as_deref(),
+            filter_metadata: format.filter_metadata,
+            cache_policy,
+            metadata: crate::MetadataRequestContext {
+                meta_cache: self.meta_cache.as_ref(),
+                fetch_locker: &self.fetch_locker,
+                cache_dir: self.cache_dir.as_deref(),
+                http: crate::MetadataHttpClient {
+                    http_client: &self.http_client,
+                    auth_headers: &self.auth_headers,
+                    retry_opts: self.retry_opts,
+                },
+            },
+        }
+    }
+}

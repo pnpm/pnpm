@@ -76,7 +76,10 @@ fn rolling_specifier(prefix: &str, declared: DeclaredSpecifiers<'_>) -> String {
     let Some(specifier) = declared.prev.or(declared.bare) else {
         return format!("{prefix}^");
     };
-    if ["*", "^", "~"].iter().any(|suffix| specifier == format!("{prefix}{suffix}")) {
+    if ["*", "^", "~"]
+        .iter()
+        .any(|suffix| specifier == format!("{prefix}{suffix}"))
+    {
         return specifier.to_string();
     }
     let suffix = match infer_range_spec_style(specifier).map(RangeSpecStyle::granularity) {
@@ -90,7 +93,9 @@ fn rolling_specifier(prefix: &str, declared: DeclaredSpecifiers<'_>) -> String {
 }
 
 fn is_prerelease(version: &str) -> bool {
-    version.parse::<node_semver::Version>().is_ok_and(|parsed| !parsed.pre_release.is_empty())
+    version
+        .parse::<node_semver::Version>()
+        .is_ok_and(|parsed| !parsed.pre_release.is_empty())
 }
 
 #[cfg(test)]

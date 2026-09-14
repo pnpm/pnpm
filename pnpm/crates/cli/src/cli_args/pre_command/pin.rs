@@ -29,7 +29,9 @@ fn resolve_package_manager_pin(
     root_manifest: &Value,
     pm: &WantedPackageManager,
 ) -> miette::Result<PinOutcome> {
-    let PinResolution { input, config, roots, process_state, .. } = *resolution;
+    let PinResolution {
+        input, config, roots, process_state, ..
+    } = *resolution;
     let on_fail = effective_on_fail(config, pm);
     if on_fail == PmOnFail::Ignore {
         return Ok(PinOutcome::Sync(None));

@@ -12,7 +12,7 @@ fn dir_is_global_and_parses_on_either_side_of_the_subcommand() {
         ["pacquet", "add", "foo", "-C", "project"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses global --dir");
-        assert_eq!(parsed.dir, std::path::PathBuf::from("project"));
+        assert_eq!(parsed.paths.dir, std::path::PathBuf::from("project"));
         assert!(matches!(parsed.command, CliCommand::Add(_)));
     }
 }
@@ -25,7 +25,7 @@ fn registry_is_a_universal_global_option() {
         ["pacquet", "view", "foo", "--registry=https://r.test/"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses universal --registry");
-        assert_eq!(parsed.registry.as_deref(), Some("https://r.test/"));
+        assert_eq!(parsed.network.registry.as_deref(), Some("https://r.test/"));
     }
 }
 
@@ -36,7 +36,7 @@ fn store_dir_is_global_and_parses_on_either_side_of_the_subcommand() {
         ["pacquet", "install", "--store-dir=custom-store"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses global --store-dir");
-        assert_eq!(parsed.store_dir.as_deref(), Some(Path::new("custom-store")));
+        assert_eq!(parsed.paths.store_dir.as_deref(), Some(Path::new("custom-store")));
     }
 }
 
@@ -47,7 +47,7 @@ fn state_dir_is_global_and_parses_on_either_side_of_the_subcommand() {
         ["pacquet", "install", "--state-dir=custom-state"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses global --state-dir");
-        assert_eq!(parsed.state_dir.as_deref(), Some(Path::new("custom-state")));
+        assert_eq!(parsed.paths.state_dir.as_deref(), Some(Path::new("custom-state")));
     }
 }
 
@@ -56,7 +56,7 @@ fn proxy_flags_are_global_and_parse_on_either_side_of_the_subcommand() {
     let before =
         CliArgs::try_parse_from(["pacquet", "--https-proxy=http://proxy.example:8443", "install"])
             .expect("parse HTTPS proxy before subcommand");
-    assert_eq!(before.https_proxy.as_deref(), Some("http://proxy.example:8443"));
+    assert_eq!(before.network.https_proxy.as_deref(), Some("http://proxy.example:8443"));
 
     let after = CliArgs::try_parse_from([
         "pacquet",
@@ -65,25 +65,25 @@ fn proxy_flags_are_global_and_parse_on_either_side_of_the_subcommand() {
         "--no-proxy=localhost,127.0.0.1",
     ])
     .expect("parse proxy settings after subcommand");
-    assert_eq!(after.http_proxy.as_deref(), Some("http://proxy.example:8080"));
-    assert_eq!(after.no_proxy.as_deref(), Some("localhost,127.0.0.1"));
+    assert_eq!(after.network.http_proxy.as_deref(), Some("http://proxy.example:8080"));
+    assert_eq!(after.network.no_proxy.as_deref(), Some("localhost,127.0.0.1"));
 }
 
 #[test]
 fn recursive_default_is_false() {
     let parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");
-    assert!(!parsed.recursive, "flag absent → false");
+    assert!(!parsed.workspace.recursive, "flag absent → false");
 }
 
 #[test]
 fn recursive_flag_is_global_and_parses_either_side_of_subcommand() {
     let before = CliArgs::try_parse_from(["pacquet", "-r", "install"]).expect("parses -r install");
-    assert!(before.recursive, "`-r install` → recursive");
+    assert!(before.workspace.recursive, "`-r install` → recursive");
     assert!(matches!(before.command, CliCommand::Install(_)));
 
     let after = CliArgs::try_parse_from(["pacquet", "install", "--recursive"])
         .expect("parses install --recursive");
-    assert!(after.recursive, "`install --recursive` → recursive");
+    assert!(after.workspace.recursive, "`install --recursive` → recursive");
     assert!(matches!(after.command, CliCommand::Install(_)));
 }
 
@@ -94,7 +94,7 @@ fn loglevel_is_global_and_parses_on_either_side_of_the_subcommand() {
         ["pacquet", "install", "--loglevel=error"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses global --loglevel");
-        assert_eq!(parsed.loglevel, Some(LogLevelSetting::Error));
+        assert_eq!(parsed.output.presentation.loglevel, Some(LogLevelSetting::Error));
     }
 }
 
@@ -128,8 +128,8 @@ fn loglevel_rejects_unknown_values() {
 #[test]
 fn filter_defaults_are_empty() {
     let parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");
-    assert!(parsed.filter.is_empty(), "no `--filter` → empty");
-    assert!(parsed.filter_prod.is_empty(), "no `--filter-prod` → empty");
+    assert!(parsed.workspace.selection.filter.is_empty(), "no `--filter` → empty");
+    assert!(parsed.workspace.selection.filter_prod.is_empty(), "no `--filter-prod` → empty");
 }
 
 #[test]
@@ -145,8 +145,8 @@ fn filter_flags_collect_selectors() {
         "app...",
     ])
     .expect("parses repeated filter flags");
-    assert_eq!(parsed.filter, ["@scope/*", "./pkg"]);
-    assert_eq!(parsed.filter_prod, ["app..."]);
+    assert_eq!(parsed.workspace.selection.filter, ["@scope/*", "./pkg"]);
+    assert_eq!(parsed.workspace.selection.filter_prod, ["app..."]);
     assert!(matches!(parsed.command, CliCommand::Install(_)));
 }
 
@@ -154,7 +154,7 @@ fn filter_flags_collect_selectors() {
 fn filter_flag_is_global_and_parses_before_subcommand() {
     let parsed = CliArgs::try_parse_from(["pacquet", "-F", "@scope/*", "install"])
         .expect("parses -F install");
-    assert_eq!(parsed.filter, ["@scope/*"]);
+    assert_eq!(parsed.workspace.selection.filter, ["@scope/*"]);
     assert!(matches!(parsed.command, CliCommand::Install(_)));
 }
 
@@ -169,10 +169,10 @@ fn recursive_run_flags_parse_before_fallback_command() {
         ".test",
     ])
     .expect("parses recursive fallback flags");
-    assert!(parsed.recursive);
-    assert!(parsed.no_sort);
-    assert_eq!(parsed.workspace_concurrency, Some(1));
-    assert!(parsed.report_summary);
+    assert!(parsed.workspace.recursive);
+    assert!(parsed.workspace.ordering.no_sort);
+    assert_eq!(parsed.workspace.ordering.concurrency, Some(1));
+    assert!(parsed.workspace.execution.report_summary);
     assert!(
         matches!(&parsed.command, CliCommand::External(command) if command.as_slice() == [".test"]),
     );
@@ -183,12 +183,12 @@ fn recursive_run_flags_parse_before_fallback_command() {
 fn parallel_before_run_is_a_recursive_unsorted_run_option() {
     let mut parsed = CliArgs::try_parse_from(["pacquet", "--parallel", "run", "build"])
         .expect("parses --parallel before run");
-    assert!(parsed.parallel);
-    assert!(!parsed.recursive);
+    assert!(parsed.workspace.ordering.parallel);
+    assert!(!parsed.workspace.recursive);
     parsed.validate_command_scoped_global_options().expect("run accepts --parallel");
     parsed.apply_parallel_run_options();
-    assert!(parsed.recursive);
-    assert!(parsed.no_sort);
+    assert!(parsed.workspace.recursive);
+    assert!(parsed.workspace.ordering.no_sort);
     assert!(
         matches!(&parsed.command, CliCommand::Run(args) if args.script.as_slice() == ["build"]),
     );
@@ -200,15 +200,15 @@ fn parallel_before_exec_is_a_recursive_unsorted_exec_option() {
         .expect("parses --parallel before exec");
     parsed.validate_command_scoped_global_options().expect("exec accepts --parallel");
     parsed.apply_parallel_run_options();
-    assert!(parsed.recursive);
-    assert!(parsed.no_sort);
+    assert!(parsed.workspace.recursive);
+    assert!(parsed.workspace.ordering.no_sort);
 }
 
 #[test]
 fn parallel_after_run_script_is_forwarded_to_the_script() {
     let parsed = CliArgs::try_parse_from(["pacquet", "run", "build", "--parallel"])
         .expect("parses --parallel as a script argument");
-    assert!(!parsed.parallel);
+    assert!(!parsed.workspace.ordering.parallel);
     assert!(
         matches!(&parsed.command, CliCommand::Run(args) if args.script.as_slice() == ["build", "--parallel"]),
     );
@@ -241,7 +241,7 @@ fn if_present_flag_parses_before_script_commands() {
         ["pacquet", "--if-present", "restart"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses top-level --if-present");
-        assert!(parsed.if_present);
+        assert!(parsed.workspace.execution.if_present);
         parsed.validate_command_scoped_global_options().expect("script command accepts flag");
     }
 }
@@ -258,7 +258,7 @@ fn if_present_flag_parses_before_fallback_command() {
         ".test",
     ])
     .expect("parses top-level --if-present with a fallback script");
-    assert!(parsed.if_present);
+    assert!(parsed.workspace.execution.if_present);
     assert!(
         matches!(&parsed.command, CliCommand::External(command) if command.as_slice() == [".test"]),
     );
@@ -322,39 +322,39 @@ fn script_scoped_global_flags_reject_unrelated_commands() {
 fn recursive_list_accepts_depth_minus_one_as_separate_value() {
     let parsed = CliArgs::try_parse_from(["pacquet", "-r", "list", "--depth", "-1", "--json"])
         .expect("parses recursive list with --depth -1");
-    assert!(parsed.recursive);
+    assert!(parsed.workspace.recursive);
     let CliCommand::List(args) = parsed.command else {
         panic!("expected list command");
     };
-    assert_eq!(args.depth, RecursionLimit::ProjectsOnly);
-    assert!(args.json);
+    assert_eq!(args.graph.depth, RecursionLimit::ProjectsOnly);
+    assert!(args.output.json);
 }
 
 #[test]
 fn workspace_concurrency_parses_as_global_option() {
     let positive = CliArgs::try_parse_from(["pacquet", "--workspace-concurrency", "3", "install"])
         .expect("parses --workspace-concurrency 3");
-    assert_eq!(positive.workspace_concurrency, Some(3));
+    assert_eq!(positive.workspace.ordering.concurrency, Some(3));
 
     let negative = CliArgs::try_parse_from(["pacquet", "install", "--workspace-concurrency=-1"])
         .expect("parses --workspace-concurrency=-1 after subcommand");
-    assert_eq!(negative.workspace_concurrency, Some(-1));
+    assert_eq!(negative.workspace.ordering.concurrency, Some(-1));
 }
 
 #[test]
 fn filter_flag_split_across_subcommand_keeps_only_subcommand_side() {
     let parsed = CliArgs::try_parse_from(["pacquet", "-F", "a", "install", "-F", "b"])
         .expect("parses split -F");
-    assert_eq!(parsed.filter, ["b"], "global-side `a` is dropped");
+    assert_eq!(parsed.workspace.selection.filter, ["b"], "global-side `a` is dropped");
 }
 
 #[test]
 fn filter_promotes_recursive_without_explicit_flag() {
     let mut parsed =
         CliArgs::try_parse_from(["pacquet", "--filter", "@scope/*", "install"]).expect("parses");
-    assert!(!parsed.recursive, "the raw -r flag is absent");
+    assert!(!parsed.workspace.recursive, "the raw -r flag is absent");
     parsed.promote_recursive_for_filter();
-    assert!(parsed.recursive, "a --filter selector promotes to recursive");
+    assert!(parsed.workspace.recursive, "a --filter selector promotes to recursive");
 }
 
 #[test]
@@ -362,19 +362,19 @@ fn filter_prod_promotes_recursive_without_explicit_flag() {
     let mut parsed =
         CliArgs::try_parse_from(["pacquet", "--filter-prod", "app...", "install"]).expect("parses");
     parsed.promote_recursive_for_filter();
-    assert!(parsed.recursive, "a --filter-prod selector promotes to recursive");
+    assert!(parsed.workspace.recursive, "a --filter-prod selector promotes to recursive");
 }
 
 #[test]
 fn no_filter_leaves_recursive_untouched() {
     let mut parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");
     parsed.promote_recursive_for_filter();
-    assert!(!parsed.recursive, "without a filter the command stays non-recursive");
+    assert!(!parsed.workspace.recursive, "without a filter the command stays non-recursive");
 
     let mut explicit =
         CliArgs::try_parse_from(["pacquet", "-r", "install"]).expect("parses -r install");
     explicit.promote_recursive_for_filter();
-    assert!(explicit.recursive, "an explicit -r is preserved");
+    assert!(explicit.workspace.recursive, "an explicit -r is preserved");
 }
 
 #[test]
@@ -386,14 +386,17 @@ fn recursive_by_default_command_is_promoted_inside_workspace() {
         let mut parsed = CliArgs::try_parse_from([
             "pacquet",
             "--dir",
-            workspace.path().to_str().expect("UTF-8 path"),
+            workspace
+                .path()
+                .to_str()
+                .expect("UTF-8 path"),
             command,
         ])
         .expect("parses");
 
         parsed.promote_recursive_by_default();
 
-        assert!(parsed.recursive, "{command} should be recursive inside a workspace");
+        assert!(parsed.workspace.recursive, "{command} should be recursive inside a workspace");
     }
 }
 
@@ -409,11 +412,11 @@ fn color_accepts_modes_and_boolean_spellings() {
         let color = format!("--color={value}");
         let parsed = CliArgs::try_parse_from(["pacquet", color.as_str(), "install"])
             .expect("color mode parses");
-        assert_eq!(parsed.color, Some(expected));
+        assert_eq!(parsed.output.presentation.color, Some(expected));
     }
     let parsed =
         CliArgs::try_parse_from(["pacquet", "--color", "install"]).expect("bare color parses");
-    assert_eq!(parsed.color, Some(ColorMode::Always));
+    assert_eq!(parsed.output.presentation.color, Some(ColorMode::Always));
 }
 
 #[test]
@@ -423,14 +426,20 @@ fn recursive_by_default_command_stays_non_recursive_outside_workspace() {
         let mut parsed = CliArgs::try_parse_from([
             "pacquet",
             "--dir",
-            project.path().to_str().expect("UTF-8 path"),
+            project
+                .path()
+                .to_str()
+                .expect("UTF-8 path"),
             command,
         ])
         .expect("parses");
 
         parsed.promote_recursive_by_default();
 
-        assert!(!parsed.recursive, "{command} should stay non-recursive outside a workspace");
+        assert!(
+            !parsed.workspace.recursive,
+            "{command} should stay non-recursive outside a workspace",
+        );
     }
 }
 
@@ -442,14 +451,17 @@ fn commands_without_recursive_by_default_stay_non_recursive_in_workspace() {
     let mut parsed = CliArgs::try_parse_from([
         "pacquet",
         "--dir",
-        workspace.path().to_str().expect("UTF-8 path"),
+        workspace
+            .path()
+            .to_str()
+            .expect("UTF-8 path"),
         "outdated",
     ])
     .expect("parses");
 
     parsed.promote_recursive_by_default();
 
-    assert!(!parsed.recursive);
+    assert!(!parsed.workspace.recursive);
 }
 
 #[test]
@@ -502,7 +514,7 @@ fn unknown_top_level_command_preserves_global_options() {
     let CliCommand::External(command) = parsed.command else {
         panic!("expected external command");
     };
-    assert_eq!(parsed.dir, std::path::PathBuf::from("project"));
+    assert_eq!(parsed.paths.dir, std::path::PathBuf::from("project"));
     assert_eq!(command, ["commitlint"]);
 }
 
@@ -515,7 +527,7 @@ fn workspace_root_is_global_and_parses_on_either_side_of_the_subcommand() {
         ["pacquet", "add", "foo", "-w"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses global --workspace-root");
-        assert!(parsed.workspace_root, "{argv:?}");
+        assert!(parsed.workspace.selection.workspace_root, "{argv:?}");
         assert!(matches!(parsed.command, CliCommand::Add(_)));
     }
 }
@@ -530,7 +542,7 @@ fn workspace_root_points_dir_at_the_workspace_root() {
             .expect("parses");
     args.apply_workspace_root().expect("redirects to the workspace root");
 
-    assert_eq!(args.dir, canonical);
+    assert_eq!(args.paths.dir, canonical);
 }
 
 #[test]
@@ -543,7 +555,7 @@ fn workspace_root_leaves_dir_alone_when_not_requested() {
             .expect("parses");
     args.apply_workspace_root().expect("no-op without --workspace-root");
 
-    assert_eq!(args.dir, subdir);
+    assert_eq!(args.paths.dir, subdir);
 }
 
 #[test]
@@ -558,10 +570,14 @@ fn workspace_root_conflicts_with_global_for_every_subcommand() {
             let argv = std::iter::once("pacquet")
                 .chain(subcommand.iter().copied())
                 .chain(["-w", global, "-C"])
-                .chain([root.path().to_str().expect("utf-8 tmp dir")]);
-            let mut args = CliArgs::try_parse_from(argv).unwrap_or_else(|error| {
-                panic!("{subcommand:?} should parse with -w {global}: {error}");
-            });
+                .chain([root
+                    .path()
+                    .to_str()
+                    .expect("utf-8 tmp dir")]);
+            let mut args = CliArgs::try_parse_from(argv)
+                .unwrap_or_else(|error| {
+                    panic!("{subcommand:?} should parse with -w {global}: {error}");
+                });
             let error = args
                 .apply_workspace_root()
                 .expect_err(&format!("{subcommand:?} must reject -w with {global}"));
@@ -586,14 +602,18 @@ fn workspace_root_is_allowed_for_subcommands_without_global() {
         // script's argument rather than pnpm's.
         let argv = std::iter::once("pacquet")
             .chain(["-w", "-C"])
-            .chain([root.path().to_str().expect("utf-8 tmp dir")])
+            .chain([root
+                .path()
+                .to_str()
+                .expect("utf-8 tmp dir")])
             .chain(subcommand.iter().copied());
         let mut args = CliArgs::try_parse_from(argv).expect("parses");
-        args.apply_workspace_root().unwrap_or_else(|error| {
-            panic!("{subcommand:?} should accept -w: {error}");
-        });
+        args.apply_workspace_root()
+            .unwrap_or_else(|error| {
+                panic!("{subcommand:?} should accept -w: {error}");
+            });
 
-        assert_eq!(args.dir, canonical, "{subcommand:?}");
+        assert_eq!(args.paths.dir, canonical, "{subcommand:?}");
     }
 }
 
@@ -628,6 +648,6 @@ fn workspace_root_tolerates_a_dir_that_does_not_exist() {
             .expect("parses");
     args.apply_workspace_root().expect("redirects to the workspace root anyway");
 
-    assert_eq!(args.dir, canonical);
+    assert_eq!(args.paths.dir, canonical);
     drop(root); // cleanup
 }

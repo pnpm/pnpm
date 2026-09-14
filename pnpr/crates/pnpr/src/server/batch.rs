@@ -141,8 +141,9 @@ async fn publish_batch(
     // decoded out of it below: keep only one copy of a body that may run to
     // the request limit.
     drop(body);
-    let Some(Value::Array(packages)) =
-        incoming.as_object_mut().and_then(|body| body.remove("packages"))
+    let Some(Value::Array(packages)) = incoming
+        .as_object_mut()
+        .and_then(|body| body.remove("packages"))
     else {
         return Err(RegistryError::BadRequest {
             reason: "body must be an object with a `packages` array".to_string(),
@@ -159,8 +160,11 @@ async fn publish_batch(
     // Hold every affected package's lock across the whole stage-and-commit,
     // so concurrent writers of any package in the batch serialize with us
     // just like with a single publish.
-    let names: Vec<&str> = validated.iter().map(|entry| entry.key().as_str()).collect();
-    let _guards = state.inner.package_locks.lock_many(&names).await;
+    let names: Vec<&str> = validated
+        .iter()
+        .map(|entry| entry.key().as_str())
+        .collect();
+    let _guards = state.inner.locks.packages.lock_many(&names).await;
 
     let now = now_iso();
     let mut staged: Vec<StagedPublish> = Vec::with_capacity(validated.len());
@@ -241,7 +245,7 @@ async fn validate_entry(
                 entry.reference,
                 bytes.into(),
                 entry.content_type.as_deref(),
-                state.inner.config.oci.max_manifest_bytes,
+                state.inner.config.http.oci.max_manifest_bytes,
             )
             .map(ValidatedEntry::Oci)
             .map_err(RegistryError::from)
@@ -254,9 +258,10 @@ async fn validate_entry(
 fn entry_ecosystem(package: &Value) -> Result<Ecosystem, RegistryError> {
     match package.get("ecosystem") {
         None | Some(Value::Null) => Ok(Ecosystem::Npm),
-        Some(value) => serde_json::from_value(value.clone()).map_err(|_| {
-            RegistryError::BadRequest { reason: format!("unknown ecosystem {value} in `packages`") }
-        }),
+        Some(value) => serde_json::from_value(value.clone())
+            .map_err(|_| RegistryError::BadRequest {
+                reason: format!("unknown ecosystem {value} in `packages`"),
+            }),
     }
 }
 
@@ -268,9 +273,11 @@ fn malformed_body(err: &serde_json::Error) -> RegistryError {
 }
 
 fn decode_base64(data: &str, field: &'static str) -> Result<Vec<u8>, RegistryError> {
-    BASE64.decode(data).map_err(|err| RegistryError::BadRequest {
-        reason: format!("`{field}` is not valid base64: {err}"),
-    })
+    BASE64
+        .decode(data)
+        .map_err(|err| RegistryError::BadRequest {
+            reason: format!("`{field}` is not valid base64: {err}"),
+        })
 }
 
 /// Remove the batch routing field before the npm merge can persist it in the
@@ -284,8 +291,10 @@ async fn validate_npm_entry(
     if let Some(entry) = package.as_object_mut() {
         entry.remove("ecosystem");
     }
-    let name =
-        package.get("name").and_then(Value::as_str).ok_or_else(|| RegistryError::BadRequest {
+    let name = package
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| RegistryError::BadRequest {
             reason: "every npm entry in `packages` must have a string `name`".to_string(),
         })?;
     let name = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm)?;

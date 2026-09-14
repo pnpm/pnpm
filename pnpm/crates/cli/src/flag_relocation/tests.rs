@@ -6,10 +6,16 @@ use std::ffi::OsString;
 
 fn relocate(tokens: &[&str]) -> Vec<String> {
     let cmd = with_boolean_negations(CliArgs::command());
-    relocate_pre_subcommand_flags(&cmd, tokens.iter().map(OsString::from).collect())
-        .into_iter()
-        .map(|token| token.into_string().expect("test tokens are UTF-8"))
-        .collect()
+    relocate_pre_subcommand_flags(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    )
+    .into_iter()
+    .map(|token| token.into_string().expect("test tokens are UTF-8"))
+    .collect()
 }
 
 fn parse(tokens: &[&str]) -> CliArgs {
@@ -18,7 +24,13 @@ fn parse(tokens: &[&str]) -> CliArgs {
 
 fn try_parse(tokens: &[&str]) -> Result<CliArgs, clap::Error> {
     let cmd = with_boolean_negations(CliArgs::command());
-    let argv = relocate_pre_subcommand_flags(&cmd, tokens.iter().map(OsString::from).collect());
+    let argv = relocate_pre_subcommand_flags(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    );
     cmd.try_get_matches_from(argv).and_then(|matches| CliArgs::from_arg_matches(&matches))
 }
 
@@ -52,12 +64,12 @@ fn relocated_deploy_invocation_parses_with_the_flags_applied() {
         "deploy",
         "temp-deploy",
     ]);
-    assert_eq!(args.filter, ["pnpm"]);
+    assert_eq!(args.workspace.selection.filter, ["pnpm"]);
     let crate::cli_args::cli_command::CliCommand::Deploy(deploy) = args.command else {
         panic!("expected deploy");
     };
-    assert!(deploy.install_args.force);
-    assert!(deploy.install_args.ignore_scripts);
+    assert!(deploy.install_args.materialization.force);
+    assert!(deploy.install_args.scripts.ignore);
     assert_eq!(deploy.target_dirs, [std::path::PathBuf::from("temp-deploy")]);
 }
 
@@ -113,7 +125,7 @@ fn mixed_short_cluster_moves_with_its_value() {
 #[test]
 fn relocated_mixed_short_cluster_parses_with_both_options_applied() {
     let args = parse(&["pnpm", "-ro", "dist", "pack-app"]);
-    assert!(args.recursive);
+    assert!(args.workspace.recursive);
     let crate::cli_args::cli_command::CliCommand::PackApp(pack_app) = args.command else {
         panic!("expected pack-app");
     };

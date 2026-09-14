@@ -56,14 +56,16 @@ async fn cycle_closing_edge_reaches_the_graph() {
     .unwrap();
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
 
-    let a_node =
-        result.graph.get(&crate::DepPath::from("a@1.0.0".to_string())).expect("a in graph");
-    assert!(a_node.children.contains_key("b"), "a keeps its b edge");
-    let b_node =
-        result.graph.get(&crate::DepPath::from("b@1.0.0".to_string())).expect("b in graph");
+    let a_node = result.graph
+        .get(&crate::DepPath::from("a@1.0.0".to_string()))
+        .expect("a in graph");
+    assert!(a_node.edges.children.contains_key("b"), "a keeps its b edge");
+    let b_node = result.graph
+        .get(&crate::DepPath::from("b@1.0.0".to_string()))
+        .expect("b in graph");
     assert!(
-        b_node.children.contains_key("a"),
+        b_node.edges.children.contains_key("a"),
         "the cycle-closing edge b -> a must reach the graph: {:?}",
-        b_node.children.keys().collect::<Vec<_>>(),
+        b_node.edges.children.keys().collect::<Vec<_>>(),
     );
 }

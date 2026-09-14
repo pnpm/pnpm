@@ -2,8 +2,7 @@ use super::{
     Arc, AsyncReadExt, AsyncSeekExt, BlobFinalize, Body, BoxStream, CanonicalPackageName,
     DocumentWrite, ErrorKind, GetRange, HostedBackend, HostedBlobFile, HostedDocumentForUpdate,
     HostedDocumentVersion, HostedRevisionRefWrite, Path, PathBuf, RangedBlob, Result, SeekFrom,
-    Store, StreamExt, async_trait, fs, next_blob_file, read_dir_if_present, stream, streaming,
-    write_atomic,
+    Store, StreamExt, async_trait, fs, read_dir_if_present, stream, streaming, write_atomic,
 };
 
 /// The single-node filesystem backend. It owns its directory tree
@@ -20,8 +19,14 @@ impl HostedBackend for Store {
         while let Some(file) = files.next().await {
             let file = file?;
             let Some(name) = file.path.strip_suffix("/package.json") else { continue };
-            write_atomic(&self.root.join(".package-index").join(name).join(".present"), b"")
-                .await?;
+            write_atomic(
+                &self.root
+                    .join(".package-index")
+                    .join(name)
+                    .join(".present"),
+                b"",
+            )
+            .await?;
         }
         write_atomic(&complete, b"").await
     }
@@ -34,10 +39,11 @@ impl HostedBackend for Store {
         &self,
         name: &CanonicalPackageName,
     ) -> Result<Option<HostedDocumentForUpdate>> {
-        Ok(Store::read_document_any_age(self, name).await?.map(|bytes| HostedDocumentForUpdate {
-            bytes,
-            version: HostedDocumentVersion::Unversioned,
-        }))
+        Ok(Store::read_document_any_age(self, name).await?
+            .map(|bytes| HostedDocumentForUpdate {
+                bytes,
+                version: HostedDocumentVersion::Unversioned,
+            }))
     }
 
     async fn write_document_if_current(
@@ -46,7 +52,10 @@ impl HostedBackend for Store {
         bytes: &[u8],
         _version: Option<&HostedDocumentVersion>,
     ) -> Result<DocumentWrite> {
-        let marker = self.root.join(".package-index").join(name.as_str()).join(".present");
+        let marker = self.root
+            .join(".package-index")
+            .join(name.as_str())
+            .join(".present");
         let indexed = fs::try_exists(&marker).await?;
         write_atomic(&marker, b"").await?;
         if let Err(err) = Store::write_document(self, name, bytes).await {
@@ -64,8 +73,7 @@ impl HostedBackend for Store {
         name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<Option<(Body, Option<u64>)>> {
-        Ok(Store::open_blob(self, name, filename)
-            .await?
+        Ok(Store::open_blob(self, name, filename).await?
             .map(|(file, len)| (streaming::stream_file(file), Some(len))))
     }
 
@@ -205,4 +213,42 @@ impl HostedBackend for Store {
     async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
         Store::list_record_keys(self, namespace).await
     }
+}
+
+/// The next file below `root`, walking the directory stack depth-first.
+async fn next_blob_file(
+    root: &Path,
+    directories: &mut Vec<fs::ReadDir>,
+) -> Result<Option<HostedBlobFile>> {
+    while let Some(entries) = directories.last_mut() {
+        let Some(entry) = entries.next_entry().await? else {
+            directories.pop();
+            continue;
+        };
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with('.')
+        {
+            continue;
+        }
+        let kind = entry.file_type().await?;
+        if kind.is_dir() {
+            directories.push(fs::read_dir(entry.path()).await?);
+        } else if kind.is_file() {
+            return blob_file(root, &entry).await.map(Some);
+        }
+    }
+    Ok(None)
+}
+
+async fn blob_file(root: &Path, entry: &fs::DirEntry) -> Result<HostedBlobFile> {
+    let metadata = entry.metadata().await?;
+    let path = entry
+        .path()
+        .strip_prefix(root)
+        .expect("entry is below the store root")
+        .to_string_lossy()
+        .replace('\\', "/");
+    Ok(HostedBlobFile { path, modified: metadata.modified()?, size: metadata.len() })
 }

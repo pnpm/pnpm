@@ -17,14 +17,25 @@ fn manifest_has(workspace: &Path, group: DependencyGroup, name: &str) -> bool {
 
 #[test]
 fn should_remove_from_package_json() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet.with_args(["add", "@pnpm.e2e/hello-world-js-bin"]).assert().success();
+    pacquet
+        .with_args(["add", "@pnpm.e2e/hello-world-js-bin"])
+        .assert()
+        .success();
     assert!(manifest_has(&workspace, DependencyGroup::Prod, "@pnpm.e2e/hello-world-js-bin"));
 
-    pacquet_at(&workspace).with_args(["remove", "@pnpm.e2e/hello-world-js-bin"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["remove", "@pnpm.e2e/hello-world-js-bin"])
+        .assert()
+        .success();
 
     eprintln!("the dependency is gone from package.json#dependencies");
     assert!(!manifest_has(&workspace, DependencyGroup::Prod, "@pnpm.e2e/hello-world-js-bin"));
@@ -35,11 +46,19 @@ fn should_remove_from_package_json() {
 #[test]
 fn remove_runs_with_ndjson_and_silent_reporters() {
     for reporter in ["--reporter=ndjson", "--reporter=silent"] {
-        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-            CommandTempCwd::init().add_mocked_registry();
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
         let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-        pacquet.with_args(["add", "@pnpm.e2e/hello-world-js-bin"]).assert().success();
+        pacquet
+            .with_args(["add", "@pnpm.e2e/hello-world-js-bin"])
+            .assert()
+            .success();
         assert!(manifest_has(&workspace, DependencyGroup::Prod, "@pnpm.e2e/hello-world-js-bin"));
 
         pacquet_at(&workspace)
@@ -54,11 +73,19 @@ fn remove_runs_with_ndjson_and_silent_reporters() {
 
 #[test]
 fn should_remove_only_from_targeted_field() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet.with_args(["add", "@pnpm.e2e/hello-world-js-bin", "--save-dev"]).assert().success();
+    pacquet
+        .with_args(["add", "@pnpm.e2e/hello-world-js-bin", "--save-dev"])
+        .assert()
+        .success();
     assert!(manifest_has(&workspace, DependencyGroup::Dev, "@pnpm.e2e/hello-world-js-bin"));
 
     eprintln!("`remove --save-prod` must not touch a devDependency");
@@ -94,7 +121,10 @@ fn should_fail_when_no_package_specified() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    let output = pacquet.with_args(["remove"]).output().expect("spawn pacquet remove");
+    let output = pacquet
+        .with_args(["remove"])
+        .output()
+        .expect("spawn pacquet remove");
     assert!(
         !output.status.success(),
         "remove with no names must fail (stderr: {})",
@@ -111,8 +141,13 @@ fn should_fail_when_no_package_specified() {
 
 #[test]
 fn should_fail_when_dependency_is_missing() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -121,8 +156,10 @@ fn should_fail_when_dependency_is_missing() {
     )
     .expect("write package.json");
 
-    let output =
-        pacquet.with_args(["remove", "is-negative"]).output().expect("spawn pacquet remove");
+    let output = pacquet
+        .with_args(["remove", "is-negative"])
+        .output()
+        .expect("spawn pacquet remove");
     assert!(
         !output.status.success(),
         "removing an absent dependency must fail (stderr: {})",
@@ -139,8 +176,13 @@ fn should_fail_when_dependency_is_missing() {
 
 #[test]
 fn should_report_project_has_no_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     // A manifest with no dependency fields at all, removed without a
@@ -152,8 +194,10 @@ fn should_report_project_has_no_dependencies() {
     )
     .expect("write package.json");
 
-    let output =
-        pacquet.with_args(["remove", "is-positive"]).output().expect("spawn pacquet remove");
+    let output = pacquet
+        .with_args(["remove", "is-positive"])
+        .output()
+        .expect("spawn pacquet remove");
     assert!(
         !output.status.success(),
         "removing from an empty manifest must fail (stderr: {})",
@@ -178,14 +222,25 @@ fn should_report_project_has_no_dependencies() {
 
 #[test]
 fn should_accept_aliases() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet.with_args(["add", "@pnpm.e2e/hello-world-js-bin"]).assert().success();
+    pacquet
+        .with_args(["add", "@pnpm.e2e/hello-world-js-bin"])
+        .assert()
+        .success();
 
     eprintln!("`rm` is an alias of `remove`");
-    pacquet_at(&workspace).with_args(["rm", "@pnpm.e2e/hello-world-js-bin"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["rm", "@pnpm.e2e/hello-world-js-bin"])
+        .assert()
+        .success();
     assert!(!manifest_has(&workspace, DependencyGroup::Prod, "@pnpm.e2e/hello-world-js-bin"));
 
     drop((root, mock_instance));

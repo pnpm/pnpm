@@ -14,7 +14,11 @@ use std::{
 async fn archive_requests_preserve_the_deployments_redirect_guard() {
     let mut source = mockito::Server::new_async().await;
     let mut target = mockito::Server::new_async().await;
-    let blocked = target.mock("GET", "/private").expect(0).create_async().await;
+    let blocked = target
+        .mock("GET", "/private")
+        .expect(0)
+        .create_async()
+        .await;
     let redirect = source
         .mock("GET", "/artifact")
         .with_status(302)
@@ -49,7 +53,10 @@ async fn archive_retry_redacts_secrets_and_accepts_the_maximum_retry_budget() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
     let mut server = mockito::Server::new_async().await;
@@ -148,8 +155,11 @@ async fn archive_requests_do_not_downgrade_secure_credentials_to_plain_http() {
         .expect(1)
         .create_async()
         .await;
-    let client =
-        reqwest::Client::builder().no_proxy().resolve("registry.example", address).build().unwrap();
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .resolve("registry.example", address)
+        .build()
+        .unwrap();
     let no_redirects = reqwest::Client::builder()
         .no_proxy()
         .resolve("registry.example", address)
@@ -198,23 +208,27 @@ impl Container {
             Self::TarGz => input.run_without_mem_cache::<SilentReporter>().await,
             Self::Zip => {
                 IngestZipArchiveToStore {
-                    http_client: input.http_client,
-                    store_dir: input.store_dir,
-                    store_index: input.store_index.clone(),
-                    store_index_writer: input.store_index_writer.clone(),
-                    verify_store_integrity: input.verify_store_integrity,
-                    strict_store_pkg_content_check: input.strict_store_pkg_content_check,
-                    verified_files_cache: Arc::clone(&input.verified_files_cache),
-                    package_integrity: input.package_integrity.unwrap(),
-                    package_url: input.package_url,
-                    package_id: input.package_id,
+                    fetching: input.fetching,
+                    package: crate::ZipArchivePackage {
+                        integrity: input.package.integrity.unwrap(),
+                        url: input.package.url,
+                        id: input.package.id,
+                    },
+                    store: crate::ArchiveStoreContext {
+                        dir: input.store.dir,
+                        index: input.store.index.clone(),
+                        index_writer: input.store.index_writer.clone(),
+                        verify_integrity: input.store.verify_integrity,
+                        strict_pkg_content_check: input.store.strict_pkg_content_check,
+                        verified_files_cache: Arc::clone(&input.store.verified_files_cache),
+                        prefetched_cas_paths: input.store.prefetched_cas_paths,
+                    },
+
                     requester: input.requester,
-                    prefetched_cas_paths: input.prefetched_cas_paths,
-                    retry_opts: input.retry_opts,
-                    auth_headers: input.auth_headers,
+
                     archive_prefix: Some("artifact"),
                     ignore_file_pattern: input.ignore_file_pattern.clone(),
-                    offline: input.offline,
+
                     store_projection: input.store_projection,
                 }
                 .run_without_mem_cache::<SilentReporter>()
@@ -237,8 +251,12 @@ async fn formats_share_projection_offline_replay_and_missing_blob_validation() {
             let mut registry = mockito::Server::new_async().await;
             let body = container.body();
             let integrity = Integrity::from(body.as_slice());
-            let request =
-                registry.mock("GET", "/artifact").with_body(body).expect(1).create_async().await;
+            let request = registry
+                .mock("GET", "/artifact")
+                .with_body(body)
+                .expect(1)
+                .create_async()
+                .await;
             let (_directory, store) = tempdir_with_leaked_path();
             store.init().unwrap();
             let (writer, task) = StoreIndexWriter::spawn(store);
@@ -246,24 +264,33 @@ async fn formats_share_projection_offline_replay_and_missing_blob_validation() {
             let auth = AuthHeaders::default();
             let url = format!("{}/artifact", registry.url());
             let mut input = IngestTarballToStore {
-                http_client: &client,
-                store_dir: store,
-                store_index: None,
-                store_index_writer: Some(Arc::clone(&writer)),
-                verify_store_integrity: true,
-                strict_store_pkg_content_check: true,
-                verified_files_cache: Arc::default(),
-                package_integrity: Some(&integrity),
-                package_unpacked_size: None,
-                package_file_count: None,
-                package_url: &url,
-                package_id: "fixture@1.0.0",
+                fetching: crate::ArchiveFetchOptions {
+                    http_client: &client,
+                    auth_headers: &auth,
+                    retry_opts: fast_retry_opts(),
+                    offline: false,
+                },
+                package: crate::TarballPackage {
+                    integrity: Some(&integrity),
+                    unpacked_size: None,
+                    file_count: None,
+                    url: &url,
+                    id: "fixture@1.0.0",
+                },
+                store: crate::ArchiveStoreContext {
+                    dir: store,
+                    index: None,
+                    index_writer: Some(Arc::clone(&writer)),
+                    verify_integrity: true,
+                    strict_pkg_content_check: true,
+                    verified_files_cache: Arc::default(),
+                    prefetched_cas_paths: None,
+                },
+
                 requester: "contract test",
-                prefetched_cas_paths: None,
-                retry_opts: fast_retry_opts(),
-                auth_headers: &auth,
+
                 ignore_file_pattern: None,
-                offline: false,
+
                 progress_reported: None,
                 store_projection: projection,
             };
@@ -274,15 +301,15 @@ async fn formats_share_projection_offline_replay_and_missing_blob_validation() {
                 paths.contains_key("package.json"),
                 matches!(projection, ArchiveStoreProjection::Package { .. }),
             );
-            input.store_index_writer = None;
+            input.store.index_writer = None;
             drop(writer);
             StoreIndexWriter::drain(task, "contract test").await;
-            input.store_index = StoreIndex::shared_readonly_in(store);
-            input.offline = true;
+            input.store.index = StoreIndex::shared_readonly_in(store);
+            input.fetching.offline = true;
             assert_eq!(container.ingest(&input).await.unwrap(), paths);
 
             std::fs::remove_file(&paths["data.txt"]).unwrap();
-            input.verified_files_cache = Arc::default();
+            input.store.verified_files_cache = Arc::default();
             let error = container.ingest(&input).await.unwrap_err();
             eprintln!("missing blob: {error}");
             assert!(matches!(error, TarballError::NoOfflineTarball { .. }));
@@ -313,35 +340,44 @@ async fn formats_share_retry_classification_and_never_publish_failed_integrity()
             let auth = AuthHeaders::default();
             let url = format!("{}/artifact", registry.url());
             let mut input = IngestTarballToStore {
-                http_client: &client,
-                store_dir: store,
-                store_index: None,
-                store_index_writer: Some(Arc::clone(&writer)),
-                verify_store_integrity: true,
-                strict_store_pkg_content_check: true,
-                verified_files_cache: Arc::default(),
-                package_integrity: Some(&integrity),
-                package_unpacked_size: None,
-                package_file_count: None,
-                package_url: &url,
-                package_id: "fixture@1.0.0",
+                fetching: crate::ArchiveFetchOptions {
+                    http_client: &client,
+                    auth_headers: &auth,
+                    retry_opts: fast_retry_opts(),
+                    offline: false,
+                },
+                package: crate::TarballPackage {
+                    integrity: Some(&integrity),
+                    unpacked_size: None,
+                    file_count: None,
+                    url: &url,
+                    id: "fixture@1.0.0",
+                },
+                store: crate::ArchiveStoreContext {
+                    dir: store,
+                    index: None,
+                    index_writer: Some(Arc::clone(&writer)),
+                    verify_integrity: true,
+                    strict_pkg_content_check: true,
+                    verified_files_cache: Arc::default(),
+                    prefetched_cas_paths: None,
+                },
+
                 requester: "contract test",
-                prefetched_cas_paths: None,
-                retry_opts: fast_retry_opts(),
-                auth_headers: &auth,
+
                 ignore_file_pattern: None,
-                offline: false,
+
                 progress_reported: None,
                 store_projection: ArchiveStoreProjection::RawArchive,
             };
             let error = container.ingest(&input).await.unwrap_err();
             eprintln!("failed fetch: {error}");
             assert_fetch_error(status, &error);
-            input.store_index_writer = None;
+            input.store.index_writer = None;
             drop(writer);
             StoreIndexWriter::drain(task, "contract test").await;
-            input.store_index = StoreIndex::shared_readonly_in(store);
-            input.offline = true;
+            input.store.index = StoreIndex::shared_readonly_in(store);
+            input.fetching.offline = true;
             let error = container.ingest(&input).await.unwrap_err();
             eprintln!("failed fetch was not published: {error}");
             assert!(matches!(error, TarballError::NoOfflineTarball { .. }));

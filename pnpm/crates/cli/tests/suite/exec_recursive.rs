@@ -18,7 +18,10 @@ use std::{
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
 fn write_workspace(workspace: &Path, names: &[&str]) {
-    let packages = names.iter().map(|name| format!("  - {name}")).collect::<Vec<_>>();
+    let packages = names
+        .iter()
+        .map(|name| format!("  - {name}"))
+        .collect::<Vec<_>>();
     let workspace_yaml = format!("packages:\n{}\n", packages.join("\n"));
     fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
         .expect("write pnpm-workspace.yaml");
@@ -46,7 +49,10 @@ fn summary_statuses(workspace: &Path) -> HashMap<String, String> {
                 .expect("prefix has a basename")
                 .to_string_lossy()
                 .into_owned();
-            let status = entry["status"].as_str().expect("status is a string").to_string();
+            let status = entry["status"]
+                .as_str()
+                .expect("status is a string")
+                .to_string();
             (basename, status)
         })
         .collect()
@@ -93,7 +99,10 @@ fn recursive_exec_runs_command_in_every_project() {
 
     for name in ["project-1", "project-2", "project-3"] {
         assert!(
-            workspace.join(name).join("ran.txt").exists(),
+            workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
             "{name} should have run the command in its own directory",
         );
     }
@@ -181,7 +190,10 @@ fn parallel_recursive_exec_has_no_workspace_concurrency_cap() {
     write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
     write_concurrency_probe(&workspace);
 
-    pacquet.with_args(["--parallel", "exec", "sh", "../track-concurrency.sh"]).assert().success();
+    pacquet
+        .with_args(["--parallel", "exec", "sh", "../track-concurrency.sh"])
+        .assert()
+        .success();
 
     assert!(
         workspace.join("exceeded-concurrency").exists(),
@@ -210,12 +222,18 @@ fn recursive_exec_filter_selects_only_matching_project() {
         .success();
 
     assert!(
-        workspace.join("project-1").join("ran.txt").exists(),
+        workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
         "the selected project-1 should run the command",
     );
     for name in ["project-2", "project-3"] {
         assert!(
-            !workspace.join(name).join("ran.txt").exists(),
+            !workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
             "{name} is not selected by --filter and must not run",
         );
     }
@@ -241,11 +259,17 @@ fn filter_without_recursive_flag_enters_recursive_exec() {
         .success();
 
     assert!(
-        workspace.join("project-1").join("ran.txt").exists(),
+        workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
         "the selected project-1 should run the command",
     );
     assert!(
-        !workspace.join("project-2").join("ran.txt").exists(),
+        !workspace
+            .join("project-2")
+            .join("ran.txt")
+            .exists(),
         "a bare --filter (no -r) should still scope the exec to the selection",
     );
 
@@ -288,11 +312,17 @@ fn recursive_exec_diff_selector_selects_changed_projects() {
         .success();
 
     assert!(
-        workspace.join("project-1").join("ran.txt").exists(),
+        workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
         "the changed project-1 should run the command",
     );
     assert!(
-        !workspace.join("project-2").join("ran.txt").exists(),
+        !workspace
+            .join("project-2")
+            .join("ran.txt")
+            .exists(),
         "the unchanged project-2 must stay outside the selection",
     );
 
@@ -321,7 +351,10 @@ fn recursive_exec_filter_no_match_is_a_noop() {
 
     for name in ["project-1", "project-2"] {
         assert!(
-            !workspace.join(name).join("ran.txt").exists(),
+            !workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
             "no project is selected, so {name} should not run",
         );
     }
@@ -389,7 +422,12 @@ fn recursive_exec_bail_cancels_in_flight_processes() {
     assert_eq!(statuses.get("b-fails").map(String::as_str), Some("failure"));
     assert_eq!(statuses.get("c-slow-2").map(String::as_str), Some("running"));
     assert_eq!(statuses.get("z-queued").map(String::as_str), Some("queued"));
-    assert!(!workspace.join("z-queued").join("ran.txt").exists());
+    assert!(
+        !workspace
+            .join("z-queued")
+            .join("ran.txt")
+            .exists(),
+    );
 
     drop(root);
 }
@@ -413,7 +451,10 @@ fn recursive_exec_no_bail_runs_all_then_fails() {
     assert!(!output.status.success(), "a failing command must surface a non-zero exit");
     for name in ["project-1", "project-2", "project-3"] {
         assert!(
-            workspace.join(name).join("ran.txt").exists(),
+            workspace
+                .join(name)
+                .join("ran.txt")
+                .exists(),
             "--no-bail should still run {name} despite earlier failures",
         );
     }
@@ -440,7 +481,12 @@ fn recursive_exec_bail_stops_at_first_failure() {
     assert!(!output.status.success(), "a failing command must surface a non-zero exit");
     let ran = ["project-1", "project-2", "project-3"]
         .into_iter()
-        .filter(|name| workspace.join(name).join("ran.txt").exists())
+        .filter(|name| {
+            workspace
+                .join(name)
+                .join("ran.txt")
+                .exists()
+        })
         .count();
     assert!(ran < 3, "bail should stop before every project runs, but {ran}/3 ran");
 
@@ -575,9 +621,38 @@ fn recursive_exec_inherits_stdio_by_default() {
 fn sorted_lines(stdout: &[u8]) -> Vec<String> {
     let stdout = String::from_utf8_lossy(stdout);
     eprintln!("STDOUT:\n{stdout}\n");
-    let mut lines = stdout.trim().lines().map(str::to_string).collect::<Vec<_>>();
+    let mut lines = stdout
+        .trim()
+        .lines()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
     lines.sort();
     lines
+}
+
+/// A directory selector reaches the glob matcher through the relative-path
+/// form, which is the only way a `{a,b}` alternative survives selector
+/// parsing: the `{...}` selector form cannot hold a nested `}`.
+#[test]
+fn a_relative_dir_selector_expands_brace_alternatives() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["packages/pkg-a", "packages/pkg-b", "packages/pkg-c"]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("./packages/pkg-{a,c}")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    assert!(workspace.join("packages/pkg-a/ran.txt").exists(), "pkg-a is an alternative");
+    assert!(workspace.join("packages/pkg-c/ran.txt").exists(), "pkg-c is an alternative");
+    assert!(!workspace.join("packages/pkg-b/ran.txt").exists(), "pkg-b is not an alternative");
+
+    drop(root);
 }
 
 /// Under `legacyDirFiltering` the selector matches by subtree instead: it
@@ -702,7 +777,10 @@ fn legacy_dir_filtering_leaves_the_generated_root_inclusion_alone() {
 /// Write projects with explicit manifests (workspace dependencies and
 /// all), for the graph-shaped scenarios below.
 fn write_workspace_manifests(workspace: &Path, manifests: &[(&str, Value)]) {
-    let packages = manifests.iter().map(|(name, _)| format!("  - {name}")).collect::<Vec<_>>();
+    let packages = manifests
+        .iter()
+        .map(|(name, _)| format!("  - {name}"))
+        .collect::<Vec<_>>();
     let workspace_yaml = format!("packages:\n{}\n", packages.join("\n"));
     fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
         .expect("write pnpm-workspace.yaml");
@@ -856,7 +934,13 @@ fn recursive_exec_resumes_from_exactly_the_projects_that_passed_before_a_failure
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read resumed run");
     assert!(order.ends_with("dependency\nanchor\n"), "unfinished dependency must rerun: {order}");
-    assert_eq!(order.lines().filter(|project| *project == "completed").count(), 1);
+    assert_eq!(
+        order
+            .lines()
+            .filter(|project| *project == "completed")
+            .count(),
+        1,
+    );
 
     drop(root);
 }

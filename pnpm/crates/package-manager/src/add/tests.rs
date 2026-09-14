@@ -12,7 +12,7 @@ mod installation;
 
 mod workspace;
 
-use super::{Add, AddOwned, AddView};
+use super::{Add, AddOptions, AddOwned};
 use crate::ResolvedPackages;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
@@ -33,9 +33,9 @@ fn test_add<'a>(
     http_client: &'a ThrottledClient,
     package_names: &'a [String],
     save_catalog_name: Option<&str>,
-) -> (AddView<'a>, AddOwned) {
+) -> (AddOptions<'a>, AddOwned) {
     (
-        AddView {
+        AddOptions {
             resolved_packages: Box::leak(Box::new(ResolvedPackages::default())),
             http_client,
             config,
@@ -94,20 +94,24 @@ async fn add_npm_selector(selector: &str) -> Option<String> {
     let resolved_packages = ResolvedPackages::default();
     let package_names = [selector.to_string()];
     Add {
-        tarball_mem_cache: Arc::default(),
-        resolved_packages: &resolved_packages,
-        http_client: &http_client,
-        http_client_arc: Arc::new(ThrottledClient::default()),
-        config,
         manifest: &mut manifest,
-        lockfile: None,
-        lockfile_path: None,
-        dependency_groups: Some([DependencyGroup::Prod]),
-        package_names: &package_names,
-        range_spec_style: RangeSpecStyle::Major,
-        save_catalog_name: None,
-        supported_architectures: None,
-        lockfile_only: true,
+        options: crate::AddOptions {
+            resolved_packages: &resolved_packages,
+            http_client: &http_client,
+            config,
+            lockfile: None,
+            lockfile_path: None,
+            package_names: &package_names,
+            range_spec_style: RangeSpecStyle::Major,
+            lockfile_only: true,
+        },
+        resources: crate::AddResources {
+            tarball_mem_cache: Arc::default(),
+            http_client_arc: Arc::new(ThrottledClient::default()),
+            dependency_groups: Some([DependencyGroup::Prod]),
+            save_catalog_name: None,
+            supported_architectures: None,
+        },
     }
     .run::<SilentReporter>()
     .await
@@ -133,8 +137,11 @@ async fn add_jsr_selector(selector: &str) -> Option<String> {
         .expect("create manifest");
 
     let mut default_registry = mockito::Server::new_async().await;
-    let default_requests =
-        default_registry.mock("GET", mockito::Matcher::Any).expect(0).create_async().await;
+    let default_requests = default_registry
+        .mock("GET", mockito::Matcher::Any)
+        .expect(0)
+        .create_async()
+        .await;
 
     let mut jsr_registry = mockito::Server::new_async().await;
     let jsr_registry_url = format!("{}/", jsr_registry.url());
@@ -166,20 +173,24 @@ async fn add_jsr_selector(selector: &str) -> Option<String> {
     let resolved_packages = ResolvedPackages::default();
     let package_names = [selector.to_string()];
     Add {
-        tarball_mem_cache: Arc::default(),
-        resolved_packages: &resolved_packages,
-        http_client: &http_client,
-        http_client_arc: Arc::new(ThrottledClient::default()),
-        config,
         manifest: &mut manifest,
-        lockfile: None,
-        lockfile_path: None,
-        dependency_groups: Some([DependencyGroup::Prod]),
-        package_names: &package_names,
-        range_spec_style: RangeSpecStyle::Major,
-        save_catalog_name: None,
-        supported_architectures: None,
-        lockfile_only: true,
+        options: crate::AddOptions {
+            resolved_packages: &resolved_packages,
+            http_client: &http_client,
+            config,
+            lockfile: None,
+            lockfile_path: None,
+            package_names: &package_names,
+            range_spec_style: RangeSpecStyle::Major,
+            lockfile_only: true,
+        },
+        resources: crate::AddResources {
+            tarball_mem_cache: Arc::default(),
+            http_client_arc: Arc::new(ThrottledClient::default()),
+            dependency_groups: Some([DependencyGroup::Prod]),
+            save_catalog_name: None,
+            supported_architectures: None,
+        },
     }
     .run::<SilentReporter>()
     .await

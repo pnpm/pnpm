@@ -114,7 +114,10 @@ const SETTINGS_OF_OTHER_PNPM_VERSIONS: &[(&str, &str)] = &[("confirmModulesPurge
 fn settings_field_keys() -> &'static HashSet<String> {
     static SET: OnceLock<HashSet<String>> = OnceLock::new();
     SET.get_or_init(|| match serde_json::to_value(WorkspaceSettings::default()) {
-        Ok(serde_json::Value::Object(fields)) => fields.into_iter().map(|(key, _)| key).collect(),
+        Ok(serde_json::Value::Object(fields)) => fields
+            .into_iter()
+            .map(|(key, _)| key)
+            .collect(),
         _ => HashSet::new(),
     })
 }
@@ -137,7 +140,10 @@ fn known_setting_keys() -> &'static HashSet<String> {
 fn known_setting_keys_sorted() -> &'static Vec<String> {
     static LIST: OnceLock<Vec<String>> = OnceLock::new();
     LIST.get_or_init(|| {
-        let mut keys: Vec<String> = known_setting_keys().iter().cloned().collect();
+        let mut keys: Vec<String> = known_setting_keys()
+            .iter()
+            .cloned()
+            .collect();
         keys.sort_unstable();
         keys
     })
@@ -161,8 +167,9 @@ pub fn is_known_setting_key(key: &str) -> bool {
 #[must_use]
 pub fn annotate_unknown_setting(key: &str) -> String {
     let camel = to_camel_case(key);
-    if let Some((_, version)) =
-        SETTINGS_OF_OTHER_PNPM_VERSIONS.iter().find(|(setting, _)| *setting == camel)
+    if let Some((_, version)) = SETTINGS_OF_OTHER_PNPM_VERSIONS
+        .iter()
+        .find(|(setting, _)| *setting == camel)
     {
         return format!(r#""{key}" (a {version} setting)"#);
     }

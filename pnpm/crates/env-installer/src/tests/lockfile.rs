@@ -12,11 +12,12 @@ use super::{
 async fn force_resync_under_frozen_lockfile_resolves_without_writing() {
     let harness = harness();
     let root = TempDir::new().unwrap();
-    let recorded = FixtureResolver::new().package(serde_json::json!({
-        "name": "pnpm",
-        "version": "12.0.0",
-        "bin": "bin/pnpm.cjs",
-    }));
+    let recorded = FixtureResolver::new()
+        .package(serde_json::json!({
+            "name": "pnpm",
+            "version": "12.0.0",
+            "bin": "bin/pnpm.cjs",
+        }));
     resolve_package_manager_integrities(
         pnpm_engine_packages("12.0.0"),
         "^12.0.0",
@@ -203,11 +204,12 @@ async fn frozen_lockfile_rejects_outdated_package_manager_entries() {
     let harness = harness();
     let root = TempDir::new().unwrap();
     let resolver = || {
-        FixtureResolver::new().package(serde_json::json!({
-            "name": "pnpm",
-            "version": "12.0.0",
-            "bin": "bin/pnpm.cjs",
-        }))
+        FixtureResolver::new()
+            .package(serde_json::json!({
+                "name": "pnpm",
+                "version": "12.0.0",
+                "bin": "bin/pnpm.cjs",
+            }))
     };
     let outdated = resolve_package_manager_integrities(
         pnpm_engine_packages("12.0.0"),
@@ -221,7 +223,12 @@ async fn frozen_lockfile_rejects_outdated_package_manager_entries() {
     .expect_err("a missing entry has to be recorded, which a frozen lockfile forbids");
 
     assert!(matches!(outdated, ConfigDepError::FrozenLockfileOutdated { .. }), "{outdated:?}");
-    assert!(!root.path().join("pnpm-lock.yaml").exists());
+    assert!(
+        !root
+            .path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
 
     // The same refusal once a lockfile exists: an entry recorded for another
     // version is what a bumped pin leaves behind.
@@ -242,11 +249,12 @@ async fn frozen_lockfile_rejects_outdated_package_manager_entries() {
         pnpm_engine_packages("13.0.0"),
         "^13.0.0",
         "13.0.0",
-        &FixtureResolver::new().package(serde_json::json!({
-            "name": "pnpm",
-            "version": "13.0.0",
-            "bin": "bin/pnpm.cjs",
-        })),
+        &FixtureResolver::new()
+            .package(serde_json::json!({
+                "name": "pnpm",
+                "version": "13.0.0",
+                "bin": "bin/pnpm.cjs",
+            })),
         &options(&harness, root.path(), true),
         false,
     )

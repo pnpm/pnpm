@@ -63,8 +63,13 @@ struct ShasumsRequest<'a> {
 async fn fetch_node_shasums(
     request: ShasumsRequest<'_>,
 ) -> Result<Vec<ShasumsFileItem>, NodeResolverError> {
-    let ShasumsRequest { http_client, auth_headers, integrities_url, cache_dir, verify_signature } =
-        request;
+    let ShasumsRequest {
+        http_client,
+        auth_headers,
+        integrities_url,
+        cache_dir,
+        verify_signature,
+    } = request;
     match (verify_signature, auth_headers.is_empty()) {
         (true, true) => {
             fetch_verified_node_shasums_file_cached(http_client, integrities_url, cache_dir)
@@ -112,8 +117,9 @@ fn node_platform_asset(
     let url = format!("{}/{}{}", address.dirname, address.basename, address.extname);
     let archive =
         if address.extname == ".zip" { BinaryArchive::Zip } else { BinaryArchive::Tarball };
-    let integrity: Integrity =
-        item.integrity.parse().map_err(|error| NodeResolverError::ParseIntegrity {
+    let integrity: Integrity = item.integrity
+        .parse()
+        .map_err(|error| NodeResolverError::ParseIntegrity {
             integrity: item.integrity.clone(),
             file_name: item.file_name.clone(),
             error: Arc::new(error),

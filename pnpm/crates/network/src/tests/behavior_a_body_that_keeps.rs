@@ -23,7 +23,11 @@ async fn a_body_that_keeps_arriving_outlives_the_fetch_timeout() {
     let url = format!("{}/runtime.tar.gz", server.url());
 
     let guard = client.acquire_for_url(&url).await;
-    let response = guard.get(&url).send().await.expect("the mock server responds");
+    let response = guard
+        .get(&url)
+        .send()
+        .await
+        .expect("the mock server responds");
     let body = response.bytes().await.expect("a body that keeps arriving must not time out");
 
     assert_eq!(body.len(), CHUNKS * "chunk".len());
@@ -46,7 +50,11 @@ async fn a_stalled_body_fails_after_the_fetch_timeout() {
     let url = format!("{}/runtime.tar.gz", server.url());
 
     let guard = client.acquire_for_url(&url).await;
-    let response = guard.get(&url).send().await.expect("the mock server responds");
+    let response = guard
+        .get(&url)
+        .send()
+        .await
+        .expect("the mock server responds");
     let error = response.bytes().await.expect_err("a stalled body must time out");
 
     assert!(error.is_timeout(), "got {error:?}");
@@ -97,7 +105,10 @@ async fn redirect_guard_blocks_off_allowlist_redirect_target() {
         url.as_str().starts_with(&allowed)
     });
     let guard = client.acquire().await;
-    let result = guard.get(format!("{}/pkg", server.url())).send().await;
+    let result = guard
+        .get(format!("{}/pkg", server.url()))
+        .send()
+        .await;
 
     redirect.assert_async().await;
     assert!(result.is_err(), "a redirect to an off-allowlist host must be blocked");
@@ -108,7 +119,12 @@ async fn redirect_guard_blocks_off_allowlist_redirect_target() {
 #[tokio::test]
 async fn redirect_guard_follows_allowlisted_redirect_target() {
     let mut target = mockito::Server::new_async().await;
-    let body = target.mock("GET", "/final").with_status(200).with_body("ok").create_async().await;
+    let body = target
+        .mock("GET", "/final")
+        .with_status(200)
+        .with_body("ok")
+        .create_async()
+        .await;
     let mut entry = mockito::Server::new_async().await;
     let redirect = entry
         .mock("GET", "/pkg")
@@ -124,7 +140,11 @@ async fn redirect_guard_follows_allowlisted_redirect_target() {
         url.starts_with(&entry_origin) || url.starts_with(&target_origin)
     });
     let guard = client.acquire().await;
-    let resp = guard.get(format!("{}/pkg", entry.url())).send().await.expect("redirect followed");
+    let resp = guard
+        .get(format!("{}/pkg", entry.url()))
+        .send()
+        .await
+        .expect("redirect followed");
 
     assert_eq!(resp.status(), 200);
     assert_eq!(resp.text().await.expect("body"), "ok");

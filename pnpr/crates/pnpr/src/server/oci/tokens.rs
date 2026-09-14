@@ -47,7 +47,7 @@ pub(in crate::server) fn decode(
 ) -> Result<Option<Claims>, RegistryError> {
     let Some(token) = token.strip_prefix(TOKEN_PREFIX) else { return Ok(None) };
     let invalid = || RegistryError::Unauthenticated { resource: "OCI token".to_string() };
-    if !state.inner.config.oci.bearer_auth || token.len() > 16 * 1024 {
+    if !state.inner.config.http.oci.bearer_auth || token.len() > 16 * 1024 {
         return Err(invalid());
     }
     verify_claims(&signing_key(state)?, token, super::now_millis() / 1000).map(Some)
@@ -59,7 +59,9 @@ fn verify_claims(key: &SigningKey, token: &str, now: u64) -> Result<Claims, Regi
     let bytes = URL_SAFE_NO_PAD.decode(payload).map_err(|_| invalid())?;
     let signature = URL_SAFE_NO_PAD.decode(signature).map_err(|_| invalid())?;
     let signature = Signature::from_slice(&signature).map_err(|_| invalid())?;
-    key.verifying_key().verify(&bytes, &signature).map_err(|_| invalid())?;
+    key.verifying_key()
+        .verify(&bytes, &signature)
+        .map_err(|_| invalid())?;
     let claims: Claims = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
     if claims.expires <= now {
         return Err(invalid());
@@ -70,8 +72,9 @@ fn verify_claims(key: &SigningKey, token: &str, now: u64) -> Result<Claims, Regi
 impl Claims {
     pub(in crate::server) fn permits(&self, path: &str, method: &Method) -> bool {
         let decoded = pnpr_search::percent_decode(path);
-        let Some(tail) =
-            decoded.strip_prefix(&self.audience).and_then(|tail| tail.strip_prefix("/v2"))
+        let Some(tail) = decoded
+            .strip_prefix(&self.audience)
+            .and_then(|tail| tail.strip_prefix("/v2"))
         else {
             return false;
         };
@@ -102,7 +105,13 @@ impl Claims {
     }
 
     pub(super) fn allows(&self, name: &str, action: &str) -> bool {
-        self.scopes.get(name).is_some_and(|actions| actions.iter().any(|held| held == action))
+        self.scopes
+            .get(name)
+            .is_some_and(|actions| {
+                actions
+                    .iter()
+                    .any(|held| held == action)
+            })
     }
 }
 
@@ -168,7 +177,7 @@ async fn issue_token(
     uri: &axum::http::Uri,
     headers: &HeaderMap,
 ) -> Result<Response, RegistryError> {
-    if !state.inner.config.oci.bearer_auth {
+    if !state.inner.config.http.oci.bearer_auth {
         return Ok(error(ErrorCode::Unsupported, "OCI Bearer authentication is disabled"));
     }
     let target =
@@ -182,13 +191,15 @@ async fn issue_token(
     }
     let parent = raw.as_ref().map(|raw| sha256_hex(raw.as_bytes()));
     let record = match &parent {
-        Some(parent) => state.inner.auth.tokens.find_by_key(parent).await?,
+        Some(parent) => state.inner.identity.auth.tokens.find_by_key(parent).await?,
         None => None,
     };
     let readonly = record.is_some_and(|record| record.readonly);
     let scopes = granted_scopes(state, identity, &target, &GrantQuery { uri, readonly })?;
     let audience = pnpr_search::percent_decode(
-        uri.path().strip_suffix("/v2/token").ok_or(RegistryError::NotFound)?,
+        uri.path()
+            .strip_suffix("/v2/token")
+            .ok_or(RegistryError::NotFound)?,
     );
     let claims = Claims { parent, audience, expires: super::now_millis() / 1000 + TTL, scopes };
     let payload = serde_json::to_vec(&claims)?;
@@ -215,7 +226,12 @@ fn granted_scopes(
     query: &GrantQuery<'_>,
 ) -> Result<BTreeMap<String, Vec<String>>, RegistryError> {
     let mut scopes = BTreeMap::new();
-    let pairs = url::form_urlencoded::parse(query.uri.query().unwrap_or_default().as_bytes());
+    let pairs = url::form_urlencoded::parse(
+        query.uri
+            .query()
+            .unwrap_or_default()
+            .as_bytes(),
+    );
     for (key, value) in pairs {
         if key == "service" && value != "pnpr" {
             return Err(RegistryError::BadRequest {
@@ -263,7 +279,9 @@ fn grant_one_scope(
     }
     let source =
         resolve_ecosystem_source(state, target, pnpr_registry::Ecosystem::Oci, name.as_str());
-    let allowed: &mut Vec<String> = grant.scopes.entry(name.as_str().to_string()).or_default();
+    let allowed: &mut Vec<String> = grant.scopes
+        .entry(name.as_str().to_string())
+        .or_default();
     extend_granted_actions(
         state,
         identity,
@@ -280,7 +298,10 @@ fn extend_granted_actions(
     grant: &mut GrantActions<'_>,
 ) {
     for action in grant.actions.split(',') {
-        if grant.allowed.iter().any(|held| held == action) {
+        if grant.allowed
+            .iter()
+            .any(|held| held == action)
+        {
             continue;
         }
         let granted = GrantAction { name: grant.name, action, readonly: grant.readonly };
@@ -317,17 +338,20 @@ pub(super) fn challenge(
     scope: Option<(&str, &str)>,
     mut response: Response,
 ) -> Response {
-    if response.status() != StatusCode::UNAUTHORIZED || !state.inner.config.oci.bearer_auth {
+    if response.status() != StatusCode::UNAUTHORIZED
+        || !state.inner.config.http.oci.bearer_auth
+    {
         return response;
     }
-    let realm = format!("{}{base}/token", state.inner.config.public_url.trim_end_matches('/'));
+    let realm = format!("{}{base}/token", state.inner.config.http.public_url.trim_end_matches('/'));
     let mut value = format!(r#"Bearer realm="{realm}",service="pnpr""#);
     if let Some((name, actions)) = scope
         && let Ok(name) =
             pnpr_package_name::CanonicalPackageName::parse(name, pnpr_registry::Ecosystem::Oci)
     {
-        write!(value, r#",scope="repository:{}:{actions}""#, name.as_str())
-            .expect("writing to a string cannot fail");
+        write!(value, r#",scope="repository:{}:{actions}""#, name.as_str()).expect(
+            "writing to a string cannot fail",
+        );
     }
     if let Ok(value) = axum::http::HeaderValue::from_str(&value) {
         response.headers_mut().insert(header::WWW_AUTHENTICATE, value);

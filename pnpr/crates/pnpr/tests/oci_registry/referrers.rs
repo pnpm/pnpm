@@ -14,11 +14,11 @@ async fn referrer_pages_bound_migration_and_keep_filter_and_registry() {
     ] {
         let tmp = TempDir::new().unwrap();
         let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-        config.hosted_store = hosted_store;
+        config.storage.hosted_backend = hosted_store;
         let storage = pnpr_storage::Storage::new(
-            &config.hosted_store,
-            config.storage.clone(),
-            config.cache_storage.clone(),
+            &config.storage.hosted_backend,
+            config.storage.hosted_dir.clone(),
+            config.storage.cache_dir.clone(),
         )
         .unwrap()
         .for_hosted("images");
@@ -45,9 +45,14 @@ async fn referrer_pages_bound_migration_and_keep_filter_and_registry() {
         }
         let key =
             pnpr_package_name::CanonicalPackageName::parse("acme/paged", Ecosystem::Oci).unwrap();
-        let mut document: Value =
-            serde_json::from_slice(&storage.read_hosted_document(&key).await.unwrap().unwrap())
-                .unwrap();
+        let mut document: Value = serde_json::from_slice(
+            &storage
+                .read_hosted_document(&key)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
+        .unwrap();
         strip_referrer_metadata(&mut document, 35);
         storage
             .update_hosted_document_with_retry(&key, 1, |_| {
@@ -63,11 +68,19 @@ async fn referrer_pages_bound_migration_and_keep_filter_and_registry() {
             serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
         assert_eq!(payload["manifests"], json!([]));
         let document = pnpr_oci::ImageDocument::parse(
-            &storage.read_hosted_document(&key).await.unwrap().unwrap(),
+            &storage
+                .read_hosted_document(&key)
+                .await
+                .unwrap()
+                .unwrap(),
         )
         .unwrap();
         assert_eq!(
-            document.manifests().iter().filter(|entry| entry.referrer.is_some()).count(),
+            document
+                .manifests()
+                .iter()
+                .filter(|entry| entry.referrer.is_some())
+                .count(),
             32,
         );
         let first = get(&app, &path);
@@ -78,10 +91,19 @@ async fn referrer_pages_bound_migration_and_keep_filter_and_registry() {
             assert!(!response.headers().contains_key(header::LINK));
         }
         let document = pnpr_oci::ImageDocument::parse(
-            &storage.read_hosted_document(&key).await.unwrap().unwrap(),
+            &storage
+                .read_hosted_document(&key)
+                .await
+                .unwrap()
+                .unwrap(),
         )
         .unwrap();
-        assert!(document.manifests().iter().all(|entry| entry.referrer.is_some()));
+        assert!(
+            document
+                .manifests()
+                .iter()
+                .all(|entry| entry.referrer.is_some()),
+        );
         let path = format!(
             "/oci/~images/v2/acme/paged/referrers/{subject}?artifactType=application%2Fexample%2Bjson",
         );
@@ -97,9 +119,9 @@ async fn large_referrer_annotations_stay_out_of_repository_documents() {
     let tmp = TempDir::new().unwrap();
     let config = oci_config(tmp.path().to_path_buf(), "$all");
     let storage = pnpr_storage::Storage::new(
-        &config.hosted_store,
-        config.storage.clone(),
-        config.cache_storage.clone(),
+        &config.storage.hosted_backend,
+        config.storage.hosted_dir.clone(),
+        config.storage.cache_dir.clone(),
     )
     .unwrap()
     .for_hosted("images");
@@ -123,22 +145,45 @@ async fn large_referrer_annotations_stay_out_of_repository_documents() {
         assert_eq!(response.status(), StatusCode::CREATED);
     }
     let key = pnpr_package_name::CanonicalPackageName::parse("acme/large", Ecosystem::Oci).unwrap();
-    let document = storage.read_hosted_document(&key).await.unwrap().unwrap();
+    let document = storage
+        .read_hosted_document(&key)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(document.len() < 2048, "annotations must not inflate ordinary repository reads");
     let mut path = format!("/v2/acme/large/referrers/{subject}");
     let mut count = 0;
     loop {
         let response = get(&app, &path).await;
         assert_eq!(response.status(), StatusCode::OK);
-        let next = response.headers().get(header::LINK).map(|link| {
-            link.to_str().unwrap().strip_prefix('<').unwrap().split_once('>').unwrap().0.to_string()
-        });
+        let next = response
+            .headers()
+            .get(header::LINK)
+            .map(|link| {
+                link.to_str()
+                    .unwrap()
+                    .strip_prefix('<')
+                    .unwrap()
+                    .split_once('>')
+                    .unwrap()
+                    .0
+                    .to_string()
+            });
         let bytes = body_bytes(response.into_body()).await;
         assert!(bytes.len() <= 4 * 1024 * 1024);
         let payload: Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(payload["manifests"].as_array().unwrap().len(), 1);
         assert_eq!(
-            payload["manifests"][0]["annotations"]["large"].as_str().unwrap().len(),
+            payload["manifests"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1,
+        );
+        assert_eq!(
+            payload["manifests"][0]["annotations"]["large"]
+                .as_str()
+                .unwrap()
+                .len(),
             2 * 1024 * 1024,
         );
         count += 1;
@@ -159,12 +204,20 @@ async fn collect_filtered_referrer_pages(
         let response = get(app, &path).await;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()["oci-filters-applied"], "artifactType");
-        let next = response.headers().get(header::LINK).map(|link| {
-            let link = link.to_str().unwrap();
-            assert!(link.contains("artifactType=application%2Fexample%2Bjson"));
-            assert!(link.starts_with("</oci/~images/v2/"));
-            link.strip_prefix('<').unwrap().split_once('>').unwrap().0.to_string()
-        });
+        let next = response
+            .headers()
+            .get(header::LINK)
+            .map(|link| {
+                let link = link.to_str().unwrap();
+                assert!(link.contains("artifactType=application%2Fexample%2Bjson"));
+                assert!(link.starts_with("</oci/~images/v2/"));
+                link.strip_prefix('<')
+                    .unwrap()
+                    .split_once('>')
+                    .unwrap()
+                    .0
+                    .to_string()
+            });
         let payload: Value =
             serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
         received.extend(
@@ -172,7 +225,12 @@ async fn collect_filtered_referrer_pages(
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|entry| entry["digest"].as_str().unwrap().to_string()),
+                .map(|entry| {
+                    entry["digest"]
+                        .as_str()
+                        .unwrap()
+                        .to_string()
+                }),
         );
         pages += 1;
         assert!(pages <= 2);

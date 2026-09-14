@@ -44,18 +44,20 @@ impl PruneArgs {
 
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let lockfile_path = state.lockfile_path();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &state;
+        let State {
+            tarball_mem_cache,
+            http_client,
+            config,
+            manifest,
+            lockfile,
+            resolved_packages,
+        } = &state;
 
         let dependency_groups: Vec<DependencyGroup> =
             self.dependency_groups(config.optional).collect();
 
-        Install {
-            lockfile_path: Some(&lockfile_path),
-            skip_runtimes: false,
-            trust_lockfile: false,
-            disable_optimistic_repeat_install: true,
-            ..Install::new(
+        {
+            let mut base_install = Install::new(
                 std::sync::Arc::clone(tarball_mem_cache),
                 resolved_packages,
                 (http_client, std::sync::Arc::clone(http_client)),
@@ -63,7 +65,12 @@ impl PruneArgs {
                 manifest,
                 pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
                 dependency_groups,
-            )
+            );
+            base_install.lockfile_policy.trust = false;
+            base_install.lockfile_policy.disable_optimistic_repeat = true;
+            base_install.execution.skip_runtimes = false;
+            base_install.context.lockfile_path = Some(&lockfile_path);
+            base_install
         }
         .run::<Reporter>()
         .await

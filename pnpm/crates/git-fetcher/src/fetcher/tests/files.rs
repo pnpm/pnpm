@@ -12,37 +12,50 @@ async fn fetcher_packs_subfolder_when_path_set() {
 
     let repo_url = format!("file://{}", bare.display());
     let received = GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: &repo_url,
-        commit: &commit,
-        path: Some("packages/sub"),
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: &repo_url,
+            commit: &commit,
+            path: Some("packages/sub"),
+            shallow_hosts: &[],
+            git_bin: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "sub@1.0.0\tbuilt",
+        },
+
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "sub@1.0.0",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "sub@1.0.0\tbuilt",
-        git_bin: None,
     }
     .run::<SilentReporter>()
     .await
     .unwrap();
 
-    let keys: Vec<&str> = received.cas_paths.keys().map(String::as_str).collect();
+    let keys: Vec<&str> = received.cas_paths
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert!(keys.contains(&"package.json"), "sub-dir manifest must be included: {keys:?}");
     assert!(keys.contains(&"index.js"), "sub-dir main must be included: {keys:?}");
     assert!(
-        !keys.iter().any(|key| key.contains("other") || key.contains("packages/")),
+        !keys
+            .iter()
+            .any(|key| key.contains("other") || key.contains("packages/")),
         "sibling-package files must not appear; keys are relative to the sub-dir: {keys:?}",
     );
 }
@@ -66,7 +79,10 @@ async fn fetcher_skips_build_when_ignore_scripts() {
     fs::write(work.join("index.js"), "module.exports = 1;\n").unwrap();
     exec_git(&["add", "-A"], Some(&work)).unwrap();
     exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
-    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work)).unwrap().trim().to_string();
+    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
+        .unwrap()
+        .trim()
+        .to_string();
     exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
         .unwrap();
 
@@ -74,25 +90,35 @@ async fn fetcher_skips_build_when_ignore_scripts() {
     let store_dir = StoreDir::from(store_root.path().to_path_buf());
     let repo_url = format!("file://{}", bare.display());
     let received = GitFetcher {
-        source_cache: &crate::GitSourceCache::default(),
-        repo: &repo_url,
-        commit: &commit,
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: true,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: &crate::GitSourceCache::default(),
+            repo: &repo_url,
+            commit: &commit,
+            path: None,
+            shallow_hosts: &[],
+            git_bin: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "x@1.0.0\tbuilt",
+        },
+
         allow_build: deny_all_builds(),
-        ignore_scripts: true,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         package_name: "pkg",
         requester: "/test",
-        store_index_writer: None,
         // The key's `built` dimension reflects what the *dispatcher*
         // would pass for `ignore_scripts: false`. The key would flip to
         // `\tnot-built` when ignore-scripts is honored at the dispatcher
@@ -101,8 +127,6 @@ async fn fetcher_skips_build_when_ignore_scripts() {
         // `received.built` is the unrelated `should_be_built` flag from
         // `prepare_package` (does the manifest declare a build?) — it
         // can be `true` even when scripts were skipped.
-        files_index_file: "x@1.0.0\tbuilt",
-        git_bin: None,
     }
     .run::<SilentReporter>()
     .await

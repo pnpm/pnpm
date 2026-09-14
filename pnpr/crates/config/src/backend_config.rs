@@ -149,9 +149,7 @@ impl MaxUsers {
 /// one directory the operator can lock down (`chmod 600`).
 pub(super) fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
     let htpasswd_file = file.htpasswd.file.as_deref().map(|raw| resolve_relative(raw, base_dir));
-    let tokens_file = file
-        .tokens
-        .file
+    let tokens_file = file.tokens.file
         .as_deref()
         .map(|raw| resolve_relative(raw, base_dir))
         .or_else(|| htpasswd_file.as_deref().map(default_tokens_path_sibling_of));
@@ -190,16 +188,28 @@ pub(super) fn build_backend_config(
         ));
     }
     if let Some(settings) = file.mysql {
-        selected
-            .push(("mysql", BackendConfig::Mysql(build_sql_backend_settings("mysql", settings)?)));
+        selected.push((
+            "mysql",
+            BackendConfig::Mysql(build_sql_backend_settings("mysql", settings)?),
+        ));
     }
+    select_backend(selected)
+}
+
+fn select_backend(
+    mut selected: Vec<(&str, BackendConfig)>,
+) -> Result<BackendConfig, RegistryError> {
     match selected.len() {
         0 => Err(RegistryError::InvalidConfig {
             reason: "backend must select exactly one database backend".to_string(),
         }),
         1 => Ok(selected.remove(0).1),
         _ => {
-            let names = selected.into_iter().map(|(name, _)| name).collect::<Vec<_>>().join(", ");
+            let names = selected
+                .into_iter()
+                .map(|(name, _)| name)
+                .collect::<Vec<_>>()
+                .join(", ");
             Err(RegistryError::InvalidConfig {
                 reason: format!("backend must select exactly one database backend, got {names}"),
             })
@@ -240,9 +250,10 @@ pub(super) fn parse_backend_interval(
     raw: Option<&Interval>,
 ) -> Result<Option<Duration>, RegistryError> {
     raw.map(|Interval(value)| {
-        parse_interval(value).ok_or_else(|| RegistryError::InvalidConfig {
-            reason: format!("backend.{backend}.{field} has an invalid interval {value:?}"),
-        })
+        parse_interval(value)
+            .ok_or_else(|| RegistryError::InvalidConfig {
+                reason: format!("backend.{backend}.{field} has an invalid interval {value:?}"),
+            })
     })
     .transpose()
 }

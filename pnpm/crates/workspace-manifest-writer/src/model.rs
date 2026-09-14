@@ -12,16 +12,6 @@ use std::collections::HashSet;
 /// for the catalog values.
 #[derive(Default)]
 pub(crate) struct Manifest {
-    text: String,
-    pub(crate) top_level_keys: Vec<String>,
-    /// Whether the document separates its top-level blocks with blank lines,
-    /// as judged by [`crate::edit::uses_blank_line_style`] on the original
-    /// text. New blocks are inserted in the same style.
-    pub(crate) blank_line_style: bool,
-    /// `catalog:` shorthand for the default catalog.
-    pub(crate) catalog: Option<IndexMap<String, String>>,
-    /// `catalogs:` map of named catalogs (may include `default`).
-    pub(crate) catalogs: Option<IndexMap<String, IndexMap<String, String>>>,
     /// `configDependencies:` clean-specifier entries. Object-form
     /// entries (the legacy `{ tarball?, integrity }` shape) are dropped
     /// here — they're only consulted to detect a no-op write of an
@@ -41,21 +31,53 @@ pub(crate) struct Manifest {
     /// nested mapping a user hand-wrote). The writer refuses to replace
     /// these with a scalar rather than corrupting the document.
     pub(crate) non_scalar_overrides: HashSet<String>,
+    pub(crate) document: ManifestDocument,
+    pub(crate) catalogs: CatalogEntries,
+    pub(crate) exceptions: SecurityExceptions,
+}
+
+#[derive(Default)]
+pub(crate) struct ManifestDocument {
+    text: String,
+    pub(crate) keys: Vec<String>,
+    /// Whether the document separates its top-level blocks with blank lines,
+    /// as judged by [`crate::edit::uses_blank_line_style`] on the original
+    /// text. New blocks are inserted in the same style.
+    pub(crate) blank_lines: bool,
+}
+
+#[derive(Default)]
+pub(crate) struct CatalogEntries {
+    /// `catalog:` shorthand for the default catalog.
+    pub(crate) default: Option<IndexMap<String, String>>,
+    /// `catalogs:` map of named catalogs (may include `default`).
+    pub(crate) named: Option<IndexMap<String, IndexMap<String, String>>>,
+}
+
+#[derive(Default)]
+pub(crate) struct SecurityExceptions {
     /// `auditConfig.ignoreGhsas:` list. Consulted to detect a no-op write
     /// of an already-present list.
-    pub(crate) audit_ignore_ghsas: Option<Vec<String>>,
+    pub(crate) legacy_audit_ghsas: Option<Vec<String>>,
     /// `audit.ignore:` list — the canonical spelling, which wins over
     /// `auditConfig.ignoreGhsas` when both are present.
-    pub(crate) audit_ignore: Option<Vec<String>>,
+    pub(crate) audit: Option<Vec<String>>,
     /// `minimumReleaseAgeExclude:` list. Consulted to detect a no-op write
     /// of an already-present list.
-    pub(crate) minimum_release_age_exclude: Option<Vec<String>>,
+    pub(crate) release_age: Option<Vec<String>>,
     /// `trustPolicyExclude:` list. Consulted to detect a no-op write
     /// of an already-present list.
-    pub(crate) trust_policy_exclude: Option<Vec<String>>,
+    pub(crate) trust_policy: Option<Vec<String>>,
 }
 
 #[derive(Default, Deserialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror pnpm-workspace.yaml keys read by the manifest writer."
+    )
+)]
 struct CatalogData {
     #[serde(default)]
     catalog: Option<IndexMap<String, String>>,
@@ -134,46 +156,41 @@ impl Manifest {
         let text = original.unwrap_or_default().to_string();
 
         if text.trim().is_empty() {
-            return Ok(Manifest { text, ..Manifest::default() });
+            return Ok(Manifest {
+                document: crate::model::ManifestDocument { text, ..Default::default() },
+                ..Manifest::default()
+            });
         }
 
         let top: Option<IndexMap<String, serde::de::IgnoredAny>> =
             serde_saphyr::from_str(&text).map_err(Box::new)?;
-        let top_level_keys: Vec<String> =
-            top.map(|map| map.into_keys().collect()).unwrap_or_default();
+        let top_level_keys: Vec<String> = top
+            .map(|map| map.into_keys().collect())
+            .unwrap_or_default();
         let blank_line_style = crate::edit::uses_blank_line_style(&text, &top_level_keys);
 
         let data: CatalogData = serde_saphyr::from_str(&text).map_err(Box::new)?;
         let (overrides, non_scalar_overrides) = split_overrides(data.overrides);
 
         Ok(Manifest {
-            text,
-            top_level_keys,
-            blank_line_style,
-            catalog: data.catalog,
-            catalogs: data.catalogs,
             config_dependencies: data.config_dependencies.map(clean_config_dependencies),
             allow_builds: data.allow_builds.map(clean_allow_builds),
             patched_dependencies: data.patched_dependencies,
             overrides,
             non_scalar_overrides,
-            audit_ignore_ghsas: data.audit_config.and_then(|config| config.ignore_ghsas),
-            audit_ignore: data.audit.and_then(|audit| audit.ignore),
-            minimum_release_age_exclude: data.minimum_release_age_exclude,
-            trust_policy_exclude: data.trust_policy_exclude,
+            document: crate::model::ManifestDocument {
+                text,
+                keys: top_level_keys,
+                blank_lines: blank_line_style,
+            },
+            catalogs: crate::model::CatalogEntries { default: data.catalog, named: data.catalogs },
+            exceptions: crate::model::SecurityExceptions {
+                legacy_audit_ghsas: data.audit_config.and_then(|config| config.ignore_ghsas),
+                audit: data.audit.and_then(|audit| audit.ignore),
+                release_age: data.minimum_release_age_exclude,
+                trust_policy: data.trust_policy_exclude,
+            },
         })
-    }
-
-    pub(crate) fn text(&self) -> &str {
-        &self.text
-    }
-
-    pub(crate) fn set_text(&mut self, text: String) {
-        self.text = text;
-    }
-
-    pub(crate) fn into_text(self) -> String {
-        self.text
     }
 }
 
@@ -221,4 +238,18 @@ fn split_overrides(
             .collect()
     });
     (overrides, non_scalar_overrides)
+}
+
+impl ManifestDocument {
+    pub(crate) fn text(&self) -> &str {
+        &self.text
+    }
+
+    pub(crate) fn set_text(&mut self, text: String) {
+        self.text = text;
+    }
+
+    pub(crate) fn into_text(self) -> String {
+        self.text
+    }
 }

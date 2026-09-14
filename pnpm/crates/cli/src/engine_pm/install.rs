@@ -66,9 +66,11 @@ pub(crate) async fn install_engine_to_store<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<PathBuf> {
     let packages = registry_engine_packages(pm, version)?;
     let config = package_manager_engine_config(config)?.leak();
-    fs::create_dir_all(env_root).into_diagnostic().wrap_err_with(|| {
-        format!("create the package-manager env directory at {}", env_root.display())
-    })?;
+    fs::create_dir_all(env_root)
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!("create the package-manager env directory at {}", env_root.display())
+        })?;
     let env = {
         let _lock = package_manager_env_lock::<Reporter>(config).await?;
         // Resolve the package-manager closure into the env lockfile (a no-op
@@ -103,9 +105,10 @@ pub(crate) async fn install_engine_from_env<Reporter: self::Reporter + 'static>(
 /// channels never reach this installer.
 fn registry_engine_packages(pm: PackageManager, version: &str) -> miette::Result<EnginePackages> {
     let name = pm.name();
-    pm.engine_packages(version).ok_or_else(|| {
-        EngineError::NotRegistryPublished { name, version: version.to_string() }.into()
-    })
+    pm.engine_packages(version)
+        .ok_or_else(|| {
+            EngineError::NotRegistryPublished { name, version: version.to_string() }.into()
+        })
 }
 
 async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>(
@@ -141,8 +144,9 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
     // Install into a throwaway directory with the global virtual store
     // enabled, so the engine itself materializes in `<store>/links/...`
     // and the temp directory holds only symlinks into it.
-    let tmp_install_dir =
-        config.store_dir.tmp().join(format!("{}-engine-{version}-{}", pm.name(), unique_suffix()));
+    let tmp_install_dir = config.store_dir
+        .tmp()
+        .join(format!("{}-engine-{version}-{}", pm.name(), unique_suffix()));
     fs::create_dir_all(&tmp_install_dir)
         .into_diagnostic()
         .wrap_err("create the temporary package manager install directory")?;
@@ -203,7 +207,10 @@ fn engine_install_lock<Reporter: self::Reporter>(
     version: &str,
 ) -> Option<DirLock> {
     let name = format!("{}@{version}.lock", package_name.replace('/', "+"));
-    let path = config.store_dir.tmp().join("engine-locks").join(name);
+    let path = config.store_dir
+        .tmp()
+        .join("engine-locks")
+        .join(name);
     acquire_install_lock::<Reporter>(&path, "the package manager engine install")
 }
 
@@ -274,7 +281,10 @@ pub(crate) fn engine_env_root(config: &Config, pm: PackageManager) -> miette::Re
 /// The pnpm home directory, derived from the versioned global packages
 /// directory (`<home>/global/<version>`) it contains.
 fn package_manager_home(global_pkg_dir: &Path) -> &Path {
-    global_pkg_dir.parent().and_then(Path::parent).unwrap_or(global_pkg_dir)
+    global_pkg_dir
+        .parent()
+        .and_then(Path::parent)
+        .unwrap_or(global_pkg_dir)
 }
 
 fn link_cached_engine_bins(
@@ -302,7 +312,10 @@ fn compute_engine_slot(
     version: &str,
 ) -> Option<PathBuf> {
     let wanted: PackageKey = format!("{}@{version}", packages.wrapper).parse().ok()?;
-    let key = env.snapshots.keys().find(|key| key.without_peer() == wanted)?.clone();
+    let key = env.snapshots
+        .keys()
+        .find(|key| key.without_peer() == wanted)?
+        .clone();
 
     let mut cfg = config.clone();
     cfg.enable_global_virtual_store = true;
@@ -340,18 +353,21 @@ fn resolve_slot(install_dir: &Path, package_name: &str) -> miette::Result<PathBu
     let real = fs::canonicalize(&link)
         .into_diagnostic()
         .wrap_err_with(|| format!("resolve the installed {package_name} at {}", link.display()))?;
-    let install_real = fs::canonicalize(install_dir).into_diagnostic().wrap_err_with(|| {
-        format!("resolve the temporary install directory at {}", install_dir.display())
-    })?;
+    let install_real = fs::canonicalize(install_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!("resolve the temporary install directory at {}", install_dir.display())
+        })?;
     if real.starts_with(&install_real) {
         let real_display = real.display();
         return Err(miette::miette!(
             "the installed {package_name} at {real_display} did not materialize in the global virtual store"
         ));
     }
-    slot_from_package_dir(&real, package_name).ok_or_else(|| {
-        miette::miette!("could not locate the {package_name} global-virtual-store slot")
-    })
+    slot_from_package_dir(&real, package_name)
+        .ok_or_else(|| {
+            miette::miette!("could not locate the {package_name} global-virtual-store slot")
+        })
 }
 
 pub(crate) fn slot_from_package_dir(package_dir: &Path, package_name: &str) -> Option<PathBuf> {
@@ -430,8 +446,7 @@ async fn verify_registry_engine<Reporter: self::Reporter>(
             PlatformBinaries::None
         },
     };
-    if let Some(warning) = verify_engine_identity(env, &engine, config)
-        .await
+    if let Some(warning) = verify_engine_identity(env, &engine, config).await
         .map_err(miette::Report::new)
         .wrap_err("verify the package manager identity")?
     {

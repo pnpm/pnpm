@@ -79,7 +79,7 @@ fn app(tmp: &TempDir) -> Router {
 /// registry-level default denies.
 fn app_allowing_deletes(tmp: &TempDir) -> Router {
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    let hosted = config.hosted.get_mut("images").expect("the hosted image registry");
+    let hosted = config.routing.hosted.get_mut("images").expect("the hosted image registry");
     hosted.rules = std::mem::take(&mut hosted.rules)
         .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
     router_with_auth(config, AuthState::in_memory())
@@ -102,10 +102,17 @@ async fn token(app: &Router) -> String {
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body.to_string()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    payload["token"].as_str().expect("token in response").to_string()
+    payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string()
 }
 
 /// `docker login` sends the token as the `Basic` password.
@@ -121,7 +128,11 @@ async fn push_blob(app: &Router, auth: &str, repository: &str, bytes: &[u8]) -> 
         .header(header::AUTHORIZATION, auth)
         .body(Body::from(bytes.to_vec()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED, "blob push should succeed");
     digest
 }
@@ -150,13 +161,24 @@ async fn push_image(app: &Router, auth: &str, repository: &str, reference: &str)
         .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
         .body(Body::from(manifest.clone()))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED, "manifest push should succeed");
     digest_of(&manifest)
 }
 
 async fn get(app: &Router, path: &str) -> axum::response::Response {
-    app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap()
+    app.clone()
+        .oneshot(
+            Request::get(path)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
 }
 
 async fn check_protocol_surface(app: Router) {
@@ -224,7 +246,12 @@ async fn check_protocol_surface(app: Router) {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::ACCEPTED);
-        assert!(response.headers()[header::LOCATION].to_str().unwrap().contains("/uploads/"));
+        assert!(
+            response.headers()[header::LOCATION]
+                .to_str()
+                .unwrap()
+                .contains("/uploads/"),
+        );
     }
 
     for tag in ["a", "c", "e"] {
@@ -232,7 +259,10 @@ async fn check_protocol_surface(app: Router) {
     }
     push_image(&app, &auth, "acme/zebra", "latest").await;
     let response = get(&app, "/v2/acme/pages/tags/list?n=2").await;
-    let link = response.headers()[header::LINK].to_str().unwrap().to_string();
+    let link = response.headers()[header::LINK]
+        .to_str()
+        .unwrap()
+        .to_string();
     assert_eq!(link, r#"</v2/acme/pages/tags/list?n=2&last=c>; rel="next""#);
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(payload["tags"], json!(["a", "c"]));
@@ -324,7 +354,13 @@ async fn check_protocol_surface(app: Router) {
     assert_eq!(response.status(), StatusCode::ACCEPTED);
     let response = get(&app, &path).await;
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    assert_eq!(payload["manifests"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        payload["manifests"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
     let response = app
         .clone()
         .oneshot(
@@ -372,7 +408,10 @@ async fn check_ignored_ranges(app: &Router, blob_path: &str) {
         let response = app
             .clone()
             .oneshot(
-                Request::get(blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+                Request::get(blob_path)
+                    .header(header::RANGE, range)
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -387,7 +426,10 @@ async fn check_unsatisfiable_ranges(app: &Router, blob_path: &str) {
         let response = app
             .clone()
             .oneshot(
-                Request::get(blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+                Request::get(blob_path)
+                    .header(header::RANGE, range)
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -408,7 +450,10 @@ async fn check_satisfiable_ranges(app: &Router, blob_path: &str) {
         let response = app
             .clone()
             .oneshot(
-                Request::get(blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+                Request::get(blob_path)
+                    .header(header::RANGE, range)
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();
@@ -425,7 +470,11 @@ fn strip_referrer_metadata(document: &mut Value, expected_count: usize) {
     assert_eq!(entries.len(), expected_count, "the pushed manifests are stored");
     for entry in entries {
         assert!(
-            entry.as_object_mut().unwrap().remove("referrer").is_some(),
+            entry
+                .as_object_mut()
+                .unwrap()
+                .remove("referrer")
+                .is_some(),
             "the stored entry must carry referrer metadata before stripping it",
         );
     }

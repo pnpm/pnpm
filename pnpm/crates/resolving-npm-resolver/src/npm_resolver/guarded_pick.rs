@@ -1,9 +1,9 @@
 use super::{
-    AllVersionsBlockedError, Arc, DateTime, GuardExhaustionPolicy, GuardRepickLimitError, Package,
-    PackageMetaCache, PackageVersion, PackageVersionGuardDecision, PackageVersionPolicy,
-    PickPackageContext, PickPackageError, PickPackageOptions, RegistryPackageSpec,
-    RegistryResponseError, RegistryResponseErrorOptions, ResolveError, TrustPolicy, Utc,
-    pick_package, redact_and_sanitize, registry_response_status, to_registry_url,
+    AllVersionsBlockedError, Arc, GuardExhaustionPolicy, GuardRepickLimitError, Package,
+    PackageMetaCache, PackageVersion, PackageVersionGuardDecision, PickPackageContext,
+    PickPackageError, PickPackageOptions, RegistryPackageSpec, RegistryResponseError,
+    RegistryResponseErrorOptions, ResolveError, pick_package, redact_and_sanitize,
+    registry_response_status, to_registry_url,
 };
 
 /// Picker output threaded through to [`build_resolve_result`](super::resolution_result::build_resolve_result).
@@ -27,16 +27,12 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub registry: &'a str,
     pub spec: &'a RegistryPackageSpec,
     pub preferred_version_selectors: Option<&'a pnpm_resolving_resolver_base::VersionSelectors>,
-    pub published_by: Option<DateTime<Utc>>,
-    pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     pub pick_lowest_version: bool,
     pub include_latest_tag: bool,
-    pub dry_run: bool,
-    pub optional: bool,
-    pub update_checksums: bool,
-    pub trust_policy: Option<TrustPolicy>,
     pub package_version_guard:
         Option<&'a Arc<dyn pnpm_resolving_resolver_base::PackageVersionGuard>>,
+    pub policy: crate::PackagePickPolicy<'a>,
+    pub request: crate::MetadataPickRequest,
 }
 
 /// Upper bound on guard rejections for one package before the resolver
@@ -51,15 +47,11 @@ pub(super) fn pick_options<'o>(
     PickPackageOptions {
         registry: opts.registry,
         preferred_version_selectors: opts.preferred_version_selectors,
-        published_by: opts.published_by,
-        published_by_exclude: opts.published_by_exclude,
         pick_lowest_version: opts.pick_lowest_version,
         include_latest_tag: opts.include_latest_tag,
-        dry_run: opts.dry_run,
-        optional: opts.optional,
-        update_checksums: opts.update_checksums,
-        trust_policy: opts.trust_policy,
         blocked_versions: (!blocked_versions.is_empty()).then_some(blocked_versions),
+        policy: opts.policy,
+        request: opts.request,
     }
 }
 
@@ -192,9 +184,9 @@ pub(super) fn exhausted(
     reason: String,
     fail: impl FnOnce(String, String) -> ResolveError,
 ) -> Result<RegistryPick, ResolveError> {
-    let accepts_rejected = opts
-        .package_version_guard
-        .is_some_and(|guard| guard.exhaustion_policy() == GuardExhaustionPolicy::AcceptRejected);
+    let accepts_rejected = opts.package_version_guard.is_some_and(|guard| {
+        guard.exhaustion_policy() == GuardExhaustionPolicy::AcceptRejected
+    });
     match first_rejected.filter(|_| accepts_rejected) {
         Some(picked) => {
             tracing::debug!(
@@ -228,7 +220,8 @@ pub(super) fn map_pick_error<Cache: PackageMetaCache>(
     // `user:pass@` is exactly what `AuthHeaders` turns into a Basic header, so
     // redacting before the lookup would report "no authorization header was
     // set" for the registries that most certainly carry one.
-    let auth_header_value = ctx.auth_headers.for_url_with_package(&url, Some(&opts.spec.name));
+    let auth_header_value =
+        ctx.metadata.http.auth_headers.for_url_with_package(&url, Some(&opts.spec.name));
     Box::new(RegistryResponseError::new(RegistryResponseErrorOptions {
         url: &redact_and_sanitize(&url),
         status: status.as_u16(),

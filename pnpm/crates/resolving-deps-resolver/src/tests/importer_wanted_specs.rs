@@ -1,5 +1,5 @@
 use super::{DependencyGroup, PackageManifest};
-use crate::resolve_dependency_tree::importer_direct_wanted_specs;
+use crate::resolve_dependency_tree::{ResolveDependencyTreeError, importer_direct_wanted_specs};
 use pretty_assertions::assert_eq;
 
 #[expect(
@@ -7,10 +7,20 @@ use pretty_assertions::assert_eq;
     reason = "test helpers take owned literal fixtures by value to keep call sites clean"
 )]
 fn manifest_with(groups: serde_json::Value) -> (tempfile::TempDir, PackageManifest) {
+    let mut json = serde_json::json!({ "name": "root", "version": "0.0.0" });
+    json.as_object_mut()
+        .unwrap()
+        .extend(groups.as_object().unwrap().clone());
+    manifest_of(json)
+}
+
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "test helpers take owned literal fixtures by value to keep call sites clean"
+)]
+fn manifest_of(json: serde_json::Value) -> (tempfile::TempDir, PackageManifest) {
     let tmp = tempfile::tempdir().expect("tempdir");
     let path = tmp.path().join("package.json");
-    let mut json = serde_json::json!({ "name": "root", "version": "0.0.0" });
-    json.as_object_mut().unwrap().extend(groups.as_object().unwrap().clone());
     std::fs::write(&path, serde_json::to_string(&json).unwrap()).expect("write package.json");
     let manifest = PackageManifest::from_path(path).expect("parse package.json");
     (tmp, manifest)
@@ -101,4 +111,64 @@ fn regular_dep_range_wins_over_dev_range_of_same_alias() {
     )
     .unwrap();
     assert_eq!(wanted, vec![("foo".to_string(), "1.0.0".to_string(), false, false)]);
+}
+
+#[test]
+fn rejects_invalid_peer_dependency_specification() {
+    let (_tmp, manifest) = manifest_with(serde_json::json!({
+        "name": "proj",
+        "peerDependencies": { "@pnpm.e2e/foo": "@pnpm.e2e/foo@1.0.0" },
+    }));
+    let err = importer_direct_wanted_specs(
+        &manifest,
+        ALL_GROUPS,
+        false,
+        &pnpm_catalogs_types::Catalogs::new(),
+    )
+    .unwrap_err();
+    let ResolveDependencyTreeError::InvalidPeerDependencySpecification {
+        dep_name,
+        project_id,
+        specifier,
+    } = err
+    else {
+        panic!("expected InvalidPeerDependencySpecification, got {err:?}");
+    };
+    assert_eq!(dep_name, "@pnpm.e2e/foo");
+    assert_eq!(project_id, "proj");
+    assert_eq!(specifier, "@pnpm.e2e/foo@1.0.0");
+}
+
+/// A workspace root usually has no `name`, so it is named by its directory.
+#[test]
+fn names_an_unnamed_project_by_its_directory() {
+    let (tmp, manifest) = manifest_of(serde_json::json!({
+        "peerDependencies": { "@pnpm.e2e/foo": "@pnpm.e2e/foo@1.0.0" },
+    }));
+    let err = importer_direct_wanted_specs(
+        &manifest,
+        ALL_GROUPS,
+        false,
+        &pnpm_catalogs_types::Catalogs::new(),
+    )
+    .unwrap_err();
+    let ResolveDependencyTreeError::InvalidPeerDependencySpecification { project_id, .. } = err
+    else {
+        panic!("expected InvalidPeerDependencySpecification, got {err:?}");
+    };
+    assert_eq!(project_id, tmp.path().display().to_string());
+}
+
+#[test]
+fn accepts_scheme_carrying_peer_specifiers() {
+    let (_tmp, manifest) = manifest_with(serde_json::json!({
+        "peerDependencies": { "foo": "workspace:^", "bar": "npm:baz@^5" },
+    }));
+    importer_direct_wanted_specs(
+        &manifest,
+        ALL_GROUPS,
+        true,
+        &pnpm_catalogs_types::Catalogs::new(),
+    )
+    .expect("scheme-carrying peer specifiers are accepted");
 }

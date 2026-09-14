@@ -220,17 +220,20 @@ fn print_recursive_get<'a>(
 /// How the recursive report names one project: its manifest name, or
 /// its workspace-relative directory when it declares none.
 fn project_report_name(project: &pnpm_workspace::Project, workspace_root: &Path) -> String {
-    project.manifest.value().get("name").and_then(Value::as_str).map_or_else(
-        || {
-            project
-                .root_dir
-                .strip_prefix(workspace_root)
-                .unwrap_or(&project.root_dir)
-                .display()
-                .to_string()
-        },
-        String::from,
-    )
+    project.manifest
+        .value()
+        .get("name")
+        .and_then(Value::as_str)
+        .map_or_else(
+            || {
+                project.root_dir
+                    .strip_prefix(workspace_root)
+                    .unwrap_or(&project.root_dir)
+                    .display()
+                    .to_string()
+            },
+            String::from,
+        )
 }
 
 /// Read one project's manifest, apply `edit`, and write it back.
@@ -247,8 +250,9 @@ fn edit_project_manifest(
 /// Apply the `key=value` pairs of a `pnpm pkg set`.
 fn apply_set_pairs(value: &mut Value, pairs: &[String], json: bool) -> miette::Result<()> {
     for pair in pairs {
-        let (key, raw_value) =
-            pair.split_once('=').ok_or_else(|| PkgError::SetInvalidArg { arg: pair.clone() })?;
+        let (key, raw_value) = pair
+            .split_once('=')
+            .ok_or_else(|| PkgError::SetInvalidArg { arg: pair.clone() })?;
         let parsed_value: Value = if json {
             serde_json::from_str(raw_value)
                 .map_err(|_| PkgError::SetJsonParse { value: raw_value.to_string() })?
@@ -333,7 +337,10 @@ fn remove_ill_typed_field(
     field: &str,
     well_typed: impl Fn(&Value) -> bool,
 ) {
-    if obj.get(field).is_some_and(|value| !well_typed(value)) {
+    if obj
+        .get(field)
+        .is_some_and(|value| !well_typed(value))
+    {
         obj.remove(field);
     }
 }

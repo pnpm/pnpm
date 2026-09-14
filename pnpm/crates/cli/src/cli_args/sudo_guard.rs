@@ -69,11 +69,11 @@ fn sudo_blocked_operation(command: &CliCommand) -> Option<String> {
     match command {
         CliCommand::Setup(_) => Some("pnpm setup".to_string()),
         CliCommand::SelfUpdate(_) => Some("pnpm self-update".to_string()),
-        CliCommand::Add(args) => global_write(args.global, "add"),
+        CliCommand::Add(args) => global_write(args.target.global, "add"),
         CliCommand::ApproveBuilds(args) => global_write(args.global, "approve-builds"),
         CliCommand::Remove(args) => global_write(args.global, "remove"),
         CliCommand::Runtime(args) => global_write(args.global, "runtime"),
-        CliCommand::Update(args) => global_write(args.global, "update"),
+        CliCommand::Update(args) => global_write(args.selection.global, "update"),
         // `pnpm link` with no arguments links the current project into the
         // global directory.
         CliCommand::Link(args) if args.package_paths.is_empty() => {
@@ -82,18 +82,26 @@ fn sudo_blocked_operation(command: &CliCommand) -> Option<String> {
         // Config writes default to the global config file when no
         // `--location` is given, so gate on the effective scope, not the
         // `--global` flag alone.
-        CliCommand::Config(ConfigArgs { flags, command: ConfigSubcommand::Set(_), .. }) => {
-            global_write(super::config::resolve_global(*flags), "config set")
-        }
-        CliCommand::Config(ConfigArgs { flags, command: ConfigSubcommand::Delete(_), .. }) => {
-            global_write(super::config::resolve_global(*flags), "config delete")
-        }
+        CliCommand::Config(ConfigArgs {
+            flags,
+            command: ConfigSubcommand::Set(_),
+            ..
+        }) => global_write(super::config::resolve_global(*flags), "config set"),
+        CliCommand::Config(ConfigArgs {
+            flags,
+            command: ConfigSubcommand::Delete(_),
+            ..
+        }) => global_write(super::config::resolve_global(*flags), "config delete"),
         CliCommand::Set(args) => global_write(super::config::resolve_global(args.flags), "set"),
         // `env use --global` installs a runtime into the global packages
         // directory, the same write `runtime set --global` makes. Its
         // sibling `env list` only queries a mirror, so it stays allowed
         // like every other global read.
-        CliCommand::Env(args) if args.params.first().is_some_and(|param| param == "use") => {
+        CliCommand::Env(args)
+            if args.params
+                .first()
+                .is_some_and(|param| param == "use") =>
+        {
             global_write(args.global, "env use")
         }
         _ => None,

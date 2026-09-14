@@ -104,7 +104,11 @@ fn git_dir_of(
         GitMetadata::Absent => return Err(HeadBranch::Unknown),
         GitMetadata::Refused => return Err(HeadBranch::Refused),
     };
-    match content.trim().strip_prefix("gitdir:").map(str::trim) {
+    match content
+        .trim()
+        .strip_prefix("gitdir:")
+        .map(str::trim)
+    {
         Some(path) if Path::new(path).is_absolute() => Ok(Path::new(path).to_path_buf()),
         Some(path) => Ok(cwd.join(path)),
         None => Err(HeadBranch::Unknown),
@@ -113,7 +117,11 @@ fn git_dir_of(
 
 /// The branch a `HEAD` file names, or that it is detached.
 fn branch_of_head(head: &str) -> HeadBranch {
-    let Some(reference) = head.trim().strip_prefix("ref:").map(str::trim) else {
+    let Some(reference) = head
+        .trim()
+        .strip_prefix("ref:")
+        .map(str::trim)
+    else {
         return HeadBranch::Detached;
     };
     match reference.strip_prefix("refs/heads/") {

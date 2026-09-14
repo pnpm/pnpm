@@ -109,9 +109,12 @@ pub(crate) fn apply_settings_above_global_config(
         if let Ok(value) = std::env::var(env_name)
             && !value.is_empty()
         {
-            let layer = serde_json::from_str::<GlobalShimsSetting>(&value).map_err(|source| {
-                LoadGlobalShimsSettingError::Environment { env_name, value, source }
-            })?;
+            let layer = serde_json::from_str::<GlobalShimsSetting>(&value)
+                .map_err(|source| LoadGlobalShimsSettingError::Environment {
+                    env_name,
+                    value,
+                    source,
+                })?;
             shims.apply(&layer);
             break;
         }
@@ -139,27 +142,33 @@ pub(super) fn validate_candidate(
                 identity: local.fingerprint,
             })
         }
-        Candidate::RuntimePin { project_dir, version_spec, manifest_hash, .. } => (package == name)
-            .then(|| Candidate::RuntimePin {
-                project_dir,
-                identity: create_hex_hash(&format!(
-                    "runtime\0{name}\0{version_spec}\0{manifest_hash}",
-                )),
-                version_spec,
-                manifest_hash,
-            }),
-        Candidate::PackageManagerPin { project_dir, pm, version_spec, manifest_hash, .. } => {
-            (package == pm.name()).then(|| Candidate::PackageManagerPin {
-                project_dir,
-                identity: create_hex_hash(&format!(
-                    "package-manager\0{}\0{version_spec}\0{manifest_hash}",
-                    pm.name(),
-                )),
-                pm,
-                version_spec,
-                manifest_hash,
-            })
-        }
+        Candidate::RuntimePin {
+            project_dir,
+            version_spec,
+            manifest_hash,
+            ..
+        } => (package == name).then(|| Candidate::RuntimePin {
+            project_dir,
+            identity: create_hex_hash(&format!("runtime\0{name}\0{version_spec}\0{manifest_hash}")),
+            version_spec,
+            manifest_hash,
+        }),
+        Candidate::PackageManagerPin {
+            project_dir,
+            pm,
+            version_spec,
+            manifest_hash,
+            ..
+        } => (package == pm.name()).then(|| Candidate::PackageManagerPin {
+            project_dir,
+            identity: create_hex_hash(&format!(
+                "package-manager\0{}\0{version_spec}\0{manifest_hash}",
+                pm.name(),
+            )),
+            pm,
+            version_spec,
+            manifest_hash,
+        }),
     }
 }
 
@@ -238,7 +247,10 @@ fn runtime_entries<'manifest>(
     manifest: &'manifest Value,
     engines_field: &str,
 ) -> Vec<&'manifest Value> {
-    let Some(runtime) = manifest.get(engines_field).and_then(|field| field.get("runtime")) else {
+    let Some(runtime) = manifest
+        .get(engines_field)
+        .and_then(|field| field.get("runtime"))
+    else {
         return Vec::new();
     };
     match runtime {
@@ -250,7 +262,10 @@ fn runtime_entries<'manifest>(
 /// The version an entry pins, when it names `name` and pins one at all.
 fn runtime_entry_version(entry: &Value, name: &str) -> Option<String> {
     (entry.get("name").and_then(Value::as_str) == Some(name)).then_some(())?;
-    let version = entry.get("version").and_then(Value::as_str)?.trim();
+    let version = entry
+        .get("version")
+        .and_then(Value::as_str)?
+        .trim();
     (!version.is_empty()).then(|| version.to_string())
 }
 

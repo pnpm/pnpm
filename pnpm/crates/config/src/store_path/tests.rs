@@ -138,7 +138,10 @@ fn resolve_store_dir_cross_volume_walks_to_mountpoint() {
     // pkg_root must canonicalize, so symlinks (`/var` → `/private/var`
     // on macOS) don't surprise the prefix match.
     let pkg_root_canon = fs::canonicalize(&pkg_root).expect("canonicalize pkg_root");
-    let mount_canon = pkg_root_canon.parent().expect("project has parent").to_path_buf();
+    let mount_canon = pkg_root_canon
+        .parent()
+        .expect("project has parent")
+        .to_path_buf();
     let home_default = PathBuf::from("/home/test-user/Library/pnpm/store");
     let pnpm_home = PathBuf::from("/home/test-user/Library/pnpm");
 
@@ -159,8 +162,14 @@ fn resolve_store_dir_prefers_parent_when_parent_is_also_linkable() {
     let pkg_root = mount.join("project");
     fs::create_dir_all(&pkg_root).expect("create project dir");
     let pkg_root_canon = fs::canonicalize(&pkg_root).expect("canonicalize pkg_root");
-    let mount_canon = pkg_root_canon.parent().expect("project has parent").to_path_buf();
-    let parent_canon = mount_canon.parent().expect("mount has parent").to_path_buf();
+    let mount_canon = pkg_root_canon
+        .parent()
+        .expect("project has parent")
+        .to_path_buf();
+    let parent_canon = mount_canon
+        .parent()
+        .expect("mount has parent")
+        .to_path_buf();
     let home_default = PathBuf::from("/home/test-user/Library/pnpm/store");
     let pnpm_home = PathBuf::from("/home/test-user/Library/pnpm");
 

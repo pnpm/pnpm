@@ -167,7 +167,11 @@ fn exec_runs_binary_from_node_modules_bin() {
         &format!("#!/bin/sh\ntouch \"{}\"\n", marker_path.display()),
     );
 
-    pacquet.with_arg("exec").with_arg("say-hi").assert().success();
+    pacquet
+        .with_arg("exec")
+        .with_arg("say-hi")
+        .assert()
+        .success();
     assert!(marker_path.exists(), "the binary in node_modules/.bin should have run");
 
     drop(root);
@@ -193,7 +197,11 @@ fn exec_runs_in_the_cwd_with_the_projects_binaries() {
     let subdir = workspace.join("src/utils");
     fs::create_dir_all(&subdir).expect("create the subdirectory");
 
-    pacquet.with_current_dir(&subdir).with_args(["exec", "record-cwd"]).assert().success();
+    pacquet
+        .with_current_dir(&subdir)
+        .with_args(["exec", "record-cwd"])
+        .assert()
+        .success();
 
     let recorded = fs::read_to_string(&marker_path).expect("read the recorded cwd");
     assert_eq!(
@@ -217,7 +225,12 @@ fn exec_passes_arguments_to_the_command() {
         &format!("#!/bin/sh\nprintf %s \"$1\" > \"{}\"\n", marker_path.display()),
     );
 
-    pacquet.with_arg("exec").with_arg("write-arg").with_arg("hello-world").assert().success();
+    pacquet
+        .with_arg("exec")
+        .with_arg("write-arg")
+        .with_arg("hello-world")
+        .assert()
+        .success();
     let written = fs::read_to_string(&marker_path).expect("read marker");
     assert_eq!(written, "hello-world");
 
@@ -230,7 +243,10 @@ fn exec_passes_arguments_to_the_command() {
 fn exec_errors_when_no_command_given() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
-    let output = pacquet.with_arg("exec").output().expect("spawn pacquet exec");
+    let output = pacquet
+        .with_arg("exec")
+        .output()
+        .expect("spawn pacquet exec");
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!output.status.success(), "exec with no command must fail");
@@ -362,7 +378,10 @@ fn exec_cleans_up_a_detached_process_after_failure() {
     let ready_path = workspace.join("detached-ready.txt");
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listen for detached child");
     listener.set_nonblocking(true).expect("set listener nonblocking");
-    let port = listener.local_addr().expect("read listener address").port();
+    let port = listener
+        .local_addr()
+        .expect("read listener address")
+        .port();
 
     let mut pacquet_process = pacquet
         .with_arg("exec")
@@ -394,7 +413,10 @@ fn exec_cleans_up_a_detached_process_after_failure_when_node_launches_pnpm() {
     let release_path = workspace.join("release-node.txt");
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listen for detached child");
     listener.set_nonblocking(true).expect("set listener nonblocking");
-    let port = listener.local_addr().expect("read listener address").port();
+    let port = listener
+        .local_addr()
+        .expect("read listener address")
+        .port();
     let detached_script = make_connected_detached_node_script(&ready_path, port);
 
     let mut node_process = node_launching_pacquet(

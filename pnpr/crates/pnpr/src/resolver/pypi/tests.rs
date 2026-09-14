@@ -9,7 +9,10 @@ fn wheel_with(entries: &[(&str, &str)]) -> Vec<u8> {
             .expect("start a wheel entry");
         archive.write_all(body.as_bytes()).expect("write a wheel entry");
     }
-    archive.finish().expect("finish the wheel").into_inner()
+    archive
+        .finish()
+        .expect("finish the wheel")
+        .into_inner()
 }
 
 #[test]
@@ -73,7 +76,9 @@ fn an_index_url_gains_the_slash_a_project_page_resolves_against() {
 
     assert_eq!(url.as_str(), "https://example.test/simple/");
     assert_eq!(
-        url.join("demo/").expect("project page").as_str(),
+        url.join("demo/")
+            .expect("project page")
+            .as_str(),
         "https://example.test/simple/demo/",
     );
 }

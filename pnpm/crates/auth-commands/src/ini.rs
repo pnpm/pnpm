@@ -64,11 +64,14 @@ impl IniSettings {
     /// [`encode_value`]).
     pub fn serialize(&self) -> String {
         use std::fmt::Write;
-        self.entries.iter().fold(String::new(), |mut out, (key, value)| {
-            writeln!(out, "{}={}", encode_value(key), encode_value(value))
-                .expect("writing to a String never fails");
-            out
-        })
+        self.entries
+            .iter()
+            .fold(String::new(), |mut out, (key, value)| {
+                writeln!(out, "{}={}", encode_value(key), encode_value(value)).expect(
+                    "writing to a String never fails",
+                );
+                out
+            })
     }
 
     #[cfg(test)]

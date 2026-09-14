@@ -49,17 +49,24 @@ fn is_filespec(input: &str) -> bool {
 
 fn link_spec(base: &Path, target: &Path) -> String {
     let rel = pathdiff::diff_paths(target, base).unwrap_or_else(|| target.to_path_buf());
-    format!("link:{}", rel.display().to_string().replace('\\', "/"))
+    format!(
+        "link:{}",
+        rel.display()
+            .to_string()
+            .replace('\\', "/"),
+    )
 }
 
 fn already_declared(manifest: &PackageManifest, name: &str) -> bool {
-    DEPENDENCY_FIELDS.iter().any(|field| {
-        manifest
-            .value()
-            .get(field)
-            .and_then(serde_json::Value::as_object)
-            .is_some_and(|deps| deps.contains_key(name))
-    })
+    DEPENDENCY_FIELDS
+        .iter()
+        .any(|field| {
+            manifest
+                .value()
+                .get(field)
+                .and_then(serde_json::Value::as_object)
+                .is_some_and(|deps| deps.contains_key(name))
+        })
 }
 
 impl LinkArgs {
@@ -68,13 +75,7 @@ impl LinkArgs {
         config: &'static mut Config,
         manifest_path: PathBuf,
     ) -> miette::Result<()> {
-        if self.package_paths.is_empty() {
-            return Err(LinkError::NoParams.into());
-        }
-
-        if let Some(name) = self.package_paths.iter().find(|path| !is_filespec(path)) {
-            return Err(LinkError::LinkByName { name: name.clone() }.into());
-        }
+        self.validate_package_paths()?;
 
         let manifest_dir = manifest_path
             .parent()
@@ -112,24 +113,39 @@ impl LinkArgs {
         )
         .wrap_err("recording linked dependencies in pnpm-workspace.yaml")?;
 
-        config.overrides.get_or_insert_with(IndexMap::new).extend(
-            new_overrides.iter().map(|(selector, specifier)| (selector.clone(), specifier.clone())),
-        );
+        config.overrides
+            .get_or_insert_with(IndexMap::new)
+            .extend(
+                new_overrides
+                    .iter()
+                    .map(|(selector, specifier)| (selector.clone(), specifier.clone())),
+            );
 
         let state = State::init(manifest_path, config, false).wrap_err("initialize the state")?;
         install_linked::<Reporter>(&state).await
+    }
+
+    fn validate_package_paths(&self) -> miette::Result<()> {
+        if self.package_paths.is_empty() {
+            return Err(LinkError::NoParams.into());
+        }
+
+        if let Some(name) = self.package_paths
+            .iter()
+            .find(|path| !is_filespec(path))
+        {
+            return Err(LinkError::LinkByName { name: name.clone() }.into());
+        }
+
+        Ok(())
     }
 }
 
 /// Install with the linked dependencies' overrides in place.
 async fn install_linked<Reporter: self::Reporter + 'static>(state: &State) -> miette::Result<()> {
     let lockfile_path = state.lockfile_path();
-    Install {
-        lockfile_path: Some(&lockfile_path),
-        prefer_frozen_lockfile: Some(false),
-        mutation: ProjectMutation::NoInstall,
-        installs_only: false,
-        ..Install::new(
+    {
+        let mut base_install = Install::new(
             Arc::clone(&state.tarball_mem_cache),
             &state.resolved_packages,
             (&state.http_client, Arc::clone(&state.http_client)),
@@ -137,7 +153,12 @@ async fn install_linked<Reporter: self::Reporter + 'static>(state: &State) -> mi
             &state.manifest,
             pnpm_lockfile::MaybeLazyLockfile::Lazy(&state.lockfile),
             [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional].into_iter(),
-        )
+        );
+        base_install.lockfile_policy.prefer_frozen = Some(false);
+        base_install.execution.mutation = ProjectMutation::NoInstall;
+        base_install.execution.installs_only = false;
+        base_install.context.lockfile_path = Some(&lockfile_path);
+        base_install
     }
     .run::<Reporter>()
     .await

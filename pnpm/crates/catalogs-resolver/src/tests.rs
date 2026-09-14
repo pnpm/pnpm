@@ -8,8 +8,10 @@ fn catalogs_from(entries: &[(&str, &[(&str, &str)])]) -> Catalogs {
     entries
         .iter()
         .map(|(name, items)| {
-            let catalog: Catalog =
-                items.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect();
+            let catalog: Catalog = items
+                .iter()
+                .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+                .collect();
             ((*name).to_string(), catalog)
         })
         .collect()

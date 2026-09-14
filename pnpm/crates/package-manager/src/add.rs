@@ -48,41 +48,9 @@ pub struct Add<'a, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
-    pub tarball_mem_cache: std::sync::Arc<MemCache>,
-    pub resolved_packages: &'a ResolvedPackages,
-    pub http_client: &'a ThrottledClient,
-    pub http_client_arc: std::sync::Arc<ThrottledClient>,
-    pub config: &'static Config,
     pub manifest: &'a mut PackageManifest,
-    pub lockfile: Option<&'a Lockfile>,
-    pub lockfile_path: Option<&'a std::path::Path>,
-    /// The manifest group(s) the added packages are saved into. `None`
-    /// means pnpm's default: an already-declared package is updated in
-    /// the group it occupies (`guessDependencyType` — checked in
-    /// `optionalDependencies`, `dependencies`, `devDependencies`,
-    /// `peerDependencies` order, with a peer-only entry left untouched),
-    /// and a new package lands in `dependencies`.
-    pub dependency_groups: Option<DependencyGroupList>,
-    /// Package selectors, each of which may carry an `@<version>` suffix.
-    pub package_names: &'a [String],
-    /// How the freshly-resolved version is pinned into the manifest range,
-    /// derived from `--save-exact` / `--save-prefix`. See
-    /// [`RangeSpecStyle::from_save_options`].
-    pub range_spec_style: RangeSpecStyle,
-    /// `--save-catalog-name=<name>` (with `--save-catalog` a shorthand for
-    /// `default`), or the `saveCatalogName` config default. When `Some`,
-    /// the added dependency is written as `catalog:` / `catalog:<name>`
-    /// and recorded in `pnpm-workspace.yaml` even under
-    /// [`pnpm_config::CatalogMode::Manual`].
-    pub save_catalog_name: Option<String>,
-    /// CLI-merged `supportedArchitectures` forwarded to the
-    /// `Install` run that follows the manifest mutation. See
-    /// [`Install::supported_architectures`](crate::Install::supported_architectures).
-    pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
-    /// `--lockfile-only`: add the dependency to the manifest and write
-    /// `pnpm-lock.yaml`, but skip materializing `node_modules`. Forwarded
-    /// to the follow-up `Install` run. See [`Install::lockfile_only`](crate::Install::lockfile_only).
-    pub lockfile_only: bool,
+    pub options: AddOptions<'a>,
+    pub resources: AddResources<DependencyGroupList>,
 }
 
 /// Error type of [`Add`].
@@ -216,26 +184,17 @@ where
 {
     /// Separate what every step reads from what the install consumes, and
     /// the manifest the add rewrites.
-    fn split(self) -> (AddView<'a>, AddOwned, &'a mut PackageManifest) {
+    fn split(self) -> (AddOptions<'a>, AddOwned, &'a mut PackageManifest) {
         (
-            AddView {
-                resolved_packages: self.resolved_packages,
-                http_client: self.http_client,
-                config: self.config,
-                lockfile: self.lockfile,
-                lockfile_path: self.lockfile_path,
-                package_names: self.package_names,
-                range_spec_style: self.range_spec_style,
-                lockfile_only: self.lockfile_only,
-            },
+            self.options,
             AddOwned {
-                tarball_mem_cache: self.tarball_mem_cache,
-                http_client_arc: self.http_client_arc,
-                dependency_groups: self
-                    .dependency_groups
-                    .map(|groups| groups.into_iter().collect()),
-                save_catalog_name: self.save_catalog_name,
-                supported_architectures: self.supported_architectures,
+                tarball_mem_cache: self.resources.tarball_mem_cache,
+                http_client_arc: self.resources.http_client_arc,
+                dependency_groups: self.resources.dependency_groups.map(|groups| {
+                    groups.into_iter().collect()
+                }),
+                save_catalog_name: self.resources.save_catalog_name,
+                supported_architectures: self.resources.supported_architectures,
             },
             self.manifest,
         )
@@ -328,27 +287,48 @@ where
 
 /// The add's borrowed and `Copy` inputs, as one value every step reads.
 #[derive(Clone, Copy)]
-struct AddView<'a> {
-    resolved_packages: &'a ResolvedPackages,
-    http_client: &'a ThrottledClient,
-    config: &'static Config,
-    lockfile: Option<&'a Lockfile>,
-    lockfile_path: Option<&'a std::path::Path>,
-    package_names: &'a [String],
-    range_spec_style: RangeSpecStyle,
-    lockfile_only: bool,
+pub struct AddOptions<'a> {
+    pub resolved_packages: &'a ResolvedPackages,
+    pub http_client: &'a ThrottledClient,
+    pub config: &'static Config,
+    pub lockfile: Option<&'a Lockfile>,
+    pub lockfile_path: Option<&'a std::path::Path>,
+    /// Package selectors, each of which may carry an `@<version>` suffix.
+    pub package_names: &'a [String],
+    /// How the freshly-resolved version is pinned into the manifest range,
+    /// derived from `--save-exact` / `--save-prefix`. See
+    /// [`RangeSpecStyle::from_save_options`].
+    pub range_spec_style: RangeSpecStyle,
+    /// `--lockfile-only`: add the dependency to the manifest and write
+    /// `pnpm-lock.yaml`, but skip materializing `node_modules`. Forwarded
+    /// to the follow-up `Install` run. See [`crate::InstallExecution::lockfile_only`].
+    pub lockfile_only: bool,
 }
 
 /// The add's owned inputs, consumed by the install it runs.
-struct AddOwned {
-    tarball_mem_cache: std::sync::Arc<MemCache>,
-    http_client_arc: std::sync::Arc<ThrottledClient>,
-    dependency_groups: Option<Vec<DependencyGroup>>,
-    save_catalog_name: Option<String>,
-    supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
+pub struct AddResources<DependencyGroupList> {
+    pub tarball_mem_cache: std::sync::Arc<MemCache>,
+    pub http_client_arc: std::sync::Arc<ThrottledClient>,
+    /// The manifest group(s) the added packages are saved into. `None`
+    /// means pnpm's default: an already-declared package is updated in
+    /// the group it occupies (`guessDependencyType` — checked in
+    /// `optionalDependencies`, `dependencies`, `devDependencies`,
+    /// `peerDependencies` order, with a peer-only entry left untouched),
+    /// and a new package lands in `dependencies`.
+    pub dependency_groups: Option<DependencyGroupList>,
+    /// `--save-catalog-name=<name>` (with `--save-catalog` a shorthand for
+    /// `default`), or the `saveCatalogName` config default. When `Some`,
+    /// the added dependency is written as `catalog:` / `catalog:<name>`
+    /// and recorded in `pnpm-workspace.yaml` even under
+    /// [`pnpm_config::CatalogMode::Manual`].
+    pub save_catalog_name: Option<String>,
+    /// CLI-merged `supportedArchitectures` forwarded to the
+    /// `Install` run that follows the manifest mutation. See
+    /// [`crate::InstallProjects::supported_architectures`].
+    pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
 }
 
-fn begin<Reporter: self::Reporter>(add: AddView<'_>, owned: &AddOwned) {
+fn begin<Reporter: self::Reporter>(add: AddOptions<'_>, owned: &AddOwned) {
     add.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
     owned.http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
 }
@@ -375,7 +355,7 @@ impl AddResolution<'_> {
 
 /// What every selector of an add resolves against.
 struct AddResolveInputs<'a, 'r> {
-    add: AddView<'a>,
+    add: AddOptions<'a>,
     http_client_arc: &'r std::sync::Arc<ThrottledClient>,
     /// One checkout per repository and commit for every alias-less git
     /// selector this command resolves.
@@ -389,3 +369,5 @@ struct AddResolveInputs<'a, 'r> {
 
 #[cfg(test)]
 mod tests;
+
+type AddOwned = AddResources<Vec<DependencyGroup>>;

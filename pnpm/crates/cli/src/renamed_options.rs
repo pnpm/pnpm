@@ -53,13 +53,17 @@ pub fn drop_shadowed_aliases(cmd: &Command, argv: Vec<OsString>) -> Vec<OsString
             break;
         }
         if let Some(rest) = token.strip_prefix("--") {
-            let (name, has_inline_value) =
-                rest.split_once('=').map_or((rest, false), |(name, _)| (name, true));
+            let (name, has_inline_value) = rest
+                .split_once('=')
+                .map_or((rest, false), |(name, _)| (name, true));
             let width =
                 token_width(arity.long_consumes_value(name).unwrap_or(false), has_inline_value);
             scan.note_long(name, index, width);
             index += width;
-        } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
+        } else if let Some(rest) = token
+            .strip_prefix('-')
+            .filter(|rest| !rest.is_empty())
+        {
             let consumes_next = scan_short_cluster(rest, &arity, &mut scan.canonical_seen);
             index += token_width(consumes_next, false);
         } else {

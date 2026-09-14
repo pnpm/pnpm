@@ -27,21 +27,20 @@ impl SharedArtifactStore {
     /// Take the reclamation slot in the usage document. A write that fails but
     /// landed anyway still holds the slot.
     pub(super) async fn acquire_reclamation(&self, reclamation: &str) -> Result<bool> {
-        let acquired = self
-            .mutate_usage(|usage| {
-                // Dropped here rather than merely disregarded, so that the
-                // check on completion sees a publication that started during
-                // this run rather than one this run decided to ignore.
-                if !usage.reclamation_needed
-                    || !usage.active_publications.is_empty()
-                    || usage.reclamation.is_some()
-                {
-                    return Ok(false);
-                }
-                usage.reclamation = Some(reclamation.to_string());
-                Ok(true)
-            })
-            .await;
+        let acquired = self.mutate_usage(|usage| {
+            // Dropped here rather than merely disregarded, so that the
+            // check on completion sees a publication that started during
+            // this run rather than one this run decided to ignore.
+            if !usage.reclamation_needed
+                || !usage.active_publications.is_empty()
+                || usage.reclamation.is_some()
+            {
+                return Ok(false);
+            }
+            usage.reclamation = Some(reclamation.to_string());
+            Ok(true)
+        })
+        .await;
         match acquired {
             Ok(acquired) => Ok(acquired),
             Err(error) => {
@@ -173,23 +172,21 @@ impl SharedArtifactStore {
     ) -> Result<()> {
         rebuilt.reclamation = None;
         rebuilt.reclamation_needed = false;
-        let changed = self
-            .mutate_usage(|usage| {
-                if usage.reclamation.as_deref() != Some(reclamation) {
-                    return Err(RegistryError::Internal {
-                        reason: "shared artifact reclamation ownership changed".to_string(),
-                    });
-                }
-                if !usage.active_publications.is_empty() {
-                    return Err(RegistryError::Internal {
-                        reason: "shared artifact publication started during reclamation"
-                            .to_string(),
-                    });
-                }
-                *usage = rebuilt.clone();
-                Ok(true)
-            })
-            .await?;
+        let changed = self.mutate_usage(|usage| {
+            if usage.reclamation.as_deref() != Some(reclamation) {
+                return Err(RegistryError::Internal {
+                    reason: "shared artifact reclamation ownership changed".to_string(),
+                });
+            }
+            if !usage.active_publications.is_empty() {
+                return Err(RegistryError::Internal {
+                    reason: "shared artifact publication started during reclamation".to_string(),
+                });
+            }
+            *usage = rebuilt.clone();
+            Ok(true)
+        })
+        .await?;
         if !changed {
             return Err(RegistryError::Internal {
                 reason: "shared artifact reclamation did not update usage".to_string(),

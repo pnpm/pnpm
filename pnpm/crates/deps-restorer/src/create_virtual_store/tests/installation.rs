@@ -38,7 +38,10 @@ async fn shared_store_context_materializes_a_warm_package() {
 
     let mut config = Config::new();
     config.registry = "https://registry.test".to_string();
-    config.store_dir = root.path().join("materialization-store").into();
+    config.store_dir = root
+        .path()
+        .join("materialization-store")
+        .into();
     config.modules_dir = modules_dir.clone();
     config.virtual_store_dir = modules_dir.join(".pacquet");
     config.package_import_method = PackageImportMethod::Copy;
@@ -51,8 +54,7 @@ async fn shared_store_context_materializes_a_warm_package() {
         ("package.json", br#"{"name":"from-shared-context","version":"1.0.0"}"#.as_slice()),
         ("index.js", b"module.exports = true\n".as_slice()),
     ] {
-        let (_, digest) = config
-            .store_dir
+        let (_, digest) = config.store_dir
             .write_cas_file(content, false)
             .expect("write package file to materialization store");
         files.insert(
@@ -106,34 +108,45 @@ async fn shared_store_context_materializes_a_warm_package() {
     let requester = workspace_root.to_string_lossy().into_owned();
 
     let output = CreateVirtualStore {
+        fetching: crate::VirtualStoreFetchInputs {
+            http_client: &pnpm_network::ThrottledClient::default(),
+            store_index_writer: &store_index_writer,
+            store_context: Some(CreateVirtualStoreStoreContext {
+                index: Some(&shared_index),
+                verified_files_cache: &verified_files_cache,
+            }),
+            cas_prefetch: None,
+            progress_reported: &progress_reported,
+            tarball_mem_cache: None,
+            custom_fetcher_session: None,
+            planned_canonical_fetches: None,
+        },
+        selection: crate::SnapshotSelection {
+            skipped: &skipped,
+            include_optional: true,
+            supported_architectures: None,
+        },
         ctx: &crate::InstallContext {
+            linker: crate::ModuleLinkerContext {
+                layout: &layout,
+                kind: NodeLinker::Isolated,
+                bin_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            },
             config,
             workspace_root: &workspace_root,
             requester: &requester,
-            layout: &layout,
-            node_linker: NodeLinker::Isolated,
+
             allow_build_policy: &allow_build_policy,
-            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
         },
-        http_client: &pnpm_network::ThrottledClient::default(),
+
         entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
         current_entries: LockfileEntries::default(),
-        store_index_writer: &store_index_writer,
-        cas_prefetch: None,
-        store_context: Some(CreateVirtualStoreStoreContext {
-            index: Some(&shared_index),
-            verified_files_cache: &verified_files_cache,
-        }),
-        skipped: &skipped,
-        include_optional_dependencies: true,
-        supported_architectures: None,
+
         dir_clone_cache: None,
-        progress_reported: &progress_reported,
-        tarball_mem_cache: None,
-        custom_fetcher_session: None,
-        planned_canonical_fetches: None,
+
         link_concurrency_probe: None,
     }
     .run::<SilentReporter>()

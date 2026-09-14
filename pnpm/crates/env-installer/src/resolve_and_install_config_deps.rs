@@ -177,6 +177,14 @@ fn plan_specifier(
 
 /// Resolve a single config dependency and record it (plus one level of
 /// optional subdeps) into the env lockfile.
+fn wanted_config_dependency(name: &str, specifier: &str) -> WantedDependency {
+    WantedDependency {
+        alias: Some(name.to_string()),
+        bare_specifier: Some(specifier.to_string()),
+        ..WantedDependency::default()
+    }
+}
+
 async fn resolve_one(
     env_lockfile: &mut EnvLockfile,
     resolver: &dyn Resolver,
@@ -185,11 +193,7 @@ async fn resolve_one(
     specifier: &str,
     pinned_integrity: Option<&Integrity>,
 ) -> Result<(), ConfigDepError> {
-    let wanted = WantedDependency {
-        alias: Some(name.to_string()),
-        bare_specifier: Some(specifier.to_string()),
-        ..WantedDependency::default()
-    };
+    let wanted = wanted_config_dependency(name, specifier);
     let resolve_opts = resolve_options(opts.root_dir);
     let no_integrity = || missing_config_integrity(name, specifier);
     let result = resolver
@@ -201,7 +205,11 @@ async fn resolve_one(
     if !crate::resolve_optional_subdeps::resolution_has_integrity(&result.resolution) {
         return Err(no_integrity());
     }
-    let version = result.name_ver.as_ref().ok_or_else(no_integrity)?.suffix.to_string();
+    let version = result.package.name_ver
+        .as_ref()
+        .ok_or_else(no_integrity)?
+        .suffix
+        .to_string();
     let registry = opts.pick_registry(name);
     let key = pkg_key(name, &version)?;
 
@@ -217,7 +225,7 @@ async fn resolve_one(
 
     // A pinned dependency covers only itself, so its optional subdeps stay out
     // of the lockfile until it is declared as a clean specifier.
-    let optional_subdeps = match (pinned_integrity, result.manifest.as_deref()) {
+    let optional_subdeps = match (pinned_integrity, result.package.manifest.as_deref()) {
         (None, Some(manifest)) => {
             resolve_optional_subdeps(name, manifest, resolver, opts, env_lockfile).await?
         }
@@ -248,10 +256,16 @@ fn record_config_dependency(
     registry: &str,
 ) -> Result<(), ConfigDepError> {
     let (name, specifier) = declaration;
-    env_lockfile.root_importer_mut().config_dependencies.insert(
-        name.to_string(),
-        SpecifierAndResolution { specifier: specifier.to_string(), version: version.to_string() },
-    );
+    env_lockfile
+        .root_importer_mut()
+        .config_dependencies
+        .insert(
+            name.to_string(),
+            SpecifierAndResolution {
+                specifier: specifier.to_string(),
+                version: version.to_string(),
+            },
+        );
     pin_integrity(&mut resolution, pinned_integrity);
     env_lockfile.packages.insert(
         key.clone(),
@@ -275,8 +289,11 @@ fn pin_integrity(resolution: &mut LockfileResolution, pinned: Option<&Integrity>
 
 pub(crate) fn resolve_options(root_dir: &std::path::Path) -> ResolveOptions {
     ResolveOptions {
-        project_dir: root_dir.to_path_buf(),
-        lockfile_dir: root_dir.to_path_buf(),
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: root_dir.to_path_buf(),
+            lockfile_dir: root_dir.to_path_buf(),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     }
 }
@@ -292,10 +309,13 @@ fn migrate_into_lockfile(
     registry: &str,
 ) -> Result<(), ConfigDepError> {
     let key = pkg_key(name, version)?;
-    env_lockfile.root_importer_mut().config_dependencies.insert(
-        name.to_string(),
-        SpecifierAndResolution { specifier: version.to_string(), version: version.to_string() },
-    );
+    env_lockfile
+        .root_importer_mut()
+        .config_dependencies
+        .insert(
+            name.to_string(),
+            SpecifierAndResolution { specifier: version.to_string(), version: version.to_string() },
+        );
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball,
         integrity: Some(integrity),
@@ -338,7 +358,9 @@ fn config_dep<'a>(env_lockfile: &'a EnvLockfile, name: &str) -> Option<&'a Speci
 }
 
 fn pkg_key(name: &str, version: &str) -> Result<PackageKey, ConfigDepError> {
-    format!("{name}@{version}").parse().map_err(|_| ConfigDepError::BadConfigDep {
-        message: format!("Config dependency {name}@{version} has an unparsable lockfile key"),
-    })
+    format!("{name}@{version}")
+        .parse()
+        .map_err(|_| ConfigDepError::BadConfigDep {
+            message: format!("Config dependency {name}@{version} has an unparsable lockfile key"),
+        })
 }

@@ -27,9 +27,7 @@ pub(super) async fn pnpr_request_inputs(
     link: &PnprLink<'_>,
     lockfile_dir: &std::path::Path,
 ) -> miette::Result<PnprRequestInputs> {
-    let overrides = state
-        .config
-        .overrides
+    let overrides = state.config.overrides
         .as_ref()
         .map(serde_json::to_value)
         .transpose()
@@ -38,10 +36,12 @@ pub(super) async fn pnpr_request_inputs(
         state.config.patched_dependency_hashes_in_config_order().map_err(miette::Report::new)?;
     let benchmark_registry_override =
         PnprBenchmarkRegistryOverride::from_env(&state.config.registry);
-    let resolve_registry = benchmark_registry_override.as_ref().map_or_else(
-        || state.config.registry.clone(),
-        PnprBenchmarkRegistryOverride::resolve_registry,
-    );
+    let resolve_registry = benchmark_registry_override
+        .as_ref()
+        .map_or_else(
+            || state.config.registry.clone(),
+            PnprBenchmarkRegistryOverride::resolve_registry,
+        );
 
     let pnpmfile_hook = load_pnpr_pnpmfile(state, lockfile_dir)?;
     let prefetch_allowed = prefetch_allowed(pnpmfile_hook.as_ref()).await?;
@@ -77,36 +77,37 @@ pub(super) fn resolve_projects_options(
 ) -> ResolveProjectsOptions {
     ResolveProjectsOptions {
         projects: std::mem::take(&mut session.projects),
-        registry: std::mem::take(&mut inputs.resolve_registry),
-        registries: state.config.registry_declarations(),
-        // Only the caller's identity to pnpr is sent. Upstream registry
-        // credentials are never forwarded: pnpr selects them from its own
-        // route policy, so they stay out of the request body.
-        authorization: state.config.auth_headers.for_url(pnpr_server),
-        overrides: inputs.overrides.take(),
-        patched_dependencies: inputs.patched_dependencies.take(),
-        package_extensions: state.config.package_extensions.clone(),
-        allow_unused_patches: state.config.allow_unused_patches,
-        catalogs: session.catalogs.take(),
-        auto_install_peers: Some(state.config.auto_install_peers),
-        dedupe_peers: Some(state.config.dedupe_peers),
-        exclude_links_from_lockfile: Some(state.config.exclude_links_from_lockfile),
-        lockfile: session.previous_wanted.cloned(),
-        frozen_lockfile: link.frozen_lockfile,
-        prefer_frozen_lockfile: Some(link.prefer_frozen_lockfile),
-        update_patches: link.update_patches,
-        fix_lockfile: link.fix_lockfile,
-        ignore_manifest_check: link.ignore_manifest_check,
-        trust_lockfile: link.trust_lockfile,
-        resolution_mode: state.config.resolution_mode,
-        minimum_release_age: state.config.minimum_release_age,
-        minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
-        minimum_release_age_ignore_missing_time: state
-            .config
-            .minimum_release_age_ignore_missing_time,
-        trust_policy: state.config.trust_policy,
-        trust_policy_exclude: state.config.trust_policy_exclude.clone(),
-        trust_policy_ignore_after: state.config.trust_policy_ignore_after,
+        fix_lockfile: link.lockfile.fix,
+        routing: pnpm_pnpr_client::RegistryRouting {
+            registry: std::mem::take(&mut inputs.resolve_registry),
+            registries: state.config.registry_declarations(),
+            // Only the caller's identity to pnpr is sent. Upstream registry
+            // credentials are never forwarded: pnpr selects them from its own
+            // route policy, so they stay out of the request body.
+            authorization: state.config.auth_headers.for_url(pnpr_server),
+        },
+        transforms: pnpm_pnpr_client::ManifestTransforms {
+            overrides: inputs.overrides.take(),
+            patched_dependencies: inputs.patched_dependencies.take(),
+            package_extensions: state.config.package_extensions.clone(),
+            allow_unused_patches: state.config.allow_unused_patches,
+            catalogs: session.catalogs.take(),
+        },
+        resolution: pnpm_pnpr_client::ResolutionSettings {
+            auto_install_peers: Some(state.config.auto_install_peers),
+            dedupe_peers: Some(state.config.dedupe_peers),
+            exclude_links_from_lockfile: Some(state.config.exclude_links_from_lockfile),
+            resolution_mode: state.config.resolution_mode,
+        },
+        reuse: pnpm_pnpr_client::LockfileReuseOptions {
+            lockfile: session.previous_wanted.cloned(),
+            frozen_lockfile: link.lockfile.frozen,
+            prefer_frozen_lockfile: Some(link.lockfile.prefer_frozen),
+            update_patches: link.lockfile.update_patches,
+            ignore_manifest_check: link.lockfile.ignore_manifest_check,
+            trust_lockfile: link.lockfile.trust,
+        },
+        verification: verification_policy(state.config),
     }
 }
 
@@ -134,9 +135,14 @@ pub(super) fn pnpr_catalogs(state: &State) -> miette::Result<Option<Catalogs>> {
     if let Some(catalogs) = state.config.catalogs.clone() {
         return Ok(Some(catalogs));
     }
-    let workspace_root = state.config.workspace_dir.as_deref().unwrap_or_else(|| {
-        state.manifest.path().parent().expect("manifest path always has a parent dir")
-    });
+    let workspace_root = state.config.workspace_dir
+        .as_deref()
+        .unwrap_or_else(|| {
+            state.manifest
+                .path()
+                .parent()
+                .expect("manifest path always has a parent dir")
+        });
     let workspace_manifest =
         pnpm_workspace::read_workspace_manifest(workspace_root).into_diagnostic()?;
     let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
@@ -223,7 +229,9 @@ impl PnprBenchmarkRegistryOverride {
     }
 
     pub(super) fn client_tarball_url(&self, url: &str) -> String {
-        self.tarball_rewrite.as_ref().map_or_else(|| url.to_string(), |rewrite| rewrite.url(url))
+        self.tarball_rewrite
+            .as_ref()
+            .map_or_else(|| url.to_string(), |rewrite| rewrite.url(url))
     }
 
     pub(super) fn rewrite_lockfile(&self, lockfile: &mut Lockfile) {
@@ -291,5 +299,18 @@ pub(super) fn rewrite_resolution_registry(
         | LockfileResolution::Git(_)
         | LockfileResolution::Registry(_)
         | LockfileResolution::Custom(_) => {}
+    }
+}
+
+pub(super) fn verification_policy(
+    config: &pnpm_config::Config,
+) -> pnpm_pnpr_client::VerificationPolicy {
+    pnpm_pnpr_client::VerificationPolicy {
+        minimum_release_age: config.minimum_release_age,
+        minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
+        minimum_release_age_ignore_missing_time: config.minimum_release_age_ignore_missing_time,
+        trust_policy: config.trust_policy,
+        trust_policy_exclude: config.trust_policy_exclude.clone(),
+        trust_policy_ignore_after: config.trust_policy_ignore_after,
     }
 }

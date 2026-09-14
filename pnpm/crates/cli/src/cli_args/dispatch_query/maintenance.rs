@@ -15,7 +15,7 @@ pub(in super::super) fn doctor<'a>(
     ctx: &RunCtx<'a>,
     args: DoctorArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         let result = args.run(cfg).await?;
         println!("{}", result.output);
@@ -34,7 +34,7 @@ pub(in super::super) fn bin<'a>(
     ctx: &RunCtx<'a>,
     args: BinArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.dir, (ctx.config)()?)?;
+    args.run(ctx.locations.dir, (ctx.loaders.config)()?)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
@@ -51,7 +51,7 @@ pub(in super::super) fn root<'a>(
     ctx: &RunCtx<'a>,
     args: RootArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.dir, (ctx.config)()?)?;
+    args.run(ctx.locations.dir, (ctx.loaders.config)()?)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
@@ -59,7 +59,7 @@ pub(in super::super) fn prefix<'a>(
     ctx: &RunCtx<'a>,
     args: PrefixArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.dir, (ctx.config)()?)?;
+    args.run(ctx.locations.dir, (ctx.loaders.config)()?)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
@@ -70,7 +70,7 @@ pub(in super::super) fn shim<'a>(
     // Writes the global bin directory and the global `config.yaml`, so it
     // reads the configuration anchored at the pnpm home — a project the
     // command happens to run in does not get to steer either.
-    let config = (ctx.global_config)()?;
+    let config = (ctx.loaders.global_config)()?;
     Ok(Box::pin(async move {
         print!("{}", args.run(config).await?);
         Ok(())
@@ -81,7 +81,7 @@ pub(in super::super) fn config<'a>(
     ctx: &RunCtx<'a>,
     args: ConfigArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run((ctx.config)()?, ctx.dir)?;
+    args.run((ctx.loaders.config)()?, ctx.locations.dir)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
@@ -112,8 +112,8 @@ pub(in super::super) fn repo<'a>(
     ctx: &RunCtx<'a>,
     args: RepoArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg = (ctx.config)()?;
-    let dir = ctx.dir;
+    let cfg = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
             args.run::<pnpm_network_web_auth::Host, DefaultReporter>(cfg, dir).await
@@ -131,7 +131,7 @@ pub(in super::super) fn docs<'a>(
     ctx: &RunCtx<'a>,
     args: DocsArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg = (ctx.config)()?;
+    let cfg = (ctx.loaders.config)()?;
     Ok(Box::pin(async move { args.run::<pnpm_network_web_auth::Host>(cfg).await }))
 }
 
@@ -139,7 +139,7 @@ pub(in super::super) fn with<'a>(
     ctx: &RunCtx<'a>,
     args: WithArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.config)()?;
+    let config = (ctx.loaders.config)()?;
     macro_rules! run_with {
         ($reporter:ty) => {
             Box::pin(args.run::<$reporter>(config))
@@ -159,8 +159,8 @@ pub(in super::super) fn self_update<'a>(
     // Refuse corepack before loading project config, so a broken `.npmrc`
     // / workspace config can't mask the corepack refusal.
     super::super::self_update::reject_if_corepack()?;
-    let config = (ctx.config_self_update)()?;
-    let dir = ctx.dir;
+    let config = (ctx.loaders.config_self_update)()?;
+    let dir = ctx.locations.dir;
     macro_rules! run_self_update {
         ($reporter:ty) => {
             Box::pin(args.run::<$reporter>(config, dir))
@@ -177,13 +177,13 @@ pub(in super::super) fn self_update<'a>(
 // global packages dir, writes the alias scripts, and persists `PNPM_HOME` /
 // PATH into the user's shell rc file (POSIX) or registry (Windows). It needs
 // a reporter for the "Installing pnpm CLI globally" log but no project
-// config or lockfile, so it dispatches off `ctx.dir` like the other
+// config or lockfile, so it dispatches off `ctx.locations.dir` like the other
 // reporter-typed commands.
 pub(in super::super) fn setup<'a>(
     ctx: &RunCtx<'a>,
     args: SetupArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let dir = ctx.dir;
+    let dir = ctx.locations.dir;
     macro_rules! run_setup {
         ($reporter:ty) => {
             Box::pin(args.run::<$reporter>(dir))
@@ -200,8 +200,8 @@ pub(in super::super) fn store<'a>(
     ctx: &RunCtx<'a>,
     command: StoreCommand,
 ) -> miette::Result<CommandFuture<'a>> {
-    let config: &Config = (ctx.config)()?;
-    let dir = ctx.dir;
+    let config: &Config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(command.run::<DefaultReporter>(config, dir))
@@ -215,7 +215,7 @@ pub(in super::super) fn cache<'a>(
     ctx: &RunCtx<'a>,
     command: CacheCommand,
 ) -> miette::Result<CommandFuture<'a>> {
-    command.run((ctx.config)()?)?;
+    command.run((ctx.loaders.config)()?)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
@@ -223,7 +223,7 @@ pub(in super::super) fn cat_file<'a>(
     ctx: &RunCtx<'a>,
     args: CatFileArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run(|| (ctx.config)().map(|m| &*m))?;
+    args.run(|| (ctx.loaders.config)().map(|m| &*m))?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
@@ -231,8 +231,8 @@ pub(in super::super) fn cat_index<'a>(
     ctx: &RunCtx<'a>,
     args: CatIndexArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let dir = ctx.dir;
-    let config = ctx.config;
+    let dir = ctx.locations.dir;
+    let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         args.run(dir, || config().map(|m| &*m)).await?;
         Ok(())
@@ -243,7 +243,8 @@ pub(in super::super) fn ignored_builds<'a>(
     ctx: &RunCtx<'a>,
     _args: IgnoredBuildsArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let output = super::super::ignored_builds::render_ignored_builds((ctx.config)()?)?;
+    let output =
+        super::super::ignored_builds::render_ignored_builds((ctx.loaders.config)()?)?;
     print!("{output}");
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
@@ -252,8 +253,8 @@ pub(in super::super) fn bugs<'a>(
     ctx: &RunCtx<'a>,
     args: BugsArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
-    let dir = ctx.dir;
+    let cfg: &Config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
     Ok(Box::pin(async move { args.run::<pnpm_network_web_auth::Host>(cfg, dir).await }))
 }
 
@@ -261,6 +262,6 @@ pub(in super::super) fn find_hash<'a>(
     ctx: &RunCtx<'a>,
     args: FindHashArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run(|| (ctx.config)().map(|m| &*m))?;
+    args.run(|| (ctx.loaders.config)().map(|m| &*m))?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }

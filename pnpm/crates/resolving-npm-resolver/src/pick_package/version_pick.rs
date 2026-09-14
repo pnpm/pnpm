@@ -19,7 +19,7 @@ pub(super) fn unverified_pick_is_safe<Cache: PackageMetaCache>(
     picked: Option<&Arc<PackageVersion>>,
 ) -> bool {
     let Some(picked) = picked else { return false };
-    if ctx.prefer_offline
+    if ctx.cache_policy.prefer_offline
         || opts.pick_lowest_version
         || matches!(spec.spec_type, RegistryPackageSpecType::Version)
     {
@@ -27,9 +27,9 @@ pub(super) fn unverified_pick_is_safe<Cache: PackageMetaCache>(
     }
     let stable_range_pick = matches!(spec.spec_type, RegistryPackageSpecType::Range)
         && !opts.include_latest_tag
-        && !opts.update_checksums
-        && opts.published_by.is_none()
-        && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
+        && !opts.request.update_checksums
+        && opts.policy.published_by.is_none()
+        && opts.policy.trust_policy != Some(TrustPolicy::NoDowngrade)
         && opts.blocked_versions.is_none();
     if !stable_range_pick {
         return false;

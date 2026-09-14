@@ -29,16 +29,18 @@ pub(super) struct FinalScope {
 impl MaterializationScope {
     pub(super) fn initial(install: FreshInputs<'_>, is_hoisted: bool, built: &Lockfile) -> Self {
         let importer_ids =
-            materialization_importer_ids(install.selected_importer_ids, is_hoisted, built);
-        let closure = importer_ids.as_ref().map(|importer_ids| {
-            crate::materialization_closure(
-                built,
-                install.lockfile_dir,
-                importer_ids,
-                install.included(),
-                &SkippedSnapshots::new(),
-            )
-        });
+            materialization_importer_ids(install.projects.selected_ids, is_hoisted, built);
+        let closure = importer_ids
+            .as_ref()
+            .map(|importer_ids| {
+                crate::materialization_closure(
+                    built,
+                    install.projects.lockfile_dir,
+                    importer_ids,
+                    install.included(),
+                    &SkippedSnapshots::new(),
+                )
+            });
         MaterializationScope { importer_ids, closure }
     }
 
@@ -53,21 +55,30 @@ impl MaterializationScope {
         built: &Lockfile,
         skipped: &SkippedSnapshots,
     ) -> FinalScope {
-        let closure = self.importer_ids.as_ref().map(|importer_ids| {
-            crate::materialization_closure(
-                built,
-                install.lockfile_dir,
-                importer_ids,
-                install.included(),
-                skipped,
-            )
-        });
-        let materialized: HashSet<String> = closure.as_ref().map_or_else(
-            || built.importers.keys().cloned().collect(),
-            |closure| closure.importer_ids.clone(),
-        );
+        let closure = self.importer_ids
+            .as_ref()
+            .map(|importer_ids| {
+                crate::materialization_closure(
+                    built,
+                    install.projects.lockfile_dir,
+                    importer_ids,
+                    install.included(),
+                    skipped,
+                )
+            });
+        let materialized: HashSet<String> = closure
+            .as_ref()
+            .map_or_else(
+                || {
+                    built.importers
+                        .keys()
+                        .cloned()
+                        .collect()
+                },
+                |closure| closure.importer_ids.clone(),
+            );
         let project_anchor_importer_ids =
-            project_anchor_importer_ids(install.selected_importer_ids, is_hoisted, &materialized);
+            project_anchor_importer_ids(install.projects.selected_ids, is_hoisted, &materialized);
         FinalScope { closure, project_anchor_importer_ids }
     }
 }
@@ -106,17 +117,17 @@ pub(super) async fn plan_fresh_materialization<'l, 'a: 'l, Reporter: self::Repor
     scope: PlanScope,
 ) -> Result<FreshPlan<'l>, InstallWithFreshLockfileError> {
     let installability_host = installability_host(
-        install.config,
+        install.drivers.config,
         lockfiles.initial,
         probe.early_host_detection,
-        (probe.node_version, install.supported_architectures),
+        (probe.node_version, install.projects.supported_architectures),
     )
     .await;
     let host_node =
         installability_host.as_ref().map(pnpm_deps_restorer::materialization_plan::HostNode::from);
     let (engine_name, deferred_engine_name) =
         pnpm_deps_restorer::materialization_plan::resolve_engine_name(
-            install.config.enable_global_virtual_store,
+            install.drivers.config.enable_global_virtual_store,
             lockfiles.initial.snapshots.as_ref(),
             host_node.as_ref(),
         )
@@ -147,23 +158,25 @@ pub(super) fn lay_out_slots<'l>(
 ) -> (VirtualStoreLayout, Option<pnpm_deps_restorer::DirCloneCache<'l>>) {
     let phase_start = std::time::Instant::now();
     let layout = VirtualStoreLayout::new(
-        install.config,
-        install.config.enable_global_virtual_store.then_some(engine_name.as_deref()).flatten(),
+        install.drivers.config,
+        install.drivers.config.enable_global_virtual_store
+            .then_some(engine_name.as_deref())
+            .flatten(),
         initial.snapshots.as_ref(),
         initial.packages.as_ref(),
         Some(allow_build_policy),
-        Some(install.lockfile_dir),
+        Some(install.projects.lockfile_dir),
     );
     let dir_clone_cache = pnpm_deps_restorer::DirCloneCache::build(
-        install.config,
-        install.node_linker,
+        install.drivers.config,
+        install.execution.node_linker,
         engine_name_source(deferred_engine_name, engine_name),
         initial.snapshots.as_ref(),
         initial.packages.as_ref(),
         Some(allow_build_policy),
-        Some(install.lockfile_dir),
+        Some(install.projects.lockfile_dir),
     );
-    log_layout_phase(install.config, phase_start);
+    log_layout_phase(install.drivers.config, phase_start);
     (layout, dir_clone_cache)
 }
 pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
@@ -172,14 +185,27 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
     installability_host: Option<&pnpm_deps_restorer::InstallabilityHost>,
     scope: PlanScope,
 ) -> Result<SkippedSnapshots, InstallWithFreshLockfileError> {
-    let closure_importer_ids: std::collections::HashSet<String> =
-        lockfiles.built.importers.keys().cloned().collect();
+    let closure_importer_ids: std::collections::HashSet<String> = lockfiles
+        .built
+        .importers
+        .keys()
+        .cloned()
+        .collect();
     pnpm_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(
         pnpm_deps_restorer::materialization_plan::SkipSetInputs {
-            requester: install.requester,
+            closure: pnpm_deps_restorer::SkipSetClosure {
+                lockfile: lockfiles.built,
+                root: install.projects.lockfile_dir,
+                importer_ids: &closure_importer_ids,
+                included: scope.included,
+            },
+            entries: pnpm_lockfile::LockfileEntries {
+                snapshots: lockfiles.initial.snapshots.as_ref(),
+                packages: lockfiles.initial.packages.as_ref(),
+            },
+            requester: install.projects.requester,
             importers: &lockfiles.initial.importers,
-            snapshots: lockfiles.initial.snapshots.as_ref(),
-            packages: lockfiles.initial.packages.as_ref(),
+
             installability_host,
             // The fresh path has just re-resolved the graph, so the
             // previous run's verdicts may no longer hold.
@@ -190,11 +216,7 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
             // narrows them for its own reasons (`fetch --dev`,
             // `rebuild`) and must keep its transitive optionals.
             exclude_optional: !scope.include_transitive_optional_dependencies,
-            skip_runtimes: install.skip_runtimes,
-            closure_lockfile: lockfiles.built,
-            closure_root: install.lockfile_dir,
-            closure_importer_ids: &closure_importer_ids,
-            included: scope.included,
+            skip_runtimes: install.execution.skip_runtimes,
         },
     )
     .map_err(InstallWithFreshLockfileError::Installability)
@@ -243,7 +265,12 @@ pub(super) fn materialization_importer_ids(
 ) -> Option<HashSet<String>> {
     let selected_importer_ids = selected_importer_ids?;
     if is_hoisted {
-        return Some(built_lockfile.importers.keys().cloned().collect());
+        return Some(
+            built_lockfile.importers
+                .keys()
+                .cloned()
+                .collect(),
+        );
     }
     Some(selected_importer_ids.clone())
 }
@@ -257,12 +284,15 @@ pub(super) async fn installability_host(
 ) -> Option<pnpm_deps_restorer::InstallabilityHost> {
     let (node_version, supported_architectures) = host;
     let needed = !config.force
-        && lockfile.packages.as_ref().is_some_and(|packages| {
-            lockfile
-                .snapshots
-                .as_ref()
-                .is_some_and(|snapshots| crate::any_installability_constraint(snapshots, packages))
-        });
+        && lockfile.packages
+            .as_ref()
+            .is_some_and(|packages| {
+                lockfile.snapshots
+                    .as_ref()
+                    .is_some_and(|snapshots| {
+                        crate::any_installability_constraint(snapshots, packages)
+                    })
+            });
     match (early_host_detection, needed) {
         (Some(detection), true) => detection.resolve().await,
         (_, needed) => {

@@ -233,8 +233,9 @@ fn fetched_and_normalized(spec: &str, project_dir: &Path, protocol: &str) -> (Pa
 ///    protocol survives (collapsed to a single one).
 fn normalize_specifier(bare: &str) -> String {
     let forward = bare.replace('\\', "/");
-    let Some(after_proto) =
-        ["file:", "link:", "workspace:"].iter().find_map(|proto| forward.strip_prefix(proto))
+    let Some(after_proto) = ["file:", "link:", "workspace:"]
+        .iter()
+        .find_map(|proto| forward.strip_prefix(proto))
     else {
         return forward;
     };
@@ -374,8 +375,9 @@ pub fn local_tarball_path(bare: &str, project_dir: &Path) -> Option<PathBuf> {
     } else {
         parse_local_path(&wanted, project_dir, project_dir, ParseOptions::default())
     }?;
-    (matches!(spec.kind, LocalSpecKind::File) && spec.fetch_spec.is_file())
-        .then_some(spec.fetch_spec)
+    (matches!(spec.kind, LocalSpecKind::File) && spec.fetch_spec.is_file()).then_some(
+        spec.fetch_spec,
+    )
 }
 
 fn contains_path_sep(bare: &str) -> bool {

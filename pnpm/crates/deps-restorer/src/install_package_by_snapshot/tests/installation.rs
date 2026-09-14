@@ -18,9 +18,10 @@ use pretty_assertions::assert_eq;
 #[test]
 fn registry_revision_uses_the_registry_declared_for_its_prefix() {
     let mut config = Config::new();
-    config
-        .registries_by_prefix
-        .insert("work".to_string(), "https://registry.example/workspace/npm/".to_string());
+    config.registries_by_prefix.insert(
+        "work".to_string(),
+        "https://registry.example/workspace/npm/".to_string(),
+    );
     let resolution = LockfileResolution::Registry(RegistryResolution {
         integrity: DUMMY_SHA512.parse().expect("parse integrity"),
         revision: Some(TarballRevision::try_from(4).unwrap()),
@@ -185,28 +186,36 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
     let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     let err = super::super::InstallPackageBySnapshot {
+        fetching: crate::SnapshotFetchContext {
+            http_client: &pnpm_network::ThrottledClient::default(),
+            store_index: None,
+            store_index_writer: None,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: Some(&mem_cache),
+            progress_reported: None,
+            verified_files_cache: &verified_files_cache,
+            custom_fetcher_session: None,
+        },
         ctx: &crate::InstallContext {
+            linker: crate::ModuleLinkerContext {
+                layout: &layout,
+                kind: pnpm_config::NodeLinker::Hoisted,
+                bin_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            },
             config,
             workspace_root: store_tmp.path(),
             requester: "/project",
-            layout: &layout,
-            node_linker: pnpm_config::NodeLinker::Hoisted,
+
             allow_build_policy: &allow_build_policy,
-            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
         },
-        http_client: &pnpm_network::ThrottledClient::default(),
-        store_index: None,
-        store_index_writer: None,
-        prefetched_cas_paths: None,
-        progress_reported: None,
-        tarball_mem_cache: Some(&mem_cache),
-        verified_files_cache: &verified_files_cache,
+
         skipped: &skipped,
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
-        custom_fetcher_session: None,
+
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -496,24 +505,33 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
     let resolution = session
         .resolve_tarball_integrity::<pnpm_reporter::SilentReporter>(
             pnpm_tarball::IngestTarballToStore {
-                http_client: &pnpm_network::ThrottledClient::default(),
-                store_dir: &config.store_dir,
-                store_index: None,
-                store_index_writer: None,
-                verify_store_integrity: config.verify_store_integrity,
-                strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-                verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
-                package_integrity: None,
-                package_unpacked_size: None,
-                package_file_count: None,
-                package_url: "https://registry.test/pkg.tgz",
-                package_id: "pkg@1.0.0",
+                fetching: pnpm_tarball::ArchiveFetchOptions {
+                    http_client: &pnpm_network::ThrottledClient::default(),
+                    auth_headers: &config.auth_headers,
+                    retry_opts: pnpm_tarball::RetryOpts { retries: 0, ..Default::default() },
+                    offline: true,
+                },
+                package: pnpm_tarball::TarballPackage {
+                    integrity: None,
+                    unpacked_size: None,
+                    file_count: None,
+                    url: "https://registry.test/pkg.tgz",
+                    id: "pkg@1.0.0",
+                },
+                store: pnpm_tarball::ArchiveStoreContext {
+                    dir: &config.store_dir,
+                    index: None,
+                    index_writer: None,
+                    verify_integrity: config.verify_store_integrity,
+                    strict_pkg_content_check: config.strict_store_pkg_content_check,
+                    verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::default(),
+                    prefetched_cas_paths: None,
+                },
+
                 requester: "",
-                prefetched_cas_paths: None,
-                retry_opts: pnpm_tarball::RetryOpts { retries: 0, ..Default::default() },
-                auth_headers: &config.auth_headers,
+
                 ignore_file_pattern: None,
-                offline: true,
+
                 progress_reported: None,
                 store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
                     append_manifest: None,

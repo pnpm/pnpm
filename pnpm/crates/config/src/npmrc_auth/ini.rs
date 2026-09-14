@@ -24,7 +24,10 @@ fn split_ini_line(line: &str) -> Option<(&str, std::borrow::Cow<'_, str>)> {
 fn decode_ini_value(value: &str) -> Cow<'_, str> {
     if value.starts_with('\'') && value.ends_with('\'') {
         Cow::Borrowed(
-            value.strip_prefix('\'').and_then(|value| value.strip_suffix('\'')).unwrap_or(""),
+            value
+                .strip_prefix('\'')
+                .and_then(|value| value.strip_suffix('\''))
+                .unwrap_or(""),
         )
     } else if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
         serde_json::from_str::<String>(value).map_or(Cow::Borrowed(value), Cow::Owned)
@@ -53,7 +56,11 @@ fn scoped_registry_key(key: &str) -> Option<&str> {
 fn has_env_placeholder(value: &str) -> bool {
     value
         .match_indices("${")
-        .any(|(start, _)| value[start + 2..].find('}').is_some_and(|end| end > 0))
+        .any(|(start, _)| {
+            value[start + 2..]
+                .find('}')
+                .is_some_and(|end| end > 0)
+        })
 }
 
 impl NpmrcAuth {
@@ -189,11 +196,11 @@ impl NpmrcAuth {
     /// Record one expanded `key=value` entry in the slot it belongs to.
     pub(super) fn apply_ini_entry(&mut self, key: &str, value: String, npmrc_dir: &Path) {
         if key == "registry" {
-            self.registry = Some(value);
+            self.routes.default = Some(value);
             return;
         }
         if let Some(scope) = scoped_registry_key(key) {
-            self.scoped_registries.insert(scope.to_string(), normalize_registry_url(&value));
+            self.routes.scoped.insert(scope.to_string(), normalize_registry_url(&value));
             return;
         }
         if self.apply_network_key(key, &value, npmrc_dir) {
@@ -215,18 +222,18 @@ impl NpmrcAuth {
     /// `key` was one of them.
     pub(super) fn apply_network_key(&mut self, key: &str, value: &str, npmrc_dir: &Path) -> bool {
         match key {
-            "https-proxy" => self.https_proxy = Some(value.to_string()),
-            "http-proxy" => self.http_proxy = Some(value.to_string()),
-            "proxy" => self.legacy_proxy = Some(value.to_string()),
-            "no-proxy" | "noproxy" => self.no_proxy = Some(value.to_string()),
+            "https-proxy" => self.proxy.https = Some(value.to_string()),
+            "http-proxy" => self.proxy.http = Some(value.to_string()),
+            "proxy" => self.proxy.legacy = Some(value.to_string()),
+            "no-proxy" | "noproxy" => self.proxy.bypass = Some(value.to_string()),
             // Repeated `ca=` lines accumulate — multiple values arrive as
             // repeated keys in INI.
-            "ca" => self.ca.push(value.to_string()),
-            "cafile" => self.cafile = Some(resolve_cafile(value.to_string(), npmrc_dir)),
-            "cert" => self.cert = Some(expand_inline_pem(value)),
-            "key" => self.key = Some(expand_inline_pem(value)),
-            "strict-ssl" => self.strict_ssl = parse_bool(value),
-            "local-address" => self.local_address = Some(value.to_string()),
+            "ca" => self.tls.ca.push(value.to_string()),
+            "cafile" => self.tls.cafile = Some(resolve_cafile(value.to_string(), npmrc_dir)),
+            "cert" => self.tls.cert = Some(expand_inline_pem(value)),
+            "key" => self.tls.key = Some(expand_inline_pem(value)),
+            "strict-ssl" => self.tls.strict_ssl = parse_bool(value),
+            "local-address" => self.tls.local_address = Some(value.to_string()),
             _ => return false,
         }
         true
@@ -243,7 +250,7 @@ impl NpmrcAuth {
         } else {
             expand_inline_pem(value)
         };
-        let entry = self.tls_by_uri.entry(uri.to_owned()).or_default();
+        let entry = self.tls.by_uri.entry(uri.to_owned()).or_default();
         apply_tls_field(entry, field, resolved);
     }
 

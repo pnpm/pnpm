@@ -82,7 +82,10 @@ fn create_buildable_pkg(virtual_store_dir: &Path, key: &PackageKey) -> PathBuf {
     let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
     let pkg_name = &name_version[..at_idx];
     let store_name = name_version.replace('/', "+");
-    let pkg_dir = virtual_store_dir.join(&store_name).join("node_modules").join(pkg_name);
+    let pkg_dir = virtual_store_dir
+        .join(&store_name)
+        .join("node_modules")
+        .join(pkg_name);
     fs::create_dir_all(&pkg_dir).expect("create pkg dir");
     let manifest = serde_json::json!({
         "scripts": { "postinstall": "true" },
@@ -169,38 +172,47 @@ fn frozen_backstop_run(
     let lockfile_dir = tempdir().expect("create temp dir");
 
     BuildModules {
-        layout,
-        modules_dir: modules_dir.path(),
-        lockfile_dir: lockfile_dir.path(),
-        snapshots: Some(&snapshots),
-        packages: None,
-        importers: &importers,
+        cache: crate::BuildCacheContext {
+            maps_by_snapshot: None,
+            engine_name: None,
+            read: false,
+            write: false,
+            publisher: None,
+            store_dir: None,
+            store_index_writer: None,
+            frozen_store,
+        },
+        directories: crate::BuildLayout {
+            layout,
+            pkg_roots_by_key: None,
+            gather_ancestor_bin_paths: false,
+            modules_dir: modules_dir.path(),
+            lockfile_dir: lockfile_dir.path(),
+            import_method: PackageImportMethod::Auto,
+            logged_methods: &TEST_LOGGED_METHODS,
+        },
+        graph: crate::BuildGraphInputs {
+            snapshots: Some(&snapshots),
+            packages: None,
+            patches: Some(&patches),
+            requires_build_by_snapshot: None,
+            importers: &importers,
+        },
+        scripts: crate::BuildScriptOptions {
+            extra_env: &HashMap::new(),
+            user_agent: "pnpm/test",
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+            unsafe_perm: true,
+            ignore: false,
+        },
+
         allow_build_policy: &policy,
-        side_effects_maps_by_snapshot: None,
-        requires_build_by_snapshot: None,
-        engine_name: None,
-        side_effects_cache: false,
-        side_effects_cache_write: false,
-        shared_side_effects_publisher: None,
-        store_dir: None,
-        store_index_writer: None,
-        patches: Some(&patches),
 
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-
-        script_shell: None,
-        shell_emulator: false,
-        extra_env: &HashMap::new(),
-        user_agent: "pnpm/test",
-        unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_roots_by_key: None,
-        gather_ancestor_bin_paths: false,
-        frozen_store,
-        ignore_scripts: false,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &TEST_LOGGED_METHODS,
+
         rebuild: None,
     }
     .run::<SilentReporter>()
@@ -219,7 +231,10 @@ fn create_failing_postinstall_fixture(virtual_store_dir: &Path, key: &PackageKey
     let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
     let pkg_name = &name_version[..at_idx];
     let store_name = name_version.replace('/', "+");
-    let pkg_dir = virtual_store_dir.join(&store_name).join("node_modules").join(pkg_name);
+    let pkg_dir = virtual_store_dir
+        .join(&store_name)
+        .join("node_modules")
+        .join(pkg_name);
     fs::create_dir_all(&pkg_dir).expect("create pkg dir");
     let manifest = serde_json::json!({
         "name": pkg_name,
@@ -256,7 +271,10 @@ fn create_postinstall_modifies_source_fixture(
     let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
     let pkg_name = &name_version[..at_idx];
     let store_name = name_version.replace('/', "+");
-    let pkg_dir = virtual_store_dir.join(&store_name).join("node_modules").join(pkg_name);
+    let pkg_dir = virtual_store_dir
+        .join(&store_name)
+        .join("node_modules")
+        .join(pkg_name);
     fs::create_dir_all(&pkg_dir).expect("create pkg dir");
     // Bake the pristine `index.js` into the directory before the
     // postinstall runs. The WRITE-path diff compares the
@@ -270,12 +288,15 @@ fn create_postinstall_modifies_source_fixture(
         "scripts": { "postinstall": "echo touched > generated.txt" },
     });
     fs::write(pkg_dir.join("package.json"), manifest.to_string()).expect("write manifest");
-    let actual_mode =
-        std::fs::metadata(pkg_dir.join("index.js")).expect("stat index.js").permissions().mode()
-            & 0o777;
+    let actual_mode = std::fs::metadata(pkg_dir.join("index.js"))
+        .expect("stat index.js")
+        .permissions()
+        .mode()
+        & 0o777;
     (pkg_dir, actual_mode)
 }
 
+#[cfg(unix)]
 fn report_store_file_differences(
     before: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
     after: &std::collections::BTreeMap<PathBuf, Vec<u8>>,
@@ -312,7 +333,10 @@ fn create_postinstall_with_unreadable_fixture(
     let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
     let pkg_name = &name_version[..at_idx];
     let store_name = name_version.replace('/', "+");
-    let pkg_dir = virtual_store_dir.join(&store_name).join("node_modules").join(pkg_name);
+    let pkg_dir = virtual_store_dir
+        .join(&store_name)
+        .join("node_modules")
+        .join(pkg_name);
     fs::create_dir_all(&pkg_dir).expect("create pkg dir");
     fs::write(pkg_dir.join("index.js"), "module.exports = 'hi'\n").expect("write index.js");
     let manifest = serde_json::json!({
@@ -350,8 +374,10 @@ fn snapshot_regular_files(root: &Path) -> std::collections::BTreeMap<PathBuf, Ve
             } else if file_type.is_file() {
                 let path = entry.path();
                 let relative = path.strip_prefix(root).expect("snapshot path is under root");
-                snapshot
-                    .insert(relative.to_path_buf(), fs::read(&path).expect("read snapshot file"));
+                snapshot.insert(
+                    relative.to_path_buf(),
+                    fs::read(&path).expect("read snapshot file"),
+                );
             }
         }
     }
@@ -368,7 +394,10 @@ fn create_marker_pkg(virtual_store_dir: &Path, key: &PackageKey) -> PathBuf {
     let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
     let pkg_name = &name_version[..at_idx];
     let store_name = name_version.replace('/', "+");
-    let pkg_dir = virtual_store_dir.join(&store_name).join("node_modules").join(pkg_name);
+    let pkg_dir = virtual_store_dir
+        .join(&store_name)
+        .join("node_modules")
+        .join(pkg_name);
     fs::create_dir_all(&pkg_dir).expect("create pkg dir");
     let manifest = serde_json::json!({
         "scripts": { "postinstall": "echo ran > built-marker" },

@@ -43,7 +43,13 @@ async fn worker_multiplexes_concurrent_read_package_calls() {
                 )
                 .await
                 .expect("readPackage should succeed");
-            (name, updated["dependencies"]["self"].as_str().unwrap().to_string())
+            (
+                name,
+                updated["dependencies"]["self"]
+                    .as_str()
+                    .unwrap()
+                    .to_string(),
+            )
         });
     }
 
@@ -220,7 +226,10 @@ module.exports = {
         "proxyUrl": "https://proxy.example.com/foo-1.0.0.tgz",
     });
     assert!(fetchers[0].can_fetch("foo@1.0.0", resolution.clone()).await.unwrap());
-    let result = fetchers[0].fetch("foo@1.0.0", resolution, serde_json::json!({})).await.unwrap();
+    let result = fetchers[0]
+        .fetch("foo@1.0.0", resolution, serde_json::json!({}))
+        .await
+        .unwrap();
     assert_eq!(result["delegate"]["tarball"], "https://proxy.example.com/foo-1.0.0.tgz");
     assert_eq!(result["delegate"]["integrity"], "sha512-delegated");
 }

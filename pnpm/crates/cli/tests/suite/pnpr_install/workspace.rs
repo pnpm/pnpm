@@ -64,7 +64,10 @@ fn workspace_install_via_pnpr_names_importers_relative_to_a_pinned_lockfile_dir(
 
     let wanted = read_workspace_lockfile(root.path());
     assert_eq!(
-        wanted.importers.keys().cloned().collect::<std::collections::BTreeSet<_>>(),
+        wanted.importers
+            .keys()
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>(),
         std::collections::BTreeSet::from(["workspace/packages/app".to_string()]),
     );
     assert!(workspace_has_link(&workspace, "app", WORKSPACE_HELLO));
@@ -213,8 +216,7 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
 
     let repaired = read_workspace_lockfile(&workspace);
     assert_eq!(workspace_importer(&repaired, "packages/unselected"), &previous_unselected);
-    let preserved_packages = repaired
-        .packages
+    let preserved_packages = repaired.packages
         .as_ref()
         .expect("repaired packages")
         .iter()
@@ -222,25 +224,29 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
         .collect::<Vec<_>>();
     assert_eq!(preserved_packages.len(), preserved_package_count);
     assert!(
-        preserved_packages.iter().all(|(_, metadata)| {
-            metadata.deprecated.as_deref() == Some("preserve this metadata")
-        }),
+        preserved_packages
+            .iter()
+            .all(|(_, metadata)| {
+                metadata.deprecated.as_deref() == Some("preserve this metadata")
+            }),
     );
-    let preserved_snapshots = repaired
-        .snapshots
+    let preserved_snapshots = repaired.snapshots
         .as_ref()
         .expect("repaired snapshots")
         .iter()
         .filter(|(key, _)| is_preserved_key(&key.to_string()))
         .collect::<Vec<_>>();
     assert_eq!(preserved_snapshots.len(), preserved_snapshot_count);
-    assert!(preserved_snapshots.iter().all(|(_, snapshot)| {
-        snapshot.optional
-            && snapshot
-                .transitive_peer_dependencies
-                .as_ref()
-                .is_some_and(|peers| peers.len() == 1 && peers[0] == "preserved-peer")
-    }));
+    assert!(
+        preserved_snapshots
+            .iter()
+            .all(|(_, snapshot)| {
+                snapshot.optional
+                    && snapshot.transitive_peer_dependencies
+                        .as_ref()
+                        .is_some_and(|peers| peers.len() == 1 && peers[0] == "preserved-peer")
+            }),
+    );
     handshake_mock.assert();
     resolve_mock.assert();
 

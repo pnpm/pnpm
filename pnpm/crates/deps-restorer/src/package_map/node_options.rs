@@ -3,8 +3,9 @@ use pnpm_config::Config;
 use std::path::{Path, PathBuf};
 
 pub fn make_node_package_map_option(package_map_path: &Path, node_options: Option<&str>) -> String {
-    let node_options =
-        node_options.map(str::to_string).or_else(|| std::env::var("NODE_OPTIONS").ok());
+    let node_options = node_options
+        .map(str::to_string)
+        .or_else(|| std::env::var("NODE_OPTIONS").ok());
     let mut parts = remove_node_package_map_option(node_options.as_deref().unwrap_or_default());
     parts.push(format!(
         "--experimental-package-map={}",
@@ -13,11 +14,16 @@ pub fn make_node_package_map_option(package_map_path: &Path, node_options: Optio
     parts.join(" ")
 }
 pub fn make_node_require_option(module_path: &Path, node_options: Option<&str>) -> String {
-    let node_options =
-        node_options.map(str::to_string).or_else(|| std::env::var("NODE_OPTIONS").ok());
+    let node_options = node_options
+        .map(str::to_string)
+        .or_else(|| std::env::var("NODE_OPTIONS").ok());
     let quoted_path = quote_path_if_needed(&module_path.to_string_lossy());
     let require_option = format!("--require={quoted_path}");
-    match node_options.as_deref().map(str::trim).filter(|options| !options.is_empty()) {
+    match node_options
+        .as_deref()
+        .map(str::trim)
+        .filter(|options| !options.is_empty())
+    {
         Some(node_options) => format!("{node_options} {require_option}"),
         None => require_option,
     }
@@ -30,8 +36,7 @@ pub fn package_map_path_for_execution(config: &Config, dir: &Path) -> Option<Pat
     // by that dir's basename rather than the hard-coded `node_modules`.
     let modules_dir_name =
         config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules"));
-    let workspace_path = config
-        .workspace_dir
+    let workspace_path = config.workspace_dir
         .as_ref()
         .map(|dir| dir.join(modules_dir_name).join(PACKAGE_MAP_FILENAME));
     if let Some(path) = workspace_path
@@ -126,7 +131,10 @@ pub(super) fn quote_path_if_needed(path: &str) -> String {
     // path would lose its separators). Wrap such paths in double quotes,
     // escaping only `\` and `"`. A full JSON encode is wrong here: Node does
     // not decode `\uXXXX`, so escaping non-ASCII bytes would corrupt the path.
-    if path.chars().any(|ch| ch.is_whitespace() || matches!(ch, '"' | '\'' | '\\')) {
+    if path
+        .chars()
+        .any(|ch| ch.is_whitespace() || matches!(ch, '"' | '\'' | '\\'))
+    {
         let escaped = path.replace('\\', r"\\").replace('"', r#"\""#);
         format!(r#""{escaped}""#)
     } else {

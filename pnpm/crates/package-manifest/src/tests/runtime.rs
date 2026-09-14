@@ -39,7 +39,10 @@ fn convert_engines_runtime_preserves_explicit_user_dep() {
     });
     convert_engines_runtime_to_dependencies(&mut manifest, "devEngines", "devDependencies");
     assert_eq!(
-        manifest.get("devDependencies").and_then(|d| d.get("node")).and_then(|v| v.as_str()),
+        manifest
+            .get("devDependencies")
+            .and_then(|d| d.get("node"))
+            .and_then(|v| v.as_str()),
         Some("23.0.0"),
     );
 }

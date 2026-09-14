@@ -16,7 +16,12 @@ const FAKE_MUSL: &str = "musl";
 
 fn wanted(os: Option<&[&str]>, cpu: Option<&[&str]>, libc: Option<&[&str]>) -> WantedPlatform {
     fn vec_opt(values: Option<&[&str]>) -> Option<Vec<String>> {
-        values.map(|slice| slice.iter().map(|item| (*item).to_string()).collect())
+        values.map(|slice| {
+            slice
+                .iter()
+                .map(|item| (*item).to_string())
+                .collect()
+        })
     }
     WantedPlatform { os: vec_opt(os), cpu: vec_opt(cpu), libc: vec_opt(libc) }
 }
@@ -49,7 +54,12 @@ fn supported(
     libc: Option<&[&str]>,
 ) -> SupportedArchitectures {
     fn vec_opt(values: Option<&[&str]>) -> Option<Vec<String>> {
-        values.map(|slice| slice.iter().map(|item| (*item).to_string()).collect())
+        values.map(|slice| {
+            slice
+                .iter()
+                .map(|item| (*item).to_string())
+                .collect()
+        })
     }
     SupportedArchitectures { os: vec_opt(os), cpu: vec_opt(cpu), libc: vec_opt(libc) }
 }

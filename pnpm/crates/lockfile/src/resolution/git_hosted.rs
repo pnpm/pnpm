@@ -18,7 +18,10 @@ pub fn is_git_hosted_tarball_url(url: &str) -> bool {
 
 fn parse_https_url(url: &str) -> Option<(&str, &str, Option<&str>)> {
     const HTTPS_SCHEME: &str = "https://";
-    if !url.get(..HTTPS_SCHEME.len())?.eq_ignore_ascii_case(HTTPS_SCHEME) {
+    if !url
+        .get(..HTTPS_SCHEME.len())?
+        .eq_ignore_ascii_case(HTTPS_SCHEME)
+    {
         return None;
     }
     let rest = url.get(HTTPS_SCHEME.len()..)?;
@@ -55,8 +58,9 @@ fn is_gitlab_archive(path: &str, query: Option<&str>) -> bool {
     {
         return query_param(query, "ref").is_some_and(is_full_commit_sha);
     }
-    let Some(archive_marker_index) =
-        segments.windows(2).position(|window| window[0] == "-" && window[1] == "archive")
+    let Some(archive_marker_index) = segments
+        .windows(2)
+        .position(|window| window[0] == "-" && window[1] == "archive")
     else {
         return false;
     };
@@ -69,16 +73,24 @@ fn is_gitlab_archive(path: &str, query: Option<&str>) -> bool {
 }
 
 fn path_segments(path: &str) -> Vec<&str> {
-    path.split('/').filter(|segment| !segment.is_empty()).collect()
+    path.split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect()
 }
 
 fn query_param<'query>(query: Option<&'query str>, key: &str) -> Option<&'query str> {
-    query?.split('&').find_map(|part| {
-        let (part_key, value) = part.split_once('=')?;
-        (part_key == key).then_some(value)
-    })
+    query?
+        .split('&')
+        .find_map(|part| {
+            let (part_key, value) = part.split_once('=')?;
+            (part_key == key).then_some(value)
+        })
 }
 
 fn is_full_commit_sha(value: &str) -> bool {
-    value.len() == 40 && value.as_bytes().iter().all(u8::is_ascii_hexdigit)
+    value.len() == 40
+        && value
+            .as_bytes()
+            .iter()
+            .all(u8::is_ascii_hexdigit)
 }

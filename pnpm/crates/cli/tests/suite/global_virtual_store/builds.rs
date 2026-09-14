@@ -21,7 +21,10 @@ fn gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds() {
 
     eprintln!("Scenario 1: nothing may build — hashes must omit the engine...");
     set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[]));
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     let hash_no_builds = sole_hash_dir(&version_dir);
 
@@ -31,11 +34,17 @@ fn gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds() {
         &workspace,
         &allow_builds_yaml(&[("@pnpm.e2e/dep-of-pkg-with-1-dep", true)]),
     );
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     let hashes_after = hash_dirs(&version_dir);
-    let hash_no_builds_name =
-        hash_no_builds.file_name().expect("hash dir name").to_string_lossy().into_owned();
+    let hash_no_builds_name = hash_no_builds
+        .file_name()
+        .expect("hash dir name")
+        .to_string_lossy()
+        .into_owned();
     let hash_with_builds = hashes_after
         .iter()
         .find(|hash| *hash != &hash_no_builds_name)
@@ -73,14 +82,20 @@ fn gvs_hashes_are_stable_when_allow_builds_targets_an_unrelated_package() {
 
     eprintln!("Scenario 1: nothing may build...");
     set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[]));
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     let hashes_before = hash_dirs(&version_dir);
 
     eprintln!("Scenario 2: an unrelated package may build...");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[("some-unrelated-package", true)]));
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert_eq!(
         hash_dirs(&version_dir),
@@ -106,7 +121,10 @@ fn gvs_relinks_when_allow_builds_changes() {
 
     eprintln!("Installing with nothing allowed to build...");
     set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[]));
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     let hash_before = sole_hash_dir(&version_dir)
@@ -126,7 +144,10 @@ fn gvs_relinks_when_allow_builds_changes() {
         &workspace,
         &allow_builds_yaml(&[("@pnpm.e2e/dep-of-pkg-with-1-dep", true)]),
     );
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let hash_after = hash_dirs(&version_dir)
         .into_iter()
@@ -169,7 +190,10 @@ fn gvs_successful_build_creates_package_directory_with_build_artifacts() {
         &allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]),
     );
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let version_dir =
         pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
@@ -198,11 +222,16 @@ fn gvs_successful_build_creates_package_directory_with_build_artifacts() {
         .into_iter()
         .find(|key| key.ends_with("\t@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"))
         .expect("the built package must have a store index row");
-    let row = index.get(&row_key).expect("read the store index row").expect("row exists");
+    let row = index
+        .get(&row_key)
+        .expect("read the store index row")
+        .expect("row exists");
     if let Some(side_effects) = row.side_effects {
         for diff in side_effects.values() {
             assert!(
-                !diff.added.as_ref().is_some_and(|added| added.contains_key(".pnpm-needs-build")),
+                !diff.added
+                    .as_ref()
+                    .is_some_and(|added| added.contains_key(".pnpm-needs-build")),
                 "the incomplete-build marker must not be uploaded to the side-effects cache",
             );
         }
@@ -231,7 +260,10 @@ fn gvs_approve_builds_scenario_moves_artifacts_to_a_new_hash_dir() {
         &workspace,
         &format!("strictDepBuilds: false\n{}", allow_builds_yaml(&[])),
     );
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let version_dir =
         pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
@@ -252,7 +284,10 @@ fn gvs_approve_builds_scenario_moves_artifacts_to_a_new_hash_dir() {
         &workspace,
         &allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]),
     );
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let hash_after = hash_dirs(&version_dir)
         .into_iter()
@@ -305,7 +340,10 @@ fn gvs_build_failure_cleans_up_broken_package_directory() {
     );
 
     eprintln!("Installing a package whose postinstall exits non-zero...");
-    pacquet(&workspace).with_arg("install").assert().failure();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .failure();
 
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/failing-postinstall", "1.0.0");
     if version_dir.exists() {
@@ -342,7 +380,10 @@ fn gvs_rebuilds_successfully_after_simulated_build_failure_cleanup() {
     );
 
     eprintln!("First install, with the build approved...");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let version_dir =
         pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
@@ -358,7 +399,10 @@ fn gvs_rebuilds_successfully_after_simulated_build_failure_cleanup() {
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
     eprintln!("Frozen reinstall must rebuild the slot from scratch...");
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     let rebuilt = sole_hash_dir(&version_dir);
     assert!(
@@ -410,7 +454,10 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
         set_gvs_workspace_yaml(&workspace, &workspace_settings);
 
         eprintln!("First install, with the build approved...");
-        pacquet(&workspace).with_arg("install").assert().success();
+        pacquet(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
 
         let version_dir =
             pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
@@ -432,7 +479,10 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
         corrupt_pristine_file(&package_manifest);
 
         eprintln!("Frozen reinstall with intact project links must rebuild the marked slot...");
-        pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+        pacquet(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
 
         assert!(!marker.exists(), "the successful retry must remove the marker");
         assert!(postinstall_artifact.exists(), "the successful retry must recreate build output");
@@ -446,7 +496,10 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
         fs::write(&marker, "").expect("write the second incomplete-build marker");
         fs::remove_file(&postinstall_artifact).expect("remove the rebuilt artifact");
         fs::write(&package_manifest, "{}").expect("corrupt the pristine file again");
-        pacquet(&workspace).with_arg("install").assert().success();
+        pacquet(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
 
         assert!(!marker.exists(), "the ordinary reinstall must remove the marker");
         assert!(
@@ -487,7 +540,10 @@ fn orphan_needs_build_marker_does_not_invalidate_repeat_install() {
         &allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]),
     );
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let version_dir =
         pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
@@ -498,7 +554,10 @@ fn orphan_needs_build_marker_does_not_invalidate_repeat_install() {
     fs::create_dir_all(&orphan_pkg).expect("create orphan GVS slot");
     fs::write(orphan_pkg.join(".pnpm-needs-build"), "").expect("write orphan build marker");
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert_eq!(
         fs::read_to_string(workspace.join("root-postinstall.txt")).expect("read script output"),
@@ -529,7 +588,10 @@ fn approve_builds_updates_gvs_symlinks_and_runs_builds_at_the_new_hash_dir() {
     set_gvs_workspace_yaml(&workspace, "strictDepBuilds: false\n");
 
     eprintln!("Install with the build unapproved...");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let version_dir =
         pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
@@ -546,7 +608,10 @@ fn approve_builds_updates_gvs_symlinks_and_runs_builds_at_the_new_hash_dir() {
     );
 
     eprintln!("Running approve-builds --all...");
-    pacquet(&workspace).with_args(["approve-builds", "--all"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["approve-builds", "--all"])
+        .assert()
+        .success();
 
     let hash_after = hash_dirs(&version_dir)
         .into_iter()

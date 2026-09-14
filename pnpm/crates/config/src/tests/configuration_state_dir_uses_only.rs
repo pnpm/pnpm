@@ -71,7 +71,12 @@ pub fn global_dirs_use_only_trusted_config_sources() {
     let config = load_with_fake_env(project.path());
     assert_eq!(
         config.global_pkg_dir,
-        Some(project.path().join("from-global").join(GLOBAL_LAYOUT_VERSION)),
+        Some(
+            project
+                .path()
+                .join("from-global")
+                .join(GLOBAL_LAYOUT_VERSION)
+        ),
     );
     assert_eq!(config.global_bin, Some(project.path().join("from-global-bin")));
     assert_eq!(config.workspace_key_issues.refused, ["globalDir", "globalBinDir"]);
@@ -84,7 +89,12 @@ pub fn global_dirs_use_only_trusted_config_sources() {
     let config = load_with_fake_env(project.path());
     assert_eq!(
         config.global_pkg_dir,
-        Some(project.path().join("from-env").join(GLOBAL_LAYOUT_VERSION)),
+        Some(
+            project
+                .path()
+                .join("from-env")
+                .join(GLOBAL_LAYOUT_VERSION)
+        ),
     );
     assert_eq!(config.global_bin, Some(project.path().join("from-env-bin")));
     assert_eq!(
@@ -288,17 +298,13 @@ pub fn json_env_inferred_registries_flow_to_bootstrap() {
         Some("https://my-npm-proxy.example/"),
     );
     assert_eq!(
-        config
-            .package_manager_bootstrap
-            .auth_headers
+        config.package_manager_bootstrap.auth_headers
             .for_url("https://my-npm-proxy.example/pkg")
             .as_deref(),
         Some("Bearer proxy-token"),
     );
     assert_eq!(
-        config
-            .package_manager_bootstrap
-            .auth_headers
+        config.package_manager_bootstrap.auth_headers
             .for_url_with_package("https://my-npm-proxy.example/org/foo", Some("@org/foo"))
             .as_deref(),
         Some("Bearer org-token"),
@@ -595,7 +601,13 @@ pub fn unscoped_creds_in_project_npmrc_warn_naming_that_file() {
         .find(|warning| warning.contains("Unscoped per-registry settings"))
         .expect("deprecation warning");
     assert!(
-        warning.contains(&project.path().join(".npmrc").display().to_string()),
+        warning.contains(
+            &project
+                .path()
+                .join(".npmrc")
+                .display()
+                .to_string()
+        ),
         "{warning:?} should name the project .npmrc",
     );
 }
@@ -715,7 +727,9 @@ pub fn npmrc_in_home_folder_applies_registry() {
     // so `GetHomeDir::home_dir`'s associated-function shape (no
     // `&self`) can still resolve it at call time.
     static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    HOME_PATH.set(home_dir.path().to_path_buf()).expect("set once");
+    HOME_PATH
+        .set(home_dir.path().to_path_buf())
+        .expect("set once");
     struct HostWithHome;
     impl EnvVar for HostWithHome {
         fn var(name: &str) -> Option<String> {

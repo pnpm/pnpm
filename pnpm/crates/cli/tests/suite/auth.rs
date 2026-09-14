@@ -79,8 +79,16 @@ fn assert_authenticated_install(
     )
     .expect("write package.json");
 
-    install_command(&workspace, root.path()).with_arg("install").assert().success();
-    assert!(workspace.join("node_modules").join(package).exists());
+    install_command(&workspace, root.path())
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace
+            .join("node_modules")
+            .join(package)
+            .exists(),
+    );
 
     if frozen_reinstall {
         fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
@@ -89,7 +97,12 @@ fn assert_authenticated_install(
             .with_args(["install", "--frozen-lockfile"])
             .assert()
             .success();
-        assert!(workspace.join("node_modules").join(package).exists());
+        assert!(
+            workspace
+                .join("node_modules")
+                .join(package)
+                .exists(),
+        );
     }
 
     metadata.assert();
@@ -184,7 +197,10 @@ fn metadata_authorization_failure_is_reported() {
     fs::write(workspace.join("package.json"), r#"{"dependencies":{"private-pkg":"1.0.0"}}"#)
         .expect("write package.json");
 
-    let output = install_command(&workspace, root.path()).with_arg("install").output().unwrap();
+    let output = install_command(&workspace, root.path())
+        .with_arg("install")
+        .output()
+        .unwrap();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_FETCH_403"), "got {stderr}");
@@ -222,7 +238,10 @@ fn inline_registry_credentials_are_redacted_but_still_reported() {
     fs::write(workspace.join("package.json"), r#"{"dependencies":{"private-pkg":"1.0.0"}}"#)
         .expect("write package.json");
 
-    let output = install_command(&workspace, root.path()).with_arg("install").output().unwrap();
+    let output = install_command(&workspace, root.path())
+        .with_arg("install")
+        .output()
+        .unwrap();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("stderr={stderr}");
@@ -280,7 +299,10 @@ fn tarball_authorization_failure_is_reported() {
     fs::write(workspace.join("package.json"), r#"{"dependencies":{"private-pkg":"1.0.0"}}"#)
         .expect("write package.json");
 
-    let output = install_command(&workspace, root.path()).with_arg("install").output().unwrap();
+    let output = install_command(&workspace, root.path())
+        .with_arg("install")
+        .output()
+        .unwrap();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("HTTP 403"), "got {stderr}");

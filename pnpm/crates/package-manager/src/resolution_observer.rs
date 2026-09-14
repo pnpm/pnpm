@@ -23,11 +23,6 @@ use std::sync::Arc;
 /// the tarball before the full lockfile is assembled. Borrowed: the
 /// observer copies whatever it needs out of the call.
 pub struct ResolvedPackageHint<'a> {
-    /// Canonical `name@version` identifier — the store-index
-    /// `package_id` the install pass keys downloads by.
-    pub id: &'a str,
-    pub name: &'a str,
-    pub version: &'a str,
     /// Subresource-integrity string (`sha512-...`).
     pub integrity: &'a str,
     /// The resolver's `dist.tarball` URL — the same string the install
@@ -53,6 +48,15 @@ pub struct ResolvedPackageHint<'a> {
     /// for a direct tarball/git/local dependency, whose tarball URL *is* its
     /// source.
     pub from_registry: bool,
+    pub identity: ResolvedPackageIdentity<'a>,
+}
+
+pub struct ResolvedPackageIdentity<'a> {
+    /// Canonical `name@version` identifier — the store-index
+    /// `package_id` the install pass keys downloads by.
+    pub id: &'a str,
+    pub name: &'a str,
+    pub version: &'a str,
 }
 
 /// Sink notified once per resolved tarball package during a resolve.
@@ -102,7 +106,7 @@ impl ObservingResolver {
         let Ok((tarball_url, integrity)) = extract_tarball(&result.resolution) else {
             return;
         };
-        let Some(name_ver) = result.name_ver.as_ref() else {
+        let Some(name_ver) = result.package.name_ver.as_ref() else {
             return;
         };
         if !self.seen.insert(tarball_url.to_string()) {
@@ -119,15 +123,13 @@ impl ObservingResolver {
             _ => None,
         };
         self.observer.on_resolved(ResolvedPackageHint {
-            id: &id,
-            name: &name,
-            version: &version,
             integrity: &integrity,
             tarball_url,
-            unpacked_size: manifest_unpacked_size(result.manifest.as_deref()),
-            file_count: manifest_file_count(result.manifest.as_deref()),
+            unpacked_size: manifest_unpacked_size(result.package.manifest.as_deref()),
+            file_count: manifest_file_count(result.package.manifest.as_deref()),
             revision,
             from_registry: is_registry_resolution(&result.resolved_via),
+            identity: crate::ResolvedPackageIdentity { id: &id, name: &name, version: &version },
         });
     }
 }

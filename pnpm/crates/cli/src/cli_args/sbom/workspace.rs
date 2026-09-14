@@ -26,9 +26,15 @@ fn selected_workspace_importer_ids(state: &State) -> miette::Result<HashSet<Stri
 /// The selected importer ids the lockfile has no entry for, sorted so the
 /// error names them in a stable order.
 fn missing_importers(selected: &HashSet<String>, lockfile_ids: &[String]) -> Vec<String> {
-    let known: HashSet<&str> = lockfile_ids.iter().map(String::as_str).collect();
-    let mut missing: Vec<String> =
-        selected.iter().filter(|id| !known.contains(id.as_str())).cloned().collect();
+    let known: HashSet<&str> = lockfile_ids
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let mut missing: Vec<String> = selected
+        .iter()
+        .filter(|id| !known.contains(id.as_str()))
+        .cloned()
+        .collect();
     missing.sort_unstable();
     missing
 }
@@ -135,7 +141,10 @@ fn selected_and_reachable_project_dirs(
     selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
 ) -> Vec<PathBuf> {
     let graph = selection.full_graph();
-    let mut project_dirs: Vec<PathBuf> = selection.selected.keys().cloned().collect();
+    let mut project_dirs: Vec<PathBuf> = selection.selected
+        .keys()
+        .cloned()
+        .collect();
     let mut seen: HashSet<PathBuf> = project_dirs.iter().cloned().collect();
     let mut index = 0;
     while let Some(project_dir) = project_dirs.get(index) {
@@ -231,7 +240,10 @@ fn assert_required_importers(
     let Some(lockfile) = merged else {
         return Ok(());
     };
-    let importer_ids: Vec<String> = lockfile.importers.keys().cloned().collect();
+    let importer_ids: Vec<String> = lockfile.importers
+        .keys()
+        .cloned()
+        .collect();
     let missing = missing_importers(required_importer_ids, &importer_ids);
     if !missing.is_empty() {
         return Err(missing_importers_error(&missing, "selected or reachable"));
@@ -243,8 +255,9 @@ fn assert_required_importers(
 /// Sorting fixes the order `--split` emits its SBOMs in, and matches
 /// the lockfile, whose importers are serialized sorted by id.
 pub(super) fn sorted_importer_ids(lockfile: Option<&Lockfile>) -> Vec<String> {
-    let mut all_importer_ids: Vec<String> =
-        lockfile.map(|lf| lf.importers.keys().cloned().collect()).unwrap_or_default();
+    let mut all_importer_ids: Vec<String> = lockfile
+        .map(|lf| lf.importers.keys().cloned().collect())
+        .unwrap_or_default();
     all_importer_ids.sort_unstable();
     all_importer_ids
 }
@@ -280,12 +293,16 @@ pub(super) fn select_importer_ids(
     }
     // Intersecting rather than mapping the selection keeps the lockfile
     // order established by the caller.
-    Ok(Some(all_importer_ids.into_iter().filter(|id| selected.contains(id)).collect()))
+    Ok(Some(
+        all_importer_ids
+            .into_iter()
+            .filter(|id| selected.contains(id))
+            .collect(),
+    ))
 }
 
 pub(super) fn required_sbom_lockfile(state: &State) -> miette::Result<&Lockfile> {
-    let lockfile = state
-        .lockfile
+    let lockfile = state.lockfile
         .get()
         .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 

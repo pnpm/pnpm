@@ -94,15 +94,13 @@ fn package_scope_auth_from_npmrc_wins_over_registry_auth() {
     let mut config = Config::new();
     NpmrcAuth::from_ini::<NoEnv>(ini, Path::new("")).apply_to::<NoEnv>(&mut config);
     assert_eq!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package("https://npm.pkg.github.com/pkg", Some("@orgA/pkg"))
             .as_deref(),
         Some("Bearer org-a-token"),
     );
     assert_eq!(
-        config
-            .auth_headers
+        config.auth_headers
             .for_url_with_package("https://npm.pkg.github.com/pkg", Some("@orgB/pkg"))
             .as_deref(),
         Some("Bearer registry-token"),
@@ -203,14 +201,16 @@ key=${KEY}
     );
 
     assert!(auth.creds_by_scope_by_uri.is_empty());
-    assert!(auth.tls_by_uri.is_empty());
+    assert!(auth.tls.by_uri.is_empty());
     assert_eq!(auth.default_creds.auth_token, None);
     assert_eq!(auth.default_creds.username, None);
     assert_eq!(auth.default_creds.password, None);
-    assert_eq!(auth.cert, None);
-    assert_eq!(auth.key, None);
+    assert_eq!(auth.tls.cert, None);
+    assert_eq!(auth.tls.key, None);
     assert!(
-        auth.warnings.iter().any(|warning| warning.contains("Ignored project-level auth setting")),
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("Ignored project-level auth setting")),
     );
 
     let mut config = Config::new();
@@ -440,8 +440,8 @@ fn cascade_capitalised_disabling_tokens_are_proxy_hosts() {
 fn parses_cert_and_key_from_ini() {
     let ini = "cert=cert-pem\nkey=key-pem\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
-    assert_eq!(auth.cert.as_deref(), Some("cert-pem"));
-    assert_eq!(auth.key.as_deref(), Some("key-pem"));
+    assert_eq!(auth.tls.cert.as_deref(), Some("cert-pem"));
+    assert_eq!(auth.tls.key.as_deref(), Some("key-pem"));
 }
 
 /// Rescoping pins client identity per registry rather than sending it
@@ -449,9 +449,12 @@ fn parses_cert_and_key_from_ini() {
 #[test]
 fn applies_strict_ssl_to_config_and_rescopes_cert_key() {
     let auth = NpmrcAuth {
-        strict_ssl: Some(false),
-        cert: Some("cert-pem".to_string()),
-        key: Some("key-pem".to_string()),
+        tls: crate::npmrc_auth::NpmrcTls {
+            strict_ssl: Some(false),
+            cert: Some("cert-pem".to_string()),
+            key: Some("key-pem".to_string()),
+            ..Default::default()
+        },
         ..NpmrcAuth::default()
     };
     let mut config = Config::new();
@@ -459,8 +462,7 @@ fn applies_strict_ssl_to_config_and_rescopes_cert_key() {
     assert_eq!(config.tls.strict_ssl, Some(false));
     assert_eq!(config.tls.cert, None, "unscoped cert is rescoped, not kept top-level");
     assert_eq!(config.tls.key, None);
-    let scoped = config
-        .tls_by_uri
+    let scoped = config.tls_by_uri
         .get("//registry.npmjs.org/")
         .expect("cert/key rescoped to the npmjs default registry");
     assert_eq!(scoped.cert.as_deref(), Some("cert-pem"));
@@ -472,9 +474,18 @@ fn cafile_reads_and_splits_into_per_cert_pems() {
     use std::io::Write;
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
     let bundle = format!("{TEST_CA_PEM}\n{TEST_CA_PEM}\n");
-    tmp.as_file().write_all(bundle.as_bytes()).expect("write bundle");
+    tmp.as_file()
+        .write_all(bundle.as_bytes())
+        .expect("write bundle");
     let auth = NpmrcAuth {
-        cafile: Some(tmp.path().to_string_lossy().into_owned()),
+        tls: crate::npmrc_auth::NpmrcTls {
+            cafile: Some(
+                tmp.path()
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+            ..Default::default()
+        },
         ..NpmrcAuth::default()
     };
     let mut config = Config::new();
@@ -506,7 +517,7 @@ fn parses_scoped_cert_and_key() {
         "//reg.example.com/:cert=cert-pem\n//reg.example.com/:key=key-pem\n",
         Path::new(""),
     );
-    let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
+    let entry = auth.tls.by_uri.get("//reg.example.com/").expect("entry present");
     assert_eq!(entry.cert.as_deref(), Some("cert-pem"));
     assert_eq!(entry.key.as_deref(), Some("key-pem"));
 }
@@ -516,15 +527,21 @@ fn parses_scoped_certfile_and_keyfile() {
     use std::io::Write;
     let tmp_cert = tempfile::NamedTempFile::new().expect("create cert tempfile");
     let tmp_key = tempfile::NamedTempFile::new().expect("create key tempfile");
-    tmp_cert.as_file().write_all(b"CERT-CONTENTS").expect("write cert");
-    tmp_key.as_file().write_all(b"KEY-CONTENTS").expect("write key");
+    tmp_cert
+        .as_file()
+        .write_all(b"CERT-CONTENTS")
+        .expect("write cert");
+    tmp_key
+        .as_file()
+        .write_all(b"KEY-CONTENTS")
+        .expect("write key");
     let ini = format!(
         "//reg.example.com/:certfile={}\n//reg.example.com/:keyfile={}\n",
         tmp_cert.path().display(),
         tmp_key.path().display(),
     );
     let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
-    let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
+    let entry = auth.tls.by_uri.get("//reg.example.com/").expect("entry present");
     assert_eq!(entry.cert.as_deref(), Some("CERT-CONTENTS"));
     assert_eq!(entry.key.as_deref(), Some("KEY-CONTENTS"));
 }
@@ -544,8 +561,8 @@ fn applies_tls_by_uri_to_config_drops_empty() {
 #[test]
 fn scoped_tls_keys_dont_collide_with_top_level() {
     let auth = NpmrcAuth::from_ini::<NoEnv>("ca=top-level\n", Path::new(""));
-    assert_eq!(auth.ca, vec!["top-level".to_string()]);
-    assert!(auth.tls_by_uri.is_empty(), "top-level `ca=` must not pollute tls_by_uri");
+    assert_eq!(auth.tls.ca, vec!["top-level".to_string()]);
+    assert!(auth.tls.by_uri.is_empty(), "top-level `ca=` must not pollute tls_by_uri");
 }
 
 #[test]
@@ -690,7 +707,9 @@ fn from_project_ini_warns_on_auth_env_placeholder() {
     );
 
     assert!(
-        auth.warnings.iter().any(|w| w.contains("Ignored project-level auth setting")),
+        auth.warnings
+            .iter()
+            .any(|w| w.contains("Ignored project-level auth setting")),
         "expected auth warning but got: {:?}",
         auth.warnings,
     );
@@ -709,7 +728,9 @@ fn from_ini_expands_auth_env_placeholder_without_warning() {
         NpmrcAuth::from_ini::<Env>("//registry.npmjs.org/:_authToken=${MY_TOKEN}\n", Path::new(""));
 
     assert!(
-        !auth.warnings.iter().any(|w| w.contains("Ignored project-level auth setting")),
+        !auth.warnings
+            .iter()
+            .any(|w| w.contains("Ignored project-level auth setting")),
         "unexpected auth warning: {:?}",
         auth.warnings,
     );

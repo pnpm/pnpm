@@ -1,3 +1,4 @@
+pub use archive_options::*;
 pub use download::*;
 pub use error::*;
 pub(crate) use extract::{
@@ -13,6 +14,7 @@ pub use pnpm_network::RetryOpts;
 pub use prefetch::*;
 pub use zip_archive::*;
 
+mod archive_options;
 mod archive_request;
 mod archive_retry;
 mod download;
@@ -235,12 +237,12 @@ impl<'a> IngestTarballToStore<'a> {
         revision_addressed: bool,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
         let mem_cache_key =
-            self.store_projection.mem_cache_key(self.package_url, revision_addressed);
+            self.store_projection.mem_cache_key(self.package.url, revision_addressed);
         let cache_key =
-            store_index_cache_key(self.package_integrity, self.package_id, self.store_projection);
+            store_index_cache_key(self.package.integrity, self.package.id, self.store_projection);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
 
-        if let Some(prefetched) = self.prefetched_cas_paths
+        if let Some(prefetched) = self.store.prefetched_cas_paths
             && let Some(cache_key) = cache_key.as_deref()
             && let Some(cas_paths) = prefetched.get(cache_key)
         {
@@ -285,11 +287,11 @@ impl<'a> IngestTarballToStore<'a> {
     ) -> Arc<HashMap<String, PathBuf>> {
         tracing::info!(
             target: "pacquet::download",
-            package_url = ?self.package_url,
-            package_id = ?self.package_id,
+            package_url = ?self.package.url,
+            package_id = ?self.package.id,
             "Reusing prefetched CAFS entry — skipping download (warm-cache fast path)",
         );
-        emit_progress_found_in_store::<Reporter>(self.package_id, self.requester, progress_key);
+        emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
         let cas_paths = Arc::clone(cas_paths);
         let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cas_paths))));
         mem_cache.insert(mem_cache_key, cache_lock);
@@ -324,7 +326,7 @@ impl<'a> IngestTarballToStore<'a> {
             CacheValue::Failed => return Err(self.sibling_fetch_failed()),
         };
 
-        tracing::info!(target: "pacquet::download", package_url = ?self.package_url, "Wait for cache");
+        tracing::info!(target: "pacquet::download", package_url = ?self.package.url, "Wait for cache");
         loop {
             // Register with the `Notify` *before* re-checking the
             // slot. `notify_waiters` stores no permit — it wakes
@@ -363,12 +365,12 @@ impl<'a> IngestTarballToStore<'a> {
         cas_paths: &Arc<HashMap<String, PathBuf>>,
         progress_key: Option<(&SharedReportedProgressKeys, &str)>,
     ) -> Arc<HashMap<String, PathBuf>> {
-        emit_progress_found_in_store::<Reporter>(self.package_id, self.requester, progress_key);
+        emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
         Arc::clone(cas_paths)
     }
 
     fn sibling_fetch_failed(&self) -> TarballError {
-        TarballError::SiblingFetchFailed { url: self.package_url.to_string() }
+        TarballError::SiblingFetchFailed { url: self.package.url.to_string() }
     }
 
     /// Run the actual fetch, then settle the cache slot either way. On error
@@ -441,27 +443,19 @@ impl<'a> IngestTarballToStore<'a> {
 
     fn ingestion(&self, revision_addressed: bool) -> ingestion::ArchiveIngestion<'_> {
         ingestion::ArchiveIngestion {
-            http_client: self.http_client,
-            store_dir: self.store_dir,
-            store_index: &self.store_index,
-            store_index_writer: &self.store_index_writer,
-            verify_store_integrity: self.verify_store_integrity,
-            strict_store_pkg_content_check: self.strict_store_pkg_content_check,
-            verified_files_cache: &self.verified_files_cache,
-            package_integrity: self.package_integrity,
-            package_url: self.package_url,
-            package_id: self.package_id,
+            store: &self.store,
+            fetching: self.fetching,
+            package: self.package,
+
             requester: self.requester,
-            prefetched_cas_paths: self.prefetched_cas_paths,
-            retry_opts: self.retry_opts,
-            auth_headers: self.auth_headers,
+
             ignore_file_pattern: &self.ignore_file_pattern,
-            offline: self.offline,
+
             progress_reported: &self.progress_reported,
             store_projection: self.store_projection,
             format: ingestion::ArchiveFormat::TarGz {
-                unpacked_size: self.package_unpacked_size,
-                file_count: self.package_file_count,
+                unpacked_size: self.package.unpacked_size,
+                file_count: self.package.file_count,
                 revision_addressed,
             },
         }

@@ -60,7 +60,7 @@ pub fn resolve_package_nodes(
             }
             let edge_ctx = EdgeContext {
                 peers: None,
-                linked_path_base_dir: env.modules_dir.clone(),
+                linked_path_base_dir: env.layout.modules_dir.clone(),
                 rewrite_link_version_dir: None,
                 parent_dir: parent_dir.map(Path::to_path_buf),
             };
@@ -80,7 +80,9 @@ pub fn resolve_package_nodes(
 }
 
 pub(super) fn has_snapshot(ctx: &WalkCtx<'_>, dep_path: &PkgNameVerPeer) -> bool {
-    ctx.lockfile.snapshots.as_ref().is_some_and(|snapshots| snapshots.contains_key(dep_path))
+    ctx.lockfile.snapshots
+        .as_ref()
+        .is_some_and(|snapshots| snapshots.contains_key(dep_path))
 }
 
 /// Name and display version of a depPath, preferring the `version:`
@@ -88,8 +90,7 @@ pub(super) fn has_snapshot(ctx: &WalkCtx<'_>, dep_path: &PkgNameVerPeer) -> bool
 /// version encoded in the depPath.
 #[must_use]
 pub fn name_ver_from_dep_path(lockfile: &Lockfile, dep_path: &PkgNameVerPeer) -> (String, String) {
-    let version = lockfile
-        .packages
+    let version = lockfile.packages
         .as_ref()
         .and_then(|packages| packages.get(&dep_path.without_peer()))
         .and_then(|metadata| metadata.version.clone())

@@ -28,6 +28,13 @@ use super::{
 /// to the renderers.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public dependent-tree JSON accepted and returned by the NAPI addon."
+    )
+)]
 pub struct DependentNode {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -200,7 +207,10 @@ pub fn build_dependents_tree(opts: &BuildDependentsOptions<'_>) -> Vec<Dependent
         let TreeNodeId::Package(dep_path) = node_id else {
             continue;
         };
-        if !lockfile.snapshots.as_ref().is_some_and(|snapshots| snapshots.contains_key(dep_path)) {
+        if !lockfile.snapshots
+            .as_ref()
+            .is_some_and(|snapshots| snapshots.contains_key(dep_path))
+        {
             continue;
         }
         let (name, version) = name_ver_from_dep_path(lockfile, dep_path);
@@ -251,12 +261,15 @@ fn walk_dependents_of(
 
 fn sort_trees(trees: &mut [DependentsTree]) {
     trees.sort_by(|a, b| {
-        a.name.cmp(&b.name).then_with(|| compare_versions(&a.version, &b.version)).then_with(|| {
-            a.peers_suffix_hash
-                .as_deref()
-                .unwrap_or("")
-                .cmp(b.peers_suffix_hash.as_deref().unwrap_or(""))
-        })
+        a.name
+            .cmp(&b.name)
+            .then_with(|| compare_versions(&a.version, &b.version))
+            .then_with(|| {
+                a.peers_suffix_hash
+                    .as_deref()
+                    .unwrap_or("")
+                    .cmp(b.peers_suffix_hash.as_deref().unwrap_or(""))
+            })
     });
 }
 
@@ -291,7 +304,11 @@ fn walk_reverse(ctx: &mut WalkCtx<'_>, node_id: &TreeNodeId, depth: usize) -> Ve
     sorted_edges.sort_by(|a, b| {
         resolve_parent_name(ctx, &a.parent)
             .cmp(&resolve_parent_name(ctx, &b.parent))
-            .then_with(|| a.parent.serialize().cmp(&b.parent.serialize()))
+            .then_with(|| {
+                a.parent
+                    .serialize()
+                    .cmp(&b.parent.serialize())
+            })
     });
 
     let mut dependents: Vec<DependentNode> = Vec::new();
@@ -367,9 +384,7 @@ fn importer_node(ctx: &WalkCtx<'_>, importer_id: &str, edge: &ReverseEdge) -> De
         None => (importer_id.to_string(), String::new()),
     };
     let mut node = DependentNode::leaf(name, version);
-    node.dep_field = ctx
-        .lockfile
-        .importers
+    node.dep_field = ctx.lockfile.importers
         .get(importer_id)
         .and_then(|importer| dep_field_for_alias(&edge.alias, importer));
     node
@@ -377,14 +392,11 @@ fn importer_node(ctx: &WalkCtx<'_>, importer_id: &str, edge: &ReverseEdge) -> De
 
 fn resolve_parent_name(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> String {
     match parent {
-        TreeNodeId::Importer(importer_id) => ctx
-            .importer_info
+        TreeNodeId::Importer(importer_id) => ctx.importer_info
             .get(importer_id)
             .map_or_else(|| importer_id.clone(), |info| info.name.clone()),
         TreeNodeId::Package(dep_path) => {
-            if ctx
-                .lockfile
-                .snapshots
+            if ctx.lockfile.snapshots
                 .as_ref()
                 .is_some_and(|snapshots| snapshots.contains_key(dep_path))
             {
@@ -398,7 +410,10 @@ fn resolve_parent_name(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> String {
 
 fn dep_field_for_alias(alias: &str, importer: &ProjectSnapshot) -> Option<DepField> {
     let has = |group: Option<&pnpm_lockfile::ResolvedDependencyMap>| {
-        group.is_some_and(|deps| deps.keys().any(|key| key.to_string() == alias))
+        group.is_some_and(|deps| {
+            deps.keys()
+                .any(|key| key.to_string() == alias)
+        })
     };
     if has(importer.dev_dependencies.as_ref()) {
         return Some(DepField::DevDependencies);

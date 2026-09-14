@@ -170,7 +170,8 @@ fn ls_remote_command(bin: Option<&PathBuf>, repo: &str, ref_: Option<&str>) -> C
     cmd.env("GIT_TERMINAL_PROMPT", "0");
     cmd.arg("ls-remote").arg("--").arg(repo);
     if let Some(ref_) = ref_ {
-        cmd.arg(ref_).arg(format!("{ref_}^{{}}"));
+        cmd.arg(ref_)
+            .arg(format!("{ref_}^{{}}"));
     }
     cmd
 }

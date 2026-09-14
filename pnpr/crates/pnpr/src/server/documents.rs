@@ -171,9 +171,7 @@ pub(super) async fn read_hosted_document<Document: HostedDocument>(
     key: &CanonicalPackageName,
 ) -> Result<Option<Document>, RegistryError> {
     let org = hosted_read_namespace(state, identity, source, key.as_str())?;
-    state
-        .inner
-        .storage
+    state.inner.storage
         .for_hosted(&org)
         .read_hosted_document(key)
         .await?
@@ -200,10 +198,13 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     refuse: impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync,
     addition: Document,
 ) -> Result<(), RegistryError> {
-    let _guard = state.inner.package_locks.lock(key.as_str()).await;
+    let _guard = state.inner.locks.packages.lock(key.as_str()).await;
     let staged = stage_hosted_artifact(state, org, key, filename, bytes, &refuse, addition).await?;
     let outcome = commit_publishes(state, vec![staged]).await?;
-    if outcome.lost_blobs.iter().any(|lost| lost.filename == filename) {
+    if outcome.lost_blobs
+        .iter()
+        .any(|lost| lost.filename == filename)
+    {
         return Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() });
     }
     // Another writer recorded this blob's entry between the read and the

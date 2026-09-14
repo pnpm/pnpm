@@ -346,13 +346,15 @@ fn parse_revision_selector(
 /// `/`, `:`, spaces) bumps the candidate out of the tag bucket so
 /// protocol-prefixed specifiers fall through to the next resolver.
 fn is_valid_dist_tag(selector: &str) -> bool {
-    selector.bytes().all(|byte| {
-        matches!(byte,
+    selector
+        .bytes()
+        .all(|byte| {
+            matches!(byte,
             b'A'..=b'Z'
             | b'a'..=b'z'
             | b'0'..=b'9'
             | b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
-    })
+        })
 }
 
 struct NpmTarballUrl {
@@ -375,7 +377,9 @@ fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
     if parts.len() != 2 {
         return None;
     }
-    let raw_name = parts[0].strip_prefix('/').unwrap_or(parts[0]);
+    let raw_name = parts[0]
+        .strip_prefix('/')
+        .unwrap_or(parts[0]);
     if raw_name.is_empty() {
         return None;
     }
@@ -383,14 +387,20 @@ fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
     if name.is_empty() {
         return None;
     }
-    let path_with_no_ext = parts[1].strip_suffix(".tgz").unwrap_or(parts[1]);
+    let path_with_no_ext = parts[1]
+        .strip_suffix(".tgz")
+        .unwrap_or(parts[1]);
     // The tarball filename always starts with the scopeless name
     // followed by `-`. Anchor on that prefix instead of slicing by
     // length so a registry that returns `foo/-/bar-1.0.0.tgz` (name
     // mismatch) doesn't get accepted and mapped to the wrong package.
-    let scopeless_name = name.rsplit('/').next().unwrap_or(name.as_str());
-    let version =
-        path_with_no_ext.strip_prefix(scopeless_name).and_then(|rest| rest.strip_prefix('-'))?;
+    let scopeless_name = name
+        .rsplit('/')
+        .next()
+        .unwrap_or(name.as_str());
+    let version = path_with_no_ext
+        .strip_prefix(scopeless_name)
+        .and_then(|rest| rest.strip_prefix('-'))?;
     Version::parse(version).ok()?;
     Some(NpmTarballUrl { name, version: version.to_string() })
 }

@@ -32,7 +32,10 @@ pub(crate) fn resolve_version_references(
     overrides: &mut IndexMap<String, String>,
     root_dir: &Path,
 ) -> Result<(), LoadWorkspaceYamlError> {
-    if !overrides.values().any(|spec| spec.starts_with('$')) {
+    if !overrides
+        .values()
+        .any(|spec| spec.starts_with('$'))
+    {
         return Ok(());
     }
     let root_manifest = match PackageManifest::from_path(root_dir.join("package.json")) {

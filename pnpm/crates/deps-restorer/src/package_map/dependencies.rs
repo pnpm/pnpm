@@ -157,7 +157,11 @@ pub(super) fn physical_dependencies(
     let mut current = package_dir.to_path_buf();
     loop {
         let modules_dir = normalize_path(&current.join("node_modules"));
-        for (name, id) in loose_index.by_modules_dir.get(&modules_dir).into_iter().flatten() {
+        for (name, id) in loose_index.by_modules_dir
+            .get(&modules_dir)
+            .into_iter()
+            .flatten()
+        {
             dependencies.entry(name.clone()).or_insert_with(|| id.clone());
         }
         if !current.pop() {

@@ -29,14 +29,16 @@ pub(super) async fn render_status(
     if plan.releases.is_empty() {
         return Ok("No pending changes.".to_string());
     }
-    let consumed_ids: std::collections::HashSet<&str> = plan
-        .releases
+    let consumed_ids: std::collections::HashSet<&str> = plan.releases
         .iter()
         .flat_map(|release| release.intents.iter().map(|intent| intent.id.as_str()))
         .collect();
     use std::fmt::Write as _;
     let mut output = String::from("Pending change intents:\n");
-    for intent in intents.iter().filter(|intent| consumed_ids.contains(intent.id.as_str())) {
+    for intent in intents
+        .iter()
+        .filter(|intent| consumed_ids.contains(intent.id.as_str()))
+    {
         writeln!(output, "  .changeset/{}.md", intent.id).expect("write to string");
     }
     output.push('\n');
@@ -74,14 +76,17 @@ pub fn render_release_plan(plan: &ReleasePlan) -> String {
     use std::fmt::Write as _;
     let mut output = String::from("Release plan:\n");
     for release in &plan.releases {
-        let causes: Vec<String> = release.causes.iter().map(ToString::to_string).collect();
+        let causes: Vec<String> = release.causes
+            .iter()
+            .map(ToString::to_string)
+            .collect();
         writeln!(
             output,
             "  {}: {} → {} ({}, via {})",
             release.name,
-            release.current_version,
-            release.new_version,
-            release.bump_type,
+            release.version.current,
+            release.version.next,
+            release.version.bump,
             causes.join("+"),
         )
         .expect("write to string");

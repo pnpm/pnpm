@@ -18,8 +18,14 @@ use tempfile::tempdir;
 #[test]
 fn unix_symlink_contents_are_relative_to_link_parent() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("packages").join("pkg-a");
-    let link = root.path().join("node_modules").join("pkg-a");
+    let target = root
+        .path()
+        .join("packages")
+        .join("pkg-a");
+    let link = root
+        .path()
+        .join("node_modules")
+        .join("pkg-a");
     fs::create_dir_all(&target).expect("create target dir");
     fs::create_dir_all(link.parent().unwrap()).expect("create link parent");
 
@@ -212,7 +218,12 @@ fn rename_error_allows_destination_removal_covers_occupied_and_locked_destinatio
 fn force_symlink_dir_creates_missing_parent_directories() {
     let root = tempdir().expect("create temp dir");
     let target = root.path().join("target");
-    let link = root.path().join("deeply").join("nested").join("modules").join("link");
+    let link = root
+        .path()
+        .join("deeply")
+        .join("nested")
+        .join("modules")
+        .join("link");
     fs::create_dir_all(&target).expect("create target");
     assert!(!link.parent().unwrap().exists(), "parent chain must be missing before the call");
 
@@ -243,13 +254,19 @@ fn windows_scoped_alias_path_gets_native_separators() {
     let mixed = std::path::Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules")
         .join("@scope/name");
     assert!(
-        mixed.as_os_str().to_string_lossy().contains('/'),
+        mixed
+            .as_os_str()
+            .to_string_lossy()
+            .contains('/'),
         "the join must leave a forward slash for the rewrite to remove: {mixed:?}",
     );
 
     let native = to_native_separators(&mixed);
     assert!(
-        !native.as_os_str().to_string_lossy().contains('/'),
+        !native
+            .as_os_str()
+            .to_string_lossy()
+            .contains('/'),
         "no forward slash may survive into the symlink syscall: {native:?}",
     );
     assert_eq!(
@@ -267,7 +284,10 @@ fn windows_verbatim_path_forward_slashes_are_rewritten() {
         std::path::Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope/name");
     let native = to_native_separators(verbatim);
     assert!(
-        !native.as_os_str().to_string_lossy().contains('/'),
+        !native
+            .as_os_str()
+            .to_string_lossy()
+            .contains('/'),
         "no forward slash may survive into the symlink syscall: {native:?}",
     );
     assert_eq!(
@@ -296,14 +316,23 @@ fn windows_native_path_is_borrowed_unchanged() {
 #[test]
 fn windows_force_symlink_dir_repairs_dangling_junction_parent() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("store").join("dep").join("node_modules").join("dep");
+    let target = root
+        .path()
+        .join("store")
+        .join("dep")
+        .join("node_modules")
+        .join("dep");
     fs::create_dir_all(&target).expect("create target dir");
 
     // Build a slot `node_modules` that is a dangling junction: point it at
     // a directory, then delete that directory. Windows keeps the reparse
     // point (with the directory attribute) but its target is now missing —
     // the state a cache restore leaves behind.
-    let node_modules = root.path().join("store").join("consumer").join("node_modules");
+    let node_modules = root
+        .path()
+        .join("store")
+        .join("consumer")
+        .join("node_modules");
     let junction_target = root.path().join("gone");
     fs::create_dir_all(node_modules.parent().unwrap()).expect("create slot dir");
     fs::create_dir_all(&junction_target).expect("create junction target");
@@ -327,7 +356,9 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
     fs::create_dir_all(&target).expect("create target");
 
     for iteration in 0..10 {
-        let link = root.path().join(format!("link-{iteration}"));
+        let link = root
+            .path()
+            .join(format!("link-{iteration}"));
         let barrier = std::sync::Barrier::new(32);
         let outcomes = std::thread::scope(|scope| {
             let handles: Vec<_> = (0..32)
@@ -354,7 +385,10 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
             .map(|result| result.expect("concurrent junction creation must succeed"))
             .collect();
         assert_eq!(
-            outcomes.iter().filter(|outcome| !outcome.reused).count(),
+            outcomes
+                .iter()
+                .filter(|outcome| !outcome.reused)
+                .count(),
             1,
             "one worker must create the junction and every other worker must reuse it",
         );
@@ -426,8 +460,16 @@ fn windows_privilege_not_held_falls_back_to_junctions() {
 #[test]
 fn force_symlink_dir_links_a_scoped_alias() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("store").join("node_modules").join("@scope").join("name");
-    let modules = root.path().join("app").join("node_modules");
+    let target = root
+        .path()
+        .join("store")
+        .join("node_modules")
+        .join("@scope")
+        .join("name");
+    let modules = root
+        .path()
+        .join("app")
+        .join("node_modules");
     let link = modules.join("@scope/name");
     fs::create_dir_all(&target).expect("create target dir");
 
@@ -471,8 +513,18 @@ fn read_symlink_dir_reads_back_what_force_symlink_dir_wrote() {
 #[test]
 fn force_symlink_dir_reuses_relative_link_across_parents() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("store").join("b@2").join("node_modules").join("b");
-    let link = root.path().join("store").join("a@1").join("node_modules").join("b");
+    let target = root
+        .path()
+        .join("store")
+        .join("b@2")
+        .join("node_modules")
+        .join("b");
+    let link = root
+        .path()
+        .join("store")
+        .join("a@1")
+        .join("node_modules")
+        .join("b");
     fs::create_dir_all(&target).expect("create target dir");
 
     let first = force_symlink_dir(&target, &link).expect("first call");

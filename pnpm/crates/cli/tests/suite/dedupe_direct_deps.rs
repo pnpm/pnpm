@@ -28,8 +28,13 @@ use std::{fs, path::Path, process::Command};
 /// get a `node_modules/` of its own.
 #[test]
 fn dedupes_direct_deps_against_workspace_root() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -65,7 +70,10 @@ fn dedupes_direct_deps_against_workspace_root() {
     )
     .expect("write packages/dup/package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let root_dep = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     let root_dep_linked = is_symlink_or_junction(&root_dep).expect("query root symlink");
@@ -92,8 +100,13 @@ fn dedupes_direct_deps_against_workspace_root() {
 /// resolves the same alias to the same target.
 #[test]
 fn dedupe_direct_deps_disabled_keeps_per_project_symlinks() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -129,7 +142,10 @@ fn dedupe_direct_deps_disabled_keeps_per_project_symlinks() {
     )
     .expect("write packages/dup/package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let root_dep = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     let root_dep_linked = is_symlink_or_junction(&root_dep).expect("query root symlink");
@@ -151,8 +167,13 @@ fn dedupe_direct_deps_disabled_keeps_per_project_symlinks() {
 /// `install_frozen_lockfile` codepath.
 #[test]
 fn dedupes_direct_deps_with_frozen_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -189,7 +210,10 @@ fn dedupes_direct_deps_with_frozen_lockfile() {
     .expect("write packages/dup/package.json");
 
     // First install seeds the lockfile and node_modules.
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let dup_modules = workspace.join("packages/dup/node_modules");
     let dup_modules_exists_after_seed = dup_modules.exists();
     eprintln!("after seed: dup_modules={dup_modules:?} exists={dup_modules_exists_after_seed}");
@@ -203,7 +227,11 @@ fn dedupes_direct_deps_with_frozen_lockfile() {
     fs_remove_dir_all(&workspace.join("node_modules"));
     fs_remove_dir_all(&dup_modules);
 
-    pacquet_at(&workspace).with_arg("install").with_arg("--frozen-lockfile").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .with_arg("--frozen-lockfile")
+        .assert()
+        .success();
 
     let root_dep = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     let root_dep_linked =
@@ -237,8 +265,13 @@ fn dedupes_direct_deps_with_frozen_lockfile() {
 /// non-root importer, frozen-lockfile replay.
 #[test]
 fn dedupe_off_by_default_keeps_shared_workspace_link() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     // Root depends on the shared workspace package, exactly like the
@@ -318,7 +351,11 @@ importers:
 
     // Replay the lockfile through the frozen-lockfile path — the
     // codepath the release workflow runs.
-    pacquet.with_arg("install").with_arg("--frozen-lockfile").assert().success();
+    pacquet
+        .with_arg("install")
+        .with_arg("--frozen-lockfile")
+        .assert()
+        .success();
 
     // The non-root importer must keep its own symlink, and it must
     // resolve to the shared package's manifest — that read is what
@@ -361,8 +398,13 @@ fn pacquet_at(workspace: &Path) -> Command {
 /// while the shared dep is omitted.
 #[test]
 fn dedupes_only_overlapping_direct_deps() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -401,7 +443,10 @@ fn dedupes_only_overlapping_direct_deps() {
     )
     .expect("write packages/mixed/package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let mixed_modules = workspace.join("packages/mixed/node_modules");
     let shared = mixed_modules.join("@pnpm.e2e/hello-world-js-bin");
@@ -424,8 +469,13 @@ fn dedupes_only_overlapping_direct_deps() {
 /// manifests produces (pnpm/pnpm#13775).
 #[test]
 fn removes_a_project_link_the_root_starts_providing() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let root_manifest_path = workspace.join("package.json");
@@ -467,7 +517,10 @@ fn removes_a_project_link_the_root_starts_providing() {
     )
     .expect("write packages/dup/package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let dup_link = workspace.join("packages/dup/node_modules/@pnpm.e2e/hello-world-js-bin");
     let dup_link_linked = is_symlink_or_junction(&dup_link).expect("query dup symlink");
@@ -477,7 +530,10 @@ fn removes_a_project_link_the_root_starts_providing() {
     assert!(dup_bin.exists(), "project bin shim missing at {dup_bin:?} before dedupe");
 
     write_root_manifest(serde_json::json!({ "@pnpm.e2e/hello-world-js-bin": "1.0.0" }));
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let root_link = workspace.join("node_modules/@pnpm.e2e/hello-world-js-bin");
     let root_link_linked = is_symlink_or_junction(&root_link).expect("query root symlink");
@@ -488,7 +544,10 @@ fn removes_a_project_link_the_root_starts_providing() {
 
     // Dropping the root's declaration hands the dep back to the project.
     write_root_manifest(serde_json::json!({}));
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let dup_link_relinked = is_symlink_or_junction(&dup_link).expect("query relinked dup symlink");
     eprintln!("dup_link={dup_link:?} linked={dup_link_relinked}");
@@ -508,8 +567,13 @@ fn removes_a_project_link_the_root_starts_providing() {
 /// pins that normalisation.
 #[test]
 fn dedupes_link_deps_resolving_to_the_same_dir_via_different_segments() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -555,7 +619,10 @@ fn dedupes_link_deps_resolving_to_the_same_dir_via_different_segments() {
     )
     .expect("write packages/sibling/package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let root_link = workspace.join("node_modules/shared");
     let root_link_linked = is_symlink_or_junction(&root_link).expect("query root link");
@@ -587,8 +654,13 @@ fn dedupes_link_deps_resolving_to_the_same_dir_via_different_segments() {
 /// the dedupe pass skips re-creating the project-2 symlink for it.
 #[test]
 fn dedupes_direct_dep_against_publicly_hoisted_root_dep() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -628,7 +700,10 @@ fn dedupes_direct_dep_against_publicly_hoisted_root_dep() {
     // Seed install (no publicHoistPattern → no hoist, no dedupe
     // surprises here). The point is to produce the lockfile pacquet's
     // frozen-install path will replay.
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     // Flip on publicHoistPattern and clear node_modules so the
     // frozen-install path is a pure replay.
@@ -640,7 +715,11 @@ fn dedupes_direct_dep_against_publicly_hoisted_root_dep() {
     fs_remove_dir_all(&workspace.join("node_modules"));
     fs_remove_dir_all(&workspace.join("packages/dup/node_modules"));
 
-    pacquet_at(&workspace).with_arg("install").with_arg("--frozen-lockfile").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .with_arg("--frozen-lockfile")
+        .assert()
+        .success();
 
     let root_direct = workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep");
     let root_direct_linked = is_symlink_or_junction(&root_direct).expect("query root direct dep");
@@ -676,8 +755,13 @@ fn dedupes_direct_dep_against_publicly_hoisted_root_dep() {
 /// install now runs end-to-end.
 #[test]
 fn dedupe_under_shamefully_hoist() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -717,7 +801,10 @@ fn dedupe_under_shamefully_hoist() {
     )
     .expect("write packages/project/package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     for alias in [
         "@pnpm.e2e/pkg-with-1-dep",
@@ -761,8 +848,13 @@ fn dedupe_under_shamefully_hoist() {
 /// its own target.
 #[test]
 fn relative_link_payloads_survive_the_dedupe_prune() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -804,10 +896,16 @@ fn relative_link_payloads_survive_the_dedupe_prune() {
     )
     .expect("write packages/app/package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     // The second install is the one that prunes: only then does a
     // current lockfile record the importer's link.
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let app_link = workspace.join("packages/app/node_modules/x");
     let app_link_linked = is_symlink_or_junction(&app_link).expect("query app symlink");

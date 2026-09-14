@@ -1,9 +1,8 @@
 use super::{
     FINISHED_SUFFIX, File, HashSet, IntoDiagnostic, JournalRecord, LOCK_ABANDONED_AFTER, LOCK_WAIT,
-    OsStr, OsString, PUBLISHED_SUFFIX, Path, PathBuf, RUN_GENERATION_LENGTH, START_LOCK_DIR,
-    STATE_VERSION, StateHeader, StateStorageError, SystemTime, TaskId, TaskKey,
-    TaskRunStateContext, UNIX_EPOCH, fs, initial_journal_contents, io, is_state_unavailable_error,
-    open_journal_for_append, run_id,
+    OpenOptions, OsStr, OsString, PUBLISHED_SUFFIX, Path, PathBuf, RUN_GENERATION_LENGTH,
+    START_LOCK_DIR, STATE_VERSION, StateHeader, StateStorageError, SystemTime, TaskId, TaskKey,
+    TaskRecord, TaskRunStateContext, UNIX_EPOCH, fs, io, is_state_unavailable_error, run_id,
 };
 use miette::WrapErr as _;
 
@@ -14,9 +13,9 @@ pub(super) fn remove_state_file(path: &Path) -> miette::Result<bool> {
         Ok(()) => Ok(true),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(true),
         Err(error) if is_state_unavailable_error(&error) => Ok(false),
-        Err(error) => {
-            Err(error).into_diagnostic().wrap_err_with(|| format!("removing {}", path.display()))
-        }
+        Err(error) => Err(error)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("removing {}", path.display())),
     }
 }
 
@@ -70,7 +69,12 @@ pub(super) fn validate_real_directory(
 pub(super) fn current_generation() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| duration.as_millis().try_into().unwrap_or(u64::MAX))
+        .map_or(0, |duration| {
+            duration
+                .as_millis()
+                .try_into()
+                .unwrap_or(u64::MAX)
+        })
 }
 
 impl TaskRunStateContext {
@@ -118,7 +122,9 @@ impl TaskRunStateContext {
     ) -> Option<HashSet<TaskKey>> {
         // A record is committed by its newline; a process killed during
         // append can leave only the final record torn.
-        let last_newline = contents.iter().rposition(|byte| *byte == b'\n')?;
+        let last_newline = contents
+            .iter()
+            .rposition(|byte| *byte == b'\n')?;
         let complete = std::str::from_utf8(&contents[..last_newline]).ok()?;
         let mut lines = complete.lines();
         let header = serde_json::from_str::<StateHeader>(lines.next()?).ok()?;
@@ -182,10 +188,11 @@ impl TaskRunStateContext {
                 return Err(StateStorageError::io(error, "checking", &lock_path));
             }
         }
-        self.publish_journal(&header, &file_path, file).map(|file| {
-            self.cleanup_older_finished_state(&run);
-            (file_path, run, Some(file))
-        })
+        self.publish_journal(&header, &file_path, file)
+            .map(|file| {
+                self.cleanup_older_finished_state(&run);
+                (file_path, run, Some(file))
+            })
     }
 
     fn publish_journal(
@@ -302,4 +309,30 @@ impl TaskRunStateContext {
             let _ = fs::remove_file(entry.path());
         }
     }
+}
+
+pub(super) fn initial_journal_contents(header: &StateHeader, completed: &[&TaskId]) -> String {
+    let mut contents = serde_json::to_string(header).expect("task state header serializes");
+    contents.push('\n');
+    for id in completed {
+        let record = TaskRecord {
+            run: header.run.clone(),
+            project: id.project.clone(),
+            task: id.task.clone(),
+        };
+        contents.push_str(&serde_json::to_string(&record).expect("task record serializes"));
+        contents.push('\n');
+    }
+    contents
+}
+
+/// Remove an unpublished journal if it cannot be reopened for appending.
+pub(super) fn open_journal_for_append(file_path: &Path) -> Result<File, StateStorageError> {
+    OpenOptions::new()
+        .append(true)
+        .open(file_path)
+        .map_err(|error| {
+            let _ = fs::remove_file(file_path);
+            StateStorageError::io(error, "opening", file_path)
+        })
 }

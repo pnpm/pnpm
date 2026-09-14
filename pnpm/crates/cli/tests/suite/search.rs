@@ -44,7 +44,10 @@ fn run_search(
 
 fn unreachable_registry() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind a probe socket");
-    let port = listener.local_addr().expect("read the probe socket address").port();
+    let port = listener
+        .local_addr()
+        .expect("read the probe socket address")
+        .port();
     drop(listener);
     format!("http://127.0.0.1:{port}/")
 }

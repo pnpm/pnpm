@@ -25,8 +25,7 @@ pub(super) fn build_importers(
     let importer_results: Vec<(
         &String,
         Result<ProjectSnapshot, DependenciesGraphToLockfileError>,
-    )> = opts
-        .importers
+    )> = opts.importers
         .iter()
         .collect::<Vec<_>>()
         .into_par_iter()
@@ -35,10 +34,10 @@ pub(super) fn build_importers(
                 input,
                 opts.graph,
                 &ImporterLockfileFlags {
-                    exclude_links_from_lockfile: opts.exclude_links_from_lockfile,
-                    auto_install_peers: opts.auto_install_peers,
+                    exclude_links_from_lockfile: opts.settings.exclude_links_from_lockfile,
+                    auto_install_peers: opts.settings.auto_install_peers,
                 },
-                opts.previous_importers.and_then(|importers| importers.get(id)),
+                opts.reuse.previous_importers.and_then(|importers| importers.get(id)),
                 effective_update_reuse_scope(opts, id),
             );
             (id, importer)
@@ -61,10 +60,10 @@ pub(super) fn effective_update_reuse_scope<'o>(
     opts: &'o GraphToLockfileOptions<'_>,
     importer_id: &str,
 ) -> &'o UpdateReuseScope {
-    if matches!(opts.update_reuse_scope, UpdateReuseScope::None) {
-        &opts.update_reuse_scope
+    if matches!(opts.reuse.scope, UpdateReuseScope::None) {
+        &opts.reuse.scope
     } else {
-        opts.update_reuse_scopes_by_importer.get(importer_id).unwrap_or(&opts.update_reuse_scope)
+        opts.reuse.scopes_by_importer.get(importer_id).unwrap_or(&opts.reuse.scope)
     }
 }
 /// The concrete version `alias` resolved to in `importer`, read from whichever
@@ -116,7 +115,10 @@ pub(super) fn build_importer(
         };
         specifiers.insert(alias.clone(), spec.specifier.clone());
         groups.insert(
-            alias_to_group.get(alias).copied().unwrap_or(DependencyGroup::Prod),
+            alias_to_group
+                .get(alias)
+                .copied()
+                .unwrap_or(DependencyGroup::Prod),
             name_for_key,
             spec,
         );
@@ -127,12 +129,7 @@ pub(super) fn build_importer(
         dependencies: (!groups.prod.is_empty()).then_some(groups.prod),
         dev_dependencies: (!groups.dev.is_empty()).then_some(groups.dev),
         optional_dependencies: (!groups.optional.is_empty()).then_some(groups.optional),
-        dependencies_meta: input
-            .manifest
-            .value()
-            .get("dependenciesMeta")
-            .filter(|value| value.as_object().is_some_and(|meta| !meta.is_empty()))
-            .cloned(),
+        dependencies_meta: manifest_dependencies_meta(input.manifest),
         publish_directory,
         link_directory,
     })
@@ -230,13 +227,13 @@ pub(super) fn direct_dep_version(
         return Ok(Some(ImporterDepVersion::Link(target.to_string())));
     }
     let Some(node) = graph.get(dep_path) else { return Ok(None) };
-    importer_dep_version(alias, node).map(Some).map_err(|source| {
-        DependenciesGraphToLockfileError::ImporterDependency {
+    importer_dep_version(alias, node)
+        .map(Some)
+        .map_err(|source| DependenciesGraphToLockfileError::ImporterDependency {
             alias: alias.to_string(),
             dep_path: dep_path.to_string(),
             source: Box::new(source),
-        }
-    })
+        })
 }
 /// What [`preserved_link_version`] consults to decide whether this install
 /// targets the dependency.
@@ -273,9 +270,8 @@ pub(super) fn preserved_link_version(
     lookup: &PreservedLinkLookup<'_>,
 ) -> Option<ImporterDepVersion> {
     let ImporterDepVersion::File(_) = version else { return None };
-    let previous = lookup
-        .previous_importer
-        .and_then(|prev| previous_importer_dep(prev, lookup.name_for_key))?;
+    let previous =
+        lookup.previous_importer.and_then(|prev| previous_importer_dep(prev, lookup.name_for_key))?;
     let ImporterDepVersion::Link(_) = &previous.version else { return None };
     let targeted_by_update = match lookup.update_reuse_scope {
         UpdateReuseScope::All => false,
@@ -283,8 +279,7 @@ pub(super) fn preserved_link_version(
         // By name alone: this runs after resolution, where the
         // version in hand is the one the update just produced, not
         // the line the selector asked to move.
-        UpdateReuseScope::Except(targets) => lookup
-            .graph
+        UpdateReuseScope::Except(targets) => lookup.graph
             .get(lookup.dep_path)
             .and_then(node_pkg_name)
             .is_some_and(|name| targets.covers(&name, None)),
@@ -300,12 +295,14 @@ pub(crate) fn manifest_publish_config(
         .and_then(|publish_config| publish_config.get("directory"))
         .and_then(Value::as_str)
         .map(str::to_string);
-    let link_directory = publish_directory.as_ref().and_then(|_| {
-        publish_config
-            .and_then(|publish_config| publish_config.get("linkDirectory"))
-            .and_then(Value::as_bool)
-            .filter(|link_directory| !link_directory)
-    });
+    let link_directory = publish_directory
+        .as_ref()
+        .and_then(|_| {
+            publish_config
+                .and_then(|publish_config| publish_config.get("linkDirectory"))
+                .and_then(Value::as_bool)
+                .filter(|link_directory| !link_directory)
+        });
     (publish_directory, link_directory)
 }
 /// Map each direct-dep alias to the manifest group it appears in.
@@ -342,7 +339,10 @@ pub(super) fn read_manifest_specifier(
         .chain(materialized_peers)
     {
         let group_key: &str = group.into();
-        if let Some(map) = manifest.value().get(group_key).and_then(Value::as_object)
+        if let Some(map) = manifest
+            .value()
+            .get(group_key)
+            .and_then(Value::as_object)
             && let Some(spec) = map.get(alias).and_then(Value::as_str)
         {
             return Some(spec.to_string());
@@ -409,11 +409,14 @@ pub(super) fn self_aliased_file_ver<'a>(
         Some(scope) => alias
             .strip_prefix('@')
             .and_then(|unscoped| unscoped.split_once('/'))
-            .is_some_and(|(alias_scope, bare)| alias_scope == scope && bare == key.name.bare),
+            .is_some_and(|(alias_scope, bare)| {
+                alias_scope == scope && bare == key.name.bare
+            }),
         None => alias == key.name.bare,
     };
-    (aliased_to_own_name && matches!(key.suffix.version(), VersionPart::File(_)))
-        .then_some(&key.suffix)
+    (aliased_to_own_name && matches!(key.suffix.version(), VersionPart::File(_))).then_some(
+        &key.suffix,
+    )
 }
 /// The previous importer's recorded entry for `name`, searched across
 /// its `dependencies` / `optionalDependencies` / `devDependencies` maps
@@ -425,12 +428,19 @@ pub(super) fn previous_importer_dep<'a>(
     importer: &'a ProjectSnapshot,
     name: &PkgName,
 ) -> Option<&'a ResolvedDependencySpec> {
-    importer
-        .dependencies
+    importer.dependencies
         .as_ref()
         .and_then(|map| map.get(name))
-        .or_else(|| importer.optional_dependencies.as_ref().and_then(|map| map.get(name)))
-        .or_else(|| importer.dev_dependencies.as_ref().and_then(|map| map.get(name)))
+        .or_else(|| {
+            importer.optional_dependencies
+                .as_ref()
+                .and_then(|map| map.get(name))
+        })
+        .or_else(|| {
+            importer.dev_dependencies
+                .as_ref()
+                .and_then(|map| map.get(name))
+        })
 }
 /// The resolved package name for a graph node — the structured
 /// `name_ver` when the resolver produced one, otherwise the `name` from
@@ -438,16 +448,20 @@ pub(super) fn previous_importer_dep<'a>(
 /// whose `name_ver` is unset). Used to match a workspace dependency
 /// against an `update <name>` scope in [`build_importer`].
 pub(super) fn node_pkg_name(node: &DependenciesGraphNode) -> Option<String> {
-    if let Some(name_ver) = node.resolve_result.name_ver.as_ref() {
+    if let Some(name_ver) = node.resolve_result.package.name_ver.as_ref() {
         return Some(name_ver.name.to_string());
     }
-    node.resolve_result.manifest.as_ref()?.get("name")?.as_str().map(str::to_string)
+    node.resolve_result.package.manifest
+        .as_ref()?
+        .get("name")?
+        .as_str()
+        .map(str::to_string)
 }
 /// `Some(real_name)` when the resolver produced a structured name; `None`
 /// for resolvers that learn the name from the fetched manifest (git,
 /// tarball, file).
 pub(super) fn real_name(result: &ResolveResult) -> Option<String> {
-    if let Some(name_ver) = result.name_ver.as_ref() {
+    if let Some(name_ver) = result.package.name_ver.as_ref() {
         return Some(name_ver.name.to_string());
     }
     // `name_ver` is unset for resolutions that learn the canonical name
@@ -472,7 +486,11 @@ pub(super) fn real_name(result: &ResolveResult) -> Option<String> {
     if !reads_name_from_manifest {
         return None;
     }
-    result.manifest.as_ref()?.get("name")?.as_str().map(str::to_string)
+    result.package.manifest
+        .as_ref()?
+        .get("name")?
+        .as_str()
+        .map(str::to_string)
 }
 /// `true` for an `http(s)://` tarball URL — the remote tarball deps
 /// covered by <https://github.com/pnpm/pnpm/issues/12053>. Excludes
@@ -480,4 +498,16 @@ pub(super) fn real_name(result: &ResolveResult) -> Option<String> {
 /// no URL.
 pub(super) fn is_remote_http_tarball(tarball: &str) -> bool {
     tarball.starts_with("http:") || tarball.starts_with("https:")
+}
+
+fn manifest_dependencies_meta(manifest: &PackageManifest) -> Option<Value> {
+    manifest
+        .value()
+        .get("dependenciesMeta")
+        .filter(|value| {
+            value
+                .as_object()
+                .is_some_and(|meta| !meta.is_empty())
+        })
+        .cloned()
 }

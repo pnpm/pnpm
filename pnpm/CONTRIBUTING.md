@@ -38,7 +38,7 @@ Write documentation, comments, and other prose for ease of understanding first. 
 
 ## Code Style
 
-See [`CODE_STYLE_GUIDE.md`](./CODE_STYLE_GUIDE.md). Formatting and lint-level rules are enforced by `cargo fmt`, `taplo format`, and `cargo clippy`; the style guide covers everything those tools cannot enforce.
+See [`CODE_STYLE_GUIDE.md`](./CODE_STYLE_GUIDE.md). Formatting and lint-level rules are enforced by the [pinned rustfmt fork](../CONTRIBUTING.md#rust-formatting), `taplo format`, and `cargo clippy`; the style guide covers everything those tools cannot enforce.
 
 ## Dylint / perfectionist
 
@@ -76,7 +76,7 @@ Install the project's task tools and the git pre-push hook:
 just init
 ```
 
-`just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`, then installs `cargo-fixit@0.1.15` from source with `cargo install ... --locked` (it has no prebuilt binaries). `cargo-fixit` backs the `just fix` task. The repo-wide `pnpm install` wires up husky, whose `pre-push` hook runs `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript compile and lint checks.
+`just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`, then installs `cargo-fixit@0.1.15` from source with `cargo install ... --locked` (it has no prebuilt binaries). `cargo-fixit` backs the `just fix` task. It also installs the [pinned formatter](../CONTRIBUTING.md#rust-formatting). The repo-wide `pnpm install` wires up husky, whose `pre-push` hook runs `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript compile and lint checks.
 
 `just init` does not install the dylint tools. To run the `Dylint` job's checks locally, install `cargo-dylint` and `dylint-link` as described under [Rust toolchain and git hooks](../CONTRIBUTING.md#rust-toolchain-and-git-hooks) in the root guide.
 
@@ -102,7 +102,7 @@ Before submitting, run:
 just ready
 ```
 
-This runs `typos`, `cargo fmt`, `just check` (which is `cargo check --locked --workspace --all-targets`), `just test` (which is `cargo nextest run`), and `just lint` (which is `cargo clippy --locked --workspace --all-targets -- --deny warnings`), then prints `git status`. CI runs the same commands on Linux, macOS, and Windows.
+This runs `typos`, the pinned formatter, `just check` (which is `cargo check --locked --workspace --all-targets`), `just test` (which is `cargo nextest run`), and `just lint` (which is `cargo clippy --locked --workspace --all-targets -- --deny warnings`), then prints `git status`. CI runs the same commands on Linux, macOS, and Windows.
 
 To let clippy rewrite the lints it can fix automatically, run `just fix` instead of hand-editing each warning:
 

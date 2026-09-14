@@ -86,7 +86,10 @@ fn peer_declaring_metadata<const PEERS: usize>(
         prepare: None,
         bundled_dependencies: None,
         peer_dependencies: Some(
-            peer_names.into_iter().map(|name| (name.to_string(), "*".to_string())).collect(),
+            peer_names
+                .into_iter()
+                .map(|name| (name.to_string(), "*".to_string()))
+                .collect(),
         ),
         peer_dependencies_meta: None,
     }
@@ -149,7 +152,10 @@ impl Resolver for StubResolver {
             wanted.alias.clone().unwrap_or_default(),
             wanted.bare_specifier.clone().unwrap_or_default(),
         );
-        self.calls.lock().unwrap().push(key.clone());
+        self.calls
+            .lock()
+            .unwrap()
+            .push(key.clone());
         let result = self.table.get(&key).cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
     }
@@ -171,10 +177,6 @@ fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> Resolv
     );
     ResolveResult {
         id: (&name_ver).into(),
-        name_ver: Some(name_ver),
-        latest: Some(version.to_string()),
-        published_at: None,
-        manifest: Some(std::sync::Arc::new(manifest)),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://registry.example/{name}-{version}.tgz"),
             integrity: None,
@@ -186,6 +188,12 @@ fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> Resolv
         normalized_bare_specifier: None,
         alias: Some(name.to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: Some(name_ver),
+            latest: Some(version.to_string()),
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(manifest)),
+        },
     }
 }
 
@@ -215,26 +223,34 @@ fn fake_manifest_json(json: serde_json::Value) -> (tempfile::TempDir, PackageMan
 
 fn default_opts() -> ResolveImporterOptions {
     ResolveImporterOptions {
-        auto_install_peers: true,
-        auto_install_peers_from_highest_match: false,
-        resolve_peers_from_workspace_root: false,
-        dedupe_peers: false,
-        dedupe_peer_dependents: true,
-        all_preferred_versions: Arc::new(PreferredVersions::new()),
-        override_bare_specifier: None,
-        patched_dependencies: None,
         base_opts: ResolveOptions::default(),
-        pick_lowest_direct: false,
-        subdep_published_by: None,
-        catalogs: pnpm_catalogs_types::Catalogs::new(),
-        exclude_links_from_lockfile: false,
-        lockfile_dir: None,
-        modules_dir: None,
         peers_suffix_max_length: 1000,
-        catalog_server: false,
-        manifest_hook: None,
-        overrides_hook: None,
-        pnpmfile_hook: None,
+        peers: crate::ImporterPeerOptions {
+            auto_install_peers: true,
+            auto_install_peers_from_highest_match: false,
+            resolve_peers_from_workspace_root: false,
+            dedupe_peers: false,
+            dedupe_peer_dependents: true,
+        },
+        links: crate::PeerLinkOptions {
+            exclude_links_from_lockfile: false,
+            lockfile_dir: None,
+            modules_dir: None,
+        },
+        resolution: crate::ImporterResolutionInputs {
+            all_preferred_versions: Arc::new(PreferredVersions::new()),
+            override_bare_specifier: None,
+            patched_dependencies: None,
+            pick_lowest_direct: false,
+            subdep_published_by: None,
+            catalogs: pnpm_catalogs_types::Catalogs::new(),
+            catalog_server: false,
+        },
+        hooks: crate::ManifestTransformHooks {
+            manifest_hook: None,
+            overrides_hook: None,
+            pnpmfile_hook: None,
+        },
     }
 }
 
@@ -293,7 +309,11 @@ mod resolution_mode {
         }
 
         fn opts_for(&self, alias: &str) -> RecordedOpts {
-            *self.seen.lock().unwrap().get(alias).expect("alias was resolved")
+            *self.seen
+                .lock()
+                .unwrap()
+                .get(alias)
+                .expect("alias was resolved")
         }
     }
 
@@ -307,7 +327,7 @@ mod resolution_mode {
                 self.seen
                     .lock()
                     .unwrap()
-                    .insert(alias, (opts.pick_lowest_version, opts.published_by));
+                    .insert(alias, (opts.version.pick_lowest_version, opts.policy.published_by));
             }
             self.inner.resolve(wanted, opts)
         }
@@ -351,11 +371,13 @@ mod resolution_mode {
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "direct": "^1.0.0" }));
         let maximum = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
         let mut opts = default_opts();
-        opts.base_opts.published_by = Some(maximum);
-        opts.pick_lowest_direct = false;
-        opts.subdep_published_by = Some(maximum);
+        opts.base_opts.policy.published_by = Some(maximum);
+        opts.resolution.pick_lowest_direct = false;
+        opts.resolution.subdep_published_by = Some(maximum);
 
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+            .await
+            .unwrap();
 
         assert_eq!(resolver.opts_for("direct"), (false, Some(maximum)));
         assert_eq!(resolver.opts_for("sub"), (false, Some(maximum)));
@@ -369,10 +391,12 @@ mod resolution_mode {
         let resolver = RecordingResolver::new(one_dep_one_subdep_table());
         let (_tmp, manifest) = fake_manifest(serde_json::json!({ "direct": "^1.0.0" }));
         let mut opts = default_opts();
-        opts.pick_lowest_direct = true;
-        opts.subdep_published_by = None;
+        opts.resolution.pick_lowest_direct = true;
+        opts.resolution.subdep_published_by = None;
 
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+            .await
+            .unwrap();
 
         assert_eq!(resolver.opts_for("direct"), (true, None));
         assert_eq!(resolver.opts_for("sub"), (false, None));
@@ -390,11 +414,13 @@ mod resolution_mode {
         let maximum = Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap();
         let cutoff = Utc.with_ymd_and_hms(2024, 3, 1, 0, 0, 0).unwrap();
         let mut opts = default_opts();
-        opts.base_opts.published_by = Some(maximum);
-        opts.pick_lowest_direct = true;
-        opts.subdep_published_by = Some(cutoff);
+        opts.base_opts.policy.published_by = Some(maximum);
+        opts.resolution.pick_lowest_direct = true;
+        opts.resolution.subdep_published_by = Some(cutoff);
 
-        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts).await.unwrap();
+        resolve_importer(&resolver, &manifest, [DependencyGroup::Prod], opts)
+            .await
+            .unwrap();
 
         assert_eq!(resolver.opts_for("direct"), (true, Some(maximum)));
         assert_eq!(resolver.opts_for("sub"), (false, Some(cutoff)));

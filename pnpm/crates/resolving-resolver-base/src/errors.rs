@@ -57,8 +57,10 @@ fn describe_published_versions(meta: &Package) -> String {
     }
     // The tags arrive in a `HashMap`, so they are sorted to keep the message
     // stable across runs rather than left in iteration order.
-    let mut other_tags: Vec<_> =
-        meta.dist_tags.iter().filter(|(tag, _)| tag.as_str() != "latest").collect();
+    let mut other_tags: Vec<_> = meta.dist_tags
+        .iter()
+        .filter(|(tag, _)| tag.as_str() != "latest")
+        .collect();
     other_tags.sort_by_key(|(tag, _)| *tag);
     if !other_tags.is_empty() {
         out.push_str("\nOther releases are:\n");
@@ -113,7 +115,9 @@ impl Diagnostic for RegistryResponseError {
     }
 
     fn help(&self) -> Option<Box<dyn fmt::Display + '_>> {
-        self.hint.as_ref().map(|hint| Box::new(hint) as Box<dyn fmt::Display + '_>)
+        self.hint
+            .as_ref()
+            .map(|hint| Box::new(hint) as Box<dyn fmt::Display + '_>)
     }
 }
 
@@ -133,8 +137,13 @@ pub struct RegistryResponseErrorOptions<'a> {
 impl RegistryResponseError {
     #[must_use]
     pub fn new(opts: RegistryResponseErrorOptions<'_>) -> Self {
-        let RegistryResponseErrorOptions { url, status, status_text, pkg_name, auth_header_value } =
-            opts;
+        let RegistryResponseErrorOptions {
+            url,
+            status,
+            status_text,
+            pkg_name,
+            auth_header_value,
+        } = opts;
         let mut hint = String::new();
         if status == 404 {
             write!(
@@ -204,7 +213,9 @@ fn strip_trailing_semver_suffix(pkg_name: &str) -> Option<&str> {
     if end == before_minor || end == 0 || !is_semver(&pkg_name[end..]) {
         return None;
     }
-    let prefix = pkg_name[..end].strip_suffix('@').unwrap_or(&pkg_name[..end]);
+    let prefix = pkg_name[..end]
+        .strip_suffix('@')
+        .unwrap_or(&pkg_name[..end]);
     (!prefix.is_empty()).then_some(prefix)
 }
 
@@ -245,7 +256,9 @@ impl Diagnostic for GitResolveError {
     }
 
     fn help(&self) -> Option<Box<dyn fmt::Display + '_>> {
-        self.hint.as_ref().map(|hint| Box::new(hint) as Box<dyn fmt::Display + '_>)
+        self.hint
+            .as_ref()
+            .map(|hint| Box::new(hint) as Box<dyn fmt::Display + '_>)
     }
 }
 
@@ -275,7 +288,10 @@ fn https_transport_hint(repo: &str) -> Option<String> {
     if scheme != "https" && scheme != "http" {
         return None;
     }
-    let host = authority.split('/').next().unwrap_or(authority);
+    let host = authority
+        .split('/')
+        .next()
+        .unwrap_or(authority);
     let host = host.rsplit_once('@').map_or(host, |(_userinfo, host)| host);
     if host.is_empty() {
         return None;

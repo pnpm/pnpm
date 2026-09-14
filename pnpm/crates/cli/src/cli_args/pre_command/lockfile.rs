@@ -74,9 +74,11 @@ pub(super) enum ReadEnvLockfile<'a> {
 }
 
 pub(super) fn read_env_lockfile(root_dir: &Path) -> miette::Result<Option<EnvLockfile>> {
-    EnvLockfile::read(root_dir).map_err(miette::Report::new).wrap_err_with(|| {
-        format!("read the package-manager env lockfile in {}", root_dir.display())
-    })
+    EnvLockfile::read(root_dir)
+        .map_err(miette::Report::new)
+        .wrap_err_with(|| {
+            format!("read the package-manager env lockfile in {}", root_dir.display())
+        })
 }
 
 /// Switch straight to the version the env lockfile records — unless its
@@ -105,8 +107,7 @@ pub(super) fn locked_package_manager_version(
     env: &EnvLockfile,
     wanted_range: &str,
 ) -> miette::Result<Option<String>> {
-    let Some(version) = env
-        .importers
+    let Some(version) = env.importers
         .get(EnvLockfile::ROOT_IMPORTER_KEY)
         .and_then(|importer| importer.package_manager_dependencies.as_ref())
         .and_then(|dependencies| dependencies.get("pnpm"))
@@ -124,19 +125,23 @@ pub(super) fn locked_package_manager_version(
 }
 
 fn package_manager_dependencies_are_resolved(env: &EnvLockfile, version: &str) -> bool {
-    let Some(dependencies) = env
-        .importers
+    let Some(dependencies) = env.importers
         .get(EnvLockfile::ROOT_IMPORTER_KEY)
         .and_then(|importer| importer.package_manager_dependencies.as_ref())
     else {
         return false;
     };
-    if dependencies.get("pnpm").is_none_or(|dep| dep.version != version) {
+    if dependencies
+        .get("pnpm")
+        .is_none_or(|dep| dep.version != version)
+    {
         return false;
     }
     let wrapper_pkg_name = pnpm_package_to_install(version).name;
     wrapper_pkg_name == "pnpm"
-        || dependencies.get(wrapper_pkg_name).is_some_and(|dep| dep.version == version)
+        || dependencies
+            .get(wrapper_pkg_name)
+            .is_some_and(|dep| dep.version == version)
 }
 
 fn assert_package_manager_lockfile_uses_registry_resolutions(
@@ -182,8 +187,7 @@ fn append_snapshot_dependencies(
 
 /// The lockfile keys of the root importer's `packageManager` dependencies.
 fn package_manager_root_keys(env: &EnvLockfile) -> miette::Result<Vec<PackageKey>> {
-    let Some(package_manager_dependencies) = env
-        .importers
+    let Some(package_manager_dependencies) = env.importers
         .get(EnvLockfile::ROOT_IMPORTER_KEY)
         .and_then(|importer| importer.package_manager_dependencies.as_ref())
     else {

@@ -29,7 +29,9 @@ fn keeps_a_catalog_entry_another_importer_references() {
     .expect("the other importer still references the catalog entry");
 
     assert!(
-        updated.catalogs.as_ref().is_some_and(|catalogs| catalogs["default"].contains_key("foo")),
+        updated.catalogs
+            .as_ref()
+            .is_some_and(|catalogs| catalogs["default"].contains_key("foo")),
         "the still-referenced catalog entry stays",
     );
 }
@@ -38,8 +40,12 @@ fn keeps_a_catalog_entry_referenced_with_the_catalog_default_spelling() {
     let mut lockfile = parsed_lockfile(WITH_CATALOG_DEP);
     let mut importer = lockfile.importers["."].clone();
     let alias: PkgName = "foo".parse().expect("alias");
-    importer.dependencies.as_mut().expect("dependencies").get_mut(&alias).expect("foo").specifier =
-        "catalog:default".to_string();
+    importer.dependencies
+        .as_mut()
+        .expect("dependencies")
+        .get_mut(&alias)
+        .expect("foo")
+        .specifier = "catalog:default".to_string();
     lockfile.importers.insert("pkg-a".to_string(), importer);
     let manifest = manifest_from(json!({ "dependencies": { "bar": "^2.0.0" } }));
     let other =
@@ -52,7 +58,9 @@ fn keeps_a_catalog_entry_referenced_with_the_catalog_default_spelling() {
     .expect("the other importer still references the catalog entry");
 
     assert!(
-        updated.catalogs.as_ref().is_some_and(|catalogs| catalogs["default"].contains_key("foo")),
+        updated.catalogs
+            .as_ref()
+            .is_some_and(|catalogs| catalogs["default"].contains_key("foo")),
         "the catalog:default spelling counts as a reference to the default catalog",
     );
 }

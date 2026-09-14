@@ -112,7 +112,9 @@ pub fn append_workspace_yaml_key(workspace: &Path, key: &str, value: impl std::f
     let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
     let key_prefix = format!("{key}:");
     assert!(
-        !yaml.lines().any(|line| line.starts_with(&key_prefix)),
+        !yaml
+            .lines()
+            .any(|line| line.starts_with(&key_prefix)),
         "pnpm-workspace.yaml already has a `{key}:` key — update this helper",
     );
     if !yaml.ends_with('\n') {
@@ -126,8 +128,7 @@ pub fn append_workspace_yaml_key(workspace: &Path, key: &str, value: impl std::f
 /// upstream tests read as `lockfile.packages['<name>@<version>']`.
 #[must_use]
 pub fn lockfile_package_keys(dir: &Path) -> Vec<String> {
-    let mut keys = read_lockfile(&dir.join("pnpm-lock.yaml"))
-        .packages
+    let mut keys = read_lockfile(&dir.join("pnpm-lock.yaml")).packages
         .into_iter()
         .flatten()
         .map(|(key, _)| key.to_string())
@@ -176,9 +177,11 @@ pub fn index_file_contents(store_dir: &Path) -> BTreeMap<String, BTreeMap<String
 
     let mut out = BTreeMap::new();
     for key in index.keys().expect("list index keys") {
-        let row = index.get(&key).expect("read index row").expect("row disappeared");
-        let files = row
-            .files
+        let row = index
+            .get(&key)
+            .expect("read index row")
+            .expect("row disappeared");
+        let files = row.files
             .into_iter()
             .map(|(filename, mut info)| {
                 info.checked_at = None;
@@ -386,7 +389,9 @@ pub fn write_manifest_value(project: &Path, manifest: &Value) {
 pub fn set_dependency(project: &Path, group: &str, name: &str, spec: &str) {
     let mut manifest = read_manifest(project);
     let object = manifest.as_object_mut().expect("manifest is an object");
-    let dependencies = object.entry(group).or_insert_with(|| json!({}));
+    let dependencies = object
+        .entry(group)
+        .or_insert_with(|| json!({}));
     dependencies
         .as_object_mut()
         .expect("dependency group is an object")
@@ -433,6 +438,7 @@ pub fn read_lockfile(path: &Path) -> Lockfile {
 /// lockfiles the upstream tests use to stage wanted/current divergence.
 /// `new_ref` takes any `snapshots:` dependency shape (`100.0.0`,
 /// `link:packages/foo`, ...).
+#[cfg(unix)]
 pub fn repin_snapshot_dependency(
     lockfile_path: &Path,
     snapshot_key: &str,
@@ -472,7 +478,10 @@ pub fn ndjson_records(output: &Output) -> Vec<Value> {
     [&output.stderr[..], &output.stdout[..]]
         .into_iter()
         .flat_map(|stream| {
-            String::from_utf8_lossy(stream).lines().map(str::to_string).collect::<Vec<_>>()
+            String::from_utf8_lossy(stream)
+                .lines()
+                .map(str::to_string)
+                .collect::<Vec<_>>()
         })
         .filter_map(|line| serde_json::from_str(&line).ok())
         .collect()
@@ -480,20 +489,22 @@ pub fn ndjson_records(output: &Output) -> Vec<Value> {
 
 /// The `name: "pnpm" / level: "info"` log pnpm's headless installer
 /// emits when it is entered with an up-to-date lockfile.
+#[cfg(unix)]
 #[must_use]
 pub fn has_up_to_date_log(records: &[Value]) -> bool {
-    records.iter().any(|record| {
-        record.get("name").and_then(Value::as_str) == Some("pnpm")
-            && record.get("level").and_then(Value::as_str) == Some("info")
-            && record.get("message").and_then(Value::as_str)
-                == Some("Lockfile is up to date, resolution step is skipped")
-    })
+    records
+        .iter()
+        .any(|record| {
+            record.get("name").and_then(Value::as_str) == Some("pnpm")
+                && record.get("level").and_then(Value::as_str) == Some("info")
+                && record.get("message").and_then(Value::as_str)
+                    == Some("Lockfile is up to date, resolution step is skipped")
+        })
 }
 
 #[must_use]
 pub fn importer<'a>(lockfile: &'a Lockfile, id: &str) -> &'a ProjectSnapshot {
-    lockfile
-        .importers
+    lockfile.importers
         .get(id)
         .unwrap_or_else(|| panic!("missing importer {id:?}: {:?}", lockfile.importers.keys()))
 }
@@ -502,15 +513,18 @@ pub fn importer<'a>(lockfile: &'a Lockfile, id: &str) -> &'a ProjectSnapshot {
 pub fn importer_version(lockfile: &Lockfile, id: &str, name: &str) -> String {
     let name: PkgName = name.parse().expect("parse package name");
     let snapshot = importer(lockfile, id);
-    snapshot
-        .dependencies
+    snapshot.dependencies
         .as_ref()
         .and_then(|dependencies| dependencies.get(&name))
         .or_else(|| {
-            snapshot.dev_dependencies.as_ref().and_then(|dependencies| dependencies.get(&name))
+            snapshot.dev_dependencies
+                .as_ref()
+                .and_then(|dependencies| dependencies.get(&name))
         })
         .or_else(|| {
-            snapshot.optional_dependencies.as_ref().and_then(|dependencies| dependencies.get(&name))
+            snapshot.optional_dependencies
+                .as_ref()
+                .and_then(|dependencies| dependencies.get(&name))
         })
         .unwrap_or_else(|| panic!("missing dependency {name} in importer {id}"))
         .version
@@ -520,8 +534,7 @@ pub fn importer_version(lockfile: &Lockfile, id: &str, name: &str) -> String {
 #[must_use]
 pub fn importer_specifier(lockfile: &Lockfile, id: &str, name: &str) -> String {
     let name: PkgName = name.parse().expect("parse package name");
-    importer(lockfile, id)
-        .dependencies
+    importer(lockfile, id).dependencies
         .as_ref()
         .and_then(|dependencies| dependencies.get(&name))
         .unwrap_or_else(|| panic!("missing dependency {name} in importer {id}"))
@@ -531,29 +544,39 @@ pub fn importer_specifier(lockfile: &Lockfile, id: &str, name: &str) -> String {
 
 #[must_use]
 pub fn importer_ids(lockfile: &Lockfile) -> BTreeSet<String> {
-    lockfile.importers.keys().cloned().collect()
+    lockfile.importers
+        .keys()
+        .cloned()
+        .collect()
 }
 
 #[must_use]
 pub fn snapshot_entries(lockfile: &Lockfile, name: &str) -> Vec<(String, SnapshotEntry)> {
-    lockfile
-        .snapshots
+    lockfile.snapshots
         .as_ref()
         .into_iter()
         .flatten()
-        .filter(|(key, _)| key.to_string().starts_with(&format!("{name}@")))
+        .filter(|(key, _)| {
+            key.to_string()
+                .starts_with(&format!("{name}@"))
+        })
         .map(|(key, snapshot)| (key.to_string(), snapshot.clone()))
         .collect()
 }
 
 #[must_use]
 pub fn has_snapshot(lockfile: &Lockfile, name: &str, version: &str) -> bool {
-    lockfile.snapshots.as_ref().is_some_and(|snapshots| {
-        snapshots.keys().any(|key| {
-            let key = key.to_string();
-            key == format!("{name}@{version}") || key.starts_with(&format!("{name}@{version}("))
+    lockfile.snapshots
+        .as_ref()
+        .is_some_and(|snapshots| {
+            snapshots
+                .keys()
+                .any(|key| {
+                    let key = key.to_string();
+                    key == format!("{name}@{version}")
+                        || key.starts_with(&format!("{name}@{version}("))
+                })
         })
-    })
 }
 
 #[must_use]
@@ -572,7 +595,9 @@ pub fn canonical_path(path: &Path) -> String {
 pub fn assert_full_wanted(lockfile: &Lockfile, ids: &[&str]) {
     assert_eq!(
         importer_ids(lockfile),
-        ids.iter().map(ToString::to_string).collect(),
+        ids.iter()
+            .map(ToString::to_string)
+            .collect(),
         "wanted lockfile must retain every real importer",
     );
 }

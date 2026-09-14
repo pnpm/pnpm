@@ -96,7 +96,11 @@ fn dep_spec(workspace: &Path, name: &str) -> Option<String> {
 }
 
 fn virtual_store_has(workspace: &Path, name_at_version: &str) -> bool {
-    workspace.join("node_modules").join(".pnpm").join(name_at_version).exists()
+    workspace
+        .join("node_modules")
+        .join(".pnpm")
+        .join(name_at_version)
+        .exists()
 }
 
 /// List the `node_modules/.pnpm` entries. Logged before
@@ -108,7 +112,14 @@ fn list_virtual_store(workspace: &Path) -> Vec<String> {
         .map(|entries| {
             entries
                 .filter_map(|entry| {
-                    entry.ok().map(|entry| entry.file_name().to_string_lossy().into_owned())
+                    entry
+                        .ok()
+                        .map(|entry| {
+                            entry
+                                .file_name()
+                                .to_string_lossy()
+                                .into_owned()
+                        })
                 })
                 .collect()
         })

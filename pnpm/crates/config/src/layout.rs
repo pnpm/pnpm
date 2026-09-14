@@ -84,13 +84,15 @@ impl Config {
     /// [`lockfile_dir`]: Self::lockfile_dir
     #[must_use]
     pub fn lockfile_dir_for<'a>(&'a self, project_dir: &'a Path) -> &'a Path {
-        self.lockfile_dir.as_deref().unwrap_or_else(|| {
-            if self.shared_workspace_lockfile {
-                self.workspace_dir.as_deref().unwrap_or(project_dir)
-            } else {
-                project_dir
-            }
-        })
+        self.lockfile_dir
+            .as_deref()
+            .unwrap_or_else(|| {
+                if self.shared_workspace_lockfile {
+                    self.workspace_dir.as_deref().unwrap_or(project_dir)
+                } else {
+                    project_dir
+                }
+            })
     }
 
     /// Whether one `pnpm-lock.yaml` covers every project the command
@@ -117,7 +119,10 @@ impl Config {
     /// [`workspace_dir`]: Self::workspace_dir
     #[must_use]
     pub fn root_project_manifest_dir<'a>(&'a self, dir: &'a Path) -> &'a Path {
-        self.lockfile_dir.as_deref().or(self.workspace_dir.as_deref()).unwrap_or(dir)
+        self.lockfile_dir
+            .as_deref()
+            .or(self.workspace_dir.as_deref())
+            .unwrap_or(dir)
     }
 
     /// Pin [`lockfile_dir`] to `dir` and re-anchor the paths that follow
@@ -152,8 +157,7 @@ impl Config {
                 None => dir.join("node_modules"),
             };
         if !self.enable_global_virtual_store {
-            self.virtual_store_dir = match self
-                .explicit_settings
+            self.virtual_store_dir = match self.explicit_settings
                 .get("virtualStoreDir")
                 .and_then(serde_json::Value::as_str)
             {
@@ -174,8 +178,9 @@ impl Config {
     /// every manifest they discovered.
     pub fn anchor_dedicated_project(&mut self, project_dir: &Path, project_name: Option<&str>) {
         self.anchor_lockfile_paths(project_dir);
-        let Some(project_config) =
-            project_name.and_then(|name| self.package_configs.as_ref()?.get(name)).cloned()
+        let Some(project_config) = project_name
+            .and_then(|name| self.package_configs.as_ref()?.get(name))
+            .cloned()
         else {
             return;
         };
@@ -274,8 +279,8 @@ impl Config {
         // An explicit `mergeGitBranchLockfiles` — including an explicit
         // `false` — settles the question without consulting the pattern.
         let merge_is_explicit = self.explicit_settings.contains_key("mergeGitBranchLockfiles");
-        let pattern_decides =
-            !merge_is_explicit && !self.merge_git_branch_lockfiles_branch_pattern.is_empty();
+        let pattern_decides = !merge_is_explicit
+            && !self.merge_git_branch_lockfiles_branch_pattern.is_empty();
         if !self.use_git_branch_lockfile && !pattern_decides {
             return;
         }
@@ -379,8 +384,14 @@ impl Config {
         // The linkability probe only cares about that directory's volume;
         // fall back to the user's home when either parent is unavailable.
         let store_root_versioned = self.store_dir.root().to_path_buf();
-        let store_root = store_root_versioned.parent().unwrap_or(&home_dir).to_path_buf();
-        let pnpm_home_dir = store_root.parent().unwrap_or(&home_dir).to_path_buf();
+        let store_root = store_root_versioned
+            .parent()
+            .unwrap_or(&home_dir)
+            .to_path_buf();
+        let pnpm_home_dir = store_root
+            .parent()
+            .unwrap_or(&home_dir)
+            .to_path_buf();
         let resolved = store_path::resolve_store_dir::<Sys>(store_root, &pnpm_home_dir, start_dir);
         self.store_dir = StoreDir::from(resolved);
     }

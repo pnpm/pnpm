@@ -1,5 +1,5 @@
 use super::{
-    AddError, AddResolution, AddResolveInputs, AddView,
+    AddError, AddOptions, AddResolution, AddResolveInputs,
     aliasless::{AliaslessDependency, resolve_aliasless_specifier},
     manifest::apply_catalog_decision,
     registry::{pick_latest_range, resolve_explicit_registry_spec},
@@ -268,8 +268,9 @@ pub(super) fn explicit_workspace_target(
         return None;
     }
     let target_name = spec.alias.unwrap_or_else(|| package_name.to_string());
-    let resolved_version =
-        workspace_packages.and_then(|packages| packages.get(&target_name)).and_then(|versions| {
+    let resolved_version = workspace_packages
+        .and_then(|packages| packages.get(&target_name))
+        .and_then(|versions| {
             let available: Vec<String> = versions.keys().cloned().collect();
             // Not `spec.version`: the pinned form records the local
             // package's own version, which wins over the range the
@@ -292,8 +293,10 @@ pub(super) fn implicit_workspace_target(
     if explicit_spec.is_some_and(|specifier| specifier.starts_with("npm:")) {
         return None;
     }
-    let registries: std::collections::HashMap<String, String> =
-        config.resolved_registries().into_iter().collect();
+    let registries: std::collections::HashMap<String, String> = config
+        .resolved_registries()
+        .into_iter()
+        .collect();
     let registry = pick_registry_for_package(&registries, package_name, explicit_spec);
     let parsed = parse_bare_specifier(
         explicit_spec.unwrap_or("latest"),
@@ -387,7 +390,7 @@ pub(super) fn protocol_package_name(name: &str, selector: &str) -> Result<String
 /// argument verbatim, as it does for any other unresolvable specifier.
 pub(super) async fn resolve_jsr_save_specifier(
     spec: &JsrSpec,
-    add: AddView<'_>,
+    add: AddOptions<'_>,
     manifest: &PackageManifest,
     resolution: &AddResolution<'_>,
 ) -> Result<Option<String>, AddError> {
@@ -411,7 +414,11 @@ pub(super) async fn resolve_jsr_save_specifier(
 /// index 1, so a leading scope `@` (`@scope/pkg`) is never mistaken for a
 /// version.
 pub(super) fn split_name_spec(input: &str) -> (&str, Option<&str>) {
-    match input.get(1..).and_then(|rest| rest.find('@')).map(|offset| offset + 1) {
+    match input
+        .get(1..)
+        .and_then(|rest| rest.find('@'))
+        .map(|offset| offset + 1)
+    {
         Some(idx) => (&input[..idx], Some(&input[idx + 1..])),
         None => (input, None),
     }

@@ -1,7 +1,6 @@
 use crate::{
     State,
     cli_args::{
-        install::resolve_bool_override,
         lockfile_dir::LockfileDirArg,
         pipelines::InstallFamilySelection,
         recursive,
@@ -54,7 +53,9 @@ impl UpdateDependencyOptions {
         // CLI flags are read rather than the merged config.
         let production = self.prod.then_some(true);
         let dev = self.dev.then_some(true);
-        let optional = self.optional.then_some(true).or_else(|| self.no_optional.then_some(false));
+        let optional = self.optional
+            .then_some(true)
+            .or_else(|| self.no_optional.then_some(false));
 
         let ne_true = |flag: Option<bool>| flag != Some(true);
         let dependencies = production == Some(true) || (ne_true(dev) && ne_true(optional));
@@ -78,93 +79,84 @@ pub struct UpdateArgs {
     /// accepted. With no arguments, every direct dependency in the
     /// included groups is updated.
     pub packages: Vec<String>,
-
     /// --prod, --dev, and --no-optional.
     #[clap(flatten)]
     pub dependency_options: UpdateDependencyOptions,
-
     /// The `--cpu`, `--os`, and `--libc` flags that select which platforms'
     /// optional dependencies to install.
     #[clap(flatten)]
     pub supported_architectures: SupportedArchitecturesArgs,
+    #[clap(skip)]
+    pub(crate) prompt: UpdatePrompt,
+    #[clap(flatten)]
+    pub scripts: crate::cli_args::install_options::ScriptExecutionArgs,
+    #[clap(flatten)]
+    pub selection: UpdateSelectionArgs,
+    #[clap(flatten)]
+    pub save: UpdateSaveArgs,
+    #[clap(flatten)]
+    pub install: UpdateInstallArgs,
+}
 
+#[derive(Debug, Clone, clap::Args)]
+pub struct UpdateSelectionArgs {
     /// Ignore version ranges in package.json: bump the matched packages
     /// to their latest version and rewrite the manifest ranges.
     #[clap(short = 'L', long)]
     pub latest: bool,
-
     /// Refresh registry revisions without changing package versions.
     #[clap(long)]
     pub patches: bool,
-
-    /// Write the resolved version without a range operator when
-    /// rewriting the manifest under `--latest`.
-    #[clap(short = 'E', long = "save-exact")]
-    pub save_exact: bool,
-
-    /// Do not write the updated ranges back to package.json. The
-    /// lockfile is still updated (the `--no-save` flag).
-    #[clap(long = "no-save")]
-    pub no_save: bool,
-
     /// How deep to inspect dependencies. `0` means top-level
     /// dependencies only. Defaults to unlimited.
     #[clap(long)]
     pub depth: Option<usize>,
-
-    /// Dependencies are not downloaded; only `pnpm-lock.yaml` is updated.
-    #[clap(long = "lockfile-only")]
-    pub lockfile_only: bool,
-
-    #[clap(flatten)]
-    pub lockfile_dir: LockfileDirArg,
-
     /// Show outdated dependencies and select which ones to update.
     #[clap(short = 'i', long)]
     pub interactive: bool,
-
     /// Also update GitHub Actions dependencies in workflow and action files.
     #[clap(long = "include-github-actions")]
     pub include_github_actions: bool,
-
     /// Update globally installed packages.
     #[clap(short = 'g', long)]
     pub global: bool,
-
     /// Tries to link all packages from the workspace, updating versions
     /// to match the workspace packages.
     #[clap(long)]
     pub workspace: bool,
+}
 
+#[derive(Debug, Clone, clap::Args)]
+pub struct UpdateSaveArgs {
+    /// Write the resolved version without a range operator when
+    /// rewriting the manifest under `--latest`.
+    #[clap(short = 'E', long = "save-exact")]
+    #[clap(id = "save_exact")]
+    pub exact: bool,
+    /// Do not write the updated ranges back to package.json. The
+    /// lockfile is still updated (the `--no-save` flag).
+    #[clap(long = "no-save")]
+    pub no_save: bool,
     /// Generate a changeset file declaring a patch bump for every workspace
     /// package whose production dependencies were changed by the update.
     #[clap(long, overrides_with = "no_changeset")]
     pub changeset: bool,
-
     /// Do not generate a changeset, even when `updateConfig.changeset` enables
     /// changeset generation by default.
     #[clap(long = "no-changeset", overrides_with = "changeset")]
     pub no_changeset: bool,
+}
 
-    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
-    /// pnpmfiles of config dependencies.
-    #[clap(long = "ignore-pnpmfile")]
-    pub ignore_pnpmfile: bool,
-
-    /// Don't run lifecycle scripts of the project or its dependencies.
-    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
-    pub ignore_scripts: bool,
-
-    /// Run lifecycle scripts even when the configuration disables them.
-    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
-    pub no_ignore_scripts: bool,
-
+#[derive(Debug, Clone, clap::Args)]
+pub struct UpdateInstallArgs {
+    /// Dependencies are not downloaded; only `pnpm-lock.yaml` is updated.
+    #[clap(long = "lockfile-only")]
+    pub lockfile_only: bool,
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
     /// URL of a pnpr server to offload revision refresh resolution to.
     #[clap(long = "pnpr-server")]
     pub pnpr_server: Option<String>,
-
-    #[clap(skip)]
-    pub(crate) prompt: UpdatePrompt,
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -176,13 +168,8 @@ struct PatchesWithSelectorError;
 
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
-        config.ignore_scripts = resolve_bool_override(
-            self.ignore_scripts,
-            self.no_ignore_scripts,
-            config.ignore_scripts,
-        );
-        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
-        if let Some(pnpr_server) = self.pnpr_server.clone() {
+        self.scripts.apply(config);
+        if let Some(pnpr_server) = self.install.pnpr_server.clone() {
             config.pnpr_server = Some(pnpr_server);
         }
     }
@@ -205,7 +192,7 @@ impl UpdateArgs {
         update_actions: bool,
     ) -> InteractiveUpdateOptions<'a> {
         InteractiveUpdateOptions {
-            latest: self.latest,
+            latest: self.selection.latest,
             include_direct,
             include_github_actions: update_actions,
             prompt: self.prompt,
@@ -224,7 +211,7 @@ impl UpdateArgs {
         prompt: InteractiveUpdateOptions<'_>,
         given: Vec<String>,
     ) -> miette::Result<Option<Vec<String>>> {
-        if !self.interactive {
+        if !self.selection.interactive {
             return Ok(Some(given));
         }
         crate::cli_args::update_interactive::select_packages::<Reporter>(
@@ -249,7 +236,7 @@ impl UpdateArgs {
         prompt: InteractiveUpdateOptions<'_>,
         given: Vec<String>,
     ) -> miette::Result<Option<Vec<String>>> {
-        if !self.interactive {
+        if !self.selection.interactive {
             return Ok(Some(given));
         }
         crate::cli_args::update_interactive::select_packages_for_projects::<Reporter>(
@@ -275,11 +262,11 @@ impl UpdateArgs {
         if crate::cli_args::global::selects_pnpm_cli(&self.packages) {
             return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
         }
-        let selected_hashes: Option<HashSet<String>> = if self.interactive {
+        let selected_hashes: Option<HashSet<String>> = if self.selection.interactive {
             match crate::cli_args::update_interactive::select_global_package_groups::<Reporter>(
                 config,
                 &self.packages,
-                self.latest,
+                self.selection.latest,
                 self.prompt,
             )
             .await?
@@ -293,14 +280,14 @@ impl UpdateArgs {
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
         let range_spec_style = RangeSpecStyle::from_save_options(
-            self.save_exact || config.save_exact,
+            self.save.exact || config.save_exact,
             config.save_prefix.as_deref(),
         );
         Box::pin(crate::cli_args::global::handle_global_update::<Reporter>(
             config,
             &self.packages,
             selected_hashes.as_ref(),
-            self.latest,
+            self.selection.latest,
             range_spec_style,
             supported_architectures,
         ))
@@ -316,15 +303,18 @@ impl UpdateArgs {
         &self,
         workspace_root: Option<&'root Path>,
     ) -> miette::Result<Option<&'root Path>> {
-        if self.workspace && self.latest {
+        if self.selection.workspace && self.selection.latest {
             return Err(WorkspaceOptionError::LatestWithWorkspace.into());
         }
-        workspace_link_root(self.workspace, workspace_root)
+        workspace_link_root(self.selection.workspace, workspace_root)
     }
 
     fn check_patches_options(&self) -> miette::Result<()> {
-        if self.patches
-            && (!self.packages.is_empty() || self.latest || self.interactive || self.global)
+        if self.selection.patches
+            && (!self.packages.is_empty()
+                || self.selection.latest
+                || self.selection.interactive
+                || self.selection.global)
         {
             return Err(PatchesWithSelectorError.into());
         }
@@ -338,10 +328,12 @@ impl UpdateArgs {
     ) -> bool {
         let all_dependency_groups =
             [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
-        self.patches
-            && self.depth.is_none()
+        self.selection.patches
+            && self.selection.depth.is_none()
             && !update_actions
-            && all_dependency_groups.iter().all(|group| include_direct.contains(group))
+            && all_dependency_groups
+                .iter()
+                .all(|group| include_direct.contains(group))
     }
 
     fn pnpr_patch_link<'path>(
@@ -351,20 +343,22 @@ impl UpdateArgs {
     ) -> super::install::PnprLink<'path> {
         super::install::PnprLink {
             dependency_groups: included_direct_groups(state.config.optional).collect(),
-            supported_architectures: self
-                .supported_architectures
-                .apply_to(state.config.supported_architectures.clone()),
+            supported_architectures: self.supported_architectures.apply_to(
+                state.config.supported_architectures.clone(),
+            ),
             node_linker: state.config.node_linker,
             skip_runtimes: state.config.skip_runtimes,
-            frozen_lockfile: false,
-            prefer_frozen_lockfile: false,
-            update_patches: true,
-            fix_lockfile: false,
-            lockfile_only: self.lockfile_only,
-            ignore_manifest_check: false,
-            trust_lockfile: state.config.trust_lockfile,
             lockfile_path: Some(lockfile_path),
             use_state_lockfile: true,
+            lockfile: crate::cli_args::install::PnprLockfilePolicy {
+                frozen: false,
+                prefer_frozen: false,
+                update_patches: true,
+                fix: false,
+                only: self.install.lockfile_only,
+                ignore_manifest_check: false,
+                trust: state.config.trust_lockfile,
+            },
         }
     }
 
@@ -374,9 +368,9 @@ impl UpdateArgs {
         include_direct: &[DependencyGroup],
     ) -> bool {
         include_direct.contains(&DependencyGroup::Dev)
-            && !self.no_save
-            && !self.lockfile_only
-            && crate::github_actions::opted_in(self.include_github_actions, config)
+            && !self.save.no_save
+            && !self.install.lockfile_only
+            && crate::github_actions::opted_in(self.selection.include_github_actions, config)
     }
 }
 

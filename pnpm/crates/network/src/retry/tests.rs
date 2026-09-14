@@ -93,8 +93,18 @@ async fn authenticated_metadata_errors_remove_urls_after_retry_exhaustion() {
 #[tokio::test]
 async fn maximum_retry_budget_does_not_overflow_logging_counters() {
     let mut registry = mockito::Server::new_async().await;
-    let failure = registry.mock("GET", "/metadata").with_status(503).expect(1).create_async().await;
-    let success = registry.mock("GET", "/metadata").with_body("ok").expect(1).create_async().await;
+    let failure = registry
+        .mock("GET", "/metadata")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
+    let success = registry
+        .mock("GET", "/metadata")
+        .with_body("ok")
+        .expect(1)
+        .create_async()
+        .await;
     let url = format!("{}/metadata", registry.url());
     let client = ThrottledClient::default();
     let response = crate::send_with_retry(&client, &url, instant_retry_opts(u32::MAX), |client| {
@@ -391,7 +401,10 @@ async fn retry_async_gives_up_after_the_retry_budget() {
 async fn read_request_headers(socket: &mut TcpStream) {
     let mut request = Vec::new();
     let mut buffer = [0u8; 1024];
-    while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+    while !request
+        .windows(4)
+        .any(|window| window == b"\r\n\r\n")
+    {
         let count = socket.read(&mut buffer).await.unwrap();
         assert_ne!(count, 0, "request ended before its headers: {request:?}");
         request.extend_from_slice(&buffer[..count]);
@@ -401,7 +414,10 @@ async fn read_request_headers(socket: &mut TcpStream) {
 async fn assert_bounded_metadata(status: usize, chunked: bool) {
     eprintln!("status={status}, chunked={chunked}");
     let mut server = mockito::Server::new_async().await;
-    let request = server.mock("GET", "/metadata").with_status(status).expect(1);
+    let request = server
+        .mock("GET", "/metadata")
+        .with_status(status)
+        .expect(1);
     let request = if chunked {
         request.with_chunked_body(|writer| writer.write_all(b"0123456789abcdefEXCESS"))
     } else {

@@ -22,25 +22,25 @@ pub(super) fn insert_graph_node(
         }
         std::collections::hash_map::Entry::Occupied(mut entry) => {
             let existing = entry.get();
-            let existing_order = graph_order.get(&dep_path).copied().unwrap_or(order);
+            let existing_order = graph_order
+                .get(&dep_path)
+                .copied()
+                .unwrap_or(order);
             let replace = candidate.depth < existing.depth
                 || (candidate.depth == existing.depth && order < existing_order);
             if !replace {
                 let existing = entry.get_mut();
-                existing
-                    .transitive_peer_dependencies
-                    .extend(candidate.transitive_peer_dependencies);
-                existing.optional_children.extend(candidate.optional_children);
-                merge_preferred_child_edges(existing, candidate.children, transitive_by_dep_path);
+                merge_additional_edges(existing, candidate, transitive_by_dep_path);
                 return;
             }
-            candidate
-                .transitive_peer_dependencies
-                .extend(existing.transitive_peer_dependencies.iter().cloned());
-            candidate.optional_children.extend(existing.optional_children.iter().cloned());
+            let edges = &mut candidate.edges;
+            edges.transitive_peer_dependencies.extend(
+                existing.edges.transitive_peer_dependencies.iter().cloned(),
+            );
+            edges.optional_children.extend(existing.edges.optional_children.iter().cloned());
             merge_preferred_child_edges(
                 &mut candidate,
-                existing.children.clone(),
+                existing.edges.children.clone(),
                 transitive_by_dep_path,
             );
             graph_order.insert(dep_path, order);
@@ -72,7 +72,7 @@ pub(super) fn merge_preferred_child_edges(
     let available_peer_names =
         available_peer_names_for_dep_path(&target.dep_path, &target.resolve_result);
     for (alias, candidate_dep_path) in children {
-        match target.children.entry(alias) {
+        match target.edges.children.entry(alias) {
             std::collections::btree_map::Entry::Vacant(entry) => {
                 entry.insert(candidate_dep_path);
             }
@@ -95,8 +95,10 @@ pub(super) fn available_peer_names_for_dep_path(
     dep_path: &DepPath,
     resolve_result: &ResolveResult,
 ) -> HashSet<String> {
-    let mut names: HashSet<String> =
-        peer_segment_names(dep_path).unwrap_or_default().into_iter().collect();
+    let mut names: HashSet<String> = peer_segment_names(dep_path)
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
     names.insert(pkg_name_version(resolve_result).0);
     names
 }
@@ -140,7 +142,12 @@ pub(super) fn available_peer_segment_count(
     available_peer_names: &HashSet<String>,
 ) -> Option<usize> {
     let names = peer_segment_names(dep_path)?;
-    Some(names.into_iter().filter(|name| available_peer_names.contains(name)).count())
+    Some(
+        names
+            .into_iter()
+            .filter(|name| available_peer_names.contains(name))
+            .count(),
+    )
 }
 
 pub(super) fn unavailable_non_transitive_peer_segment_names(
@@ -155,8 +162,9 @@ pub(super) fn unavailable_non_transitive_peer_segment_names(
             .into_iter()
             .filter(|name| {
                 !available_peer_names.contains(name)
-                    && transitive_peer_dependencies
-                        .is_none_or(|transitive| !transitive.contains(name))
+                    && transitive_peer_dependencies.is_none_or(|transitive| {
+                        !transitive.contains(name)
+                    })
             })
             .collect(),
     )
@@ -214,11 +222,27 @@ impl<'a> PeerNameTarjan<'a> {
                 break;
             }
         }
-        let self_loop = component.first().is_some_and(|member| {
-            self.graph.get(*member).is_some_and(|edges| edges.contains(member))
-        });
+        let self_loop = component
+            .first()
+            .is_some_and(|member| {
+                self.graph
+                    .get(*member)
+                    .is_some_and(|edges| edges.contains(member))
+            });
         if component.len() > 1 || self_loop {
             self.cyclic.extend(component.into_iter().map(str::to_owned));
         }
     }
+}
+
+fn merge_additional_edges(
+    existing: &mut DependenciesGraphNode,
+    candidate: DependenciesGraphNode,
+    transitive_by_dep_path: &HashMap<DepPath, HashSet<String>>,
+) {
+    existing.edges.transitive_peer_dependencies.extend(
+        candidate.edges.transitive_peer_dependencies,
+    );
+    existing.edges.optional_children.extend(candidate.edges.optional_children);
+    merge_preferred_child_edges(existing, candidate.edges.children, transitive_by_dep_path);
 }

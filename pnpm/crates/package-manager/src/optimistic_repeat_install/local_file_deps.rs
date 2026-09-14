@@ -34,8 +34,7 @@ pub(crate) fn has_local_file_dep_requiring_install(
     }
 
     let current_lockfile;
-    let lockfile = if let Some(lockfile) = check
-        .lockfile
+    let lockfile = if let Some(lockfile) = check.lockfile
         .get()
         .map_err(|_| "the wanted lockfile cannot be loaded to verify local tarballs")?
     {
@@ -48,9 +47,11 @@ pub(crate) fn has_local_file_dep_requiring_install(
         lockfile
     };
 
-    Ok(tarballs.iter().any(|dependency| {
-        local_tarball_requires_install(check.workspace_root, lockfile, dependency)
-    }))
+    Ok(tarballs
+        .iter()
+        .any(|dependency| {
+            local_tarball_requires_install(check.workspace_root, lockfile, dependency)
+        }))
 }
 
 /// What the manifests' `file:` dependencies amount to.
@@ -63,9 +64,13 @@ enum LocalTarballScan {
 
 fn scan_local_tarball_deps(check: &OptimisticRepeatInstallCheck<'_>) -> LocalTarballScan {
     let fields: [(&str, DependencyGroup, bool); 3] = [
-        ("dependencies", DependencyGroup::Prod, check.included.dependencies),
-        ("devDependencies", DependencyGroup::Dev, check.included.dev_dependencies),
-        ("optionalDependencies", DependencyGroup::Optional, check.included.optional_dependencies),
+        ("dependencies", DependencyGroup::Prod, check.layout.included.dependencies),
+        ("devDependencies", DependencyGroup::Dev, check.layout.included.dev_dependencies),
+        (
+            "optionalDependencies",
+            DependencyGroup::Optional,
+            check.layout.included.optional_dependencies,
+        ),
     ];
     let mut tarballs = Vec::new();
     for (project_dir, manifest) in check.project_manifests {
@@ -97,7 +102,11 @@ fn scan_field_tarballs(
     manifest: &pnpm_package_manifest::PackageManifest,
     tarballs: &mut Vec<LocalTarballDependency>,
 ) -> bool {
-    let Some(deps) = manifest.value().get(scan.field).and_then(|value| value.as_object()) else {
+    let Some(deps) = manifest
+        .value()
+        .get(scan.field)
+        .and_then(|value| value.as_object())
+    else {
         return true;
     };
     for (alias, spec) in deps {
@@ -183,10 +192,15 @@ fn local_tarball_requires_install(
     let Some(recorded_path) = local_tarball_path(&resolution.tarball, workspace_root) else {
         return true;
     };
-    if dependency.path.as_ref().is_some_and(|path| path != &recorded_path) {
+    if dependency.path
+        .as_ref()
+        .is_some_and(|path| path != &recorded_path)
+    {
         return true;
     }
-    let Some(integrity) = resolution.integrity.as_ref().filter(|value| !value.hashes.is_empty())
+    let Some(integrity) = resolution.integrity
+        .as_ref()
+        .filter(|value| !value.hashes.is_empty())
     else {
         return true;
     };
@@ -221,7 +235,9 @@ fn recorded_tarball<'l>(
     else {
         return RecordedTarball::NotATarball;
     };
-    let Some(metadata) = lockfile.packages.as_ref().and_then(|packages| packages.get(&package_key))
+    let Some(metadata) = lockfile.packages
+        .as_ref()
+        .and_then(|packages| packages.get(&package_key))
     else {
         return RecordedTarball::Missing;
     };
@@ -304,17 +320,23 @@ pub(crate) fn has_local_file_package_extension(
     let Some(extensions) = config.package_extensions.as_ref() else {
         return false;
     };
-    extensions.values().any(|extension| {
-        let optional = included
-            .optional_dependencies
-            .then_some(extension.optional_dependencies.as_ref())
-            .flatten();
-        [extension.dependencies.as_ref(), optional].into_iter().flatten().any(|deps| {
-            deps.iter().any(|(alias, spec)| {
-                is_local_file_spec(spec) || catalog_resolves_to_local_file(catalogs, alias, spec)
-            })
+    extensions
+        .values()
+        .any(|extension| {
+            let optional = included.optional_dependencies
+                .then_some(extension.optional_dependencies.as_ref())
+                .flatten();
+            [extension.dependencies.as_ref(), optional]
+                .into_iter()
+                .flatten()
+                .any(|deps| {
+                    deps.iter()
+                        .any(|(alias, spec)| {
+                            is_local_file_spec(spec)
+                                || catalog_resolves_to_local_file(catalogs, alias, spec)
+                        })
+                })
         })
-    })
 }
 
 /// Whether the specifier resolves to a local directory or tarball whose

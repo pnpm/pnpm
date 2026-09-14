@@ -94,7 +94,10 @@ fn retarget_catalog_entry(
     alias: &str,
     entry: &pnpm_lockfile::ResolvedCatalogEntry,
 ) -> Option<CatalogEntryUpdate> {
-    let Some(specifier) = catalogs.get(catalog_name).and_then(|catalog| catalog.get(alias)) else {
+    let Some(specifier) = catalogs
+        .get(catalog_name)
+        .and_then(|catalog| catalog.get(alias))
+    else {
         if catalog_entry_is_referenced(lockfile, catalog_name, alias) {
             return None;
         }
@@ -116,30 +119,34 @@ fn retarget_catalog_entry(
 }
 
 pub(crate) fn catalog_references_have_snapshots(lockfile: &Lockfile, catalogs: &Catalogs) -> bool {
-    lockfile.importers.values().all(|importer| {
-        [
-            importer.dependencies.as_ref(),
-            importer.dev_dependencies.as_ref(),
-            importer.optional_dependencies.as_ref(),
-        ]
-        .into_iter()
-        .flatten()
-        .flat_map(|dependencies| dependencies.iter())
-        .all(|(alias, dependency)| {
-            let Some(catalog_name) = dependency.specifier.strip_prefix("catalog:") else {
-                return true;
-            };
-            let catalog_name = if catalog_name.is_empty() { "default" } else { catalog_name };
-            let alias = alias.to_string();
-            catalogs.get(catalog_name).and_then(|catalog| catalog.get(&alias)).is_some()
-                && lockfile
-                    .catalogs
-                    .as_ref()
-                    .and_then(|catalogs| catalogs.get(catalog_name))
+    lockfile.importers
+        .values()
+        .all(|importer| {
+            [
+                importer.dependencies.as_ref(),
+                importer.dev_dependencies.as_ref(),
+                importer.optional_dependencies.as_ref(),
+            ]
+            .into_iter()
+            .flatten()
+            .flat_map(|dependencies| dependencies.iter())
+            .all(|(alias, dependency)| {
+                let Some(catalog_name) = dependency.specifier.strip_prefix("catalog:") else {
+                    return true;
+                };
+                let catalog_name = if catalog_name.is_empty() { "default" } else { catalog_name };
+                let alias = alias.to_string();
+                catalogs
+                    .get(catalog_name)
                     .and_then(|catalog| catalog.get(&alias))
                     .is_some()
+                    && lockfile.catalogs
+                        .as_ref()
+                        .and_then(|catalogs| catalogs.get(catalog_name))
+                        .and_then(|catalog| catalog.get(&alias))
+                        .is_some()
+            })
         })
-    })
 }
 
 pub(crate) fn catalog_entry_is_referenced(
@@ -150,21 +157,25 @@ pub(crate) fn catalog_entry_is_referenced(
     let Ok(alias) = PkgName::parse(alias) else { return true };
     // Parsed rather than compared to a rebuilt protocol string, so the
     // `catalog:default` spelling of the default catalog counts too.
-    lockfile.importers.values().any(|importer| {
-        [
-            importer.dependencies.as_ref(),
-            importer.dev_dependencies.as_ref(),
-            importer.optional_dependencies.as_ref(),
-        ]
-        .into_iter()
-        .flatten()
-        .any(|dependencies| {
-            dependencies.get(&alias).is_some_and(|dependency| {
-                pnpm_catalogs_protocol_parser::parse_catalog_protocol(&dependency.specifier)
-                    == Some(catalog_name)
+    lockfile.importers
+        .values()
+        .any(|importer| {
+            [
+                importer.dependencies.as_ref(),
+                importer.dev_dependencies.as_ref(),
+                importer.optional_dependencies.as_ref(),
+            ]
+            .into_iter()
+            .flatten()
+            .any(|dependencies| {
+                dependencies
+                    .get(&alias)
+                    .is_some_and(|dependency| {
+                        pnpm_catalogs_protocol_parser::parse_catalog_protocol(&dependency.specifier)
+                            == Some(catalog_name)
+                    })
             })
         })
-    })
 }
 
 #[cfg(test)]

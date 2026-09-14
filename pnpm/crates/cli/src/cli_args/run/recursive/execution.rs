@@ -48,11 +48,11 @@ pub(super) struct TaskRunner<'a, 'run, 'project> {
     pub(super) run: &'a RecursiveRun<'run, 'project>,
     pub(super) outcome: RunOutcome<'a>,
     pub(super) extra_env: &'a HashMap<String, String>,
-    pub(super) init_cwd: &'a Path,
     pub(super) bail: bool,
     /// pnpm pipes unless the output cannot interleave: `--stream` off, and
     /// the graph cannot put two scripts in flight at once.
     pub(super) inherit_output: bool,
+    pub(super) init_cwd: &'a Path,
 }
 
 impl TaskRunner<'_, '_, '_> {
@@ -69,12 +69,16 @@ impl TaskRunner<'_, '_, '_> {
             init_cwd: self.init_cwd,
             config: self.run.config,
             extra_env: self.extra_env,
-            bail: self.bail,
-            silent: self.run.silent,
-            inherit_output: self.inherit_output,
-            emit: self.run.emit,
-            process_tracker: self.outcome.process_tracker,
-            on_started: &on_started,
+            output: RunProjectOutput {
+                silent: self.run.script.silent,
+                inherit_output: self.inherit_output,
+                emit: self.run.script.emit,
+            },
+            process: RunProjectProcess {
+                bail: self.bail,
+                process_tracker: self.outcome.process_tracker,
+                on_started: &on_started,
+            },
         });
         self.outcome.record(node, &summary_key, execution)
     }
@@ -161,10 +165,20 @@ struct RunProjectOptions<'a, 'project> {
     init_cwd: &'a Path,
     config: &'a Config,
     extra_env: &'a HashMap<String, String>,
-    bail: bool,
+    output: RunProjectOutput,
+    process: RunProjectProcess<'a>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct RunProjectOutput {
     silent: bool,
     inherit_output: bool,
     emit: fn(&LogEvent),
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct RunProjectProcess<'a> {
+    bail: bool,
     process_tracker: Option<&'a ProcessTracker>,
     on_started: &'a dyn Fn(),
 }
@@ -196,7 +210,7 @@ fn run_project(options: &RunProjectOptions<'_, '_>) -> miette::Result<ProjectExe
             continue;
         }
 
-        (options.on_started)();
+        (options.process.on_started)();
         if !project_failed {
             execution.status.status = Status::Running;
         }
@@ -212,7 +226,7 @@ fn run_project(options: &RunProjectOptions<'_, '_>) -> miette::Result<ProjectExe
         )?;
         // A cancelled run ends the project outright; `--bail` stops it
         // at the first script that failed.
-        if !ran || (project_failed && options.bail) {
+        if !ran || (project_failed && options.process.bail) {
             break;
         }
     }
@@ -284,8 +298,10 @@ fn project_extra_env(
     let mut extra_env = extra_env.clone();
     if let Some(pnp_path) = pnp_path_for_execution(config, root) {
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-        extra_env
-            .insert("NODE_OPTIONS".to_string(), make_node_require_option(&pnp_path, node_options));
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            make_node_require_option(&pnp_path, node_options),
+        );
     }
     if let Some(package_map_path) = package_map_path_for_execution(config, root) {
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
@@ -348,9 +364,9 @@ impl RunProjectOptions<'_, '_> {
             init_cwd: self.init_cwd,
             config: self.config,
             extra_env,
-            silent: self.silent,
-            output: script_output(self.inherit_output, root_str, self.emit),
-            process_tracker: self.process_tracker,
+            silent: self.output.silent,
+            output: script_output(self.output.inherit_output, root_str, self.output.emit),
+            process_tracker: self.process.process_tracker,
         }
     }
 }

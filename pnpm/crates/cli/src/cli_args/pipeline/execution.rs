@@ -14,8 +14,18 @@ pub(super) struct RunTaskOptions<'a, 'graph> {
     pub(super) invocation: &'a PipelineInvocation,
     pub(super) cache: &'a TaskCache,
     pub(super) task_key: Option<&'a str>,
+    pub(super) environment: TaskEnvironment<'a>,
+    pub(super) reporting: TaskReporting<'a>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct TaskEnvironment<'a> {
     pub(super) init_cwd: &'a Path,
-    pub(super) base_extra_env: &'a HashMap<String, String>,
+    pub(super) extra_env: &'a HashMap<String, String>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct TaskReporting<'a> {
     pub(super) emit: fn(&LogEvent),
     pub(super) silent: bool,
     pub(super) report: &'a RunReport,
@@ -27,11 +37,11 @@ pub(super) fn run_pipeline_task(
     options: &RunTaskOptions<'_, '_>,
 ) -> miette::Result<ExecutionStatus> {
     let root = options.node.project.as_path();
-    let summary_key = options.summary_key;
+    let summary_key = options.reporting.summary_key;
     let settings = options.config.tasks.get(&options.node.task_name);
     let cache_key = options.task_key.filter(|_| task_cacheable(options.invocation, settings));
     let start = Instant::now();
-    options.report.task_started(summary_key, options.task_key);
+    options.reporting.report.task_started(summary_key, options.task_key);
 
     if let Some(cache_key) = cache_key
         && let Some(restored) = try_restore(options, cache_key, start)?
@@ -47,7 +57,7 @@ pub(super) fn run_pipeline_task(
     {
         let outputs = settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default();
         if let Err(error) = options.cache.store(cache_key, root, summary_key, outputs, captured) {
-            (options.emit)(&LogEvent::Pnpm(PnpmLog {
+            (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Warn,
                 message: format!("{summary_key}: failed to store the task in the cache: {error}"),
                 prefix: root.to_string_lossy().into_owned(),
@@ -56,7 +66,7 @@ pub(super) fn run_pipeline_task(
     }
     let disposition =
         if cache_key.is_some() { CacheDisposition::Miss } else { CacheDisposition::Bypass };
-    options.report.task_finished(summary_key, execution.status, disposition, duration);
+    options.reporting.report.task_finished(summary_key, execution.status, disposition, duration);
     Ok(ExecutionStatus {
         status: execution.status,
         duration: Some(duration),
@@ -73,22 +83,22 @@ fn try_restore(
     start: Instant,
 ) -> miette::Result<Option<ExecutionStatus>> {
     let root = options.node.project.as_path();
-    let summary_key = options.summary_key;
+    let summary_key = options.reporting.summary_key;
     let Some(stored) = options.cache.lookup(cache_key) else {
         return Ok(None);
     };
     match options.cache.restore(&stored, root, summary_key) {
         Ok(()) => {
-            capture::replay(&stored.scripts, root, options.emit);
+            capture::replay(&stored.scripts, root, options.reporting.emit);
             sync_injected_deps_if_configured(options.config, options.node, options.graph)?;
             let duration = start.elapsed().as_secs_f64() * 1e3;
-            options.report.task_finished(
+            options.reporting.report.task_finished(
                 summary_key,
                 Status::Passed,
                 CacheDisposition::Hit,
                 duration,
             );
-            (options.emit)(&LogEvent::Pnpm(PnpmLog {
+            (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Info,
                 message: format!("{summary_key}: restored from cache"),
                 prefix: root.to_string_lossy().into_owned(),
@@ -104,7 +114,7 @@ fn try_restore(
             // A file the restore cannot account for is the user's;
             // overwriting it silently is how caches lose trust. The
             // task runs normally instead.
-            (options.emit)(&LogEvent::Pnpm(PnpmLog {
+            (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Warn,
                 message: format!("{summary_key}: not restoring from cache: {reason}"),
                 prefix: root.to_string_lossy().into_owned(),
@@ -124,22 +134,27 @@ fn execute_task_with_cargo_cache(
     };
     let cargo = cargo_cache::CargoCache::open(root, directory).into_diagnostic()?;
     let environment = cargo_cache::cache_environment(
-        options.base_extra_env,
+        options.environment.extra_env,
         settings.and_then(|settings| settings.env.as_deref()).unwrap_or_default(),
     );
     let cargo_cacheable = !options.invocation.no_cache
         && settings.is_some_and(|settings| settings.cache != Some(false));
-    let snapshot = cargo_cacheable.then_some(options.task_key).flatten().and_then(|task_key| {
-        cargo_cache::snapshot_entry(&options.config.cache_dir, root, task_key, &environment)
-            .inspect_err(|error| cargo_cache_warning(options, &error.to_string()))
-            .ok()
-    });
+    let snapshot = cargo_cacheable
+        .then_some(options.task_key)
+        .flatten()
+        .and_then(|task_key| {
+            cargo_cache::snapshot_entry(&options.config.cache_dir, root, task_key, &environment)
+                .inspect_err(|error| cargo_cache_warning(options, &error.to_string()))
+                .ok()
+        });
     if let Some(snapshot) = &snapshot {
         restore_cargo_snapshot(options, &cargo, snapshot)?;
     }
-    let extra_env = cargo_build_env(options.base_extra_env, &cargo);
-    let execution =
-        execute_task_scripts(&RunTaskOptions { base_extra_env: &extra_env, ..*options })?;
+    let extra_env = cargo_build_env(options.environment.extra_env, &cargo);
+    let execution = execute_task_scripts(&RunTaskOptions {
+        environment: TaskEnvironment { extra_env: &extra_env, ..options.environment },
+        ..*options
+    })?;
     if execution.status == Status::Passed
         && let Some(task_key) = options.task_key
         && let Some(snapshot) = &snapshot
@@ -157,9 +172,9 @@ fn restore_cargo_snapshot(
     (entry, key, _): &(PathBuf, String, Vec<String>),
 ) -> miette::Result<()> {
     match cargo.restore(entry, key) {
-        Ok(true) => (options.emit)(&LogEvent::Pnpm(PnpmLog {
+        Ok(true) => (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Info,
-            message: format!("{}: restored Cargo build state", options.summary_key),
+            message: format!("{}: restored Cargo build state", options.reporting.summary_key),
             prefix: options.node.project.to_string_lossy().into_owned(),
         })),
         // A snapshot that is not there yet is the ordinary first run.
@@ -207,9 +222,9 @@ fn publish_cargo_snapshot(
 }
 
 fn cargo_cache_warning(options: &RunTaskOptions<'_, '_>, reason: &str) {
-    (options.emit)(&LogEvent::Pnpm(PnpmLog {
+    (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,
-        message: format!("{}: Cargo build cache: {reason}", options.summary_key),
+        message: format!("{}: Cargo build cache: {reason}", options.reporting.summary_key),
         prefix: options.node.project.to_string_lossy().into_owned(),
     }));
 }
@@ -226,7 +241,7 @@ fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<Task
     let root = options.node.project.as_path();
     let manifest = &options.graph[root].package.project.manifest;
 
-    let extra_env = task_environment(options.config, root, options.base_extra_env);
+    let extra_env = task_environment(options.config, root, options.environment.extra_env);
     let capture_output = options.task_key.is_some()
         && task_cacheable(options.invocation, options.config.tasks.get(&options.node.task_name));
     let root_str = root.to_string_lossy().into_owned();
@@ -319,7 +334,10 @@ fn sync_injected_deps_if_configured(
     node: &TaskNode,
     graph: &ProjectGraph<GraphPkg<'_>>,
 ) -> miette::Result<()> {
-    if !config.sync_injected_deps_after_scripts.iter().any(|script| node.scripts.contains(script)) {
+    if !config.sync_injected_deps_after_scripts
+        .iter()
+        .any(|script| node.scripts.contains(script))
+    {
         return Ok(());
     }
     let manifest = graph[node.project.as_path()].package.project.manifest.value();
@@ -352,8 +370,10 @@ pub(super) fn task_environment(
     let mut extra_env = base_extra_env.clone();
     if let Some(pnp_path) = pnp_path_for_execution(config, root) {
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-        extra_env
-            .insert("NODE_OPTIONS".to_string(), make_node_require_option(&pnp_path, node_options));
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            make_node_require_option(&pnp_path, node_options),
+        );
     }
     if let Some(package_map_path) = package_map_path_for_execution(config, root) {
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
@@ -376,13 +396,13 @@ fn pipeline_script_context<'a>(
     RunContext {
         manifest: &options.graph[root].package.project.manifest,
         dir: root,
-        init_cwd: options.init_cwd,
+        init_cwd: options.environment.init_cwd,
         config: options.config,
         extra_env,
-        silent: options.silent,
+        silent: options.reporting.silent,
         output: ScriptOutput::Streamed {
             dep_path: root_str,
-            emit: if capture_output { capture::capturing_emit } else { options.emit },
+            emit: if capture_output { capture::capturing_emit } else { options.reporting.emit },
         },
         // The pipeline never bails, so there is no cancellation to
         // propagate into running children.

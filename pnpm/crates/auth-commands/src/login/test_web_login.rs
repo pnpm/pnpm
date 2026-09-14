@@ -157,7 +157,9 @@ async fn should_succeed_when_config_file_does_not_exist() {
         Some("new-token".to_owned()),
     );
     assert!(
-        infos().iter().any(|message| message.contains("https://example.org/auth/login")),
+        infos()
+            .iter()
+            .any(|message| message.contains("https://example.org/auth/login")),
         "got {:?}",
         infos(),
     );

@@ -24,24 +24,33 @@ async fn network_fetch_records_progress_key() {
     let progress_reported = SharedReportedProgressKeys::default();
 
     IngestTarballToStore {
-        http_client: &ThrottledClient::default(),
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: Some(16697),
-        package_file_count: None,
-        package_url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
-        package_id: pkg_id,
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &ThrottledClient::default(),
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: Some(16697),
+            file_count: None,
+            url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",
+            id: pkg_id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         requester: "",
-        prefetched_cas_paths: None,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -71,7 +80,10 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
     struct RecordingReporter;
     impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -86,26 +98,35 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
 
     EVENTS.lock().unwrap().clear();
     let cas_paths = IngestTarballToStore {
-        http_client: &fast_fail_client(),
-        store_dir: store_path,
-        store_index: StoreIndex::shared_readonly_in(store_path),
-        store_index_writer: None,
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &fast_fail_client(),
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: "http://127.0.0.1:1/unreachable.tgz",
+            id: pkg_id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: StoreIndex::shared_readonly_in(store_path),
+            index_writer: None,
+            verify_integrity: false,
+            strict_pkg_content_check: false,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         // The row's blob was never written to disk, so the reuse this
         // asserts is only reachable with verification off.
-        verify_store_integrity: false,
-        strict_store_pkg_content_check: false,
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: "http://127.0.0.1:1/unreachable.tgz",
-        package_id: pkg_id,
         requester: "",
-        prefetched_cas_paths: None,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -125,8 +146,9 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
         .collect();
     assert_eq!(warnings.len(), 1, "{warnings:?}");
     assert!(
-        warnings[0]
-            .starts_with("Package name or version mismatch found while reading from the store."),
+        warnings[0].starts_with(
+            "Package name or version mismatch found while reading from the store."
+        ),
         "{warnings:?}",
     );
 
@@ -156,7 +178,10 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     struct RecordingReporter;
     impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -180,24 +205,33 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
 
     // First requester: silent legacy owner.
     IngestTarballToStore {
-        http_client: &client,
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &url,
-        package_id: "first@1.0.0",
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &client,
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: &url,
+            id: "first@1.0.0",
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+            prefetched_cas_paths: None,
+        },
+
         requester: "/proj",
-        prefetched_cas_paths: None,
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -211,24 +245,33 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     // already reported.
     EVENTS.lock().unwrap().clear();
     IngestTarballToStore {
-        http_client: &client,
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &url,
-        package_id: "second@2.0.0",
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &client,
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: &url,
+            id: "second@2.0.0",
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+            prefetched_cas_paths: None,
+        },
+
         requester: "/proj",
-        prefetched_cas_paths: None,
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -260,10 +303,12 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         unreachable!("captured event filtered above");
     }
     assert!(
-        !captured.iter().any(|e| matches!(
-            e,
-            LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
-        )),
+        !captured
+            .iter()
+            .any(|e| matches!(
+                e,
+                LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
+            )),
         "fetched must NOT fire on a mem-cache hit; got {captured:?}",
     );
 
@@ -285,7 +330,10 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     struct RecordingReporter;
     impl pnpm_reporter::Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -309,24 +357,33 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
 
     EVENTS.lock().unwrap().clear();
     IngestTarballToStore {
-        http_client: &client,
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &url,
-        package_id: pkg_id,
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &client,
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: &url,
+            id: pkg_id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+            prefetched_cas_paths: None,
+        },
+
         requester: "/proj",
-        prefetched_cas_paths: None,
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -340,33 +397,44 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     // explicit `drop`), even though the data is only read here.
     let first = EVENTS.lock().unwrap().clone();
     assert!(
-        first.iter().any(|e| matches!(
-            e,
-            LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
-        )),
+        first
+            .iter()
+            .any(|e| matches!(
+                e,
+                LogEvent::Progress(log) if matches!(&log.message, ProgressMessage::Fetched { .. })
+            )),
         "first call must report fetched; got {first:?}",
     );
 
     EVENTS.lock().unwrap().clear();
     IngestTarballToStore {
-        http_client: &client,
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &url,
-        package_id: pkg_id,
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &client,
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: &url,
+            id: pkg_id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+            prefetched_cas_paths: None,
+        },
+
         requester: "/proj",
-        prefetched_cas_paths: None,
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -376,14 +444,16 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
 
     let second = EVENTS.lock().unwrap().clone();
     assert!(
-        !second.iter().any(|e| matches!(
-            e,
-            LogEvent::Progress(log)
-                if matches!(
-                    &log.message,
-                    ProgressMessage::Fetched { .. } | ProgressMessage::FoundInStore { .. }
-                )
-        )),
+        !second
+            .iter()
+            .any(|e| matches!(
+                e,
+                LogEvent::Progress(log)
+                    if matches!(
+                        &log.message,
+                        ProgressMessage::Fetched { .. } | ProgressMessage::FoundInStore { .. }
+                    )
+            )),
         "second call must not duplicate package status; got {second:?}",
     );
 

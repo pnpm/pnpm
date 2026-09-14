@@ -30,7 +30,10 @@ pub(crate) fn lockfile_from_solution(
             continue;
         };
         let registry_version = indexed_version(registry.package(name)?, name, version)?;
-        let selection = feature_selections.get(*key).cloned().unwrap_or_default();
+        let selection = feature_selections
+            .get(*key)
+            .cloned()
+            .unwrap_or_default();
         let dependencies = locked_registry_dependencies(
             registry_version,
             &selection,
@@ -69,8 +72,9 @@ fn workspace_packages(
     source: &cargo_lock::SourceId,
 ) -> Result<Vec<Package>> {
     let mut packages = Vec::new();
-    for package in
-        metadata.packages.iter().filter(|package| metadata.workspace_members.contains(&package.id))
+    for package in metadata.packages
+        .iter()
+        .filter(|package| metadata.workspace_members.contains(&package.id))
     {
         let dependencies = active_metadata_dependencies(package)?
             .iter()
@@ -149,8 +153,7 @@ fn locked_workspace_dependency(
     requirement: &VersionReq,
     metadata: &CargoMetadata,
 ) -> Result<Dependency> {
-    let package = metadata
-        .packages
+    let package = metadata.packages
         .iter()
         .filter(|package| metadata.workspace_members.contains(&package.id))
         .find(|package| package.name == name && requirement.matches(&package.version))

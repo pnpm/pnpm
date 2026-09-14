@@ -48,15 +48,18 @@ pub async fn resolve_optional_subdeps(
             resolve_subdep(resolver, opts, parent_name, subdep_name, subdep_spec).await?;
         record_optional_subdep(env_lockfile, opts, subdep_name, &subdep_version, &result)?;
 
-        let ver_peer =
-            subdep_version.parse::<PkgVerPeer>().map_err(|_| ConfigDepError::BadConfigDep {
+        let ver_peer = subdep_version
+            .parse::<PkgVerPeer>()
+            .map_err(|_| ConfigDepError::BadConfigDep {
                 message: format!(
                     "Resolved optionalDependency version {subdep_version} is not a valid version",
                 ),
             })?;
-        let pkg_name: PkgName = subdep_name.parse().map_err(|_| ConfigDepError::BadConfigDep {
-            message: format!("Resolved optionalDependency name {subdep_name} is invalid"),
-        })?;
+        let pkg_name: PkgName = subdep_name
+            .parse()
+            .map_err(|_| ConfigDepError::BadConfigDep {
+                message: format!("Resolved optionalDependency name {subdep_name} is invalid"),
+            })?;
         resolved.insert(pkg_name, SnapshotDepRef::Plain(ver_peer));
     }
 
@@ -71,21 +74,20 @@ fn record_optional_subdep(
     result: &ResolveResult,
 ) -> Result<(), ConfigDepError> {
     let registry = opts.pick_registry(subdep_name);
-    let pkg_key: PackageKey = format!("{subdep_name}@{subdep_version}").parse().map_err(|_| {
-        ConfigDepError::BadConfigDep {
+    let pkg_key: PackageKey = format!("{subdep_name}@{subdep_version}")
+        .parse()
+        .map_err(|_| ConfigDepError::BadConfigDep {
             message: format!(
                 "Resolved optionalDependency {subdep_name}@{subdep_version} has an unparsable key",
             ),
-        }
-    })?;
+        })?;
 
     env_lockfile.packages.insert(
         pkg_key.clone(),
         package_metadata(subdep_name, subdep_version, result, registry, false)
             .map_err(ConfigDepError::LockfileForm)?,
     );
-    env_lockfile
-        .snapshots
+    env_lockfile.snapshots
         .entry(pkg_key)
         .or_insert_with(|| SnapshotEntry { optional: true, ..SnapshotEntry::default() });
     Ok(())
@@ -119,7 +121,11 @@ async fn resolve_subdep(
             error,
         })?
         .ok_or_else(no_integrity)?;
-    let version = result.name_ver.as_ref().ok_or_else(no_integrity)?.suffix.to_string();
+    let version = result.package.name_ver
+        .as_ref()
+        .ok_or_else(no_integrity)?
+        .suffix
+        .to_string();
     if !resolution_has_integrity(&result.resolution) {
         return Err(no_integrity());
     }

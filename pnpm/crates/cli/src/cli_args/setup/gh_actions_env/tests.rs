@@ -39,8 +39,18 @@ fn env_files_named_by_the_environment_are_both_written() {
         fn var_os(name: &str) -> Option<OsString> {
             match name {
                 "GITHUB_ACTIONS" => Some(OsString::from("true")),
-                "GITHUB_ENV" => Some(GITHUB_ENV.get()?.clone().into_os_string()),
-                "GITHUB_PATH" => Some(GITHUB_PATH.get()?.clone().into_os_string()),
+                "GITHUB_ENV" => Some(
+                    GITHUB_ENV
+                        .get()?
+                        .clone()
+                        .into_os_string(),
+                ),
+                "GITHUB_PATH" => Some(
+                    GITHUB_PATH
+                        .get()?
+                        .clone()
+                        .into_os_string(),
+                ),
                 _ => None,
             }
         }
@@ -175,7 +185,10 @@ fn a_failing_target_does_not_skip_the_others() {
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
             if let LogEvent::Pnpm(PnpmLog { level: LogLevel::Warn, message, .. }) = event {
-                WARNINGS.lock().expect("lock warnings").push(message.clone());
+                WARNINGS
+                    .lock()
+                    .expect("lock warnings")
+                    .push(message.clone());
             }
         }
     }
@@ -267,7 +280,9 @@ fn values_with_line_breaks_are_rejected_inside_github_actions() {
         Some("PNPM_HOME cannot contain newline or NUL characters"),
     );
     assert_eq!(
-        err.code().expect("diagnostic code").to_string(),
+        err.code()
+            .expect("diagnostic code")
+            .to_string(),
         "ERR_PNPM_BAD_GITHUB_ACTIONS_ENVIRONMENT_VALUE",
     );
 }

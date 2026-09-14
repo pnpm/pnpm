@@ -14,7 +14,10 @@ fn project_with_deps(names: &[&str]) -> ProjectSnapshot {
             name.parse::<PkgName>().expect("valid pkg name"),
             ResolvedDependencySpec {
                 specifier: "1.0.0".to_string(),
-                version: "1.0.0".parse::<PkgVerPeer>().expect("parse version").into(),
+                version: "1.0.0"
+                    .parse::<PkgVerPeer>()
+                    .expect("parse version")
+                    .into(),
             },
         );
     }
@@ -35,7 +38,13 @@ fn none_mode_yields_no_borders() {
 #[test]
 fn root_direct_deps_are_bordered_under_dependencies_mode() {
     let limits = get_hoisting_limits(&root_only(), HoistingLimits::Dependencies);
-    assert_eq!(limits.keys().cloned().collect::<Vec<_>>(), vec![".@".to_string()]);
+    assert_eq!(
+        limits
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![".@".to_string()],
+    );
     assert_eq!(limits[".@"], BTreeSet::from(["a".to_string(), "b".to_string()]));
 }
 
@@ -46,7 +55,13 @@ fn workspaces_mode_borders_packages_at_root() {
     importers.insert("packages/foo".to_string(), project_with_deps(&["b"]));
 
     let limits = get_hoisting_limits(&importers, HoistingLimits::Workspaces);
-    assert_eq!(limits.keys().cloned().collect::<Vec<_>>(), vec![".@".to_string()]);
+    assert_eq!(
+        limits
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![".@".to_string()],
+    );
     assert_eq!(limits[".@"], BTreeSet::from(["a".to_string(), "packages%2Ffoo".to_string()]));
 }
 
@@ -57,7 +72,10 @@ fn dependencies_mode_borders_each_importer() {
     importers.insert("packages/foo".to_string(), project_with_deps(&["b"]));
 
     let limits = get_hoisting_limits(&importers, HoistingLimits::Dependencies);
-    let mut keys = limits.keys().cloned().collect::<Vec<_>>();
+    let mut keys = limits
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
     keys.sort();
     assert_eq!(keys, vec![".@".to_string(), "packages%2Ffoo@workspace:packages/foo".to_string()]);
     assert_eq!(limits[".@"], BTreeSet::from(["a".to_string(), "packages%2Ffoo".to_string()]));

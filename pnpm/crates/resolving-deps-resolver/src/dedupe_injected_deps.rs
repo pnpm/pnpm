@@ -48,7 +48,10 @@ pub fn dedupe_injected_deps(
     importer_root_dirs: &BTreeMap<String, PathBuf>,
     lockfile_dir: &Path,
 ) {
-    let workspace_project_ids: HashSet<String> = importer_root_dirs.keys().cloned().collect();
+    let workspace_project_ids: HashSet<String> = importer_root_dirs
+        .keys()
+        .cloned()
+        .collect();
     let dedupe_map = build_dedupe_map(graph, direct_by_importer, &workspace_project_ids);
     if dedupe_map.is_empty() {
         return;
@@ -77,9 +80,11 @@ fn build_dedupe_map(
                 continue;
             };
             let target_direct = direct_by_importer.get(&target_project_id);
-            let children_match = node.children.iter().all(|(child_alias, child_dep_path)| {
-                child_matches_target(graph, target_direct, child_alias, child_dep_path)
-            });
+            let children_match = node.edges.children
+                .iter()
+                .all(|(child_alias, child_dep_path)| {
+                    child_matches_target(graph, target_direct, child_alias, child_dep_path)
+                });
             if !children_match {
                 continue;
             }
@@ -139,8 +144,9 @@ fn injected_workspace_target(
     workspace_project_ids: &HashSet<String>,
 ) -> Option<String> {
     let raw = node.resolved_package_id.as_str();
-    let path =
-        raw.strip_prefix("file:").or_else(|| raw.split_once("@file:").map(|(_, path)| path))?;
+    let path = raw
+        .strip_prefix("file:")
+        .or_else(|| raw.split_once("@file:").map(|(_, path)| path))?;
     workspace_project_ids.contains(path).then(|| path.to_string())
 }
 
@@ -199,14 +205,16 @@ pub(crate) fn prune_unreachable(
     direct_by_importer: &DirectByImporter,
 ) {
     let mut reachable: HashSet<DepPath> = HashSet::default();
-    let mut stack: Vec<DepPath> =
-        direct_by_importer.values().flat_map(|direct| direct.values().cloned()).collect();
+    let mut stack: Vec<DepPath> = direct_by_importer
+        .values()
+        .flat_map(|direct| direct.values().cloned())
+        .collect();
     while let Some(dep_path) = stack.pop() {
         if !reachable.insert(dep_path.clone()) {
             continue;
         }
         let Some(node) = graph.get(&dep_path) else { continue };
-        for child in node.children.values() {
+        for child in node.edges.children.values() {
             if !reachable.contains(child) {
                 stack.push(child.clone());
             }

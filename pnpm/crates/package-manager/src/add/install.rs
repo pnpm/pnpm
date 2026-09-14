@@ -1,5 +1,5 @@
 use super::{
-    AddOwned, AddView,
+    AddOptions, AddOwned,
     manifest::{catalog_version_requests, merge_catalogs},
 };
 use crate::{
@@ -24,7 +24,10 @@ pub(super) fn project_seed_policy(
     if dropped_pins.is_empty() {
         return BTreeMap::new();
     }
-    let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
+    let manifest_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir");
     BTreeMap::from([(
         pnpm_workspace::importer_id_from_root_dir(
             config.lockfile_dir_for(manifest_dir),
@@ -48,7 +51,7 @@ pub(super) fn merged_catalogs_override(
 /// Scoped per importer: a project that wasn't selected keeps its pins, so its
 /// resolutions stand even when it declares the same package directly.
 pub(super) fn selected_add_seed(
-    add: AddView<'_>,
+    add: AddOptions<'_>,
     owned: &AddOwned,
     manifest: &PackageManifest,
     selected: (&[pnpm_workspace::Project], &[usize]),
@@ -56,7 +59,10 @@ pub(super) fn selected_add_seed(
     catalogs: &Catalogs,
 ) -> AddSeed {
     let (projects, selected_indices) = selected;
-    let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
+    let manifest_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir");
     let importer_root = add.config.lockfile_dir_for(manifest_dir);
     let mut seed_policies = BTreeMap::new();
     let mut preferred_versions_override = PreferredVersions::new();
@@ -77,7 +83,10 @@ pub(super) fn selected_add_seed(
             ImporterUpdateSeedPolicy::DropOnly(unversioned_targets(names)),
         );
         for (name, selectors) in preferred {
-            preferred_versions_override.entry(name).or_default().extend(selectors);
+            preferred_versions_override
+                .entry(name)
+                .or_default()
+                .extend(selectors);
         }
     }
     AddSeed { seed_policies, preferred_versions_override, catalogs_override }
@@ -104,47 +113,40 @@ pub(super) struct AddSeed {
 /// behind it does, so the freshness gate would hold and the install would never
 /// reach the resolver.
 pub(super) fn add_install<'i>(
-    add: AddView<'i>,
+    add: AddOptions<'i>,
     owned: AddOwned,
     manifest: &'i PackageManifest,
     seed: AddSeed,
 ) -> Install<'i, impl Iterator<Item = DependencyGroup>> {
     let named_a_version = !seed.seed_policies.is_empty();
-    Install {
-        emit_initial_manifest: false,
-        lockfile_path: add.lockfile_path,
-        prefer_frozen_lockfile: named_a_version.then_some(false),
-        mutation: ProjectMutation::InstallSome,
-        installs_only: false,
-        supported_architectures: owned.supported_architectures,
-        lockfile_only: add.lockfile_only,
-        policy_excludes: PolicyExcludes::Persist,
-        // `add` keeps every lockfile pin; the freshly-added range
-        // is the only thing that re-resolves. `update`'s bump is a
-        // separate operation.
-        update_seed_policy: if named_a_version {
-            UpdateSeedPolicy::ByImporter {
-                policies: seed.seed_policies,
-                // A catalog entry governs direct dependencies, so the pin is
-                // withheld there and transitive occurrences of the same package
-                // keep theirs.
-                max_depth: UpdateDepth::new(0),
-            }
-        } else {
-            UpdateSeedPolicy::KeepAll
-        },
-        preferred_versions_override: Some(seed.preferred_versions_override),
-        catalogs_override: seed.catalogs_override,
-        ..Install::new(
-            owned.tarball_mem_cache,
-            add.resolved_packages,
-            (add.http_client, owned.http_client_arc),
-            add.config,
-            manifest,
-            MaybeLazyLockfile::Loaded(add.lockfile),
-            included_direct_groups(add.config.optional),
-        )
-    }
+    let mut install = Install::new(
+        owned.tarball_mem_cache,
+        add.resolved_packages,
+        (add.http_client, owned.http_client_arc),
+        add.config,
+        manifest,
+        MaybeLazyLockfile::Loaded(add.lockfile),
+        included_direct_groups(add.config.optional),
+    );
+    install.lockfile_policy.prefer_frozen = named_a_version.then_some(false);
+    install.lockfile_policy.excludes = PolicyExcludes::Persist;
+    install.execution.mutation = ProjectMutation::InstallSome;
+    install.execution.installs_only = false;
+    install.execution.lockfile_only = add.lockfile_only;
+    install.resolution.update_seed_policy = if named_a_version {
+        UpdateSeedPolicy::ByImporter {
+            policies: seed.seed_policies,
+            max_depth: UpdateDepth::new(0),
+        }
+    } else {
+        UpdateSeedPolicy::KeepAll
+    };
+    install.resolution.preferred_versions_override = Some(seed.preferred_versions_override);
+    install.context.emit_initial_manifest = false;
+    install.context.lockfile_path = add.lockfile_path;
+    install.projects.supported_architectures = owned.supported_architectures;
+    install.projects.catalogs_override = seed.catalogs_override;
+    install
 }
 /// The lockfile pins to withhold, and the preferences to layer on the seed,
 /// for a version an `add` named that its catalog entry resolves past.
@@ -159,5 +161,8 @@ pub(super) fn add_install<'i>(
 /// Update targets that no selector scoped to a version line: a `catalog:`
 /// re-resolution moves whatever version the catalog entry now names.
 pub(super) fn unversioned_targets(names: HashSet<String>) -> UpdateTargets {
-    names.into_iter().map(|name| (name, None)).collect()
+    names
+        .into_iter()
+        .map(|name| (name, None))
+        .collect()
 }

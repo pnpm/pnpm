@@ -21,13 +21,14 @@ pub fn sequence_tasks(
     graph: &mut TaskGraph,
     options: &SequenceTasksOptions<'_>,
 ) -> Result<Vec<TaskKey>, TaskCycle> {
-    let edges: HashMap<TaskKey, Vec<TaskKey>> =
-        graph.iter().map(|(key, node)| (key.clone(), node.dependencies.clone())).collect();
+    let edges: HashMap<TaskKey, Vec<TaskKey>> = graph
+        .iter()
+        .map(|(key, node)| (key.clone(), node.dependencies.clone()))
+        .collect();
     let included: Vec<TaskKey> = graph.keys().cloned().collect();
     let result = graph_sequencer(&edges, &included);
     if !result.cycles.is_empty() {
-        let cycles = result
-            .cycles
+        let cycles = result.cycles
             .iter()
             .map(|cycle| {
                 cycle
@@ -57,8 +58,11 @@ pub fn sequence_tasks(
 /// Keep only dependencies that point backward in the sequencer's order,
 /// making an ignored cyclic graph deterministic and runnable.
 fn drop_cyclic_dependencies(graph: &mut TaskGraph, order: &[TaskKey]) {
-    let order_index: HashMap<&TaskKey, usize> =
-        order.iter().enumerate().map(|(index, key)| (key, index)).collect();
+    let order_index: HashMap<&TaskKey, usize> = order
+        .iter()
+        .enumerate()
+        .map(|(index, key)| (key, index))
+        .collect();
     let filtered: Vec<(TaskKey, Vec<TaskKey>)> = graph
         .iter()
         .map(|(key, node)| {
@@ -187,10 +191,14 @@ pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> b
     let mut longest_chain = 0_usize;
     for key in sequenced_tasks {
         let node = &graph[key];
-        let via_dependencies = node
-            .dependencies
+        let via_dependencies = node.dependencies
             .iter()
-            .map(|dependency| chain_length.get(dependency).copied().unwrap_or(0))
+            .map(|dependency| {
+                chain_length
+                    .get(dependency)
+                    .copied()
+                    .unwrap_or(0)
+            })
             .max()
             .unwrap_or(0);
         let length = via_dependencies + node.scripts.len();
@@ -205,7 +213,10 @@ pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> b
 /// — the group is the task name — and that group admits one task at a time.
 fn serialized_by_one_task_limit(graph: &TaskGraph) -> bool {
     let mut limited_group: Option<&str> = None;
-    for node in graph.values().filter(|node| !node.scripts.is_empty()) {
+    for node in graph
+        .values()
+        .filter(|node| !node.scripts.is_empty())
+    {
         // `schedule_tasks` floors the declared limit at 1.
         if node.concurrency.map(|limit| limit.max(1)) != Some(1) {
             return false;
@@ -263,8 +274,7 @@ pub fn task_graph_to_json(graph: &TaskGraph, workspace_dir: &Path) -> DryRunDocu
     let mut tasks: Vec<DryRunTask> = graph
         .values()
         .map(|node| {
-            let mut depends_on: Vec<DryRunTaskDependency> = node
-                .dependencies
+            let mut depends_on: Vec<DryRunTaskDependency> = node.dependencies
                 .iter()
                 .map(|dependency| DryRunTaskDependency {
                     project: relative_project_dir(&dependency.project, workspace_dir),
@@ -281,7 +291,9 @@ pub fn task_graph_to_json(graph: &TaskGraph, workspace_dir: &Path) -> DryRunDocu
         })
         .collect();
     tasks.sort_by(|left, right| {
-        left.project.cmp(&right.project).then_with(|| left.script.cmp(&right.script))
+        left.project
+            .cmp(&right.project)
+            .then_with(|| left.script.cmp(&right.script))
     });
     DryRunDocument { tasks }
 }

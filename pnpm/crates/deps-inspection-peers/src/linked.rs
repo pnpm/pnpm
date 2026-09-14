@@ -50,31 +50,42 @@ fn resolve_file_version(
 }
 
 pub(super) fn package_manifest_version(manifest: &PackageManifest) -> Option<String> {
-    manifest.value().get("version").and_then(|version| version.as_str()).map(String::from)
+    manifest
+        .value()
+        .get("version")
+        .and_then(|version| version.as_str())
+        .map(String::from)
 }
 
 /// A workspace package an importer reaches through `link:`, whose own
 /// `peerDependencies` the importer has to satisfy.
 pub(super) struct LinkedPackagePeers<'a> {
+    pub(super) manifest: &'a PackageManifest,
+    pub(super) alias: &'a str,
+    pub(super) linked_version: &'a str,
+    pub(super) catalogs: Option<&'a Catalogs>,
+    pub(super) issues: &'a mut PeerIssues,
+    pub(super) providers: PeerProviders<'a>,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct PeerProviders<'a> {
     pub(super) lockfile: &'a Lockfile,
     pub(super) importer: &'a ProjectSnapshot,
     pub(super) linked_importer: Option<&'a ProjectSnapshot>,
     pub(super) importer_dir: &'a Path,
     pub(super) linked_importer_dir: &'a Path,
     pub(super) lockfile_dir: &'a Path,
-    pub(super) manifest: &'a PackageManifest,
-    pub(super) alias: &'a str,
-    pub(super) linked_version: &'a str,
-    pub(super) catalogs: Option<&'a Catalogs>,
-    pub(super) issues: &'a mut PeerIssues,
 }
 
 pub(super) fn check_linked_package_peers(
     inputs: LinkedPackagePeers<'_>,
 ) -> Result<(), CatalogResolutionError> {
     let issues = inputs.issues;
-    let Some(peer_deps) =
-        inputs.manifest.value().get("peerDependencies").and_then(|deps_val| deps_val.as_object())
+    let Some(peer_deps) = inputs.manifest
+        .value()
+        .get("peerDependencies")
+        .and_then(|deps_val| deps_val.as_object())
     else {
         return Ok(());
     };
@@ -88,17 +99,12 @@ pub(super) fn check_linked_package_peers(
         let Some(peer_range) = peer_range_val.as_str() else { continue };
         let peer_range = resolve_peer_range(peer_name, peer_range, inputs.catalogs)?;
         check_one_linked_peer(LinkedPeerCheck {
-            lockfile: inputs.lockfile,
-            importer: inputs.importer,
-            linked_importer: inputs.linked_importer,
-            importer_dir: inputs.importer_dir,
-            linked_importer_dir: inputs.linked_importer_dir,
-            lockfile_dir: inputs.lockfile_dir,
             parents: &current_parents,
             optional: peer_is_optional(inputs.manifest, peer_name),
             peer_name,
             peer_range: &get_peer_version_range(&peer_range),
             issues,
+            providers: inputs.providers,
         });
     }
     Ok(())
@@ -107,17 +113,12 @@ pub(super) fn check_linked_package_peers(
 /// One peer dependency of a linked package, and the two importers that could
 /// satisfy it.
 struct LinkedPeerCheck<'a> {
-    lockfile: &'a Lockfile,
-    importer: &'a ProjectSnapshot,
-    linked_importer: Option<&'a ProjectSnapshot>,
-    importer_dir: &'a Path,
-    linked_importer_dir: &'a Path,
-    lockfile_dir: &'a Path,
     parents: &'a [ParentPkg],
     optional: bool,
     peer_name: &'a str,
     peer_range: &'a str,
     issues: &'a mut PeerIssues,
+    providers: PeerProviders<'a>,
 }
 
 fn check_one_linked_peer(check: LinkedPeerCheck<'_>) {
@@ -126,14 +127,7 @@ fn check_one_linked_peer(check: LinkedPeerCheck<'_>) {
 
     // The linked package's own project comes second: a peer the depending
     // project provides is the one that ends up resolved.
-    let resolved_ref = project_dependency(check.importer, &peer_pkg_name)
-        .map(|spec| (spec, check.importer_dir))
-        .or_else(|| {
-            check
-                .linked_importer
-                .and_then(|importer| project_dependency(importer, &peer_pkg_name))
-                .map(|spec| (spec, check.linked_importer_dir))
-        });
+    let resolved_ref = check.providers.resolve_reference(&peer_pkg_name);
     let Some((spec, dependency_dir)) = resolved_ref else {
         record_missing_peer(
             issues,
@@ -146,8 +140,8 @@ fn check_one_linked_peer(check: LinkedPeerCheck<'_>) {
     };
 
     let found_version = resolved_peer_version(
-        check.lockfile,
-        check.lockfile_dir,
+        check.providers.lockfile,
+        check.providers.lockfile_dir,
         dependency_dir,
         &peer_pkg_name,
         spec,
@@ -174,11 +168,14 @@ pub(super) fn record_missing_peer(
     if optional {
         return;
     }
-    issues.missing.entry(peer_name.to_string()).or_default().push(MissingPeerIssue {
-        parents: parents.to_vec(),
-        optional,
-        wanted_range: wanted_range.to_string(),
-    });
+    issues.missing
+        .entry(peer_name.to_string())
+        .or_default()
+        .push(MissingPeerIssue {
+            parents: parents.to_vec(),
+            optional,
+            wanted_range: wanted_range.to_string(),
+        });
 }
 
 /// A resolved peer outside the wanted range is an issue, optional or not.
@@ -193,13 +190,16 @@ pub(super) fn record_bad_peer(
     if satisfies(&found_version, wanted_range) {
         return;
     }
-    issues.bad.entry(peer_name.to_string()).or_default().push(BadPeerIssue {
-        parents: parents.to_vec(),
-        optional,
-        wanted_range: wanted_range.to_string(),
-        found_version,
-        resolved_from: Vec::new(),
-    });
+    issues.bad
+        .entry(peer_name.to_string())
+        .or_default()
+        .push(BadPeerIssue {
+            parents: parents.to_vec(),
+            optional,
+            wanted_range: wanted_range.to_string(),
+            found_version,
+            resolved_from: Vec::new(),
+        });
 }
 
 fn peer_is_optional(manifest: &PackageManifest, peer_name: &str) -> bool {
@@ -230,22 +230,31 @@ fn resolved_peer_version(
                 .unwrap_or_else(|| format!("link:{link_target}")),
         );
     }
-    spec.version.as_file_target().map(|file_target| {
-        resolve_file_version(lockfile, lockfile_dir, peer_pkg_name, spec)
-            .unwrap_or_else(|| format!("file:{file_target}"))
-    })
+    spec.version
+        .as_file_target()
+        .map(|file_target| {
+            resolve_file_version(lockfile, lockfile_dir, peer_pkg_name, spec)
+                .unwrap_or_else(|| format!("file:{file_target}"))
+        })
 }
 
 fn project_dependency<'a>(
     importer: &'a ProjectSnapshot,
     name: &PkgName,
 ) -> Option<&'a ResolvedDependencySpec> {
-    importer
-        .dependencies
+    importer.dependencies
         .as_ref()
         .and_then(|deps| deps.get(name))
-        .or_else(|| importer.dev_dependencies.as_ref().and_then(|deps| deps.get(name)))
-        .or_else(|| importer.optional_dependencies.as_ref().and_then(|deps| deps.get(name)))
+        .or_else(|| {
+            importer.dev_dependencies
+                .as_ref()
+                .and_then(|deps| deps.get(name))
+        })
+        .or_else(|| {
+            importer.optional_dependencies
+                .as_ref()
+                .and_then(|deps| deps.get(name))
+        })
 }
 
 fn resolve_peer_range(
@@ -260,5 +269,17 @@ fn resolve_peer_range(
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(peer_range.to_string()),
         CatalogResolutionResult::Misconfiguration(misconfiguration) => Err(misconfiguration.error),
+    }
+}
+
+impl PeerProviders<'_> {
+    fn resolve_reference(&self, name: &PkgName) -> Option<(&ResolvedDependencySpec, &Path)> {
+        project_dependency(self.importer, name)
+            .map(|spec| (spec, self.importer_dir))
+            .or_else(|| {
+                self.linked_importer
+                    .and_then(|importer| project_dependency(importer, name))
+                    .map(|spec| (spec, self.linked_importer_dir))
+            })
     }
 }

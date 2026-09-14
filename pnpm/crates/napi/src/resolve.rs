@@ -86,6 +86,20 @@ pub async fn resolve_dependency(
     rx.await.map_err(|_| napi::Error::from_reason("resolve worker thread panicked"))?
 }
 
+fn normalize_wanted_dependency(wanted: WantedDependencyInput) -> WantedDependency {
+    WantedDependency {
+        alias: wanted.alias,
+        // An empty bareSpecifier means "no range given" — pnpm v11's
+        // resolver treated it like an absent pref (resolve the latest
+        // matching version); passing it through verbatim would fall off
+        // the resolver chain as ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER.
+        bare_specifier: wanted.bare_specifier.filter(|spec| !spec.trim().is_empty()),
+        injected: None,
+        prev_specifier: None,
+        optional: None,
+    }
+}
+
 fn run_resolve_blocking(
     wanted: WantedDependencyInput,
     options: &ResolveDependencyOptions,
@@ -110,19 +124,15 @@ fn run_resolve_blocking(
     })
     .map_err(|error| to_napi_error(&error))?;
 
-    let wanted_dependency = WantedDependency {
-        alias: wanted.alias,
-        // An empty bareSpecifier means "no range given" — pnpm v11's
-        // resolver treated it like an absent pref (resolve the latest
-        // matching version); passing it through verbatim would fall off
-        // the resolver chain as ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER.
-        bare_specifier: wanted.bare_specifier.filter(|spec| !spec.trim().is_empty()),
-        injected: None,
-        prev_specifier: None,
-        optional: None,
+    let wanted_dependency = normalize_wanted_dependency(wanted);
+    let resolve_options = ResolveOptions {
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: dir.clone(),
+            lockfile_dir: dir,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
     };
-    let resolve_options =
-        ResolveOptions { project_dir: dir.clone(), lockfile_dir: dir, ..ResolveOptions::default() };
 
     // A single dependency resolve is one packument fetch — no task parallelism
     // to exploit — and this already runs on a dedicated worker thread. Use a
@@ -130,8 +140,10 @@ fn run_resolve_blocking(
     // worker-thread pool (a per-call multi-thread runtime would multiply threads
     // under concurrent resolves). The install path keeps a multi-thread runtime
     // because it fetches packages in parallel.
-    let runtime =
-        tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|error| {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| {
             napi::Error::from_reason(format!("failed to build tokio runtime: {error}"))
         })?;
 
@@ -151,10 +163,10 @@ fn run_resolve_blocking(
 
     Ok(ResolveDependencyResult {
         id: resolved.id.to_string(),
-        manifest: resolved.manifest.map(|manifest| (*manifest).clone()),
+        manifest: resolved.package.manifest.map(|manifest| (*manifest).clone()),
         resolved_via: resolved.resolved_via,
         normalized_bare_specifier: resolved.normalized_bare_specifier,
-        latest: resolved.latest,
+        latest: resolved.package.latest,
     })
 }
 
@@ -165,10 +177,14 @@ fn resolve_overlay(options: &ResolveDependencyOptions) -> ConfigOverlay {
     ConfigOverlay {
         store_dir: options.store_dir.as_ref().map(PathBuf::from),
         cache_dir: options.cache_dir.as_ref().map(PathBuf::from),
-        registries: options.registries.as_ref().map(|map| map.clone().into_iter().collect()),
+        registries: options.registries
+            .as_ref()
+            .map(|map| map.clone().into_iter().collect()),
         offline: options.offline,
         prefer_offline: options.prefer_offline,
-        auth_header_by_uri: options.auth_header_by_uri.clone().map(|map| map.into_iter().collect()),
+        auth_header_by_uri: options.auth_header_by_uri
+            .clone()
+            .map(|map| map.into_iter().collect()),
         ..ConfigOverlay::default()
     }
 }

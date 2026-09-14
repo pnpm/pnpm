@@ -158,8 +158,10 @@ pub(crate) fn write_synthesized_package_json(
     }
     let (cas_path, file_hash) =
         store_dir.write_cas_file(bytes, false).map_err(TarballError::WriteCasFile)?;
-    let checked_at =
-        UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
+    let checked_at = UNIX_EPOCH
+        .elapsed()
+        .ok()
+        .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
     let info = CafsFileInfo {
         digest: format!("{file_hash:x}"),
         // A synthesized manifest is a plain, non-executable data file;

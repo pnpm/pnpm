@@ -34,35 +34,22 @@ pub(super) async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
     discovery: (&HashSet<PathBuf>, Option<&[pnpm_workspace::Project]>),
 ) -> Result<Loaded<'a>, InstallError> {
     let (pre_hooked_paths, loaded_workspace_projects) = discovery;
-    let StartedLockfiles { wanted, current_lockfile_task, early_host_detection } =
-        start_lockfile_load::<Reporter>(
-            install,
-            owned,
-            mode,
-            workspace,
-            selection,
-            loaded_workspace_projects,
-        )?;
-    announce_manifest_load::<Reporter>(install, &workspace.workspace_root);
-    // The pnpmfile whose checksum the freshness gates compare
-    // against a lockfile's `pnpmfileChecksum`, resolved the way the
-    // install that records one resolves it. Building the handle
-    // costs a `stat`. The Node worker only starts if a gate has to
-    // ask whether the pnpmfile exports hooks. The handle is handed to
-    // the resolve path below so an install spawns at most one.
-    let pnpmfile_hook = resolve_pnpmfile_hook(
-        install.config,
-        &workspace.workspace_root,
-        owned.pnpmfile_hook_override.take(),
+    let StartedLockfiles {
+        wanted,
+        current_lockfile_task,
+        early_host_detection,
+    } = start_lockfile_load::<Reporter>(
+        install,
+        owned,
+        mode,
+        workspace,
+        selection,
+        loaded_workspace_projects,
     )?;
-    let manifests = HookedManifests::hook::<Reporter>(
-        install.config,
-        &workspace.workspace_root,
-        &scope.project_manifests,
-        pnpmfile_hook.as_ref(),
-        pre_hooked_paths,
-    )
-    .await?;
+    announce_manifest_load::<Reporter>(install, &workspace.dirs.workspace_root);
+    let (pnpmfile_hook, manifests) =
+        load_hooked_manifests::<Reporter>(install, owned, workspace, scope, pre_hooked_paths)
+            .await?;
     Ok(Loaded {
         lockfile: wanted.lockfile,
         shared: wanted.shared,
@@ -70,7 +57,7 @@ pub(super) async fn load_lockfiles<'a, Reporter: self::Reporter + 'static>(
         pre_merge_importers: wanted.pre_merge_importers,
         current: join_current_lockfile_load::<Reporter>(
             current_lockfile_task,
-            install.config,
+            install.context.config,
             &workspace.prefix,
         )
         .await,
@@ -91,9 +78,9 @@ pub(super) fn announce_manifest_load<Reporter: self::Reporter>(
     install: InstallView<'_>,
     workspace_root: &Path,
 ) {
-    register_workspace_in_store(install.config, workspace_root);
-    if install.emit_initial_manifest {
-        emit_initial_package_manifest::<Reporter>(install.manifest);
+    register_workspace_in_store(install.context.config, workspace_root);
+    if install.context.emit_initial_manifest {
+        emit_initial_package_manifest::<Reporter>(install.context.manifest);
     }
 }
 // Overlap the wanted-lockfile prefetch with cycle validation, then start the independent current read.
@@ -105,28 +92,28 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
     selection: Option<&crate::WorkspaceInstallSelection<'_>>,
     loaded_workspace_projects: Option<&[pnpm_workspace::Project]>,
 ) -> Result<StartedLockfiles<'a>, InstallError> {
-    install.lockfile.prefetch();
+    install.context.lockfile.prefetch();
     // Report the projects this install covers depending on each
     // other in a cycle — after the short-circuit above, because pnpm
     // returns from "Already up to date" before reaching its own
     // check, and before any resolution, because a
     // `disallowWorkspaceCycles` failure must not be paid for.
     report_install_scope_cycles::<Reporter>(
-        install.config,
-        workspace.workspace_dir.as_deref(),
+        install.context.config,
+        workspace.dirs.workspace_dir.as_deref(),
         selection,
-        (install.mutation, workspace_projects(loaded_workspace_projects, selection)),
+        (install.execution.mutation, workspace_projects(loaded_workspace_projects, selection)),
     )?;
-    let current_lockfile_task = spawn_current_lockfile_load(install.config);
+    let current_lockfile_task = spawn_current_lockfile_load(install.context.config);
     // Past the repeat-install fast path every install flavor needs
     // the wanted lockfile's contents; force the deferred load here.
     // A broken lockfile is regenerable state, so only a frozen
     // install treats it as fatal (upstream `readLockfiles`).
     let phase_start = std::time::Instant::now();
     let wanted = load_wanted_lockfile::<Reporter>(
-        install.lockfile,
-        install.frozen_lockfile,
-        (&workspace.workspace_root, &workspace.prefix),
+        install.context.lockfile,
+        install.lockfile_policy.frozen,
+        (&workspace.dirs.workspace_root, &workspace.prefix),
     )?;
     tracing::info!(
         target: "pacquet::install::phase",
@@ -139,13 +126,14 @@ pub(super) fn start_lockfile_load<'a, Reporter: self::Reporter>(
     // parsed, so the probe overlaps planning on the frozen path and
     // the whole resolution on the fresh path.
     let early_host_detection =
-        needs_early_host_detection(install.config, mode.resolve_only, wanted.lockfile).then(|| {
-            pnpm_deps_restorer::materialization_plan::HostDetection::spawn(
-                install.config.engine_strict,
-                mode.effective_node_version.clone(),
-                owned.supported_architectures.clone(),
-            )
-        });
+        needs_early_host_detection(install.context.config, mode.resolve_only, wanted.lockfile)
+            .then(|| {
+                pnpm_deps_restorer::materialization_plan::HostDetection::spawn(
+                    install.context.config.engine_strict,
+                    mode.effective_node_version.clone(),
+                    owned.projects.supported_architectures.clone(),
+                )
+            });
     Ok(StartedLockfiles { wanted, current_lockfile_task, early_host_detection })
 }
 // Both lockfiles can be megabyte-scale YAML documents; read the current one off the reactor
@@ -310,4 +298,33 @@ pub(super) fn load_current_lockfile<Reporter: self::Reporter>(
             None
         }
     }
+}
+
+async fn load_hooked_manifests<Reporter: self::Reporter + 'static>(
+    install: InstallView<'_>,
+    owned: &mut InstallOwned,
+    workspace: &InstallWorkspace<'_>,
+    scope: &InstallScope<'_>,
+    pre_hooked_paths: &HashSet<PathBuf>,
+) -> Result<(Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>, HookedManifests), InstallError> {
+    // The pnpmfile whose checksum the freshness gates compare
+    // against a lockfile's `pnpmfileChecksum`, resolved the way the
+    // install that records one resolves it. Building the handle
+    // costs a `stat`. The Node worker only starts if a gate has to
+    // ask whether the pnpmfile exports hooks. The handle is handed to
+    // the resolve path below so an install spawns at most one.
+    let pnpmfile_hook = resolve_pnpmfile_hook(
+        install.context.config,
+        &workspace.dirs.workspace_root,
+        owned.projects.pnpmfile_hook_override.take(),
+    )?;
+    let manifests = HookedManifests::hook::<Reporter>(
+        install.context.config,
+        &workspace.dirs.workspace_root,
+        &scope.project_manifests,
+        pnpmfile_hook.as_ref(),
+        pre_hooked_paths,
+    )
+    .await?;
+    Ok((pnpmfile_hook, manifests))
 }

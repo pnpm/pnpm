@@ -17,7 +17,10 @@ async fn passes_optional_flag_to_the_resolver() {
             wanted: &'a WantedDependency,
             _opts: &'a ResolveOptions,
         ) -> ResolveFuture<'a> {
-            self.optional.lock().unwrap().push(wanted.optional);
+            self.optional
+                .lock()
+                .unwrap()
+                .push(wanted.optional);
             let result = self.result.clone();
             Box::pin(async move { Ok(Some(result)) })
         }

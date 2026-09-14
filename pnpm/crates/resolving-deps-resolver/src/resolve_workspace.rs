@@ -20,7 +20,7 @@ use time_based::{TimeBasedCutoff, time_cutoff};
 
 use crate::{
     resolve_dependency_tree::{
-        ManifestHook, UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx, importer_direct_wanted_specs,
+        UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx, importer_direct_wanted_specs,
     },
     resolve_importer::{ImporterHoistState, ResolveImporterError, ResolveImporterOptions},
     resolve_peers::{
@@ -43,6 +43,33 @@ pub struct WorkspaceImporter<'a> {
 
 /// Workspace-shared opts that don't vary per importer.
 pub struct WorkspaceResolveOptions {
+    /// Whether named workspace resolutions may be shared across importers.
+    /// When `true`, an eligible named `workspace:` request resolves once
+    /// against a cache key that omits the consuming importer's `project_dir`,
+    /// and the importer-relative `link:` is rendered from that canonical
+    /// result afterwards. Must stay `false` whenever the resolver chain can
+    /// make a resolution depend on the consuming importer beyond that
+    /// rendering — a pnpmfile custom resolver above all.
+    pub share_workspace_resolutions: bool,
+    /// Package-name → semver-range map from the
+    /// `pnpm.allowedDeprecatedVersions` setting. When a newly-resolved
+    /// package is deprecated and its `name@version` satisfies an entry
+    /// here, the deprecation warning is suppressed.
+    pub allowed_deprecated_versions: BTreeMap<String, String>,
+    /// How a package's registry is decided and what it serves: the scope
+    /// map, the named-registry aliases (built-ins merged with the user's
+    /// setting), and the per-registry settings. Used to materialize a
+    /// prior `Registry` lockfile resolution back into its tarball URL when
+    /// building the `currentPkg` payload custom resolvers receive.
+    pub registry_context: RegistryContext,
+    pub peers: WorkspacePeerResolutionOptions,
+    pub hooks: WorkspaceResolveHooks,
+    pub reuse: WorkspaceLockfileReuse,
+    pub version: WorkspaceVersionResolution,
+}
+
+#[derive(Default)]
+pub struct WorkspacePeerResolutionOptions {
     pub dedupe_peers: bool,
     /// `true` enables [`fn@crate::resolve_peers_workspace`]'s cross-
     /// importer dedupe pass — `dependenciesMeta[<alias>].injected: true`
@@ -59,53 +86,56 @@ pub struct WorkspaceResolveOptions {
     /// workspace root's direct dependencies. Maps to the
     /// `resolvePeersFromWorkspaceRoot` setting.
     pub resolve_peers_from_workspace_root: bool,
-    /// Threaded into [`ResolvePeersOptions::exclude_links_from_lockfile`]
+    /// Threaded into [`crate::PeerLinkOptions::exclude_links_from_lockfile`]
     /// for the workspace-wide peer pass. Per-importer
-    /// [`ResolvePeersOptions::modules_dir`] comes from each
+    /// [`crate::PeerLinkOptions::modules_dir`] comes from each
     /// [`crate::ImporterPeerInput::modules_dir`].
     pub exclude_links_from_lockfile: bool,
     pub lockfile_dir: PathBuf,
     pub peers_suffix_max_length: usize,
-    /// Whether named workspace resolutions may be shared across importers.
-    /// When `true`, an eligible named `workspace:` request resolves once
-    /// against a cache key that omits the consuming importer's `project_dir`,
-    /// and the importer-relative `link:` is rendered from that canonical
-    /// result afterwards. Must stay `false` whenever the resolver chain can
-    /// make a resolution depend on the consuming importer beyond that
-    /// rendering — a pnpmfile custom resolver above all.
-    pub share_workspace_resolutions: bool,
-    /// `readPackageHook` applied to every resolved manifest before it
-    /// enters the wanted-dep cache. Workspace-wide (one hook per
-    /// install); the install layer typically threads
-    /// `packageExtensions` here. See [`ManifestHook`].
-    pub manifest_hook: Option<ManifestHook>,
+    /// The install's `autoInstallPeers` setting, threaded onto the
+    /// shared [`WorkspaceTreeCtx`] so the tree walk drops
+    /// peer-shadowed `dependencies` entries. Also overrides every
+    /// per-importer
+    /// [`crate::ImporterPeerOptions::auto_install_peers`] — the
+    /// setting is workspace-wide.
+    pub auto_install_peers: bool,
+}
 
-    /// Post-pnpmfile manifest hook (overrides). See
-    /// `WorkspaceTreeCtx::overrides_hook` for the ordering contract.
-    pub overrides_hook: Option<ManifestHook>,
+#[derive(Default)]
+pub struct WorkspaceResolveHooks {
+    /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
+    /// calls, pre-bound to the install's reporter. `None` leaves hook
+    /// logging a no-op.
+    pub read_package_log: Option<pnpm_hooks::LogFn>,
+    /// Sink for skipped-optional-dependency notifications, pre-bound to
+    /// the install's reporter (the install layer forwards each one as a
+    /// `pnpm:skipped-optional-dependency` `resolution_failure` debug
+    /// log). `None` keeps the skip behavior but drops the notification.
+    pub skipped_optional_log: Option<crate::SkippedOptionalLogFn>,
+    /// Sink told about every package whose subtree has settled peer-free,
+    /// so the install layer can materialize it into the virtual store
+    /// before peer resolution. `None` skips the sweep. See
+    /// [`crate::FinalizedPackageFn`].
+    pub finalized_package: Option<crate::FinalizedPackageFn>,
+    /// Sink for deprecation notifications, pre-bound to the install's
+    /// reporter (the install layer forwards each one as a
+    /// `pnpm:deprecation` debug log). `None` keeps the deprecation
+    /// check but drops the notification.
+    pub deprecation_log: Option<crate::DeprecationLogFn>,
+    pub manifests: crate::ManifestTransformHooks,
+}
 
-    /// When `true`, every importer's direct dependencies are resolved
-    /// to their lowest satisfying version (`resolutionMode: time-based`
-    /// / `lowest-direct`). Threaded onto each
-    /// [`ResolveImporterOptions::pick_lowest_direct`].
-    pub pick_lowest_direct: bool,
-
-    /// When `true` (`resolutionMode: time-based`), a pre-pass resolves
-    /// every importer's direct deps to find the newest publication
-    /// date, then constrains all transitive deps to versions published
-    /// no later than that (plus a one-hour delta), clamped by any
-    /// `minimumReleaseAge` cutoff.
-    pub time_based: bool,
-
+#[derive(smart_default::SmartDefault)]
+pub struct WorkspaceLockfileReuse {
     /// The prior `pnpm-lock.yaml` the install started from, when one
     /// exists. Threaded into [`WorkspaceTreeCtx`] so the tree walk can
     /// reuse already-resolved dependencies instead of re-resolving them
     /// (see `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`). `None` on a
     /// first install or when reuse is disabled.
-    pub wanted_lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
-
+    pub lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
     /// Whether the walk may reuse whole already-resolved subtrees from
-    /// [`Self::wanted_lockfile`]. `false` keeps the lockfile as a
+    /// [`Self::lockfile`]. `false` keeps the lockfile as a
     /// per-edge version-pin source only: every node re-resolves against
     /// its (hook-rewritten) manifest range, and an edge whose recorded
     /// version still satisfies that range stays on it — mirroring the
@@ -114,67 +144,33 @@ pub struct WorkspaceResolveOptions {
     /// that denied subtree reuse stays effective: hooks rewrite the
     /// drifted manifests before the satisfies check, so the edges a
     /// changed override or extension reaches re-resolve.
-    pub reuse_lockfile_subtrees: bool,
-
+    #[default(true)]
+    pub subtrees: bool,
     /// Which dependencies `pacquet update` excludes from lockfile-
     /// resolution reuse. [`UpdateReuseScope::All`] for `install` / `add`.
-    pub update_reuse_scope: UpdateReuseScope,
-
+    pub scope: UpdateReuseScope,
     /// Per-importer update scopes for filtered workspace updates. An importer
-    /// absent from this map uses [`Self::update_reuse_scope`].
-    pub update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
+    /// absent from this map uses [`Self::scope`].
+    pub scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
     /// `pacquet update --depth`: how deep the update reaches. Nodes
     /// past the ceiling keep their locked resolutions even when their
     /// name is an update target.
-    pub update_depth: UpdateDepth,
+    pub depth: UpdateDepth,
+}
 
-    /// `pnpmfileHook` applied to every resolved manifest before it
-    /// enters the wanted-dep cache. Workspace-wide (one hook per
-    /// install); wraps `readPackage` from `.pnpmfile.cjs` / `pnpmfile.cjs`.
-    pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-
-    /// `context.log(...)` sink for the `pnpmfile_hook`'s `readPackage`
-    /// calls, pre-bound to the install's reporter. `None` leaves hook
-    /// logging a no-op.
-    pub read_package_log: Option<pnpm_hooks::LogFn>,
-
-    /// Sink for skipped-optional-dependency notifications, pre-bound to
-    /// the install's reporter (the install layer forwards each one as a
-    /// `pnpm:skipped-optional-dependency` `resolution_failure` debug
-    /// log). `None` keeps the skip behavior but drops the notification.
-    pub skipped_optional_log: Option<crate::SkippedOptionalLogFn>,
-
-    /// Sink told about every package whose subtree has settled peer-free,
-    /// so the install layer can materialize it into the virtual store
-    /// before peer resolution. `None` skips the sweep. See
-    /// [`crate::FinalizedPackageFn`].
-    pub finalized_package: Option<crate::FinalizedPackageFn>,
-
-    /// Package-name → semver-range map from the
-    /// `pnpm.allowedDeprecatedVersions` setting. When a newly-resolved
-    /// package is deprecated and its `name@version` satisfies an entry
-    /// here, the deprecation warning is suppressed.
-    pub allowed_deprecated_versions: BTreeMap<String, String>,
-
-    /// Sink for deprecation notifications, pre-bound to the install's
-    /// reporter (the install layer forwards each one as a
-    /// `pnpm:deprecation` debug log). `None` keeps the deprecation
-    /// check but drops the notification.
-    pub deprecation_log: Option<crate::DeprecationLogFn>,
-
-    /// The install's `autoInstallPeers` setting, threaded onto the
-    /// shared [`WorkspaceTreeCtx`] so the tree walk drops
-    /// peer-shadowed `dependencies` entries. Also overrides every
-    /// per-importer
-    /// [`crate::ResolveImporterOptions::auto_install_peers`] — the
-    /// setting is workspace-wide.
-    pub auto_install_peers: bool,
-    /// How a package's registry is decided and what it serves: the scope
-    /// map, the named-registry aliases (built-ins merged with the user's
-    /// setting), and the per-registry settings. Used to materialize a
-    /// prior `Registry` lockfile resolution back into its tarball URL when
-    /// building the `currentPkg` payload custom resolvers receive.
-    pub registry_context: RegistryContext,
+#[derive(Default)]
+pub struct WorkspaceVersionResolution {
+    /// When `true`, every importer's direct dependencies are resolved
+    /// to their lowest satisfying version (`resolutionMode: time-based`
+    /// / `lowest-direct`). Threaded onto each
+    /// [`crate::ImporterResolutionInputs::pick_lowest_direct`].
+    pub pick_lowest_direct: bool,
+    /// When `true` (`resolutionMode: time-based`), a pre-pass resolves
+    /// every importer's direct deps to find the newest publication
+    /// date, then constrains all transitive deps to versions published
+    /// no later than that (plus a one-hour delta), clamped by any
+    /// `minimumReleaseAge` cutoff.
+    pub time_based: bool,
 }
 
 /// Result of [`fn@resolve_workspace`]. The combined
@@ -220,58 +216,29 @@ where
 /// What the pass keeps for itself once the shared tree context has
 /// taken the hooks, logs and lockfile.
 struct PassSettings {
-    dedupe_peers: bool,
-    dedupe_injected_deps: bool,
-    dedupe_peer_dependents: bool,
-    resolve_peers_from_workspace_root: bool,
-    exclude_links_from_lockfile: bool,
-    lockfile_dir: PathBuf,
-    peers_suffix_max_length: usize,
-    pick_lowest_direct: bool,
-    time_based: bool,
-    auto_install_peers: bool,
     /// The lockfile's recorded publish dates, taken only for the
     /// `time-based` pre-pass that reads them — a lockfile is untrusted
     /// input, so an install that will not consult the dates must not
     /// copy them.
     recorded_time: Option<BTreeMap<String, String>>,
+    peers: WorkspacePeerResolutionOptions,
+    version: WorkspaceVersionResolution,
 }
 
 impl WorkspaceResolveOptions {
     fn split(self) -> (Arc<WorkspaceTreeCtx>, PassSettings) {
-        let recorded_time = self
-            .time_based
-            .then(|| self.wanted_lockfile.as_ref().and_then(|lockfile| lockfile.time.clone()))
+        let recorded_time = self.version.time_based
+            .then(|| {
+                self.reuse.lockfile.as_ref().and_then(|lockfile| lockfile.time.clone())
+            })
             .flatten();
-        let settings = PassSettings {
-            dedupe_peers: self.dedupe_peers,
-            dedupe_injected_deps: self.dedupe_injected_deps,
-            dedupe_peer_dependents: self.dedupe_peer_dependents,
-            resolve_peers_from_workspace_root: self.resolve_peers_from_workspace_root,
-            exclude_links_from_lockfile: self.exclude_links_from_lockfile,
-            lockfile_dir: self.lockfile_dir,
-            peers_suffix_max_length: self.peers_suffix_max_length,
-            pick_lowest_direct: self.pick_lowest_direct,
-            time_based: self.time_based,
-            auto_install_peers: self.auto_install_peers,
-            recorded_time,
-        };
+        let settings = PassSettings { recorded_time, peers: self.peers, version: self.version };
         let workspace = WorkspaceTreeCtx::default()
             .with_shared_workspace_resolutions(self.share_workspace_resolutions)
-            .with_manifest_hook(self.manifest_hook)
-            .with_overrides_hook(self.overrides_hook)
-            .with_wanted_lockfile(self.wanted_lockfile)
-            .with_reuse_lockfile_subtrees(self.reuse_lockfile_subtrees)
-            .with_update_reuse_scope(self.update_reuse_scope)
-            .with_update_reuse_scopes_by_importer(self.update_reuse_scopes_by_importer)
-            .with_update_depth(self.update_depth)
-            .with_pnpmfile_hook(self.pnpmfile_hook)
-            .with_read_package_log(self.read_package_log)
-            .with_skipped_optional_log(self.skipped_optional_log)
-            .with_finalized_package(self.finalized_package)
+            .with_hooks(self.hooks)
+            .with_lockfile_reuse(self.reuse)
             .with_allowed_deprecated_versions(self.allowed_deprecated_versions)
-            .with_deprecation_log(self.deprecation_log)
-            .with_auto_install_peers(self.auto_install_peers)
+            .with_auto_install_peers(settings.peers.auto_install_peers)
             .with_registry_context(self.registry_context);
         (Arc::new(workspace), settings)
     }
@@ -307,8 +274,8 @@ where
         .iter()
         .map(|importer| {
             let mut opts = per_importer_options(importer);
-            opts.auto_install_peers = settings.auto_install_peers;
-            opts.dedupe_peer_dependents = settings.dedupe_peer_dependents;
+            opts.peers.auto_install_peers = settings.peers.auto_install_peers;
+            opts.peers.dedupe_peer_dependents = settings.peers.dedupe_peer_dependents;
             (importer, opts)
         })
         .collect();
@@ -350,13 +317,17 @@ where
 {
     let mut input_dirs = Vec::with_capacity(sorted.importers.len());
     let mut states = Vec::with_capacity(sorted.importers.len());
-    for (importer_order, (importer, mut importer_opts)) in
-        sorted.importers.iter().zip(sorted.opts).enumerate()
+    for (importer_order, (importer, mut importer_opts)) in sorted.importers
+        .iter()
+        .zip(sorted.opts)
+        .enumerate()
     {
-        importer_opts.pick_lowest_direct = settings.pick_lowest_direct;
-        importer_opts.subdep_published_by = cutoff.published_by;
-        input_dirs
-            .push((importer_opts.base_opts.project_dir.clone(), importer_opts.modules_dir.clone()));
+        importer_opts.resolution.pick_lowest_direct = settings.version.pick_lowest_direct;
+        importer_opts.resolution.subdep_published_by = cutoff.published_by;
+        input_dirs.push((
+            importer_opts.base_opts.project.project_dir.clone(),
+            importer_opts.links.modules_dir.clone(),
+        ));
         // Boxed to keep the enclosing install future small: inlining a
         // wave's frame into it trips the workspace's large-future lint.
         states.push(
@@ -443,8 +414,10 @@ struct PeerInputs {
 fn importer_peer_inputs(initialized: InitializedImporters<'_, '_>) -> PeerInputs {
     let mut per_importer = Vec::with_capacity(initialized.importers.len());
     let mut hoisted_provider_node_ids = std::collections::HashSet::default();
-    for ((importer, state), (project_dir, modules_dir)) in
-        initialized.importers.iter().zip(initialized.states).zip(initialized.input_dirs)
+    for ((importer, state), (project_dir, modules_dir)) in initialized.importers
+        .iter()
+        .zip(initialized.states)
+        .zip(initialized.input_dirs)
     {
         let (direct, importer_provider_node_ids) = state.into_direct();
         hoisted_provider_node_ids.extend(importer_provider_node_ids);
@@ -466,23 +439,27 @@ fn resolve_workspace_peers(
     resolve_peers_workspace(
         tree,
         &inputs.per_importer,
-        &settings.lockfile_dir,
-        settings.dedupe_injected_deps,
-        settings.dedupe_peer_dependents,
-        settings.resolve_peers_from_workspace_root,
+        &settings.peers.lockfile_dir,
+        settings.peers.dedupe_injected_deps,
+        settings.peers.dedupe_peer_dependents,
+        settings.peers.resolve_peers_from_workspace_root,
         ResolvePeersOptions {
-            peers_suffix_max_length: settings.peers_suffix_max_length,
-            dedupe_peers: settings.dedupe_peers,
-            exclude_links_from_lockfile: settings.exclude_links_from_lockfile,
-            lockfile_dir: Some(settings.lockfile_dir.clone()),
+            peers_suffix_max_length: settings.peers.peers_suffix_max_length,
+            dedupe_peers: settings.peers.dedupe_peers,
             project_dir: None,
-            // Per-importer; resolve_peers_workspace swaps the
-            // ImporterPeerInput's modules_dir into walker.opts before each
-            // importer's walk.
-            modules_dir: None,
-            hoist_missing_scope: None,
-            hoisted_peer_provider_node_ids: inputs.hoisted_provider_node_ids,
-            ..ResolvePeersOptions::default()
+            links: crate::PeerLinkOptions {
+                exclude_links_from_lockfile: settings.peers.exclude_links_from_lockfile,
+                lockfile_dir: Some(settings.peers.lockfile_dir.clone()),
+                // Per-importer; resolve_peers_workspace swaps the
+                // ImporterPeerInput's modules_dir into walker.opts before each
+                // importer's walk.
+                modules_dir: None,
+            },
+            scope: crate::PeerResolutionScope {
+                hoist_missing_scope: None,
+                hoisted_peer_provider_node_ids: inputs.hoisted_provider_node_ids,
+                ..Default::default()
+            },
         },
     )
 }
@@ -505,12 +482,17 @@ where
         .map(|state| state.prepare_initial_required_round(peer_discovery))
         .collect();
     let first_importer_by_pkg = workspace.first_importer_by_pkg();
-    let first_walk_missing_by_pkg = workspace.first_walk_missing_by_pkg();
-    for (state, round) in states.iter().zip(rounds.iter_mut().flatten()) {
+    let first_walk_missing_by_pkg = workspace.children.first_walk_missing_by_pkg();
+    for (state, round) in states
+        .iter()
+        .zip(rounds.iter_mut().flatten())
+    {
         state.apply_owner_missing_scope(round, &first_importer_by_pkg, &first_walk_missing_by_pkg);
     }
-    for (state, round) in
-        states.iter_mut().zip(rounds).filter_map(|(state, round)| round.map(|round| (state, round)))
+    for (state, round) in states
+        .iter_mut()
+        .zip(rounds)
+        .filter_map(|(state, round)| round.map(|round| (state, round)))
     {
         state.complete_initial_required_round(resolver, round, peer_discovery).await?;
     }

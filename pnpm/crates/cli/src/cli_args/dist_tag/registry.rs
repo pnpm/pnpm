@@ -24,8 +24,10 @@ pub(super) async fn set_dist_tag(
     let body = serde_json::to_string(request.version).expect("a string serializes");
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let builder =
-                client.put(&url).header("content-type", "application/json").body(body.clone());
+            let builder = client
+                .put(&url)
+                .header("content-type", "application/json")
+                .body(body.clone());
             apply_dist_tag_mutation_headers(
                 builder,
                 request.auth_header,
@@ -129,12 +131,14 @@ async fn fetch_dist_tags_once(
     if !response.status().is_success() {
         return Err(DistTagsFetchError::Status { status: response.status() });
     }
-    if response.content_length().is_some_and(|length| length > DIST_TAGS_BODY_LIMIT as u64) {
+    if response
+        .content_length()
+        .is_some_and(|length| length > DIST_TAGS_BODY_LIMIT as u64)
+    {
         return Err(DistTagsFetchError::BodyTooLarge);
     }
-    let body = read_limited_body(response, DIST_TAGS_BODY_LIMIT)
-        .await
-        .map_err(DistTagsFetchError::Body)?;
+    let body =
+        read_limited_body(response, DIST_TAGS_BODY_LIMIT).await.map_err(DistTagsFetchError::Body)?;
     if body.truncated {
         return Err(DistTagsFetchError::BodyTooLarge);
     }
@@ -143,10 +147,14 @@ async fn fetch_dist_tags_once(
 
 async fn write_error_from_response(response: Response, action: String) -> miette::Result<()> {
     let status = response.status();
-    let status_text = status.canonical_reason().unwrap_or_default().to_string();
-    let body = read_limited_body(response, DIST_TAG_ERROR_BODY_LIMIT).await.map_err(|source| {
-        registry_operation_error("reading the registry dist-tag error response", source)
-    })?;
+    let status_text = status
+        .canonical_reason()
+        .unwrap_or_default()
+        .to_string();
+    let body = read_limited_body(response, DIST_TAG_ERROR_BODY_LIMIT).await
+        .map_err(|source| {
+            registry_operation_error("reading the registry dist-tag error response", source)
+        })?;
     let web_otp_challenge =
         if body.truncated { None } else { parse_web_otp_challenge(&body.bytes) };
     let body = sanitize::body_display_string(&body);
@@ -205,7 +213,10 @@ fn map_dist_tags_fetch_error(error: DistTagsFetchError, package_name: &str) -> m
         }
         DistTagsFetchError::Status { status } => DistTagError::RegistryFetchFailed {
             status: status.as_u16(),
-            status_text: status.canonical_reason().unwrap_or_default().to_string(),
+            status_text: status
+                .canonical_reason()
+                .unwrap_or_default()
+                .to_string(),
         }
         .into(),
     }
@@ -293,8 +304,7 @@ fn dist_tag_url(package_name: &str, registry_url: &str, tag: &str) -> miette::Re
 }
 
 pub(super) fn package_name_for_url(package_name: &str) -> Result<String, DistTagError> {
-    parse_wanted_dependency(package_name)
-        .alias
+    parse_wanted_dependency(package_name).alias
         .ok_or_else(|| DistTagError::InvalidPackageSpec { spec: package_name.to_string() })
 }
 

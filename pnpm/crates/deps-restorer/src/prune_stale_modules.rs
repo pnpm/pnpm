@@ -127,8 +127,9 @@ impl<'a> PruneStaleModules<'a> {
     /// depend on install history rather than on the manifests. Pnpm
     /// folds the same condition into this diff.
     fn wanted_root_deps(&self) -> Option<HashMap<&'a PkgName, &'a ImporterDepVersion>> {
-        let root_snapshot =
-            self.config.dedupe_direct_deps.then(|| self.wanted_lockfile.importers.get("."))??;
+        let root_snapshot = self.config.dedupe_direct_deps.then(|| {
+            self.wanted_lockfile.importers.get(".")
+        })??;
         Some(
             direct_deps_of(root_snapshot, self.included_groups)
                 .into_iter()
@@ -152,7 +153,9 @@ fn unlink_stale_direct_deps<Reporter: self::Reporter>(
             .iter()
             .any(|(name, spec, _)| *name == alias && spec.version == current_spec.version);
         let deduped_by_root = dedupe_against_root.is_some_and(|root_deps| {
-            root_deps.get(alias).is_some_and(|version| **version == current_spec.version)
+            root_deps
+                .get(alias)
+                .is_some_and(|version| **version == current_spec.version)
         });
         if still_wanted && !deduped_by_root {
             continue;
@@ -185,11 +188,15 @@ fn prune_orphan_snapshots(
     let empty = HashMap::new();
     let current_snapshots = current_lockfile.snapshots.as_ref().unwrap_or(&empty);
     let wanted_snapshots = wanted_lockfile.snapshots.as_ref().unwrap_or(&empty);
-    let orphan_keys: Vec<_> =
-        current_snapshots.keys().filter(|key| !wanted_snapshots.contains_key(*key)).collect();
+    let orphan_keys: Vec<_> = current_snapshots
+        .keys()
+        .filter(|key| !wanted_snapshots.contains_key(*key))
+        .collect();
 
-    let orphan_pkg_ids: HashSet<String> =
-        orphan_keys.iter().map(|key| format!("{}@{}", key.name, key.suffix.version())).collect();
+    let orphan_pkg_ids: HashSet<String> = orphan_keys
+        .iter()
+        .map(|key| format!("{}@{}", key.name, key.suffix.version()))
+        .collect();
     let removed = orphan_pkg_ids.len() as u64;
 
     let Some(prior_hoisted) = prior_hoisted_dependencies else {
@@ -237,7 +244,10 @@ fn direct_deps_of<'a>(
     let mut deps = Vec::new();
     let mut push = |map: &'a Option<ResolvedDependencyMap>, group: DependencyGroup| {
         if let Some(map) = map {
-            deps.extend(map.iter().map(move |(alias, spec)| (alias, spec, group)));
+            deps.extend(
+                map.iter()
+                    .map(move |(alias, spec)| (alias, spec, group)),
+            );
         }
     };
     for group in groups {

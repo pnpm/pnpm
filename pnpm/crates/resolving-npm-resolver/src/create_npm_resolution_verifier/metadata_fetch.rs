@@ -33,40 +33,45 @@ impl NpmResolutionVerifier {
         let key = package_key(registry, &name.to_string());
         let cell = {
             let mut cache = self.lookup_context.abbreviated_meta.lock().await;
-            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceCell::new())))
+            Arc::clone(
+                cache
+                    .entry(key)
+                    .or_insert_with(|| Arc::new(OnceCell::new())),
+            )
         };
-        let value = cell
-            .get_or_init(|| async {
-                if let Some(shared) = self.read_shared_meta(registry, name) {
-                    return Ok(project_abbreviated_meta(
-                        &shared,
-                        self.registry_supports_time_field,
-                    ));
+        let value = cell.get_or_init(|| async {
+            if let Some(shared) = self.read_shared_meta(registry, name) {
+                return Ok(project_abbreviated_meta(
+                    &shared,
+                    self.metadata.registry_supports_time_field,
+                ));
+            }
+            let opts = FetchFullMetadataCachedOptions {
+                registry,
+                cache_dir: self.metadata.cache_dir.as_deref(),
+                full_metadata: false,
+                filter_metadata: false,
+                offline: self.metadata.offline,
+                priority: pnpm_network::BACKGROUND,
+                http: crate::MetadataHttpClient {
+                    http_client: &self.metadata.http_client,
+                    auth_headers: &self.metadata.auth_headers,
+                    retry_opts: self.metadata.retry_opts,
+                },
+            };
+            // Carry a fetch failure (auth/network/5xx) as the `Err` value
+            // instead of collapsing it to a missing projection: the
+            // tarball-URL check needs to tell a transport failure apart
+            // from a version genuinely absent from the metadata, otherwise
+            // it reports a 403 as a tampering-style mismatch.
+            match fetch_full_metadata_cached(&name.to_string(), &opts).await {
+                Ok(meta) => {
+                    Ok(project_abbreviated_meta(&meta, self.metadata.registry_supports_time_field))
                 }
-                let opts = FetchFullMetadataCachedOptions {
-                    registry,
-                    http_client: &self.http_client,
-                    auth_headers: &self.auth_headers,
-                    cache_dir: self.cache_dir.as_deref(),
-                    full_metadata: false,
-                    filter_metadata: false,
-                    offline: self.offline,
-                    priority: pnpm_network::BACKGROUND,
-                    retry_opts: self.retry_opts,
-                };
-                // Carry a fetch failure (auth/network/5xx) as the `Err` value
-                // instead of collapsing it to a missing projection: the
-                // tarball-URL check needs to tell a transport failure apart
-                // from a version genuinely absent from the metadata, otherwise
-                // it reports a 403 as a tampering-style mismatch.
-                match fetch_full_metadata_cached(&name.to_string(), &opts).await {
-                    Ok(meta) => {
-                        Ok(project_abbreviated_meta(&meta, self.registry_supports_time_field))
-                    }
-                    Err(error) => Err(render_fetch_metadata_error(&error)),
-                }
-            })
-            .await;
+                Err(error) => Err(render_fetch_metadata_error(&error)),
+            }
+        })
+        .await;
         value.clone()
     }
 
@@ -80,7 +85,7 @@ impl NpmResolutionVerifier {
     /// carry a descriptor prefix the verifier can't reproduce; those
     /// simply miss and fall through to the verifier's own fetch chain.
     pub(super) fn read_shared_meta(&self, registry: &str, name: &PkgName) -> Option<Arc<Package>> {
-        let cache = self.meta_cache.as_ref()?;
+        let cache = self.metadata.meta_cache.as_ref()?;
         let name_str = name.to_string();
         let key = package_key(registry, &name_str);
         cache
@@ -101,11 +106,15 @@ impl NpmResolutionVerifier {
         registry: &str,
         name: &PkgName,
     ) -> Option<Arc<PublishedAtTimeMap>> {
-        let cache_dir = self.cache_dir.as_deref()?;
+        let cache_dir = self.metadata.cache_dir.as_deref()?;
         let key = package_key(registry, &name.to_string());
         let cell = {
             let mut cache = self.lookup_context.local_meta.lock().await;
-            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceCell::new())))
+            Arc::clone(
+                cache
+                    .entry(key)
+                    .or_insert_with(|| Arc::new(OnceCell::new())),
+            )
         };
         // The verifier reads the *same* scoped mirror a resolve would
         // populate. A private packument lives under its descriptor
@@ -114,7 +123,7 @@ impl NpmResolutionVerifier {
         // path.
         let name_string = name.to_string();
         let url = crate::registry_url::to_registry_url(registry, &name_string);
-        let scope = self.auth_headers.metadata_scope(&url, Some(&name_string));
+        let scope = self.metadata.auth_headers.metadata_scope(&url, Some(&name_string));
         cell.get_or_init(|| load_local_meta_time(cache_dir, &scope, registry, &name_string))
             .await
             .clone()
@@ -126,16 +135,15 @@ impl NpmResolutionVerifier {
         name: &PkgName,
         version: &str,
     ) -> Result<Option<String>, String> {
-        if self.offline {
+        if self.metadata.offline {
             return Ok(None);
         }
         let opts = FetchAttestationOptions {
             registry,
-            http_client: &self.http_client,
-            auth_headers: &self.auth_headers,
+            http_client: &self.metadata.http_client,
+            auth_headers: &self.metadata.auth_headers,
         };
-        fetch_attestation_published_at(&name.to_string(), version, &opts)
-            .await
+        fetch_attestation_published_at(&name.to_string(), version, &opts).await
             .map_err(|err| redact_url_credentials(&err.to_string()))
     }
 
@@ -147,19 +155,25 @@ impl NpmResolutionVerifier {
         let key = package_key(registry, &name.to_string());
         let cell = {
             let mut cache = self.lookup_context.full_meta.lock().await;
-            Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceCell::new())))
+            Arc::clone(
+                cache
+                    .entry(key)
+                    .or_insert_with(|| Arc::new(OnceCell::new())),
+            )
         };
         cell.get_or_init(|| async {
-            let pkg = self.fetch_full_meta(registry, name).await?;
-            let time_map = pkg.time.as_ref().map(|raw| {
-                raw.iter()
-                    .filter_map(|(version, value)| {
-                        let timestamp = value.as_str()?;
-                        Some((version.clone(), timestamp.to_string()))
-                    })
-                    .collect::<PublishedAtTimeMap>()
-                    .pipe(Arc::new)
-            });
+            let pkg = self.metadata.fetch_full_meta(registry, name).await?;
+            let time_map = pkg.time
+                .as_ref()
+                .map(|raw| {
+                    raw.iter()
+                        .filter_map(|(version, value)| {
+                            let timestamp = value.as_str()?;
+                            Some((version.clone(), timestamp.to_string()))
+                        })
+                        .collect::<PublishedAtTimeMap>()
+                        .pipe(Arc::new)
+                });
             Ok(time_map)
         })
         .await
@@ -174,7 +188,11 @@ impl NpmResolutionVerifier {
         let key = package_key(registry, &name.to_string());
         let cell = {
             let mut cache = self.lookup_context.full_meta_for_trust.lock().await;
-            Arc::clone(cache.entry(key.clone()).or_insert_with(|| Arc::new(OnceCell::new())))
+            Arc::clone(
+                cache
+                    .entry(key.clone())
+                    .or_insert_with(|| Arc::new(OnceCell::new())),
+            )
         };
         cell.get_or_init(|| async {
             // Fast path: if the resolver already pulled the full packument
@@ -186,11 +204,13 @@ impl NpmResolutionVerifier {
             // everything `fail_if_trust_downgraded` reads. Abbreviated
             // entries are rejected — they lack per-version `time` and
             // trust evidence.
-            let shared = self.meta_cache.as_ref().and_then(|cache| {
-                cache
-                    .get(&format!("{key}:full"))
-                    .or_else(|| cache.get(&format!("{key}:full:filtered")))
-            });
+            let shared = self.metadata.meta_cache
+                .as_ref()
+                .and_then(|cache| {
+                    cache
+                        .get(&format!("{key}:full"))
+                        .or_else(|| cache.get(&format!("{key}:full:filtered")))
+                });
             if let Some(cached) = shared {
                 return Ok(Arc::new(project_trust_meta(cached.meta.as_ref())));
             }
@@ -202,7 +222,8 @@ impl NpmResolutionVerifier {
             // cap (see [#11860]).
             //
             // [#11860]: <https://github.com/pnpm/pnpm/issues/11860>
-            self.fetch_full_meta(registry, name)
+            self.metadata
+                .fetch_full_meta(registry, name)
                 .await
                 .map(|meta| project_trust_meta(&meta))
                 .map(Arc::new)
@@ -210,7 +231,9 @@ impl NpmResolutionVerifier {
         .await
         .clone()
     }
+}
 
+impl super::VerificationMetadataClient {
     pub(super) async fn fetch_full_meta(
         &self,
         registry: &str,
@@ -218,8 +241,6 @@ impl NpmResolutionVerifier {
     ) -> Result<Package, String> {
         let opts = FetchFullMetadataCachedOptions {
             registry,
-            http_client: &self.http_client,
-            auth_headers: &self.auth_headers,
             cache_dir: self.cache_dir.as_deref(),
             // The verifier reads `time` and trust evidence per-version,
             // both of which the abbreviated form drops. Always full.
@@ -227,10 +248,13 @@ impl NpmResolutionVerifier {
             filter_metadata: false,
             offline: self.offline,
             priority: pnpm_network::BACKGROUND,
-            retry_opts: self.retry_opts,
+            http: crate::MetadataHttpClient {
+                http_client: &self.http_client,
+                auth_headers: &self.auth_headers,
+                retry_opts: self.retry_opts,
+            },
         };
-        fetch_full_metadata_cached(&name.to_string(), &opts)
-            .await
+        fetch_full_metadata_cached(&name.to_string(), &opts).await
             .map_err(|error| render_fetch_metadata_error(&error))
     }
 }

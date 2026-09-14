@@ -100,8 +100,10 @@ snapshots:
             SpecifierAndResolution { specifier: "9.0.0".to_string(), version: "9.0.0".to_string() },
         )]));
     }
-    env.snapshots
-        .insert("my-config@2.0.0".parse().unwrap(), snapshot(&[("config-util", "1.0.0")], &[]));
+    env.snapshots.insert(
+        "my-config@2.0.0".parse().unwrap(),
+        snapshot(&[("config-util", "1.0.0")], &[]),
+    );
     env.snapshots.insert("config-util@1.0.0".parse().unwrap(), SnapshotEntry::default());
     env.snapshots.insert("pnpm@9.0.0".parse().unwrap(), SnapshotEntry::default());
 
@@ -117,10 +119,11 @@ snapshots:
 fn lockfile_to_audit_request_includes_optional_dependencies_from_env_snapshots() {
     let lockfile = empty_lockfile();
     let mut env = EnvLockfile::create();
-    env.root_importer_mut().config_dependencies.insert(
-        "my-tool".to_string(),
-        SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
-    );
+    env.root_importer_mut().config_dependencies
+        .insert(
+            "my-tool".to_string(),
+            SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
+        );
     env.snapshots.insert(
         "my-tool@1.0.0".parse().unwrap(),
         snapshot(&[("required-dep", "1.0.0")], &[("optional-dep", "2.0.0")]),
@@ -143,10 +146,11 @@ fn lockfile_to_audit_request_includes_optional_dependencies_from_env_snapshots()
 fn lockfile_to_audit_request_ignores_unreachable_env_packages() {
     let lockfile = empty_lockfile();
     let mut env = EnvLockfile::create();
-    env.root_importer_mut().config_dependencies.insert(
-        "my-config".to_string(),
-        SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
-    );
+    env.root_importer_mut().config_dependencies
+        .insert(
+            "my-config".to_string(),
+            SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
+        );
     env.snapshots.insert("my-config@1.0.0".parse().unwrap(), SnapshotEntry::default());
     env.snapshots.insert("orphan-pkg@3.0.0".parse().unwrap(), SnapshotEntry::default());
 

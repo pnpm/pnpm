@@ -1,4 +1,8 @@
+pub use arguments::{AddInstallArgs, AddSaveArgs, AddTargetArgs};
+
 pub(crate) use execution::{add_package, add_packages};
+
+mod arguments;
 
 use crate::{
     State,
@@ -175,8 +179,9 @@ impl AddDependencyOptions {
             save_peer,
             no_save_peer: _,
         } = self;
-        (save_prod || save_dev || save_optional || save_build || save_peer)
-            .then(|| self.dependency_groups().collect())
+        (save_prod || save_dev || save_optional || save_build || save_peer).then(|| {
+            self.dependency_groups().collect()
+        })
     }
 }
 
@@ -191,75 +196,14 @@ pub struct AddArgs {
     /// `--cpu`, `--os`, and `--libc` filters for which optional dependencies are installed.
     #[clap(flatten)]
     pub supported_architectures: SupportedArchitecturesArgs,
-    /// Saved dependencies will be configured with an exact version rather than using
-    /// the default semver range operator.
-    #[clap(short = 'E', long = "save-exact")]
-    pub save_exact: bool,
-    /// The prefix of the saved version range: `^` (default), `~`, `=` for an explicit exact pin, or empty for a bare exact version.
-    #[clap(long = "save-prefix", value_name = "prefix")]
-    pub save_prefix: Option<String>,
-    /// Save the new dependency to the default catalog. Shorthand for `--save-catalog-name=default`.
-    #[clap(long = "save-catalog")]
-    pub save_catalog: bool,
-    /// Save the new dependency to the named catalog `<name>`.
-    #[clap(long = "save-catalog-name", value_name = "name")]
-    pub save_catalog_name: Option<String>,
-    /// Add the package as a configuration dependency.
-    #[clap(long = "config")]
-    pub config: bool,
-    /// Only add the dependency if a workspace project provides it. The
-    /// dependency is saved under the `workspace:` protocol and linked to
-    /// that project.
-    #[clap(long)]
-    pub workspace: bool,
-    /// Package names allowed to run lifecycle (build) scripts during this
-    /// install, appended to `allowBuilds`. Prefix a name with `!` to deny
-    /// its scripts instead. May be repeated.
-    #[clap(long = "allow-build")]
-    pub allow_build: Vec<String>,
-    /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is updated.
-    #[clap(long = "lockfile-only")]
-    pub lockfile_only: bool,
     #[clap(flatten)]
-    pub lockfile_dir: LockfileDirArg,
-    /// Install the package globally, linking its bins into the global bin directory.
-    #[clap(short = 'g', long)]
-    pub global: bool,
-    /// Don't run lifecycle scripts of the added package or its dependencies.
-    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
-    pub ignore_scripts: bool,
-    /// Force-enable lifecycle scripts for this invocation.
-    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
-    pub no_ignore_scripts: bool,
-    /// Permit adding dependencies to a multi-package workspace root without `-w`.
-    #[clap(
-        long = "ignore-workspace-root-check",
-        overrides_with = "no_ignore_workspace_root_check"
-    )]
-    pub ignore_workspace_root_check: bool,
-    /// Keep the workspace-root safety check enabled.
-    #[clap(
-        long = "no-ignore-workspace-root-check",
-        hide = true,
-        overrides_with = "ignore_workspace_root_check"
-    )]
-    pub no_ignore_workspace_root_check: bool,
-    /// Include optionalDependencies while materializing the updated project.
-    #[clap(long, overrides_with = "no_optional")]
-    pub optional: bool,
-    /// Exclude optionalDependencies while materializing the updated project.
-    #[clap(long = "no-optional", overrides_with = "optional")]
-    pub no_optional: bool,
-    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
-    /// pnpmfiles of config dependencies.
-    #[clap(long = "ignore-pnpmfile")]
-    pub ignore_pnpmfile: bool,
-    /// Reinstall every package the lockfile names: relink packages an
-    /// earlier install already materialized, and install optional
-    /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
-    /// the host instead of skipping them.
-    #[clap(long)]
-    pub force: bool,
+    pub scripts: crate::cli_args::install_options::ScriptExecutionArgs,
+    #[clap(flatten)]
+    pub save: AddSaveArgs,
+    #[clap(flatten)]
+    pub target: AddTargetArgs,
+    #[clap(flatten)]
+    pub install: AddInstallArgs,
 }
 
 impl AddArgs {
@@ -267,8 +211,8 @@ impl AddArgs {
         if config.recursive
             || config.workspace_root
             || resolve_bool_override(
-                self.ignore_workspace_root_check,
-                self.no_ignore_workspace_root_check,
+                self.target.ignore_workspace_root_check,
+                self.target.no_ignore_workspace_root_check,
                 config.ignore_workspace_root_check,
             )
             || config.workspace_dir.as_deref() != Some(dir)
@@ -278,26 +222,25 @@ impl AddArgs {
         let patterns = pnpm_workspace::read_workspace_manifest(dir)
             .into_diagnostic()?
             .map(|manifest| pnpm_workspace::workspace_package_patterns(&manifest));
-        if patterns.as_ref().is_some_and(|patterns| patterns.len() > 1) {
+        if patterns
+            .as_ref()
+            .is_some_and(|patterns| patterns.len() > 1)
+        {
             return Err(AddError::AddingToRoot.into());
         }
         Ok(())
     }
 
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
-        config.ignore_scripts = resolve_bool_override(
-            self.ignore_scripts,
-            self.no_ignore_scripts,
-            config.ignore_scripts,
-        );
+        self.scripts.apply(config);
         config.ignore_workspace_root_check = resolve_bool_override(
-            self.ignore_workspace_root_check,
-            self.no_ignore_workspace_root_check,
+            self.target.ignore_workspace_root_check,
+            self.target.no_ignore_workspace_root_check,
             config.ignore_workspace_root_check,
         );
-        config.optional = resolve_bool_override(self.optional, self.no_optional, config.optional);
-        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
-        config.force = self.force || config.force;
+        config.optional =
+            resolve_bool_override(self.install.optional, self.install.no_optional, config.optional);
+        config.force = self.install.force || config.force;
     }
 
     /// The `--config` selectors parsed into the `name → specifier` pairs to
@@ -310,7 +253,7 @@ impl AddArgs {
     pub(super) fn parse_config_dependencies(
         &self,
     ) -> miette::Result<Option<BTreeMap<String, String>>> {
-        if !self.config {
+        if !self.target.config {
             return Ok(None);
         }
 
@@ -333,8 +276,8 @@ impl AddArgs {
     /// settings, mirroring pnpm's `getRangeSpecStyle`.
     fn range_spec_style(&self, config: &Config) -> RangeSpecStyle {
         RangeSpecStyle::from_save_options(
-            self.save_exact || config.save_exact,
-            self.save_prefix.as_deref().or(config.save_prefix.as_deref()),
+            self.save.exact || config.save_exact,
+            self.save.prefix.as_deref().or(config.save_prefix.as_deref()),
         )
     }
 
@@ -345,13 +288,12 @@ impl AddArgs {
         &self,
         config: &Config,
     ) -> miette::Result<Option<WorkspacePackages>> {
-        workspace_link_root(self.workspace, config.workspace_dir.as_deref())?
+        workspace_link_root(self.target.workspace, config.workspace_dir.as_deref())?
             .map(|workspace_root| {
-                recursive::discover_workspace_projects(workspace_root, config).map(
-                    |(projects, _)| {
+                recursive::discover_workspace_projects(workspace_root, config)
+                    .map(|(projects, _)| {
                         build_workspace_packages_map(Some(&projects)).unwrap_or_default()
-                    },
-                )
+                    })
             })
             .transpose()
     }

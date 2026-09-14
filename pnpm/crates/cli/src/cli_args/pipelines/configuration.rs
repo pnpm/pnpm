@@ -46,42 +46,58 @@ pub(crate) fn derive_config_root(
 }
 
 pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
-    cfg.offline = resolve_bool_override(args.offline, args.no_offline, cfg.offline);
-    cfg.prefer_offline =
-        resolve_bool_override(args.prefer_offline, args.no_prefer_offline, cfg.prefer_offline);
-    cfg.frozen_store =
-        resolve_bool_override(args.frozen_store, args.no_frozen_store, cfg.frozen_store);
-    cfg.ignore_scripts =
-        resolve_bool_override(args.ignore_scripts, args.no_ignore_scripts, cfg.ignore_scripts);
-    cfg.ignore_pnpmfile = args.ignore_pnpmfile || cfg.ignore_pnpmfile;
-    cfg.force = args.force || cfg.force;
-    if let Some(network_concurrency) = args.network_concurrency {
+    args.network_cache.apply(cfg);
+    cfg.frozen_store = resolve_bool_override(
+        args.materialization.frozen_store,
+        args.materialization.no_frozen_store,
+        cfg.frozen_store,
+    );
+    args.scripts.apply(cfg);
+    cfg.force = args.materialization.force || cfg.force;
+    if let Some(network_concurrency) = args.fetching.concurrency {
         cfg.network_concurrency = network_concurrency;
     }
-    if let Some(fetch_timeout) = args.fetch_timeout {
+    if let Some(fetch_timeout) = args.fetching.timeout {
         cfg.fetch_timeout = fetch_timeout;
     }
-    if let Some(fetch_warn_timeout_ms) = args.fetch_warn_timeout_ms {
+    if let Some(fetch_warn_timeout_ms) = args.fetching.warn_timeout_ms {
         cfg.fetch_warn_timeout_ms = fetch_warn_timeout_ms;
     }
-    if let Some(fetch_min_speed_ki_bps) = args.fetch_min_speed_ki_bps {
+    if let Some(fetch_min_speed_ki_bps) = args.fetching.min_speed_ki_bps {
         cfg.fetch_min_speed_ki_bps = fetch_min_speed_ki_bps;
     }
-    if let Some(user_agent) = args.user_agent.clone() {
+    if let Some(user_agent) = args.fetching.user_agent.clone() {
         cfg.user_agent = user_agent;
     }
-    if let Some(pnpr_server) = args.pnpr_server.clone() {
+    if let Some(pnpr_server) = args.fetching.pnpr_server.clone() {
         cfg.pnpr_server = Some(pnpr_server);
     }
     // pnpm merges its CLI options into the config *before* deciding
     // `mergeGitBranchLockfiles`, so a pattern given on the command line
     // still gets matched against the current branch — and an explicit
     // `--merge-git-branch-lockfiles` settles the question without it.
-    if args.merge_git_branch_lockfiles {
+    if args.lockfile_updates.merge_git_branch_lockfiles {
         cfg.merge_git_branch_lockfiles = true;
-    } else if !args.merge_git_branch_lockfiles_branch_pattern.is_empty() {
-        cfg.merge_git_branch_lockfiles_branch_pattern
-            .clone_from(&args.merge_git_branch_lockfiles_branch_pattern);
+    } else if !args.lockfile_updates.merge_git_branch_lockfiles_branch_pattern.is_empty() {
+        cfg.merge_git_branch_lockfiles_branch_pattern.clone_from(
+            &args.lockfile_updates.merge_git_branch_lockfiles_branch_pattern,
+        );
         cfg.apply_git_branch_lockfile_derivation::<Host>();
     }
+}
+
+/// Whether the active directory has no manifest of its own and is none of
+/// the workspace's projects, so the manifest at hand stands in for one.
+pub(super) fn active_manifest_is_standin(
+    active_dir: &Path,
+    projects: &[pnpm_workspace::Project],
+) -> miette::Result<bool> {
+    let normalized_active_dir = pnpm_fs::lexical_normalize(active_dir);
+    Ok(!active_dir.join("package.json").is_file()
+        && pnpm_workspace::try_read_project_manifest(active_dir)
+            .map_err(miette::Report::new)?
+            .is_none()
+        && !projects
+            .iter()
+            .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_active_dir))
 }

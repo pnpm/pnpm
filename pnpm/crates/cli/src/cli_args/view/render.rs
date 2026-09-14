@@ -4,16 +4,25 @@ use super::{DateTime, Map, OwoColorize, Stream, Style, Utc, Value};
 /// value (raw for `--json`, plain for text); multiple fields render as a
 /// `{field: value}` object (`--json`) or `field = value` lines.
 pub(super) fn render_fields(info: &Value, fields: &[String], json: bool) -> String {
-    let selected: Vec<(&String, Option<Value>)> =
-        fields.iter().map(|field| (field, get_nested_property(info, field))).collect();
+    let selected: Vec<(&String, Option<Value>)> = fields
+        .iter()
+        .map(|field| (field, get_nested_property(info, field)))
+        .collect();
 
     if json {
         if let [(_, value)] = selected.as_slice() {
-            return value.as_ref().map(to_pretty).unwrap_or_default();
+            return value
+                .as_ref()
+                .map(to_pretty)
+                .unwrap_or_default();
         }
         let map: Map<String, Value> = selected
             .iter()
-            .filter_map(|(field, value)| value.clone().map(|value| ((*field).clone(), value)))
+            .filter_map(|(field, value)| {
+                value
+                    .clone()
+                    .map(|value| ((*field).clone(), value))
+            })
             .collect();
         return to_pretty(&Value::Object(map));
     }
@@ -76,7 +85,11 @@ pub(super) fn render_summary(info: &Value) -> String {
         lines.push(format!("{} - {deprecated}", red("DEPRECATED!")));
     }
     if let Some(keywords) = array_field(info, "keywords") {
-        let joined = keywords.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ");
+        let joined = keywords
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>()
+            .join(", ");
         lines.push(String::new());
         lines.push(format!("keywords: {}", cyan(&joined)));
     }
@@ -180,7 +193,11 @@ pub(super) fn bin_summary(info: &Value) -> Vec<String> {
     let bins: Vec<String> = match info.get("bin") {
         Some(Value::String(bin)) if !bin.is_empty() => match str_field(info, "name") {
             Some(name) if name.starts_with('@') => {
-                vec![name.split_once('/').map_or(name, |(_, rest)| rest).to_string()]
+                vec![
+                    name.split_once('/')
+                        .map_or(name, |(_, rest)| rest)
+                        .to_string(),
+                ]
             }
             Some(name) => vec![name.to_string()],
             None => Vec::new(),
@@ -199,7 +216,11 @@ pub(super) fn bin_summary(info: &Value) -> Vec<String> {
 /// a future one degrades to "just now".
 pub(super) fn published_info(info: &Value) -> Option<String> {
     let version = str_field(info, "version")?;
-    let published_time = info.get("time")?.as_object()?.get(version)?.as_str()?;
+    let published_time = info
+        .get("time")?
+        .as_object()?
+        .get(version)?
+        .as_str()?;
     let date = parse_date(published_time)?;
     let time_ago = format_time_ago(date).unwrap_or_else(|| "just now".to_string());
     Some(match publisher(info) {
@@ -231,8 +252,15 @@ pub(super) fn publisher(info: &Value) -> Option<String> {
 /// Format a `{ name, email }` person object as `name <email>` (blue name,
 /// dimmed email), or just the name when no email is present.
 pub(super) fn format_person(person: &Value) -> String {
-    let name = person.get("name").and_then(Value::as_str).unwrap_or("");
-    match person.get("email").and_then(Value::as_str).filter(|email| !email.is_empty()) {
+    let name = person
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    match person
+        .get("email")
+        .and_then(Value::as_str)
+        .filter(|email| !email.is_empty())
+    {
         Some(email) => format!("{} <{}>", blue(name), dim(email)),
         None => blue(name),
     }
@@ -288,7 +316,9 @@ fn format_time_ago(date: DateTime<Utc>) -> Option<String> {
 }
 
 pub(super) fn parse_date(value: &str) -> Option<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(value).ok().map(|date| date.with_timezone(&Utc))
+    DateTime::parse_from_rfc3339(value)
+        .ok()
+        .map(|date| date.with_timezone(&Utc))
 }
 
 pub(super) fn to_pretty(value: &Value) -> String {
@@ -297,16 +327,22 @@ pub(super) fn to_pretty(value: &Value) -> String {
 
 /// A field's string value, treating an empty string as absent.
 fn str_field<'a>(info: &'a Value, key: &str) -> Option<&'a str> {
-    info.get(key).and_then(Value::as_str).filter(|value| !value.is_empty())
+    info.get(key)
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
 }
 
 fn obj_str<'a>(map: &'a Map<String, Value>, key: &str) -> Option<&'a str> {
-    map.get(key).and_then(Value::as_str).filter(|value| !value.is_empty())
+    map.get(key)
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
 }
 
 /// A field's array value, treating an empty array as absent.
 fn array_field<'a>(info: &'a Value, key: &str) -> Option<&'a Vec<Value>> {
-    info.get(key).and_then(Value::as_array).filter(|array| !array.is_empty())
+    info.get(key)
+        .and_then(Value::as_array)
+        .filter(|array| !array.is_empty())
 }
 
 fn cyan(text: &str) -> String {

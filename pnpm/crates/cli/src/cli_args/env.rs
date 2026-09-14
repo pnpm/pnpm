@@ -98,8 +98,7 @@ impl EnvArgs {
                 if !self.global {
                     return Err(EnvError::LocalUseUnsupported);
                 }
-                let version = self
-                    .params
+                let version = self.params
                     .get(1)
                     .map(|version| version.trim())
                     .filter(|version| !version.is_empty())
@@ -107,8 +106,7 @@ impl EnvArgs {
                 Ok(EnvSubcommand::Use { package_name: format!("node@runtime:{version}") })
             }
             "list" | "ls" => Ok(EnvSubcommand::List {
-                version_spec: self
-                    .params
+                version_spec: self.params
                     .get(1)
                     .map(|spec| spec.trim())
                     .filter(|spec| !spec.is_empty())

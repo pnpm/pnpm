@@ -27,14 +27,26 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     // The sparse-index file: one JSON line per version.
     let response = app
         .clone()
-        .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/index/de/mo/demo")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     // A public crate through the default target stays cacheable.
-    assert!(response.headers().get(header::CACHE_CONTROL).is_none());
+    assert!(
+        response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .is_none(),
+    );
     let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    let lines: Vec<Value> = index.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
+    let lines: Vec<Value> = index
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
     assert_eq!(lines.len(), 1);
     assert_eq!(lines[0]["name"], "demo");
     assert_eq!(lines[0]["vers"], "0.1.0");
@@ -47,7 +59,9 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/cargo/api/v1/crates/demo/0.1.0/download").body(Body::empty()).unwrap(),
+            Request::get("/cargo/api/v1/crates/demo/0.1.0/download")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -55,20 +69,44 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     assert_eq!(body_bytes(response.into_body()).await, archive);
 
     // Storage layout: the hosted org namespace, keyed by the lowercase name.
-    assert!(tmp.path().join("crates/demo/demo-0.1.0.crate").is_file());
-    assert!(tmp.path().join("crates/demo/package.json").is_file());
-    assert!(std::fs::read_dir(tmp.path().join(".pnpr-journal")).unwrap().next().is_none());
+    assert!(
+        tmp.path()
+            .join("crates/demo/demo-0.1.0.crate")
+            .is_file(),
+    );
+    assert!(
+        tmp.path()
+            .join("crates/demo/package.json")
+            .is_file(),
+    );
+    assert!(
+        std::fs::read_dir(tmp.path().join(".pnpr-journal"))
+            .unwrap()
+            .next()
+            .is_none(),
+    );
 
     // The crate is reachable at its one sparse-index path only.
     for wrong in ["/cargo/index/3/d/demo", "/cargo/index/de/mo/Demo", "/cargo/index/DE/MO/demo"] {
-        let response =
-            app.clone().oneshot(Request::get(wrong).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(wrong)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{wrong}");
     }
     // The same crate through the named registry, caller-scoped.
     let response = app
         .clone()
-        .oneshot(Request::get("/cargo/~crates/index/de/mo/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/~crates/index/de/mo/demo")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -76,13 +114,19 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     // npm-shaped paths mean nothing on the Cargo surface.
     let response = app
         .clone()
-        .oneshot(Request::get("/cargo/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/demo")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let response = app
         .oneshot(
-            Request::get("/cargo/api/v1/crates/demo/0.2.0/download").body(Body::empty()).unwrap(),
+            Request::get("/cargo/api/v1/crates/demo/0.2.0/download")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -102,42 +146,75 @@ async fn publish_requires_a_token_and_refuses_duplicates_and_bad_archives() {
     let body = publish_body(&metadata("demo", "0.1.0"), &archive);
 
     // Anonymous: 401 in the crates API's JSON error shape.
-    let response = app.clone().oneshot(publish_request(None, body.clone())).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(publish_request(None, body.clone()))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     let errors: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert!(errors["errors"][0]["detail"].is_string(), "{errors}");
 
-    let response = app.clone().oneshot(publish_request(Some(&token), body.clone())).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(publish_request(Some(&token), body.clone()))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
     // Re-publishing the same version is refused.
-    let response = app.clone().oneshot(publish_request(Some(&token), body)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(publish_request(Some(&token), body))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let errors: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert!(
-        errors["errors"][0]["detail"].as_str().unwrap().contains("already uploaded"),
+        errors["errors"][0]["detail"]
+            .as_str()
+            .unwrap()
+            .contains("already uploaded"),
         "{errors}",
     );
 
     // The archive must hold the crate the metadata names.
     let mismatched = publish_body(&metadata("demo", "0.2.0"), &crate_archive("other", "0.2.0"));
-    let response = app.clone().oneshot(publish_request(Some(&token), mismatched)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(publish_request(Some(&token), mismatched))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    assert!(!tmp.path().join("crates/demo/demo-0.2.0.crate").exists());
+    assert!(
+        !tmp.path()
+            .join("crates/demo/demo-0.2.0.crate")
+            .exists(),
+    );
 
     // A name the hosted registry does not claim routes to the upstream, where
     // nothing can be published.
     let unclaimed = publish_body(&metadata("serde", "1.0.0"), &crate_archive("serde", "1.0.0"));
-    let response = app.clone().oneshot(publish_request(Some(&token), unclaimed)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(publish_request(Some(&token), unclaimed))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let errors: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert!(
-        errors["errors"][0]["detail"].as_str().unwrap().contains("upstream registry"),
+        errors["errors"][0]["detail"]
+            .as_str()
+            .unwrap()
+            .contains("upstream registry"),
         "{errors}",
     );
 
     // A malformed body is a 400, not a 500.
-    let response = app.oneshot(publish_request(Some(&token), vec![1, 2, 3])).await.unwrap();
+    let response = app
+        .oneshot(publish_request(Some(&token), vec![1, 2, 3]))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
@@ -162,7 +239,11 @@ async fn yank_and_unyank_flip_the_index_entry() {
 
     let yanked_flag = |app: axum::Router| async move {
         let response = app
-            .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::get("/cargo/index/de/mo/demo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
@@ -174,7 +255,9 @@ async fn yank_and_unyank_flip_the_index_entry() {
     let response = app
         .clone()
         .oneshot(
-            Request::delete("/cargo/api/v1/crates/demo/0.1.0/yank").body(Body::empty()).unwrap(),
+            Request::delete("/cargo/api/v1/crates/demo/0.1.0/yank")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -198,7 +281,9 @@ async fn yank_and_unyank_flip_the_index_entry() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/cargo/api/v1/crates/demo/0.1.0/download").body(Body::empty()).unwrap(),
+            Request::get("/cargo/api/v1/crates/demo/0.1.0/download")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -252,12 +337,19 @@ async fn a_publishers_description_cannot_grow_a_search_response() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let response = app
-        .oneshot(Request::get("/cargo/api/v1/crates?q=demo").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/api/v1/crates?q=demo")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(
-        body["crates"][0]["description"].as_str().unwrap().len(),
+        body["crates"][0]["description"]
+            .as_str()
+            .unwrap()
+            .len(),
         pnpr_cargo::MAX_DESCRIPTION_LEN,
     );
 }
@@ -295,7 +387,11 @@ async fn search_reports_the_newest_unyanked_release() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let response = app
-        .oneshot(Request::get("/cargo/api/v1/crates?q=demo").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/api/v1/crates?q=demo")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -316,11 +412,20 @@ async fn a_crashed_publish_is_completed_on_startup() {
     recover_publish_journal(&config).await.unwrap();
 
     assert!(!tmp_path.exists(), "the staged archive should be promoted away");
-    assert!(std::fs::read_dir(storage.join(".pnpr-journal")).unwrap().next().is_none());
+    assert!(
+        std::fs::read_dir(storage.join(".pnpr-journal"))
+            .unwrap()
+            .next()
+            .is_none(),
+    );
     let app = router_with_auth(config, AuthState::in_memory());
     let response = app
         .clone()
-        .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/index/de/mo/demo")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -330,7 +435,9 @@ async fn a_crashed_publish_is_completed_on_startup() {
     assert_eq!(entry["cksum"], sha256_hex(&archive));
     let response = app
         .oneshot(
-            Request::get("/cargo/api/v1/crates/demo/0.1.0/download").body(Body::empty()).unwrap(),
+            Request::get("/cargo/api/v1/crates/demo/0.1.0/download")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -360,7 +467,11 @@ async fn a_crashed_publish_keeps_what_was_published_while_it_was_down() {
 
     let app = router_with_auth(config, AuthState::in_memory());
     let response = app
-        .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/index/de/mo/demo")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
@@ -382,12 +493,20 @@ async fn grouped_cargo_publish_stays_out_of_same_named_npm_registry() {
         .header(header::AUTHORIZATION, format!("Bearer {token}"))
         .body(Body::from(publish_body(&metadata("demo", "0.1.0"), &archive)))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     for base in ["/cargo/~internal", "/cargo/~main", "/cargo"] {
         let response = app
             .clone()
-            .oneshot(Request::get(format!("{base}/index/de/mo/demo")).body(Body::empty()).unwrap())
+            .oneshot(
+                Request::get(format!("{base}/index/de/mo/demo"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{base}");
@@ -408,8 +527,15 @@ async fn grouped_cargo_publish_stays_out_of_same_named_npm_registry() {
     for path in
         ["/npm/~internal/demo", "/npm/~main/demo", "/npm/demo", "/pypi/~internal/simple/demo/"]
     {
-        let response =
-            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
     }
 }

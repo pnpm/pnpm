@@ -1,5 +1,5 @@
 use super::{
-    PackError, PackFile, PackOptions, PackResult, PackResultJson, Path, PathBuf, Value,
+    PackError, PackFile, PackOutputOptions, PackResult, PackResultJson, Path, PathBuf, Value,
     lexical_normalize,
 };
 
@@ -8,10 +8,21 @@ use super::{
 pub fn to_pack_result_json(result: &PackResult) -> PackResultJson {
     let manifest = &result.published_manifest;
     PackResultJson {
-        name: manifest.get("name").and_then(Value::as_str).unwrap_or_default().to_string(),
-        version: manifest.get("version").and_then(Value::as_str).unwrap_or_default().to_string(),
+        name: manifest
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        version: manifest
+            .get("version")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
         filename: result.tarball_path.clone(),
-        files: result.contents.iter().map(|path| PackFile { path: path.clone() }).collect(),
+        files: result.contents
+            .iter()
+            .map(|path| PackFile { path: path.clone() })
+            .collect(),
     }
 }
 
@@ -37,8 +48,7 @@ pub fn format_pack_output(results: &[PackResultJson], json: bool, unicode: bool)
             // manifest- and filesystem-derived, so strip control
             // characters before they reach the terminal — a file named
             // with raw ANSI escapes would otherwise spoof the output.
-            let files = result
-                .files
+            let files = result.files
                 .iter()
                 .map(|file| sanitize_for_terminal(&file.path))
                 .collect::<Vec<_>>()
@@ -86,13 +96,13 @@ pub(super) fn normalize_tarball_name(name: &str) -> String {
 /// or the default `<name>-<version>.tgz`. `--out` and
 /// `--pack-destination` are mutually exclusive.
 pub(super) fn resolve_output(
-    opts: &PackOptions,
+    opts: &PackOutputOptions,
     normalized_name: &str,
     version: &str,
 ) -> Result<(String, Option<String>), PackError> {
     resolve_output_values(
         opts.out.as_deref(),
-        opts.pack_destination.as_deref(),
+        opts.destination.as_deref(),
         normalized_name,
         version,
     )
@@ -118,13 +128,16 @@ fn resolve_output_values(
     // `--out .`, `--out ..`, or `--out ""` resolve to no filename; the
     // join would then target a directory and the write would fail with a
     // confusing OS error, so reject the option up front.
-    let Some(tarball_name) =
-        prepared_path.file_name().map(|name| name.to_string_lossy().into_owned())
+    let Some(tarball_name) = prepared_path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
     else {
         return Err(PackError::InvalidOut { out: out.to_owned() });
     };
-    let parent =
-        prepared_path.parent().map(|dir| dir.to_string_lossy().into_owned()).unwrap_or_default();
+    let parent = prepared_path
+        .parent()
+        .map(|dir| dir.to_string_lossy().into_owned())
+        .unwrap_or_default();
     let pack_destination =
         if parent.is_empty() { pack_destination.map(str::to_owned) } else { Some(parent) };
     Ok((tarball_name, pack_destination))
@@ -165,7 +178,10 @@ pub(super) fn packed_tarball_path(
     tarball_name: &str,
 ) -> String {
     if project_dir != dest_dir {
-        return dest_dir.join(tarball_name).display().to_string();
+        return dest_dir
+            .join(tarball_name)
+            .display()
+            .to_string();
     }
     pathdiff::diff_paths(publish_dir.join(tarball_name), project_dir)
         .unwrap_or_else(|| PathBuf::from(tarball_name))

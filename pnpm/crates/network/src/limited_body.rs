@@ -16,8 +16,9 @@ pub async fn read_limited_body(
     mut response: Response,
     limit: usize,
 ) -> Result<LimitedBody, reqwest::Error> {
-    let header_exceeds_limit =
-        response.content_length().is_some_and(|length| length > limit as u64);
+    let header_exceeds_limit = response
+        .content_length()
+        .is_some_and(|length| length > limit as u64);
     let mut bytes = Vec::new();
     let mut truncated = header_exceeds_limit;
     while let Some(chunk) = response.chunk().await? {

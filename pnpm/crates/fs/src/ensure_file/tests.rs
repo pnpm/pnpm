@@ -38,8 +38,10 @@ fn existing_target_with_wrong_content_is_overwritten_atomically() {
     ensure_file(&path, b"fresh", None).expect("torn blob should be rewritten");
 
     assert_eq!(fs::read(&path).unwrap(), b"fresh");
-    let siblings: Vec<_> =
-        fs::read_dir(tmp.path()).unwrap().map(|entry| entry.unwrap().file_name()).collect();
+    let siblings: Vec<_> = fs::read_dir(tmp.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
     assert_eq!(siblings, vec![std::ffi::OsString::from("torn.txt")]);
 }
 
@@ -79,7 +81,11 @@ fn unix_mode_is_applied_on_new_files() {
 
     ensure_file(&path, b"#!/bin/sh\n", Some(0o755)).expect("mode-honouring write");
 
-    let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o700;
+    let mode = fs::metadata(&path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o700;
     assert_eq!(mode, 0o700, "owner rwx bits of 0o755 must survive any reasonable umask");
 }
 
@@ -87,7 +93,11 @@ fn unix_mode_is_applied_on_new_files() {
 fn temp_path_strips_exec_suffix() {
     let shard_dir = Path::new("/tmp/store/v11/files/ab");
     let tmp = temp_path_in(shard_dir, &strip_dash_suffix("cdef-exec"));
-    let name = tmp.file_name().unwrap().to_string_lossy().into_owned();
+    let name = tmp
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
     assert!(name.starts_with("cdefx"), "got {name}");
 }
 
@@ -95,7 +105,11 @@ fn temp_path_strips_exec_suffix() {
 fn temp_path_passes_plain_basename_through() {
     let shard_dir = Path::new("/tmp/store/v11/files/ab");
     let tmp = temp_path_in(shard_dir, &strip_dash_suffix("cdef"));
-    let name = tmp.file_name().unwrap().to_string_lossy().into_owned();
+    let name = tmp
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
     assert!(name.starts_with("cdef"), "got {name}");
     assert_ne!(name, "cdef", "must include pid + counter suffix");
 }
@@ -193,7 +207,9 @@ fn file_equals_bytes_handles_multi_chunk_files() {
     let path = tmp.path().join("big");
 
     // 20 KB: at least three 8 KB chunks.
-    let content: Vec<u8> = (0..20_000).map(|index| (index % 251) as u8).collect();
+    let content: Vec<u8> = (0..20_000)
+        .map(|index| (index % 251) as u8)
+        .collect();
     fs::write(&path, &content).unwrap();
 
     assert!(file_equals_bytes(&path, &content).unwrap());

@@ -95,7 +95,12 @@ fn list_is_recursive_by_default_inside_workspace() {
     let packages: Vec<Value> = serde_json::from_slice(&output.stdout).expect("parse list JSON");
     let names: BTreeSet<String> = packages
         .iter()
-        .map(|pkg| pkg["name"].as_str().expect("package name").to_string())
+        .map(|pkg| {
+            pkg["name"]
+                .as_str()
+                .expect("package name")
+                .to_string()
+        })
         .collect();
     assert_eq!(
         names,
@@ -156,8 +161,11 @@ fn changed_files_ignore_pattern_is_respected() {
     write_workspace_yaml("");
 
     let git = |args: &[&str]| {
-        let output =
-            Command::new("git").args(args).current_dir(&workspace).output().expect("spawn git");
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(&workspace)
+            .output()
+            .expect("spawn git");
         assert!(
             output.status.success(),
             "git {args:?} failed: {}",

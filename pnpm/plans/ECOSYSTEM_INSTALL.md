@@ -25,6 +25,29 @@ CLI selection -> native plans + npm task
                        restore metadata
 ```
 
+## Native project discovery
+
+Cargo and Python discovery honor the explicit `!` exclusions in
+`pnpm-workspace.yaml` `packages`. Matching directories and their descendants
+are skipped before their manifests are read. For example:
+
+```yaml
+packages:
+  - 'packages/*'
+  - '!fixtures/**'
+  - '!worktrees/**'
+cargo:
+  enabled: true
+```
+
+Positive `packages` patterns select npm projects. Cargo and Python projects
+outside those positive patterns are still discovered, including when `packages`
+is empty. The workspace root is always considered. Cargo's `workspace.exclude`
+controls Cargo membership, not pnpm discovery of independent Cargo workspaces;
+use a `!` package pattern to exclude those trees from pnpm discovery.
+Exclusions do not remove dependencies or members that a selected native project
+itself requires.
+
 ## Ownership
 
 | Component | Owns |

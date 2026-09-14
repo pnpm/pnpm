@@ -33,6 +33,7 @@ pub use root_finder::{
 };
 
 mod api;
+mod directory_patterns;
 mod importer_id;
 mod inventory;
 mod manifest;

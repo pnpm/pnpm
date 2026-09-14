@@ -58,8 +58,7 @@ impl WorkspaceSettings {
             lockfile_dir: opt_path(config.lockfile_dir.as_deref()),
             npmrc_auth_file: opt_path(config.npmrc_auth_file.as_deref()),
             global_pnpmfile: opt_path(config.global_pnpmfile.as_deref()),
-            pnpmfile: config
-                .pnpmfile
+            pnpmfile: config.pnpmfile
                 .as_ref()
                 .map(|paths| PnpmfileSetting::Multiple(paths.iter().map(|p| path(p)).collect())),
 
@@ -183,20 +182,24 @@ impl WorkspaceSettings {
 
     pub(super) fn with_resolved_collections(self, config: &Config) -> Self {
         Self {
-            catalogs: config.catalogs.as_ref().map(|catalogs| {
-                catalogs
-                    .iter()
-                    .map(|(name, entries)| {
-                        (
-                            name.clone(),
-                            entries.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
-                        )
-                    })
-                    .collect()
-            }),
+            catalogs: config.catalogs
+                .as_ref()
+                .map(|catalogs| {
+                    catalogs
+                        .iter()
+                        .map(|(name, entries)| {
+                            (
+                                name.clone(),
+                                entries
+                                    .iter()
+                                    .map(|(k, v)| (k.clone(), v.clone()))
+                                    .collect(),
+                            )
+                        })
+                        .collect()
+                }),
             allow_builds: Some(
-                config
-                    .allow_builds
+                config.allow_builds
                     .iter()
                     .map(|(name, allowed)| (name.clone(), AllowBuild::Decided(*allowed)))
                     .collect(),
@@ -204,12 +207,14 @@ impl WorkspaceSettings {
 
             https_proxy: config.proxy.https_proxy.clone(),
             http_proxy: config.proxy.http_proxy.clone(),
-            no_proxy: config.proxy.no_proxy.as_ref().map(|no_proxy| match no_proxy {
-                pnpm_network::NoProxySetting::Bypass => serde_json::Value::Bool(true),
-                pnpm_network::NoProxySetting::List(hosts) => {
-                    serde_json::Value::String(hosts.join(","))
-                }
-            }),
+            no_proxy: config.proxy.no_proxy
+                .as_ref()
+                .map(|no_proxy| match no_proxy {
+                    pnpm_network::NoProxySetting::Bypass => serde_json::Value::Bool(true),
+                    pnpm_network::NoProxySetting::List(hosts) => {
+                        serde_json::Value::String(hosts.join(","))
+                    }
+                }),
 
             // `audit` and `update` are the canonical spellings, so the
             // deprecated `auditLevel`, `auditConfig`, and `updateConfig`

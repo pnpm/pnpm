@@ -58,20 +58,31 @@ fn installed_version(workspace: &Path) -> String {
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(manifest_path).expect("read installed manifest"))
             .expect("parse installed manifest");
-    manifest["version"].as_str().expect("version is a string").to_string()
+    manifest["version"]
+        .as_str()
+        .expect("version is a string")
+        .to_string()
 }
 
 #[test]
 fn custom_resolver_takes_precedence_over_builtin_resolvers() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace);
     fs::write(workspace.join(".pnpmfile.cjs"), overriding_pnpmfile(&mock_instance.url(), "false"))
         .expect("write pnpmfile");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert_eq!(installed_version(&workspace), "100.1.0");
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
@@ -85,8 +96,13 @@ fn custom_resolver_takes_precedence_over_builtin_resolvers() {
 
 #[test]
 fn should_refresh_resolution_forces_re_resolution_past_the_frozen_path() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace);
@@ -98,7 +114,10 @@ fn should_refresh_resolution_forces_re_resolution_past_the_frozen_path() {
         "module.exports = { resolvers: [{ shouldRefreshResolution: () => false }] }\n",
     )
     .expect("write pnpmfile");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     assert_eq!(installed_version(&workspace), "100.0.0");
 
     fs::write(
@@ -119,7 +138,10 @@ fn should_refresh_resolution_forces_re_resolution_past_the_frozen_path() {
     // pinned version.
     fs::write(workspace.join(".pnpmfile.cjs"), overriding_pnpmfile(&mock_instance.url(), "true"))
         .expect("rewrite pnpmfile");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert_eq!(installed_version(&workspace), "100.1.0");
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
@@ -137,8 +159,13 @@ fn should_refresh_resolution_forces_re_resolution_past_the_frozen_path() {
 
 #[test]
 fn failing_should_refresh_resolution_aborts_the_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace);
@@ -147,7 +174,10 @@ fn failing_should_refresh_resolution_aborts_the_install() {
         "module.exports = { resolvers: [{ shouldRefreshResolution: () => false }] }\n",
     )
     .expect("write pnpmfile");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     fs::write(
         workspace.join(".pnpmfile.cjs"),
@@ -155,12 +185,18 @@ fn failing_should_refresh_resolution_aborts_the_install() {
     )
     .expect("rewrite pnpmfile");
 
-    let output = pacquet_at(&workspace).with_arg("install").assert().failure();
+    let output = pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
     // miette wraps the report at the terminal width, and where the wrap
     // falls depends on the temp-dir path length in the message, so the
     // phrase is matched with the wrapping collapsed.
-    let unwrapped = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
+    let unwrapped = stderr
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     assert!(unwrapped.contains("refresh check crashed"), "stderr: {stderr}");
 
     drop((root, mock_instance)); // cleanup
@@ -176,8 +212,13 @@ fn failing_should_refresh_resolution_aborts_the_install() {
 /// registry, and echoing it back must keep the pinned version.
 #[test]
 fn custom_resolver_receives_current_pkg_on_subsequent_installs() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace);
@@ -188,7 +229,10 @@ fn custom_resolver_receives_current_pkg_on_subsequent_installs() {
         "module.exports = { resolvers: [{ shouldRefreshResolution: () => false }] }\n",
     )
     .expect("write pnpmfile");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     assert_eq!(installed_version(&workspace), "100.0.0");
 
     fs::write(
@@ -215,7 +259,10 @@ module.exports = {
 ",
     )
     .expect("rewrite pnpmfile");
-    pacquet_at(&workspace).with_arg("install").assert().success();
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert_eq!(installed_version(&workspace), "100.0.0", "echoing currentPkg keeps the pin");
     let opts: serde_json::Value = serde_json::from_str(

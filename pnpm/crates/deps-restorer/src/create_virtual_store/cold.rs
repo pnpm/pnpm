@@ -35,7 +35,8 @@ pub(super) struct ColdCapture<'a> {
 pub(super) fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<ColdCapture<'_>>) {
     map.reserve(cold_cas_paths.len());
     for ColdCapture { snapshot_key, cas_paths: paths, .. } in cold_cas_paths {
-        map.entry(cas_paths_key(snapshot_key)).or_insert(paths);
+        map.entry(cas_paths_key(snapshot_key))
+            .or_insert(paths);
     }
 }
 /// An optional snapshot whose fetch fails is dropped rather than aborting the
@@ -80,7 +81,6 @@ pub(super) struct ColdBatch<'a> {
     pub(super) removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
     pub(super) link_template: &'a LinkSlotsParallel<'a>,
     pub(super) shared_packages: Option<&'a HashSet<&'a str>>,
-    pub(super) is_hoisted: bool,
 }
 /// Download every cold snapshot and link each one as it lands.
 ///
@@ -97,8 +97,7 @@ pub(super) async fn run_cold_batch<'a, Reporter: self::Reporter>(
     }
 
     let batch = &batch;
-    let mut downloads: FuturesUnordered<_> = batch
-        .cold
+    let mut downloads: FuturesUnordered<_> = batch.cold
         .iter()
         .map(|&(snapshot_key, snapshot)| download_one::<Reporter>(batch, snapshot_key, snapshot))
         .collect();
@@ -112,7 +111,7 @@ pub(super) async fn run_cold_batch<'a, Reporter: self::Reporter>(
             removed_aliases_by_key: batch.removed_aliases_by_key,
             template: &cold_template,
             shared_packages: batch.shared_packages,
-            is_hoisted: batch.is_hoisted,
+            is_hoisted: batch.installer.ctx.is_hoisted(),
         },
         state,
         cold_cas_paths,
@@ -128,12 +127,12 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
     snapshot: &'a SnapshotEntry,
 ) -> Result<(Option<PackageKey>, Option<ColdCapture<'a>>), CreateVirtualStoreError> {
     let metadata_key = snapshot_key.without_peer();
-    let metadata = batch.packages.get(&metadata_key).ok_or_else(|| {
-        CreateVirtualStoreError::MissingPackageMetadata {
+    let metadata = batch.packages
+        .get(&metadata_key)
+        .ok_or_else(|| CreateVirtualStoreError::MissingPackageMetadata {
             snapshot_key: snapshot_key.to_string(),
             metadata_key: metadata_key.to_string(),
-        }
-    })?;
+        })?;
     let installed = match batch.installer.run::<Reporter>(snapshot_key, metadata, snapshot).await {
         Ok(installed) => installed,
         Err(err) => return swallow_optional_fetch_failure(snapshot_key, snapshot, err),
@@ -230,15 +229,17 @@ pub(super) fn record_cold_outcome<'a>(
         state.fetch_failed.insert(key);
     }
     let captured = captured?;
-    state
-        .requires_build_by_snapshot
-        .insert((*captured.snapshot_key).clone(), captured.requires_build);
-    if shared_packages
-        .is_some_and(|packages| packages.contains(captured.snapshot_key.name.to_string().as_str()))
-    {
-        state
-            .shared_base_cas_paths
-            .insert((*captured.snapshot_key).clone(), captured.cas_paths.clone());
+    state.requires_build_by_snapshot.insert(
+        (*captured.snapshot_key).clone(),
+        captured.requires_build,
+    );
+    if shared_packages.is_some_and(|packages| {
+        packages.contains(captured.snapshot_key.name.to_string().as_str())
+    }) {
+        state.shared_base_cas_paths.insert(
+            (*captured.snapshot_key).clone(),
+            captured.cas_paths.clone(),
+        );
     }
     Some(captured)
 }

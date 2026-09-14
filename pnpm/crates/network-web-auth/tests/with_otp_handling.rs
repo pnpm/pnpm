@@ -114,8 +114,8 @@ async fn strips_credentials_from_web_auth_urls_on_non_interactive_error() {
                 body: Some(OtpErrorBody {
                     auth_url: Some("https://user:secret@registry.npmjs.org/auth/abc".to_owned()),
                     done_url: Some(
-                        "https://user:secret@registry.npmjs.org/auth/abc/done?authId=xyz"
-                            .to_owned(),
+                        "https://user:secret@registry.npmjs.org/auth/abc/done?authId=xyz".to_owned(
+                        ),
                     ),
                 }),
             })
@@ -328,7 +328,9 @@ async fn web_auth_flow_polls_done_url_and_uses_returned_token() {
     assert_eq!(op_calls.get(), 2);
     assert_eq!(fetch_calls.get(), 3);
     assert!(
-        infos().iter().any(|message| message.contains("https://registry.npmjs.org/auth/abc")),
+        infos()
+            .iter()
+            .any(|message| message.contains("https://registry.npmjs.org/auth/abc")),
         "the auth URL should be surfaced, got {:?}",
         infos(),
     );
@@ -407,7 +409,9 @@ async fn web_auth_flow_falls_back_to_url_only_display_when_qr_generation_fails()
 
     assert_eq!(result, "published");
     assert!(
-        warns().iter().any(|message| message.starts_with("Could not generate a QR code:")),
+        warns()
+            .iter()
+            .any(|message| message.starts_with("Could not generate a QR code:")),
         "got {:?}",
         warns(),
     );
@@ -545,7 +549,9 @@ async fn web_auth_flow_throws_timeout_error_when_polling_times_out() {
 
     assert!(matches!(error, WithOtpError::Timeout(_)), "got {error:?}");
     assert!(
-        infos().iter().any(|message| message.contains("https://registry.npmjs.org/auth/abc")),
+        infos()
+            .iter()
+            .any(|message| message.contains("https://registry.npmjs.org/auth/abc")),
         "the auth URL should be surfaced, got {:?}",
         infos(),
     );
@@ -607,8 +613,18 @@ fn from_unknown_body_warns_when_auth_url_has_wrong_type() {
     let error = SyntheticOtpError::from_unknown_body::<RecordingReporter>(Some(
         &json!({ "authUrl": 123, "doneUrl": "https://example.com/done" }),
     ));
-    assert!(warns().iter().any(|message| message.contains("authUrl")), "got {:?}", warns());
-    let body = error.as_otp_challenge().expect("a challenge").body.expect("a body");
+    assert!(
+        warns()
+            .iter()
+            .any(|message| message.contains("authUrl")),
+        "got {:?}",
+        warns(),
+    );
+    let body = error
+        .as_otp_challenge()
+        .expect("a challenge")
+        .body
+        .expect("a body");
     assert_eq!(body.auth_url, None);
     assert_eq!(body.done_url, Some("https://example.com/done".to_owned()));
 }
@@ -620,8 +636,18 @@ fn from_unknown_body_warns_when_done_url_has_wrong_type() {
     let error = SyntheticOtpError::from_unknown_body::<RecordingReporter>(Some(
         &json!({ "authUrl": "https://example.com/auth", "doneUrl": true }),
     ));
-    assert!(warns().iter().any(|message| message.contains("doneUrl")), "got {:?}", warns());
-    let body = error.as_otp_challenge().expect("a challenge").body.expect("a body");
+    assert!(
+        warns()
+            .iter()
+            .any(|message| message.contains("doneUrl")),
+        "got {:?}",
+        warns(),
+    );
+    let body = error
+        .as_otp_challenge()
+        .expect("a challenge")
+        .body
+        .expect("a body");
     assert_eq!(body.auth_url, Some("https://example.com/auth".to_owned()));
     assert_eq!(body.done_url, None);
 }
@@ -633,9 +659,25 @@ fn from_unknown_body_warns_for_both_when_both_have_wrong_types() {
     let error = SyntheticOtpError::from_unknown_body::<RecordingReporter>(Some(
         &json!({ "authUrl": 42, "doneUrl": false }),
     ));
-    assert!(warns().iter().any(|message| message.contains("authUrl")), "got {:?}", warns());
-    assert!(warns().iter().any(|message| message.contains("doneUrl")), "got {:?}", warns());
-    let body = error.as_otp_challenge().expect("a challenge").body.expect("a body");
+    assert!(
+        warns()
+            .iter()
+            .any(|message| message.contains("authUrl")),
+        "got {:?}",
+        warns(),
+    );
+    assert!(
+        warns()
+            .iter()
+            .any(|message| message.contains("doneUrl")),
+        "got {:?}",
+        warns(),
+    );
+    let body = error
+        .as_otp_challenge()
+        .expect("a challenge")
+        .body
+        .expect("a body");
     assert_eq!(body.auth_url, None);
     assert_eq!(body.done_url, None);
 }

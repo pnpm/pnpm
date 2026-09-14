@@ -47,8 +47,7 @@ impl StoreIndex {
     /// Cost is one `Vec<u8>` allocation + memcpy per read, dwarfed by
     /// the `SQLite` query and disk I/O.
     pub fn get(&self, key: &str) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
-        let row: Option<Vec<u8>> = self
-            .conn
+        let row: Option<Vec<u8>> = self.conn
             .query_row("SELECT data FROM package_index WHERE key = ?", [key], |row| {
                 row.get::<_, Vec<u8>>(0)
             })
@@ -72,8 +71,7 @@ impl StoreIndex {
         pkg_id: &str,
     ) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
         let pattern = format!("%\t{}", escape_like_pattern(pkg_id));
-        let row: Option<Vec<u8>> = self
-            .conn
+        let row: Option<Vec<u8>> = self.conn
             .query_row(
                 r"SELECT data FROM package_index WHERE key LIKE ?1 ESCAPE '\' ORDER BY key LIMIT 1",
                 [pattern],
@@ -158,8 +156,9 @@ impl StoreIndex {
             // to look at — not SQL injection.
             let placeholders = std::iter::repeat_n("?", chunk.len()).collect::<Vec<_>>().join(",");
             let sql = format!("SELECT key, data FROM package_index WHERE key IN ({placeholders})");
-            let mut stmt =
-                self.conn.prepare(&sql).map_err(|source| StoreIndexError::Read { source })?;
+            let mut stmt = self.conn
+                .prepare(&sql)
+                .map_err(|source| StoreIndexError::Read { source })?;
             let params = rusqlite::params_from_iter(chunk.iter().map(String::as_str));
             let rows = stmt
                 .query_map(params, |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))
@@ -181,8 +180,7 @@ impl StoreIndex {
     where
         VisitError: From<StoreIndexError>,
     {
-        let mut stmt = self
-            .conn
+        let mut stmt = self.conn
             .prepare("SELECT key, data FROM package_index")
             .map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
         let rows = stmt
@@ -209,8 +207,9 @@ impl StoreIndex {
         for chunk in keys.chunks(GET_MANY_CHUNK) {
             let placeholders = std::iter::repeat_n("?", chunk.len()).collect::<Vec<_>>().join(",");
             let sql = format!("SELECT key FROM package_index WHERE key IN ({placeholders})");
-            let mut stmt =
-                self.conn.prepare(&sql).map_err(|source| StoreIndexError::Read { source })?;
+            let mut stmt = self.conn
+                .prepare(&sql)
+                .map_err(|source| StoreIndexError::Read { source })?;
             let params = rusqlite::params_from_iter(chunk.iter().map(String::as_str));
             let rows = stmt
                 .query_map(params, |row| row.get::<_, String>(0))
@@ -286,8 +285,7 @@ impl StoreIndex {
             return Ok(());
         }
 
-        let tx = self
-            .conn
+        let tx = self.conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|source| StoreIndexError::Write { source })?;
         {
@@ -299,13 +297,13 @@ impl StoreIndex {
                     .map_err(|source| StoreIndexError::Write { source })?;
             }
         }
-        tx.commit().map_err(|source| StoreIndexError::Write { source })
+        tx.commit()
+            .map_err(|source| StoreIndexError::Write { source })
     }
 
     /// `true` iff a row with this key exists.
     pub fn contains_key(&self, key: &str) -> Result<bool, StoreIndexError> {
-        let exists = self
-            .conn
+        let exists = self.conn
             .query_row("SELECT 1 FROM package_index WHERE key = ?", [key], |_| Ok(()))
             .map(|()| true)
             .or_else(|err| match err {
@@ -318,8 +316,7 @@ impl StoreIndex {
     /// Collect every key in `package_index`. Useful for tests and store-prune.
     /// Buffers to avoid holding a statement borrow across the returned vector.
     pub fn keys(&self) -> Result<Vec<String>, StoreIndexError> {
-        let mut stmt = self
-            .conn
+        let mut stmt = self.conn
             .prepare("SELECT key FROM package_index")
             .map_err(|source| StoreIndexError::Read { source })?;
         let rows = stmt

@@ -396,7 +396,10 @@ fn lockfile_driven_linking_only_visits_selected_snapshots() {
         ),
     ]);
     for key in [&selected, &unchanged] {
-        let package_dir = layout.slot_dir(key).join("node_modules").join(key.name.to_string());
+        let package_dir = layout
+            .slot_dir(key)
+            .join("node_modules")
+            .join(key.name.to_string());
         create_dir_all(&package_dir).unwrap();
         write_file(
             package_dir.join("package.json"),

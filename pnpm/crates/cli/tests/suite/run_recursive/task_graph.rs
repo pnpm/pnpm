@@ -40,7 +40,10 @@ fn task_starts_as_soon_as_its_dependencies_finish() {
         ],
     );
 
-    pacquet.with_args(["--workspace-concurrency=2", "-r", "run", "build"]).assert().success();
+    pacquet
+        .with_args(["--workspace-concurrency=2", "-r", "run", "build"])
+        .assert()
+        .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "dep\nmid\nslow\n");
@@ -77,12 +80,20 @@ fn depends_on_runs_the_tasks_a_task_depends_on_in_dependency_order() {
     )
     .expect("write workspace settings");
 
-    pacquet.with_args(["-r", "run", "--report-summary", "test"]).assert().success();
+    pacquet
+        .with_args(["-r", "run", "--report-summary", "test"])
+        .assert()
+        .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     let lines: Vec<&str> = order.lines().collect();
     dbg!(&lines);
-    let position = |line: &str| lines.iter().position(|found| *found == line).expect(line);
+    let position = |line: &str| {
+        lines
+            .iter()
+            .position(|found| *found == line)
+            .expect(line)
+    };
     assert!(position("project-b-build") < position("project-a-build"));
     assert!(position("project-a-build") < position("project-a-test"));
     assert!(position("project-b-build") < position("project-b-test"));
@@ -135,7 +146,10 @@ fn explicitly_empty_depends_on_starts_without_waiting() {
     )
     .expect("write workspace settings");
 
-    pacquet.with_args(["--workspace-concurrency=2", "-r", "run", "lint"]).assert().success();
+    pacquet
+        .with_args(["--workspace-concurrency=2", "-r", "run", "lint"])
+        .assert()
+        .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "dependent\ndependency\n");
@@ -177,7 +191,10 @@ fn missing_script_is_reported_skipped_and_does_not_sever_the_chain() {
         ],
     );
 
-    pacquet.with_args(["-r", "run", "--report-summary", "build"]).assert().success();
+    pacquet
+        .with_args(["-r", "run", "--report-summary", "build"])
+        .assert()
+        .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read order log");
     assert_eq!(order, "project-c\nproject-a\n");
@@ -262,7 +279,10 @@ fn workspace_dependency_cycle_is_an_error_naming_the_participating_tasks() {
         ],
     );
 
-    let output = pacquet.with_args(["-r", "run", "build"]).output().expect("run recursive script");
+    let output = pacquet
+        .with_args(["-r", "run", "build"])
+        .output()
+        .expect("run recursive script");
     assert!(!output.status.success(), "a task cycle must fail the run");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_TASK_CYCLE"), "stderr: {stderr}");
@@ -298,7 +318,10 @@ fn depends_on_cycle_is_an_error() {
     )
     .expect("write workspace settings");
 
-    let output = pacquet.with_args(["-r", "run", "test"]).output().expect("run recursive script");
+    let output = pacquet
+        .with_args(["-r", "run", "test"])
+        .output()
+        .expect("run recursive script");
     assert!(!output.status.success(), "a task cycle must fail the run");
     assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_TASK_CYCLE"));
 
@@ -339,7 +362,10 @@ fn dry_run_prints_one_stable_linearization_and_runs_nothing() {
         ],
     );
 
-    let output = pacquet.with_args(["-r", "run", "--dry-run", "build"]).output().expect("dry run");
+    let output = pacquet
+        .with_args(["-r", "run", "--dry-run", "build"])
+        .output()
+        .expect("dry run");
     assert!(output.status.success(), "dry run failed: {output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -389,8 +415,10 @@ fn dry_run_json_emits_the_tasks_and_their_resolved_edges() {
     )
     .expect("write workspace settings");
 
-    let output =
-        pacquet.with_args(["-r", "run", "--dry-run", "--json", "test"]).output().expect("dry run");
+    let output = pacquet
+        .with_args(["-r", "run", "--dry-run", "--json", "test"])
+        .output()
+        .expect("dry run");
     assert!(output.status.success(), "dry run failed: {output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let json_start = stdout.find('{').expect("stdout carries a JSON document");
@@ -506,7 +534,10 @@ fn missing_requested_script_errors_before_upstream_tasks_run() {
     )
     .expect("write workspace settings");
 
-    let output = pacquet.with_args(["-r", "run", "build"]).output().expect("run recursive script");
+    let output = pacquet
+        .with_args(["-r", "run", "build"])
+        .output()
+        .expect("run recursive script");
     assert!(!output.status.success(), "a script nothing declares must fail the run");
     assert!(String::from_utf8_lossy(&output.stderr).contains("RECURSIVE_RUN_NO_SCRIPT"));
     assert!(!workspace.join("order.log").exists(), "the pulled-in task must not have run");
@@ -534,8 +565,10 @@ fn regexp_selected_empty_script_errors_before_upstream_tasks_run() {
     )
     .expect("write workspace settings");
 
-    let output =
-        pacquet.with_args(["-r", "run", "/^build:/"]).output().expect("run recursive script");
+    let output = pacquet
+        .with_args(["-r", "run", "/^build:/"])
+        .output()
+        .expect("run recursive script");
     eprintln!("STATUS: {}", output.status);
     assert!(!output.status.success(), "an empty selected script must fail the run");
     let stderr = String::from_utf8_lossy(&output.stderr);

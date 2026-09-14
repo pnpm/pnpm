@@ -12,7 +12,7 @@
 
 pub use errors::ConfigDepError;
 pub use install_config_deps::install_config_deps;
-pub use options::ConfigDepsInstallOptions;
+pub use options::{ConfigDependencyStore, ConfigDepsInstallOptions};
 pub use parse_integrity::{NormalizedConfigDep, NormalizedSubdep, parse_integrity};
 pub use prune::prune_env_lockfile;
 pub use resolve_and_install_config_deps::resolve_and_install_config_deps;

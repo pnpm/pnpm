@@ -198,7 +198,10 @@ pub(super) fn validate_windows_pnpm_home(dir: &Path) -> Result<(), PathExtenderE
 
 fn reject_unsafe_chars(dir: &Path, unsafe_chars: &[char]) -> Result<(), PathExtenderError> {
     let dir = dir.to_string_lossy();
-    if let Some(character) = dir.chars().find(|character| unsafe_chars.contains(character)) {
+    if let Some(character) = dir
+        .chars()
+        .find(|character| unsafe_chars.contains(character))
+    {
         return Err(PathExtenderError::UnsafePnpmHome { dir: dir.into_owned(), character });
     }
     Ok(())

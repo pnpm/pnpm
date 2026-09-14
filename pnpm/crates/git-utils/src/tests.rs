@@ -154,6 +154,9 @@ fn repo_with_fifo_head() -> TempDir {
 
 #[cfg(unix)]
 fn make_fifo(path: &std::path::Path) {
-    let status = std::process::Command::new("mkfifo").arg(path).status().expect("run mkfifo");
+    let status = std::process::Command::new("mkfifo")
+        .arg(path)
+        .status()
+        .expect("run mkfifo");
     assert!(status.success(), "mkfifo failed");
 }

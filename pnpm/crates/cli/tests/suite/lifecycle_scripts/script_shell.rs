@@ -37,8 +37,13 @@ fn logged_scripts(log: &Path) -> Vec<String> {
 
 #[test]
 fn runs_the_projects_own_scripts_and_dev_preinstall_under_it() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -53,15 +58,22 @@ fn runs_the_projects_own_scripts_and_dev_preinstall_under_it() {
         .expect("write package.json");
     let log = install_probe_shell(&workspace);
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let scripts = logged_scripts(&log);
     assert!(
-        scripts.iter().any(|script| script.contains("dev-preinstall-marker")),
+        scripts
+            .iter()
+            .any(|script| script.contains("dev-preinstall-marker")),
         "pnpm:devPreinstall should run under the configured shell, got {scripts:?}",
     );
     assert!(
-        scripts.iter().any(|script| script.contains("postinstall-marker")),
+        scripts
+            .iter()
+            .any(|script| script.contains("postinstall-marker")),
         "the project's postinstall should run under the configured shell, got {scripts:?}",
     );
 
@@ -70,8 +82,13 @@ fn runs_the_projects_own_scripts_and_dev_preinstall_under_it() {
 
 #[test]
 fn runs_dependency_build_scripts_under_it() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -82,11 +99,16 @@ fn runs_dependency_build_scripts_under_it() {
     allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
     let log = install_probe_shell(&workspace);
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let scripts = logged_scripts(&log);
     assert!(
-        scripts.iter().any(|script| script.contains("generated-by-preinstall")),
+        scripts
+            .iter()
+            .any(|script| script.contains("generated-by-preinstall")),
         "a dependency's build scripts should run under the configured shell, got {scripts:?}",
     );
 

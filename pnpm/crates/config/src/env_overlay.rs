@@ -24,7 +24,9 @@ use serde::de::DeserializeOwned;
 fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
     let upper = format!("PNPM_CONFIG_{suffix}");
     let lower = format!("pnpm_config_{}", suffix.to_lowercase());
-    Sys::var(&upper).or_else(|| Sys::var(&lower)).filter(|value| !value.is_empty())
+    Sys::var(&upper)
+        .or_else(|| Sys::var(&lower))
+        .filter(|value| !value.is_empty())
 }
 
 /// Read an env var by suffix, keeping an empty value as `Some("")`.
@@ -58,10 +60,11 @@ fn parse_json<Target: DeserializeOwned>(value: &str) -> Option<Target> {
 /// raw env var value isn't valid JSON on its own but becomes valid
 /// once quoted.
 fn parse_json_or_string<Target: DeserializeOwned>(value: &str) -> Option<Target> {
-    parse_json(value).or_else(|| {
-        let quoted = serde_json::to_string(value).ok()?;
-        parse_json(&quoted)
-    })
+    parse_json(value)
+        .or_else(|| {
+            let quoted = serde_json::to_string(value).ok()?;
+            parse_json(&quoted)
+        })
 }
 
 /// Parse a `hoist_pattern` / `public_hoist_pattern` env var into the

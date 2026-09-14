@@ -14,7 +14,10 @@ fn args(params: &[&str]) -> RuntimeArgs {
         global: false,
         save_dev: false,
         save_prod: false,
-        params: params.iter().map(|param| (*param).to_string()).collect(),
+        params: params
+            .iter()
+            .map(|param| (*param).to_string())
+            .collect(),
     }
 }
 

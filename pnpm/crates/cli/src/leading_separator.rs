@@ -25,7 +25,10 @@ pub(crate) fn preserve_leading_separator(mut argv: Vec<OsString>) -> Vec<OsStrin
     else {
         return argv;
     };
-    if argv.get(boundary.index).is_none_or(|token| token != "--") {
+    if argv
+        .get(boundary.index)
+        .is_none_or(|token| token != "--")
+    {
         return argv;
     }
     argv.insert(boundary.index, OsString::from("--"));

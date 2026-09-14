@@ -107,7 +107,9 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
     let settings = current_settings(config, pnpm_config::NodeLinker::Isolated, included, None);
     let mut projects = BTreeMap::new();
     projects.insert(
-        dir.path().to_string_lossy().into_owned(),
+        dir.path()
+            .to_string_lossy()
+            .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
@@ -115,13 +117,15 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pnpm_config::NodeLinker::Isolated,
-        included,
-        supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included,
+            supported_architectures: None,
+        },
     });
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -144,7 +148,9 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
     let settings = current_settings(config, pnpm_config::NodeLinker::Isolated, included, None);
     let mut projects = BTreeMap::new();
     projects.insert(
-        dir.path().to_string_lossy().into_owned(),
+        dir.path()
+            .to_string_lossy()
+            .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
@@ -152,13 +158,15 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pnpm_config::NodeLinker::Isolated,
-        included,
-        supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included,
+            supported_architectures: None,
+        },
     });
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
@@ -231,7 +239,9 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
     let settings = current_settings(config, pnpm_config::NodeLinker::Isolated, included, None);
     let mut projects = BTreeMap::new();
     projects.insert(
-        dir.path().to_string_lossy().into_owned(),
+        dir.path()
+            .to_string_lossy()
+            .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
@@ -239,13 +249,15 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pnpm_config::NodeLinker::Isolated,
-        included,
-        supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: false,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included,
+            supported_architectures: None,
+        },
     });
     assert_eq!(decision, Decision::UpToDate);
 }

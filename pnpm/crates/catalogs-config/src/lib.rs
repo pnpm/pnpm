@@ -55,7 +55,9 @@ pub fn check_default_catalog_is_defined_once(
     manifest: &WorkspaceManifest,
 ) -> Result<(), InvalidCatalogsConfigurationError> {
     if manifest.catalog.is_some()
-        && manifest.catalogs.as_ref().is_some_and(|c| c.contains_key(DEFAULT_CATALOG_NAME))
+        && manifest.catalogs
+            .as_ref()
+            .is_some_and(|c| c.contains_key(DEFAULT_CATALOG_NAME))
     {
         return Err(InvalidCatalogsConfigurationError::DefaultDefinedMultipleTimes);
     }

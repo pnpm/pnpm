@@ -82,12 +82,11 @@ pub(super) fn child_link_present(child_path: &Path) -> Result<bool, CreateVirtua
             // On Windows `symlink_dir` may have fallen back to a
             // junction, which `is_symlink` does not report.
             #[cfg(windows)]
-            return pnpm_fs::is_symlink_or_junction(child_path).map_err(|error| {
-                CreateVirtualStoreError::InspectVirtualStoreSlot {
+            return pnpm_fs::is_symlink_or_junction(child_path)
+                .map_err(|error| CreateVirtualStoreError::InspectVirtualStoreSlot {
                     path: child_path.to_path_buf(),
                     error,
-                }
-            });
+                });
             #[cfg(not(windows))]
             Ok(false)
         }
@@ -191,9 +190,11 @@ pub(super) fn optional_children_match_with(
         let should_exist = link_dependencies
             && include_optional_dependencies
             && layout_links_child(alias, dep_ref, layout, skipped);
-        let matches = child_matches(&child_path, should_exist).map_err(|error| {
-            CreateVirtualStoreError::InspectOptionalDependency { path: child_path.clone(), error }
-        })?;
+        let matches = child_matches(&child_path, should_exist)
+            .map_err(|error| CreateVirtualStoreError::InspectOptionalDependency {
+                path: child_path.clone(),
+                error,
+            })?;
         if !matches {
             return Ok(false);
         }

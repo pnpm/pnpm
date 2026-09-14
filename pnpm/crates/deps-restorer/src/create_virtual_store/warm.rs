@@ -54,12 +54,12 @@ pub(super) fn cached_git_prepare_allowed(
     let Some(key) = cache_key else { return Ok(true) };
     let Some(cas_paths) = prefetch.cas_paths.get(key) else { return Ok(true) };
     let metadata_key = snapshot_key.without_peer();
-    let metadata = packages.get(&metadata_key).ok_or_else(|| {
-        CreateVirtualStoreError::MissingPackageMetadata {
+    let metadata = packages
+        .get(&metadata_key)
+        .ok_or_else(|| CreateVirtualStoreError::MissingPackageMetadata {
             snapshot_key: snapshot_key.to_string(),
             metadata_key: metadata_key.to_string(),
-        }
-    })?;
+        })?;
     if !is_git_hosted_resolution(&metadata.resolution)
         || prefetch.requires_prepare.get(key) == Some(&false)
     {
@@ -69,7 +69,10 @@ pub(super) fn cached_git_prepare_allowed(
         return Ok(false);
     };
     let package_id = metadata_key.pkg_id();
-    let name = manifest.get("name").and_then(serde_json::Value::as_str).unwrap_or("");
+    let name = manifest
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("");
     if allow_build_policy.check(&format!("{name}@{package_id}")) == Some(true) {
         return Ok(true);
     }
@@ -77,11 +80,12 @@ pub(super) fn cached_git_prepare_allowed(
         return Ok(false);
     }
     let allow_build = |dep_path: &str| allow_build_policy.check(dep_path).unwrap_or(false);
-    assert_package_build_allowed(&allow_build, &package_id, &manifest).map_err(|error| {
-        CreateVirtualStoreError::InstallPackageBySnapshot(InstallPackageBySnapshotError::GitFetch(
-            GitFetcherError::Prepare(error),
-        ))
-    })?;
+    assert_package_build_allowed(&allow_build, &package_id, &manifest)
+        .map_err(|error| {
+            CreateVirtualStoreError::InstallPackageBySnapshot(
+                InstallPackageBySnapshotError::GitFetch(GitFetcherError::Prepare(error)),
+            )
+        })?;
     Ok(true)
 }
 /// The prefetched manifest, or the one the warm slot's `package.json` holds.
@@ -155,7 +159,8 @@ pub(super) fn warm_shared_base_cas_paths(
 pub(super) fn warm_cas_paths_by_pkg_id(warm: &[partition::WarmEntry<'_>]) -> CasPathsByPkgId {
     let mut map = CasPathsByPkgId::with_capacity(warm.len());
     for (snapshot_key, _snapshot, cas_paths, _cache_key, _needs_build_marker) in warm {
-        map.entry(cas_paths_key(snapshot_key)).or_insert_with(|| (***cas_paths).clone());
+        map.entry(cas_paths_key(snapshot_key))
+            .or_insert_with(|| (***cas_paths).clone());
     }
     map
 }
@@ -188,6 +193,13 @@ pub(super) fn link_warm_batch<Reporter: self::Reporter>(
             let force_import =
                 package_content_changed(batch.current_packages, batch.packages, snapshot_key);
             SlotLink {
+                source: crate::SlotImportSource {
+                    is_mutable: false,
+                    force: force_import,
+                    build_marker: needs_build_marker
+                        .then_some(batch.needs_build_marker_source)
+                        .flatten(),
+                },
                 snapshot_key,
                 snapshot,
                 cas_paths: cas_paths.as_ref(),
@@ -195,11 +207,6 @@ pub(super) fn link_warm_batch<Reporter: self::Reporter>(
                 // A cache key means the file map is CAS-backed, and
                 // `snapshot_cache_key` yields none for a directory resolution,
                 // so a warm slot's source is immutable by construction.
-                source_is_mutable: false,
-                force_import,
-                needs_build_marker_source: needs_build_marker
-                    .then_some(batch.needs_build_marker_source)
-                    .flatten(),
                 dir_clone_cacheable: dir_clone_cacheable(
                     batch.packages,
                     snapshot_key,
@@ -224,7 +231,7 @@ pub(super) fn emit_hoisted_warm_progress<Reporter: self::Reporter>(
     for (snapshot_key, _, _, cache_key, _) in warm {
         emit_warm_snapshot_progress::<Reporter>(
             &snapshot_key.pkg_id(),
-            batch.template.requester,
+            batch.template.import.requester,
             batch.template.progress_reported.contains(*cache_key),
         );
     }

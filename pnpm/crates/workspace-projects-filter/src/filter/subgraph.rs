@@ -1,24 +1,5 @@
-use super::{HashMap, IndexSet, Path, PathBuf, ProjectGraph, ProjectSelector};
-
-/// The selector modifiers that drive [`WalkState::select_entries`]. A
-/// `[<since>]` selector selects its test-only-changed projects through
-/// a copy with `include_dependents` suppressed.
-#[derive(Clone, Copy)]
-pub(super) struct WalkFlags {
-    pub(super) include_dependencies: bool,
-    pub(super) include_dependents: bool,
-    pub(super) exclude_self: bool,
-}
-
-impl WalkFlags {
-    pub(super) fn of(selector: &ProjectSelector) -> Self {
-        WalkFlags {
-            include_dependencies: selector.include_dependencies,
-            include_dependents: selector.include_dependents,
-            exclude_self: selector.exclude_self,
-        }
-    }
-}
+use super::{HashMap, IndexSet, Path, PathBuf, ProjectGraph};
+use crate::parse_project_selector::DependencyTraversal;
 
 /// Accumulates the projects the selectors of one [`filter_graph`](crate::filter::filter_graph) run
 /// pick, in the buckets whose union (dependencies, dependents,
@@ -35,7 +16,7 @@ pub(super) struct WalkState {
 impl WalkState {
     pub(super) fn select_entries<Forward, Reverse>(
         &mut self,
-        flags: WalkFlags,
+        flags: DependencyTraversal,
         entry_projects: &[PathBuf],
         forward: &Forward,
         reverse: &Reverse,
@@ -51,7 +32,10 @@ impl WalkState {
             pick_subgraph(reverse, entry_projects, &mut self.walked_dependents, include_root);
         }
         if flags.include_dependencies && flags.include_dependents {
-            let dependents: Vec<PathBuf> = self.walked_dependents.iter().cloned().collect();
+            let dependents: Vec<PathBuf> = self.walked_dependents
+                .iter()
+                .cloned()
+                .collect();
             pick_subgraph(forward, &dependents, &mut self.walked_dependents_dependencies, false);
         }
         if !flags.include_dependencies && !flags.include_dependents {
@@ -102,7 +86,10 @@ pub(super) fn reverse_graph<Pkg>(
     let mut reversed: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
     for (dependent, node) in projects_graph {
         for dependency in &node.dependencies {
-            reversed.entry(dependency.clone()).or_default().push(dependent.clone());
+            reversed
+                .entry(dependency.clone())
+                .or_default()
+                .push(dependent.clone());
         }
     }
     reversed

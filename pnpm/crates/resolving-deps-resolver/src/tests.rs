@@ -41,7 +41,10 @@ impl Resolver for StubResolver {
             wanted.alias.clone().unwrap_or_default(),
             wanted.bare_specifier.clone().unwrap_or_default(),
         );
-        self.calls.lock().unwrap().push(key.clone());
+        self.calls
+            .lock()
+            .unwrap()
+            .push(key.clone());
         let result = self.table.get(&key).cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
     }
@@ -109,25 +112,27 @@ impl Resolver for OverlayPickResolver {
         let name = wanted.alias.clone().unwrap_or_default();
         let bare = wanted.bare_specifier.clone().unwrap_or_default();
         let range = node_semver::Range::from_str(&bare).expect("test range");
-        let preferred: Vec<&str> = opts
-            .preferred_versions_overlay
+        let preferred: Vec<&str> = opts.version.preferred_versions_overlay
             .as_ref()
             .map(|overlay| overlay.versions_for(&name))
             .unwrap_or_default();
-        let satisfying: Vec<&ResolveResult> = self
-            .versions
+        let satisfying: Vec<&ResolveResult> = self.versions
             .get(&name)
             .map(Vec::as_slice)
             .unwrap_or_default()
             .iter()
             .filter(|result| {
-                result.name_ver.as_ref().is_some_and(|name_ver| range.satisfies(&name_ver.suffix))
+                result.package.name_ver
+                    .as_ref()
+                    .is_some_and(|name_ver| range.satisfies(&name_ver.suffix))
             })
             .collect();
         let highest = |from: Vec<&ResolveResult>| {
             from.into_iter()
                 .max_by(|left, right| {
-                    version_of(left).partial_cmp(version_of(right)).expect("comparable versions")
+                    version_of(left)
+                        .partial_cmp(version_of(right))
+                        .expect("comparable versions")
                 })
                 .cloned()
         };
@@ -158,7 +163,7 @@ impl Resolver for OverlayPickResolver {
 }
 
 fn version_of(result: &ResolveResult) -> &node_semver::Version {
-    &result.name_ver.as_ref().expect("test result carries a name and version").suffix
+    &result.package.name_ver.as_ref().expect("test result carries a name and version").suffix
 }
 
 /// The versions table both settlement tests resolve against: `pin` in
@@ -242,10 +247,6 @@ fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> Resolv
     );
     ResolveResult {
         id: (&name_ver).into(),
-        name_ver: Some(name_ver),
-        latest: Some(version.to_string()),
-        published_at: None,
-        manifest: Some(std::sync::Arc::new(manifest)),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://registry.example/{name}-{version}.tgz"),
             integrity: None,
@@ -257,6 +258,12 @@ fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> Resolv
         normalized_bare_specifier: None,
         alias: Some(name.to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: Some(name_ver),
+            latest: Some(version.to_string()),
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(manifest)),
+        },
     }
 }
 
@@ -309,8 +316,15 @@ impl pnpm_hooks::PnpmfileHooks for RecordingHooks {
         pkg: serde_json::Value,
         ctx: pnpm_hooks::HookContext,
     ) -> Result<pnpm_hooks::ReadPackageResult, pnpm_hooks::HookError> {
-        let name = pkg.get("name").and_then(|name| name.as_str()).unwrap_or_default().to_string();
-        self.calls.lock().unwrap().push((name, ctx.dir));
+        let name = pkg
+            .get("name")
+            .and_then(|name| name.as_str())
+            .unwrap_or_default()
+            .to_string();
+        self.calls
+            .lock()
+            .unwrap()
+            .push((name, ctx.dir));
         Ok(std::sync::Arc::new(pkg))
     }
 

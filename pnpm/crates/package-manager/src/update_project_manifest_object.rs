@@ -74,8 +74,7 @@ fn save_spec_into_field(
     spec: &PackageSpecObject,
     field: &str,
 ) -> Result<(), PackageManifestError> {
-    let resolved_spec = spec
-        .bare_specifier
+    let resolved_spec = spec.bare_specifier
         .clone()
         .or_else(|| find_spec(&spec.alias, root))
         .filter(|spec| !spec.is_empty());
@@ -100,7 +99,9 @@ fn update_unsaved_spec(
     root: &mut Value,
     spec: &PackageSpecObject,
 ) -> Result<(), PackageManifestError> {
-    let Some(bare_specifier) = spec.bare_specifier.as_deref().filter(|spec| !spec.is_empty())
+    let Some(bare_specifier) = spec.bare_specifier
+        .as_deref()
+        .filter(|spec| !spec.is_empty())
     else {
         return Ok(());
     };
@@ -148,18 +149,23 @@ fn create_version_spec_from_resolved_version(
 /// declares it. `None` when no field declares the alias.
 fn find_spec(alias: &str, root: &Value) -> Option<String> {
     let field = guess_dependency_type(alias, root)?;
-    root.get(field)?.get(alias)?.as_str().map(ToString::to_string)
+    root.get(field)?
+        .get(alias)?
+        .as_str()
+        .map(ToString::to_string)
 }
 
 /// The first of the dependency-or-peer fields that already declares `alias`
 /// with a string spec.
 fn guess_dependency_type(alias: &str, root: &Value) -> Option<&'static str> {
-    DEPENDENCIES_OR_PEER_FIELDS.into_iter().find(|field| {
-        root.get(*field)
-            .and_then(Value::as_object)
-            .and_then(|deps| deps.get(alias))
-            .is_some_and(Value::is_string)
-    })
+    DEPENDENCIES_OR_PEER_FIELDS
+        .into_iter()
+        .find(|field| {
+            root.get(*field)
+                .and_then(Value::as_object)
+                .and_then(|deps| deps.get(alias))
+                .is_some_and(Value::is_string)
+        })
 }
 
 fn define_dep_entry(
@@ -175,7 +181,9 @@ fn define_dep_entry(
     };
     // Mirror pnpm's `manifest[field] = manifest[field] ?? {}`: a missing or
     // `null` field becomes a fresh object before the entry is written.
-    let deps = obj.entry(field).or_insert_with(|| Value::Object(Map::new()));
+    let deps = obj
+        .entry(field)
+        .or_insert_with(|| Value::Object(Map::new()));
     if deps.is_null() {
         *deps = Value::Object(Map::new());
     }

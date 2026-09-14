@@ -79,8 +79,11 @@ impl RuntimeArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
         let request = self.set_request()?;
         let config = state.config;
-        let prefix =
-            state.manifest.path().parent().expect("manifest path has a parent").to_path_buf();
+        let prefix = state.manifest
+            .path()
+            .parent()
+            .expect("manifest path has a parent")
+            .to_path_buf();
         add_package::<Reporter, _>(
             state,
             &request.package_name,
@@ -138,8 +141,7 @@ impl RuntimeArgs {
         if subcommand != "set" {
             return Err(RuntimeError::UnknownSubcommand { subcommand: subcommand.clone() });
         }
-        let runtime_name = self
-            .params
+        let runtime_name = self.params
             .get(1)
             .map(|name| name.trim())
             .filter(|name| !name.is_empty())

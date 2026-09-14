@@ -54,9 +54,11 @@ impl NpmResolutionVerifier {
         // A historical revision, or a current record the lockfile does not
         // name, is only trustworthy when its URL is derived from its own
         // integrity.
-        let integrity_addressed = selected.tarball.as_deref().is_some_and(|tarball| {
-            is_integrity_addressed_registry_tarball_url(tarball, integrity, registry)
-        });
+        let integrity_addressed = selected.tarball
+            .as_deref()
+            .is_some_and(|tarball| {
+                is_integrity_addressed_registry_tarball_url(tarball, integrity, registry)
+            });
         if (requested > 0 || current_revision != requested) && !integrity_addressed {
             return Some(ResolutionVerification::Err {
                 code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
@@ -86,9 +88,10 @@ impl NpmResolutionVerifier {
             Ok(meta) => meta,
             Err(message) => return Err(ResolutionVerification::FetchFailed { message }),
         };
-        if let Some(sink) = self.observed_dist_stats.as_ref()
-            && let Some(stats) =
-                meta.version_dist_stats.as_ref().and_then(|stats| stats.get(version))
+        if let Some(sink) = self.artifacts.observed_stats.as_ref()
+            && let Some(stats) = meta.version_dist_stats
+                .as_ref()
+                .and_then(|stats| stats.get(version))
         {
             sink.insert((name.to_string(), version.to_string()), *stats);
         }

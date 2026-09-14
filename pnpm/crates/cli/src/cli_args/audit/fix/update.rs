@@ -35,14 +35,20 @@ pub(crate) fn classify_for_update(
         let name = advisory.module_name.trim();
         let range = advisory.vulnerable_versions.trim();
         if range == ">=0.0.0" || range == "*" {
-            unfixable.entry(name.to_string()).or_default().push(advisory.id);
+            unfixable
+                .entry(name.to_string())
+                .or_default()
+                .push(advisory.id);
             continue;
         }
         let Ok(range) = range.parse::<Range>() else {
             unparsable.push(advisory.id);
             continue;
         };
-        vulnerabilities.entry(name.to_string()).or_default().push((advisory.id, range));
+        vulnerabilities
+            .entry(name.to_string())
+            .or_default()
+            .push((advisory.id, range));
     }
     UpdateClassification { vulnerabilities, unfixable, unparsable }
 }
@@ -98,7 +104,13 @@ fn fix_observer(
     let guard_ranges: HashMap<String, Vec<Range>> = vulnerabilities
         .iter()
         .map(|(name, entries)| {
-            (name.clone(), entries.iter().map(|(_, range)| range.clone()).collect())
+            (
+                name.clone(),
+                entries
+                    .iter()
+                    .map(|(_, range)| range.clone())
+                    .collect(),
+            )
         })
         .collect();
     Arc::new(AuditFixObserver {
@@ -133,11 +145,18 @@ fn persist_age_excludes(
 /// ones a vulnerable range can be checked against.
 fn installed_packages(updated: &Lockfile) -> InstalledPackages {
     let mut installed = InstalledPackages { names: HashSet::new(), versions: HashMap::new() };
-    for key in updated.snapshots.iter().flatten().map(|(key, _)| key) {
+    for key in updated.snapshots
+        .iter()
+        .flatten()
+        .map(|(key, _)| key)
+    {
         let name = key.name.to_string();
         installed.names.insert(name.clone());
         if let Some(version) = key.suffix.version_semver() {
-            installed.versions.entry(name).or_default().push(version.clone());
+            installed.versions
+                .entry(name)
+                .or_default()
+                .push(version.clone());
         }
     }
     installed
@@ -180,10 +199,18 @@ pub(crate) fn report_fixed_remaining(
         };
         split_by_vulnerability(entries, versions, &mut fixed, &mut remaining);
     }
-    let (still_installed, gone): (Vec<_>, Vec<_>) =
-        unfixable.iter().partition(|(name, _)| installed.names.contains(*name));
-    remaining.extend(still_installed.into_iter().flat_map(|(_, ids)| ids.iter().copied()));
-    fixed.extend(gone.into_iter().flat_map(|(_, ids)| ids.iter().copied()));
+    let (still_installed, gone): (Vec<_>, Vec<_>) = unfixable
+        .iter()
+        .partition(|(name, _)| installed.names.contains(*name));
+    remaining.extend(
+        still_installed
+            .into_iter()
+            .flat_map(|(_, ids)| ids.iter().copied()),
+    );
+    fixed.extend(
+        gone.into_iter()
+            .flat_map(|(_, ids)| ids.iter().copied()),
+    );
     // Advisories with an unparsable vulnerable range can't be proven fixed.
     remaining.extend(unparsable.iter().copied());
 
@@ -296,8 +323,10 @@ pub(crate) struct AuditFixObserver {
 pub(super) fn advisory_choices(
     advisories: &BTreeMap<String, AuditAdvisory>,
 ) -> (Vec<String>, Vec<String>) {
-    let mut fixable: Vec<&AuditAdvisory> =
-        advisories.values().filter(|advisory| advisory.patched_versions.is_some()).collect();
+    let mut fixable: Vec<&AuditAdvisory> = advisories
+        .values()
+        .filter(|advisory| advisory.patched_versions.is_some())
+        .collect();
     fixable.sort_by_key(|advisory| std::cmp::Reverse(severity_number(advisory.severity)));
 
     let mut keys: Vec<String> = Vec::new();
@@ -308,8 +337,10 @@ pub(super) fn advisory_choices(
         if !seen.insert(key.clone()) {
             continue;
         }
-        let patched =
-            advisory.patched_versions.as_deref().map(caret_range_for_patched).unwrap_or_default();
+        let patched = advisory.patched_versions
+            .as_deref()
+            .map(caret_range_for_patched)
+            .unwrap_or_default();
         labels.push(format!(
             "[{}] {} {} ❯ {} {}",
             severity_name(advisory.severity),
@@ -330,37 +361,32 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
     age_excludes: &[String],
 ) -> miette::Result<()> {
     let lockfile_path = state.lockfile_path();
-    let lockfile = state
-        .lockfile
+    let lockfile = state.lockfile
         .get()
         .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+    let resources = update_resources(state, classification, age_excludes);
     Update {
-        tarball_mem_cache: Arc::clone(&state.tarball_mem_cache),
-        resolved_packages: &state.resolved_packages,
-        http_client: &state.http_client,
-        http_client_arc: Arc::clone(&state.http_client),
-        config: state.config,
         manifest: &mut state.manifest,
-        lockfile,
-        lockfile_path: Some(&lockfile_path),
-        packages: &[],
-        latest: false,
-        patches: false,
-        save_exact: false,
-        save: true,
-        include_direct: vec![
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-        ],
-        depth: usize::MAX,
-        workspace_packages: None,
-        supported_architectures: state.config.supported_architectures.clone(),
-        lockfile_only: false,
-        resolution_observer: Some(fix_observer(
-            &classification.vulnerabilities,
-            age_excludes.to_vec(),
-        )),
+        options: pnpm_package_manager::UpdateOptions {
+            resolved_packages: &state.resolved_packages,
+            http_client: &state.http_client,
+            config: state.config,
+            lockfile,
+            lockfile_path: Some(&lockfile_path),
+            lockfile_only: false,
+            selection: pnpm_package_manager::UpdateSelection {
+                packages: &[],
+                depth: usize::MAX,
+                workspace_packages: None,
+            },
+            version: pnpm_package_manager::UpdateVersionOptions {
+                latest: false,
+                patches: false,
+                save_exact: false,
+                save: true,
+            },
+        },
+        resources,
     }
     .run::<Reporter>()
     .await
@@ -368,4 +394,25 @@ async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
         miette::Report::new(err).wrap_err("update dependencies to fix vulnerabilities")
     })?;
     Ok(())
+}
+
+fn update_resources(
+    state: &State,
+    classification: &UpdateClassification,
+    age_excludes: &[String],
+) -> pnpm_package_manager::UpdateResources {
+    pnpm_package_manager::UpdateResources {
+        tarball_mem_cache: Arc::clone(&state.tarball_mem_cache),
+        http_client_arc: Arc::clone(&state.http_client),
+        include_direct: vec![
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ],
+        supported_architectures: state.config.supported_architectures.clone(),
+        resolution_observer: Some(fix_observer(
+            &classification.vulnerabilities,
+            age_excludes.to_vec(),
+        )),
+    }
 }

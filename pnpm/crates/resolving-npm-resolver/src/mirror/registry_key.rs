@@ -32,8 +32,10 @@ pub enum EncodeRegistryError {
 /// Windows rejects in a filename, or a glob metacharacter — the cache
 /// commands interpolate the key straight into a glob pattern, and
 /// `pnpm cache delete` erases whatever that pattern matches.
-pub(super) const ESCAPED_IN_REGISTRY_KEY: &AsciiSet =
-    &NON_ALPHANUMERIC.remove(b'.').remove(b'-').remove(b'_');
+pub(super) const ESCAPED_IN_REGISTRY_KEY: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'.')
+    .remove(b'-')
+    .remove(b'_');
 
 /// Separates the scheme from the host. Every key begins with one, and a
 /// scheme cannot contain a `%`, so the first occurrence always ends the
@@ -75,13 +77,16 @@ pub(super) const MAX_KEY_LENGTH: usize = 255;
 /// `…/foo.` onto `…/foo`. A key that would not fit a 255-byte filename is
 /// replaced by its own hash.
 pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> {
-    let parsed = reqwest::Url::parse(registry).map_err(|error| EncodeRegistryError::ParseUrl {
-        url: redact_and_sanitize(registry),
-        error: error.to_string(),
-    })?;
-    let host = parsed.host_str().ok_or_else(|| EncodeRegistryError::MissingHost {
-        url: redact_url_for_display(registry),
-    })?;
+    let parsed = reqwest::Url::parse(registry)
+        .map_err(|error| EncodeRegistryError::ParseUrl {
+            url: redact_and_sanitize(registry),
+            error: error.to_string(),
+        })?;
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| EncodeRegistryError::MissingHost {
+            url: redact_url_for_display(registry),
+        })?;
     let mut key = escape_registry_key_component(parsed.scheme());
     key.push_str(SCHEME_SEPARATOR);
     key.push_str(&escape_registry_key_component(host));
@@ -174,7 +179,10 @@ pub(super) fn decode_registry_key_component(component: &str, delimiter: &str) ->
     if !percent_escapes_are_well_formed(&replaced) {
         return None;
     }
-    percent_decode_str(&replaced).decode_utf8().ok().map(std::borrow::Cow::into_owned)
+    percent_decode_str(&replaced)
+        .decode_utf8()
+        .ok()
+        .map(std::borrow::Cow::into_owned)
 }
 
 /// Whether every `%` in `text` introduces two hexadecimal digits.
@@ -182,7 +190,10 @@ pub(super) fn percent_escapes_are_well_formed(text: &str) -> bool {
     let bytes = text.as_bytes();
     let mut index = 0;
     while index < bytes.len() {
-        let Some(offset) = bytes[index..].iter().position(|byte| *byte == b'%') else {
+        let Some(offset) = bytes[index..]
+            .iter()
+            .position(|byte| *byte == b'%')
+        else {
             return true;
         };
         let start = index + offset;

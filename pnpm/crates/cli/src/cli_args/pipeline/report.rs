@@ -121,8 +121,10 @@ impl RunReport {
         task_keys: &HashMap<TaskKey, Option<String>>,
         workspace_root: &Path,
     ) {
-        let keys: IndexMap<String, &Option<String>> =
-            task_keys.iter().map(|(task, key)| (format_task(task, workspace_root), key)).collect();
+        let keys: IndexMap<String, &Option<String>> = task_keys
+            .iter()
+            .map(|(task, key)| (format_task(task, workspace_root), key))
+            .collect();
         *self.summary.lock().expect("summary lock is not poisoned") = json!({
             "runId": self.run_id,
             "pipeline": self.pipeline,
@@ -160,7 +162,10 @@ impl RunReport {
             workspace,
             run_id: self.run_id.clone(),
             summary: self.summary_value(),
-            events: self.events.lock().expect("event lock is not poisoned").clone(),
+            events: self.events
+                .lock()
+                .expect("event lock is not poisoned")
+                .clone(),
         }
     }
 
@@ -183,7 +188,10 @@ impl RunReport {
     }
 
     fn push(&self, event: Value) {
-        self.events.lock().expect("event lock is not poisoned").push(event);
+        self.events
+            .lock()
+            .expect("event lock is not poisoned")
+            .push(event);
     }
 }
 

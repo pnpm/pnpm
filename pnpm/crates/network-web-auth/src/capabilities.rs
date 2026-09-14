@@ -305,18 +305,20 @@ impl EnterKeyListener for Host {
         let (tx, enter) = tokio::sync::oneshot::channel();
         let cancel = Arc::new(AtomicBool::new(false));
         let reader_cancel = Arc::clone(&cancel);
-        thread::Builder::new().name("web-auth-enter-listener".to_owned()).spawn(move || {
-            while !reader_cancel.load(Ordering::Relaxed) {
-                match next_enter_poll(&reader_cancel) {
-                    EnterPoll::Pressed => {
-                        let _ = tx.send(());
-                        return;
+        thread::Builder::new()
+            .name("web-auth-enter-listener".to_owned())
+            .spawn(move || {
+                while !reader_cancel.load(Ordering::Relaxed) {
+                    match next_enter_poll(&reader_cancel) {
+                        EnterPoll::Pressed => {
+                            let _ = tx.send(());
+                            return;
+                        }
+                        EnterPoll::Stop => return,
+                        EnterPoll::Continue => {}
                     }
-                    EnterPoll::Stop => return,
-                    EnterPoll::Continue => {}
                 }
-            }
-        })?;
+            })?;
         Ok(HostEnterHandle { enter, state: EnterListenerState::Waiting, cancel })
     }
 }
@@ -369,7 +371,10 @@ impl PromptOtp for Host {
         let message = message.to_owned();
         // `dialoguer` is blocking; keep it off the async runtime.
         tokio::task::spawn_blocking(move || {
-            dialoguer::Input::<String>::new().with_prompt(message).allow_empty(true).interact_text()
+            dialoguer::Input::<String>::new()
+                .with_prompt(message)
+                .allow_empty(true)
+                .interact_text()
         })
         .await
         .map_err(|join_error| PromptError::Other { reason: join_error.to_string() })?

@@ -238,7 +238,12 @@ fn apply_write_msg(
         WriteMsg::Replace { key, value } => {
             pending.insert(key, value);
         }
-        WriteMsg::SideEffectsUpload { key, cache_key, current_files, response } => {
+        WriteMsg::SideEffectsUpload {
+            key,
+            cache_key,
+            current_files,
+            response,
+        } => {
             let diff = load_pending_row(index, pending, &key)
                 .and_then(|row| record_local_side_effects(row, &key, cache_key, &current_files));
             if let Some(response) = response {
@@ -284,8 +289,7 @@ fn record_local_side_effects(
 /// Remember a rejected remote envelope so it is not re-fetched, keeping only
 /// the most recent [`MAX_QUARANTINED_REMOTE_SIDE_EFFECTS`] per channel.
 fn quarantine_digest(row: &mut PackageFilesIndex, channel: String, envelope_digest: String) {
-    let digests = row
-        .remote_side_effects_quarantine
+    let digests = row.remote_side_effects_quarantine
         .get_or_insert_with(HashMap::new)
         .entry(channel)
         .or_default();

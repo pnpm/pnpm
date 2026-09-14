@@ -21,8 +21,7 @@ fn report_up_to_date_install(
         level: pnpm_reporter::LogLevel::Debug,
         selected: up_to_date.project_count.unwrap_or(1),
         total: up_to_date.project_count,
-        workspace_prefix: config
-            .workspace_dir
+        workspace_prefix: config.workspace_dir
             .as_deref()
             .map(|dir| dir.to_string_lossy().into_owned()),
     }));
@@ -86,15 +85,16 @@ impl InstallArgs {
         let Ok(manifest) = pnpm_package_manifest::PackageManifest::from_path(manifest_path) else {
             return false;
         };
-        let node_linker = self.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
+        let node_linker =
+            self.materialization.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
         let Some(up_to_date) = install_already_up_to_date(&UpToDateFastPathCheck {
             config,
             manifest: &manifest,
             dependency_groups: self.dependency_options.dependency_groups(config.optional).collect(),
             node_linker,
-            supported_architectures: self
-                .supported_architectures
-                .apply_to(config.supported_architectures.clone()),
+            supported_architectures: self.supported_architectures.apply_to(
+                config.supported_architectures.clone(),
+            ),
         }) else {
             return false;
         };
@@ -108,10 +108,10 @@ impl InstallArgs {
     /// single-directory probe cannot reach.
     fn fast_path_is_eligible(&self, config: &pnpm_config::Config) -> bool {
         if self.effective_frozen_lockfile(config)
-            || self.lockfile_only
-            || self.fix_lockfile
-            || self.force
-            || self.verify_deps_before_run_install
+            || self.lockfile.only
+            || self.lockfile.fix
+            || self.materialization.force
+            || self.materialization.verify_deps_before_run_install
             || config.cargo.enabled
             || config.python.enabled
         {
@@ -119,8 +119,8 @@ impl InstallArgs {
         }
         // The merge flags reach `config` only in the dispatch, after this
         // check; and merging is work no up-to-date verdict can skip.
-        if self.merge_git_branch_lockfiles
-            || !self.merge_git_branch_lockfiles_branch_pattern.is_empty()
+        if self.lockfile_updates.merge_git_branch_lockfiles
+            || !self.lockfile_updates.merge_git_branch_lockfiles_branch_pattern.is_empty()
         {
             return false;
         }

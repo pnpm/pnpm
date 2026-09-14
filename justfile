@@ -16,11 +16,12 @@ init:
   # `cargo-fixit` has no prebuilt binaries, so install it from source
   # with `cargo install` (pinned) instead of `cargo binstall`.
   cargo install cargo-fixit@0.1.15 --locked
+  node pnpm/scripts/rustfmt.mjs --install
 
 # When ready, run the same CI commands
 ready:
   typos pnpm pnpr
-  cargo fmt
+  node pnpm/scripts/rustfmt.mjs --all
   just check
   just test
   just lint
@@ -45,7 +46,7 @@ watch command:
 
 # Format all files
 fmt:
-  cargo fmt
+  node pnpm/scripts/rustfmt.mjs --all
   taplo format
 
 # Run cargo check

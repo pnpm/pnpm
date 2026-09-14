@@ -9,7 +9,9 @@ pub fn dep_path_to_filename(dep_path: &str, max_length_without_hash: usize) -> S
         if filename.ends_with(')') {
             filename.pop();
         }
-        filename = filename.replace(")(", "_").replace(['(', ')'], "_");
+        filename = filename
+            .replace(")(", "_")
+            .replace(['(', ')'], "_");
     }
     shorten_virtual_store_name(filename, max_length_without_hash)
 }
@@ -30,7 +32,10 @@ fn dep_path_to_filename_unescaped(dep_path: &str) -> String {
         return trimmed.to_string();
     }
     let after_first = &trimmed.as_bytes()[1..];
-    let Some(rel) = after_first.iter().position(|&b| b == b'@') else {
+    let Some(rel) = after_first
+        .iter()
+        .position(|&b| b == b'@')
+    else {
         return trimmed.to_string();
     };
     let split = rel + 1;

@@ -51,18 +51,11 @@ use std::{
 /// call sites.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DependenciesGraphNode {
+    pub package: HoistedPackageMetadata,
     /// The alias this node was placed under in its parent's
     /// `node_modules`. Optional — only populated when the node is
     /// reached via the hoist walk.
     pub alias: Option<String>,
-    /// The depPath that produced this node, used as the key for
-    /// `hoistedLocations` and the join key for `hoistedDependencies`.
-    pub dep_path: DepPath,
-    /// `pkgIdWithPatchHash`: the patch-aware ident key
-    /// the side-effects cache uses. Modelled by
-    /// [`pnpm_lockfile::PkgIdWithPatchHash`] — a non-validating
-    /// branded newtype around `String`.
-    pub pkg_id_with_patch_hash: PkgIdWithPatchHash,
     /// Absolute path of the package's directory on disk. The
     /// outer [`DependenciesGraph`]'s key is this same value;
     /// it is stored on the node too so consumers don't need
@@ -72,21 +65,8 @@ pub struct DependenciesGraphNode {
     /// lives in (i.e. `dir.parent()`). Used by the bin-linker
     /// pass: every hoist location needs `<modules>/.bin` populated.
     pub modules: PathBuf,
-    /// Alias → child `dir` of this node's listed dependencies, as
-    /// computed from the lockfile snapshot's `dependencies` and
-    /// (when included) `optionalDependencies`. The walker resolves
-    /// each child to the directory the alias was hoisted to —
-    /// which may be the root, a sibling, or this node's own
-    /// `node_modules`, depending on the hoister's decision.
-    pub children: BTreeMap<String, PathBuf>,
-    pub name: String,
-    pub version: String,
     pub optional: bool,
     pub optional_dependencies: BTreeSet<String>,
-    pub has_bin: bool,
-    pub has_bundled_dependencies: bool,
-    pub patch: Option<PatchInfo>,
-    pub resolution: LockfileResolution,
     /// `true` when the previous install recorded this package at `dir`
     /// (`.modules.yaml` `hoistedLocations`) and the directory still
     /// holds a `package.json` of the recorded version. The linker
@@ -96,6 +76,14 @@ pub struct DependenciesGraphNode {
     /// (`file:`) dependency, whose source is mutable, and for a patched
     /// package, whose patch is applied on a fresh copy.
     pub present: bool,
+
+    /// Alias → child `dir` of this node's listed dependencies, as
+    /// computed from the lockfile snapshot's `dependencies` and
+    /// (when included) `optionalDependencies`. The walker resolves
+    /// each child to the directory the alias was hoisted to —
+    /// which may be the root, a sibling, or this node's own
+    /// `node_modules`, depending on the hoister's decision.
+    pub children: BTreeMap<String, PathBuf>,
 }
 
 /// Directory-keyed graph of every hoisted-linker node the walker
@@ -171,14 +159,12 @@ pub struct LockfileToDepGraphResult {
 /// consumers land.
 #[derive(Debug, Clone)]
 pub struct LockfileToHoistedDepGraphOptions<'a> {
+    pub installability: HoistedInstallability,
+    pub placement: HoistedPlacementOptions,
     /// Project / workspace root. Used as the base for relativizing
     /// `hoisted_locations` entries and for placing the root's
     /// `node_modules/` directory.
     pub lockfile_dir: PathBuf,
-    /// `autoInstallPeers` from `.npmrc`. Passed through to the
-    /// hoister, which zeroes every node's `peer_names` when this
-    /// is `true` so peer-constrained packages float freely.
-    pub auto_install_peers: bool,
     /// Packages the previous install decided not to fetch
     /// (installability check failed; the package was added here).
     /// The walker skips any depPath in this set without consulting
@@ -194,50 +180,6 @@ pub struct LockfileToHoistedDepGraphOptions<'a> {
     /// the diff catches packages that previously installed but
     /// would now be filtered.
     pub force: bool,
-    /// `engineStrict` from config. When true, an engine mismatch on
-    /// a *required* (non-optional) package becomes a hard error
-    /// instead of a warning.
-    pub engine_strict: bool,
-    /// Current host's node version, used as the `engines.node`
-    /// satisfiability target. See `InstallabilityOptions::current_node_version`.
-    pub current_node_version: String,
-    /// Current host's OS (`linux`, `darwin`, `win32`, ...).
-    pub current_os: String,
-    /// Current host's CPU architecture (`x64`, `arm64`, ...).
-    pub current_cpu: String,
-    /// Current host's libc variant (`glibc`, `musl`, or empty when
-    /// the host is not Linux).
-    pub current_libc: String,
-    /// `supportedArchitectures` override from `pnpm-workspace.yaml`,
-    /// widening the host-derived axes so a Linux host can prepare
-    /// `node_modules` for a Windows / macOS target. `None` means use
-    /// only the current-host axes.
-    pub supported_architectures: Option<SupportedArchitectures>,
-    /// Mirrors [`pnpm_real_hoist::HoistOpts::hoist_workspace_packages`].
-    /// When `true` (the default), every non-root workspace importer
-    /// becomes a `Workspace`-kind child of the virtual `.` root in
-    /// the hoist tree, and the walker emits per-importer subtrees
-    /// under `<lockfile_dir>/<importer_id>/node_modules`. When
-    /// `false`, only the root importer's subtree is emitted (the
-    /// hoister also skips adding the workspace children to its
-    /// shared tree). Pacquet's `Config::hoist_workspace_packages`
-    /// (in `pnpm-config`) drives this from the install pipeline.
-    pub hoist_workspace_packages: bool,
-
-    /// Per-importer block-list passed straight through to
-    /// [`pnpm_real_hoist::HoistOpts::hoisting_limits`]. See the
-    /// hoister's doc-comment for the locator-keyed shape and
-    /// `Config::hoisting_limits` in `pnpm-config` for how the
-    /// install pipeline derives this from `pnpm-workspace.yaml`.
-    pub hoisting_limits: pnpm_real_hoist::HoistingLimits,
-
-    /// Reserved-name list passed straight through to
-    /// [`pnpm_real_hoist::HoistOpts::external_dependencies`].
-    /// See the hoister's doc-comment for the strip semantics and
-    /// `Config::external_dependencies` in `pnpm-config` for how
-    /// the install pipeline derives this from
-    /// `pnpm-workspace.yaml`.
-    pub external_dependencies: BTreeSet<String>,
 
     /// `hoistedLocations` recorded by the previous install's
     /// `.modules.yaml`. A package the walker places at a directory
@@ -250,23 +192,29 @@ pub struct LockfileToHoistedDepGraphOptions<'a> {
 
 impl Default for LockfileToHoistedDepGraphOptions<'_> {
     fn default() -> Self {
-        Self {
+        LockfileToHoistedDepGraphOptions {
+            installability: HoistedInstallability {
+                engine_strict: false,
+                current_node_version: String::new(),
+                current_os: String::new(),
+                current_cpu: String::new(),
+                current_libc: String::new(),
+                supported_architectures: None,
+            },
+            placement: HoistedPlacementOptions {
+                auto_install_peers: false,
+                hoist_workspace_packages: true,
+                hoisting_limits: pnpm_real_hoist::HoistingLimits::new(),
+                external_dependencies: BTreeSet::new(),
+            },
             lockfile_dir: PathBuf::new(),
-            auto_install_peers: false,
+
             skipped: BTreeSet::new(),
             force: false,
-            engine_strict: false,
-            current_node_version: String::new(),
-            current_os: String::new(),
-            current_cpu: String::new(),
-            current_libc: String::new(),
-            supported_architectures: None,
+
             // Match the hoister's default-on behavior so a
             // `..Default::default()`-style construction at the call
             // site doesn't silently disable workspace hoisting.
-            hoist_workspace_packages: true,
-            hoisting_limits: pnpm_real_hoist::HoistingLimits::new(),
-            external_dependencies: BTreeSet::new(),
             current_hoisted_locations: None,
         }
     }
@@ -344,7 +292,11 @@ pub fn lockfile_to_hoisted_dep_graph(
         // consider". Pacquet collapses both absent and empty into
         // `prev_graph: None` so the API contract is unambiguous
         // and the empty case skips the (no-op) second walk.
-        Some(current) if current.packages.as_ref().is_some_and(|packages| !packages.is_empty()) => {
+        Some(current)
+            if current.packages
+                .as_ref()
+                .is_some_and(|packages| !packages.is_empty()) =>
+        {
             let prev_opts = LockfileToHoistedDepGraphOptions {
                 force: true,
                 skipped: BTreeSet::new(),
@@ -370,24 +322,23 @@ fn build_dep_graph<'a>(
     prev_graph: Option<&'a DependenciesGraph>,
 ) -> Result<LockfileToDepGraphResult, HoistedDepGraphError> {
     let hoist_opts = HoistOpts {
-        auto_install_peers: opts.auto_install_peers,
-        hoist_workspace_packages: opts.hoist_workspace_packages,
-        hoisting_limits: opts.hoisting_limits.clone(),
-        external_dependencies: opts.external_dependencies.clone(),
+        auto_install_peers: opts.placement.auto_install_peers,
+        hoist_workspace_packages: opts.placement.hoist_workspace_packages,
+        hoisting_limits: opts.placement.hoisting_limits.clone(),
+        external_dependencies: opts.placement.external_dependencies.clone(),
     };
     let hoister_result = hoist(lockfile, &hoist_opts)?;
 
     let modules_dir = opts.lockfile_dir.join("node_modules");
     let mut state = WalkState {
+        result: LockfileToDepGraphResult { skipped: opts.skipped.clone(), ..Default::default() },
         lockfile,
         lockfile_dir: &opts.lockfile_dir,
         opts,
         prev_graph,
-        skipped: opts.skipped.clone(),
-        graph: DependenciesGraph::new(),
+
         pkg_locations_by_pkg_id: BTreeMap::new(),
-        hoisted_locations: BTreeMap::new(),
-        injection_targets_by_dep_path: BTreeMap::new(),
+
         per_importer_hierarchies: BTreeMap::new(),
         per_importer_direct_deps: BTreeMap::new(),
     };
@@ -399,3 +350,77 @@ fn build_dep_graph<'a>(
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HoistedPackageMetadata {
+    /// The depPath that produced this node, used as the key for
+    /// `hoistedLocations` and the join key for `hoistedDependencies`.
+    pub dep_path: DepPath,
+    /// `pkgIdWithPatchHash`: the patch-aware ident key
+    /// the side-effects cache uses. Modelled by
+    /// [`pnpm_lockfile::PkgIdWithPatchHash`] — a non-validating
+    /// branded newtype around `String`.
+    pub pkg_id_with_patch_hash: PkgIdWithPatchHash,
+    pub name: String,
+    pub version: String,
+    pub has_bin: bool,
+    pub has_bundled_dependencies: bool,
+    pub patch: Option<PatchInfo>,
+    pub resolution: LockfileResolution,
+}
+
+#[derive(Debug, Clone)]
+pub struct HoistedInstallability {
+    /// `engineStrict` from config. When true, an engine mismatch on
+    /// a *required* (non-optional) package becomes a hard error
+    /// instead of a warning.
+    pub engine_strict: bool,
+    /// Current host's node version, used as the `engines.node`
+    /// satisfiability target. See `InstallabilityOptions::current_node_version`.
+    pub current_node_version: String,
+    /// Current host's OS (`linux`, `darwin`, `win32`, ...).
+    pub current_os: String,
+    /// Current host's CPU architecture (`x64`, `arm64`, ...).
+    pub current_cpu: String,
+    /// Current host's libc variant (`glibc`, `musl`, or empty when
+    /// the host is not Linux).
+    pub current_libc: String,
+    /// `supportedArchitectures` override from `pnpm-workspace.yaml`,
+    /// widening the host-derived axes so a Linux host can prepare
+    /// `node_modules` for a Windows / macOS target. `None` means use
+    /// only the current-host axes.
+    pub supported_architectures: Option<SupportedArchitectures>,
+}
+
+#[derive(Debug, Clone)]
+pub struct HoistedPlacementOptions {
+    /// `autoInstallPeers` from `.npmrc`. Passed through to the
+    /// hoister, which zeroes every node's `peer_names` when this
+    /// is `true` so peer-constrained packages float freely.
+    pub auto_install_peers: bool,
+    /// Mirrors [`pnpm_real_hoist::HoistOpts::hoist_workspace_packages`].
+    /// When `true` (the default), every non-root workspace importer
+    /// becomes a `Workspace`-kind child of the virtual `.` root in
+    /// the hoist tree, and the walker emits per-importer subtrees
+    /// under `<lockfile_dir>/<importer_id>/node_modules`. When
+    /// `false`, only the root importer's subtree is emitted (the
+    /// hoister also skips adding the workspace children to its
+    /// shared tree). Pacquet's `Config::hoist_workspace_packages`
+    /// (in `pnpm-config`) drives this from the install pipeline.
+    pub hoist_workspace_packages: bool,
+
+    /// Per-importer block-list passed straight through to
+    /// [`pnpm_real_hoist::HoistOpts::hoisting_limits`]. See the
+    /// hoister's doc-comment for the locator-keyed shape and
+    /// `Config::hoisting_limits` in `pnpm-config` for how the
+    /// install pipeline derives this from `pnpm-workspace.yaml`.
+    pub hoisting_limits: pnpm_real_hoist::HoistingLimits,
+
+    /// Reserved-name list passed straight through to
+    /// [`pnpm_real_hoist::HoistOpts::external_dependencies`].
+    /// See the hoister's doc-comment for the strip semantics and
+    /// `Config::external_dependencies` in `pnpm-config` for how
+    /// the install pipeline derives this from
+    /// `pnpm-workspace.yaml`.
+    pub external_dependencies: BTreeSet<String>,
+}

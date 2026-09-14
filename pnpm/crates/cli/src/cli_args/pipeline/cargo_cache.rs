@@ -1,17 +1,17 @@
+mod restore;
+use restore::{clone_file, invalidate_fingerprints};
+
 use super::paths::{check_ancestors, validate_relative_path};
 use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_from_file};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     env, fs,
-    fs::{File, FileTimes, OpenOptions},
+    fs::{File, OpenOptions},
     io,
     path::{Path, PathBuf},
     process::Command,
 };
-
-#[cfg(test)]
-mod tests;
 
 const INPUT_RECORD: &str = ".pnpm-cargo-inputs-v1";
 
@@ -223,22 +223,41 @@ pub(super) fn snapshot_entry(
     )?)?;
     let local_packages = local_packages_in_repo(&metadata, &repo)?;
     inputs.push(serde_json::to_string(environment)?);
-    let paths = command_output(
-        "git",
-        &["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-        &repo,
-        environment,
-    )?;
-    let mut paths: Vec<_> = paths.split('\0').filter(|path| !path.is_empty()).collect();
-    paths.sort_unstable();
-    paths.dedup();
-    for path in paths {
-        add_tracked_file_input(&repo, path, &mut inputs)?;
-    }
+    add_repository_inputs(&repo, environment, &mut inputs)?;
     add_config_inputs(project, environment, &mut inputs)?;
     let key = create_hex_hash(&serde_json::to_string(&inputs)?);
     let scope = create_hex_hash(&common.to_string_lossy());
-    Ok((cache_dir.join("cargo-build/v1").join(scope).join(&key), key, local_packages))
+    Ok((
+        cache_dir
+            .join("cargo-build/v1")
+            .join(scope)
+            .join(&key),
+        key,
+        local_packages,
+    ))
+}
+
+fn add_repository_inputs(
+    repo: &Path,
+    environment: &BTreeMap<String, String>,
+    inputs: &mut Vec<String>,
+) -> io::Result<()> {
+    let paths = command_output(
+        "git",
+        &["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        repo,
+        environment,
+    )?;
+    let mut paths: Vec<_> = paths
+        .split('\0')
+        .filter(|path| !path.is_empty())
+        .collect();
+    paths.sort_unstable();
+    paths.dedup();
+    for path in paths {
+        add_tracked_file_input(repo, path, inputs)?;
+    }
+    Ok(())
 }
 
 /// Every Cargo config file the build reads: `.cargo/config[.toml]` in each
@@ -274,7 +293,10 @@ fn local_packages_in_repo(metadata: &serde_json::Value, repo: &Path) -> io::Resu
     let packages = metadata["packages"]
         .as_array()
         .ok_or_else(|| io::Error::other("Cargo metadata has no packages"))?;
-    for package in packages.iter().filter(|package| package["source"].is_null()) {
+    for package in packages
+        .iter()
+        .filter(|package| package["source"].is_null())
+    {
         local_packages.push(
             package["name"]
                 .as_str()
@@ -318,7 +340,11 @@ pub(super) fn cache_environment(
     declared: &[String],
 ) -> BTreeMap<String, String> {
     env::vars()
-        .chain(extra.iter().map(|(key, value)| (key.clone(), value.clone())))
+        .chain(
+            extra
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone())),
+        )
         .filter(|(key, _)| {
             key.starts_with("CARGO_")
                 || key.starts_with("RUST")
@@ -357,8 +383,11 @@ fn command_output(
     project: &Path,
     environment: &BTreeMap<String, String>,
 ) -> io::Result<String> {
-    let output =
-        Command::new(program).args(args).current_dir(project).envs(environment).output()?;
+    let output = Command::new(program)
+        .args(args)
+        .current_dir(project)
+        .envs(environment)
+        .output()?;
     if !output.status.success() {
         return Err(io::Error::other(format!(
             "{program} {}: {}",
@@ -369,67 +398,5 @@ fn command_output(
     String::from_utf8(output.stdout).map_err(io::Error::other)
 }
 
-fn clone_file(source: &Path, target: &Path) -> io::Result<()> {
-    let metadata = fs::symlink_metadata(source)?;
-    if !metadata.is_file() {
-        return Err(io::Error::other(format!(
-            "Cargo cache file is not regular: {}",
-            source.display(),
-        )));
-    }
-    fs::create_dir_all(target.parent().expect("file parent"))?;
-    reflink_copy::reflink_or_copy(source, target)?;
-    let mut options = File::options();
-    options.read(true);
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::OpenOptionsExt;
-        options.access_mode(windows_sys::Win32::Storage::FileSystem::FILE_WRITE_ATTRIBUTES);
-    }
-    options.open(target)?.set_times(FileTimes::new().set_modified(metadata.modified()?))?;
-    fs::set_permissions(target, metadata.permissions())
-}
-
-/// Content changes can retain mtimes, and relocated build scripts can retain
-/// the publisher's paths. Invalidate all freshness records for new inputs, or
-/// local units and build-script runs when moving an exact-input snapshot.
-fn invalidate_fingerprints(root: &Path, local_packages: Option<&[String]>) -> io::Result<()> {
-    for entry in fs::read_dir(root)? {
-        let entry = entry?;
-        if !entry.file_type()?.is_dir() {
-            continue;
-        }
-        if entry.file_name() != ".fingerprint" {
-            invalidate_fingerprints(&entry.path(), local_packages)?;
-            continue;
-        }
-        let Some(packages) = local_packages else {
-            fs::remove_dir_all(entry.path())?;
-            continue;
-        };
-        invalidate_local_fingerprints(&entry.path(), packages)?;
-    }
-    Ok(())
-}
-
-/// Drop the fingerprints of the workspace's own packages and of every
-/// build script. The rest describe dependencies the restored snapshot
-/// still matches.
-fn invalidate_local_fingerprints(fingerprint_dir: &Path, packages: &[String]) -> io::Result<()> {
-    for fingerprint in fs::read_dir(fingerprint_dir)? {
-        let fingerprint = fingerprint?;
-        if !fingerprint.file_type()?.is_dir() {
-            continue;
-        }
-        let name = fingerprint.file_name().to_string_lossy().into_owned();
-        let local = packages.iter().any(|package| name.starts_with(&format!("{package}-")));
-        let build_script = fs::read_dir(fingerprint.path())?
-            .collect::<io::Result<Vec<_>>>()?
-            .iter()
-            .any(|file| file.file_name().to_string_lossy().starts_with("run-build-script"));
-        if local || build_script {
-            fs::remove_dir_all(fingerprint.path())?;
-        }
-    }
-    Ok(())
-}
+#[cfg(test)]
+mod tests;

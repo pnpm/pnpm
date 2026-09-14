@@ -76,7 +76,7 @@ fn an_intent_naming_a_main_lane_and_a_lane_package_is_consumed_half_by_half() {
     let consumed = ledger(&[("lib@1.0.1", &["one"])]);
     let plan = assemble(&projects, &intents, &consumed, Some(&on_lane("cli", "alpha")));
     assert_eq!(release_names(&plan), ["cli"]);
-    assert_eq!(plan.releases[0].new_version, "2.1.0-alpha.0");
+    assert_eq!(plan.releases[0].version.next, "2.1.0-alpha.0");
 }
 
 #[test]
@@ -133,10 +133,10 @@ fn when_the_lead_reaches_a_new_stable_major_every_member_re_bases_to_the_band_fl
         ..VersioningSettings::default()
     };
     let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
-    assert_eq!(release(&plan, "pnpm").new_version, "12.0.0");
-    assert_eq!(release(&plan, "lib").new_version, "1200.0.0");
+    assert_eq!(release(&plan, "pnpm").version.next, "12.0.0");
+    assert_eq!(release(&plan, "lib").version.next, "1200.0.0");
     assert_eq!(release(&plan, "lib").causes, vec![ReleaseCause::Epic]);
-    assert_eq!(release(&plan, "ui").new_version, "1200.0.0");
+    assert_eq!(release(&plan, "ui").version.next, "1200.0.0");
 }
 
 #[test]
@@ -149,7 +149,7 @@ fn a_member_on_a_lane_re_bases_to_a_prerelease_of_the_band_floor() {
         ..VersioningSettings::default()
     };
     let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
-    assert_eq!(release(&plan, "lib").new_version, "1200.0.0-alpha.0");
+    assert_eq!(release(&plan, "lib").version.next, "1200.0.0-alpha.0");
 }
 
 #[test]
@@ -162,9 +162,9 @@ fn the_re_base_waits_while_the_lead_is_on_a_prerelease_lane() {
         ..VersioningSettings::default()
     };
     let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
-    assert_eq!(release(&plan, "pnpm").new_version, "12.0.0-alpha.0");
+    assert_eq!(release(&plan, "pnpm").version.next, "12.0.0-alpha.0");
     // The member versions inside its old band until the lead's stable release.
-    assert_eq!(release(&plan, "lib").new_version, "1101.2.1");
+    assert_eq!(release(&plan, "lib").version.next, "1101.2.1");
 }
 
 #[test]
@@ -175,8 +175,8 @@ fn the_members_re_base_when_a_prerelease_lead_graduates_to_its_new_major() {
     let versioning =
         VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..Default::default() };
     let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
-    assert_eq!(release(&plan, "pnpm").new_version, "12.0.0");
-    assert_eq!(release(&plan, "lib").new_version, "1200.0.0");
+    assert_eq!(release(&plan, "pnpm").version.next, "12.0.0");
+    assert_eq!(release(&plan, "lib").version.next, "1200.0.0");
 }
 
 #[test]
@@ -186,5 +186,5 @@ fn the_top_of_the_band_takes_a_minor_without_tripping_the_ceiling_guard() {
     let versioning =
         VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..VersioningSettings::default() };
     let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
-    assert_eq!(release(&plan, "lib").new_version, "1199.5.0");
+    assert_eq!(release(&plan, "lib").version.next, "1199.5.0");
 }

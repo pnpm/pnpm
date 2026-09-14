@@ -40,7 +40,7 @@ impl Request {
         };
         let upload = destination.begin_blob_upload(key).await?;
         if let Err(refusal) =
-            append_body(destination, &upload, body, self.state.inner.config.oci.max_blob_bytes)
+            append_body(destination, &upload, body, self.state.inner.config.http.oci.max_blob_bytes)
                 .await
         {
             destination.abort_blob_upload(upload.id()).await?;
@@ -74,7 +74,8 @@ impl Request {
             Err(err) => return registry_error(err),
         };
         if let Err(refusal) =
-            append_body(&storage, &upload, body, self.state.inner.config.oci.max_blob_bytes).await
+            append_body(&storage, &upload, body, self.state.inner.config.http.oci.max_blob_bytes)
+                .await
         {
             let _ = storage.abort_blob_upload(upload.id()).await;
             return refusal.respond();
@@ -95,7 +96,7 @@ impl Request {
         // two chunks appending at once, or a chunk landing between the hash
         // and the promotion, would store bytes that are not the digest they
         // are stored under.
-        let _guard = self.state.inner.package_locks.lock(&upload_lock_key(id)).await;
+        let _guard = self.state.inner.locks.packages.lock(&upload_lock_key(id)).await;
         let storage = self.state.inner.storage.for_hosted(&org);
         let upload = match storage.open_blob_upload(&key, id).await {
             Ok(Some(upload)) => upload,
@@ -126,7 +127,8 @@ impl Request {
             return response;
         }
         let appended =
-            append_body(storage, upload, body, self.state.inner.config.oci.max_blob_bytes).await;
+            append_body(storage, upload, body, self.state.inner.config.http.oci.max_blob_bytes)
+                .await;
         match appended {
             Ok(()) => self.upload_progress(key, upload).await,
             Err(refusal) => refusal.respond(),
@@ -146,7 +148,8 @@ impl Request {
             return error(ErrorCode::DigestInvalid, "a completed upload must name its digest");
         };
         let appended =
-            append_body(storage, &upload, body, self.state.inner.config.oci.max_blob_bytes).await;
+            append_body(storage, &upload, body, self.state.inner.config.http.oci.max_blob_bytes)
+                .await;
         if let Err(refusal) = appended {
             return refusal.respond();
         }
@@ -161,7 +164,11 @@ impl Request {
         upload: &BlobUpload,
     ) -> Result<(), Response> {
         let Some(range) = self.headers.get(header::CONTENT_RANGE) else { return Ok(()) };
-        let Some((start, end)) = range.to_str().ok().and_then(parse_content_range) else {
+        let Some((start, end)) = range
+            .to_str()
+            .ok()
+            .and_then(parse_content_range)
+        else {
             return Err(error(ErrorCode::BlobUploadInvalid, "malformed Content-Range"));
         };
         // A body of a different length than the range declares would leave
@@ -172,10 +179,13 @@ impl Request {
         // The span is computed with a ceiling rather than plain arithmetic:
         // `0-18446744073709551615` is a range a client can send, and one more
         // than it does not fit the number that holds it.
-        let Some(span) = end.checked_sub(start).and_then(|span| span.checked_add(1)) else {
+        let Some(span) = end
+            .checked_sub(start)
+            .and_then(|span| span.checked_add(1))
+        else {
             return Err(error(ErrorCode::BlobUploadInvalid, "Content-Range is not a real span"));
         };
-        let limit = self.state.inner.config.oci.max_blob_bytes;
+        let limit = self.state.inner.config.http.oci.max_blob_bytes;
         if span > limit {
             return Err(error(
                 ErrorCode::SizeInvalid,
@@ -200,7 +210,13 @@ impl Request {
     }
 
     pub(super) fn content_length(&self) -> Option<u64> {
-        self.headers.get(header::CONTENT_LENGTH)?.to_str().ok()?.trim().parse().ok()
+        self.headers
+            .get(header::CONTENT_LENGTH)?
+            .to_str()
+            .ok()?
+            .trim()
+            .parse()
+            .ok()
     }
 
     pub(super) async fn upload_progress(

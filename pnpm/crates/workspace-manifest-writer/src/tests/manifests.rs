@@ -83,7 +83,10 @@ fn write_or_remove_manifest_reports_remove_errors() {
 #[test]
 fn write_or_remove_manifest_reports_write_errors() {
     let dir = TempDir::new().expect("temp dir");
-    let path = dir.path().join("missing").join(WORKSPACE_MANIFEST_FILENAME);
+    let path = dir
+        .path()
+        .join("missing")
+        .join(WORKSPACE_MANIFEST_FILENAME);
     let manifest = crate::model::Manifest::parse(Some("packages:\n  - '*'\n")).expect("manifest");
 
     let err =

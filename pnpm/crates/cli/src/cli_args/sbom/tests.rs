@@ -5,7 +5,7 @@ use super::{
 };
 use crate::cli_args::sbom::{
     cyclonedx::split_scoped_name,
-    metadata::{encode_purl_name, is_simple_spdx_id, strip_url_credentials},
+    metadata::{encode_purl_name, extract_bugs_url, is_simple_spdx_id, url_without_credentials},
     spdx::sanitize_spdx_id,
 };
 use pnpm_lockfile::{PackageMetadata, RegistryResolution, StringOrList};
@@ -230,6 +230,153 @@ fn extract_repository_object() {
 }
 
 #[test]
+fn extract_repository_expands_the_shorthands_hosted_git_info_knows() {
+    for (value, expected) in [
+        ("vercel/ms", "git+https://github.com/vercel/ms.git"),
+        ("acme/widgets.git", "git+https://github.com/acme/widgets.git"),
+        ("  vercel/ms  ", "git+https://github.com/vercel/ms.git"),
+        ("github:vercel/ms", "git+https://github.com/vercel/ms.git"),
+        ("gitlab:acme/widgets", "git+https://gitlab.com/acme/widgets.git"),
+        ("bitbucket:acme/widgets", "git+https://bitbucket.org/acme/widgets.git"),
+        ("gitlab:foo/bar/baz", "git+https://gitlab.com/foo/bar/baz.git"),
+        ("owner/repo#main", "git+https://github.com/owner/repo.git#main"),
+        ("git@github.com:foo/bar.git", "git+https://github.com/foo/bar.git"),
+    ] {
+        let manifest = serde_json::json!({ "repository": value });
+        assert_eq!(extract_repository(&manifest), Some(expected.to_string()), "value: {value:?}");
+    }
+}
+
+#[test]
+fn extract_repository_expands_shorthand_in_object() {
+    let manifest = serde_json::json!({ "repository": { "type": "git", "url": "acme/widgets" } });
+    assert_eq!(
+        extract_repository(&manifest),
+        Some("git+https://github.com/acme/widgets.git".to_string()),
+    );
+}
+
+#[test]
+fn extract_repository_keeps_non_http_absolute_urls() {
+    for url in [
+        "git://github.com/foo/bar.git",
+        "git+https://github.com/foo/bar.git",
+        "git+ssh://git@github.com/foo/bar.git",
+        "ssh://git@github.com/foo/bar.git",
+    ] {
+        let manifest = serde_json::json!({ "repository": url });
+        assert_eq!(extract_repository(&manifest), Some(url.to_string()));
+    }
+}
+
+#[test]
+fn extract_repository_completes_a_url_missing_a_slash() {
+    let manifest = serde_json::json!({ "repository": "https:/github.com/foo/bar.git" });
+    assert_eq!(extract_repository(&manifest), Some("https://github.com/foo/bar.git".to_string()));
+}
+
+#[test]
+fn extract_repository_strips_credentials() {
+    let manifest = serde_json::json!({ "repository": "https://user:token@github.com/foo/bar" });
+    assert_eq!(extract_repository(&manifest), Some("https://github.com/foo/bar".to_string()));
+}
+
+#[test]
+fn extract_repository_keeps_an_ssh_login() {
+    for url in ["ssh://git@github.com/foo/bar.git", "git+ssh://git@github.com/foo/bar.git"] {
+        let manifest = serde_json::json!({ "repository": url });
+        assert_eq!(extract_repository(&manifest), Some(url.to_string()));
+    }
+}
+
+#[test]
+fn extract_repository_strips_a_username_only_authority() {
+    for (url, expected) in [
+        ("https://token@github.com/foo/bar", "https://github.com/foo/bar"),
+        ("git+https://token@github.com/foo/bar.git", "git+https://github.com/foo/bar.git"),
+        ("ssh://git:token@github.com/foo/bar.git", "ssh://github.com/foo/bar.git"),
+        ("not-ssh://token@example.com/foo/bar", "not-ssh://example.com/foo/bar"),
+    ] {
+        let manifest = serde_json::json!({ "repository": url });
+        assert_eq!(extract_repository(&manifest), Some(expected.to_string()), "url: {url:?}");
+    }
+}
+
+#[test]
+fn extract_repository_drops_values_that_name_no_repository() {
+    for value in [
+        "foo@example.com",
+        "a/b/c",
+        "/abs/path",
+        ".hidden/repo",
+        "owner/",
+        "owner",
+        "owner /repo",
+        // Only a project name, with no owner.
+        "github:owner",
+        "mailto:bugs@example.com",
+        "git+file:/tmp/repo",
+        "",
+        "   ",
+    ] {
+        let manifest = serde_json::json!({ "repository": value });
+        assert_eq!(extract_repository(&manifest), None, "value: {value:?}");
+    }
+}
+
+/// Expanding the shorthand in one pnpm version alone would split the two.
+#[test]
+fn extract_repository_keeps_a_gist_url_and_drops_the_gist_shorthand() {
+    let shorthand = serde_json::json!({ "repository": "gist:11081aaa281" });
+    assert_eq!(extract_repository(&shorthand), None);
+    let url = serde_json::json!({ "repository": "https://gist.github.com/11081aaa281" });
+    assert_eq!(extract_repository(&url), Some("https://gist.github.com/11081aaa281".to_string()));
+}
+
+#[test]
+fn extract_repository_keeps_at_sign_in_path() {
+    let manifest = serde_json::json!({ "repository": "https://github.com/foo/bar/baz@qux" });
+    assert_eq!(
+        extract_repository(&manifest),
+        Some("https://github.com/foo/bar/baz@qux".to_string()),
+    );
+}
+
+#[test]
+fn extract_repository_does_not_treat_query_userinfo_lookalikes_as_credentials() {
+    let manifest =
+        serde_json::json!({ "repository": "https://github.com?x=user:pass@evil.example/repo" });
+    assert_eq!(
+        extract_repository(&manifest),
+        Some("https://github.com/?x=user:pass@evil.example/repo".to_string()),
+    );
+}
+
+#[test]
+fn extract_repository_percent_encodes_whitespace_in_urls() {
+    let manifest = serde_json::json!({ "repository": "https://example.com/a b" });
+    assert_eq!(extract_repository(&manifest), Some("https://example.com/a%20b".to_string()));
+}
+
+#[test]
+fn extract_repository_drops_an_incomplete_percent_escape() {
+    // The hosted parser decodes a shorthand's committish, so the `%251` of
+    // the last value reaches the derived URL as a stray `%1`.
+    for value in ["https://example.com/%zz", "https://example.com/%", "owner/repo#release%251"] {
+        let manifest = serde_json::json!({ "repository": value });
+        assert_eq!(extract_repository(&manifest), None, "value: {value:?}");
+    }
+}
+
+#[test]
+fn extract_repository_drops_unparsable_absolute_urls() {
+    for value in ["https://", "http://user:pass@"] {
+        let manifest = serde_json::json!({ "repository": value });
+        assert_eq!(extract_repository(&manifest), None, "value: {value:?}");
+    }
+}
+
+#[test]
 fn normalize_link_path_simple() {
     assert_eq!(normalize_link_path(".", "packages/foo"), Some("packages/foo".to_string()));
 }
@@ -281,16 +428,114 @@ fn is_simple_spdx_id_invalid() {
 }
 
 #[test]
-fn strip_url_credentials_removes_userinfo() {
+fn url_without_credentials_removes_userinfo() {
     assert_eq!(
-        strip_url_credentials("https://user:token@github.com/foo/bar"),
-        "https://github.com/foo/bar",
+        url_without_credentials("https://user:token@github.com/foo/bar").map(|u| u.to_string()),
+        Some("https://github.com/foo/bar".to_string()),
     );
 }
 
 #[test]
-fn strip_url_credentials_no_credentials() {
-    assert_eq!(strip_url_credentials("https://github.com/foo/bar"), "https://github.com/foo/bar");
+fn url_without_credentials_keeps_an_ssh_login() {
+    assert_eq!(
+        url_without_credentials("git+ssh://git@github.com/foo/bar.git").map(|u| u.to_string()),
+        Some("git+ssh://git@github.com/foo/bar.git".to_string()),
+    );
+}
+
+#[test]
+fn url_without_credentials_removes_a_username_only_authority() {
+    for (url, expected) in [
+        ("https://token@github.com/foo/bar", "https://github.com/foo/bar"),
+        ("not-ssh://token@example.com/foo/bar", "not-ssh://example.com/foo/bar"),
+    ] {
+        assert_eq!(
+            url_without_credentials(url).map(|u| u.to_string()),
+            Some(expected.to_string()),
+            "url: {url:?}",
+        );
+    }
+}
+
+#[test]
+fn url_without_credentials_no_credentials() {
+    assert_eq!(
+        url_without_credentials("https://github.com/foo/bar").map(|u| u.to_string()),
+        Some("https://github.com/foo/bar".to_string()),
+    );
+}
+
+#[test]
+fn url_without_credentials_ignores_userinfo_lookalikes_in_query() {
+    // The query, not the authority, carries the `@`: the URL must come out
+    // unchanged, not re-pointed at the query's host.
+    let url = "https://github.com?x=user:pass@evil.example/repo";
+    assert_eq!(
+        url_without_credentials(url).map(|u| u.to_string()),
+        Some("https://github.com/?x=user:pass@evil.example/repo".to_string()),
+    );
+}
+
+#[test]
+fn url_without_credentials_percent_encodes_whitespace() {
+    assert_eq!(
+        url_without_credentials("https://example.com/a b").map(|u| u.to_string()),
+        Some("https://example.com/a%20b".to_string()),
+    );
+}
+
+#[test]
+fn url_without_credentials_rejects_unparsable_values() {
+    for value in ["https://", "http://user:pass@"] {
+        assert_eq!(url_without_credentials(value), None, "value: {value:?}");
+    }
+}
+
+#[test]
+fn extract_bugs_url_keeps_http_urls_in_both_manifest_shapes() {
+    let string_form = serde_json::json!({ "bugs": "https://tracker.example.com/issues" });
+    assert_eq!(
+        extract_bugs_url(&string_form),
+        Some("https://tracker.example.com/issues".to_string()),
+    );
+    let object_form =
+        serde_json::json!({ "bugs": { "url": "https://tracker.example.com/issues" } });
+    assert_eq!(
+        extract_bugs_url(&object_form),
+        Some("https://tracker.example.com/issues".to_string()),
+    );
+}
+
+#[test]
+fn extract_bugs_url_strips_password_bearing_userinfo() {
+    let manifest = serde_json::json!({ "bugs": "https://user:token@tracker.example.com/issues" });
+    assert_eq!(extract_bugs_url(&manifest), Some("https://tracker.example.com/issues".to_string()));
+}
+
+#[test]
+fn extract_bugs_url_strips_bare_username() {
+    let manifest = serde_json::json!({ "bugs": "https://user@tracker.example.com/issues" });
+    assert_eq!(extract_bugs_url(&manifest), Some("https://tracker.example.com/issues".to_string()));
+}
+
+#[test]
+fn extract_bugs_url_does_not_treat_query_userinfo_lookalikes_as_credentials() {
+    let manifest =
+        serde_json::json!({ "bugs": "https://github.com?x=user:pass@evil.example/repo" });
+    assert_eq!(
+        extract_bugs_url(&manifest),
+        Some("https://github.com/?x=user:pass@evil.example/repo".to_string()),
+    );
+}
+
+#[test]
+fn extract_bugs_url_drops_non_http_schemes_and_unparsable_values() {
+    for value in
+        ["mailto:bugs@example.com", "git+https://github.com/foo/bar.git", "https://user:pass@"]
+    {
+        let manifest = serde_json::json!({ "bugs": value });
+        assert_eq!(extract_bugs_url(&manifest), None, "value: {value:?}");
+    }
 }
 
 #[test]

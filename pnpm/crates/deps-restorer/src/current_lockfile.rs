@@ -60,33 +60,27 @@ pub fn materialization_closure(
         collect_reachable(lockfile, workspace_root, initial_importer_ids, included, |key| {
             skipped.contains_optional_excluded(key)
         });
-    let reachable_metadata = metadata_reachable
-        .snapshot_keys
+    let reachable_metadata = metadata_reachable.snapshot_keys
         .iter()
         .map(PackageKey::without_peer)
         .collect::<HashSet<_>>();
-    let importers = lockfile
-        .importers
+    let importers = lockfile.importers
         .iter()
         .filter(|(id, _)| reachable.importer_ids.contains(*id))
         .map(|(id, importer)| {
             (id.clone(), filter_importer(importer, included, &reachable.snapshot_keys))
         })
         .collect();
-    let snapshots = lockfile.snapshots.as_ref().map(|snapshots| {
-        snapshots
-            .iter()
-            .filter(|(key, _)| reachable.snapshot_keys.contains(*key))
-            .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
-            .collect()
-    });
-    let packages = lockfile.packages.as_ref().map(|packages| {
-        packages
-            .iter()
-            .filter(|(key, _)| reachable_metadata.contains(*key))
-            .map(|(key, package)| (key.clone(), package.clone()))
-            .collect()
-    });
+    let snapshots = lockfile.snapshots
+        .as_ref()
+        .map(|snapshots| {
+            snapshots
+                .iter()
+                .filter(|(key, _)| reachable.snapshot_keys.contains(*key))
+                .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
+                .collect()
+        });
+    let packages = reachable_package_metadata(lockfile, &reachable_metadata);
 
     MaterializationClosure {
         lockfile: lockfile_with_graph(lockfile, importers, packages, snapshots),
@@ -115,8 +109,9 @@ pub fn merge_filtered_wanted_lockfile(
     selected_importer_ids: &HashSet<String>,
     workspace_root: &Path,
 ) -> Result<Lockfile, MergeFilteredWantedLockfileError> {
-    let can_reuse_unselected_importers = previous_wanted
-        .is_some_and(|previous| resolution_inputs_match(previous, &freshly_resolved));
+    let can_reuse_unselected_importers = previous_wanted.is_some_and(|previous| {
+        resolution_inputs_match(previous, &freshly_resolved)
+    });
     let mut fresh_importers = std::mem::take(&mut freshly_resolved.importers);
     let fresh_packages = freshly_resolved.packages.take();
     let fresh_snapshots = freshly_resolved.snapshots.take();
@@ -134,11 +129,11 @@ pub fn merge_filtered_wanted_lockfile(
                 {
                     previous_importer.clone()
                 }
-                _ => fresh_importers.remove(importer_id).ok_or_else(|| {
-                    MergeFilteredWantedLockfileError::MissingImporter {
+                _ => fresh_importers
+                    .remove(importer_id)
+                    .ok_or_else(|| MergeFilteredWantedLockfileError::MissingImporter {
                         importer_id: importer_id.clone(),
-                    }
-                })?,
+                    })?,
             };
             Ok((importer_id.clone(), importer))
         })
@@ -203,13 +198,15 @@ fn retained_closure(
     selected_importer_ids: &HashSet<String>,
     workspace_root: &Path,
 ) -> Lockfile {
-    let retained_importers = previous_current
-        .importers
+    let retained_importers = previous_current.importers
         .iter()
         .filter(|(importer_id, _)| !selected_importer_ids.contains(*importer_id))
         .map(|(importer_id, importer)| (importer_id.clone(), importer.clone()))
         .collect::<HashMap<_, _>>();
-    let retained_importer_ids = retained_importers.keys().cloned().collect();
+    let retained_importer_ids = retained_importers
+        .keys()
+        .cloned()
+        .collect();
     let retained_source = lockfile_with_graph(
         previous_current,
         retained_importers,
@@ -243,7 +240,10 @@ fn overlay_lockfiles(
 
 /// The closure over every importer and dependency group of `lockfile`.
 fn full_closure(lockfile: &Lockfile, workspace_root: &Path) -> Lockfile {
-    let importer_ids = lockfile.importers.keys().cloned().collect();
+    let importer_ids = lockfile.importers
+        .keys()
+        .cloned()
+        .collect();
     materialization_closure(
         lockfile,
         workspace_root,
@@ -299,7 +299,11 @@ pub fn extend_skipped_with_dependency_closure(
     importer_ids: &HashSet<String>,
     included: IncludedDependencies,
 ) {
-    if skipped.iter_installability().next().is_none() {
+    if skipped
+        .iter_installability()
+        .next()
+        .is_none()
+    {
         return;
     }
     let full = collect_reachable(lockfile, workspace_root, importer_ids, included, |_| false);
@@ -371,7 +375,10 @@ pub fn filter_lockfile_for_current(
     included: IncludedDependencies,
     skipped: &SkippedSnapshots,
 ) -> Lockfile {
-    let all_importer_ids = lockfile.importers.keys().cloned().collect();
+    let all_importer_ids = lockfile.importers
+        .keys()
+        .cloned()
+        .collect();
     // Every importer is a root here, so no importer has to be *discovered*
     // through a `link:` dep and the walk needs no real workspace root to
     // resolve those links against. The empty root keeps the walk in the
@@ -425,6 +432,21 @@ fn retain_reachable(map: &mut ResolvedDependencyMap, reachable: &HashSet<Package
         };
         reachable.contains(&key)
     });
+}
+
+fn reachable_package_metadata(
+    lockfile: &Lockfile,
+    reachable: &HashSet<PackageKey>,
+) -> Option<HashMap<PackageKey, pnpm_lockfile::PackageMetadata>> {
+    lockfile.packages
+        .as_ref()
+        .map(|packages| {
+            packages
+                .iter()
+                .filter(|(key, _)| reachable.contains(*key))
+                .map(|(key, package)| (key.clone(), package.clone()))
+                .collect()
+        })
 }
 
 #[cfg(test)]

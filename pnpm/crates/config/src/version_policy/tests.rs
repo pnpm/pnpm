@@ -5,8 +5,10 @@ use crate::version_policy::{
 use pretty_assertions::assert_eq;
 
 fn expand(specs: &[&str]) -> Vec<String> {
-    let mut out: Vec<String> =
-        expand_package_version_specs(specs.iter().copied()).unwrap().into_iter().collect();
+    let mut out: Vec<String> = expand_package_version_specs(specs.iter().copied())
+        .unwrap()
+        .into_iter()
+        .collect();
     out.sort();
     out
 }

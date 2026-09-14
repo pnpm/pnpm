@@ -11,7 +11,12 @@ fn run(
     env: &HashMap<String, String>,
 ) -> (i32, Vec<(LifecycleStdio, String)>) {
     let lines = Mutex::new(Vec::new());
-    let sink = |stdio, line| lines.lock().expect("the sink is never poisoned").push((stdio, line));
+    let sink = |stdio, line| {
+        lines
+            .lock()
+            .expect("the sink is never poisoned")
+            .push((stdio, line));
+    };
     let code = execute_emulated(script, cwd, env, EmulatedOutput::Lines(&sink), None)
         .expect("run the script under the emulator");
     (code, lines.into_inner().expect("the sink is never poisoned"))

@@ -143,7 +143,11 @@ fn prompt_install(
     let message = format!(
         "Your \"node_modules\" directory is out of sync with the \"pnpm-lock.yaml\" file. This can lead to issues during scripts execution.\n\nWould you like to run \"pnpm {command}\" to update your \"node_modules\"?",
     );
-    match Confirm::new().with_prompt(message).default(true).interact() {
+    match Confirm::new()
+        .with_prompt(message)
+        .default(true)
+        .interact()
+    {
         Ok(true) => spawn_install(dir, install_args, reporter),
         Ok(false) => Ok(()),
         // The prompt was interrupted (Esc / Ctrl-C); exit like

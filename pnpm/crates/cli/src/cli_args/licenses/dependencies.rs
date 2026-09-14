@@ -98,7 +98,11 @@ fn queue_snapshot_children(
     stack: &mut Vec<(PackageKey, BelongsTo)>,
 ) {
     let optional = include.optional_dependencies.then_some(snapshot.optional_dependencies.as_ref());
-    for deps in [Some(snapshot.dependencies.as_ref()), optional].into_iter().flatten().flatten() {
+    for deps in [Some(snapshot.dependencies.as_ref()), optional]
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
         for (name, dep_ref) in deps {
             if let Some(child_key) = dep_ref.resolve(name) {
                 stack.push((child_key, kind));
@@ -118,7 +122,9 @@ fn snapshot_is_unsupported_optional(
     if !snapshot.is_some_and(|snapshot| snapshot.optional) {
         return false;
     }
-    let package = lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()));
+    let package = lockfile.packages
+        .as_ref()
+        .and_then(|packages| packages.get(&key.without_peer()));
     package.is_some_and(|package| {
         !platform_is_supported_with_inference(
             &key.name.bare,

@@ -374,14 +374,19 @@ fn insert_side_effects(
     cache_key: &str,
     verify_result: &mut pnpm_store_dir::VerifyResult,
 ) {
-    if let Some(maps) = verify_result.side_effects_maps.take().filter(|maps| !maps.is_empty()) {
+    if let Some(maps) = verify_result.side_effects_maps
+        .take()
+        .filter(|maps| !maps.is_empty())
+    {
         result.side_effects_maps.insert(cache_key.to_string(), Arc::new(maps));
     }
-    if let Some(diffs) = verify_result.side_effects.take().filter(|diffs| !diffs.is_empty()) {
+    if let Some(diffs) = verify_result.side_effects
+        .take()
+        .filter(|diffs| !diffs.is_empty())
+    {
         result.side_effects.insert(cache_key.to_string(), Arc::new(diffs));
     }
-    if let Some(quarantine) = verify_result
-        .remote_side_effects_quarantine
+    if let Some(quarantine) = verify_result.remote_side_effects_quarantine
         .take()
         .filter(|quarantine| !quarantine.is_empty())
     {

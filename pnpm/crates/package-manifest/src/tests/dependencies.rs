@@ -12,7 +12,9 @@ fn should_add_dependency() {
     let mut manifest = PackageManifest::create_if_needed(tmp.clone()).unwrap();
     manifest.add_dependency("fastify", "1.0.0", DependencyGroup::Prod).unwrap();
 
-    let dependencies: HashMap<_, _> = manifest.dependencies([DependencyGroup::Prod]).collect();
+    let dependencies: HashMap<_, _> = manifest
+        .dependencies([DependencyGroup::Prod])
+        .collect();
     dbg!(&dependencies);
     assert!(dependencies.contains_key("fastify"));
     assert_eq!(dependencies.get("fastify").unwrap(), &"1.0.0");
@@ -124,7 +126,10 @@ fn convert_engines_runtime_lifts_devengines_runtime_into_devdependencies() {
     });
     convert_engines_runtime_to_dependencies(&mut manifest, "devEngines", "devDependencies");
     assert_eq!(
-        manifest.get("devDependencies").and_then(|d| d.get("node")).and_then(|v| v.as_str()),
+        manifest
+            .get("devDependencies")
+            .and_then(|d| d.get("node"))
+            .and_then(|v| v.as_str()),
         Some("runtime:24.6.0"),
     );
 }
@@ -157,7 +162,10 @@ fn convert_engines_runtime_trims_the_version() {
         });
         convert_engines_runtime_to_dependencies(&mut manifest, "devEngines", "devDependencies");
         assert_eq!(
-            manifest.get("devDependencies").and_then(|d| d.get("node")).and_then(|v| v.as_str()),
+            manifest
+                .get("devDependencies")
+                .and_then(|d| d.get("node"))
+                .and_then(|v| v.as_str()),
             Some(expected),
         );
     }
@@ -172,11 +180,16 @@ fn runtime_on_fail_download_reifies_runtime_dependencies() {
     });
     apply_runtime_on_fail_override(&mut manifest, "download");
     assert_eq!(
-        manifest.get("devEngines").and_then(|v| v.get("runtime")).and_then(|v| v.get("onFail")),
+        manifest
+            .get("devEngines")
+            .and_then(|v| v.get("runtime"))
+            .and_then(|v| v.get("onFail")),
         Some(&json!("download")),
     );
     assert_eq!(
-        manifest.get("devDependencies").and_then(|v| v.get("node")),
+        manifest
+            .get("devDependencies")
+            .and_then(|v| v.get("node")),
         Some(&json!("runtime:22.20.0")),
     );
 }
@@ -194,11 +207,24 @@ fn runtime_on_fail_ignore_removes_only_synthesized_runtime_dependencies() {
     });
     apply_runtime_on_fail_override(&mut manifest, "ignore");
     assert_eq!(
-        manifest.get("devEngines").and_then(|v| v.get("runtime")).and_then(|v| v.get("onFail")),
+        manifest
+            .get("devEngines")
+            .and_then(|v| v.get("runtime"))
+            .and_then(|v| v.get("onFail")),
         Some(&json!("ignore")),
     );
-    assert!(manifest.get("devDependencies").and_then(|v| v.get("node")).is_none());
-    assert_eq!(manifest.get("devDependencies").and_then(|v| v.get("bun")), Some(&json!("1.2.0")));
+    assert!(
+        manifest
+            .get("devDependencies")
+            .and_then(|v| v.get("node"))
+            .is_none(),
+    );
+    assert_eq!(
+        manifest
+            .get("devDependencies")
+            .and_then(|v| v.get("bun")),
+        Some(&json!("1.2.0")),
+    );
 }
 
 #[test]
@@ -213,7 +239,9 @@ fn runtime_on_fail_ignore_preserves_explicit_runtime_dependencies() {
     });
     apply_runtime_on_fail_override(&mut manifest, "ignore");
     assert_eq!(
-        manifest.get("devDependencies").and_then(|value| value.get("node")),
+        manifest
+            .get("devDependencies")
+            .and_then(|value| value.get("node")),
         Some(&json!("runtime:22.20.0")),
     );
 }
@@ -268,7 +296,10 @@ fn convert_engines_runtime_targets_dependencies_for_engines_field() {
     });
     convert_engines_runtime_to_dependencies(&mut manifest, "engines", "dependencies");
     assert_eq!(
-        manifest.get("dependencies").and_then(|d| d.get("node")).and_then(|v| v.as_str()),
+        manifest
+            .get("dependencies")
+            .and_then(|d| d.get("node"))
+            .and_then(|v| v.as_str()),
         Some("runtime:22.0.0"),
     );
 }
@@ -518,12 +549,26 @@ fn remove_dependencies_clears_all_fields_without_save_type() {
     let value = manifest.value();
     for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] {
         assert!(
-            value.get(field).and_then(|f| f.get("foo")).is_none(),
+            value
+                .get(field)
+                .and_then(|f| f.get("foo"))
+                .is_none(),
             "`foo` must be gone from {field}: {value}",
         );
     }
-    assert!(value.get("dependenciesMeta").and_then(|m| m.get("foo")).is_none());
-    assert!(value.get("dependencies").and_then(|d| d.get("bar")).is_some(), "`bar` must remain");
+    assert!(
+        value
+            .get("dependenciesMeta")
+            .and_then(|m| m.get("foo"))
+            .is_none(),
+    );
+    assert!(
+        value
+            .get("dependencies")
+            .and_then(|d| d.get("bar"))
+            .is_some(),
+        "`bar` must remain",
+    );
 }
 
 #[test]
@@ -536,13 +581,24 @@ fn remove_dependencies_with_save_type_keeps_other_dependency_fields() {
     manifest.remove_dependencies(&["foo".to_string()], Some(DependencyGroup::Dev));
 
     let value = manifest.value();
-    assert!(value.get("devDependencies").and_then(|d| d.get("foo")).is_none());
     assert!(
-        value.get("dependencies").and_then(|d| d.get("foo")).is_some(),
+        value
+            .get("devDependencies")
+            .and_then(|d| d.get("foo"))
+            .is_none(),
+    );
+    assert!(
+        value
+            .get("dependencies")
+            .and_then(|d| d.get("foo"))
+            .is_some(),
         "prod entry must survive a dev-targeted remove: {value}",
     );
     assert!(
-        value.get("peerDependencies").and_then(|d| d.get("foo")).is_none(),
+        value
+            .get("peerDependencies")
+            .and_then(|d| d.get("foo"))
+            .is_none(),
         "peer entry is always cleared: {value}",
     );
 }

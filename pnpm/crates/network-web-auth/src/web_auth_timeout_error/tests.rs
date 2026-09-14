@@ -14,13 +14,21 @@ fn stores_end_time_start_time_and_timeout() {
 #[test]
 fn has_webauth_timeout_code() {
     let err = WebAuthTimeoutError::new(0, 0, 0);
-    assert_eq!(err.code().expect("a diagnostic code").to_string(), "ERR_PNPM_WEBAUTH_TIMEOUT");
+    assert_eq!(
+        err.code()
+            .expect("a diagnostic code")
+            .to_string(),
+        "ERR_PNPM_WEBAUTH_TIMEOUT",
+    );
 }
 
 #[test]
 fn includes_a_hint_about_re_running_the_command() {
     let err = WebAuthTimeoutError::new(0, 0, 0);
-    let help = err.help().expect("a help hint").to_string();
+    let help = err
+        .help()
+        .expect("a help hint")
+        .to_string();
     assert!(help.contains("Re-run"), "help should mention re-running, got {help:?}");
 }
 

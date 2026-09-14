@@ -533,7 +533,13 @@ remoteSideEffectsCache:
     let shared = config.remote_side_effects_cache.expect("shared cache config");
     assert_eq!(shared.org, "acme");
     assert_eq!(shared.packages, ["native-addon"]);
-    assert_eq!(shared.trusted_keys.expect("trusted keys").get("acme-2026").unwrap(), "AA==");
+    assert_eq!(
+        shared.trusted_keys
+            .expect("trusted keys")
+            .get("acme-2026")
+            .unwrap(),
+        "AA==",
+    );
     assert_eq!(shared.private_key.as_deref(), Some("BB=="));
 }
 
@@ -636,7 +642,11 @@ gitShallowHosts:
     // Sanity-check the default before applying — `github.com` is the
     // first entry in pnpm's list, and replacement (not merging) is the
     // bit we want to verify.
-    assert!(config.git_shallow_hosts.iter().any(|host| host == "github.com"));
+    assert!(
+        config.git_shallow_hosts
+            .iter()
+            .any(|host| host == "github.com"),
+    );
 
     settings.apply_to(&mut config, Path::new("/irrelevant"));
 
@@ -716,8 +726,10 @@ overrides:
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let overrides = settings.overrides.as_ref().expect("overrides parsed");
-    let entries: Vec<_> =
-        overrides.iter().map(|(key, value)| (key.as_str(), value.as_str())).collect();
+    let entries: Vec<_> = overrides
+        .iter()
+        .map(|(key, value)| (key.as_str(), value.as_str()))
+        .collect();
     assert_eq!(entries, vec![("foo", "1.2.3"), ("@scope/bar", "^2.0.0"), ("baz>qux", "-")]);
 
     let mut config = Config::new();
@@ -798,8 +810,7 @@ packageExtensions:
     let extensions = settings.package_extensions.as_ref().expect("packageExtensions parsed");
     let is_positive = extensions.get("is-positive").expect("is-positive entry");
     assert_eq!(
-        is_positive
-            .dependencies
+        is_positive.dependencies
             .as_ref()
             .and_then(|map| map.get("@pnpm.e2e/bar"))
             .map(String::as_str),
@@ -807,11 +818,13 @@ packageExtensions:
     );
     let scoped = extensions.get("@scope/foo@^2").expect("scoped entry");
     assert_eq!(
-        scoped.peer_dependencies.as_ref().and_then(|map| map.get("react")).map(String::as_str),
+        scoped.peer_dependencies
+            .as_ref()
+            .and_then(|map| map.get("react"))
+            .map(String::as_str),
         Some(">=16"),
     );
-    let meta = scoped
-        .peer_dependencies_meta
+    let meta = scoped.peer_dependencies_meta
         .as_ref()
         .and_then(|map| map.get("react"))
         .expect("react peerDependenciesMeta entry");

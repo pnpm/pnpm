@@ -1,4 +1,5 @@
 use super::{Path, fs, io, relative_path};
+use miette::{Context, IntoDiagnostic};
 
 /// Point `link` at `target`, replacing any existing link in a single step
 /// so a concurrent command never observes it missing. Windows cannot
@@ -19,9 +20,10 @@ pub(super) fn swap_hash_link_atomically(target: &Path, link: &Path) -> io::Resul
         Err(error) => return Err(error),
     }
     symlink_dir_entry(&relative_path(parent, target), &staged)?;
-    fs::rename(&staged, link).inspect_err(|_| {
-        let _ = fs::remove_file(&staged);
-    })
+    fs::rename(&staged, link)
+        .inspect_err(|_| {
+            let _ = fs::remove_file(&staged);
+        })
 }
 
 #[cfg(unix)]
@@ -32,4 +34,19 @@ fn symlink_dir_entry(target: &Path, link: &Path) -> io::Result<()> {
 #[cfg(not(unix))]
 fn symlink_dir_entry(target: &Path, link: &Path) -> io::Result<()> {
     pnpm_fs::force_symlink_dir(target, link).map(|_| ())
+}
+
+pub(super) fn io_error_report(error: io::Error, context: String) -> miette::Report {
+    Err::<(), _>(error)
+        .into_diagnostic()
+        .wrap_err(context)
+        .unwrap_err()
+}
+
+pub(super) fn remove_dir_all_if_exists(path: &Path) -> io::Result<()> {
+    match fs::remove_dir_all(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }

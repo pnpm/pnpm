@@ -1,7 +1,8 @@
 use super::{
     super::{
         Arc, FastUpdateLockfileOptions, FreshnessScope, InstallError, Lockfile, PackageManifest,
-        Path, PathBuf, Reporter, check_lockfile_freshness, prune_merged_branch_lockfile,
+        Path, PathBuf, Reporter, check_lockfile_freshness,
+        lockfile_freshness::LockfileFreshnessInputs, prune_merged_branch_lockfile,
         try_fast_update_lockfile,
     },
     InstallView, RunMode,
@@ -40,7 +41,8 @@ impl WantedLockfile<'_> {
     /// a superseded document.
     pub(super) fn loader_handle(&self, shared: Option<Arc<Lockfile>>) -> Option<Arc<Lockfile>> {
         shared.filter(|shared| {
-            self.get().is_some_and(|lockfile| std::ptr::eq(lockfile, Arc::as_ptr(shared)))
+            self.get()
+                .is_some_and(|lockfile| std::ptr::eq(lockfile, Arc::as_ptr(shared)))
         })
     }
 
@@ -85,8 +87,12 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
     project_manifests: &'w [(PathBuf, &'w PackageManifest)],
     selection: Option<&crate::WorkspaceInstallSelection<'_>>,
 ) -> Result<Lockfiles<'w>, InstallError> {
-    let mut lockfiles =
-        Lockfiles::new(loaded.lockfile, &workspace.workspace_root, project_manifests, selection);
+    let mut lockfiles = Lockfiles::new(
+        loaded.lockfile,
+        &workspace.dirs.workspace_root,
+        project_manifests,
+        selection,
+    );
     lockfiles.wanted.synthesized = synthesize_wanted(
         install,
         mode,
@@ -96,24 +102,24 @@ pub(super) async fn settle_wanted_lockfile<'a: 'w, 'w, Reporter: self::Reporter 
         &lockfiles.manifest_freshness_inputs,
     )
     .await;
-    reconcile_branch_lockfile(&mut lockfiles, loaded, install.config);
-    if may_fast_update_lockfile(
-        install.frozen_lockfile,
-        install.dry_run,
-        mode.prefer_frozen_lockfile,
-        install.mutation,
-    ) {
+    reconcile_branch_lockfile(&mut lockfiles, loaded, install.context.config);
+    if may_fast_update_lockfile(install, mode.prefer_frozen_lockfile) {
         lockfiles.wanted.fast_updated =
             try_fast_update_lockfile::<Reporter>(FastUpdateLockfileOptions {
                 lockfile: lockfiles.wanted.get(),
-                lockfile_dir: &workspace.workspace_root,
-                manifests: &lockfiles.manifest_freshness_inputs,
                 project_manifests,
-                config: install.config,
-                catalogs: &workspace.catalogs,
-                pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
-                ignore_manifest_check: install.ignore_manifest_check,
-                prune_stale_importers: scope.prune_stale_importers,
+                freshness: LockfileFreshnessInputs {
+                    lockfile_dir: &workspace.dirs.workspace_root,
+                    manifests: &lockfiles.manifest_freshness_inputs,
+                    config: install.context.config,
+                    catalogs: &workspace.catalogs,
+                    pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
+                    scope: FreshnessScope {
+                        ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
+                        prune_stale_importers: scope.prune_stale_importers,
+                        allow_missing_dependency_free_importers: true,
+                    },
+                },
             })
             .await;
     }
@@ -125,8 +131,7 @@ pub(super) fn reconcile_branch_lockfile(
     loaded: &Loaded<'_>,
     config: &Config,
 ) {
-    lockfiles.wanted.merged_branch = loaded
-        .pre_merge_importers
+    lockfiles.wanted.merged_branch = loaded.pre_merge_importers
         .zip(lockfiles.wanted.get())
         .and_then(|(pre_merge_importers, lockfile)| {
             prune_merged_branch_lockfile(
@@ -150,15 +155,20 @@ pub(super) async fn synthesize_wanted(
         loaded.current.as_ref(),
         SynthesizeScope {
             lockfile_is_absent: loaded.lockfile.is_none(),
-            frozen_lockfile: install.frozen_lockfile,
+            frozen_lockfile: install.lockfile_policy.frozen,
             prefer_frozen_lockfile: mode.prefer_frozen_lockfile,
-            workspace_root: &workspace.workspace_root,
-            manifest_freshness_inputs,
-            config: install.config,
-            catalogs: &workspace.catalogs,
-            pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
-            ignore_manifest_check: install.ignore_manifest_check,
-            prune_stale_importers: scope.prune_stale_importers,
+            freshness: LockfileFreshnessInputs {
+                lockfile_dir: &workspace.dirs.workspace_root,
+                manifests: manifest_freshness_inputs,
+                config: install.context.config,
+                catalogs: &workspace.catalogs,
+                pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
+                scope: FreshnessScope {
+                    ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
+                    prune_stale_importers: scope.prune_stale_importers,
+                    allow_missing_dependency_free_importers: true,
+                },
+            },
         },
     )
     .await
@@ -169,13 +179,7 @@ pub(super) struct SynthesizeScope<'a> {
     lockfile_is_absent: bool,
     frozen_lockfile: bool,
     prefer_frozen_lockfile: bool,
-    workspace_root: &'a Path,
-    manifest_freshness_inputs: &'a [(String, &'a PackageManifest)],
-    config: &'a Config,
-    catalogs: &'a super::super::Catalogs,
-    pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    ignore_manifest_check: bool,
-    prune_stale_importers: bool,
+    freshness: LockfileFreshnessInputs<'a, 'a>,
 }
 /// Synthesize the wanted lockfile from `<virtual_store_dir>/lock.yaml` when
 /// `pnpm-lock.yaml` is absent and the materialized snapshot still satisfies
@@ -189,28 +193,14 @@ pub(super) async fn synthesize_lockfile_from_current(
     if !scope.lockfile_is_absent || scope.frozen_lockfile || !scope.prefer_frozen_lockfile {
         return None;
     }
-    check_lockfile_freshness(
-        current,
-        scope.workspace_root,
-        scope.manifest_freshness_inputs,
-        scope.config,
-        scope.catalogs,
-        scope.pnpmfile_hook,
-        FreshnessScope {
-            ignore_manifest_check: scope.ignore_manifest_check,
-            allow_missing_dependency_free_importers: true,
-            prune_stale_importers: scope.prune_stale_importers,
-        },
-    )
-    .await
-    .ok()
-    .map(|()| current.clone())
+    check_lockfile_freshness(current, &scope.freshness).await.ok().map(|()| current.clone())
 }
 pub(super) fn may_fast_update_lockfile(
-    frozen_lockfile: bool,
-    dry_run: bool,
+    install: InstallView<'_>,
     prefer_frozen_lockfile: bool,
-    mutation: crate::ProjectMutation,
 ) -> bool {
-    !frozen_lockfile && !dry_run && prefer_frozen_lockfile && mutation.may_fast_update_lockfile()
+    !install.lockfile_policy.frozen
+        && !install.execution.dry_run
+        && prefer_frozen_lockfile
+        && install.execution.mutation.may_fast_update_lockfile()
 }

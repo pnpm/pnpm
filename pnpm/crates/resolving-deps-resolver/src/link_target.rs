@@ -43,11 +43,17 @@ pub(crate) struct ImporterAnchor {
 impl ImporterAnchor {
     pub(crate) fn new(project_dir: &Path, lockfile_dir: &Path) -> Self {
         ImporterAnchor {
-            rel_components: importer_rel_dir(project_dir, lockfile_dir).and_then(|rel| {
-                rel.components()
-                    .map(|component| component.as_os_str().to_str().map(str::to_owned))
-                    .collect()
-            }),
+            rel_components: importer_rel_dir(project_dir, lockfile_dir)
+                .and_then(|rel| {
+                    rel.components()
+                        .map(|component| {
+                            component
+                                .as_os_str()
+                                .to_str()
+                                .map(str::to_owned)
+                        })
+                        .collect()
+                }),
         }
     }
 
@@ -101,8 +107,15 @@ impl ImporterAnchor {
             }
         }
         Some(render(
-            rel[..kept].iter().map(String::as_str).chain(descended),
-            rel[..kept].iter().map(|name| name.len() + 1).sum::<usize>() + target.len(),
+            rel[..kept]
+                .iter()
+                .map(String::as_str)
+                .chain(descended),
+            rel[..kept]
+                .iter()
+                .map(|name| name.len() + 1)
+                .sum::<usize>()
+                + target.len(),
         ))
     }
 }
@@ -151,7 +164,11 @@ impl ImporterRelativeScan {
         if segment == ".." || is_drive_qualified(pos, segment) {
             return false;
         }
-        if self.still_shared && rel.get(self.shared).is_some_and(|name| name == segment) {
+        if self.still_shared
+            && rel
+                .get(self.shared)
+                .is_some_and(|name| name == segment)
+        {
             self.shared += 1;
             return true;
         }
@@ -167,11 +184,12 @@ impl ImporterRelativeScan {
 /// including the empty ones a repeated separator produces.
 fn path_segments(path: &str) -> impl Iterator<Item = (usize, &str)> {
     let mut pos = 0;
-    path.split(SEPARATORS).map(move |segment| {
-        let start = pos;
-        pos += segment.len() + 1;
-        (start, segment)
-    })
+    path.split(SEPARATORS)
+        .map(move |segment| {
+            let start = pos;
+            pos += segment.len() + 1;
+            (start, segment)
+        })
 }
 
 /// A drive-qualified first segment (`C:...`) makes the path absolute, which
@@ -226,10 +244,18 @@ fn relative_segments(target: &str) -> Option<impl Iterator<Item = &str> + Clone>
         return None;
     }
     #[cfg(windows)]
-    if target.split(SEPARATORS).next().is_some_and(|first| first.contains(':')) {
+    if target
+        .split(SEPARATORS)
+        .next()
+        .is_some_and(|first| first.contains(':'))
+    {
         return None;
     }
-    Some(target.split(SEPARATORS).filter(|segment| !segment.is_empty() && *segment != "."))
+    Some(
+        target
+            .split(SEPARATORS)
+            .filter(|segment| !segment.is_empty() && *segment != "."),
+    )
 }
 
 /// Join components with `/` and normalize any backslash inside one, the
@@ -278,7 +304,8 @@ fn is_clean_absolute(path: &Path) -> bool {
 }
 
 fn all_normal(path: &Path) -> bool {
-    path.components().all(|component| matches!(component, Component::Normal(_)))
+    path.components()
+        .all(|component| matches!(component, Component::Normal(_)))
 }
 
 #[cfg(test)]

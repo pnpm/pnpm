@@ -14,8 +14,14 @@ use assert_cmd::assert::OutputAssertExt;
 /// directly.
 #[test]
 fn publicly_hoisted_workspace_package_bin_lands_in_root_bin_dir() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -46,7 +52,10 @@ fn publicly_hoisted_workspace_package_bin_lands_in_root_bin_dir() {
         .expect("write packages/foo/cli.js");
 
     generate_lockfile(pnpm);
-    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     let alias_link = workspace.join("node_modules/@local/foo");
     assert!(
@@ -74,8 +83,14 @@ fn publicly_hoisted_workspace_package_bin_lands_in_root_bin_dir() {
 /// doesn't have.
 #[test]
 pub(super) fn workspace_hoist_walks_every_importer() {
-    let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     // Root package.json — no deps; the dependency lives only in the
@@ -106,7 +121,10 @@ pub(super) fn workspace_hoist_walks_every_importer() {
     .expect("write packages/foo/package.json");
 
     generate_lockfile(pnpm);
-    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert!(
         is_symlink_or_junction(&pkg_dir.join("node_modules/@pnpm.e2e/hello-world-js-bin-parent"))
@@ -135,8 +153,14 @@ pub(super) fn workspace_hoist_walks_every_importer() {
 #[test]
 pub(super) fn hoist_workspace_packages_links_projects_by_name() {
     for enabled in [true, false] {
-        let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
-            CommandTempCwd::init().add_mocked_registry();
+        let CommandTempCwd {
+            pacquet,
+            pnpm,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
         let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
         fs::write(
@@ -164,7 +188,10 @@ pub(super) fn hoist_workspace_packages_links_projects_by_name() {
         .expect("write packages/foo/package.json");
 
         generate_lockfile(pnpm);
-        pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+        pacquet
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
 
         let assert_hoist_layout = || {
             let name_link = workspace.join("node_modules/.pnpm/node_modules/@local/foo");
@@ -195,7 +222,10 @@ pub(super) fn hoist_workspace_packages_links_projects_by_name() {
         assert_hoist_layout();
 
         fs::remove_dir_all(workspace.join("node_modules")).expect("remove root node_modules");
-        pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+        pacquet_in(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .success();
         assert_hoist_layout();
 
         drop((root, mock_instance));
@@ -289,8 +319,13 @@ fn workspace_hoist_only_in_selected_projects_with_subdeps() {
 /// [`workspace_hoist_walks_every_importer`].
 #[test]
 fn workspace_hoist_all_to_virtual_store_node_modules() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_workspace_yaml(&workspace, "packages:\n  - package\n");
@@ -314,26 +349,38 @@ fn workspace_hoist_all_to_virtual_store_node_modules() {
     )
     .expect("write member package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let assert_layout = || {
         assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep").exists());
         for name in ["dep-of-pkg-with-1-dep", "foobar", "foo", "bar"] {
             assert!(
-                workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e").join(name).exists(),
+                workspace
+                    .join("node_modules/.pnpm/node_modules/@pnpm.e2e")
+                    .join(name)
+                    .exists(),
                 "expected {name} in the private hoist dir",
             );
         }
         for name in ["foobar", "foo", "bar"] {
             assert!(
-                !workspace.join("node_modules/@pnpm.e2e").join(name).exists(),
+                !workspace
+                    .join("node_modules/@pnpm.e2e")
+                    .join(name)
+                    .exists(),
                 "{name} must not appear in root node_modules",
             );
         }
         assert!(workspace.join("package/node_modules/@pnpm.e2e/foobar").exists());
         for name in ["foo", "bar"] {
             assert!(
-                !workspace.join("package/node_modules/@pnpm.e2e").join(name).exists(),
+                !workspace
+                    .join("package/node_modules/@pnpm.e2e")
+                    .join(name)
+                    .exists(),
                 "{name} must not appear in the member's node_modules",
             );
         }
@@ -342,7 +389,10 @@ fn workspace_hoist_all_to_virtual_store_node_modules() {
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove root node_modules");
     fs::remove_dir_all(workspace.join("package/node_modules")).expect("remove member node_modules");
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert_layout();
 
     drop((root, mock_instance));
@@ -353,8 +403,13 @@ fn workspace_hoist_all_to_virtual_store_node_modules() {
 /// rehoists that member's subtree without disturbing the rest.
 #[test]
 fn workspace_hoist_when_updating_one_project() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_workspace_yaml(&workspace, "packages:\n  - package\n");
@@ -376,7 +431,10 @@ fn workspace_hoist_when_updating_one_project() {
         member_manifest(serde_json::json!({ "@pnpm.e2e/foobar": "100.0.0" })),
     )
     .expect("write member package.json");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/foo").exists());
 
     fs::write(
@@ -384,7 +442,10 @@ fn workspace_hoist_when_updating_one_project() {
         member_manifest(serde_json::json!({ "@pnpm.e2e/foobarqar": "1.0.1" })),
     )
     .expect("update member package.json");
-    pacquet_in(&workspace).with_arg("install").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/qar").exists());
     assert!(
         fs::symlink_metadata(workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/foobar"))
@@ -405,8 +466,13 @@ fn workspace_hoist_when_updating_one_project() {
 /// `node_modules`.
 #[test]
 fn publicly_hoisted_workspace_package_bins_reach_the_root_bin_dir() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -436,11 +502,17 @@ fn publicly_hoisted_workspace_package_bins_reach_the_root_bin_dir() {
 
     let shim = workspace.join("node_modules/.bin/local-foo-cli");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(shim.exists(), "fresh: the publicly hoisted workspace bin must be shimmed at {shim:?}");
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert!(
         shim.exists(),
         "frozen: the publicly hoisted workspace bin must be shimmed at {shim:?}",
@@ -457,8 +529,13 @@ fn publicly_hoisted_workspace_package_bins_reach_the_root_bin_dir() {
 /// candidate as direct. This pins which one ends up in the root `.bin`.
 #[test]
 fn direct_dep_bin_wins_over_a_publicly_hoisted_workspace_package() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     // The direct dependency ships a `hello-world-js-bin` bin.
@@ -500,7 +577,10 @@ fn direct_dep_bin_wins_over_a_publicly_hoisted_workspace_package() {
         );
     };
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     // Guard the guard: the hoisted workspace package must actually be
     // present, or the collision below is not being exercised at all.
     assert!(
@@ -510,7 +590,10 @@ fn direct_dep_bin_wins_over_a_publicly_hoisted_workspace_package() {
     assert_direct_wins("fresh");
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert!(workspace.join("node_modules/collide").exists(), "hoisted after frozen replay too");
     assert_direct_wins("frozen");
 

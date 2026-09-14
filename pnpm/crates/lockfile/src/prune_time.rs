@@ -50,7 +50,12 @@ fn resolved_dep_path(alias: &str, dependency: &Value) -> Option<String> {
     let version = dependency.get("version").and_then(Value::as_str)?;
     let alias = PkgName::parse(alias).ok()?;
     let version = version.parse::<ImporterDepVersion>().ok()?;
-    Some(version.resolved_key(&alias)?.without_peer().to_string())
+    Some(
+        version
+            .resolved_key(&alias)?
+            .without_peer()
+            .to_string(),
+    )
 }
 
 #[cfg(test)]

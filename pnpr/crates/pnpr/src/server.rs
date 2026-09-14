@@ -181,40 +181,12 @@ const MAX_ARTIFACT_BLOB_BODY_BYTES: usize = 8 * 1024;
 /// under this in practice, with the ceiling guarding against a hostile
 /// client rather than a large workspace.
 const MAX_PIPELINE_RUN_BODY_BYTES: usize = 4 * 1024 * 1024;
+mod state;
+use state::AppInner;
+
 #[derive(Clone)]
 struct AppState {
     inner: Arc<AppInner>,
-}
-
-struct AppInner {
-    storage: Storage,
-    artifacts: Option<pnpr_shared_artifacts::SharedArtifactStore>,
-    compiler_cache_uploads: tokio::sync::Semaphore,
-    pipeline_runs: Option<pnpr_pipeline_runs::PipelineRunStore>,
-    /// One [`Upstream`] per declared upstream, keyed by the same name
-    /// used in [`Config::upstreams`]. Built once at router construction
-    /// time so each request avoids re-allocating a `ThrottledClient`.
-    upstreams: IndexMap<String, Upstream>,
-    /// The disposable cache namespace of each upstream, keyed like
-    /// [`Self::upstreams`]. A pure function of the config (see
-    /// [`compute_upstream_cache_namespace`]), precomputed here so the
-    /// per-request path doesn't re-sort and re-hash the upstream's headers on
-    /// every packument and tarball served through an upstream registry.
-    upstream_cache_namespaces: IndexMap<String, String>,
-    config: Config,
-    auth: AuthState,
-    oidc: pnpr_auth::oidc::OidcState,
-    /// Serializes the read-modify-write packument flows per package so
-    /// two concurrent writers to the same package on this instance can't
-    /// lose each other's changes.
-    package_locks: StripedLocks,
-    referrer_migration_locks: StripedLocks,
-    /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
-    /// first such request so servers that never receive one pay nothing.
-    resolver: std::sync::OnceLock<crate::resolver::Resolver>,
-    /// Local OSV index, loaded before the server accepts requests when
-    /// `osv.enabled` is set and a mounted surface consults it.
-    osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -235,7 +207,7 @@ struct HostedOriginalRef {
 /// router level, so we take both via one handler that branches on
 /// the `@` prefix and the literal-`-` segment.
 pub fn router(config: Config) -> Router {
-    let max_users = config.auth.htpasswd.max_users;
+    let max_users = config.identity.auth.htpasswd.max_users;
     router_with_auth(config, AuthState::in_memory_with_max_users(max_users))
 }
 
@@ -244,7 +216,7 @@ pub fn router(config: Config) -> Router {
 /// that don't build a client as errors instead of panicking, for embedders
 /// that build the router directly rather than via [`serve`].
 pub fn try_router(config: Config) -> pnpr_error::Result<Router> {
-    let max_users = config.auth.htpasswd.max_users;
+    let max_users = config.identity.auth.htpasswd.max_users;
     try_router_with_auth(config, AuthState::in_memory_with_max_users(max_users))
 }
 
@@ -265,8 +237,8 @@ pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::
     // Enforce the "at least one surface enabled" invariant for embedders
     // that build and serve the router themselves rather than going through
     // `serve`/`serve_listener`.
-    config.ensure_a_feature_is_enabled()?;
-    config.ensure_valid_registry_graph()?;
+    config.features.ensure_a_feature_is_enabled()?;
+    config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
     let osv_index = load_active_osv_index(&config)?;
     router_with_auth_and_osv(config, auth, osv_index)
 }
@@ -274,7 +246,7 @@ pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::
 /// Load the OSV index only for surfaces that consult it. An artifacts-only
 /// tier skips the database because artifact requests do not use OSV data.
 fn load_active_osv_index(config: &Config) -> pnpr_error::Result<Option<Arc<pnpr_osv::OsvIndex>>> {
-    if config.resolver.enabled || config.registry.enabled {
+    if config.features.resolver.enabled || config.features.registry.enabled {
         pnpr_osv::load_osv_index(config)
     } else {
         Ok(None)
@@ -287,9 +259,12 @@ fn load_active_osv_index(config: &Config) -> pnpr_error::Result<Option<Arc<pnpr_
 /// call it itself on startup, before serving requests.
 pub async fn recover_publish_journal(config: &Config) -> pnpr_error::Result<()> {
     pnpr_storage::journal::recover_publish_journal(config, &RegistryDocuments).await?;
-    let storage =
-        Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?;
-    for hosted in config.hosted.values() {
+    let storage = Storage::new(
+        &config.storage.hosted_backend,
+        config.storage.hosted_dir.clone(),
+        config.storage.cache_dir.clone(),
+    )?;
+    for hosted in config.routing.hosted.values() {
         storage.for_hosted(&hosted.org).rebuild_package_index().await?;
     }
     Ok(())
@@ -299,15 +274,20 @@ pub async fn recover_publish_journal(config: &Config) -> pnpr_error::Result<()> 
 /// by a client that never came back. Only image pushes create these, so this
 /// is a no-op for a registry serving no image ecosystem.
 async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
-    if !config.registries.has_ecosystem(Ecosystem::Oci) {
+    if !config.routing.registries.has_ecosystem(Ecosystem::Oci) {
         return Ok(());
     }
-    let storage =
-        Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?;
+    let storage = Storage::new(
+        &config.storage.hosted_backend,
+        config.storage.hosted_dir.clone(),
+        config.storage.cache_dir.clone(),
+    )?;
     // Shared sessions live in their hosted namespace. Local scratch can be
     // shared by those namespaces and is safe to sweep more than once.
-    let mut namespaces: Vec<&str> =
-        config.hosted.values().map(|hosted| hosted.org.as_str()).collect();
+    let mut namespaces: Vec<&str> = config.routing.hosted
+        .values()
+        .map(|hosted| hosted.org.as_str())
+        .collect();
     namespaces.push("");
     namespaces.sort_unstable();
     namespaces.dedup();
@@ -328,11 +308,11 @@ async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
 /// account endpoints (which mint and manage tokens) are always served,
 /// and every mounted surface consults caller identity.
 async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
-    if config.registry.enabled {
+    if config.features.registry.enabled {
         recover_publish_journal(config).await?;
         sweep_abandoned_uploads(config).await?;
     }
-    AuthState::load(&config.auth, &config.backend).await
+    AuthState::load(&config.identity.auth, &config.identity.backend).await
 }
 
 /// The request URI as recorded in the access log. npm's logout protocol
@@ -355,7 +335,7 @@ fn loggable_uri(uri: &axum::http::Uri) -> String {
     }
 }
 
-/// Bind to `config.listen` and serve forever. Loads auth state before
+/// Bind to `config.http.listen` and serve forever. Loads auth state before
 /// binding so a startup-time auth error surfaces before we accept any
 /// client connections. Registry startup additionally recovers the publish
 /// journal.
@@ -364,12 +344,12 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // YAML load / CLI: embedders build `Config` programmatically and call
     // straight into `serve`, so a both-disabled config must fail loudly
     // rather than start a server that only answers `/-/ping`.
-    config.ensure_a_feature_is_enabled()?;
-    config.ensure_valid_registry_graph()?;
+    config.features.ensure_a_feature_is_enabled()?;
+    config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
-    let listen = config.listen;
+    let listen = config.http.listen;
     // Build the router before taking the port: it can fail, and a failure
     // should not leave a bound socket behind or put a `pnpr listening` line
     // immediately above the error saying it is not.
@@ -390,10 +370,10 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
 /// the operator rather than only discoverable by probing.
 fn log_enabled_surfaces(config: &Config) {
     tracing::info!(
-        registry = config.registry.enabled,
-        resolver = config.resolver.enabled,
-        artifacts = config.artifacts.enabled,
-        pipeline = config.pipeline.enabled,
+        registry = config.features.registry.enabled,
+        resolver = config.features.resolver.enabled,
+        artifacts = config.features.artifacts.enabled,
+        pipeline = config.features.pipeline.enabled,
         "pnpr surfaces",
     );
 }
@@ -408,8 +388,8 @@ pub async fn serve_listener(
     listener: tokio::net::TcpListener,
 ) -> pnpr_error::Result<()> {
     let listen = listener.local_addr()?;
-    config.ensure_a_feature_is_enabled()?;
-    config.ensure_valid_registry_graph()?;
+    config.features.ensure_a_feature_is_enabled()?;
+    config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too — going through `router`
@@ -443,7 +423,9 @@ async fn shutdown_signal() {
 /// registry prefix" rather than as an empty name — every caller then treats
 /// it the way it treats `foo`.
 pub(super) fn tilde_registry(segment: &str) -> Option<&str> {
-    segment.strip_prefix('~').filter(|registry| !registry.is_empty())
+    segment
+        .strip_prefix('~')
+        .filter(|registry| !registry.is_empty())
 }
 
 /// The registry a request addressed through a leading `/~<name>/`, or `None`
@@ -468,24 +450,28 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry 
         // `RawPathParams` reports only what the matched route captured, so an
         // absent `prefix` means this is the bare registration rather than a
         // prefixed request that happened to omit the segment.
-        let params = RawPathParams::from_request_parts(parts, &()).await.map_err(|err| {
-            match err {
-                // The client sent a segment that percent-decodes to invalid
-                // UTF-8. It cannot be a registry name, so answer it the same
-                // 404 every other malformed prefix gets rather than a 500 — a
-                // bad URL is not a server fault, and rendering it as one would
-                // also let a client fill the error log.
-                RawPathParamsRejection::InvalidUtf8InPathParam(_) => RegistryError::NotFound,
-                // The matched route registered no path parameters at all, which
-                // means the route table and this extractor disagree. Fail closed
-                // rather than serve the request as if it named no registry.
-                rejection => RegistryError::Internal {
-                    reason: format!("path params unavailable: {rejection}"),
-                },
-            }
-            .into_response()
-        })?;
-        let Some((_, registry)) = params.iter().find(|(name, _)| *name == "registry") else {
+        let params = RawPathParams::from_request_parts(parts, &()).await
+            .map_err(|err| {
+                match err {
+                    // The client sent a segment that percent-decodes to invalid
+                    // UTF-8. It cannot be a registry name, so answer it the same
+                    // 404 every other malformed prefix gets rather than a 500 — a
+                    // bad URL is not a server fault, and rendering it as one would
+                    // also let a client fill the error log.
+                    RawPathParamsRejection::InvalidUtf8InPathParam(_) => RegistryError::NotFound,
+                    // The matched route registered no path parameters at all, which
+                    // means the route table and this extractor disagree. Fail closed
+                    // rather than serve the request as if it named no registry.
+                    rejection => RegistryError::Internal {
+                        reason: format!("path params unavailable: {rejection}"),
+                    },
+                }
+                .into_response()
+            })?;
+        let Some((_, registry)) = params
+            .iter()
+            .find(|(name, _)| *name == "registry")
+        else {
             return Ok(Self(None));
         };
         if !pnpr_package_name::is_safe_path_segment(registry) {

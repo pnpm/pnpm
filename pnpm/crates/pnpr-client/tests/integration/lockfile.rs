@@ -33,9 +33,14 @@ async fn streams_resolved_packages_before_the_lockfile() {
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     for id in &streamed {
         assert!(
-            packages.keys().any(|key| key.to_string() == *id),
+            packages
+                .keys()
+                .any(|key| key.to_string() == *id),
             "streamed package {id} should appear in the resolved lockfile, got: {:?}",
-            packages.keys().map(ToString::to_string).collect::<Vec<_>>(),
+            packages
+                .keys()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
         );
     }
 }
@@ -57,7 +62,7 @@ async fn verifies_and_accepts_a_clean_input_lockfile() {
     // under the (default, policy-free) client policy before resolving;
     // a clean lockfile passes and the install succeeds.
     let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
-    opts.lockfile = Some(first.lockfile.clone());
+    opts.reuse.lockfile = Some(first.lockfile.clone());
     let second = client.resolve(opts).await.expect("verified-input install should succeed");
     assert!(second.lockfile.packages.is_some(), "resolution still produced a lockfile");
 }
@@ -78,9 +83,9 @@ async fn rejects_an_input_lockfile_that_violates_the_clients_policy() {
     // real publish time can satisfy it, so the server rejects the input
     // lockfile and the client rebuilds the identical `VerifyError`.
     let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
-    opts.lockfile = Some(first.lockfile.clone());
-    opts.minimum_release_age = Some(60 * 24 * 365 * 100);
-    opts.minimum_release_age_ignore_missing_time = false;
+    opts.reuse.lockfile = Some(first.lockfile.clone());
+    opts.verification.minimum_release_age = Some(60 * 24 * 365 * 100);
+    opts.verification.minimum_release_age_ignore_missing_time = false;
 
     let Err(PnprClientError::Verification(verify_err)) = client.resolve(opts).await else {
         panic!("expected a verification error rejecting the input lockfile");
@@ -104,7 +109,7 @@ async fn verify_lockfile_endpoint_accepts_a_clean_input_lockfile() {
         .expect("first install");
 
     let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
-    opts.lockfile = Some(first.lockfile);
+    opts.reuse.lockfile = Some(first.lockfile);
     let verify_opts =
         VerifyLockfileOptions::from_resolve_options(&opts).expect("lockfile is present");
 
@@ -124,9 +129,9 @@ async fn verify_lockfile_endpoint_rejects_policy_violation() {
         .expect("first install");
 
     let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
-    opts.lockfile = Some(first.lockfile);
-    opts.minimum_release_age = Some(60 * 24 * 365 * 100);
-    opts.minimum_release_age_ignore_missing_time = false;
+    opts.reuse.lockfile = Some(first.lockfile);
+    opts.verification.minimum_release_age = Some(60 * 24 * 365 * 100);
+    opts.verification.minimum_release_age_ignore_missing_time = false;
     let verify_opts =
         VerifyLockfileOptions::from_resolve_options(&opts).expect("lockfile is present");
 
@@ -167,9 +172,9 @@ async fn verify_lockfile_endpoint_uses_upstreams() {
         .expect("aliased install");
 
     // An active policy makes the verifier fetch the gated packument.
-    resolve_opts.lockfile = Some(first.lockfile);
-    resolve_opts.minimum_release_age = Some(1);
-    resolve_opts.minimum_release_age_ignore_missing_time = false;
+    resolve_opts.reuse.lockfile = Some(first.lockfile);
+    resolve_opts.verification.minimum_release_age = Some(1);
+    resolve_opts.verification.minimum_release_age_ignore_missing_time = false;
 
     // A fresh pnpr that carries the upstream verifies the gated entry.
     let (aliased_pnpr_url, aliased_auth, _aliased_storage) = start_pnpr_with_upstreams_at(
@@ -178,7 +183,7 @@ async fn verify_lockfile_endpoint_uses_upstreams() {
     )
     .await;
     let mut aliased_opts = resolve_opts.clone();
-    aliased_opts.authorization = Some(aliased_auth);
+    aliased_opts.routing.authorization = Some(aliased_auth);
     let verify_opts =
         VerifyLockfileOptions::from_resolve_options(&aliased_opts).expect("lockfile is present");
     PnprClient::new(aliased_pnpr_url)
@@ -190,7 +195,7 @@ async fn verify_lockfile_endpoint_uses_upstreams() {
     // entry's metadata fetch must fail closed.
     let (plain_pnpr_url, plain_auth, _plain_storage) = start_pnpr(&registry.url()).await;
     let mut plain_opts = resolve_opts.clone();
-    plain_opts.authorization = Some(plain_auth);
+    plain_opts.routing.authorization = Some(plain_auth);
     let plain_verify_opts =
         VerifyLockfileOptions::from_resolve_options(&plain_opts).expect("lockfile is present");
     assert!(
@@ -216,10 +221,10 @@ async fn trust_lockfile_makes_the_server_skip_verification() {
     // server must skip the verify gate and resolve normally, matching the
     // local `--trust-lockfile` path.
     let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
-    opts.lockfile = Some(first.lockfile.clone());
-    opts.minimum_release_age = Some(60 * 24 * 365 * 100);
-    opts.minimum_release_age_ignore_missing_time = false;
-    opts.trust_lockfile = true;
+    opts.reuse.lockfile = Some(first.lockfile.clone());
+    opts.verification.minimum_release_age = Some(60 * 24 * 365 * 100);
+    opts.verification.minimum_release_age_ignore_missing_time = false;
+    opts.reuse.trust_lockfile = true;
 
     let outcome = client.resolve(opts).await.expect("trustLockfile should skip verification");
     assert!(outcome.lockfile.packages.is_some(), "install still resolved a lockfile");

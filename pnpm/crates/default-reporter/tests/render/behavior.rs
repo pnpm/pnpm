@@ -75,8 +75,10 @@ fn full_install_frame_orders_blocks_like_pnpm() {
 
 #[test]
 fn recursive_direct_deprecation_is_zoomed_and_omits_the_message() {
-    let mut reporter =
-        state_with_options(ReporterOptions { is_recursive: true, ..ReporterOptions::default() });
+    let mut reporter = state_with_options(ReporterOptions {
+        scope: pnpm_default_reporter::state::ScopeOptions { recursive: true, ..Default::default() },
+        ..ReporterOptions::default()
+    });
     let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
     assert_eq!(
         frame,
@@ -133,7 +135,10 @@ fn a_hide_linked_pattern_keeps_the_same_package_when_it_is_installed() {
 fn aggregate_output_withholds_each_script_until_it_exits() {
     let mut reporter = state_with_options(ReporterOptions {
         append_only: true,
-        aggregate_output: true,
+        lifecycle: pnpm_default_reporter::state::LifecycleOptions {
+            aggregate_output: true,
+            ..Default::default()
+        },
         ..ReporterOptions::default()
     });
 

@@ -133,8 +133,7 @@ impl Lockfile {
         dir: &Path,
         selection: &WantedLockfileSelection,
     ) -> Result<Option<Self>, LoadLockfileError> {
-        Ok(Self::load_wanted_detailed(dir, selection)?
-            .lockfile
+        Ok(Self::load_wanted_detailed(dir, selection)?.lockfile
             .map(|lockfile| Arc::try_unwrap(lockfile).unwrap_or_else(|shared| (*shared).clone())))
     }
 
@@ -378,7 +377,9 @@ impl WantedLockfileSelection {
     /// The file names to try, most specific first.
     fn read_order(&self) -> impl Iterator<Item = &str> {
         let branch_file = (self.file_name != Lockfile::FILE_NAME).then_some(&*self.file_name);
-        branch_file.into_iter().chain([Lockfile::FILE_NAME])
+        branch_file
+            .into_iter()
+            .chain([Lockfile::FILE_NAME])
     }
 }
 

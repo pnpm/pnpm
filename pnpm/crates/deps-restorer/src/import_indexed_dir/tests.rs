@@ -29,7 +29,10 @@ fn write_source(dir: &Path, rel: &str, contents: &[u8]) -> PathBuf {
 }
 
 fn cas_map(entries: &[(&str, PathBuf)]) -> HashMap<String, PathBuf> {
-    entries.iter().map(|(k, v)| ((*k).to_string(), v.clone())).collect()
+    entries
+        .iter()
+        .map(|(k, v)| ((*k).to_string(), v.clone()))
+        .collect()
 }
 
 const FORCE_KEEP: ImportIndexedDirOpts =
@@ -43,5 +46,6 @@ const FORCE_SHARED: ImportIndexedDirOpts =
 const SHARED: ImportIndexedDirOpts =
     ImportIndexedDirOpts { force: false, keep_modules_dir: false, safe_to_skip: true };
 // The shape the isolated linker uses for a shared slot whose build was interrupted.
+#[cfg(unix)]
 const FORCE_SHARED_KEEP: ImportIndexedDirOpts =
     ImportIndexedDirOpts { force: true, keep_modules_dir: true, safe_to_skip: true };

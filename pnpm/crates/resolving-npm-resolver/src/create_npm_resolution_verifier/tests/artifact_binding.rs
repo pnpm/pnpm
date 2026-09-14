@@ -89,7 +89,7 @@ async fn rejects_a_revision_with_an_unadvertised_integrity() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(1);
+    opts.release_age.minimum_minutes = Some(1);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Registry(RegistryResolution {
         integrity: revision_integrity(REVISION_TWO_DIGEST),
@@ -106,7 +106,7 @@ async fn rejects_a_revision_with_an_unadvertised_integrity() {
 #[tokio::test]
 async fn verify_short_circuits_file_tarball_resolution() {
     let mut opts = default_opts("http://nonexistent.example.invalid/");
-    opts.minimum_release_age = Some(60 * 24 * 365);
+    opts.release_age.minimum_minutes = Some(60 * 24 * 365);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution =
         tarball_resolution("file:vendor/types__my-cool-lib-v1.0.0.tgz", Some(fake_integrity()));
@@ -247,7 +247,7 @@ async fn verify_flags_tarball_url_mismatch() {
         .create_async()
         .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24);
+    opts.release_age.minimum_minutes = Some(60 * 24);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Tarball(TarballResolution {
@@ -257,9 +257,9 @@ async fn verify_flags_tarball_url_mismatch() {
         git_hosted: None,
         path: None,
     });
-    let result = verifier
-        .verify(&resolution, ctx(&"aged-pkg".parse::<PkgName>().expect("parse"), "1.0.0"))
-        .await;
+    let result =
+        verifier.verify(&resolution, ctx(&"aged-pkg".parse::<PkgName>().expect("parse"), "1.0.0"))
+            .await;
     let ResolutionVerification::Err { code, reason } = result else {
         panic!("expected Err, got {result:?}");
     };
@@ -315,9 +315,9 @@ async fn tarball_url_default_port_and_scheme_difference_is_a_match() {
         git_hosted: None,
         path: None,
     });
-    let result = verifier
-        .verify(&resolution, ctx(&"aged-pkg".parse::<PkgName>().expect("parse"), "1.0.0"))
-        .await;
+    let result =
+        verifier.verify(&resolution, ctx(&"aged-pkg".parse::<PkgName>().expect("parse"), "1.0.0"))
+            .await;
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
@@ -352,7 +352,7 @@ async fn binding_check_records_dist_stats_into_the_sink() {
 
     let sink = observed_dist_stats_sink();
     let mut opts = default_opts(&registry);
-    opts.observed_dist_stats = Some(Arc::clone(&sink));
+    opts.artifacts.observed_stats = Some(Arc::clone(&sink));
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: tarball_url.clone(),

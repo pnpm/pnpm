@@ -11,8 +11,13 @@ use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
 
 #[test]
 fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
@@ -22,21 +27,22 @@ fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
         .to_string(),
     )
     .expect("write package.json");
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let original = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
         .expect("load original lockfile")
         .expect("original lockfile");
-    let original_package_keys = original
-        .packages
+    let original_package_keys = original.packages
         .as_ref()
         .expect("original packages")
         .keys()
         .cloned()
         .collect::<std::collections::HashSet<_>>();
-    let original_snapshot_keys = original
-        .snapshots
+    let original_snapshot_keys = original.snapshots
         .as_ref()
         .expect("original snapshots")
         .keys()
@@ -46,11 +52,22 @@ fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
     let mut broken: serde_json::Value =
         serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read lockfile"))
             .expect("parse lockfile as value");
-    for metadata in broken["packages"].as_object_mut().expect("packages").values_mut() {
-        metadata.as_object_mut().expect("package metadata").remove("resolution");
+    for metadata in broken["packages"]
+        .as_object_mut()
+        .expect("packages")
+        .values_mut()
+    {
+        metadata
+            .as_object_mut()
+            .expect("package metadata")
+            .remove("resolution");
         metadata["deprecated"] = serde_json::json!("stale metadata");
     }
-    for snapshot in broken["snapshots"].as_object_mut().expect("snapshots").values_mut() {
+    for snapshot in broken["snapshots"]
+        .as_object_mut()
+        .expect("snapshots")
+        .values_mut()
+    {
         snapshot["transitivePeerDependencies"] = serde_json::json!("broken metadata");
     }
     fs::write(&lockfile_path, serde_saphyr::to_string(&broken).expect("serialize broken lockfile"))
@@ -58,14 +75,16 @@ fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
 
     let mut command = new_pacquet_command(&workspace);
     command.env("CI", "true");
-    command.with_args(["install", "--fix-lockfile", "--lockfile-only"]).assert().success();
+    command
+        .with_args(["install", "--fix-lockfile", "--lockfile-only"])
+        .assert()
+        .success();
 
     let repaired = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
         .expect("load repaired lockfile")
         .expect("repaired lockfile");
     assert_eq!(
-        repaired
-            .packages
+        repaired.packages
             .as_ref()
             .expect("repaired packages")
             .keys()
@@ -74,8 +93,7 @@ fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
         original_package_keys,
     );
     assert_eq!(
-        repaired
-            .snapshots
+        repaired.snapshots
             .as_ref()
             .expect("repaired snapshots")
             .keys()
@@ -84,24 +102,21 @@ fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
         original_snapshot_keys,
     );
     assert!(
-        repaired
-            .packages
+        repaired.packages
             .as_ref()
             .expect("repaired packages")
             .values()
             .all(|metadata| metadata.deprecated.as_deref() != Some("stale metadata")),
     );
     assert!(
-        repaired
-            .packages
+        repaired.packages
             .as_ref()
             .expect("repaired packages")
             .values()
             .all(|metadata| metadata.resolution.checkable_integrity().is_some()),
     );
     assert!(
-        repaired
-            .snapshots
+        repaired.snapshots
             .as_ref()
             .expect("repaired snapshots")
             .values()
@@ -113,8 +128,13 @@ fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
 
 #[test]
 fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
         .expect("write workspace manifest");
@@ -147,7 +167,10 @@ fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
         .to_string(),
     )
     .expect("write unselected manifest");
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let original = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
@@ -191,12 +214,20 @@ fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
 
 #[test]
 fn frozen_isolated_install_rejects_required_incompatible_engine_in_strict_mode() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_required_incompatible_engine_fixture(&workspace, false);
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
@@ -229,8 +260,13 @@ fn frozen_isolated_install_rejects_required_incompatible_engine_in_strict_mode()
 
 #[test]
 fn frozen_install_honors_the_store_dir_cli_option() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -240,7 +276,10 @@ fn frozen_install_honors_the_store_dir_cli_option() {
         },
     });
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
     std::process::Command::cargo_bin("pnpm")
@@ -265,8 +304,13 @@ fn frozen_install_honors_the_store_dir_cli_option() {
 #[ignore = "flaky on CI: registry fixture drops connections under concurrent load"]
 #[test]
 fn frozen_lockfile_should_be_able_to_handle_big_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -287,7 +331,10 @@ fn frozen_lockfile_should_be_able_to_handle_big_lockfile() {
         .expect("append to .npmrc");
 
     eprintln!("Executing command...");
-    pacquet.with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }
@@ -300,8 +347,13 @@ fn frozen_lockfile_should_be_able_to_handle_big_lockfile() {
 #[test]
 fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
     use std::process::Command;
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -314,7 +366,10 @@ fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
     fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
 
     eprintln!("Priming with the first install...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     assert!(lockfile_path.exists(), "first install must produce pnpm-lock.yaml");
@@ -378,8 +433,13 @@ fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
 #[test]
 fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
     use std::process::Command;
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     eprintln!("Creating package.json...");
@@ -392,7 +452,10 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
     fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
 
     eprintln!("Priming with the first install...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     eprintln!("Re-running with --frozen-lockfile + --reporter=ndjson...");
     let pacquet_rerun =
@@ -449,8 +512,13 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
 #[cfg(unix)]
 #[test]
 fn frozen_store_installs_against_a_read_only_global_virtual_store() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
     enable_gvs_in_workspace_yaml(&workspace, "");
@@ -465,7 +533,10 @@ fn frozen_store_installs_against_a_read_only_global_virtual_store() {
     fs::write(&manifest_path, package_json.to_string()).expect("write to package.json");
 
     eprintln!("Priming the store and lockfile with a writable install...");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     // Drop node_modules so the frozen run cannot take the up-to-date
     // short-circuit — it must re-materialize from the store, which
@@ -536,8 +607,13 @@ fn frozen_store_installs_against_a_read_only_global_virtual_store() {
 /// port precisely to prove the guard fires before any connection is attempted.
 #[test]
 fn frozen_store_with_a_pnpr_server_is_a_config_conflict() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest_path = workspace.join("package.json");
@@ -565,8 +641,13 @@ fn frozen_store_with_a_pnpr_server_is_a_config_conflict() {
 
 #[test]
 fn frozen_lockfile_setting_drives_the_headless_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
@@ -587,7 +668,10 @@ fn frozen_lockfile_setting_drives_the_headless_install() {
     )
     .expect("write package.json");
 
-    let assert = new_pacquet_command(&workspace).with_arg("install").assert().failure();
+    let assert = new_pacquet_command(&workspace)
+        .with_arg("install")
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     eprintln!("STDERR:\n{stderr}\n");
     assert!(
@@ -595,7 +679,10 @@ fn frozen_lockfile_setting_drives_the_headless_install() {
         "the setting alone must take the frozen path; got:\n{stderr}",
     );
 
-    pacquet.with_args(["install", "--no-frozen-lockfile"]).assert().success();
+    pacquet
+        .with_args(["install", "--no-frozen-lockfile"])
+        .assert()
+        .success();
     assert!(workspace.join("pnpm-lock.yaml").is_file(), "--no-frozen-lockfile must overrule");
 
     drop((root, mock_instance));

@@ -80,7 +80,10 @@ pub(super) struct BadGhActionsEnvFileValue {
 }
 
 fn validate_gh_actions_env_file_value(name: &'static str, value: &Path) -> miette::Result<()> {
-    if value.to_string_lossy().contains(['\n', '\r', '\0']) {
+    if value
+        .to_string_lossy()
+        .contains(['\n', '\r', '\0'])
+    {
         return Err(BadGhActionsEnvFileValue { name }.into());
     }
     Ok(())

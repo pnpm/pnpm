@@ -5,6 +5,9 @@ pub use packument::{
 
 pub use oci::oci_download_allowed;
 
+mod http;
+use http::{UpstreamHttp, read_upstream_error_body, same_origin};
+
 mod circuit_breaker;
 use circuit_breaker::CircuitBreaker;
 
@@ -37,7 +40,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-const UPSTREAM_ERROR_BODY_LIMIT: usize = 64 * 1024;
 const UPSTREAM_DISCOVERY_BODY_LIMIT: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Deserialize)]
@@ -55,20 +57,13 @@ pub struct SearchResponse {
 /// or tarball response out of it.
 #[derive(Clone)]
 pub struct Upstream {
-    client: Arc<ThrottledClient>,
-    fetch_guard: Option<RedirectGuard>,
     base: String,
     /// The configured upstream name (the YAML `upstreams:` key). Surfaced in
     /// client-facing errors so an open circuit names the upstream rather
     /// than leaking its upstream URL.
     name: String,
-    /// Resolved per-upstream request headers (auth + custom) attached to
-    /// every fetch. Empty for an upstream with no `auth:`/`headers:`.
-    headers: HeaderMap,
-    /// Per-request deadline (verdaccio's `timeout`).
-    timeout: Duration,
     /// Per-upstream packument freshness window (verdaccio's `maxage`), or
-    /// `None` to defer to the global [`pnpr_config::Config::packument_ttl`].
+    /// `None` to defer to the global [`pnpr_config::HttpConfig::packument_ttl`].
     maxage: Option<Duration>,
     /// Whether tarballs from this upstream are written to the local mirror
     /// (verdaccio's `cache`).
@@ -79,17 +74,18 @@ pub struct Upstream {
     /// and clones it per request) updates the same counters.
     breaker: Arc<CircuitBreaker>,
     oci_tokens: Arc<Mutex<std::collections::HashMap<String, oci::CachedToken>>>,
+    http: UpstreamHttp,
 }
 
 impl fmt::Debug for Upstream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Upstream")
-            .field("client", &self.client)
-            .field("fetch_guard", &self.fetch_guard.is_some())
+            .field("client", &self.http.client)
+            .field("fetch_guard", &self.http.fetch_guard.is_some())
             .field("base", &self.base)
             .field("name", &self.name)
-            .field("headers", &RedactedHeaders(&self.headers))
-            .field("timeout", &self.timeout)
+            .field("headers", &RedactedHeaders(&self.http.headers))
+            .field("timeout", &self.http.timeout)
             .field("maxage", &self.maxage)
             .field("cache", &self.cache)
             .field("breaker", &self.breaker)
@@ -129,17 +125,6 @@ pub struct FetchedDocument {
     pub url: String,
 }
 
-/// Whether two URLs share a scheme, host and port, so a credential meant for
-/// one may be sent to the other.
-fn same_origin(base: &str, url: &str) -> bool {
-    let (Ok(base), Ok(url)) = (reqwest::Url::parse(base), reqwest::Url::parse(url)) else {
-        return false;
-    };
-    base.scheme() == url.scheme()
-        && base.host_str().is_some_and(|host| Some(host) == url.host_str())
-        && base.port_or_known_default() == url.port_or_known_default()
-}
-
 #[derive(Debug)]
 pub struct FetchedPackument {
     pub bytes: Vec<u8>,
@@ -165,15 +150,15 @@ impl Upstream {
     #[must_use]
     pub fn new(name: &str, config: &UpstreamConfig) -> Self {
         Self {
-            client: Arc::new(ThrottledClient::new_for_installs()),
-            fetch_guard: None,
+            http: UpstreamHttp::new(config),
             base: config.url.clone(),
             name: name.to_string(),
-            headers: config.headers.clone(),
-            timeout: config.timeout,
             maxage: config.maxage,
             cache: config.cache,
-            breaker: Arc::new(CircuitBreaker::new(config.max_fails, config.fail_timeout)),
+            breaker: Arc::new(CircuitBreaker::new(
+                config.requests.max_fails,
+                config.requests.fail_timeout,
+            )),
             oci_tokens: Arc::default(),
         }
     }
@@ -182,15 +167,16 @@ impl Upstream {
     #[must_use]
     pub fn with_fetch_guard(mut self, guard: RedirectGuard) -> Self {
         let redirect_guard = Arc::clone(&guard);
-        self.client = Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
-            redirect_guard(url)
-        }));
-        self.fetch_guard = Some(guard);
+        self.http.client =
+            Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+                redirect_guard(url)
+            }));
+        self.http.fetch_guard = Some(guard);
         self
     }
 
     /// Per-upstream packument freshness window (`maxage`), or `None` to
-    /// defer to the global [`pnpr_config::Config::packument_ttl`].
+    /// defer to the global [`pnpr_config::HttpConfig::packument_ttl`].
     #[must_use]
     pub fn maxage(&self) -> Option<Duration> {
         self.maxage
@@ -247,10 +233,13 @@ impl Upstream {
             return Ok(PackumentFetch::NotModified);
         }
         let response = self.checked(response, &url).await?;
-        let bytes = response.bytes().await.map_err(|source| {
-            self.breaker.record_failure();
-            RegistryError::Upstream { url: url.clone(), source }
-        })?;
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|source| {
+                self.breaker.record_failure();
+                RegistryError::Upstream { url: url.clone(), source }
+            })?;
         self.breaker.record_success();
         Ok(PackumentFetch::Modified(FetchedPackument { bytes: bytes.to_vec() }))
     }
@@ -280,9 +269,10 @@ impl Upstream {
         // the caller's to observe. Recording success on a clean status is
         // what verdaccio does too.
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(
-            guard.retain_for_body(response, self.timeout.saturating_sub(started.elapsed())),
-        ))
+        Ok(FetchOutcome::Ok(guard.retain_for_body(
+            response,
+            self.http.timeout.saturating_sub(started.elapsed()),
+        )))
     }
 
     /// Fetch a document by path relative to the upstream's base URL — a Cargo
@@ -317,10 +307,11 @@ impl Upstream {
         }
         let response = self.checked(response, &url).await?;
         let final_url = response.url().to_string();
-        let body = read_limited_body(response, limit).await.map_err(|err| {
-            self.breaker.record_failure();
-            RegistryError::UpstreamResponse { url: url.clone(), reason: err.to_string() }
-        })?;
+        let body = read_limited_body(response, limit).await
+            .map_err(|err| {
+                self.breaker.record_failure();
+                RegistryError::UpstreamResponse { url: url.clone(), reason: err.to_string() }
+            })?;
         if body.truncated {
             self.breaker.record_success();
             return Err(RegistryError::UpstreamResponse {
@@ -354,9 +345,10 @@ impl Upstream {
         }
         let response = self.checked(response, url).await?;
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(
-            guard.retain_for_body(response, self.timeout.saturating_sub(started.elapsed())),
-        ))
+        Ok(FetchOutcome::Ok(guard.retain_for_body(
+            response,
+            self.http.timeout.saturating_sub(started.elapsed()),
+        )))
     }
 
     /// Fetch an immutable sha512 registry artifact without following redirects.
@@ -366,9 +358,13 @@ impl Upstream {
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
         let url = format!("{}/-/tarballs/sha512/{digest}", self.base.trim_end_matches('/'));
-        let client = self.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
+        let client =
+            self.http.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
         let started = Instant::now();
-        let request = client.get(&url).timeout(self.timeout).headers(self.request_headers(&url));
+        let request = client
+            .get(&url)
+            .timeout(self.http.timeout)
+            .headers(self.request_headers(&url));
         let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
@@ -376,9 +372,10 @@ impl Upstream {
         }
         let response = self.checked(response, &url).await?;
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(
-            client.retain_for_body(response, self.timeout.saturating_sub(started.elapsed())),
-        ))
+        Ok(FetchOutcome::Ok(client.retain_for_body(
+            response,
+            self.http.timeout.saturating_sub(started.elapsed()),
+        )))
     }
 
     /// Query an upstream npm search endpoint with the caller's already-encoded
@@ -403,16 +400,21 @@ impl Upstream {
         self.ensure_available()?;
         let url = format!("{}{path_and_query}", self.base.trim_end_matches('/'));
         let client =
-            self.client.acquire_for_url_without_redirects_with_priority(&url, UNPRIORITIZED).await;
-        let request = client.get(&url).timeout(self.timeout).headers(self.request_headers(&url));
+            self.http.client.acquire_for_url_without_redirects_with_priority(&url, UNPRIORITIZED)
+                .await;
+        let request = client
+            .get(&url)
+            .timeout(self.http.timeout)
+            .headers(self.request_headers(&url));
         let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
         }
         let response = self.checked(response, &url).await?;
-        let body =
-            read_limited_body(response, UPSTREAM_DISCOVERY_BODY_LIMIT).await.map_err(|err| {
+        let body = read_limited_body(response, UPSTREAM_DISCOVERY_BODY_LIMIT)
+            .await
+            .map_err(|err| {
                 self.breaker.record_failure();
                 RegistryError::UpstreamResponse { url: url.clone(), reason: err.to_string() }
             })?;
@@ -425,17 +427,18 @@ impl Upstream {
                 ),
             });
         }
-        let parsed = serde_json::from_slice(&body.bytes).map_err(|err| {
-            self.breaker.record_failure();
-            RegistryError::UpstreamResponse { url, reason: err.to_string() }
-        })?;
+        let parsed = serde_json::from_slice(&body.bytes)
+            .map_err(|err| {
+                self.breaker.record_failure();
+                RegistryError::UpstreamResponse { url, reason: err.to_string() }
+            })?;
         self.breaker.record_success();
         Ok(FetchOutcome::Ok(parsed))
     }
 
     fn request_headers(&self, url: &str) -> HeaderMap {
         if same_origin(&self.base, url) && is_url_secure_for_credentials(url) {
-            return self.headers.clone();
+            return self.http.headers.clone();
         }
         HeaderMap::new()
     }
@@ -454,10 +457,13 @@ impl Upstream {
     /// [`RegistryError::Upstream`] and counting it against the breaker.
     async fn run(&self, request: reqwest::RequestBuilder, url: &str) -> Result<reqwest::Response> {
         self.ensure_allowed_url(url)?;
-        request.send().await.map_err(|source| {
-            self.breaker.record_failure();
-            RegistryError::Upstream { url: url.to_string(), source }
-        })
+        request
+            .send()
+            .await
+            .map_err(|source| {
+                self.breaker.record_failure();
+                RegistryError::Upstream { url: url.to_string(), source }
+            })
     }
 
     async fn get_with_scoped_headers(
@@ -467,10 +473,10 @@ impl Upstream {
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>)> {
         self.ensure_allowed_url(url)?;
         let started = Instant::now();
-        self.client
+        self.http.client
             .get_response_with_scoped_headers(url, |request, destination| {
                 request
-                    .timeout(self.timeout.saturating_sub(started.elapsed()))
+                    .timeout(self.http.timeout.saturating_sub(started.elapsed()))
                     .headers(self.request_headers(destination))
                     .headers(headers.clone())
             })
@@ -482,7 +488,7 @@ impl Upstream {
     }
 
     fn ensure_allowed_url(&self, url: &str) -> Result<()> {
-        if let Some(guard) = &self.fetch_guard
+        if let Some(guard) = &self.http.fetch_guard
             && !reqwest::Url::parse(url).is_ok_and(|url| guard(&url))
         {
             return Err(RegistryError::UpstreamResponse {
@@ -511,20 +517,6 @@ impl Upstream {
         let body = read_upstream_error_body(response).await;
         Err(RegistryError::UpstreamStatus { url: url.to_string(), status: status.as_u16(), body })
     }
-}
-
-async fn read_upstream_error_body(response: reqwest::Response) -> String {
-    let Ok(body) = read_limited_body(response, UPSTREAM_ERROR_BODY_LIMIT).await else {
-        return String::new();
-    };
-    let mut text = String::from_utf8_lossy(&body.bytes).into_owned();
-    if body.truncated {
-        if !text.is_empty() && !text.chars().next_back().is_some_and(char::is_whitespace) {
-            text.push(' ');
-        }
-        text.push_str("(response body truncated)");
-    }
-    text
 }
 
 #[cfg(test)]

@@ -81,7 +81,11 @@ fn set_scoped_registry_project_creates_npmrc() {
         read_ini(&tmp.path().join(".npmrc")).get("@myorg:registry").map(String::as_str),
         Some("https://test-registry.example.com/"),
     );
-    assert!(!tmp.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        !tmp.path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 }
 
 #[test]
@@ -390,7 +394,11 @@ fn delete_last_yaml_key_removes_file() {
         Some(".pnpm".into()),
     )
     .unwrap();
-    assert!(tmp.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        tmp.path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 
     config_set(
         &config,
@@ -400,7 +408,11 @@ fn delete_last_yaml_key_removes_file() {
         None,
     )
     .unwrap();
-    assert!(!tmp.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        !tmp.path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 }
 
 #[test]
@@ -539,9 +551,10 @@ fn get_scoped_registry_from_auth_and_merged() {
 
     // merged `registries` block wins over the raw .npmrc value (pnpm/pnpm#11492)
     let mut merged = config_for_get(&[], &[("@scope:registry", "https://from-npmrc.example.com/")]);
-    merged
-        .registries_by_scope
-        .insert("@scope".to_string(), "https://from-workspace-yaml.example.com/".to_string());
+    merged.registries_by_scope.insert(
+        "@scope".to_string(),
+        "https://from-workspace-yaml.example.com/".to_string(),
+    );
     assert_eq!(
         config_get(&merged, flags(false, None, false), "@scope:registry").unwrap(),
         "https://from-workspace-yaml.example.com/",
@@ -846,7 +859,11 @@ fn set_preserves_existing_npmrc_mode() {
     )
     .unwrap();
 
-    let mode = std::fs::metadata(&npmrc).unwrap().permissions().mode() & 0o777;
+    let mode = std::fs::metadata(&npmrc)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o644, "existing .npmrc mode must be preserved, got {mode:o}");
 }
 

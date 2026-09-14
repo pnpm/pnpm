@@ -1,7 +1,7 @@
 pub(super) use slots::{get_actual_bin_names, replace_global_bin_slots};
 
 use derive_more::{Display, Error};
-use filesystem::swap_hash_link_atomically;
+use filesystem::{io_error_report, remove_dir_all_if_exists, swap_hash_link_atomically};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_cmd_shim::{
     FsWalkFiles, Host, PackageBinSource, get_bins_from_package_manifest, remove_bin,
@@ -180,13 +180,16 @@ where
     // Activation is already committed, so a leftover backup directory must
     // not fail the command — but it points at a filesystem problem worth
     // surfacing.
-    let leftover_backup = backup_dir.close().err().map(|source| ArtifactCleanupError {
-        context: format!(
-            "Failed to remove the global bin backup directory at {}",
-            backup_path.display(),
-        ),
-        source,
-    });
+    let leftover_backup = backup_dir
+        .close()
+        .err()
+        .map(|source| ArtifactCleanupError {
+            context: format!(
+                "Failed to remove the global bin backup directory at {}",
+                backup_path.display(),
+            ),
+            source,
+        });
     Ok(Activation { activated_bins: actual_bin_names, leftover_backup })
 }
 
@@ -202,9 +205,11 @@ fn activate_prepared_global_install<Sys: FsSwapHashLink>(
     // running the new install here, in one step. Linking afterwards only
     // has to write the shims whose target actually changed, which for an
     // update of the same commands is none of them.
-    Sys::swap_hash_link(install_dir, hash_link).into_diagnostic().wrap_err_with(|| {
-        format!("link the global package install directory at {}", hash_link.display())
-    })?;
+    Sys::swap_hash_link(install_dir, hash_link)
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            format!("link the global package install directory at {}", hash_link.display())
+        })?;
     link_bins().wrap_err("link global package bins")?;
     remove_slots_of_missing_bins(global_bin_dir, actual_bins)
 }
@@ -243,17 +248,21 @@ where
         &prepared.saved_bin_slots,
     )?;
     if let Some(old_hash_target) = &prepared.old_hash_target {
-        Sys::swap_hash_link(old_hash_target, hash_link).into_diagnostic().wrap_err_with(|| {
-            format!("restore global package hash link at {}", hash_link.display())
-        })?;
+        Sys::swap_hash_link(old_hash_target, hash_link)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!("restore global package hash link at {}", hash_link.display())
+            })?;
     } else {
         match remove_symlink_dir(hash_link) {
             Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => {
-                return Err(error).into_diagnostic().wrap_err_with(|| {
-                    format!("remove global package hash link at {}", hash_link.display())
-                });
+                return Err(error)
+                    .into_diagnostic()
+                    .wrap_err_with(|| {
+                        format!("remove global package hash link at {}", hash_link.display())
+                    });
             }
         }
     }
@@ -316,7 +325,10 @@ fn prepare_global_install<Sys: FsWalkFiles>(
 ) -> miette::Result<PreparedGlobalInstall> {
     let actual_bins = get_actual_bins::<Sys>(packages, bins_to_skip);
     let actual_bin_names: HashSet<String> = actual_bins.keys().cloned().collect();
-    let affected_bin_names = actual_bin_names.union(extra_bin_names).cloned().collect();
+    let affected_bin_names = actual_bin_names
+        .union(extra_bin_names)
+        .cloned()
+        .collect();
     let backup_dir =
         match tempfile::Builder::new().prefix(".pnpm-bin-backup-").tempdir_in(global_bin_dir) {
             Ok(backup_dir) => backup_dir,
@@ -375,18 +387,6 @@ fn cleanup_failed_preparation<Value>(
         "Failed to clean up after global bin activation preparation failed: {}",
         cleanup_errors.join("; "),
     )))
-}
-
-fn io_error_report(error: io::Error, context: String) -> miette::Report {
-    Err::<(), _>(error).into_diagnostic().wrap_err(context).unwrap_err()
-}
-
-fn remove_dir_all_if_exists(path: &Path) -> io::Result<()> {
-    match fs::remove_dir_all(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
-    }
 }
 
 #[cfg(test)]

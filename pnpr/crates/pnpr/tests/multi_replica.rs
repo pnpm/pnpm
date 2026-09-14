@@ -41,9 +41,9 @@ impl Replica {
         let storage = TempDir::new().unwrap();
         let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
         let mut config = Config::static_serve(listen, storage.path().to_path_buf());
-        config.public_url = "http://example.test".to_string();
-        config.auth.htpasswd.max_users = MaxUsers::Unlimited;
-        config.hosted_store =
+        config.http.public_url = "http://example.test".to_string();
+        config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
+        config.storage.hosted_backend =
             HostedStoreConfig::ObjectStore { store: Arc::clone(store), prefix: String::new() };
         let app = router(config);
         // Accounts are per-replica state, so every replica registers the
@@ -60,7 +60,11 @@ impl Replica {
             .header("Authorization", format!("Bearer {}", self.token))
             .body(body)
             .unwrap();
-        let response = self.app.clone().oneshot(request).await.unwrap();
+        let response = self.app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
         let status = response.status();
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
@@ -81,19 +85,23 @@ impl Replica {
 
     async fn stage(&self, name: &str, version: &str, tarball: &[u8]) -> String {
         let body = publish_doc(name, version, tarball);
-        let (status, payload) = self
-            .send(
-                "POST",
-                &format!("/-/stage/package/{name}"),
-                Body::from(serde_json::to_vec(&body).unwrap()),
-            )
-            .await;
+        let (status, payload) = self.send(
+            "POST",
+            &format!("/-/stage/package/{name}"),
+            Body::from(serde_json::to_vec(&body).unwrap()),
+        )
+        .await;
         assert_eq!(status, StatusCode::CREATED);
-        payload["stageId"].as_str().expect("stageId in response").to_string()
+        payload["stageId"]
+            .as_str()
+            .expect("stageId in response")
+            .to_string()
     }
 
     async fn approve(&self, stage_id: &str) -> StatusCode {
-        self.send("POST", &format!("/-/stage/{stage_id}/approve"), Body::empty()).await.0
+        self.send("POST", &format!("/-/stage/{stage_id}/approve"), Body::empty())
+            .await
+            .0
     }
 }
 
@@ -159,7 +167,13 @@ async fn one_stage_approved_on_two_replicas_publishes_once() {
     );
 
     let packument = first.packument("staged-pkg").await;
-    assert_eq!(packument["versions"].as_object().expect("versions").len(), 1);
+    assert_eq!(
+        packument["versions"]
+            .as_object()
+            .expect("versions")
+            .len(),
+        1,
+    );
     let (status, listing) = second.send("GET", "/-/stage", Body::empty()).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(listing["total"], 0, "the stage is spent");
@@ -189,7 +203,9 @@ async fn a_rejection_stops_an_approval_that_has_not_committed() {
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap();
-            app.oneshot(request).await.unwrap().status()
+            app.oneshot(request).await
+                .unwrap()
+                .status()
         }
     });
 
@@ -240,5 +256,8 @@ async fn add_user_and_get_token(app: axum::Router, username: &str, password: &st
     assert_eq!(response.status(), StatusCode::CREATED);
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&bytes).unwrap();
-    payload["token"].as_str().expect("token in response").to_string()
+    payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string()
 }

@@ -74,7 +74,11 @@ async fn rejects_an_untrusted_token_realm_without_contacting_it() {
     use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
     let mut server = mockito::Server::new_async().await;
     let mut attacker = mockito::Server::new_async().await;
-    let stolen = attacker.mock("GET", "/token").expect(0).create_async().await;
+    let stolen = attacker
+        .mock("GET", "/token")
+        .expect(0)
+        .create_async()
+        .await;
     let challenge = server
         .mock("GET", "/v2/acme/app/manifests/latest")
         .with_status(401)

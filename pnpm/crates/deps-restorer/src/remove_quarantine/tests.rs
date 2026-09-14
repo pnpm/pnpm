@@ -19,8 +19,11 @@ fn set_quarantine(path: &Path) {
 }
 
 fn list_xattrs(path: &Path) -> String {
-    let output =
-        Command::new("/usr/bin/xattr").arg("-l").arg(path).output().expect("spawn xattr -l");
+    let output = Command::new("/usr/bin/xattr")
+        .arg("-l")
+        .arg(path)
+        .output()
+        .expect("spawn xattr -l");
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
 

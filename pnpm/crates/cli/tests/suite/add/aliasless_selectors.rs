@@ -25,11 +25,19 @@ fn write_local_package(workspace: &Path) {
 /// un-injected directory to.
 #[test]
 fn a_relative_directory_path_saves_as_a_link() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_local_package(&workspace);
 
-    pacquet.with_args(["add", "./localpkg"]).assert().success();
+    pacquet
+        .with_args(["add", "./localpkg"])
+        .assert()
+        .success();
 
     assert_eq!(prod_spec(&workspace, "localpkg"), "link:localpkg");
     assert!(
@@ -43,11 +51,19 @@ fn a_relative_directory_path_saves_as_a_link() {
 /// The `file:` protocol asks for copy semantics, so it is kept.
 #[test]
 fn the_file_protocol_on_a_directory_is_kept() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_local_package(&workspace);
 
-    pacquet.with_args(["add", "file:./localpkg"]).assert().success();
+    pacquet
+        .with_args(["add", "file:./localpkg"])
+        .assert()
+        .success();
 
     assert_eq!(prod_spec(&workspace, "localpkg"), "file:localpkg");
 
@@ -59,8 +75,13 @@ fn the_file_protocol_on_a_directory_is_kept() {
 /// written.
 #[test]
 fn a_local_tarball_path_saves_as_a_file_spec() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     fs::write(
         workspace.join("pkg-from-tarball-1.0.0.tgz"),
         tarball_with_manifest(
@@ -69,7 +90,10 @@ fn a_local_tarball_path_saves_as_a_file_spec() {
     )
     .expect("write tarball");
 
-    pacquet.with_args(["add", "./pkg-from-tarball-1.0.0.tgz"]).assert().success();
+    pacquet
+        .with_args(["add", "./pkg-from-tarball-1.0.0.tgz"])
+        .assert()
+        .success();
 
     assert_eq!(prod_spec(&workspace, "pkg-from-tarball"), "file:pkg-from-tarball-1.0.0.tgz");
     assert!(
@@ -89,15 +113,23 @@ fn a_local_tarball_path_saves_as_a_file_spec() {
 /// `tarball_url_dependency.rs`).
 #[test]
 fn a_remote_tarball_url_is_saved_verbatim() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let tarball = format!(
         "{}is-positive/-/is-positive-1.0.0.tgz",
         mock_instance.url().replace("127.0.0.1", "localhost"),
     );
 
-    pacquet.with_args(["add", &tarball]).assert().success();
+    pacquet
+        .with_args(["add", &tarball])
+        .assert()
+        .success();
 
     assert_eq!(prod_spec(&workspace, "is-positive"), tarball);
     assert!(
@@ -115,12 +147,20 @@ fn a_remote_tarball_url_is_saved_verbatim() {
 /// `ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC`.
 #[test]
 fn a_local_directory_is_not_auto_cataloged() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_local_package(&workspace);
     append_workspace_yaml_key(&workspace, "catalogMode", "prefer");
 
-    pacquet.with_args(["add", "./localpkg"]).assert().success();
+    pacquet
+        .with_args(["add", "./localpkg"])
+        .assert()
+        .success();
 
     assert_eq!(prod_spec(&workspace, "localpkg"), "link:localpkg");
     let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
@@ -139,8 +179,13 @@ fn a_local_directory_is_not_auto_cataloged() {
 /// untouched.
 #[test]
 fn a_directory_declaring_no_name_is_refused() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let package_dir = workspace.join("nameless");
     fs::create_dir_all(&package_dir).expect("create local package dir");
     write_json(&package_dir.join("package.json"), &serde_json::json!({ "version": "1.0.0" }));
@@ -151,7 +196,10 @@ fn a_directory_declaring_no_name_is_refused() {
     let manifest_before =
         fs::read_to_string(workspace.join("package.json")).expect("read manifest");
 
-    let output = pacquet.with_args(["add", "./nameless"]).output().expect("run pnpm add");
+    let output = pacquet
+        .with_args(["add", "./nameless"])
+        .output()
+        .expect("run pnpm add");
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("STDERR:\n{stderr}\n");
     assert!(!output.status.success());

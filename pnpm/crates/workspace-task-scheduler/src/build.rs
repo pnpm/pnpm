@@ -85,9 +85,13 @@ where
             }
             let settings = self.task_settings(&task_name);
             let dependencies = self.dependency_keys(&project, &task_name, settings);
-            queue.extend(dependencies.iter().map(|dependency| {
-                (dependency.project.clone(), dependency.task_name.clone(), false)
-            }));
+            queue.extend(
+                dependencies
+                    .iter()
+                    .map(|dependency| {
+                        (dependency.project.clone(), dependency.task_name.clone(), false)
+                    }),
+            );
             let scripts = (self.select_scripts)(&project, &task_name);
             graph.insert(
                 key,

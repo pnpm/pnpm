@@ -19,7 +19,11 @@ async fn a_manifest_pushed_under_the_wrong_digest_is_refused() {
         .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
         .body(Body::from(image_manifest("config", &["layer"])))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(payload["errors"][0]["code"], "DIGEST_INVALID");
@@ -46,10 +50,23 @@ async fn tags_list_in_lexical_order_and_a_moved_tag_repoints() {
         .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
         .body(Body::from(moved.clone()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
 
     let response = get(&app, "/v2/acme/app/manifests/latest").await;
-    assert_eq!(response.headers().get("docker-content-digest").unwrap(), &digest_of(&moved));
+    assert_eq!(
+        response
+            .headers()
+            .get("docker-content-digest")
+            .unwrap(),
+        &digest_of(&moved),
+    );
 }
 
 #[tokio::test]
@@ -63,7 +80,14 @@ async fn deleting_a_tag_keeps_the_manifest_and_deleting_the_manifest_drops_the_t
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::ACCEPTED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::ACCEPTED,
+    );
     assert_eq!(get(&app, "/v2/acme/app/manifests/1.0").await.status(), StatusCode::NOT_FOUND);
     assert_eq!(
         get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}")).await.status(),
@@ -74,7 +98,14 @@ async fn deleting_a_tag_keeps_the_manifest_and_deleting_the_manifest_drops_the_t
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::ACCEPTED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::ACCEPTED,
+    );
     assert_eq!(
         get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}")).await.status(),
         StatusCode::NOT_FOUND,
@@ -92,7 +123,11 @@ async fn a_delete_is_refused_unless_the_registry_opens_destructive_writes() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
     assert_eq!(get(&app, "/v2/acme/app/manifests/1.0").await.status(), StatusCode::OK);
 }
@@ -119,7 +154,11 @@ async fn a_manifest_whose_descriptor_size_is_wrong_is_refused() {
         .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
         .body(Body::from(manifest))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(payload["errors"][0]["code"], "MANIFEST_INVALID");
@@ -140,7 +179,11 @@ async fn a_reference_that_is_neither_tag_nor_digest_is_refused() {
             .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
             .body(Body::from(image_manifest("config", &["layer"])))
             .unwrap();
-        let response = app.clone().oneshot(request).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{reference} should not be a tag");
     }
 
@@ -172,7 +215,11 @@ async fn a_manifest_repeating_one_descriptor_is_not_thousands_of_lookups() {
         .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
         .body(Body::from(manifest))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 }
 
@@ -196,7 +243,11 @@ async fn an_index_child_must_be_a_manifest_this_repository_serves() {
         .header(header::CONTENT_TYPE, "application/vnd.oci.image.index.v1+json")
         .body(Body::from(index))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     assert_eq!(get(&app, "/v2/acme/app/manifests/multi").await.status(), StatusCode::NOT_FOUND);
 }
@@ -212,11 +263,11 @@ async fn referrers_backfill_preexisting_manifests_on_both_backends() {
     ] {
         let tmp = TempDir::new().unwrap();
         let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-        config.hosted_store = hosted_store;
+        config.storage.hosted_backend = hosted_store;
         let storage = pnpr_storage::Storage::new(
-            &config.hosted_store,
-            config.storage.clone(),
-            config.cache_storage.clone(),
+            &config.storage.hosted_backend,
+            config.storage.hosted_dir.clone(),
+            config.storage.cache_dir.clone(),
         )
         .unwrap()
         .for_hosted("images");
@@ -239,9 +290,14 @@ async fn referrers_backfill_preexisting_manifests_on_both_backends() {
         assert_eq!(response.status(), StatusCode::CREATED);
         let key =
             pnpr_package_name::CanonicalPackageName::parse(&repository, Ecosystem::Oci).unwrap();
-        let mut document: Value =
-            serde_json::from_slice(&storage.read_hosted_document(&key).await.unwrap().unwrap())
-                .unwrap();
+        let mut document: Value = serde_json::from_slice(
+            &storage
+                .read_hosted_document(&key)
+                .await
+                .unwrap()
+                .unwrap(),
+        )
+        .unwrap();
         strip_referrer_metadata(&mut document, 1);
         storage
             .update_hosted_document_with_retry(&key, 1, |_| {
@@ -258,15 +314,24 @@ async fn referrers_backfill_preexisting_manifests_on_both_backends() {
         assert_eq!(response.status(), StatusCode::OK);
         let payload: Value =
             serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-        assert_eq!(payload["manifests"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            payload["manifests"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1,
+        );
         assert_eq!(payload["manifests"][0]["artifactType"], "application/example.sbom");
         let document = pnpr_oci::ImageDocument::parse(
-            &storage.read_hosted_document(&key).await.unwrap().unwrap(),
+            &storage
+                .read_hosted_document(&key)
+                .await
+                .unwrap()
+                .unwrap(),
         )
         .unwrap();
         assert_eq!(
-            document.manifests()[0]
-                .referrer
+            document.manifests()[0].referrer
                 .as_ref()
                 .unwrap()
                 .subject
@@ -283,17 +348,17 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
     let tmp = TempDir::new().unwrap();
     let objects = std::sync::Arc::new(pausing_store::PausingStore::default());
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    config.hosted_store = pnpr::HostedStoreConfig::ObjectStore {
+    config.storage.hosted_backend = pnpr::HostedStoreConfig::ObjectStore {
         store: std::sync::Arc::<pausing_store::PausingStore>::clone(&objects),
         prefix: "migration/".into(),
     };
-    let hosted = config.hosted.get_mut("images").unwrap();
+    let hosted = config.routing.hosted.get_mut("images").unwrap();
     hosted.rules = std::mem::take(&mut hosted.rules)
         .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
     let storage = pnpr_storage::Storage::new(
-        &config.hosted_store,
-        config.storage.clone(),
-        config.cache_storage.clone(),
+        &config.storage.hosted_backend,
+        config.storage.hosted_dir.clone(),
+        config.storage.cache_dir.clone(),
     )
     .unwrap()
     .for_hosted("images");
@@ -317,9 +382,14 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
     assert_eq!(response.status(), StatusCode::CREATED);
     let key =
         pnpr_package_name::CanonicalPackageName::parse("acme/migration", Ecosystem::Oci).unwrap();
-    let mut document: Value =
-        serde_json::from_slice(&storage.read_hosted_document(&key).await.unwrap().unwrap())
-            .unwrap();
+    let mut document: Value = serde_json::from_slice(
+        &storage
+            .read_hosted_document(&key)
+            .await
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
     strip_referrer_metadata(&mut document, 1);
     storage
         .update_hosted_document_with_retry(&key, 1, |_| {
@@ -352,14 +422,28 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
     let published = tokio::time::timeout(std::time::Duration::from_secs(5), update).await;
     objects.resume.notify_one();
     let published = published.expect("manifest reads must not hold the package writer lock");
-    let response =
-        tokio::time::timeout(std::time::Duration::from_secs(5), read).await.unwrap().unwrap();
+    let response = tokio::time::timeout(std::time::Duration::from_secs(5), read)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let document =
-        pnpr_oci::ImageDocument::parse(&storage.read_hosted_document(&key).await.unwrap().unwrap())
-            .unwrap();
+    let document = pnpr_oci::ImageDocument::parse(
+        &storage
+            .read_hosted_document(&key)
+            .await
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
     assert!(document.manifest(&digest).is_none());
-    assert_eq!(document.resolve("fresh").unwrap().digest.to_string(), published);
+    assert_eq!(
+        document
+            .resolve("fresh")
+            .unwrap()
+            .digest
+            .to_string(),
+        published,
+    );
 }
 
 #[tokio::test]
@@ -414,7 +498,7 @@ async fn cold_manifest_head_forwards_headers_without_getting_or_caching_a_body()
             .await;
         let tmp = TempDir::new().unwrap();
         let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-        let source = config.upstreams.get_mut("dockerhub").unwrap();
+        let source = config.routing.upstreams.get_mut("dockerhub").unwrap();
         source.url = format!("{}/", upstream.url());
         source.cache = cache;
         let app = router_with_auth(config, AuthState::in_memory());
@@ -422,7 +506,9 @@ async fn cold_manifest_head_forwards_headers_without_getting_or_caching_a_body()
             let response = app
                 .clone()
                 .oneshot(
-                    Request::head("/v2/other/app/manifests/latest").body(Body::empty()).unwrap(),
+                    Request::head("/v2/other/app/manifests/latest")
+                        .body(Body::empty())
+                        .unwrap(),
                 )
                 .await
                 .unwrap();
@@ -468,9 +554,16 @@ async fn manifest_head_checks_digests_and_verifies_legacy_responses_without_a_he
             .await;
         let tmp = TempDir::new().unwrap();
         let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-        config.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
+        config.routing.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
         let app = router_with_auth(config, AuthState::in_memory());
-        let response = app.oneshot(Request::head(path).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .oneshot(
+                Request::head(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), expected, "declared digest: {declared:?}");
         if expected == StatusCode::OK {
             assert_eq!(response.headers()["docker-content-digest"], digest);

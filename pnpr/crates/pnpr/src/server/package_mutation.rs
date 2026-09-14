@@ -65,7 +65,7 @@ async fn rewrite_packument(
     name: &CanonicalPackageName,
     packument: &mut serde_json::Value,
 ) -> Response {
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
+    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     let hosted_packument = match storage.read_hosted_document_for_update(name).await {
         Ok(Some(packument)) => packument,
         Ok(None) => return no_published_packument(name).into_response(),
@@ -82,9 +82,9 @@ async fn rewrite_packument(
         Ok(bytes) => bytes,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    let written = storage
-        .write_hosted_document_if_current(name, &bytes, Some(&hosted_packument.version))
-        .await;
+    let written =
+        storage.write_hosted_document_if_current(name, &bytes, Some(&hosted_packument.version))
+            .await;
     match written {
         Ok(DocumentWrite::Written) => ok_created(),
         Ok(DocumentWrite::Conflict) => {
@@ -157,7 +157,7 @@ pub(super) async fn delete_package(
     let org = target.org;
     // Serialize against same-package publishers so a delete can't race a
     // stage-and-commit and remove the package mid-write.
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
+    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     if let Err(err) = hosted_storage(state, Some(&org)).remove_package(&name).await {
         return err.into_response();
     }
@@ -206,7 +206,7 @@ pub(super) async fn delete_tarball(
     let org = target.org;
     // Serialize against same-package publishers so a delete can't race a
     // stage-and-commit and remove a tarball mid-write.
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
+    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
     if let Err(err) = hosted_storage(state, Some(&org)).remove_blob(&name, &canonical).await {
         return err.into_response();
     }
@@ -241,7 +241,10 @@ pub(super) async fn get_dist_tags(
         Ok(v) => v,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    let mut tags = packument.get("dist-tags").cloned().unwrap_or_else(|| json!({}));
+    let mut tags = packument
+        .get("dist-tags")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
     filter_osv_vulnerable_dist_tags(&mut tags, &packument, &name, state.inner.osv_index.as_ref());
     let bytes = serde_json::to_vec(&tags).expect("dist-tags object serializes");
     Response::builder()
@@ -331,14 +334,15 @@ where
 
     // Serialize the read-modify-write against other same-package writers
     // on this instance (held until this function returns).
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
+    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
 
     let _ = tag; // the tag name is captured by the `mutate` closure.
-    let outcome = storage
-        .update_hosted_document_with_retry(&name, DOCUMENT_WRITE_RETRIES, |existing_bytes| {
-            retag_packument(existing_bytes, &mut mutate)
-        })
-        .await;
+    let outcome = storage.update_hosted_document_with_retry(
+        &name,
+        DOCUMENT_WRITE_RETRIES,
+        |existing_bytes| retag_packument(existing_bytes, &mut mutate),
+    )
+    .await;
     match outcome {
         Ok(DocumentUpdate::Written) => {}
         Ok(DocumentUpdate::NotFound) => return not_found(),

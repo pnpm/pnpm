@@ -187,8 +187,10 @@ fn published_dependencies_keep_declaration_order() {
     )
     .expect("manifest is exportable");
 
-    let dependencies =
-        published.get("dependencies").and_then(Value::as_object).expect("dependencies survive");
+    let dependencies = published
+        .get("dependencies")
+        .and_then(Value::as_object)
+        .expect("dependencies survive");
     assert_eq!(
         dependencies.iter().collect::<Vec<_>>(),
         vec![

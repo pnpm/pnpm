@@ -110,7 +110,12 @@ fn deserialize_serialize() {
         decode_encode_case(
             input,
             |input| serde_saphyr::from_str(input).unwrap(),
-            |ver_peer| serde_saphyr::to_string(&ver_peer).unwrap().trim().to_string(),
+            |ver_peer| {
+                serde_saphyr::to_string(&ver_peer)
+                    .unwrap()
+                    .trim()
+                    .to_string()
+            },
         );
     };
     case("1.21.3(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)");
@@ -185,7 +190,10 @@ fn serde_round_trip_runtime_prefix() {
     let parsed: PkgVerPeer = serde_saphyr::from_str("runtime:22.0.0").expect("deserialize runtime");
     assert_eq!(parsed.prefix(), Prefix::Runtime);
     assert_eq!(parsed.version_semver(), Some(&"22.0.0".parse::<Version>().unwrap()));
-    let serialized = serde_saphyr::to_string(&parsed).expect("serialize").trim().to_string();
+    let serialized = serde_saphyr::to_string(&parsed)
+        .expect("serialize")
+        .trim()
+        .to_string();
     assert_eq!(serialized, "runtime:22.0.0");
 }
 
@@ -216,7 +224,10 @@ fn serde_round_trip_file_prefix() {
     let parsed: PkgVerPeer =
         serde_saphyr::from_str("file:packages/pkg(peer@1.0.0)").expect("deserialize file");
     assert_eq!(parsed.version(), &VersionPart::File("packages/pkg".to_string()));
-    let serialized = serde_saphyr::to_string(&parsed).expect("serialize").trim().to_string();
+    let serialized = serde_saphyr::to_string(&parsed)
+        .expect("serialize")
+        .trim()
+        .to_string();
     assert_eq!(serialized, "file:packages/pkg(peer@1.0.0)");
 }
 

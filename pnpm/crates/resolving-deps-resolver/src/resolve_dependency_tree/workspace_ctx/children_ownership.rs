@@ -132,12 +132,12 @@ pub(in super::super) fn claim_children_owner(
     let owner = ChildrenOwner {
         update_active: !matches!(ctx.update_reuse_scope(), UpdateReuseScope::All),
         depth,
-        importer_order: ctx.importer_order,
+        importer_order: ctx.importer.order,
         parent_path: ancestor_ids.to_vec(),
-        importer_id: ctx.importer_id.clone(),
+        importer_id: ctx.importer.id.clone(),
     };
     let (owns_children, peer_shadowed, children_context_unchanged) = {
-        let mut owners = lock_recoverable(&ctx.workspace.children_owner_by_id);
+        let mut owners = lock_recoverable(&ctx.workspace.children.owner_by_id);
         match owners.get(pkg_id) {
             Some(existing) if !owner.wins_over(&existing.owner) => {
                 (false, Arc::clone(&existing.peer_shadowed), false)
@@ -158,7 +158,7 @@ pub(in super::super) fn claim_children_owner(
         }
     };
     if owns_children {
-        let mut first_importer = lock_recoverable(&ctx.workspace.first_importer_by_pkg);
+        let mut first_importer = lock_recoverable(&ctx.workspace.children.first_importer_by_pkg);
         if first_importer.map().get(pkg_id) != Some(&owner.importer_id) {
             first_importer.map_mut().insert(pkg_id.to_string(), owner.importer_id.clone());
         }
@@ -170,7 +170,7 @@ pub(in super::super) fn claim_children_owner(
 /// children, so the speculative resolutions run once per package
 /// rather than once per occurrence of it.
 pub(in super::super) fn claim_children_warmup(ctx: &TreeCtx, pkg_id: &str) -> bool {
-    let mut warmed = lock_recoverable(&ctx.workspace.warmed_children_by_id);
+    let mut warmed = lock_recoverable(&ctx.workspace.children.warmed_by_id);
     // Every occurrence of a package offers, and all but the first are
     // turned away, so the owned key is built only for the one that
     // takes the warmup.
@@ -187,10 +187,12 @@ pub(in super::super) fn recorded_children_match(
     pkg_id: &str,
     context: &RecordedChildrenContext,
 ) -> bool {
-    lock_recoverable(&ctx.workspace.children_by_id).get(pkg_id).is_some_and(|recorded| {
-        recorded.context.produces_same_children_as(context)
-            || recorded.context.pins_children_over(context)
-    })
+    lock_recoverable(&ctx.workspace.children.by_id)
+        .get(pkg_id)
+        .is_some_and(|recorded| {
+            recorded.context.produces_same_children_as(context)
+                || recorded.context.pins_children_over(context)
+        })
 }
 
 /// What [`fn@record_children`] did with a walk's child edges.
@@ -255,11 +257,14 @@ pub(in super::super) fn record_children(
     context: RecordedChildrenContext,
 ) -> ChildrenRecording {
     let recording = {
-        let owners = lock_recoverable(&ctx.workspace.children_owner_by_id);
-        if owners.get(pkg_id).is_none_or(|entry| entry.owner != *owner) {
+        let owners = lock_recoverable(&ctx.workspace.children.owner_by_id);
+        if owners
+            .get(pkg_id)
+            .is_none_or(|entry| entry.owner != *owner)
+        {
             return ChildrenRecording::Declined;
         }
-        let mut children = lock_recoverable(&ctx.workspace.children_by_id);
+        let mut children = lock_recoverable(&ctx.workspace.children.by_id);
         let recording = match children.get(pkg_id) {
             // Nothing recorded yet, so no occurrence node can hold
             // realized children of this package to stale.
@@ -281,9 +286,9 @@ pub(in super::super) fn record_children(
             Some(_) => ChildrenRecording::PublishedOverStale,
         };
         let edges = Arc::new(edges);
-        if ctx.workspace.finalized_package.is_some() {
+        if ctx.workspace.hooks.finalized_package.is_some() {
             update_parent_index(
-                &mut lock_recoverable(&ctx.workspace.parents_by_id),
+                &mut lock_recoverable(&ctx.workspace.finalization.parents_by_id),
                 pkg_id,
                 children.get(pkg_id).map(|recorded| recorded.edges.as_slice()),
                 &edges,
@@ -292,7 +297,7 @@ pub(in super::super) fn record_children(
         children.insert(Arc::from(pkg_id.to_string()), RecordedChildren { edges, context });
         recording
     };
-    ctx.workspace.record_children_by_id_write(pkg_id);
+    ctx.workspace.tree.record_children_by_id_write(pkg_id);
     ctx.workspace.note_finalization_candidate(pkg_id);
     recording
 }
@@ -310,7 +315,10 @@ pub(super) fn update_parent_index(
     if previous.is_some_and(|previous| previous == next) {
         return;
     }
-    let kept: HashSet<&str> = next.iter().map(|edge| edge.pkg_id.as_ref()).collect();
+    let kept: HashSet<&str> = next
+        .iter()
+        .map(|edge| edge.pkg_id.as_ref())
+        .collect();
     for edge in previous.into_iter().flatten() {
         if kept.contains(edge.pkg_id.as_ref()) {
             continue;
@@ -323,7 +331,10 @@ pub(super) fn update_parent_index(
         }
     }
     for edge in next {
-        parents_by_id.entry(Arc::clone(&edge.pkg_id)).or_default().insert(Arc::from(pkg_id));
+        parents_by_id
+            .entry(Arc::clone(&edge.pkg_id))
+            .or_default()
+            .insert(Arc::from(pkg_id));
     }
 }
 
@@ -333,10 +344,10 @@ pub(in super::super) fn register_peer_dep_names(
     ctx: &TreeCtx,
     peer_dependencies: &BTreeMap<String, PeerDep>,
 ) {
-    let mut all_peers = lock_recoverable(&ctx.workspace.all_peer_dep_names);
+    let mut all_peers = lock_recoverable(&ctx.workspace.tree.all_peer_dep_names);
     for name in peer_dependencies.keys() {
         if all_peers.insert(name.clone()) {
-            ctx.workspace.record_peer_dep_name(name);
+            ctx.workspace.tree.record_peer_dep_name(name);
         }
     }
 }
@@ -346,7 +357,7 @@ pub(in super::super) fn is_current_children_owner(
     pkg_id: &str,
     owner: &ChildrenOwner,
 ) -> bool {
-    lock_recoverable(&ctx.workspace.children_owner_by_id)
+    lock_recoverable(&ctx.workspace.children.owner_by_id)
         .get(pkg_id)
         .is_some_and(|current| current.owner == *owner)
 }
@@ -356,7 +367,7 @@ pub(in super::super) fn remember_node_parent_ids(
     node_id: &NodeId,
     parent_ids: Arc<Vec<String>>,
 ) {
-    lock_recoverable(&ctx.workspace.node_parent_ids_by_id).insert(node_id.clone(), parent_ids);
+    lock_recoverable(&ctx.workspace.tree.node_parent_ids_by_id).insert(node_id.clone(), parent_ids);
 }
 
 /// Record an occurrence node in the shared tree (lowering the depth of
@@ -370,29 +381,30 @@ pub(in super::super) fn insert_tree_node(
     depth: i32,
 ) {
     let mut written = true;
-    let inserted = match lock_recoverable(&ctx.workspace.dependencies_tree).entry(node_id.clone()) {
-        std::collections::hash_map::Entry::Occupied(mut entry) => {
-            written = entry.get().depth > depth;
-            if written {
-                entry.get_mut().depth = depth;
+    let inserted =
+        match lock_recoverable(&ctx.workspace.tree.dependencies_tree).entry(node_id.clone()) {
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                written = entry.get().depth > depth;
+                if written {
+                    entry.get_mut().depth = depth;
+                }
+                false
             }
-            false
-        }
-        std::collections::hash_map::Entry::Vacant(entry) => {
-            entry.insert(DependenciesTreeNode::new(
-                Arc::from(pkg_id.to_string()),
-                children,
-                depth,
-                true,
-            ));
-            true
-        }
-    };
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(DependenciesTreeNode::new(
+                    Arc::from(pkg_id.to_string()),
+                    children,
+                    depth,
+                    true,
+                ));
+                true
+            }
+        };
     if written {
-        ctx.workspace.record_tree_node_write(&node_id);
+        ctx.workspace.tree.record_tree_node_write(&node_id);
     }
     if inserted {
-        lock_recoverable(&ctx.workspace.nodes_by_pkg_id)
+        lock_recoverable(&ctx.workspace.tree.nodes_by_pkg_id)
             .entry(Arc::from(pkg_id.to_string()))
             .or_default()
             .push(node_id);
@@ -404,14 +416,14 @@ pub(in super::super) fn make_non_owner_nodes_lazy(
     pkg_id: &str,
     owner_node_id: &NodeId,
 ) {
-    let pkg_nodes = match lock_recoverable(&ctx.workspace.nodes_by_pkg_id).get(pkg_id) {
+    let pkg_nodes = match lock_recoverable(&ctx.workspace.tree.nodes_by_pkg_id).get(pkg_id) {
         Some(nodes) => nodes.clone(),
         None => return,
     };
     // Collect the parent chains first so the two locks are never held
     // together.
     let parent_ids_by_node: Vec<(NodeId, Arc<Vec<String>>)> = {
-        let parent_ids = lock_recoverable(&ctx.workspace.node_parent_ids_by_id);
+        let parent_ids = lock_recoverable(&ctx.workspace.tree.node_parent_ids_by_id);
         pkg_nodes
             .into_iter()
             .filter(|node_id| node_id != owner_node_id)
@@ -421,7 +433,7 @@ pub(in super::super) fn make_non_owner_nodes_lazy(
             })
             .collect()
     };
-    let mut tree = lock_recoverable(&ctx.workspace.dependencies_tree);
+    let mut tree = lock_recoverable(&ctx.workspace.tree.dependencies_tree);
     let mut rewritten = Vec::new();
     for (node_id, parent_ids) in parent_ids_by_node {
         // An occurrence already reading the owner's children needs no
@@ -440,9 +452,9 @@ pub(in super::super) fn make_non_owner_nodes_lazy(
     drop(tree);
     let rewrote_any = !rewritten.is_empty();
     for node_id in &rewritten {
-        ctx.workspace.record_tree_node_write(node_id);
+        ctx.workspace.tree.record_tree_node_write(node_id);
     }
     if rewrote_any {
-        ctx.workspace.record_children_rewrite();
+        ctx.workspace.tree.record_children_rewrite();
     }
 }

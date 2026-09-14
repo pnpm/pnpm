@@ -30,12 +30,12 @@ use std::{
 /// * proxy keys (`https-proxy`, `http-proxy`, `proxy` legacy, and
 ///   `no-proxy` / `noproxy` aliases). The env-var fallback cascade
 ///   (`HTTPS_PROXY`, `HTTP_PROXY`, `PROXY`, `NO_PROXY` + lowercase)
-///   fires from [`NpmrcAuth::apply_proxy_cascade`].
+///   fires from [`NpmrcProxy::apply_proxy_cascade`].
 /// * TLS + `local-address` keys (`ca`, `cafile`, `cert`, `key`,
 ///   `strict-ssl`, `local-address`). `cafile` reads from disk and
 ///   feeds the same slot as inline `ca`; an unreadable `cafile` is
 ///   silently treated as unset.
-///   Applied via [`NpmrcAuth::apply_tls_and_local_address`].
+///   Applied via [`NpmrcTls::apply_tls_and_local_address`].
 ///
 /// Values pass through `${VAR}` substitution before being stored.
 /// Unresolved placeholders are substituted with `""` and recorded as
@@ -49,8 +49,6 @@ use std::{
 /// [#336]: https://github.com/pnpm/pacquet/issues/336
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct NpmrcAuth {
-    pub registry: Option<String>,
-    pub scoped_registries: BTreeMap<String, String>,
     /// Unscoped creds (i.e. `_auth=…`, `_authToken=…`, `username=…` /
     /// `_password=…` without a leading `//host/`), as written. Emptied by
     /// [`NpmrcAuth::rescope_unscoped`], which pins them to the registry
@@ -62,21 +60,38 @@ pub(crate) struct NpmrcAuth {
     /// `${VAR}` placeholders that could not be resolved while parsing.
     /// Surfaced as warnings.
     pub warnings: Vec<String>,
+    /// Raw INI config keys (those for which
+    /// [`crate::config_types::is_ini_config_key`] holds), post-`${VAR}`
+    /// substitution, captured verbatim for `pnpm config get` / `list`. This
+    /// is the source of [`crate::Config::raw_auth_config`]; it does not feed
+    /// auth-header resolution, which reads the structured fields above.
+    pub raw_ini_config: BTreeMap<String, String>,
+    pub proxy: NpmrcProxy,
+    pub tls: NpmrcTls,
+    pub routes: NpmrcRoutes,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub(crate) struct NpmrcProxy {
     /// `https-proxy=…` from .npmrc. Applied by
-    /// [`NpmrcAuth::apply_proxy_cascade`].
-    pub https_proxy: Option<String>,
+    /// [`NpmrcProxy::apply_proxy_cascade`].
+    pub https: Option<String>,
     /// `http-proxy=…` from .npmrc.
-    pub http_proxy: Option<String>,
+    pub http: Option<String>,
     /// Legacy `proxy=…` from .npmrc. Feeds into the `httpsProxy` slot
     /// only when `https-proxy` is unset.
-    pub legacy_proxy: Option<String>,
+    pub legacy: Option<String>,
     /// `no-proxy=…` or `noproxy=…` from .npmrc. Last write wins: a
     /// single `noProxy` slot fed by either alias.
-    pub no_proxy: Option<String>,
+    pub bypass: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub(crate) struct NpmrcTls {
     /// Inline `ca=…` PEM from .npmrc. Each successive `ca=` line
     /// appends to the same `Vec`, since the array form arrives as
     /// repeated keys in INI. Combined with `cafile`'s split output by
-    /// [`NpmrcAuth::apply_tls_and_local_address`].
+    /// [`NpmrcTls::apply_tls_and_local_address`].
     pub ca: Vec<String>,
     /// `cafile=<path>` from .npmrc. Read at apply time, split on
     /// `-----END CERTIFICATE-----` to produce one PEM per cert.
@@ -93,7 +108,7 @@ pub(crate) struct NpmrcAuth {
     /// strict at the apply site).
     pub strict_ssl: Option<bool>,
     /// `local-address=…` outbound interface from .npmrc. Stored as a
-    /// raw string here; [`NpmrcAuth::apply_tls_and_local_address`]
+    /// raw string here; [`NpmrcTls::apply_tls_and_local_address`]
     /// parses it as [`std::net::IpAddr`]. An invalid address is
     /// silently dropped.
     pub local_address: Option<String>,
@@ -102,7 +117,13 @@ pub(crate) struct NpmrcAuth {
     /// `:cert`, `:certfile`, `:key`, `:keyfile` keys. The map is
     /// preserved verbatim through to [`PerRegistryTls`] construction
     /// so lookup keys stay byte-equivalent to the keys as written.
-    pub tls_by_uri: HashMap<String, RegistryTls>,
+    pub by_uri: HashMap<String, RegistryTls>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub(crate) struct NpmrcRoutes {
+    pub default: Option<String>,
+    pub scoped: BTreeMap<String, String>,
     /// Scope→URL registry routes inferred from the `_auth` **environment
     /// variable** (`"@"` → `"default"`, `"@org"` → that scope). Safe because
     /// the credential and its destination host come from the same trusted
@@ -110,21 +131,15 @@ pub(crate) struct NpmrcAuth {
     /// environment is the operator's channel — a CI runner pointed at a
     /// mandated proxy — so these outrank what any config file declares.
     /// Applied after workspace yaml by
-    /// [`Self::apply_json_env_registries`].
-    pub json_env_registries: BTreeMap<String, String>,
+    /// [`NpmrcAuth::apply_json_env_registries`].
+    pub json_env: BTreeMap<String, String>,
     /// The same routes inferred from the `_auth` of the global config
     /// **file**. That file is the user's own store rather than a mandate —
     /// it is where `pnpm login` puts a credential — so a `registry` or
     /// `registries` a config file declares, whether an `.npmrc` or a yaml,
     /// outranks these, and they fill in only what nothing else declares. See
-    /// [`Self::apply_json_env_registries`].
-    pub json_file_registries: BTreeMap<String, String>,
-    /// Raw INI config keys (those for which
-    /// [`crate::config_types::is_ini_config_key`] holds), post-`${VAR}`
-    /// substitution, captured verbatim for `pnpm config get` / `list`. This
-    /// is the source of [`crate::Config::raw_auth_config`]; it does not feed
-    /// auth-header resolution, which reads the structured fields above.
-    pub raw_ini_config: BTreeMap<String, String>,
+    /// [`NpmrcAuth::apply_json_env_registries`].
+    pub json_file: BTreeMap<String, String>,
 }
 
 /// Default registry used when a source declares credentials but no
@@ -153,7 +168,10 @@ impl NpmrcAuth {
         // once. `pnpm_config_` is extended last so it wins over `npm_config_`.
         let mut npm_scoped: HashMap<String, String> = HashMap::new();
         let mut pnpm_scoped: HashMap<String, String> = HashMap::new();
-        for (name, value) in Sys::vars().into_iter().filter(|(_, value)| !value.is_empty()) {
+        for (name, value) in Sys::vars()
+            .into_iter()
+            .filter(|(_, value)| !value.is_empty())
+        {
             let Some((is_pnpm, key)) = parse_url_scoped_env_name(&name) else {
                 continue;
             };
@@ -172,83 +190,6 @@ impl NpmrcAuth {
         auth
     }
 
-    /// Resolve the TLS + `local-address` slots on `config.tls`.
-    ///
-    /// The transformations:
-    /// - Inline `ca=` PEMs are kept verbatim.
-    /// - `cafile=<path>` is read from disk and split on
-    ///   `-----END CERTIFICATE-----`.
-    ///   Inline `ca` entries appear in the final list before the
-    ///   `cafile` ones — same ordering as a `ca=` line followed by a
-    ///   `cafile=` line. Unreadable `cafile` is silently dropped.
-    /// - `local-address` is parsed as [`std::net::IpAddr`]. An invalid
-    ///   value is silently dropped.
-    ///
-    /// `strict_ssl`, `cert`, `key` are pass-through (no transformation).
-    ///
-    /// `cafile` paths arrive here already absolute — relative values
-    /// were resolved against the `.npmrc`'s directory in
-    /// [`NpmrcAuth::from_ini`] (pnpm/pnpm#11726).
-    pub fn apply_tls_and_local_address(&mut self, config: &mut Config) {
-        // Inline CA first, then file-loaded CA, so a user that
-        // duplicates a cert across both ends up with it added twice.
-        let mut ca = std::mem::take(&mut self.ca);
-        if let Some(path) = self.cafile.take() {
-            ca.extend(load_cafile(Path::new(&path)));
-        }
-        config.tls.ca = ca;
-        config.tls.cert = self.cert.take();
-        config.tls.key = self.key.take();
-        config.tls.strict_ssl = self.strict_ssl.take();
-        config.tls.local_address = self.local_address.take().and_then(|raw| raw.parse().ok());
-        // Per-registry TLS overrides. `PerRegistryTls::from_map`
-        // drops any entry whose three fields are all `None`, so the
-        // lookup never returns an empty hit that would otherwise
-        // suppress the top-level fallback.
-        config.tls_by_uri = PerRegistryTls::from_map(std::mem::take(&mut self.tls_by_uri));
-    }
-
-    /// Fold this `.npmrc` layer's proxy keys into `config.proxy_keys`,
-    /// capture the environment fallbacks, and resolve the cascade.
-    ///
-    /// Later layers overwrite the keys they set and re-resolve — see the
-    /// [`crate::proxy_keys`] module docs for why a key, once named, is
-    /// never won back by a lower-priority layer.
-    ///
-    /// Generic over [`EnvVar`] so cascade tests can drive every branch
-    /// without mutating the process environment (no `EnvGuard` global
-    /// lock).
-    pub fn apply_proxy_cascade<Sys: EnvVar>(&mut self, config: &mut Config) {
-        // Each proxy env var is tried in literal-, upper-, then
-        // lower-case order. For the var names below the literal form is
-        // already either fully upper or fully lower, so the triple
-        // collapses to two real attempts.
-        fn env_pair<Sys: EnvVar>(upper: &str, lower: &str) -> Option<String> {
-            Sys::var(upper).or_else(|| Sys::var(lower))
-        }
-
-        let keys = &mut config.proxy_keys;
-        for (key, raw) in [
-            (&mut keys.https_proxy, self.https_proxy.take()),
-            (&mut keys.http_proxy, self.http_proxy.take()),
-            (&mut keys.no_proxy, self.no_proxy.take()),
-        ] {
-            if let Some(raw) = raw {
-                *key = ProxyValue::from_config(&raw);
-            }
-        }
-        if let Some(raw) = self.legacy_proxy.take() {
-            keys.legacy_proxy = ProxyValue::legacy_from_config(&raw);
-        }
-        keys.env = crate::proxy_keys::ProxyEnv {
-            https_proxy: env_pair::<Sys>("HTTPS_PROXY", "https_proxy"),
-            http_proxy: env_pair::<Sys>("HTTP_PROXY", "http_proxy"),
-            proxy: env_pair::<Sys>("PROXY", "proxy"),
-            no_proxy: env_pair::<Sys>("NO_PROXY", "no_proxy"),
-        };
-        config.proxy = config.proxy_keys.resolve();
-    }
-
     /// Phase 1: write the resolved `registry` onto `config` and emit
     /// any `${VAR}`-substitution warnings. Does *not* build
     /// `auth_headers` yet. Call [`NpmrcAuth::build_auth_headers`]
@@ -265,13 +206,13 @@ impl NpmrcAuth {
         config: &mut Config,
         declared: &mut DeclaredRegistries,
     ) {
-        if let Some(registry) = self.registry.take() {
+        if let Some(registry) = self.routes.default.take() {
             declared.registry = true;
             config.registry =
                 if registry.ends_with('/') { registry } else { format!("{registry}/") };
         }
-        declared.scopes.extend(self.scoped_registries.keys().cloned());
-        config.registries_by_scope.append(&mut self.scoped_registries);
+        declared.scopes.extend(self.routes.scoped.keys().cloned());
+        config.registries_by_scope.append(&mut self.routes.scoped);
         for message in std::mem::take(&mut self.warnings) {
             tracing::warn!(target: "pacquet::npmrc", "{message}");
         }
@@ -288,43 +229,20 @@ impl NpmrcAuth {
     /// [`Self::rescope_unscoped`] so their unscoped credentials are
     /// pinned to the right registry before they are combined.
     pub fn merge_under(&mut self, lower: NpmrcAuth) {
-        self.registry = self.registry.take().or(lower.registry);
-        for (scope, registry) in lower.scoped_registries {
-            self.scoped_registries.entry(scope).or_insert(registry);
-        }
-        for (scope, registry) in lower.json_env_registries {
-            self.json_env_registries.entry(scope).or_insert(registry);
-        }
-        for (scope, registry) in lower.json_file_registries {
-            self.json_file_registries.entry(scope).or_insert(registry);
-        }
+        self.routes.merge_under(lower.routes);
         for (key, value) in lower.raw_ini_config {
             self.raw_ini_config.entry(key).or_insert(value);
         }
-        self.https_proxy = self.https_proxy.take().or(lower.https_proxy);
-        self.http_proxy = self.http_proxy.take().or(lower.http_proxy);
-        self.legacy_proxy = self.legacy_proxy.take().or(lower.legacy_proxy);
-        self.no_proxy = self.no_proxy.take().or(lower.no_proxy);
-        if self.ca.is_empty() {
-            self.ca = lower.ca;
-        }
-        self.cafile = self.cafile.take().or(lower.cafile);
-        self.cert = self.cert.take().or(lower.cert);
-        self.key = self.key.take().or(lower.key);
-        self.strict_ssl = self.strict_ssl.take().or(lower.strict_ssl);
-        self.local_address = self.local_address.take().or(lower.local_address);
-
+        self.proxy.merge_under(lower.proxy);
+        self.tls.merge_under(lower.tls);
         for (uri, lower_by_scope) in lower.creds_by_scope_by_uri {
             let by_scope = self.creds_by_scope_by_uri.entry(uri).or_default();
             for (scope, creds) in lower_by_scope {
-                by_scope.entry(scope).or_default().fill_from(creds);
+                by_scope
+                    .entry(scope)
+                    .or_default()
+                    .fill_from(creds);
             }
-        }
-        for (uri, tls) in lower.tls_by_uri {
-            let entry = self.tls_by_uri.entry(uri).or_default();
-            entry.ca = entry.ca.take().or(tls.ca);
-            entry.cert = entry.cert.take().or(tls.cert);
-            entry.key = entry.key.take().or(tls.key);
         }
         // Lower-priority warnings come first — they were produced while
         // reading the earlier file.
@@ -342,14 +260,14 @@ impl NpmrcAuth {
     /// URL.
     ///
     /// [`apply_registry_and_warn`]: NpmrcAuth::apply_registry_and_warn
-    /// [`apply_proxy_cascade`]: NpmrcAuth::apply_proxy_cascade
+    /// [`apply_proxy_cascade`]: NpmrcProxy::apply_proxy_cascade
     /// [`build_auth_headers`]: NpmrcAuth::build_auth_headers
     #[cfg(test)]
     pub fn apply_to<Sys: EnvVar>(mut self, config: &mut Config) {
         self.rescope_unscoped("<.npmrc>");
         self.apply_registry_and_warn(config, &mut DeclaredRegistries::default());
-        self.apply_proxy_cascade::<Sys>(config);
-        self.apply_tls_and_local_address(config);
+        self.proxy.apply_proxy_cascade::<Sys>(config);
+        self.tls.apply_tls_and_local_address(config);
         self.build_auth_headers(config).expect("valid credentials in test .npmrc");
     }
 }
@@ -382,3 +300,130 @@ use tls::{
     apply_tls_field, expand_inline_pem, load_cafile, parse_bool, resolve_cafile,
     split_inline_identity_key, split_ssl_key,
 };
+
+impl NpmrcTls {
+    /// Resolve the TLS + `local-address` slots on `config.tls`.
+    ///
+    /// The transformations:
+    /// - Inline `ca=` PEMs are kept verbatim.
+    /// - `cafile=<path>` is read from disk and split on
+    ///   `-----END CERTIFICATE-----`.
+    ///   Inline `ca` entries appear in the final list before the
+    ///   `cafile` ones — same ordering as a `ca=` line followed by a
+    ///   `cafile=` line. Unreadable `cafile` is silently dropped.
+    /// - `local-address` is parsed as [`std::net::IpAddr`]. An invalid
+    ///   value is silently dropped.
+    ///
+    /// `strict_ssl`, `cert`, `key` are pass-through (no transformation).
+    ///
+    /// `cafile` paths arrive here already absolute — relative values
+    /// were resolved against the `.npmrc`'s directory in
+    /// [`NpmrcAuth::from_ini`] (pnpm/pnpm#11726).
+    pub fn apply_tls_and_local_address(&mut self, config: &mut Config) {
+        // Inline CA first, then file-loaded CA, so a user that
+        // duplicates a cert across both ends up with it added twice.
+        let mut ca = std::mem::take(&mut self.ca);
+        if let Some(path) = self.cafile.take() {
+            ca.extend(load_cafile(Path::new(&path)));
+        }
+        config.tls.ca = ca;
+        config.tls.cert = self.cert.take();
+        config.tls.key = self.key.take();
+        config.tls.strict_ssl = self.strict_ssl.take();
+        config.tls.local_address = self.local_address
+            .take()
+            .and_then(|raw| raw.parse().ok());
+        // Per-registry TLS overrides. `PerRegistryTls::from_map`
+        // drops any entry whose three fields are all `None`, so the
+        // lookup never returns an empty hit that would otherwise
+        // suppress the top-level fallback.
+        config.tls_by_uri = PerRegistryTls::from_map(std::mem::take(&mut self.by_uri));
+    }
+}
+
+impl NpmrcProxy {
+    /// Fold this `.npmrc` layer's proxy keys into `config.proxy_keys`,
+    /// capture the environment fallbacks, and resolve the cascade.
+    ///
+    /// Later layers overwrite the keys they set and re-resolve — see the
+    /// [`crate::proxy_keys`] module docs for why a key, once named, is
+    /// never won back by a lower-priority layer.
+    ///
+    /// Generic over [`EnvVar`] so cascade tests can drive every branch
+    /// without mutating the process environment (no `EnvGuard` global
+    /// lock).
+    pub fn apply_proxy_cascade<Sys: EnvVar>(&mut self, config: &mut Config) {
+        // Each proxy env var is tried in literal-, upper-, then
+        // lower-case order. For the var names below the literal form is
+        // already either fully upper or fully lower, so the triple
+        // collapses to two real attempts.
+        fn env_pair<Sys: EnvVar>(upper: &str, lower: &str) -> Option<String> {
+            Sys::var(upper).or_else(|| Sys::var(lower))
+        }
+
+        let keys = &mut config.proxy_keys;
+        for (key, raw) in [
+            (&mut keys.https_proxy, self.https.take()),
+            (&mut keys.http_proxy, self.http.take()),
+            (&mut keys.no_proxy, self.bypass.take()),
+        ] {
+            if let Some(raw) = raw {
+                *key = ProxyValue::from_config(&raw);
+            }
+        }
+        if let Some(raw) = self.legacy.take() {
+            keys.legacy_proxy = ProxyValue::legacy_from_config(&raw);
+        }
+        keys.env = crate::proxy_keys::ProxyEnv {
+            https_proxy: env_pair::<Sys>("HTTPS_PROXY", "https_proxy"),
+            http_proxy: env_pair::<Sys>("HTTP_PROXY", "http_proxy"),
+            proxy: env_pair::<Sys>("PROXY", "proxy"),
+            no_proxy: env_pair::<Sys>("NO_PROXY", "no_proxy"),
+        };
+        config.proxy = config.proxy_keys.resolve();
+    }
+}
+
+impl NpmrcRoutes {
+    fn merge_under(&mut self, lower: Self) {
+        self.default = self.default.take().or(lower.default);
+        for (scope, registry) in lower.scoped {
+            self.scoped.entry(scope).or_insert(registry);
+        }
+        for (scope, registry) in lower.json_env {
+            self.json_env.entry(scope).or_insert(registry);
+        }
+        for (scope, registry) in lower.json_file {
+            self.json_file.entry(scope).or_insert(registry);
+        }
+    }
+}
+
+impl NpmrcProxy {
+    fn merge_under(&mut self, lower: Self) {
+        self.https = self.https.take().or(lower.https);
+        self.http = self.http.take().or(lower.http);
+        self.legacy = self.legacy.take().or(lower.legacy);
+        self.bypass = self.bypass.take().or(lower.bypass);
+    }
+}
+
+impl NpmrcTls {
+    fn merge_under(&mut self, lower: Self) {
+        if self.ca.is_empty() {
+            self.ca = lower.ca;
+        }
+        self.cafile = self.cafile.take().or(lower.cafile);
+        self.cert = self.cert.take().or(lower.cert);
+        self.key = self.key.take().or(lower.key);
+        self.strict_ssl = self.strict_ssl.take().or(lower.strict_ssl);
+        self.local_address = self.local_address.take().or(lower.local_address);
+
+        for (uri, tls) in lower.by_uri {
+            let entry = self.by_uri.entry(uri).or_default();
+            entry.ca = entry.ca.take().or(tls.ca);
+            entry.cert = entry.cert.take().or(tls.cert);
+            entry.key = entry.key.take().or(tls.key);
+        }
+    }
+}

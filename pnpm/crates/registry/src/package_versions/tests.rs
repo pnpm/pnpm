@@ -42,7 +42,10 @@ fn sorts_version_slots_for_lookup() {
     );
 
     assert_eq!(
-        package.versions.keys().map(String::as_str).collect::<Vec<_>>(),
+        package.versions
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
         ["1.0.0", "10.0.0", "2.0.0"],
     );
     assert!(package.versions.get("2.0.0").is_some());
@@ -91,7 +94,14 @@ fn eager_construction_from_typed_manifests_round_trips() {
     )
     .unwrap();
     let versions: crate::PackageVersions = HashMap::from([("1.0.0".to_string(), manifest)]).into();
-    assert_eq!(versions.get("1.0.0").unwrap().version.to_string(), "1.0.0");
+    assert_eq!(
+        versions
+            .get("1.0.0")
+            .unwrap()
+            .version
+            .to_string(),
+        "1.0.0",
+    );
     let json = serde_json::to_string(&versions).unwrap();
     assert!(json.contains(r#""1.0.0""#));
 }

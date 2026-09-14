@@ -26,18 +26,24 @@ async fn cold_pick_fetches_and_picks_max_in_range() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
@@ -55,7 +61,12 @@ async fn cold_pick_fetches_and_picks_max_in_range() {
 #[tokio::test]
 async fn normal_range_reuses_dominant_lockfile_version_from_disk() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = format!("{}/", server.url());
     let preloaded: pnpm_registry::Package =
@@ -67,18 +78,24 @@ async fn normal_range_reuses_dominant_lockfile_version_from_disk() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
     let mut selectors = VersionSelectors::new();
     selectors.insert(
@@ -118,18 +135,24 @@ async fn stable_range_does_not_promote_meta_for_a_later_unproven_range() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
     let mut selectors = VersionSelectors::new();
     selectors.insert(
@@ -171,18 +194,24 @@ async fn blocked_dominant_version_falls_through_to_registry_pick() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
     let mut selectors = VersionSelectors::new();
     selectors.insert(
@@ -221,18 +250,24 @@ async fn pick_lowest_version_picks_min() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
 
     let mut opts = default_opts(&registry);

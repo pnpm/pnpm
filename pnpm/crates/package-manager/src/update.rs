@@ -68,7 +68,7 @@ use std::{
 ///   fetched and written into `package.json` before resolving, since the
 ///   tag reaches past the declared range. The follow-up install then
 ///   resolves the new range.
-/// * **`--workspace`** ([`Update::workspace_packages`]): each matched
+/// * **`--workspace`** ([`UpdateSelection::workspace_packages`]): each matched
 ///   direct dependency that a workspace project publishes is re-pointed
 ///   at the local copy through the `workspace:` protocol, with
 ///   `saveWorkspaceProtocol` deciding whether the linked version is
@@ -88,67 +88,9 @@ use std::{
 /// written into the manifest before resolving.
 #[must_use]
 pub struct Update<'a> {
-    pub tarball_mem_cache: Arc<MemCache>,
-    pub resolved_packages: &'a ResolvedPackages,
-    pub http_client: &'a ThrottledClient,
-    pub http_client_arc: Arc<ThrottledClient>,
-    pub config: &'static Config,
     pub manifest: &'a mut PackageManifest,
-    pub lockfile: Option<&'a Lockfile>,
-    pub lockfile_path: Option<&'a std::path::Path>,
-    /// Package selectors from the CLI (`foo`, `@scope/bar-*`, `foo@2`).
-    /// Empty means "update every direct dependency in the included
-    /// groups", matching `pnpm update` with no arguments.
-    pub packages: &'a [String],
-    /// `--latest` / `-L`: ignore the manifest range and bump matched
-    /// direct dependencies to their `latest` dist-tag, rewriting
-    /// `package.json`.
-    pub latest: bool,
-    /// `--patches`: refresh registry revisions while retaining every locked
-    /// package version and leaving manifest specifiers unchanged.
-    pub patches: bool,
-    /// `--save-exact` / `-E`: write the resolved version without a range
-    /// operator when rewriting the manifest under `--latest`. Only applies
-    /// to dependencies whose current specifier has no recoverable pin; an
-    /// existing `^`/`~`/exact range is preserved over this default.
-    pub save_exact: bool,
-    /// `--save` (default) / `--no-save`. When `false`, `package.json` on
-    /// disk is left untouched, so its specifiers stay authoritative:
-    /// `pnpm-lock.yaml` still updates, but only within the ranges the
-    /// manifest keeps, since the importer entry has to keep satisfying the
-    /// specifier it records. A requested version those ranges exclude is
-    /// skipped, and `--latest` degrades to a compatible bump.
-    pub save: bool,
-    /// Dependency groups the update considers when choosing which direct
-    /// dependencies to match, derived from
-    /// `--prod` / `--dev` / `--no-optional`. Note: the *materialized*
-    /// dependency set is always all three groups (the `node_modules`
-    /// layout is unchanged); this only narrows the update scope.
-    pub include_direct: Vec<DependencyGroup>,
-    /// `--depth`: how deep into the dependency graph the update reaches.
-    /// A node below the ceiling keeps its locked resolution even when its
-    /// name is a target, so `0` updates direct dependencies only.
-    /// `usize::MAX` stands in for the `Infinity` default.
-    pub depth: usize,
-    /// `--workspace`: what the workspace projects publish, as built by
-    /// [`crate::build_workspace_packages_map`]. `Some` turns the update
-    /// into a workspace-link update — the matched direct dependencies
-    /// are re-pointed at the workspace copies through the `workspace:`
-    /// protocol instead of the registry. `None` is a plain update.
-    pub workspace_packages: Option<&'a WorkspacePackages>,
-    /// CLI-merged `supportedArchitectures`, forwarded to the install.
-    pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
-    /// `--lockfile-only`: re-resolve and rewrite `pnpm-lock.yaml` without
-    /// materializing `node_modules`. Forwarded to the install.
-    pub lockfile_only: bool,
-    /// Sink notified for each resolved tarball package, and the source of
-    /// the optional resolver-time [`PackageVersionGuard`]. `None` for a
-    /// plain `pacquet update`; `pacquet audit --fix update` installs one
-    /// whose guard rejects vulnerable versions so the resolver falls back
-    /// to a safe one.
-    ///
-    /// [`PackageVersionGuard`]: pnpm_resolving_resolver_base::PackageVersionGuard
-    pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
+    pub options: UpdateOptions<'a>,
+    pub resources: UpdateResources,
 }
 
 /// Error type of [`Update`].
@@ -264,45 +206,19 @@ fn update_mutation(packages: &[String], latest: bool) -> ProjectMutation {
     }
 }
 
-impl<'a> Update<'a> {
-    /// Separate what every step reads from what one of them consumes, and
-    /// the manifest the update rewrites.
-    fn split(self) -> (UpdateView<'a>, UpdateOwned, &'a mut PackageManifest) {
-        (
-            UpdateView {
-                resolved_packages: self.resolved_packages,
-                http_client: self.http_client,
-                config: self.config,
-                lockfile: self.lockfile,
-                lockfile_path: self.lockfile_path,
-                packages: self.packages,
-                latest: self.latest,
-                patches: self.patches,
-                save_exact: self.save_exact,
-                save: self.save,
-                depth: self.depth,
-                workspace_packages: self.workspace_packages,
-                lockfile_only: self.lockfile_only,
-            },
-            UpdateOwned {
-                tarball_mem_cache: self.tarball_mem_cache,
-                http_client_arc: self.http_client_arc,
-                include_direct: self.include_direct,
-                supported_architectures: self.supported_architectures,
-                resolution_observer: self.resolution_observer,
-            },
-            self.manifest,
-        )
-    }
-
+impl Update<'_> {
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), UpdateError> {
-        let (update, owned, manifest) = self.split();
+        let Self {
+            options: update,
+            resources: owned,
+            manifest,
+        } = self;
         begin::<Reporter>(update, &owned);
         let site = UpdateSite::find::<Reporter>(update, manifest)?;
         let unsaved = site.hook_update_manifest(update, manifest).await?;
-        if !update.latest && update.depth > 0 {
+        if !update.version.latest && update.selection.depth > 0 {
             reject_versions_of_indirect_update_specs::<Reporter>(
-                &parse_selectors(update.packages),
+                &parse_selectors(update.selection.packages),
                 &[manifest],
                 &owned.include_direct,
                 &package_manifest_prefix(manifest),
@@ -312,7 +228,11 @@ impl<'a> Update<'a> {
         let Some(prepared) =
             prepare_manifest::<Reporter>(manifest, update, &owned, None, &mut latest_chain).await?
         else {
-            return nothing_to_update(update.depth, update.packages, update.latest);
+            return nothing_to_update(
+                update.selection.depth,
+                update.selection.packages,
+                update.version.latest,
+            );
         };
         run_prepared_update::<Reporter>(update, owned, manifest, site, unsaved, prepared).await
     }
@@ -321,7 +241,11 @@ impl<'a> Update<'a> {
         self,
         selected: SelectedProjects<'_>,
     ) -> Result<(), UpdateError> {
-        let (update, owned, manifest) = self.split();
+        let Self {
+            options: update,
+            resources: owned,
+            manifest,
+        } = self;
         begin::<Reporter>(update, &owned);
         let selected_indices = selected_project_indices(
             selected.projects,
@@ -332,9 +256,9 @@ impl<'a> Update<'a> {
             return Ok(());
         }
         let site = UpdateSite::find::<Reporter>(update, manifest)?;
-        let unsaved = site
-            .hook_selected_manifests(update, selected.projects, manifest, &selected_indices)
-            .await?;
+        let unsaved =
+            site.hook_selected_manifests(update, selected.projects, manifest, &selected_indices)
+                .await?;
         let prepared = prepare_selected_manifests::<Reporter>(
             selected.projects,
             &selected_indices,
@@ -355,29 +279,81 @@ impl<'a> Update<'a> {
 
 /// The update's borrowed and `Copy` inputs, as one value every step reads.
 #[derive(Clone, Copy)]
-struct UpdateView<'a> {
-    resolved_packages: &'a ResolvedPackages,
-    http_client: &'a ThrottledClient,
-    config: &'static Config,
-    lockfile: Option<&'a Lockfile>,
-    lockfile_path: Option<&'a Path>,
-    packages: &'a [String],
-    latest: bool,
-    patches: bool,
-    save_exact: bool,
-    save: bool,
-    depth: usize,
-    workspace_packages: Option<&'a WorkspacePackages>,
-    lockfile_only: bool,
+pub struct UpdateOptions<'a> {
+    pub resolved_packages: &'a ResolvedPackages,
+    pub http_client: &'a ThrottledClient,
+    pub config: &'static Config,
+    pub lockfile: Option<&'a Lockfile>,
+    pub lockfile_path: Option<&'a Path>,
+    /// `--lockfile-only`: re-resolve and rewrite `pnpm-lock.yaml` without
+    /// materializing `node_modules`. Forwarded to the install.
+    pub lockfile_only: bool,
+    pub selection: UpdateSelection<'a>,
+    pub version: UpdateVersionOptions,
+}
+
+#[derive(Clone, Copy)]
+pub struct UpdateSelection<'a> {
+    /// Package selectors from the CLI (`foo`, `@scope/bar-*`, `foo@2`).
+    /// Empty means "update every direct dependency in the included
+    /// groups", matching `pnpm update` with no arguments.
+    pub packages: &'a [String],
+    /// `--depth`: how deep into the dependency graph the update reaches.
+    /// A node below the ceiling keeps its locked resolution even when its
+    /// name is a target, so `0` updates direct dependencies only.
+    /// `usize::MAX` stands in for the `Infinity` default.
+    pub depth: usize,
+    /// `--workspace`: what the workspace projects publish, as built by
+    /// [`crate::build_workspace_packages_map`]. `Some` turns the update
+    /// into a workspace-link update — the matched direct dependencies
+    /// are re-pointed at the workspace copies through the `workspace:`
+    /// protocol instead of the registry. `None` is a plain update.
+    pub workspace_packages: Option<&'a WorkspacePackages>,
+}
+
+#[derive(Clone, Copy)]
+pub struct UpdateVersionOptions {
+    /// `--latest` / `-L`: ignore the manifest range and bump matched
+    /// direct dependencies to their `latest` dist-tag, rewriting
+    /// `package.json`.
+    pub latest: bool,
+    /// `--patches`: refresh registry revisions while retaining every locked
+    /// package version and leaving manifest specifiers unchanged.
+    pub patches: bool,
+    /// `--save-exact` / `-E`: write the resolved version without a range
+    /// operator when rewriting the manifest under `--latest`. Only applies
+    /// to dependencies whose current specifier has no recoverable pin; an
+    /// existing `^`/`~`/exact range is preserved over this default.
+    pub save_exact: bool,
+    /// `--save` (default) / `--no-save`. When `false`, `package.json` on
+    /// disk is left untouched, so its specifiers stay authoritative:
+    /// `pnpm-lock.yaml` still updates, but only within the ranges the
+    /// manifest keeps, since the importer entry has to keep satisfying the
+    /// specifier it records. A requested version those ranges exclude is
+    /// skipped, and `--latest` degrades to a compatible bump.
+    pub save: bool,
 }
 
 /// The update's owned inputs, consumed by the install it runs.
-struct UpdateOwned {
-    tarball_mem_cache: Arc<MemCache>,
-    http_client_arc: Arc<ThrottledClient>,
-    include_direct: Vec<DependencyGroup>,
-    supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
-    resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
+pub struct UpdateResources {
+    pub tarball_mem_cache: Arc<MemCache>,
+    pub http_client_arc: Arc<ThrottledClient>,
+    /// Dependency groups the update considers when choosing which direct
+    /// dependencies to match, derived from
+    /// `--prod` / `--dev` / `--no-optional`. Note: the *materialized*
+    /// dependency set is always all three groups (the `node_modules`
+    /// layout is unchanged); this only narrows the update scope.
+    pub include_direct: Vec<DependencyGroup>,
+    /// CLI-merged `supportedArchitectures`, forwarded to the install.
+    pub supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
+    /// Sink notified for each resolved tarball package, and the source of
+    /// the optional resolver-time [`PackageVersionGuard`]. `None` for a
+    /// plain `pacquet update`; `pacquet audit --fix update` installs one
+    /// whose guard rejects vulnerable versions so the resolver falls back
+    /// to a safe one.
+    ///
+    /// [`PackageVersionGuard`]: pnpm_resolving_resolver_base::PackageVersionGuard
+    pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
 }
 
 /// The projects a recursive update runs over, and the selection that
@@ -406,13 +382,16 @@ impl SelectedProjects<'_> {
 }
 
 /// Route the clients' warnings through the reporter.
-fn begin<Reporter: self::Reporter>(update: UpdateView<'_>, owned: &UpdateOwned) {
+fn begin<Reporter: self::Reporter>(update: UpdateOptions<'_>, owned: &UpdateResources) {
     update.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
     owned.http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
 }
 
 fn manifest_dir(manifest: &PackageManifest) -> &Path {
-    manifest.path().parent().expect("manifest path always has a parent dir")
+    manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir")
 }
 
 /// Where the update runs: the lockfile root, and the pnpmfile's
@@ -425,13 +404,13 @@ struct UpdateSite {
 
 impl UpdateSite {
     fn find<Reporter: self::Reporter>(
-        update: UpdateView<'_>,
+        update: UpdateOptions<'_>,
         manifest: &PackageManifest,
     ) -> Result<Self, UpdateError> {
         let workspace_root =
             crate::install::lockfile_root_dir(update.config, manifest_dir(manifest))
                 .map_err(UpdateError::FindWorkspaceDir)?;
-        let read_package_hook = (!update.save && !update.config.ignore_pnpmfile)
+        let read_package_hook = (!update.version.save && !update.config.ignore_pnpmfile)
             .then(|| update_read_package_hook::<Reporter>(&workspace_root, update.config))
             .transpose()?
             .flatten();
@@ -446,7 +425,7 @@ impl UpdateSite {
 
     async fn hook_update_manifest(
         &self,
-        update: UpdateView<'_>,
+        update: UpdateOptions<'_>,
         manifest: &mut PackageManifest,
     ) -> Result<UnsavedManifests, UpdateError> {
         let mut hooked_paths = HashSet::new();
@@ -456,14 +435,15 @@ impl UpdateSite {
         }
         Ok(UnsavedManifests {
             hooked_paths,
-            lockfile_specifiers: (!update.save)
-                .then(|| vec![(manifest_dir(manifest).to_path_buf(), manifest.clone())]),
+            lockfile_specifiers: (!update.version.save).then(|| {
+                vec![(manifest_dir(manifest).to_path_buf(), manifest.clone())]
+            }),
         })
     }
 
     async fn hook_selected_manifests(
         &self,
-        update: UpdateView<'_>,
+        update: UpdateOptions<'_>,
         projects: &mut [pnpm_workspace::Project],
         manifest: &mut PackageManifest,
         selected_indices: &[usize],
@@ -474,7 +454,7 @@ impl UpdateSite {
         }
         Ok(UnsavedManifests {
             hooked_paths,
-            lockfile_specifiers: (!update.save).then(|| {
+            lockfile_specifiers: (!update.version.save).then(|| {
                 selected_indices
                     .iter()
                     .map(|&index| {

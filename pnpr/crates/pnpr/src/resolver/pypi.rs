@@ -112,8 +112,7 @@ pub(super) async fn handle_resolve(
     if let Some(response) = reject_unusable_request(runtime, &request, &index) {
         return response;
     }
-    let requirements = match request
-        .requirements
+    let requirements = match request.requirements
         .iter()
         .map(|requirement| parse_requirement(requirement))
         .collect::<miette::Result<Vec<_>>>()
@@ -130,6 +129,7 @@ pub(super) async fn handle_resolve(
             match Lockfile::new(
                 &packages.1,
                 &request.target,
+                &requirements,
                 solution,
                 inputs,
                 request.requires_python,
@@ -174,8 +174,7 @@ async fn resolve(
                          {MAX_METADATA_READS} wheels",
                     ));
                 }
-                let candidate = packages
-                    .candidates
+                let candidate = packages.candidates
                     .get(&name)
                     .and_then(|versions| versions.get(&version))
                     .ok_or_else(|| format!("{name} {version} is not a candidate"))?;
@@ -190,10 +189,7 @@ async fn resolve(
 /// Reads a Python index for one resolve: cache first, then the index.
 struct IndexReader {
     client: Arc<ThrottledClient>,
-    route: Arc<pnpr_route::RouteContext>,
-    identity: pnpr_policy::Identity,
-    footprint: Arc<Mutex<Footprint>>,
-    secret: Arc<[u8]>,
+    hook: Arc<pnpr_route::RouteHook>,
     locks: Arc<StripedLocks>,
     cache_dir: PathBuf,
     ttl: Duration,
@@ -207,13 +203,15 @@ impl IndexReader {
     fn new(runtime: &Resolver, identity: pnpr_policy::Identity, index: url::Url) -> Self {
         Self {
             client: Arc::clone(&runtime.client),
-            route: Arc::clone(&runtime.route_context),
-            identity,
-            footprint: Arc::new(Mutex::new(Footprint::default())),
-            secret: Arc::clone(&runtime.resolution_cache_secret),
-            locks: Arc::clone(&runtime.python_index_locks),
+            hook: Arc::new(pnpr_route::RouteHook::new(
+                Arc::clone(&runtime.route_context),
+                identity,
+                Arc::new(Mutex::new(Footprint::default())),
+                Arc::clone(&runtime.cache.secret),
+            )),
+            locks: Arc::clone(&runtime.index.python_locks),
             cache_dir: runtime.python_index_cache_dir(index.as_str()),
-            ttl: runtime.cargo_index_ttl,
+            ttl: runtime.index.ttl,
             bytes_held: AtomicUsize::new(0),
             index,
         }
@@ -242,9 +240,14 @@ impl IndexReader {
             return parse_page(&page, &source, name, target);
         }
 
-        let (page, source) = self
-            .fetch(&auth, &page_url, "page", MAX_PAGE_BYTES, Some(pnpr_pypi::JSON_CONTENT_TYPE))
-            .await?;
+        let (page, source) = self.fetch(
+            &auth,
+            &page_url,
+            "page",
+            MAX_PAGE_BYTES,
+            Some(pnpr_pypi::JSON_CONTENT_TYPE),
+        )
+        .await?;
         let page = text(page, "project page", name.as_ref())?;
         // Parsed before it is cached, so a page that is not one is not
         // served to every resolve that follows for the whole TTL.
@@ -288,9 +291,9 @@ impl IndexReader {
             return Self::cached_metadata(&document, name, version, candidate);
         }
         let document = if let Some(digests) = &candidate.core_metadata {
-            let (document, _) = self
-                .fetch(&auth, &metadata_url(&wheel_url), "metadata", MAX_METADATA_BYTES, None)
-                .await?;
+            let (document, _) =
+                self.fetch(&auth, &metadata_url(&wheel_url), "metadata", MAX_METADATA_BYTES, None)
+                    .await?;
             verify_digest(&document, digests, "metadata file", &candidate.wheel.name)?;
             document
         } else {
@@ -344,8 +347,7 @@ impl IndexReader {
                  registry as a public route or an upstream",
             ));
         }
-        let response = self
-            .client
+        let response = self.client
             .get_limited_bytes_with_secure_auth_and_retry(
                 url.as_str(),
                 auth,
@@ -381,14 +383,11 @@ impl IndexReader {
     /// route policy for the caller, with the project bound in so the
     /// package-blind fetch helpers still classify by it.
     fn auth_for(&self, canonical_name: &str) -> AuthHeaders {
-        let hook = pnpr_route::RouteHook::new(
-            Arc::clone(&self.route),
-            self.identity.clone(),
-            Arc::clone(&self.footprint),
-            Arc::clone(&self.secret),
-        );
         AuthHeaders::default()
-            .with_route_hook(Arc::new(PackageRoute::new(hook, canonical_name.to_string())))
+            .with_route_hook(Arc::new(PackageRoute::new(
+                Arc::clone(&self.hook),
+                canonical_name.to_string(),
+            )))
     }
 
     /// Where `url`'s document is cached. The route scope keys the
@@ -412,12 +411,16 @@ impl IndexReader {
             Some(digest) => format!("{url}#{digest}"),
             None => url.to_string(),
         };
-        self.cache_dir.join(scope).join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(&key)))
+        self.cache_dir
+            .join(scope)
+            .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(&key)))
     }
 
     async fn cached(&self, path: &Path) -> Option<CachedDocument> {
         let metadata = tokio::fs::metadata(path).await.ok()?;
-        let age = SystemTime::now().duration_since(metadata.modified().ok()?).ok()?;
+        let age = SystemTime::now()
+            .duration_since(metadata.modified().ok()?)
+            .ok()?;
         if age >= self.ttl {
             return None;
         }
@@ -441,8 +444,9 @@ impl IndexReader {
 /// The index base URL a request names, with the trailing slash a project
 /// page is resolved against.
 fn index_url(index: &str) -> Result<url::Url, String> {
-    let mut url: url::Url =
-        index.parse().map_err(|err| format!("parse the Python index URL: {err}"))?;
+    let mut url: url::Url = index
+        .parse()
+        .map_err(|err| format!("parse the Python index URL: {err}"))?;
     validate_url(&url).map_err(|err| super::report_message(&err))?;
     if !url.path().ends_with('/') {
         let path = format!("{}/", url.path());

@@ -36,8 +36,9 @@ pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>
     views: LockfileViews<'_, 'a>,
     verify_filtered_repair: bool,
 ) -> Result<Lockfile, InstallWithFreshLockfileError> {
-    let pnpmfile_checksum = pnpmfile_checksum(resolved.after_all_resolved_hook.as_ref()).await;
-    if install.lockfile_only {
+    let pnpmfile_checksum =
+        pnpmfile_checksum(resolved.hooks.after_all_resolved_hook.as_ref()).await;
+    if install.execution.lockfile_only {
         await_lockfile_gate(lockfile_verification_gate).await?;
     }
     let phase_start = std::time::Instant::now();
@@ -74,30 +75,38 @@ pub(super) fn build_resolved_lockfile<Reporter>(
 ) -> Result<Lockfile, InstallWithFreshLockfileError> {
     build_lockfile(FreshLockfileBuildOptions {
         inputs: FreshLockfileInputs {
-            config: install.config,
+            prior: crate::install_with_fresh_lockfile::resolution_inputs::FreshLockfilePrior {
+                importers: resolved.reuse.guard_previous_importers,
+                scope: resolved.reuse.guard_update_reuse_scope.clone(),
+                scopes_by_importer: resolved.reuse
+                    .guard_update_reuse_scopes_by_importer
+                    .clone(),
+                lockfile: views.wanted_lockfile,
+            },
+            resolution:
+                crate::install_with_fresh_lockfile::resolution_inputs::FreshLockfileResolution {
+                    graph: &resolved.graph.merged_graph,
+                    direct_by_importer: &resolved.graph.direct_by_importer,
+                    overrides: resolved.overrides.overrides.clone(),
+                    time: resolved_time,
+                },
+            config: install.drivers.config,
             importer_manifests: views.importer_manifests,
             lockfile_specifier_manifests: views.lockfile_specifier_manifests,
-            graph: &resolved.merged_graph,
-            direct_by_importer: &resolved.direct_by_importer,
-            resolved_overrides: resolved.overrides.clone(),
+
             catalogs: views.catalogs,
             pnpmfile_checksum,
-            patched_dependency_hashes: resolved.patched_dependency_hashes.as_ref(),
-            previous_importers: resolved.guard_previous_importers,
-            update_reuse_scope: resolved.guard_update_reuse_scope.clone(),
-            update_reuse_scopes_by_importer: resolved.guard_update_reuse_scopes_by_importer.clone(),
-            wanted_lockfile: views.wanted_lockfile,
-            resolved_time,
+            patched_dependency_hashes: resolved.patches.hashes.as_ref(),
         },
         splice: FilteredSplice {
-            merge_wanted_lockfile: install.merge_wanted_lockfile,
-            real_importer_ids: install.real_importer_ids,
-            selected_importer_ids: install.selected_importer_ids,
-            lockfile_dir: install.lockfile_dir,
+            merge_wanted_lockfile: install.lockfiles.merge_wanted,
+            real_importer_ids: install.projects.real_ids,
+            selected_importer_ids: install.projects.selected_ids,
+            lockfile_dir: install.projects.lockfile_dir,
         },
         bumps: SpecBumps {
-            manifest_spec_bumps: install.manifest_spec_bumps,
-            versions_overrider: resolved.versions_overrider.as_deref(),
+            manifest_spec_bumps: install.manifests.spec_bumps,
+            versions_overrider: resolved.overrides.versions_overrider.as_deref(),
         },
     })
 }
@@ -118,7 +127,10 @@ pub(super) fn parse_config_overrides(
 pub(super) fn resolved_overrides_map(
     parsed: &[pnpm_config_parse_overrides::VersionOverride],
 ) -> IndexMap<String, String> {
-    parsed.iter().map(|entry| (entry.selector.clone(), entry.new_bare_specifier.clone())).collect()
+    parsed
+        .iter()
+        .map(|entry| (entry.selector.clone(), entry.new_bare_specifier.clone()))
+        .collect()
 }
 pub(super) fn overrides_match(
     lockfile: Option<&IndexMap<String, String>>,
@@ -130,9 +142,13 @@ pub(super) fn overrides_match(
         (None, None) => true,
         (Some(lockfile), Some(config)) => {
             lockfile.len() == config.len()
-                && lockfile.iter().all(|(key, value)| {
-                    config.get(key).is_some_and(|config_value| config_value == value)
-                })
+                && lockfile
+                    .iter()
+                    .all(|(key, value)| {
+                        config
+                            .get(key)
+                            .is_some_and(|config_value| config_value == value)
+                    })
         }
         _ => false,
     }
@@ -141,8 +157,14 @@ pub(super) fn ignored_optional_dependencies_match(
     left: Option<&[String]>,
     right: Option<&[String]>,
 ) -> bool {
-    let left: HashSet<_> = left.unwrap_or_default().iter().collect();
-    let right: HashSet<_> = right.unwrap_or_default().iter().collect();
+    let left: HashSet<_> = left
+        .unwrap_or_default()
+        .iter()
+        .collect();
+    let right: HashSet<_> = right
+        .unwrap_or_default()
+        .iter()
+        .collect();
     left == right
 }
 pub(super) fn compose_manifest_hooks(
@@ -168,35 +190,15 @@ pub(super) struct FreshLockfileBuildOptions<'a> {
 }
 /// What [`dependencies_graph_to_lockfile()`] lifts to the wire shape.
 pub(super) struct FreshLockfileInputs<'a> {
+    pub prior: crate::install_with_fresh_lockfile::resolution_inputs::FreshLockfilePrior<'a>,
+    pub resolution:
+        crate::install_with_fresh_lockfile::resolution_inputs::FreshLockfileResolution<'a>,
     config: &'a Config,
     importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
     lockfile_specifier_manifests: Option<&'a BTreeMap<String, PackageManifest>>,
-    graph: &'a pnpm_resolving_deps_resolver::DependenciesGraph,
-    direct_by_importer:
-        &'a BTreeMap<String, BTreeMap<String, pnpm_resolving_deps_resolver::DepPath>>,
-    resolved_overrides: Option<IndexMap<String, String>>,
     catalogs: &'a pnpm_catalogs_types::Catalogs,
     pnpmfile_checksum: Option<&'a str>,
     patched_dependency_hashes: Option<&'a BTreeMap<String, String>>,
-    /// The previous run's lockfile importer entries, threaded into the
-    /// pnpm/pnpm#10433 guard so an untouched workspace dependency keeps
-    /// its prior `link:` entry. `None` on a first install.
-    previous_importers: Option<&'a HashMap<String, pnpm_lockfile::ProjectSnapshot>>,
-    /// How this install reuses the prior resolution (from the `pacquet
-    /// update` seed policy), also consumed by the pnpm/pnpm#10433 guard.
-    update_reuse_scope: pnpm_resolving_deps_resolver::UpdateReuseScope,
-    /// Per-importer update scopes (the `ByImporter` policy of a recursive
-    /// update), so the guard honors `pacquet update <name> --recursive`
-    /// targeting per importer rather than the workspace-wide default.
-    update_reuse_scopes_by_importer:
-        BTreeMap<String, pnpm_resolving_deps_resolver::UpdateReuseScope>,
-    /// The previous run's lockfile: its `packages:` seed the reuse and its
-    /// `time:` is layered under this run's. `None` on a first install.
-    wanted_lockfile: Option<&'a Lockfile>,
-    /// Publish dates this run resolved for the direct dependencies,
-    /// layered over the ones [`Self::wanted_lockfile`] recorded. Empty
-    /// unless the install resolved `time-based`.
-    resolved_time: BTreeMap<String, String>,
 }
 /// The previous run's lockfile, spliced back over the importers a
 /// filtered install did not resolve.
@@ -227,7 +229,7 @@ impl FilteredSplice<'_> {
         }
     }
 }
-/// See [`FreshInputs::manifest_spec_bumps`].
+/// See [`super::FreshManifestOptions::spec_bumps`].
 pub(super) struct SpecBumps<'a> {
     manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
     /// The override set the run resolved under. Consulted only alongside
@@ -238,9 +240,11 @@ pub(super) struct SpecBumps<'a> {
 impl SpecBumps<'_> {
     fn apply(self, built: &mut Lockfile, importer_manifests: &BTreeMap<String, &PackageManifest>) {
         let Some(bumps) = self.manifest_spec_bumps else { return };
-        let overridden =
-            self.versions_overrider.filter(|overrider| !overrider.is_empty()).map(|overrider| {
-                crate::manifest_spec_bumps::OverriddenDeclarations { overrider, importer_manifests }
+        let overridden = self.versions_overrider
+            .filter(|overrider| !overrider.is_empty())
+            .map(|overrider| crate::manifest_spec_bumps::OverriddenDeclarations {
+                overrider,
+                importer_manifests,
             });
         crate::manifest_spec_bumps::apply_manifest_spec_bumps(built, bumps, overridden.as_ref());
     }
@@ -250,55 +254,74 @@ pub(super) fn build_lockfile(
 ) -> Result<Lockfile, InstallWithFreshLockfileError> {
     let FreshLockfileBuildOptions { inputs, splice, bumps } = opts;
     let importer_manifests = inputs.importer_manifests;
-    let freshly_resolved = build_fresh_lockfile(inputs).map_err(|error| {
-        InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
-    })?;
+    let freshly_resolved = build_fresh_lockfile(inputs)
+        .map_err(|error| {
+            InstallWithFreshLockfileError::DependenciesGraphToLockfile(Box::new(error))
+        })?;
     let mut built = splice.apply(freshly_resolved)?;
     bumps.apply(&mut built, importer_manifests);
     Ok(built)
 }
+impl<'a> FreshLockfileInputs<'a> {
+    fn importer_entries(&self) -> BTreeMap<String, ImporterLockfileInput<'a>> {
+        let mut importers = BTreeMap::new();
+        for (id, manifest) in self.importer_manifests {
+            let direct = self.resolution.direct_by_importer
+                .get(id)
+                .cloned()
+                .unwrap_or_default();
+            let manifest = self.lockfile_specifier_manifests
+                .and_then(|manifests| manifests.get(id))
+                .unwrap_or(*manifest);
+            importers.insert(
+                id.clone(),
+                ImporterLockfileInput { manifest, direct_dependencies_by_alias: direct },
+            );
+        }
+        importers
+    }
+}
 pub(super) fn build_fresh_lockfile(
     inputs: FreshLockfileInputs<'_>,
 ) -> Result<Lockfile, DependenciesGraphToLockfileError> {
-    let mut importers = BTreeMap::new();
-    for (id, manifest) in inputs.importer_manifests {
-        let direct = inputs.direct_by_importer.get(id).cloned().unwrap_or_default();
-        let manifest = inputs
-            .lockfile_specifier_manifests
-            .and_then(|manifests| manifests.get(id))
-            .unwrap_or(*manifest);
-        importers.insert(
-            id.clone(),
-            ImporterLockfileInput { manifest, direct_dependencies_by_alias: direct },
-        );
-    }
+    let importers = inputs.importer_entries();
     let registries_by_prefix = registries_by_prefix(inputs.config);
     let config = inputs.config;
     dependencies_graph_to_lockfile(GraphToLockfileOptions {
         importers,
-        graph: inputs.graph,
-        registry_options_by_url: &config.registry_options_by_url,
-        auto_install_peers: config.auto_install_peers,
-        dedupe_peers: config.dedupe_peers,
-        exclude_links_from_lockfile: config.exclude_links_from_lockfile,
-        inject_workspace_packages: config.inject_workspace_packages,
-        peers_suffix_max_length: (config.peers_suffix_max_length
-            != pnpm_config::default_peers_suffix_max_length())
-        .then_some(config.peers_suffix_max_length),
-        overrides: inputs.resolved_overrides,
-        ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
-        patched_dependencies: inputs.patched_dependency_hashes.cloned(),
-        package_extensions_checksum: compute_package_extensions_checksum(config),
-        pnpmfile_checksum: inputs.pnpmfile_checksum.map(str::to_string),
+        graph: inputs.resolution.graph,
         catalogs: inputs.catalogs,
-        registry: &config.registry,
-        registries_by_prefix: &registries_by_prefix,
-        lockfile_include_tarball_url: config.lockfile_include_tarball_url,
-        previous_importers: inputs.previous_importers,
-        previous_packages: inputs.wanted_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
-        update_reuse_scope: inputs.update_reuse_scope,
-        update_reuse_scopes_by_importer: inputs.update_reuse_scopes_by_importer,
-        time: merge_recorded_time(inputs.wanted_lockfile, inputs.resolved_time),
+        time: merge_recorded_time(inputs.prior.lockfile, inputs.resolution.time),
+        settings: pnpm_lockfile::LockfileSettings {
+            auto_install_peers: config.auto_install_peers,
+            dedupe_peers: config.dedupe_peers.then_some(true),
+            exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+            inject_workspace_packages: config.inject_workspace_packages,
+            peers_suffix_max_length: (config.peers_suffix_max_length
+                != pnpm_config::default_peers_suffix_max_length())
+            .then_some(config.peers_suffix_max_length),
+        },
+        metadata_sources: crate::PackageMetadataSources {
+            registry_options_by_url: &config.registry_options_by_url,
+            registry: &config.registry,
+            registries_by_prefix: &registries_by_prefix,
+            lockfile_include_tarball_url: config.lockfile_include_tarball_url,
+            previous_packages: inputs.prior.lockfile.and_then(|lockfile| {
+                lockfile.packages.as_ref()
+            }),
+        },
+        manifest_settings: crate::LockfileManifestSettings {
+            overrides: inputs.resolution.overrides,
+            ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+            patched_dependencies: inputs.patched_dependency_hashes.cloned(),
+            package_extensions_checksum: compute_package_extensions_checksum(config),
+            pnpmfile_checksum: inputs.pnpmfile_checksum.map(str::to_string),
+        },
+        reuse: crate::LockfileImporterReuse {
+            previous_importers: inputs.prior.importers,
+            scope: inputs.prior.scope,
+            scopes_by_importer: inputs.prior.scopes_by_importer,
+        },
     })
 }
 /// Same merge the resolver chain performs; the config was already
@@ -307,7 +330,11 @@ pub(super) fn registries_by_prefix(config: &Config) -> HashMap<String, String> {
     pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX
         .iter()
         .map(|(name, url)| ((*name).to_string(), (*url).to_string()))
-        .chain(config.registries_by_prefix.iter().map(|(name, url)| (name.clone(), url.clone())))
+        .chain(
+            config.registries_by_prefix
+                .iter()
+                .map(|(name, url)| (name.clone(), url.clone())),
+        )
         .collect()
 }
 /// The `time:` section the rewritten lockfile carries: what the prior
@@ -327,8 +354,9 @@ pub(super) fn merge_recorded_time(
     time
 }
 pub(crate) fn compute_package_extensions_checksum(config: &Config) -> Option<String> {
-    let extensions =
-        config.package_extensions.as_ref().filter(|extensions| !extensions.is_empty())?;
+    let extensions = config.package_extensions
+        .as_ref()
+        .filter(|extensions| !extensions.is_empty())?;
     let value = serde_json::to_value(extensions).ok()?;
     pnpm_graph_hasher::hash_object_nullable_with_prefix(&value)
 }

@@ -64,14 +64,20 @@ pub(crate) fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
                 }
                 let mut visitor = Visitor::default();
                 event.record(&mut visitor);
-                self.0.lock().unwrap().push(format!("{}{}", visitor.message, visitor.fields));
+                self.0
+                    .lock()
+                    .unwrap()
+                    .push(format!("{}{}", visitor.message, visitor.fields));
             }
         }
     }
 
     let subscriber = tracing_subscriber::registry().with(CaptureLayer(messages_clone));
     tracing::subscriber::with_default(subscriber, f);
-    Arc::try_unwrap(messages).unwrap().into_inner().unwrap()
+    Arc::try_unwrap(messages)
+        .unwrap()
+        .into_inner()
+        .unwrap()
 }
 
 /// `Config::current` requires `Sys: LinkProbe` so the late-stage
@@ -185,7 +191,10 @@ macro_rules! fake_env {
 }
 
 fn display_store_dir(store_dir: &StoreDir) -> String {
-    store_dir.display().to_string().replace('\\', "/")
+    store_dir
+        .display()
+        .to_string()
+        .replace('\\', "/")
 }
 
 /// Delegate to [`Host::var`] but mask the env vars that would
@@ -308,7 +317,10 @@ macro_rules! host_in_repo {
         inert_link_probe!($name);
         impl GetCurrentDir for $name {
             fn current_dir() -> io::Result<PathBuf> {
-                REPO_DIR.get().cloned().ok_or_else(|| io::Error::other("no repo fixture"))
+                REPO_DIR
+                    .get()
+                    .cloned()
+                    .ok_or_else(|| io::Error::other("no repo fixture"))
             }
         }
     };

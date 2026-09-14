@@ -26,14 +26,14 @@ pub(super) fn side_effects_cache_key(
     snapshot_key: &PackageKey,
     candidate: &BuildCandidate<'_>,
 ) -> Option<String> {
-    let (graph, engine) = context.dep_graph.zip(context.engine_name)?;
+    let (graph, engine) = context.progress.dep_graph.zip(context.cache.engine_name)?;
     // Poison-recover: `calc_dep_state` mutates the cache by
     // inserting one entry per recursive walk node, each
     // insert atomic from `HashMap`'s POV. A panic mid-walk
     // leaves the map in a usable state — the worst case is
     // an unfinished sub-walk that the next caller will redo.
     let mut cache_guard =
-        context.deps_state_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        context.progress.deps_state_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     Some(pnpm_graph_hasher::calc_dep_state(
         graph,
         &mut cache_guard,
@@ -64,8 +64,8 @@ pub(super) fn already_built<Reporter: self::Reporter>(
     cache_key: Option<&str>,
 ) -> Result<bool, BuildModulesError> {
     if !candidate.force_rebuild
-        && context.side_effects_cache
-        && let Some(maps_by_snapshot) = context.side_effects_maps_by_snapshot
+        && context.cache.read
+        && let Some(maps_by_snapshot) = context.cache.maps_by_snapshot
         && let Some(maps) = maps_by_snapshot.get(snapshot_key)
         && let Some(key) = cache_key
         && let Some(overlay) = maps.get(key)
@@ -106,7 +106,7 @@ pub(super) fn satisfy_from_side_effects_cache<Reporter: self::Reporter>(
     }
     // The overlay carries the patched / built contents, so it has to reach
     // every hoisted copy for the same reason patch application does.
-    context.slot_mutations.store(true, Ordering::Relaxed);
+    context.progress.slot_mutations.store(true, Ordering::Relaxed);
     for pkg_dir in context.pkg_roots().all(snapshot_key) {
         // No slot to materialize into (skipped / never linked) — nothing for
         // the build phase to do either.
@@ -161,8 +161,8 @@ pub(super) fn materialize_overlay_into_slot<Reporter: self::Reporter>(
     overlay: &HashMap<String, PathBuf>,
 ) -> OverlayOutcome {
     match materialize_side_effects::<Reporter>(
-        context.logged_methods,
-        context.import_method,
+        context.directories.logged_methods,
+        context.directories.import_method,
         pkg_dir,
         overlay,
     ) {
@@ -207,36 +207,38 @@ pub(super) fn upload_side_effects_cache(
     snapshot_key: &PackageKey,
     upload: &SideEffectsUpload<'_>,
 ) {
-    if (!upload.is_patched && !upload.has_side_effects) || context.frozen_store {
+    if (!upload.is_patched && !upload.has_side_effects) || context.cache.frozen_store {
         return;
     }
-    let (Some(writer), Some(store), Some(cache_key), Some(packages)) =
-        (context.store_index_writer, context.store_dir, upload.cache_key, context.packages)
-    else {
+    let (Some(writer), Some(store), Some(cache_key), Some(packages)) = (
+        context.cache.store_index_writer,
+        context.cache.store_dir,
+        upload.cache_key,
+        context.graph.packages,
+    ) else {
         return;
     };
     let Some(metadata) = packages.get(upload.metadata_key) else { return };
     let publishes_remotely = upload.has_side_effects
-        && context
-            .shared_side_effects_publisher
-            .is_some_and(|publisher| publisher.can_publish(upload.metadata_key, metadata));
-    if !context.side_effects_cache_write && !publishes_remotely {
+        && context.cache.publisher.is_some_and(|publisher| {
+            publisher.can_publish(upload.metadata_key, metadata)
+        });
+    if !context.cache.write && !publishes_remotely {
         return;
     }
     let Some(files_index_file) = store_index_key_for_resolution(
         &metadata.resolution,
         &upload.metadata_key.pkg_id(),
-        !context.ignore_scripts,
+        !context.scripts.ignore,
     ) else {
         return;
     };
-    let uploaded = upload_and_publish(
+    if let Err(err) = upload_and_publish(
         context,
         snapshot_key,
         (store, writer, &files_index_file, cache_key),
         (upload, metadata),
-    );
-    if let Err(err) = uploaded {
+    ) {
         tracing::warn!(
             target: "pacquet::build",
             ?err,
@@ -258,7 +260,7 @@ pub(super) fn upload_and_publish(
 ) -> Result<(), pnpm_store_dir::UploadError> {
     let (store, writer, files_index_file, cache_key) = store;
     let (upload, metadata) = uploaded;
-    let Some(publisher) = context.shared_side_effects_publisher else {
+    let Some(publisher) = context.cache.publisher else {
         return pnpm_store_dir::upload(store, upload.pkg_dir, files_index_file, cache_key, writer);
     };
     let diff = pnpm_store_dir::upload_with_diff(
@@ -270,7 +272,7 @@ pub(super) fn upload_and_publish(
     )?;
     if upload.has_side_effects
         && let Some(diff) = diff
-        && let Some(graph) = context.dep_graph
+        && let Some(graph) = context.progress.dep_graph
         && let Err(error) = publisher.publish(
             snapshot_key,
             metadata,

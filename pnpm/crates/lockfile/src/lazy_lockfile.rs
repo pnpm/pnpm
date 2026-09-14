@@ -153,7 +153,12 @@ impl LazyLockfile {
         let loaded = if let Some((dir, selection)) = self.source.as_ref() {
             Lockfile::load_wanted_detailed_for_fix(dir, selection)?
         } else {
-            LoadedRepairLockfile::from_loaded(self.cell.get().cloned().unwrap_or_default())
+            LoadedRepairLockfile::from_loaded(
+                self.cell
+                    .get()
+                    .cloned()
+                    .unwrap_or_default(),
+            )
         };
         Ok(self.fix_cell.get_or_init(|| loaded))
     }

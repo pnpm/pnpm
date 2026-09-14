@@ -30,8 +30,10 @@ pub struct SearchParams {
 #[must_use]
 pub fn parse_params(query_string: &str, default_size: usize) -> Option<SearchParams> {
     let query = parse_query(query_string)?;
-    let text =
-        query.strip_prefix("maintainer:").filter(|maintainer| !maintainer.is_empty()).map_or_else(
+    let text = query
+        .strip_prefix("maintainer:")
+        .filter(|maintainer| !maintainer.is_empty())
+        .map_or_else(
             || SearchText::Package(query.clone()),
             |maintainer| SearchText::Maintainer(maintainer.to_string()),
         );
@@ -69,7 +71,9 @@ pub fn parse_query(query_string: &str) -> Option<String> {
 
 #[must_use]
 pub fn browse_requested(query_string: &str) -> bool {
-    query_string.split('&').any(|pair| pair == "browse=true")
+    query_string
+        .split('&')
+        .any(|pair| pair == "browse=true")
 }
 
 /// The first parsable value of a numeric URL parameter, or `None` when the
@@ -77,10 +81,14 @@ pub fn browse_requested(query_string: &str) -> bool {
 /// offset this way; only the parameter names differ between them.
 #[must_use]
 pub fn parse_usize_param(query_string: &str, key: &str) -> Option<usize> {
-    query_string.split('&').find_map(|pair| {
-        let (candidate, value) = pair.split_once('=')?;
-        (candidate == key).then(|| value.parse().ok()).flatten()
-    })
+    query_string
+        .split('&')
+        .find_map(|pair| {
+            let (candidate, value) = pair.split_once('=')?;
+            (candidate == key)
+                .then(|| value.parse().ok())
+                .flatten()
+        })
 }
 
 /// `size=` URL param; bounded the same way npm bounds it (1..=250).
@@ -187,7 +195,10 @@ fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
     }
     // `time.<version>` if present, else `time.modified` as a fallback.
     if let Some(time) = obj.get("time").and_then(Value::as_object) {
-        let date = time.get(version_id).cloned().or_else(|| time.get("modified").cloned());
+        let date = time
+            .get(version_id)
+            .cloned()
+            .or_else(|| time.get("modified").cloned());
         if let Some(date) = date {
             pkg.insert("date".to_string(), date);
         }
@@ -211,7 +222,12 @@ fn latest_version_id<'p>(
         .and_then(|tags| tags.get("latest"))
         .and_then(Value::as_str)
         .filter(|tag| versions.contains_key(*tag))
-        .or_else(|| versions.keys().next().map(String::as_str))
+        .or_else(|| {
+            versions
+                .keys()
+                .next()
+                .map(String::as_str)
+        })
 }
 
 /// `links.npm` is what the npm website surfaces. Synthesized
@@ -240,20 +256,22 @@ fn packument_has_maintainer(packument: &Value, needle: &str) -> bool {
     }
     let versions = packument.get("versions").and_then(Value::as_object);
     versions.is_some_and(|versions| {
-        versions.values().any(|version| {
-            maintainer_value_matches(version.get("maintainers"), needle)
-                || maintainer_value_matches(version.get("_npmUser"), needle)
-                || maintainer_value_matches(version.get("publisher"), needle)
-        })
+        versions
+            .values()
+            .any(|version| {
+                maintainer_value_matches(version.get("maintainers"), needle)
+                    || maintainer_value_matches(version.get("_npmUser"), needle)
+                    || maintainer_value_matches(version.get("publisher"), needle)
+            })
     })
 }
 
 fn maintainer_value_matches(value: Option<&Value>, needle: &str) -> bool {
     match value {
         Some(Value::String(value)) => value.to_lowercase().contains(needle),
-        Some(Value::Array(values)) => {
-            values.iter().any(|value| maintainer_value_matches(Some(value), needle))
-        }
+        Some(Value::Array(values)) => values
+            .iter()
+            .any(|value| maintainer_value_matches(Some(value), needle)),
         Some(Value::Object(value)) => ["username", "name", "email"]
             .iter()
             .filter_map(|field| value.get(*field).and_then(Value::as_str))

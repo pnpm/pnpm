@@ -72,15 +72,15 @@ fn env_vars_stand_in_for_omitted_flags() {
 
     assert_eq!(args.config.as_deref(), Some("/etc/pnpr/config.yaml".as_ref()));
     assert_eq!(args.listen, "0.0.0.0:4873".parse::<SocketAddr>().unwrap());
-    assert_eq!(args.storage.as_deref(), Some("/var/lib/pnpr".as_ref()));
-    assert_eq!(args.cache.as_deref(), Some("/var/cache/pnpr".as_ref()));
+    assert_eq!(args.paths.storage.as_deref(), Some("/var/lib/pnpr".as_ref()));
+    assert_eq!(args.paths.cache.as_deref(), Some("/var/cache/pnpr".as_ref()));
     assert_eq!(args.public_url.as_deref(), Some("https://registry.example.com"));
     assert_eq!(args.packument_ttl_secs, Some(90));
-    assert!(args.osv);
-    assert_eq!(args.osv_db.as_deref(), Some("/var/cache/osv/all.zip".as_ref()));
-    assert!(args.disable_registry);
-    assert!(args.disable_resolver);
-    assert!(args.disable_artifacts);
+    assert!(args.osv_options.osv);
+    assert_eq!(args.osv_options.osv_db.as_deref(), Some("/var/cache/osv/all.zip".as_ref()));
+    assert!(args.features.disable_registry);
+    assert!(args.features.disable_resolver);
+    assert!(args.features.disable_artifacts);
 }
 
 #[test]
@@ -92,10 +92,10 @@ fn omitted_flags_without_env_vars_keep_their_defaults() {
     assert_eq!(args.listen, super::Config::DEFAULT_LISTEN.parse::<SocketAddr>().unwrap());
     assert_eq!(args.config, None);
     assert_eq!(args.packument_ttl_secs, None);
-    assert!(!args.osv);
-    assert!(!args.disable_registry);
-    assert!(!args.disable_resolver);
-    assert!(!args.disable_artifacts);
+    assert!(!args.osv_options.osv);
+    assert!(!args.features.disable_registry);
+    assert!(!args.features.disable_resolver);
+    assert!(!args.features.disable_artifacts);
 }
 
 #[test]
@@ -117,7 +117,7 @@ fn flags_on_the_command_line_win_over_env_vars() {
 
     assert_eq!(args.listen, "127.0.0.1:7677".parse::<SocketAddr>().unwrap());
     assert_eq!(args.packument_ttl_secs, Some(5));
-    assert!(args.disable_artifacts);
+    assert!(args.features.disable_artifacts);
 }
 
 #[test]
@@ -130,10 +130,10 @@ fn falsy_boolean_env_values_leave_the_flag_off() {
 
     let args = Args::try_parse_from(["pnpr"]).unwrap();
 
-    assert!(!args.osv);
-    assert!(!args.disable_registry);
-    assert!(!args.disable_resolver);
-    assert!(!args.disable_artifacts);
+    assert!(!args.osv_options.osv);
+    assert!(!args.features.disable_registry);
+    assert!(!args.features.disable_resolver);
+    assert!(!args.features.disable_artifacts);
 }
 
 #[test]

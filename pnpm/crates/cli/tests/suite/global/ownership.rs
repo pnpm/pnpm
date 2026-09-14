@@ -276,7 +276,10 @@ fn global_remove_preflights_survivors_before_mutating_targets() {
     )
     .expect("repair survivor dependency manifest");
 
-    global_command(&workspace, &pnpm_home).with_args(["remove", "-g", "victim"]).assert().success();
+    global_command(&workspace, &pnpm_home)
+        .with_args(["remove", "-g", "victim"])
+        .assert()
+        .success();
     assert!(!target_install.exists());
     assert!(survivor_install.exists());
     assert_eq!(fs::read(&shared_bin).expect("read survivor-owned bin"), b"keeper command\n");
@@ -328,8 +331,9 @@ fn global_add_pnpm_is_rejected() {
         assert!(!output.status.success(), "add -g {selector} must fail, got: {stderr}");
         assert!(
             stderr.contains("ERR_PNPM_GLOBAL_PNPM_INSTALL")
-                && stderr
-                    .contains(r#"Use the "pnpm self-update" command to install or update pnpm"#),
+                && stderr.contains(
+                    r#"Use the "pnpm self-update" command to install or update pnpm"#
+                ),
             "add -g {selector} must report the self-update diagnostic, got: {stderr}",
         );
     }

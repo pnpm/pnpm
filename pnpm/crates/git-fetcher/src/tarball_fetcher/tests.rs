@@ -47,22 +47,27 @@ async fn passes_through_package_without_scripts() {
     );
 
     let received = GitHostedTarballFetcher {
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "x@1.0.0\tbuilt",
+        },
         cas_paths: cas_paths.clone(),
         path: None,
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "x@1.0.0\tbuilt",
     }
     .run::<SilentReporter>()
     .await
@@ -97,28 +102,36 @@ async fn filters_files_outside_files_field() {
     );
 
     let received = GitHostedTarballFetcher {
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "x@1.0.0\tbuilt",
+        },
         cas_paths,
         path: None,
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "x@1.0.0\tbuilt",
     }
     .run::<SilentReporter>()
     .await
     .unwrap();
 
-    let keys: Vec<&str> = received.cas_paths.keys().map(String::as_str).collect();
+    let keys: Vec<&str> = received.cas_paths
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert!(keys.contains(&"dist/index.js"));
     assert!(keys.contains(&"package.json"), "package.json always included");
     assert!(!keys.contains(&"src/index.ts"), "src excluded by files field");
@@ -143,22 +156,27 @@ async fn rejects_build_when_not_allowed() {
     );
 
     let err = GitHostedTarballFetcher {
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "naughty@2.0.0\tbuilt",
+        },
         cas_paths,
         path: None,
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "naughty@2.0.0",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "naughty@2.0.0\tbuilt",
     }
     .run::<SilentReporter>()
     .await
@@ -187,22 +205,27 @@ async fn surfaces_prepare_script_failure() {
     );
 
     let err = GitHostedTarballFetcher {
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "prepare-script-fails@1.0.0\tbuilt",
+        },
         cas_paths,
         path: None,
         allow_build: allow_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "prepare-script-fails@1.0.0",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "prepare-script-fails@1.0.0\tbuilt",
     }
     .run::<SilentReporter>()
     .await
@@ -244,28 +267,36 @@ async fn path_field_packs_only_subdirectory() {
     );
 
     let received = GitHostedTarballFetcher {
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "sub@1.0.0\tbuilt",
+        },
         cas_paths,
         path: Some("packages/sub"),
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "sub@1.0.0",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "sub@1.0.0\tbuilt",
     }
     .run::<SilentReporter>()
     .await
     .unwrap();
 
-    let keys: Vec<&str> = received.cas_paths.keys().map(String::as_str).collect();
+    let keys: Vec<&str> = received.cas_paths
+        .keys()
+        .map(String::as_str)
+        .collect();
     // The fetcher packlists relative to `pkg_dir` (which is
     // `<tmp>/packages/sub`), so the returned keys are *also* relative
     // to that sub-dir — never carrying the `packages/sub/` prefix.
@@ -277,7 +308,9 @@ async fn path_field_packs_only_subdirectory() {
         "sibling-package files must not appear in {keys:?}",
     );
     assert!(
-        !keys.iter().any(|k| k.contains("packages/")),
+        !keys
+            .iter()
+            .any(|k| k.contains("packages/")),
         "keys are relative to the sub-dir, not the monorepo root: {keys:?}",
     );
 }
@@ -298,22 +331,27 @@ async fn materialized_temp_dir_does_not_corrupt_cas() {
     let cas_bytes_before = fs::read(&original_cas_path).unwrap();
 
     let _ = GitHostedTarballFetcher {
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "x@1.0.0\tbuilt",
+        },
         cas_paths,
         path: None,
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "x@1.0.0\tbuilt",
     }
     .run::<SilentReporter>()
     .await
@@ -346,22 +384,27 @@ async fn writes_index_row_when_writer_provided() {
 
     let key = "x@1.0.0\tbuilt";
     let received = GitHostedTarballFetcher {
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: Some(&Arc::clone(&writer)),
+            files_index_file: key,
+        },
         cas_paths,
         path: None,
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         requester: "/test",
-        store_index_writer: Some(&Arc::clone(&writer)),
-        files_index_file: key,
     }
     .run::<SilentReporter>()
     .await
@@ -374,10 +417,16 @@ async fn writes_index_row_when_writer_provided() {
     writer_task.await.unwrap().unwrap();
 
     let index = StoreIndex::open_in(&store_dir).unwrap();
-    let row = index.get(key).unwrap().expect("row must exist at the git-hosted key");
+    let row = index
+        .get(key)
+        .unwrap()
+        .expect("row must exist at the git-hosted key");
     assert_eq!(row.algo, "sha512");
     assert_eq!(row.requires_build, Some(received.built));
-    let keys: Vec<&str> = row.files.keys().map(String::as_str).collect();
+    let keys: Vec<&str> = row.files
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert!(keys.contains(&"package.json"), "package.json missing from row.files: {keys:?}");
     assert!(keys.contains(&"index.js"), "index.js missing from row.files: {keys:?}");
 
@@ -429,22 +478,27 @@ async fn fast_path_returns_input_cas_paths_when_no_build_needed() {
     let input_snapshot = cas_paths.clone();
 
     let received = GitHostedTarballFetcher {
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "x@1.0.0\tbuilt",
+        },
         cas_paths,
         path: None,
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "x@1.0.0\tbuilt",
     }
     .run::<SilentReporter>()
     .await
@@ -483,22 +537,27 @@ async fn fast_path_queues_synthesized_index_row() {
 
     let key = "x@1.0.0\tbuilt";
     let _received = GitHostedTarballFetcher {
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: Some(&Arc::clone(&writer)),
+            files_index_file: key,
+        },
         cas_paths,
         path: None,
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         requester: "/test",
-        store_index_writer: Some(&Arc::clone(&writer)),
-        files_index_file: key,
     }
     .run::<SilentReporter>()
     .await
@@ -508,10 +567,16 @@ async fn fast_path_queues_synthesized_index_row() {
     writer_task.await.unwrap().unwrap();
 
     let index = StoreIndex::open_in(&store_dir).unwrap();
-    let row = index.get(key).unwrap().expect("fast path must still queue a row at the final key");
+    let row = index
+        .get(key)
+        .unwrap()
+        .expect("fast path must still queue a row at the final key");
     assert_eq!(row.requires_build, Some(false), "fast path implies no build needed");
     assert_eq!(row.algo, "sha512");
-    let row_keys: Vec<&str> = row.files.keys().map(String::as_str).collect();
+    let row_keys: Vec<&str> = row.files
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert!(row_keys.contains(&"package.json"));
     assert!(row_keys.contains(&"index.js"));
     assert!(row_keys.contains(&"bin/cli.js"));
@@ -561,22 +626,27 @@ async fn sub_path_never_takes_fast_path() {
 
     let key = "sub@1.0.0\tbuilt";
     let received = GitHostedTarballFetcher {
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: Some(&Arc::clone(&writer)),
+            files_index_file: key,
+        },
         cas_paths,
         path: Some("packages/sub"),
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "sub@1.0.0",
         requester: "/test",
-        store_index_writer: Some(&Arc::clone(&writer)),
-        files_index_file: key,
     }
     .run::<SilentReporter>()
     .await
@@ -589,21 +659,34 @@ async fn sub_path_never_takes_fast_path() {
     // `packages/sub/` prefix. If the fast path had triggered
     // (returning input `cas_paths` verbatim), the keys would still
     // be the monorepo-prefixed paths.
-    let out_keys: Vec<&str> = received.cas_paths.keys().map(String::as_str).collect();
+    let out_keys: Vec<&str> = received.cas_paths
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert!(
-        !out_keys.iter().any(|k| k.contains("packages/")),
+        !out_keys
+            .iter()
+            .any(|k| k.contains("packages/")),
         "slow path strips the sub-dir prefix: {out_keys:?}",
     );
     assert!(out_keys.contains(&"package.json"));
     assert!(out_keys.contains(&"index.js"));
 
     let index = StoreIndex::open_in(&store_dir).unwrap();
-    let row = index.get(key).unwrap().expect("sub-path takes slow path and writes a row");
-    let row_keys: Vec<&str> = row.files.keys().map(String::as_str).collect();
+    let row = index
+        .get(key)
+        .unwrap()
+        .expect("sub-path takes slow path and writes a row");
+    let row_keys: Vec<&str> = row.files
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert!(row_keys.contains(&"package.json"), "sub-dir manifest");
     assert!(row_keys.contains(&"index.js"), "sub-dir main");
     assert!(
-        !row_keys.iter().any(|k| k.contains("packages/")),
+        !row_keys
+            .iter()
+            .any(|k| k.contains("packages/")),
         "no monorepo prefixes in {row_keys:?}",
     );
 }
@@ -640,22 +723,27 @@ async fn fast_path_ignore_scripts_returns_input_without_queueing_row() {
 
     let key = "x@1.0.0\tbuilt";
     let received = GitHostedTarballFetcher {
+        scripts: crate::PrepareScriptOptions {
+            ignore: true,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: Some(&Arc::clone(&writer)),
+            files_index_file: key,
+        },
         cas_paths,
         path: None,
         allow_build: deny_all_builds(),
-        ignore_scripts: true,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         requester: "/test",
-        store_index_writer: Some(&Arc::clone(&writer)),
-        files_index_file: key,
     }
     .run::<SilentReporter>()
     .await
@@ -686,22 +774,27 @@ async fn tarball_path_traversal_attack_is_rejected() {
         write_to_cas(&store_dir, &[("package.json", br#"{"name":"x","version":"1.0.0"}"#, false)]);
 
     let err = GitHostedTarballFetcher {
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "x@1.0.0\tbuilt",
+        },
         cas_paths,
         path: Some("../escape"),
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "x@1.0.0\tbuilt",
     }
     .run::<SilentReporter>()
     .await
@@ -709,7 +802,10 @@ async fn tarball_path_traversal_attack_is_rejected() {
 
     {
         use miette::Diagnostic;
-        let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+        let code = err
+            .code()
+            .map(|c| c.to_string())
+            .unwrap_or_default();
         assert_eq!(
             code, "ERR_PNPM_INVALID_PATH",
             "diagnostic code must match the upstream error contract",
@@ -735,22 +831,27 @@ async fn tarball_path_to_missing_subdir_is_rejected() {
         write_to_cas(&store_dir, &[("package.json", br#"{"name":"x","version":"1.0.0"}"#, false)]);
 
     let err = GitHostedTarballFetcher {
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        store: crate::GitStoreContext {
+            dir: &store_dir,
+            index_writer: None,
+            files_index_file: "x@1.0.0\tbuilt",
+        },
         cas_paths,
         path: Some("does/not/exist"),
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir: &store_dir,
+
         package_id: "x@1.0.0",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "x@1.0.0\tbuilt",
     }
     .run::<SilentReporter>()
     .await
@@ -758,7 +859,10 @@ async fn tarball_path_to_missing_subdir_is_rejected() {
 
     {
         use miette::Diagnostic;
-        let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+        let code = err
+            .code()
+            .map(|c| c.to_string())
+            .unwrap_or_default();
         assert_eq!(
             code, "ERR_PNPM_INVALID_PATH",
             "diagnostic code must match the upstream error contract",

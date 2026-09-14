@@ -44,6 +44,13 @@ use pnpm_store_dir::StoreDir;
 /// value [`Config::current`] resolved from `.npmrc` / `pnpm-workspace.yaml` /
 /// defaults.
 #[derive(Debug, Default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct ConfigOverlay {
     pub store_dir: Option<PathBuf>,
     pub cache_dir: Option<PathBuf>,

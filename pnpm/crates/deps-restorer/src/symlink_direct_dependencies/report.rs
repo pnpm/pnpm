@@ -32,8 +32,7 @@ pub(super) fn emit_root_added<Reporter: self::Reporter>(
     // formatting on the wire. For an `Alias`, the wire shape is the same
     // as `Regular` (the version-without-peer of the alias's resolved
     // suffix); the resolved package name surfaces via `real_name`.
-    let manifest_version = spec
-        .version
+    let manifest_version = spec.version
         .resolved_key(name)
         .and_then(|key| packages?.get(&key.without_peer()))
         .and_then(|metadata| metadata.version.clone());

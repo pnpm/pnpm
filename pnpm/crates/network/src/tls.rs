@@ -187,7 +187,10 @@ impl PerRegistryTls {
     /// entries.
     #[must_use]
     pub fn from_map(by_uri: HashMap<String, RegistryTls>) -> Self {
-        let by_uri: HashMap<_, _> = by_uri.into_iter().filter(|(_, v)| !v.is_empty()).collect();
+        let by_uri: HashMap<_, _> = by_uri
+            .into_iter()
+            .filter(|(_, v)| !v.is_empty())
+            .collect();
         PerRegistryTls { by_uri: PerRegistryMap::from_map(by_uri) }
     }
 
@@ -234,7 +237,11 @@ impl PerRegistryTls {
 
 impl<Value> PerRegistryMap<Value> {
     fn from_map(by_uri: HashMap<String, Value>) -> Self {
-        let max_parts = by_uri.keys().map(|key| key.split('/').count()).max().unwrap_or(0);
+        let max_parts = by_uri
+            .keys()
+            .map(|key| key.split('/').count())
+            .max()
+            .unwrap_or(0);
         Self { by_uri, max_parts }
     }
 
@@ -306,8 +313,7 @@ impl<Value> PerRegistryMap<Value> {
         &self,
         mut map_value: impl FnMut(&Value) -> Result<Mapped, MapError>,
     ) -> Result<PerRegistryMap<Mapped>, MapError> {
-        let by_uri = self
-            .by_uri
+        let by_uri = self.by_uri
             .iter()
             .map(|(key, value)| Ok((key.clone(), map_value(value)?)))
             .collect::<Result<_, MapError>>()?;
@@ -355,7 +361,9 @@ fn split_authority(rest: &str) -> (&str, Option<&str>) {
 /// colon is found only after a closing `]` when present.
 fn port_colon_index(host_segment: &str) -> Option<usize> {
     if let Some(bracket_end) = host_segment.find(']') {
-        host_segment[bracket_end..].find(':').map(|offset| bracket_end + offset)
+        host_segment[bracket_end..]
+            .find(':')
+            .map(|offset| bracket_end + offset)
     } else {
         host_segment.find(':')
     }

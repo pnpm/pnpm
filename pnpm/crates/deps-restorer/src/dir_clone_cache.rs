@@ -77,19 +77,13 @@ pub enum EngineNameSource {
 /// See the [module documentation](self) for what the cache is and when
 /// it applies.
 pub struct DirCloneCache<'install> {
+    layout_inputs: CanonicalLayoutInputs<'install>,
     /// GVS-shaped layout rooted at `Config::global_virtual_store_dir`
     /// (`<store_dir>/links` unless pinned), built via
     /// [`VirtualStoreLayout::global`] so canonical slots coincide with
     /// the slots a GVS-enabled install materializes. Built on first
     /// use — see [`Self::layout`].
     layout: OnceLock<VirtualStoreLayout>,
-    global_virtual_store_dir: PathBuf,
-    virtual_store_dir_max_length: usize,
-    engine: EngineNameSource,
-    snapshots: Option<&'install HashMap<PackageKey, SnapshotEntry>>,
-    packages: Option<&'install HashMap<PackageKey, PackageMetadata>>,
-    allow_build_policy: Option<&'install AllowBuildPolicy>,
-    lockfile_dir: Option<&'install Path>,
     /// Under `frozenStore` the store is read-only: the cache may serve
     /// canonical slots that already exist but must not populate new
     /// ones.
@@ -144,14 +138,17 @@ impl<'install> DirCloneCache<'install> {
             return None;
         }
         Some(DirCloneCache {
+            layout_inputs: CanonicalLayoutInputs {
+                global_virtual_store_dir: config.global_virtual_store_dir.clone(),
+                virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
+                engine,
+                snapshots,
+                packages,
+                allow_build_policy,
+                lockfile_dir,
+            },
             layout: OnceLock::new(),
-            global_virtual_store_dir: config.global_virtual_store_dir.clone(),
-            virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
-            engine,
-            snapshots,
-            packages,
-            allow_build_policy,
-            lockfile_dir,
+
             frozen_store: config.frozen_store,
             disabled: AtomicBool::new(false),
         })
@@ -164,21 +161,7 @@ impl<'install> DirCloneCache<'install> {
     /// that probe, so it must only run on a worker thread — which
     /// [`Self::try_import`]'s calling convention already guarantees.
     fn layout(&self) -> &VirtualStoreLayout {
-        self.layout.get_or_init(|| {
-            let engine = match &self.engine {
-                EngineNameSource::Ready(name) => name.clone(),
-                EngineNameSource::Pending(slot) => slot.wait().clone(),
-            };
-            VirtualStoreLayout::global(
-                self.global_virtual_store_dir.clone(),
-                self.virtual_store_dir_max_length,
-                engine.as_deref(),
-                self.snapshots,
-                self.packages,
-                self.allow_build_policy,
-                self.lockfile_dir,
-            )
-        })
+        self.layout.get_or_init(|| self.layout_inputs.build())
     }
 
     /// Try to materialize `save_path` (the project slot's
@@ -358,3 +341,31 @@ fn deepest_existing_ancestor(path: &Path) -> &Path {
 
 #[cfg(test)]
 mod tests;
+
+struct CanonicalLayoutInputs<'install> {
+    global_virtual_store_dir: PathBuf,
+    virtual_store_dir_max_length: usize,
+    engine: EngineNameSource,
+    snapshots: Option<&'install HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&'install HashMap<PackageKey, PackageMetadata>>,
+    allow_build_policy: Option<&'install AllowBuildPolicy>,
+    lockfile_dir: Option<&'install Path>,
+}
+
+impl CanonicalLayoutInputs<'_> {
+    fn build(&self) -> VirtualStoreLayout {
+        let engine = match &self.engine {
+            EngineNameSource::Ready(name) => name.clone(),
+            EngineNameSource::Pending(slot) => slot.wait().clone(),
+        };
+        VirtualStoreLayout::global(
+            self.global_virtual_store_dir.clone(),
+            self.virtual_store_dir_max_length,
+            engine.as_deref(),
+            self.snapshots,
+            self.packages,
+            self.allow_build_policy,
+            self.lockfile_dir,
+        )
+    }
+}

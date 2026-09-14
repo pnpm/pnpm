@@ -36,32 +36,26 @@ impl FetchArgs {
             resolved_packages,
         } = &state;
 
-        // `ignore_pnpmfile` is already folded into `fetch_config` above.
-        let &FetchArgs { prod, dev, ignore_pnpmfile: _ } = &self;
-        let has_both = prod == dev;
-        let include_prod = has_both || prod;
-        let include_dev = has_both || dev;
+        let has_both = self.prod == self.dev;
+        let include_prod = has_both || self.prod;
+        let include_dev = has_both || self.dev;
 
-        Install {
-            lockfile_path: Some(&lockfile_path),
-            frozen_lockfile: true,
-            ignore_manifest_check: true,
-            mutation: ProjectMutation::NoInstall,
-            ..Install::new(
-                std::sync::Arc::clone(tarball_mem_cache),
-                resolved_packages,
-                (http_client, std::sync::Arc::clone(http_client)),
-                fetch_config,
-                manifest,
-                pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
-                std::iter::empty()
-                    .chain(include_prod.then_some(DependencyGroup::Prod))
-                    .chain(include_dev.then_some(DependencyGroup::Dev))
-                    .chain(include_prod.then_some(DependencyGroup::Optional)),
-            )
-        }
-        .run::<Reporter>()
-        .await
-        .wrap_err("fetching dependencies")
+        let mut base_install = Install::new(
+            std::sync::Arc::clone(tarball_mem_cache),
+            resolved_packages,
+            (http_client, std::sync::Arc::clone(http_client)),
+            fetch_config,
+            manifest,
+            pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
+            std::iter::empty()
+                .chain(include_prod.then_some(DependencyGroup::Prod))
+                .chain(include_dev.then_some(DependencyGroup::Dev))
+                .chain(include_prod.then_some(DependencyGroup::Optional)),
+        );
+        base_install.lockfile_policy.frozen = true;
+        base_install.lockfile_policy.ignore_manifest_check = true;
+        base_install.execution.mutation = ProjectMutation::NoInstall;
+        base_install.context.lockfile_path = Some(&lockfile_path);
+        base_install.run::<Reporter>().await.wrap_err("fetching dependencies")
     }
 }

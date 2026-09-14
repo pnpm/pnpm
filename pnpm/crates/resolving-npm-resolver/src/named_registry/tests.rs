@@ -8,7 +8,10 @@ use super::{
 };
 
 fn registries(entries: &[(&str, &str)]) -> HashMap<String, String> {
-    entries.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
+    entries
+        .iter()
+        .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+        .collect()
 }
 
 /// A new built-in redirects verification traffic; this makes that
@@ -39,7 +42,11 @@ fn malformed_url_is_dropped_rather_than_poisoning_the_prefix_list() {
 fn build_prefixes_includes_gh_builtin() {
     let prefixes =
         named_registry_tarball_prefixes(&merge_named_registries(&HashMap::new()).unwrap());
-    assert!(prefixes.iter().any(|prefix| prefix == "https://npm.pkg.github.com/"));
+    assert!(
+        prefixes
+            .iter()
+            .any(|prefix| prefix == "https://npm.pkg.github.com/"),
+    );
 }
 
 #[test]
@@ -47,8 +54,16 @@ fn build_prefixes_overrides_builtin_on_same_key() {
     let mut named = HashMap::new();
     named.insert("gh".to_string(), "https://internal/gh/".to_string());
     let prefixes = named_registry_tarball_prefixes(&merge_named_registries(&named).unwrap());
-    assert!(prefixes.iter().any(|prefix| prefix == "https://internal/gh/"));
-    assert!(!prefixes.iter().any(|prefix| prefix == "https://npm.pkg.github.com/"));
+    assert!(
+        prefixes
+            .iter()
+            .any(|prefix| prefix == "https://internal/gh/"),
+    );
+    assert!(
+        !prefixes
+            .iter()
+            .any(|prefix| prefix == "https://npm.pkg.github.com/"),
+    );
 }
 
 #[test]
@@ -156,8 +171,16 @@ fn merge_user_overrides_builtin_npmjs() {
     let merged = merge_named_registries(&user).unwrap();
     assert_eq!(merged.get("npmjs").map(String::as_str), Some("https://npm.proxy.example/"));
     let prefixes = named_registry_tarball_prefixes(&merge_named_registries(&user).unwrap());
-    assert!(prefixes.iter().any(|prefix| prefix == "https://npm.proxy.example/"));
-    assert!(!prefixes.iter().any(|prefix| prefix == "https://registry.npmjs.org/"));
+    assert!(
+        prefixes
+            .iter()
+            .any(|prefix| prefix == "https://npm.proxy.example/"),
+    );
+    assert!(
+        !prefixes
+            .iter()
+            .any(|prefix| prefix == "https://registry.npmjs.org/"),
+    );
 }
 
 #[test]

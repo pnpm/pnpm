@@ -21,7 +21,10 @@ pub struct ImportArgs {
 
 impl ImportArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
-        let dir = state.manifest.path().parent().expect("manifest path always has a parent dir");
+        let dir = state.manifest
+            .path()
+            .parent()
+            .expect("manifest path always has a parent dir");
         let lockfile_dir = state.lockfile_dir();
         let lockfile_path = state.lockfile_path();
         let env_lockfile = if state.config.wanted_lockfile_name() == Lockfile::FILE_NAME {
@@ -32,14 +35,7 @@ impl ImportArgs {
             None
         };
 
-        if let Some(pnpr_server) =
-            self.pnpr_server.as_deref().or(state.config.pnpr_server.as_deref())
-        {
-            let pnpr_server = redact_url_for_display(pnpr_server);
-            pnpm_reporter::emit_global_warning::<Reporter>(&format!(
-                r#""pnpm import" resolves dependencies locally, so the pnpr server at {pnpr_server} is not used"#,
-            ));
-        }
+        self.warn_ignored_pnpr_server::<Reporter>(state.config);
 
         let preferred_versions = to_preferred_versions(&read_foreign_lockfile_versions(dir)?);
 
@@ -68,6 +64,17 @@ impl ImportArgs {
 
         finish_import(import_result, &lockfile_path, &lockfile_backup, lockfile_existed)
     }
+
+    fn warn_ignored_pnpr_server<Reporter: self::Reporter>(&self, config: &pnpm_config::Config) {
+        if let Some(pnpr_server) =
+            self.pnpr_server.as_deref().or(config.pnpr_server.as_deref())
+        {
+            let pnpr_server = redact_url_for_display(pnpr_server);
+            pnpm_reporter::emit_global_warning::<Reporter>(&format!(
+                r#""pnpm import" resolves dependencies locally, so the pnpr server at {pnpr_server} is not used"#,
+            ));
+        }
+    }
 }
 
 /// Restores the destination an import replaced. An import that started
@@ -94,15 +101,8 @@ async fn import_versions<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<()> {
     let import_lockfile = pnpm_lockfile::LazyLockfile::preloaded(None);
 
-    Install {
-        lockfile_path: Some(lockfile_path),
-        prefer_frozen_lockfile: Some(false),
-        trust_lockfile: false,
-        mutation: ProjectMutation::NoInstall,
-        lockfile_only: true,
-        update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::drop_all(),
-        preferred_versions_override: Some(preferred_versions),
-        ..Install::new(
+    {
+        let mut base_install = Install::new(
             std::sync::Arc::clone(&state.tarball_mem_cache),
             &state.resolved_packages,
             (&state.http_client, std::sync::Arc::clone(&state.http_client)),
@@ -110,7 +110,16 @@ async fn import_versions<Reporter: self::Reporter + 'static>(
             &state.manifest,
             pnpm_lockfile::MaybeLazyLockfile::Lazy(&import_lockfile),
             [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional].into_iter(),
-        )
+        );
+        base_install.lockfile_policy.prefer_frozen = Some(false);
+        base_install.lockfile_policy.trust = false;
+        base_install.execution.mutation = ProjectMutation::NoInstall;
+        base_install.execution.lockfile_only = true;
+        base_install.resolution.update_seed_policy =
+            pnpm_package_manager::UpdateSeedPolicy::drop_all();
+        base_install.resolution.preferred_versions_override = Some(preferred_versions);
+        base_install.context.lockfile_path = Some(lockfile_path);
+        base_install
     }
     .run::<Reporter>()
     .await

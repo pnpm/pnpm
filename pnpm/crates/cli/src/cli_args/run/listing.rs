@@ -40,7 +40,9 @@ impl<'a> ScriptSelector<'a> {
         scripts
             .iter()
             .filter(|(script, body)| {
-                body.as_str().is_some_and(|body| !body.is_empty()) && pattern.is_match(script)
+                body.as_str()
+                    .is_some_and(|body| !body.is_empty())
+                    && pattern.is_match(script)
             })
             .map(|(script, _)| script.clone())
             .collect()
@@ -89,7 +91,11 @@ fn split_regex_literal(command: &str) -> Option<(&str, &str)> {
     let close = body.rfind('/')?;
     let (pattern, flags) = body.split_at(close);
     let flags = &flags[1..];
-    if pattern.is_empty() || !flags.chars().all(|flag| "dgimuvys".contains(flag)) {
+    if pattern.is_empty()
+        || !flags
+            .chars()
+            .all(|flag| "dgimuvys".contains(flag))
+    {
         return None;
     }
     let mut chars = pattern.chars();
@@ -111,19 +117,29 @@ pub(super) fn throw_or_filter_hidden_scripts(
     specified: Vec<String>,
     name: &str,
 ) -> Result<Vec<String>, RunError> {
-    if specified.is_empty() || !specified.iter().any(|script| script.starts_with('.')) {
+    if specified.is_empty()
+        || !specified
+            .iter()
+            .any(|script| script.starts_with('.'))
+    {
         return Ok(specified);
     }
     if name.starts_with('.') {
         return Err(RunError::HiddenScript { script: name.to_string() });
     }
-    let visible: Vec<String> =
-        specified.iter().filter(|script| !script.starts_with('.')).cloned().collect();
+    let visible: Vec<String> = specified
+        .iter()
+        .filter(|script| !script.starts_with('.'))
+        .cloned()
+        .collect();
     if !visible.is_empty() {
         return Ok(visible);
     }
-    let hidden_names =
-        specified.iter().filter(|s| s.starts_with('.')).map(String::as_str).collect::<Vec<_>>();
+    let hidden_names = specified
+        .iter()
+        .filter(|s| s.starts_with('.'))
+        .map(String::as_str)
+        .collect::<Vec<_>>();
     Err(RunError::AllHidden { scripts: hidden_names.join(", ") })
 }
 
@@ -188,8 +204,9 @@ fn append_command_section(output: &mut String, title: &str, commands: &[(&str, &
     if !output.is_empty() {
         output.push_str("\n\n");
     }
-    write!(output, "{title}\n{}", render_commands(commands))
-        .expect("writing to a string cannot fail");
+    write!(output, "{title}\n{}", render_commands(commands)).expect(
+        "writing to a string cannot fail",
+    );
 }
 
 fn render_commands(commands: &[(&str, &str)]) -> String {

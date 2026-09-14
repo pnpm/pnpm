@@ -21,8 +21,8 @@ use tower::ServiceExt;
 fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
-    config.public_url = "http://example.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.http.public_url = "http://example.test".to_string();
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -35,8 +35,10 @@ async fn body_json(body: Body) -> Value {
 }
 
 fn request(method: &str, path: &str, body: Body, token: Option<&str>) -> Request<Body> {
-    let mut builder =
-        Request::builder().method(method).uri(path).header("content-type", "application/json");
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(path)
+        .header("content-type", "application/json");
     if let Some(token) = token {
         builder = builder.header("Authorization", format!("Bearer {token}"));
     }
@@ -57,27 +59,41 @@ async fn add_user_and_get_token(app: axum::Router, username: &str, password: &st
         "type": "user",
         "roles": [],
     });
-    let response = app.oneshot(json_request("PUT", &path, &body, None)).await.unwrap();
+    let response = app
+        .oneshot(json_request("PUT", &path, &body, None))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    payload["token"].as_str().expect("token in response").to_string()
+    payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string()
 }
 
 /// Stage `doc` and return the stage id the registry minted.
 async fn stage_package(app: axum::Router, name: &str, doc: &Value, token: &str) -> String {
     let path = format!("/-/stage/package/{}", name.replace('/', "%2f"));
-    let response = app.oneshot(json_request("POST", &path, doc, Some(token))).await.unwrap();
+    let response = app
+        .oneshot(json_request("POST", &path, doc, Some(token)))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    payload["stageId"].as_str().expect("stageId in response").to_string()
+    payload["stageId"]
+        .as_str()
+        .expect("stageId in response")
+        .to_string()
 }
 
 fn is_uuid(value: &str) -> bool {
     value.len() == 36
-        && value.char_indices().all(|(index, char)| match index {
-            8 | 13 | 18 | 23 => char == '-',
-            _ => char.is_ascii_hexdigit(),
-        })
+        && value
+            .char_indices()
+            .all(|(index, char)| match index {
+                8 | 13 | 18 | 23 => char == '-',
+                _ => char.is_ascii_hexdigit(),
+            })
 }
 
 #[tokio::test]
@@ -167,8 +183,11 @@ async fn staged_publish_is_held_back_until_approved() {
         .expect("tarball promoted on approval");
     assert_eq!(on_disk, tarball);
 
-    let list =
-        app.clone().oneshot(request("GET", "/-/stage", Body::empty(), Some(&token))).await.unwrap();
+    let list = app
+        .clone()
+        .oneshot(request("GET", "/-/stage", Body::empty(), Some(&token)))
+        .await
+        .unwrap();
     let listed = body_json(list.into_body()).await;
     assert_eq!(listed["total"], 0, "an approved stage leaves no record behind");
     let view = app
@@ -201,8 +220,10 @@ async fn rejecting_a_staged_publish_deletes_it_without_publishing() {
         .await
         .unwrap();
     assert_eq!(view.status(), StatusCode::NOT_FOUND);
-    let read =
-        app.oneshot(request("GET", "/rejected-pkg", Body::empty(), Some(&token))).await.unwrap();
+    let read = app
+        .oneshot(request("GET", "/rejected-pkg", Body::empty(), Some(&token)))
+        .await
+        .unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
     assert!(!storage.join("rejected-pkg").exists(), "a rejected stage publishes nothing");
 }
@@ -261,7 +282,10 @@ async fn the_package_filter_narrows_the_listing() {
     assert_eq!(listed["total"], 1);
     assert_eq!(listed["items"][0]["packageName"], "filter-a");
 
-    let all = app.oneshot(request("GET", "/-/stage", Body::empty(), Some(&token))).await.unwrap();
+    let all = app
+        .oneshot(request("GET", "/-/stage", Body::empty(), Some(&token)))
+        .await
+        .unwrap();
     let listed = body_json(all.into_body()).await;
     assert_eq!(listed["total"], 2);
 }
@@ -332,7 +356,10 @@ async fn approving_requires_the_publish_right() {
     assert_eq!(reject.status(), StatusCode::UNAUTHORIZED);
 
     // An anonymous listing shows nothing rather than leaking the record.
-    let list = app.oneshot(request("GET", "/-/stage", Body::empty(), None)).await.unwrap();
+    let list = app
+        .oneshot(request("GET", "/-/stage", Body::empty(), None))
+        .await
+        .unwrap();
     assert_eq!(list.status(), StatusCode::OK);
     let listed = body_json(list.into_body()).await;
     assert_eq!(listed["total"], 0);
@@ -410,7 +437,7 @@ async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
     let tmp = TempDir::new().unwrap();
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let mut config = static_config(tmp.path().to_path_buf());
-    config.hosted_store =
+    config.storage.hosted_backend =
         HostedStoreConfig::ObjectStore { store: Arc::clone(&store), prefix: String::new() };
     let app = router(config);
     let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
@@ -459,7 +486,9 @@ fn claim_stage_on_disk(storage: &std::path::Path, stage_id: &str, age: chrono::D
 /// Stamp `approvingSince` verbatim, for the values a well-behaved replica
 /// does not write.
 fn write_claim_on_disk(storage: &std::path::Path, stage_id: &str, since: &str) {
-    let path = storage.join(".staged").join(format!("{stage_id}.json"));
+    let path = storage
+        .join(".staged")
+        .join(format!("{stage_id}.json"));
     let mut record: Value =
         serde_json::from_slice(&std::fs::read(&path).expect("staged record on disk")).unwrap();
     record["approvingSince"] = json!(since);
@@ -538,8 +567,11 @@ async fn an_approval_is_refused_while_another_holds_the_record() {
     let message = String::from_utf8(body_bytes(approve.into_body()).await).unwrap();
     assert!(message.contains("already being approved"), "unexpected message: {message}");
 
-    let packument =
-        app.clone().oneshot(request("GET", "/staged-pkg", Body::empty(), None)).await.unwrap();
+    let packument = app
+        .clone()
+        .oneshot(request("GET", "/staged-pkg", Body::empty(), None))
+        .await
+        .unwrap();
     assert_eq!(packument.status(), StatusCode::NOT_FOUND, "the held publish stays held");
 
     let list = app
@@ -573,7 +605,10 @@ async fn a_claim_left_behind_by_a_dead_replica_expires() {
         .unwrap();
     assert_eq!(approve.status(), StatusCode::CREATED);
 
-    let packument = app.oneshot(request("GET", "/staged-pkg", Body::empty(), None)).await.unwrap();
+    let packument = app
+        .oneshot(request("GET", "/staged-pkg", Body::empty(), None))
+        .await
+        .unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
 }
 
@@ -588,8 +623,11 @@ async fn a_failed_approval_releases_its_claim() {
     let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
     // Publishing the staged version directly makes every approval of the
     // stage fail the same way, whatever its claim does.
-    let published =
-        app.clone().oneshot(json_request("PUT", "/staged-pkg", &doc, Some(&token))).await.unwrap();
+    let published = app
+        .clone()
+        .oneshot(json_request("PUT", "/staged-pkg", &doc, Some(&token)))
+        .await
+        .unwrap();
     assert_eq!(published.status(), StatusCode::CREATED);
 
     for attempt in 0..2 {

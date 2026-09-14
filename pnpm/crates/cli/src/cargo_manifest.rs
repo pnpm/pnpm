@@ -83,7 +83,9 @@ fn find_table(contents: &str, table: &str) -> Option<(usize, usize)> {
     let mut offset = 0;
     for line in contents.split_inclusive('\n') {
         let trimmed = line.trim();
-        let trimmed = comment_start(trimmed).map_or(trimmed, |start| &trimmed[..start]).trim_end();
+        let trimmed = comment_start(trimmed)
+            .map_or(trimmed, |start| &trimmed[..start])
+            .trim_end();
         if section_start.is_some() && is_table_header(trimmed) {
             return section_start.map(|start| (start, offset));
         }
@@ -110,7 +112,10 @@ fn dependency_value_range(line: &str, name: &str) -> Option<Range<usize>> {
     let key = key
         .strip_prefix('"')
         .and_then(|key| key.strip_suffix('"'))
-        .or_else(|| key.strip_prefix('\'').and_then(|key| key.strip_suffix('\'')))
+        .or_else(|| {
+            key.strip_prefix('\'')
+                .and_then(|key| key.strip_suffix('\''))
+        })
         .unwrap_or(key);
     if key != name {
         return None;
@@ -119,8 +124,20 @@ fn dependency_value_range(line: &str, name: &str) -> Option<Range<usize>> {
     let whitespace = line[after_equals..].len() - line[after_equals..].trim_start().len();
     let start = after_equals + whitespace;
     let end = comment_start(&line[start..])
-        .map_or_else(|| line.trim_end_matches(['\r', '\n']).len(), |comment| start + comment);
-    Some(start..end - line[..end].len().saturating_sub(line[..end].trim_end().len()))
+        .map_or_else(
+            || {
+                line.trim_end_matches(['\r', '\n'])
+                    .len()
+            },
+            |comment| start + comment,
+        );
+    Some(
+        start
+            ..end
+                - line[..end]
+                    .len()
+                    .saturating_sub(line[..end].trim_end().len()),
+    )
 }
 
 fn comment_start(value: &str) -> Option<usize> {

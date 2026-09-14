@@ -80,7 +80,10 @@ fn shim_files(
 ) -> Vec<(String, String)> {
     use pnpm_cmd_shim::sh_single_quote;
 
-    let run_as: Vec<String> = run_as.iter().map(|word| sh_single_quote(word)).collect();
+    let run_as: Vec<String> = run_as
+        .iter()
+        .map(|word| sh_single_quote(word))
+        .collect();
     let contents = format!(
         "#!/bin/sh\nexec {pnpm} dlx --package {spec} {run_as} \"$@\"\n",
         pnpm = sh_single_quote(&pnpm_execpath.to_string_lossy()),
@@ -101,8 +104,10 @@ fn shim_files(
 
     let pnpm = cmd_escape(&pnpm_execpath.to_string_lossy());
     let spec = cmd_escape(spec);
-    let run_as: Vec<String> =
-        run_as.iter().map(|word| format!(r#""{}""#, cmd_escape(word))).collect();
+    let run_as: Vec<String> = run_as
+        .iter()
+        .map(|word| format!(r#""{}""#, cmd_escape(word)))
+        .collect();
     let run_as = run_as.join(" ");
     let contents = format!("@\"{pnpm}\" dlx --package \"{spec}\" {run_as} %*\r\n");
     vec![(format!("{name}.cmd"), contents)]

@@ -26,17 +26,14 @@ fn an_object_marker_keeps_its_body() {
         r#"{ "provenance": { "predicateType": "https://slsa.dev/provenance/v1" } }"#,
     );
 
-    let publisher = version
-        .npm_user
+    let publisher = version.npm_user
         .as_ref()
         .and_then(|user| user.trusted_publisher.as_ref())
         .expect("trustedPublisher present");
     assert_eq!(publisher.id.as_deref(), Some("github"));
     assert_eq!(publisher.oidc_config_id.as_deref(), Some("release"));
 
-    let provenance = version
-        .dist
-        .attestations
+    let provenance = version.dist.attestations
         .as_ref()
         .and_then(|att| att.provenance.as_ref())
         .expect("provenance present");
@@ -50,17 +47,14 @@ fn an_object_marker_keeps_its_body() {
 fn a_numeric_marker_still_counts_as_present() {
     let version = parse(r#"{ "trustedPublisher": 1 }"#, r#"{ "provenance": 1 }"#);
 
-    let publisher = version
-        .npm_user
+    let publisher = version.npm_user
         .as_ref()
         .and_then(|user| user.trusted_publisher.as_ref())
         .expect("trustedPublisher present");
     assert_eq!(publisher.id, None);
     assert_eq!(publisher.oidc_config_id, None);
 
-    let provenance = version
-        .dist
-        .attestations
+    let provenance = version.dist.attestations
         .as_ref()
         .and_then(|att| att.provenance.as_ref())
         .expect("provenance present");

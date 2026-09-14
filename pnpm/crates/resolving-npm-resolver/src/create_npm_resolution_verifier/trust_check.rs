@@ -28,17 +28,6 @@ impl NpmResolutionVerifier {
         true
     }
 
-    pub(super) fn trust_check_active(&self) -> bool {
-        matches!(self.trust_policy, Some(TrustPolicy::NoDowngrade))
-    }
-
-    pub(super) fn trust_policy_wire_str(&self) -> Option<&'static str> {
-        match self.trust_policy {
-            Some(TrustPolicy::NoDowngrade) => Some("no-downgrade"),
-            Some(TrustPolicy::Off) | None => None,
-        }
-    }
-
     /// Run the resolver-time `failIfTrustDowngraded` check against the
     /// pinned lockfile version.
     pub(super) async fn run_trust_check(
@@ -55,10 +44,10 @@ impl NpmResolutionVerifier {
             Err(message) => return Some(ResolutionVerification::FetchFailed { message }),
         };
         let trust_opts = TrustCheckOptions {
-            trust_policy_exclude: self.trust_policy_exclude.as_ref(),
-            trust_policy_ignore_after_minutes: self.trust_policy_ignore_after,
+            trust_policy_exclude: self.trust.exclude.as_ref(),
+            trust_policy_ignore_after_minutes: self.trust.ignore_after,
             now: self.now,
-            ignore_missing_time_field: self.ignore_missing_time_field,
+            ignore_missing_time_field: self.metadata.ignore_missing_time_field,
         };
         match fail_if_trust_downgraded(&meta, version, &trust_opts) {
             Ok(()) => None,
@@ -66,6 +55,19 @@ impl NpmResolutionVerifier {
                 code: TRUST_DOWNGRADE_VIOLATION_CODE,
                 reason: format_trust_violation(err),
             }),
+        }
+    }
+}
+
+impl super::TrustCheck {
+    pub(super) fn trust_check_active(&self) -> bool {
+        matches!(self.policy, Some(TrustPolicy::NoDowngrade))
+    }
+
+    pub(super) fn trust_policy_wire_str(&self) -> Option<&'static str> {
+        match self.policy {
+            Some(TrustPolicy::NoDowngrade) => Some("no-downgrade"),
+            Some(TrustPolicy::Off) | None => None,
         }
     }
 }

@@ -17,17 +17,21 @@ fn base_opts<'a>(
     extra_env: &'a HashMap<String, String>,
 ) -> EnvOptions<'a> {
     EnvOptions {
+        environment: crate::ScriptEnvironment {
+            init_cwd,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env,
+        },
         stage: "postinstall",
         script: "echo hi",
         pkg_root,
-        init_cwd,
+
         script_src_dir: pkg_root,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        extra_env,
     }
 }
 
@@ -127,17 +131,21 @@ fn make_env_stamps_lifecycle_specific_keys() {
     let extra = empty_extra();
 
     let opts = EnvOptions {
+        environment: crate::ScriptEnvironment {
+            init_cwd,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra,
+        },
         stage: "preinstall",
         script: "node x.js",
         pkg_root,
-        init_cwd,
+
         script_src_dir: pkg_root,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        extra_env: &extra,
     };
 
     let built = build_env(&opts, &json!({ "name": "y", "version": "1.0.0" }), HashMap::new());
@@ -146,7 +154,10 @@ fn make_env_stamps_lifecycle_specific_keys() {
     // assertions are correct on Windows (`\\` separator) as well as
     // POSIX. Path-separator handling itself is `std`'s job — these
     // tests verify build_env's mapping, not separator policy.
-    let expected_package_json = pkg_root.join("package.json").to_string_lossy().into_owned();
+    let expected_package_json = pkg_root
+        .join("package.json")
+        .to_string_lossy()
+        .into_owned();
     let expected_init_cwd = init_cwd.to_string_lossy().into_owned();
     let expected_src_dir = pkg_root.to_string_lossy().into_owned();
 
@@ -188,8 +199,10 @@ fn make_env_windows_tmpdir_override_removes_differently_cased_keys() {
     let expected_tmpdir = pkg_root.join("node_modules").join(".tmp");
 
     assert_eq!(built.env.get("TMPDIR"), Some(&expected_tmpdir.to_string_lossy().into_owned()));
-    let tmpdir_key_count =
-        built.env.keys().filter(|key| key.eq_ignore_ascii_case("TMPDIR")).count();
+    let tmpdir_key_count = built.env
+        .keys()
+        .filter(|key| key.eq_ignore_ascii_case("TMPDIR"))
+        .count();
     assert_eq!(tmpdir_key_count, 1);
 }
 
@@ -215,17 +228,21 @@ fn reserved_stamps_win_over_extra_env_but_custom_keys_apply() {
     extra.insert("CUSTOM".into(), "hello".into());
 
     let opts = EnvOptions {
+        environment: crate::ScriptEnvironment {
+            init_cwd: Path::new("/original"),
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: Some(node_gyp),
+            user_agent: Some("pnpm"),
+            extra_env: &extra,
+        },
         stage: "postinstall",
         script: "REAL",
         pkg_root,
-        init_cwd: Path::new("/original"),
+
         script_src_dir: pkg_root,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: Some(node_gyp),
-        user_agent: Some("pnpm"),
+
         unsafe_perm: true,
-        extra_env: &extra,
     };
 
     let built = build_env(&opts, &json!({"name":"w","version":"0"}), HashMap::new());

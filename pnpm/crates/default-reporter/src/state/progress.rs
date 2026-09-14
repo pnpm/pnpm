@@ -1,7 +1,7 @@
 use super::{
-    BigTarball, BlockSlot, ContextLog, FetchingProgressMessage, PackageImportMethod,
-    ProgressMessage, ReporterState, ScopeLog, Stage, StatsMessage, normalize, pretty_bytes,
-    relative, zoom_out,
+    BigTarball, BlockSlot, ContextLog, DownloadState, FetchingProgressMessage, Frame,
+    InstallProgress, PackageImportMethod, ProgressMessage, ProgressOptions, RenderingContext,
+    ReporterState, ScopeLog, Stage, StatsMessage, normalize, pretty_bytes, relative, zoom_out,
 };
 
 impl ReporterState {
@@ -12,7 +12,7 @@ impl ReporterState {
     /// single selected project — where the answer is the directory the
     /// user is already standing in.
     pub(super) fn on_scope(&mut self, log: &ScopeLog) {
-        if !self.options.reports_scope || log.selected == 1 {
+        if !self.options.scope.reports_scope || log.selected == 1 {
             return;
         }
         let count = match log.total {
@@ -21,44 +21,16 @@ impl ReporterState {
             None => log.selected.to_string(),
         };
         let unit = if log.workspace_prefix.is_some() { "workspace projects" } else { "projects" };
-        let mut slot = std::mem::take(&mut self.scope_slot);
-        self.frame.emit(&mut slot, format!("Scope: {count} {unit}"), false);
-        self.scope_slot = slot;
+        let mut slot = std::mem::take(&mut self.display.scope_slot);
+        self.display.frame.emit(&mut slot, format!("Scope: {count} {unit}"), false);
+        self.display.scope_slot = slot;
     }
 
     // --- context ----------------------------------------------------------
 
     pub(super) fn on_context(&mut self, log: &ContextLog) {
-        self.context = Some(log.clone());
-        self.maybe_render_context();
-    }
-
-    pub(super) fn maybe_render_context(&mut self) {
-        if self.context_rendered {
-            return;
-        }
-        let (Some(ctx), Some(method)) = (self.context.as_ref(), self.import_method) else {
-            return;
-        };
-        if ctx.current_lockfile_exists {
-            self.context_rendered = true;
-            return;
-        }
-        let method = match method {
-            PackageImportMethod::Copy => "copied",
-            PackageImportMethod::Clone => "cloned",
-            PackageImportMethod::Hardlink => "hard linked",
-        };
-        let virtual_store = normalize(&relative(&self.cwd, &ctx.virtual_store_dir));
-        let msg = format!(
-            "Packages are {method} from the content-addressable store to the virtual store.\n  \
-             Content-addressable store is at: {}\n  Virtual store is at:             {}",
-            ctx.store_dir, virtual_store,
-        );
-        self.context_rendered = true;
-        let mut slot = std::mem::take(&mut self.context_slot);
-        self.frame.emit(&mut slot, msg, false);
-        self.context_slot = slot;
+        self.install.context = Some(log.clone());
+        self.install.maybe_render_context(&self.rendering.cwd, &mut self.display.frame);
     }
 
     // --- progress ---------------------------------------------------------
@@ -70,39 +42,23 @@ impl ReporterState {
             | ProgressMessage::FoundInStore { requester, .. }
             | ProgressMessage::Imported { requester, .. } => requester.clone(),
         };
-        let entry = self.progress.entry(requester.clone()).or_default();
+        let entry = self.downloads.progress.entry(requester.clone()).or_default();
         match message {
             ProgressMessage::Resolved { .. } => entry.stats.resolved += 1,
             ProgressMessage::Fetched { .. } => entry.stats.fetched += 1,
             ProgressMessage::FoundInStore { .. } => entry.stats.reused += 1,
             ProgressMessage::Imported { .. } => entry.stats.imported += 1,
         }
-        let msg = self.progress_message(&requester, false);
-        let mut slot = std::mem::take(&mut self.progress.get_mut(&requester).unwrap().slot);
-        self.frame.emit(&mut slot, msg, true);
-        self.progress.get_mut(&requester).unwrap().slot = slot;
-    }
-
-    pub(super) fn progress_message(&self, requester: &str, done: bool) -> String {
-        let stats = self.progress.get(requester).map(|entry| entry.stats).unwrap_or_default();
-        let hl = |count: u64| self.colors.cyan_bright(&count.to_string());
-        let mut msg = format!(
-            "Progress: resolved {}, reused {}, downloaded {}",
-            hl(stats.resolved),
-            hl(stats.reused),
-            hl(stats.fetched),
+        let msg = self.downloads.progress_message(
+            &self.rendering,
+            &self.options.progress,
+            &requester,
+            false,
         );
-        if !self.options.hide_added_pkgs_progress {
-            msg.push_str(", added ");
-            msg.push_str(&hl(stats.imported));
-        }
-        if done {
-            msg.push_str(", done");
-        }
-        if !self.options.hide_progress_prefix && requester != self.cwd {
-            msg = zoom_out(&self.cwd, requester, &msg);
-        }
-        msg
+        let mut slot =
+            std::mem::take(&mut self.downloads.progress.get_mut(&requester).unwrap().slot);
+        self.display.frame.emit(&mut slot, msg, true);
+        self.downloads.progress.get_mut(&requester).unwrap().slot = slot;
     }
 
     pub(super) fn on_stage(&mut self, prefix: &str, stage: Stage) {
@@ -111,13 +67,19 @@ impl ReporterState {
                 self.flush_deprecated_subdeps();
             }
             Stage::ImportingDone => {
-                if !self.progress.contains_key(prefix) {
+                if !self.downloads.progress.contains_key(prefix) {
                     return;
                 }
-                let msg = self.progress_message(prefix, true);
-                let mut slot = std::mem::take(&mut self.progress.get_mut(prefix).unwrap().slot);
-                self.frame.emit(&mut slot, msg, false);
-                self.progress.get_mut(prefix).unwrap().slot = slot;
+                let msg = self.downloads.progress_message(
+                    &self.rendering,
+                    &self.options.progress,
+                    prefix,
+                    true,
+                );
+                let mut slot =
+                    std::mem::take(&mut self.downloads.progress.get_mut(prefix).unwrap().slot);
+                self.display.frame.emit(&mut slot, msg, false);
+                self.downloads.progress.get_mut(prefix).unwrap().slot = slot;
             }
             _ => {}
         }
@@ -135,17 +97,18 @@ impl ReporterState {
                 }
                 let mut entry = BigTarball { size: *size, slot: BlockSlot::default() };
                 let msg = self.downloading_message(package_id, 0, *size);
-                self.frame.emit(&mut entry.slot, msg, true);
-                self.big.insert(package_id.clone(), entry);
+                self.display.frame.emit(&mut entry.slot, msg, true);
+                self.downloads.tarballs.insert(package_id.clone(), entry);
             }
             FetchingProgressMessage::InProgress { downloaded, package_id } => {
-                let Some(entry) = self.big.get(package_id) else { return };
+                let Some(entry) = self.downloads.tarballs.get(package_id) else { return };
                 let size = entry.size;
                 let done = *downloaded == size;
                 let msg = self.downloading_message(package_id, *downloaded, size);
-                let mut slot = std::mem::take(&mut self.big.get_mut(package_id).unwrap().slot);
-                self.frame.emit(&mut slot, msg, !done);
-                self.big.get_mut(package_id).unwrap().slot = slot;
+                let mut slot =
+                    std::mem::take(&mut self.downloads.tarballs.get_mut(package_id).unwrap().slot);
+                self.display.frame.emit(&mut slot, msg, !done);
+                self.downloads.tarballs.get_mut(package_id).unwrap().slot = slot;
             }
         }
     }
@@ -160,8 +123,8 @@ impl ReporterState {
         let suffix = if done { ", done" } else { "" };
         format!(
             "Downloading {package_id}: {}/{}{suffix}",
-            self.colors.cyan_bright(&pretty_bytes(downloaded)),
-            self.colors.cyan_bright(&pretty_bytes(size)),
+            self.rendering.colors.cyan_bright(&pretty_bytes(downloaded)),
+            self.rendering.colors.cyan_bright(&pretty_bytes(size)),
         )
     }
 
@@ -171,45 +134,45 @@ impl ReporterState {
         let prefix = match message {
             StatsMessage::Added { prefix, .. } | StatsMessage::Removed { prefix, .. } => prefix,
         };
-        if prefix != &self.cwd {
+        if prefix != &self.rendering.cwd {
             return;
         }
         match message {
             StatsMessage::Added { added, .. } => {
-                self.stats_added = Some(*added);
+                self.install.stats_added = Some(*added);
             }
             StatsMessage::Removed { removed, .. } => {
-                self.stats_removed = Some(*removed);
+                self.install.stats_removed = Some(*removed);
             }
         }
-        if self.stats_added.is_some() && self.stats_removed.is_some() {
+        if self.install.stats_added.is_some() && self.install.stats_removed.is_some() {
             self.render_stats();
         }
     }
 
     pub(super) fn render_stats(&mut self) {
-        let added = self.stats_added.take().unwrap_or(0);
-        let removed = self.stats_removed.take().unwrap_or(0);
+        let added = self.install.stats_added.take().unwrap_or(0);
+        let removed = self.install.stats_removed.take().unwrap_or(0);
         if added == 0 && removed == 0 {
-            let mut slot = std::mem::take(&mut self.stats_slot);
-            self.frame.emit(&mut slot, "Already up to date".to_string(), false);
-            self.stats_slot = slot;
+            let mut slot = std::mem::take(&mut self.install.stats_slot);
+            self.display.frame.emit(&mut slot, "Already up to date".to_string(), false);
+            self.install.stats_slot = slot;
             return;
         }
         let mut msg = String::from("Packages:");
         if added > 0 {
             msg.push(' ');
-            msg.push_str(&self.colors.green(&format!("+{added}")));
+            msg.push_str(&self.rendering.colors.green(&format!("+{added}")));
         }
         if removed > 0 {
             msg.push(' ');
-            msg.push_str(&self.colors.red(&format!("-{removed}")));
+            msg.push_str(&self.rendering.colors.red(&format!("-{removed}")));
         }
         msg.push('\n');
-        msg.push_str(&self.pluses_and_minuses(self.width, added, removed));
-        let mut slot = std::mem::take(&mut self.stats_slot);
-        self.frame.emit(&mut slot, msg, false);
-        self.stats_slot = slot;
+        msg.push_str(&self.pluses_and_minuses(self.rendering.width, added, removed));
+        let mut slot = std::mem::take(&mut self.install.stats_slot);
+        self.display.frame.emit(&mut slot, msg, false);
+        self.install.stats_slot = slot;
     }
 
     pub(super) fn pluses_and_minuses(&self, max_width: usize, added: u64, removed: u64) -> String {
@@ -234,11 +197,74 @@ impl ReporterState {
         };
         let mut out = String::new();
         for _ in 0..added_chars {
-            out.push_str(&self.colors.green("+"));
+            out.push_str(&self.rendering.colors.green("+"));
         }
         for _ in 0..removed_chars {
-            out.push_str(&self.colors.red("-"));
+            out.push_str(&self.rendering.colors.red("-"));
         }
         out
+    }
+}
+
+impl DownloadState {
+    pub(super) fn progress_message(
+        &self,
+        rendering: &RenderingContext,
+        options: &ProgressOptions,
+        requester: &str,
+        done: bool,
+    ) -> String {
+        let stats = self.progress
+            .get(requester)
+            .map(|entry| entry.stats)
+            .unwrap_or_default();
+        let hl = |count: u64| rendering.colors.cyan_bright(&count.to_string());
+        let mut msg = format!(
+            "Progress: resolved {}, reused {}, downloaded {}",
+            hl(stats.resolved),
+            hl(stats.reused),
+            hl(stats.fetched),
+        );
+        if !options.hide_added_pkgs {
+            msg.push_str(", added ");
+            msg.push_str(&hl(stats.imported));
+        }
+        if done {
+            msg.push_str(", done");
+        }
+        if !options.hide_prefix && requester != rendering.cwd {
+            msg = zoom_out(&rendering.cwd, requester, &msg);
+        }
+        msg
+    }
+}
+
+impl InstallProgress {
+    pub(super) fn maybe_render_context(&mut self, cwd: &str, frame: &mut Frame) {
+        if self.context_rendered {
+            return;
+        }
+        let (Some(ctx), Some(method)) = (self.context.as_ref(), self.import_method) else {
+            return;
+        };
+        if ctx.current_lockfile_exists {
+            self.context_rendered = true;
+            return;
+        }
+        let method = match method {
+            PackageImportMethod::Copy => "copied",
+            PackageImportMethod::Clone => "cloned",
+            PackageImportMethod::Hardlink => "hard linked",
+        };
+        let virtual_store = normalize(&relative(cwd, &ctx.virtual_store_dir));
+        let msg = format!(
+            "Packages are {method} from the content-addressable store to the virtual store.\n  \
+             Content-addressable store is at: {}\n  Virtual store is at:             {}",
+            ctx.store_dir, virtual_store,
+        );
+        self.context_rendered = true;
+        let mut slot = std::mem::take(&mut self.context_slot);
+        frame.emit(&mut slot, msg, false);
+        self.context_slot = slot;
     }
 }

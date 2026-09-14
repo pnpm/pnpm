@@ -124,7 +124,12 @@ fn variation_input_keys_use_the_selected_platform_integrity() {
         calc_dep_state_input_key(&graph, &pkg, None)
     };
     let keys = [input_key(&linux_glibc), input_key(&linux_musl), input_key(&darwin)];
-    assert_eq!(keys.iter().collect::<std::collections::HashSet<_>>().len(), 3);
+    assert_eq!(
+        keys.iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len(),
+        3,
+    );
 }
 
 #[test]

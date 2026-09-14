@@ -35,10 +35,15 @@ async fn selected_add_prepares_and_persists_only_selected_projects() {
     let dir = tempdir().expect("create tempdir");
     std::fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - '*'\n")
         .expect("write workspace manifest");
-    let mut projects =
-        ["a", "b", "c"].into_iter().map(|name| empty_project(dir.path(), name)).collect::<Vec<_>>();
+    let mut projects = ["a", "b", "c"]
+        .into_iter()
+        .map(|name| empty_project(dir.path(), name))
+        .collect::<Vec<_>>();
     let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
-    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let selected_dirs = ordered_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
     let config = Box::leak(Box::new(Config::new()));
     let http_client = ThrottledClient::default();

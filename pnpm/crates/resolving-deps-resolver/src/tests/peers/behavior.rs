@@ -213,8 +213,7 @@ async fn pure_revisit_leaves_lazy_children_unrealized() {
     // Sanity: `pure` got two per-occurrence tree entries, the
     // first carrying Realized children (eager walk), the second
     // carrying Lazy children (revisit).
-    let pure_pre: Vec<(&crate::node_id::NodeId, bool)> = tree
-        .dependencies_tree
+    let pure_pre: Vec<(&crate::node_id::NodeId, bool)> = tree.dependencies_tree
         .iter()
         .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0".into())
         .map(|(id, node)| (id, matches!(node.children, TreeChildren::Lazy { .. })))
@@ -231,8 +230,7 @@ async fn pure_revisit_leaves_lazy_children_unrealized() {
     // After peer resolution: the lazy occurrence stays Lazy
     // because `purePkgs` short-circuits before `realize_children`
     // is called.
-    let still_lazy = tree
-        .dependencies_tree
+    let still_lazy = tree.dependencies_tree
         .iter()
         .filter(|(_, node)| node.resolved_package_id == "pure@1.0.0".into())
         .filter(|(_, node)| matches!(node.children, TreeChildren::Lazy { .. }))

@@ -51,8 +51,11 @@ fn lockfile_entry(workspace: &Path, alias: &str) -> Option<(String, String)> {
     let lockfile: Lockfile = serde_saphyr::from_str(&text)
         .unwrap_or_else(|error| panic!("parse pnpm-lock.yaml: {error}\n{text}"));
     let alias: PkgName = alias.parse().expect("parse alias");
-    let entry =
-        lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY)?.dependencies.as_ref()?.get(&alias)?;
+    let entry = lockfile.importers
+        .get(Lockfile::ROOT_IMPORTER_KEY)?
+        .dependencies
+        .as_ref()?
+        .get(&alias)?;
     Some((entry.specifier.clone(), entry.version.to_string()))
 }
 

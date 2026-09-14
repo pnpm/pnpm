@@ -43,28 +43,38 @@ pub(crate) fn remove_unused_catalogs(
 }
 
 fn is_referenced(references: &CatalogReferences, pkg: &str, specs: &[&str]) -> bool {
-    references.get(pkg).is_some_and(|refs| specs.iter().any(|spec| refs.contains(*spec)))
+    references
+        .get(pkg)
+        .is_some_and(|refs| {
+            specs
+                .iter()
+                .any(|spec| refs.contains(*spec))
+        })
 }
 
 fn remove_unused_default_catalog(manifest: &mut Manifest, references: &CatalogReferences) -> bool {
     const BLOCK: &str = "catalog";
-    let Some(catalog) = manifest.catalog.as_ref() else { return false };
+    let Some(catalog) = manifest.catalogs.default.as_ref() else { return false };
     let to_remove: Vec<String> = catalog
         .keys()
         .filter(|pkg| !is_referenced(references, pkg, &["catalog:"]))
         .cloned()
         .collect();
     if to_remove.len() == catalog.len() {
-        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
-        manifest.catalog = None;
-        manifest.top_level_keys.retain(|key| key != BLOCK);
+        manifest.document.set_text(remove_top_level_block(manifest.document.text(), BLOCK));
+        manifest.catalogs.default = None;
+        manifest.document.keys.retain(|key| key != BLOCK);
         return true;
     }
-    if to_remove.is_empty() || !has_removable_entries(manifest.text(), &[BLOCK]) {
+    if to_remove.is_empty() || !has_removable_entries(manifest.document.text(), &[BLOCK]) {
         return false;
     }
-    manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &to_remove));
-    let catalog = manifest.catalog.as_mut().expect("catalog presence checked above");
+    manifest.document.set_text(remove_mapping_entries(
+        manifest.document.text(),
+        &[BLOCK],
+        &to_remove,
+    ));
+    let catalog = manifest.catalogs.default.as_mut().expect("catalog presence checked above");
     for pkg in &to_remove {
         catalog.shift_remove(pkg);
     }
@@ -73,7 +83,7 @@ fn remove_unused_default_catalog(manifest: &mut Manifest, references: &CatalogRe
 
 fn remove_unused_named_catalogs(manifest: &mut Manifest, references: &CatalogReferences) -> bool {
     const BLOCK: &str = "catalogs";
-    let Some(catalogs) = manifest.catalogs.as_ref() else { return false };
+    let Some(catalogs) = manifest.catalogs.named.as_ref() else { return false };
 
     let (names_to_drop, entry_removals) = unreferenced_catalog_entries(catalogs, references);
 
@@ -82,16 +92,20 @@ fn remove_unused_named_catalogs(manifest: &mut Manifest, references: &CatalogRef
         changed |= remove_catalog_entries(manifest, BLOCK, name, to_remove);
     }
 
-    let total_names = manifest.catalogs.as_ref().map_or(0, IndexMap::len);
+    let total_names = manifest.catalogs.named.as_ref().map_or(0, IndexMap::len);
     if names_to_drop.len() == total_names {
-        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
-        manifest.catalogs = None;
-        manifest.top_level_keys.retain(|key| key != BLOCK);
+        manifest.document.set_text(remove_top_level_block(manifest.document.text(), BLOCK));
+        manifest.catalogs.named = None;
+        manifest.document.keys.retain(|key| key != BLOCK);
         return true;
     }
-    if !names_to_drop.is_empty() && has_removable_entries(manifest.text(), &[BLOCK]) {
-        manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &names_to_drop));
-        let catalogs = manifest.catalogs.as_mut().expect("catalogs presence checked above");
+    if !names_to_drop.is_empty() && has_removable_entries(manifest.document.text(), &[BLOCK]) {
+        manifest.document.set_text(remove_mapping_entries(
+            manifest.document.text(),
+            &[BLOCK],
+            &names_to_drop,
+        ));
+        let catalogs = manifest.catalogs.named.as_mut().expect("catalogs presence checked above");
         for name in &names_to_drop {
             catalogs.shift_remove(name);
         }
@@ -130,12 +144,15 @@ fn remove_catalog_entries(
     name: &str,
     to_remove: &[String],
 ) -> bool {
-    if !has_removable_entries(manifest.text(), &[block, name]) {
+    if !has_removable_entries(manifest.document.text(), &[block, name]) {
         return false;
     }
-    manifest.set_text(remove_mapping_entries(manifest.text(), &[block, name], to_remove));
-    let entries = manifest
-        .catalogs
+    manifest.document.set_text(remove_mapping_entries(
+        manifest.document.text(),
+        &[block, name],
+        to_remove,
+    ));
+    let entries = manifest.catalogs.named
         .as_mut()
         .and_then(|catalogs| catalogs.get_mut(name))
         .expect("named catalog presence checked above");

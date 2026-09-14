@@ -99,12 +99,13 @@ pub(crate) fn parse_proxy_url(raw: &str) -> Result<Url, ProxyError> {
     {
         return Ok(url);
     }
-    Url::parse(&format!("http://{raw}")).ok().filter(|url| url.host().is_some()).ok_or_else(|| {
-        ProxyError::InvalidProxy {
+    Url::parse(&format!("http://{raw}"))
+        .ok()
+        .filter(|url| url.host().is_some())
+        .ok_or_else(|| ProxyError::InvalidProxy {
             url: raw.to_string(),
             reason: "could not parse as an authority-bearing URL".to_string(),
-        }
-    })
+        })
 }
 
 /// Split a proxy URL into its userless form and the
@@ -118,7 +119,10 @@ pub(crate) fn strip_userinfo(mut url: Url) -> (Url, Option<(String, String)>) {
         return (url, None);
     }
     let user = percent_decode_str(raw_user);
-    let pass = url.password().map(percent_decode_str).unwrap_or_default();
+    let pass = url
+        .password()
+        .map(percent_decode_str)
+        .unwrap_or_default();
     // `set_username("")` and `set_password(None)` cannot fail on a URL
     // that already parsed successfully (the scheme is by definition
     // one that supports authority).
@@ -163,11 +167,16 @@ impl NoProxyMatcher {
             return true;
         }
         let host_rev: Vec<&str> = reverse_dot_segments(host).collect();
-        self.entries.iter().any(|entry_rev| {
-            !entry_rev.is_empty()
-                && entry_rev.len() <= host_rev.len()
-                && entry_rev.iter().zip(host_rev.iter()).all(|(a, b)| a == b)
-        })
+        self.entries
+            .iter()
+            .any(|entry_rev| {
+                !entry_rev.is_empty()
+                    && entry_rev.len() <= host_rev.len()
+                    && entry_rev
+                        .iter()
+                        .zip(host_rev.iter())
+                        .all(|(a, b)| a == b)
+            })
     }
 
     pub(crate) fn matches_url(&self, url: &Url) -> bool {
@@ -187,5 +196,7 @@ impl NoProxyMatcher {
 /// [`NoProxyMatcher::matches_host`] go through this, so the entry and
 /// the host are always segmented the same way.
 fn reverse_dot_segments(host: &str) -> impl Iterator<Item = &str> {
-    host.split('.').filter(|segment| !segment.is_empty()).rev()
+    host.split('.')
+        .filter(|segment| !segment.is_empty())
+        .rev()
 }

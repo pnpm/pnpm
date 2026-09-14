@@ -16,8 +16,14 @@ fn launched_as_pnpx_injects_the_dlx_subcommand() {
     fs::copy(pacquet, &pnpx).expect("copy the binary under the pnpx name");
     fs::set_permissions(&pnpx, fs::Permissions::from_mode(0o755)).expect("make pnpx executable");
 
-    let via_pnpx = Command::new(&pnpx).arg("--help").output().expect("run `pnpx --help`");
-    let via_dlx = Command::new(pacquet).args(["dlx", "--help"]).output().expect("run `dlx --help`");
+    let via_pnpx = Command::new(&pnpx)
+        .arg("--help")
+        .output()
+        .expect("run `pnpx --help`");
+    let via_dlx = Command::new(pacquet)
+        .args(["dlx", "--help"])
+        .output()
+        .expect("run `dlx --help`");
 
     assert!(via_pnpx.status.success(), "`pnpx --help` exited with a failure status");
     assert!(via_dlx.status.success(), "`dlx --help` (the control) exited with a failure status");

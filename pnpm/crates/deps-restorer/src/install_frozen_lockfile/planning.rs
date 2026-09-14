@@ -3,17 +3,14 @@ use crate::{
     AllowBuildPolicy, CreateVirtualStore, CreateVirtualStoreOutput, SkippedSnapshots,
     VirtualStoreLayout, any_installability_constraint,
 };
-use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{Lockfile, LockfileEntries, PackageKey, PackageMetadata, SnapshotEntry};
+use pnpm_lockfile::{LockfileEntries, PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_modules_yaml::{Host, IncludedDependencies, read_modules_manifest};
-use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_resolving_resolver_base::ResolutionVerifier;
 use pnpm_store_dir::StoreIndexWriter;
-use pnpm_tarball::{MemCache, SharedReportedProgressKeys};
+use pnpm_tarball::SharedReportedProgressKeys;
 use std::{
     collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -35,42 +32,34 @@ pub(super) struct MaterializationPlan<'p> {
 /// here; the owned ones go through [`InstallFrozenLockfile::take_owned`](crate::InstallFrozenLockfile::take_owned).
 #[derive(Clone, Copy)]
 pub(super) struct FrozenInputs<'a> {
-    pub(super) http_client: &'a ThrottledClient,
-    pub(super) config: &'static Config,
-    pub(super) pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    pub(super) lockfile: &'a Lockfile,
-    pub(super) resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
-    pub(super) lockfile_path: Option<&'a Path>,
-    pub(super) current_lockfile: Option<&'a Lockfile>,
-    pub(super) current_entries: LockfileEntries<'a>,
-    pub(super) dependency_groups: &'a [DependencyGroup],
-    pub(super) project_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
-    pub(super) package_map_project_manifests:
-        &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
-    pub(super) workspace_root: &'a Path,
-    pub(super) requester: &'a str,
-    pub(super) supported_architectures:
-        Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    pub(super) skip_runtimes: bool,
-    pub(super) node_linker: NodeLinker,
-    pub(super) tarball_mem_cache: Option<&'a Arc<MemCache>>,
-    pub(super) rebuild: Option<&'a crate::RebuildOptions>,
-    pub(super) prior_hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
-    pub(super) prior_hoisted_locations: Option<&'a crate::HoistedLocations>,
-    pub(super) allow_builds_changed: bool,
-    pub(super) prior_unbuilt_builds: &'a crate::UnbuiltBuilds,
-    pub(super) prune_orphans: bool,
-    pub(super) planned_canonical_fetches:
-        Option<&'a pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
+    pub drivers: crate::FrozenInstallDrivers<'a>,
+    pub lockfiles: crate::FrozenLockfileInputs<'a>,
+    pub platform: crate::FrozenPlatformOptions<'a>,
+    pub prior: crate::PriorMaterialization<'a>,
+    pub projects: crate::FrozenProjectInputs<'a>,
 }
 impl<'a> FrozenInputs<'a> {
+    pub(super) fn build_policy(
+        &self,
+        allow_build_policy: &'a crate::AllowBuildPolicy,
+    ) -> crate::BuildPhasePolicy<'a> {
+        crate::BuildPhasePolicy {
+            config: self.drivers.config,
+            patch_groups: None,
+            allow_build_policy,
+            rebuild: self.prior.rebuild,
+        }
+    }
+
     /// Which dependency groups this install includes, in the shape the
     /// skip set and the sidecars record.
     pub(super) fn included(&self) -> IncludedDependencies {
         IncludedDependencies {
-            dependencies: self.dependency_groups.contains(&DependencyGroup::Prod),
-            dev_dependencies: self.dependency_groups.contains(&DependencyGroup::Dev),
-            optional_dependencies: self.dependency_groups.contains(&DependencyGroup::Optional),
+            dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Prod),
+            dev_dependencies: self.projects.dependency_groups.contains(&DependencyGroup::Dev),
+            optional_dependencies: self.projects.dependency_groups.contains(
+                &DependencyGroup::Optional,
+            ),
         }
     }
 
@@ -83,12 +72,20 @@ impl<'a> FrozenInputs<'a> {
         // importer-key rejection.
         let importer_id =
             |(project_dir, _): &(PathBuf, &pnpm_package_manifest::PackageManifest)| {
-                pnpm_workspace::importer_id_from_root_dir(install.workspace_root, project_dir)
+                pnpm_workspace::importer_id_from_root_dir(
+                    install.projects.workspace_root,
+                    project_dir,
+                )
             };
-        let trusted_importer_ids: std::collections::HashSet<String> =
-            install.project_manifests.iter().map(importer_id).collect();
+        let trusted_importer_ids: std::collections::HashSet<String> = install
+            .projects
+            .manifests
+            .iter()
+            .map(importer_id)
+            .collect();
         let root_component_importers: std::collections::HashSet<String> = install
-            .project_manifests
+            .projects
+            .manifests
             .iter()
             .filter(|(_, manifest)| {
                 manifest.install_config_hoisting_limits() == Some(crate::HOISTING_LIMITS_WORKSPACES)
@@ -115,21 +112,28 @@ impl<'a> FrozenInputs<'a> {
     {
         let install = self;
         CreateVirtualStore {
+            fetching: crate::VirtualStoreFetchInputs {
+                http_client: install.drivers.http_client,
+                store_index_writer,
+                store_context: None,
+                cas_prefetch: Some(cas_prefetch),
+                progress_reported,
+                tarball_mem_cache: install.drivers.tarball_mem_cache,
+                custom_fetcher_session,
+                planned_canonical_fetches: install.lockfiles.planned_canonical_fetches,
+            },
+            selection: crate::SnapshotSelection {
+                skipped,
+                include_optional: install.included().optional_dependencies,
+                supported_architectures: install.platform.supported_architectures,
+            },
             ctx,
-            http_client: install.http_client,
+
             entries: install.entries(),
-            current_entries: install.current_entries,
-            store_index_writer,
-            store_context: None,
-            cas_prefetch: Some(cas_prefetch),
-            skipped,
-            include_optional_dependencies: install.included().optional_dependencies,
-            supported_architectures: install.supported_architectures,
+            current_entries: install.lockfiles.current_entries,
+
             dir_clone_cache,
-            progress_reported,
-            tarball_mem_cache: install.tarball_mem_cache,
-            custom_fetcher_session,
-            planned_canonical_fetches: install.planned_canonical_fetches,
+
             #[cfg(test)]
             link_concurrency_probe: None,
         }
@@ -154,12 +158,12 @@ impl<'a> FrozenInputs<'a> {
         // build module) routes through this one lookup.
         let phase_start = std::time::Instant::now();
         let layout = VirtualStoreLayout::new_cached(
-            install.config,
+            install.drivers.config,
             engine_name,
             snapshots,
             packages,
             Some(allow_build_policy),
-            Some(install.workspace_root),
+            Some(install.projects.workspace_root),
         );
         tracing::info!(
             target: "pacquet::install::phase",
@@ -176,7 +180,7 @@ impl<'a> FrozenInputs<'a> {
         // resolution-verification fan-out where the offline name check
         // would otherwise run. The slot-containment half needs the
         // install-time `layout`, so it can't live in the verifier crate.
-        pnpm_lockfile_verification::verify_lockfile_dependency_names(install.lockfile)
+        pnpm_lockfile_verification::verify_lockfile_dependency_names(install.lockfiles.wanted)
             .map_err(InstallFrozenLockfileError::LockfileVerification)?;
         crate::validate_virtual_store_slot_containment(snapshots, &layout)
             .map_err(InstallFrozenLockfileError::LockfileVerification)?;
@@ -196,27 +200,19 @@ impl<'a> FrozenInputs<'a> {
         let install = self;
         let LockfileEntries { packages, snapshots } = install.entries();
         crate::DirCloneCache::build(
-            install.config,
-            install.node_linker,
+            install.drivers.config,
+            install.platform.node_linker,
             engine,
             snapshots,
             packages,
             Some(allow_build_policy),
-            Some(install.workspace_root),
+            Some(install.projects.workspace_root),
         )
     }
 
     pub(super) fn entries(&self) -> LockfileEntries<'a> {
-        LockfileEntries::from(self.lockfile)
+        LockfileEntries::from(self.lockfiles.wanted)
     }
-}
-/// The inputs `run` consumes rather than borrows. See
-/// [`InstallFrozenLockfile::take_owned`](crate::InstallFrozenLockfile::take_owned).
-pub(super) struct OwnedInputs<'a> {
-    pub(super) early_host_detection: Option<crate::materialization_plan::HostDetection>,
-    pub(super) node_version: Option<String>,
-    pub(super) seed_skipped: Option<Vec<String>>,
-    pub(super) verification_override: Option<LockfileVerificationOverride<'a>>,
 }
 /// What [`InstallFrozenLockfile::build`](crate::InstallFrozenLockfile::build) reads from the phases before it.
 pub(super) struct BuildInputs<'p> {

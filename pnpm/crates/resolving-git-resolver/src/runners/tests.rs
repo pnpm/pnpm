@@ -40,8 +40,12 @@ fn real_probe() -> RealGitProbe {
 #[tokio::test]
 async fn head_probe_accepts_success_without_retrying() {
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("HEAD", "/foo/bar/tar.gz/abc").with_status(200).expect(1).create_async().await;
+    let mock = server
+        .mock("HEAD", "/foo/bar/tar.gz/abc")
+        .with_status(200)
+        .expect(1)
+        .create_async()
+        .await;
     assert!(real_probe().anonymous_head_ok(&format!("{}/foo/bar/tar.gz/abc", server.url())).await);
     mock.assert_async().await;
 }
@@ -49,8 +53,12 @@ async fn head_probe_accepts_success_without_retrying() {
 #[tokio::test]
 async fn head_probe_does_not_retry_definitive_statuses() {
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("HEAD", "/foo/bar/tar.gz/abc").with_status(404).expect(1).create_async().await;
+    let mock = server
+        .mock("HEAD", "/foo/bar/tar.gz/abc")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
     assert!(!real_probe().anonymous_head_ok(&format!("{}/foo/bar/tar.gz/abc", server.url())).await);
     mock.assert_async().await;
 }
@@ -81,8 +89,12 @@ async fn head_probe_bounds_attempts_on_an_unresponsive_endpoint() {
 #[tokio::test]
 async fn head_probe_retries_transient_statuses_to_exhaustion() {
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("HEAD", "/foo/bar/tar.gz/abc").with_status(429).expect(3).create_async().await;
+    let mock = server
+        .mock("HEAD", "/foo/bar/tar.gz/abc")
+        .with_status(429)
+        .expect(3)
+        .create_async()
+        .await;
     assert!(!real_probe().anonymous_head_ok(&format!("{}/foo/bar/tar.gz/abc", server.url())).await);
     mock.assert_async().await;
 }

@@ -56,12 +56,16 @@ fn project_pkg_manifest(workspace: &Path) -> PathBuf {
 /// the project copy.
 #[test]
 fn warm_reinstall_is_served_from_the_canonical_slot() {
-    let CommandTempCwd { root: _root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
     write_manifest(&workspace);
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(
         project_pkg_manifest(&workspace).exists(),
         "the package must land on the flat project-local layout",
@@ -76,7 +80,10 @@ fn warm_reinstall_is_served_from_the_canonical_slot() {
     fs::write(&canonical_manifest, r#"{"planted":true}"#).expect("plant the canonical manifest");
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("wipe node_modules");
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert_eq!(
         fs::read_to_string(project_pkg_manifest(&workspace)).expect("read the project manifest"),
         r#"{"planted":true}"#,
@@ -90,8 +97,9 @@ fn warm_reinstall_is_served_from_the_canonical_slot() {
 /// a clone of the canonical copy could not deliver.
 #[test]
 fn explicit_copy_method_bypasses_the_cache() {
-    let CommandTempCwd { root: _root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
     write_manifest(&workspace);
     let mut yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
@@ -99,7 +107,10 @@ fn explicit_copy_method_bypasses_the_cache() {
     yaml.push_str("packageImportMethod: copy\n");
     fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write pnpm-workspace.yaml");
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(
         project_pkg_manifest(&workspace).exists(),
         "the package must land on the flat project-local layout",

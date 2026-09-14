@@ -40,7 +40,10 @@ impl VersionLine {
     /// range, a tag and an `npm:` alias spec all name no single version.
     #[must_use]
     pub fn parse(version_spec: &str) -> Option<Self> {
-        node_semver::Version::parse(version_spec).ok().as_ref().map(VersionLine::of)
+        node_semver::Version::parse(version_spec)
+            .ok()
+            .as_ref()
+            .map(VersionLine::of)
     }
 
     /// Whether `version` resolves within this line.
@@ -62,7 +65,9 @@ impl UpdateTargets {
     /// widens the target to every version, and never narrows one already
     /// recorded.
     pub fn insert(&mut self, name: String, line: Option<VersionLine>) {
-        let lines = self.0.entry(name).or_insert_with(|| Some(BTreeSet::new()));
+        let lines = self.0
+            .entry(name)
+            .or_insert_with(|| Some(BTreeSet::new()));
         match line {
             // pnpm evaluates every selector that matches a dependency, so
             // one selector targeting every version makes the narrower ones
@@ -89,7 +94,9 @@ impl UpdateTargets {
     pub fn covers(&self, name: &str, version: Option<&node_semver::Version>) -> bool {
         let Some(lines) = self.0.get(name) else { return false };
         let (Some(lines), Some(version)) = (lines.as_ref(), version) else { return true };
-        lines.iter().any(|line| line.covers(version))
+        lines
+            .iter()
+            .any(|line| line.covers(version))
     }
 }
 

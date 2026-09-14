@@ -244,9 +244,10 @@ fn hoisted_package_map_loose_mode_includes_physical_ancestor_dependencies() {
     let root_manifest = manifest("root");
     let project_manifests = vec![(cwd.clone(), &root_manifest)];
     let mut graph = LockfileToDepGraphResult::default();
-    graph
-        .direct_dependencies_by_importer_id
-        .insert(".".to_string(), BTreeMap::from([("dep1".to_string(), dep1_dir.clone())]));
+    graph.direct_dependencies_by_importer_id.insert(
+        ".".to_string(),
+        BTreeMap::from([("dep1".to_string(), dep1_dir.clone())]),
+    );
     graph.graph.insert(dep1_dir.clone(), graph_node("dep1", "1.0.0", &dep1_dir));
     let lockfile = Lockfile {
         importers: HashMap::from([(
@@ -456,7 +457,10 @@ fn snapshot_optional_deps(entries: &[(&str, &str)]) -> SnapshotEntry {
 }
 
 fn snapshot_dep_map(entries: &[(&str, &str)]) -> HashMap<PkgName, SnapshotDepRef> {
-    entries.iter().map(|(alias, version)| (pkg(alias), version.parse().unwrap())).collect()
+    entries
+        .iter()
+        .map(|(alias, version)| (pkg(alias), version.parse().unwrap()))
+        .collect()
 }
 
 fn pkg(name: &str) -> PkgName {
@@ -484,26 +488,31 @@ fn empty_lockfile() -> Lockfile {
 fn graph_node(name: &str, version: &str, dir: &Path) -> DependenciesGraphNode {
     let key: PackageKey = format!("{name}@{version}").parse().unwrap();
     DependenciesGraphNode {
+        package: crate::HoistedPackageMetadata {
+            dep_path: DepPath::from(key.to_string()),
+            pkg_id_with_patch_hash: PkgIdWithPatchHash::from(key.to_string()),
+            name: name.to_string(),
+            version: version.to_string(),
+            has_bin: false,
+            has_bundled_dependencies: false,
+            patch: None,
+            resolution: LockfileResolution::Tarball(TarballResolution {
+                tarball: String::new(),
+                integrity: None,
+                revision: None,
+                git_hosted: None,
+                path: None,
+            }),
+        },
         alias: Some(name.to_string()),
-        dep_path: DepPath::from(key.to_string()),
-        pkg_id_with_patch_hash: PkgIdWithPatchHash::from(key.to_string()),
         dir: dir.to_path_buf(),
-        modules: dir.parent().expect("package dir has parent").to_path_buf(),
-        children: BTreeMap::new(),
-        name: name.to_string(),
-        version: version.to_string(),
+        modules: dir
+            .parent()
+            .expect("package dir has parent")
+            .to_path_buf(),
         optional: false,
         optional_dependencies: BTreeSet::new(),
-        has_bin: false,
-        has_bundled_dependencies: false,
-        patch: None,
-        resolution: LockfileResolution::Tarball(TarballResolution {
-            tarball: String::new(),
-            integrity: None,
-            revision: None,
-            git_hosted: None,
-            path: None,
-        }),
         present: false,
+        children: BTreeMap::new(),
     }
 }

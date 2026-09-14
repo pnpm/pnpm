@@ -52,9 +52,25 @@ Keep function and method bodies within three levels of nesting, including tests.
 
 Keep iterator closures simple. A single expression can make a chain easy to follow. When a closure needs several statements, prefer an explicit loop or a named helper. Preserve lazy evaluation, allocation behavior, and short-circuiting when choosing between them.
 
+### Method chains
+
+Keep production method chains within nine calls. Consecutive calls to the same method count once; `.await` and `?` do not add to the count. Tests are exempt.
+
+`perfectionist::overly_long_method_chain` enforces this through [`dylint.toml`](../dylint.toml). When a chain exceeds the limit, name an intermediate value or extract a helper for a distinct operation.
+
 ### File length
 
 Keep production Rust files within 400 lines of code and test-only Rust files within 800. Count nonblank lines containing code, including multiline string content, and exclude comment-only lines. Split files into modules around distinct responsibilities or test scenarios. Keep tests in their existing test binary.
+
+`perfectionist::overly_long_file` enforces the 400-line production limit across the Rust workspace through [`dylint.toml`](../dylint.toml). Test files are exempt from the rule, so their 800-line limit is on you to keep.
+
+### Struct fields
+
+Keep structs within eight fields, including test structs. `perfectionist::too_many_struct_fields` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+Group fields by a shared responsibility and reuse existing types. Pass a group directly to helpers that need it, or put its behavior on the group. Avoid repeating the group name in its fields: prefer `store.dir` and `package.integrity`.
+
+A struct that must match a fixed external configuration, serialized document, or binding interface may use a scoped `#[expect(perfectionist::too_many_struct_fields, reason = "...")]`, gated with `cfg_attr(dylint_lib = "perfectionist", ...)`. Name the format or interface in the reason. Internal runtime state and options should be refactored.
 
 ### Naming convention
 
@@ -77,7 +93,7 @@ pub use install_package_from_registry::InstallPackageFromRegistry;
 
 ### Import Organization
 
-Prefer **merged imports**. Combine multiple items from the same crate root into a single `use` statement with nested braces rather than separate `use` lines (the `crate` granularity). Import ordering is enforced by `cargo fmt`; the granularity is enforced by [`perfectionist::import_granularity_mismatch`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.21/rules/import_granularity_mismatch.md) (configured to `crate` in `dylint.toml`). Imports gated by a platform attribute such as `#[cfg(unix)]` go in a separate block after the main imports.
+Prefer **merged imports**. Combine multiple items from the same crate root into a single `use` statement with nested braces rather than separate `use` lines (the `crate` granularity). Import ordering is enforced by the [pinned formatter](../CONTRIBUTING.md#rust-formatting); the granularity is enforced by [`perfectionist::import_granularity_mismatch`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.21/rules/import_granularity_mismatch.md) (configured to `crate` in `dylint.toml`). Imports gated by a platform attribute such as `#[cfg(unix)]` go in a separate block after the main imports.
 
 ```rust
 use crate::{

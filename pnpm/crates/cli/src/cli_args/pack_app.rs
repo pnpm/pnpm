@@ -340,8 +340,7 @@ impl PackAppArgs {
         project: &ReadProjectAppConfigResult,
         dir: &Path,
     ) -> miette::Result<String> {
-        let configured = self
-            .output_name
+        let configured = self.output_name
             .clone()
             .or_else(|| project.app.as_ref().and_then(|app| app.output_name.clone()));
         let output_name = match configured {
@@ -358,8 +357,7 @@ impl PackAppArgs {
         project: &ReadProjectAppConfigResult,
         dir: &Path,
     ) -> miette::Result<PathBuf> {
-        let output_dir_raw = self
-            .output_dir
+        let output_dir_raw = self.output_dir
             .clone()
             .or_else(|| project.app.as_ref().and_then(|app| app.output_dir.clone()))
             .unwrap_or_else(|| "dist-app".to_string());
@@ -387,14 +385,20 @@ impl PackAppArgs {
         project: &ReadProjectAppConfigResult,
     ) -> miette::Result<Vec<ParsedTarget>> {
         let raw_targets: Vec<String> = if self.target.is_empty() {
-            project.app.as_ref().map(|app| app.targets.clone()).unwrap_or_default()
+            project.app
+                .as_ref()
+                .map(|app| app.targets.clone())
+                .unwrap_or_default()
         } else {
             self.target.clone()
         };
         if raw_targets.is_empty() {
             return Err(PackAppError::MissingTarget { supported: SUPPORTED_TARGETS }.into());
         }
-        Ok(raw_targets.iter().map(|raw| parse_target(raw)).collect::<Result<Vec<_>, _>>()?)
+        Ok(raw_targets
+            .iter()
+            .map(|raw| parse_target(raw))
+            .collect::<Result<Vec<_>, _>>()?)
     }
 
     /// The entry file, which `pnpm.app` may supply and the CLI overrides.
@@ -409,8 +413,7 @@ impl PackAppArgs {
         project: &ReadProjectAppConfigResult,
         dir: &Path,
     ) -> miette::Result<String> {
-        let entry_path = self
-            .entry
+        let entry_path = self.entry
             .clone()
             .or_else(|| self.params.first().cloned())
             .or_else(|| project.app.as_ref().and_then(|app| app.entry.clone()))
@@ -419,9 +422,10 @@ impl PackAppArgs {
             return Err(PackAppError::EntryOutsideProject { path: entry_path }.into());
         }
         let resolved_entry = dir.join(&entry_path);
-        let entry_meta = fs::metadata(&resolved_entry).map_err(|_| {
-            PackAppError::EntryNotFound { path: resolved_entry.display().to_string() }
-        })?;
+        let entry_meta = fs::metadata(&resolved_entry)
+            .map_err(|_| PackAppError::EntryNotFound {
+                path: resolved_entry.display().to_string(),
+            })?;
         if !entry_meta.is_file() {
             return Err(
                 PackAppError::EntryNotFile { path: resolved_entry.display().to_string() }.into()
@@ -450,9 +454,11 @@ impl SeaBuild<'_> {
         )?;
 
         let target_output_dir = self.output_dir.join(&target.raw);
-        fs::create_dir_all(&target_output_dir).into_diagnostic().wrap_err_with(|| {
-            format!("creating target output directory {}", target_output_dir.display())
-        })?;
+        fs::create_dir_all(&target_output_dir)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!("creating target output directory {}", target_output_dir.display())
+            })?;
         // A repo could symlink `dist-app/<target>` out of the project even
         // when `dist-app` itself is contained; re-check the real path
         // before any binary is written into it.

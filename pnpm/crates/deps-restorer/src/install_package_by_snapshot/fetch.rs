@@ -198,25 +198,34 @@ impl InstallPackageBySnapshot<'_> {
     ) -> IngestTarballToStore<'d> {
         let config = self.ctx.config;
         IngestTarballToStore {
-            http_client: self.http_client,
-            store_dir: &config.store_dir,
-            store_index: self.store_index.cloned(),
-            store_index_writer: self.store_index_writer.cloned(),
-            verify_store_integrity: config.verify_store_integrity,
-            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-            verified_files_cache: Arc::clone(self.verified_files_cache),
-            package_integrity: metadata.resolution.checkable_integrity(),
-            package_unpacked_size: None,
-            package_file_count: None,
-            package_url: "",
-            package_id,
+            fetching: pnpm_tarball::ArchiveFetchOptions {
+                http_client: self.fetching.http_client,
+                auth_headers: &config.auth_headers,
+                retry_opts: retry_opts_from_config(config),
+                offline: config.offline,
+            },
+            package: pnpm_tarball::TarballPackage {
+                integrity: metadata.resolution.checkable_integrity(),
+                unpacked_size: None,
+                file_count: None,
+                url: "",
+                id: package_id,
+            },
+            store: pnpm_tarball::ArchiveStoreContext {
+                dir: &config.store_dir,
+                index: self.fetching.store_index.cloned(),
+                index_writer: self.fetching.store_index_writer.cloned(),
+                verify_integrity: config.verify_store_integrity,
+                strict_pkg_content_check: config.strict_store_pkg_content_check,
+                verified_files_cache: Arc::clone(self.fetching.verified_files_cache),
+                prefetched_cas_paths: self.fetching.prefetched_cas_paths,
+            },
+
             requester: self.ctx.requester,
-            prefetched_cas_paths: self.prefetched_cas_paths,
-            retry_opts: retry_opts_from_config(config),
-            auth_headers: &config.auth_headers,
+
             ignore_file_pattern: None,
-            offline: config.offline,
-            progress_reported: self.progress_reported.cloned(),
+
+            progress_reported: self.fetching.progress_reported.cloned(),
             store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
                 append_manifest: None,
             },
@@ -326,29 +335,38 @@ impl InstallPackageBySnapshot<'_> {
     ) -> Result<(), InstallPackageBySnapshotError> {
         let config = self.ctx.config;
         if self.defer_link
-            || !matches!(self.ctx.node_linker, NodeLinker::Isolated | NodeLinker::Pnp)
+            || !matches!(self.ctx.linker.kind, NodeLinker::Isolated | NodeLinker::Pnp)
         {
             return Ok(());
         }
         CreateVirtualDirBySnapshot {
-            layout: self.ctx.layout,
+            dependencies: crate::SnapshotDependencyLinks {
+                package_key: slot.package_key,
+                snapshot: slot.snapshot,
+                skipped: self.skipped,
+                include_optional: self.include_optional_dependencies,
+                removed_aliases: &[],
+                symlink: config.symlink,
+            },
+            import: crate::PackageImportOptions {
+                method: config.package_import_method,
+                logged_methods: self.ctx.logged_methods,
+                requester: self.ctx.requester,
+            },
+            source: crate::SlotImportSource {
+                is_mutable: slot.source_is_mutable,
+                force: false,
+                build_marker: None,
+            },
+            layout: self.ctx.linker.layout,
             cas_paths,
-            import_method: config.package_import_method,
-            logged_methods: self.ctx.logged_methods,
-            requester: self.ctx.requester,
+
             package_id: slot.package_id,
-            package_key: slot.package_key,
-            snapshot: slot.snapshot,
-            source_is_mutable: slot.source_is_mutable,
-            force_import: false,
-            include_optional_dependencies: self.include_optional_dependencies,
-            symlink: config.symlink,
-            skipped: self.skipped,
+
             // The non-deferred slot link runs only on the fresh
             // single-package path (no previous install to diff
             // against), so there are never obsolete children here.
-            removed_aliases: &[],
-            needs_build_marker_source: None,
+
             // The fresh single-package path materializes one slot;
             // there is no per-install batch to amortize a cache
             // layout over.

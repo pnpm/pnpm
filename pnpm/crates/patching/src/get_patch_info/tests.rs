@@ -103,7 +103,11 @@ fn ambiguous_ranges_error() {
     });
 
     let err = get_patch_info(Some(&record), "foo", "2.1.0").expect_err("must conflict");
-    let PatchKeyConflictError { pkg_name, pkg_version, satisfied_versions } = err;
+    let PatchKeyConflictError {
+        pkg_name,
+        pkg_version,
+        satisfied_versions,
+    } = err;
     assert_eq!(pkg_name, "foo");
     assert_eq!(pkg_version, "2.1.0");
     assert_eq!(satisfied_versions, vec![">=1.0.0 <3.0.0".to_string(), ">=2.0.0".to_string()]);

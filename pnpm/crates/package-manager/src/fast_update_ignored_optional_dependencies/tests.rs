@@ -76,7 +76,9 @@ snapshots:
     assert!(updated.importers["."].optional_dependencies.is_none());
     let parent_key = "parent@1.0.0".parse().expect("parent key");
     assert!(
-        updated.snapshots.as_ref().expect("snapshots")[&parent_key].optional_dependencies.is_none(),
+        updated.snapshots.as_ref().expect("snapshots")[&parent_key]
+            .optional_dependencies
+            .is_none(),
     );
     let snapshots = updated.snapshots.as_ref().expect("snapshots");
     assert!(snapshots.contains_key(&"shared@1.0.0".parse().expect("shared key")));

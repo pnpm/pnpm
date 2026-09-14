@@ -74,7 +74,7 @@ pub enum PruneDirectDepsError {
 /// install leaves every other importer's links untouched because it never
 /// re-materialized them.
 ///
-/// Unrelated to [`crate::SymlinkDirectDependencies::trusted_importer_ids`],
+/// Unrelated to [`crate::DirectLinkPolicy::trusted_importer_ids`],
 /// which names importers allowed to *skip* ID validation. This set never
 /// widens what may be deleted — every removal still passes the same
 /// validation and containment checks.

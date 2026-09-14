@@ -122,28 +122,36 @@ async fn run_snapshot_install_with_session(
     let snapshot = pnpm_lockfile::SnapshotEntry::default();
 
     super::InstallPackageBySnapshot {
+        fetching: crate::SnapshotFetchContext {
+            http_client: &pnpm_network::ThrottledClient::default(),
+            store_index: None,
+            store_index_writer: None,
+            prefetched_cas_paths: None,
+            tarball_mem_cache,
+            progress_reported: None,
+            verified_files_cache: &verified_files_cache,
+            custom_fetcher_session: Some(session),
+        },
         ctx: &crate::InstallContext {
+            linker: crate::ModuleLinkerContext {
+                layout: &layout,
+                kind: pnpm_config::NodeLinker::Hoisted,
+                bin_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            },
             config,
             workspace_root,
             requester: "/project",
-            layout: &layout,
-            node_linker: pnpm_config::NodeLinker::Hoisted,
+
             allow_build_policy: &allow_build_policy,
-            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
         },
-        http_client: &pnpm_network::ThrottledClient::default(),
-        store_index: None,
-        store_index_writer: None,
-        prefetched_cas_paths: None,
-        progress_reported: None,
-        tarball_mem_cache,
-        verified_files_cache: &verified_files_cache,
+
         skipped: &skipped,
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
-        custom_fetcher_session: Some(session),
+
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -182,7 +190,10 @@ fn custom_resolution_metadata(resolution_type: &str) -> pnpm_lockfile::PackageMe
     );
     let mut metadata = registry_metadata();
     metadata.resolution = LockfileResolution::Custom(pnpm_lockfile::CustomResolution {
-        resolution_type: resolution_type.to_string().try_into().expect("custom type tag"),
+        resolution_type: resolution_type
+            .to_string()
+            .try_into()
+            .expect("custom type tag"),
         extra,
     });
     metadata

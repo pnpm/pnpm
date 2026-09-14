@@ -77,11 +77,13 @@ impl PreferredPm {
 /// prepared with the Yarn that can read what it ships.
 #[must_use]
 pub fn detect_wanted_pm(dir: &Path, manifest: Option<&Value>) -> WantedPm {
-    let wanted = manifest.and_then(manifest_pin).unwrap_or_else(|| WantedPm {
-        pm: detect_preferred_pm(dir),
-        version_spec: None,
-        pinned: false,
-    });
+    let wanted = manifest
+        .and_then(manifest_pin)
+        .unwrap_or_else(|| WantedPm {
+            pm: detect_preferred_pm(dir),
+            version_spec: None,
+            pinned: false,
+        });
     if wanted.version_spec.is_some() || wanted.pm != PreferredPm::Yarn {
         return wanted;
     }
@@ -121,8 +123,9 @@ pub fn detect_preferred_pm(dir: &Path) -> PreferredPm {
 /// which declares alternatives, then `packageManager`, and finally the
 /// lockfile the dependency ships.
 fn manifest_pin(manifest: &Value) -> Option<WantedPm> {
-    dev_engines_pins(manifest).chain(package_manager_pin(manifest)).find_map(
-        |(name, version_spec)| {
+    dev_engines_pins(manifest)
+        .chain(package_manager_pin(manifest))
+        .find_map(|(name, version_spec)| {
             let pm = PreferredPm::parse(&name)?;
             // A declaration that names no version pnpm can honor claims
             // nothing about which release the dependency was tested
@@ -130,8 +133,7 @@ fn manifest_pin(manifest: &Value) -> Option<WantedPm> {
             // already has.
             let pinned = version_spec.is_some();
             Some(WantedPm { pm, version_spec, pinned })
-        },
-    )
+        })
 }
 
 fn package_manager_pin(manifest: &Value) -> Option<(String, Option<String>)> {
@@ -169,7 +171,10 @@ fn yarn_line_of_lockfile(dir: &Path) -> Option<String> {
     // prepares the package.
     let lockfile = fs::File::open(dir.join("yarn.lock")).ok()?;
     let mut header = Vec::new();
-    lockfile.take(HEADER_BYTES).read_to_end(&mut header).ok()?;
+    lockfile
+        .take(HEADER_BYTES)
+        .read_to_end(&mut header)
+        .ok()?;
     let berry = header
         .split(|byte| *byte == b'\n')
         .any(|line| line.trim_ascii_start().starts_with(b"__metadata:"));

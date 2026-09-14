@@ -163,11 +163,13 @@ pub(super) fn apply_fixed_group_versions(
     lanes_by_dir: &BTreeMap<String, String>,
 ) {
     for group in fixed_groups {
-        let Some(group_bump) =
-            max_bump_type_of(group.iter().filter_map(|dir| {
-                state.get(dir).map(|entry| cumulative_bump(dir, entry.bump_type))
-            }))
-        else {
+        let Some(group_bump) = max_bump_type_of(
+            group
+                .iter()
+                .filter_map(|dir| {
+                    state.get(dir).map(|entry| cumulative_bump(dir, entry.bump_type))
+                }),
+        ) else {
             continue;
         };
         let Some(shared_version) =
@@ -175,7 +177,10 @@ pub(super) fn apply_fixed_group_versions(
         else {
             continue;
         };
-        for dir in group.iter().filter(|dir| state.contains_key(*dir)) {
+        for dir in group
+            .iter()
+            .filter(|dir| state.contains_key(*dir))
+        {
             new_versions.insert(dir.clone(), shared_version.clone());
         }
     }
@@ -197,7 +202,10 @@ fn shared_group_version(
     let highest_current = group.iter().map(current_of).max()?;
     let target = stable_target(&highest_current, group_bump);
 
-    let Some(lane_tag) = group.first().and_then(|dir| lanes_by_dir.get(dir)) else {
+    let Some(lane_tag) = group
+        .first()
+        .and_then(|dir| lanes_by_dir.get(dir))
+    else {
         return Some(target);
     };
     let next_n = group
@@ -366,22 +374,27 @@ pub(super) fn enforce_max_bump(
         return Ok(());
     };
     for release in releases {
-        let effective_bump = effective_bump_class(release);
+        let effective_bump = effective_bump_class(&release.version);
         if effective_bump <= max_bump {
             continue;
         }
-        let intent_files: Vec<String> = release
-            .intents
+        let intent_files: Vec<String> = release.intents
             .iter()
             .filter(|intent| {
-                intent.releases.values().any(|bump| bump.release() == Some(effective_bump))
+                intent.releases
+                    .values()
+                    .any(|bump| bump.release() == Some(effective_bump))
             })
             .map(|intent| intent.file_path.display().to_string())
             .collect();
         let raised_by = if intent_files.is_empty() {
             format!(
                 "constraint chain: {}",
-                release.causes.iter().map(ToString::to_string).collect::<Vec<String>>().join(", "),
+                release.causes
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<String>>()
+                    .join(", "),
             )
         } else {
             format!("intent file(s) {}", intent_files.join(", "))
@@ -400,11 +413,11 @@ pub(super) fn enforce_max_bump(
 /// and lane escalation can move a version further than the package's own
 /// declared or propagated bump, so the cap compares against the real
 /// distance between the current and the new version as well.
-fn effective_bump_class(release: &PlannedRelease) -> ReleaseBumpType {
+fn effective_bump_class(release: &crate::ReleaseVersion) -> ReleaseBumpType {
     let (Ok(current), Ok(new_version)) =
-        (Version::parse(&release.current_version), Version::parse(&release.new_version))
+        (Version::parse(&release.current), Version::parse(&release.next))
     else {
-        return release.bump_type;
+        return release.bump;
     };
     let diff_class = if new_version.major != current.major {
         Some(ReleaseBumpType::Major)
@@ -415,5 +428,9 @@ fn effective_bump_class(release: &PlannedRelease) -> ReleaseBumpType {
     } else {
         None
     };
-    diff_class.into_iter().chain([release.bump_type]).max().unwrap_or(release.bump_type)
+    diff_class
+        .into_iter()
+        .chain([release.bump])
+        .max()
+        .unwrap_or(release.bump)
 }

@@ -47,7 +47,9 @@ pub(super) struct MirrorLayout {
 /// format. Each declared length is bounded before the layout is
 /// trusted.
 pub(super) fn mirror_layout(prefix: &[u8]) -> Option<Option<MirrorLayout>> {
-    let newline = prefix.iter().position(|&byte| byte == b'\n')?;
+    let newline = prefix
+        .iter()
+        .position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&prefix[..newline]).ok()?;
     let Some((headers_len, index_len)) = parse_mirror_magic(line) else {
         return Some(None);
@@ -152,7 +154,9 @@ pub(super) fn buffer_fragments(
 /// packument.
 pub(super) fn load_legacy_ndjson_meta(pkg_mirror: &Path) -> Option<Package> {
     let contents = fs::read(pkg_mirror).ok()?;
-    let newline = contents.iter().position(|&byte| byte == b'\n')?;
+    let newline = contents
+        .iter()
+        .position(|&byte| byte == b'\n')?;
     let headers: MetaHeaders = serde_json::from_slice(&contents[..newline]).ok()?;
     let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
     meta.etag = headers.etag;

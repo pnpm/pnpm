@@ -1,10 +1,14 @@
+pub(crate) use lockfile_guard::LockfileGuard;
+
+mod lockfile_guard;
+
 use crate::{
     State,
     cli_args::{
         deps_tree::render::{
             TreeNode, blue_bright_underline, gray, green, plain, red, render_archy,
         },
-        install::{resolve_bool_override, workspace_install_selection},
+        install::workspace_install_selection,
         pipelines::InstallFamilySelection,
     },
 };
@@ -15,7 +19,7 @@ use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
 use pnpm_modules_yaml::{Host, read_modules_manifest};
 use pnpm_package_manager::{
-    ImporterDiffKey, Install, InstallabilityHost, LockfileDiff, PolicyExcludes, ResolutionObserver,
+    ImporterDiffKey, InstallabilityHost, LockfileDiff, PolicyExcludes, ResolutionObserver,
     ResolvedPackageHint, SnapshotDiff, diff_lockfiles, package_metadata_is_installable,
 };
 use pnpm_package_manifest::DependencyGroup;
@@ -26,12 +30,10 @@ use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
 use serde_json::{Map, Value, json};
 use std::{
     collections::{HashMap, HashSet},
-    io::Write,
     marker::PhantomData,
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
 };
-use tempfile::NamedTempFile;
 
 #[derive(Debug, Clone, Args)]
 pub struct DedupeArgs {
@@ -40,62 +42,20 @@ pub struct DedupeArgs {
     /// if changes are possible.
     #[clap(long)]
     pub check: bool,
-
     /// Only update `pnpm-lock.yaml`. Don't download packages or write
     /// `node_modules`.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
-
-    /// Don't run lifecycle scripts of the project or its dependencies.
-    /// Packages are still installed; only their build scripts are skipped,
-    /// and the install won't fail because of it.
-    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
-    pub ignore_scripts: bool,
-
-    /// Run lifecycle scripts even when the configuration disables them.
-    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
-    pub no_ignore_scripts: bool,
-
-    /// Fail on a cache miss instead of fetching from the registry, using
-    /// only packages already in the store.
-    #[clap(long, overrides_with = "no_offline")]
-    pub offline: bool,
-
-    /// Allow network fetches even when the configuration enables offline
-    /// mode.
-    #[clap(long = "no-offline", overrides_with = "offline")]
-    pub no_offline: bool,
-
-    /// Prefer packages already in the cache over the network, even past
-    /// their freshness window.
-    #[clap(long, overrides_with = "no_prefer_offline")]
-    pub prefer_offline: bool,
-
-    /// Don't prefer cached packages even when the configuration enables
-    /// it.
-    #[clap(long = "no-prefer-offline", overrides_with = "prefer_offline")]
-    pub no_prefer_offline: bool,
-
-    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
-    /// pnpmfiles of config dependencies.
-    #[clap(long = "ignore-pnpmfile")]
-    pub ignore_pnpmfile: bool,
+    #[clap(flatten)]
+    pub scripts: crate::cli_args::install_options::ScriptExecutionArgs,
+    #[clap(flatten)]
+    pub network_cache: crate::cli_args::install_options::OfflineArgs,
 }
 
 impl DedupeArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
-        config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
-        config.ignore_scripts = resolve_bool_override(
-            self.ignore_scripts,
-            self.no_ignore_scripts,
-            config.ignore_scripts,
-        );
-        config.offline = resolve_bool_override(self.offline, self.no_offline, config.offline);
-        config.prefer_offline = resolve_bool_override(
-            self.prefer_offline,
-            self.no_prefer_offline,
-            config.prefer_offline,
-        );
+        self.scripts.apply(config);
+        self.network_cache.apply(config);
     }
 
     /// Run the deduplication install pipeline. In `--check` mode the method
@@ -110,26 +70,23 @@ impl DedupeArgs {
         lockfile_path: &Path,
         selection: Option<&InstallFamilySelection>,
     ) -> miette::Result<()> {
-        let install = Install {
-            lockfile_path: Some(lockfile_path),
-            prefer_frozen_lockfile: Some(false),
-            skip_runtimes: false,
-            lockfile_only: self.lockfile_only || self.check,
-            policy_excludes: if self.check {
-                PolicyExcludes::Skip
-            } else {
-                PolicyExcludes::Persist
-            },
-            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll,
-            resolution_observer: Some(Arc::new(DedupeResolutionReporter::<Reporter>::new(
-                &state,
-                lockfile_path,
-            )?)),
-            ..state.install([
+        let install = {
+            let mut base_install = state.install([
                 DependencyGroup::Prod,
                 DependencyGroup::Dev,
                 DependencyGroup::Optional,
-            ])
+            ]);
+            base_install.lockfile_policy.prefer_frozen = Some(false);
+            base_install.lockfile_policy.excludes =
+                if self.check { PolicyExcludes::Skip } else { PolicyExcludes::Persist };
+            base_install.execution.skip_runtimes = false;
+            base_install.execution.lockfile_only = self.lockfile_only || self.check;
+            base_install.resolution.update_seed_policy =
+                pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll;
+            base_install.resolution.observer =
+                Some(Arc::new(DedupeResolutionReporter::<Reporter>::new(&state, lockfile_path)?));
+            base_install.context.lockfile_path = Some(lockfile_path);
+            base_install
         };
         let selection = selection.map(workspace_install_selection);
         if self.check {
@@ -189,7 +146,10 @@ fn reusable_skipped_package_ids(
         .into_iter()
         .flat_map(|modules| modules.skipped)
         .filter_map(|package_id| {
-            let package_key = package_id.parse::<PkgNameVerPeer>().ok()?.without_peer();
+            let package_key = package_id
+                .parse::<PkgNameVerPeer>()
+                .ok()?
+                .without_peer();
             let metadata = lockfile_packages?.get(&package_key)?;
             Some(reusable_skipped_package_id(
                 &package_key,
@@ -214,8 +174,10 @@ struct DedupeResolutionReporter<Reporter> {
 impl<Reporter> DedupeResolutionReporter<Reporter> {
     fn new(state: &State, lockfile_path: &Path) -> miette::Result<Self> {
         let config = state.config;
-        let lockfile_packages =
-            state.lockfile.get().into_diagnostic()?.and_then(|lockfile| lockfile.packages.as_ref());
+        let lockfile_packages = state.lockfile
+            .get()
+            .into_diagnostic()?
+            .and_then(|lockfile| lockfile.packages.as_ref());
         let reusable_skipped_package_ids = reusable_skipped_package_ids(config, lockfile_packages)?;
         Ok(Self {
             requester: lockfile_path
@@ -235,24 +197,26 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
         Reporter::emit(&LogEvent::Progress(ProgressLog {
             level: LogLevel::Debug,
             message: ProgressMessage::Resolved {
-                package_id: hint.id.to_string(),
+                package_id: hint.identity.id.to_string(),
                 requester: self.requester.clone(),
             },
         }));
-        let package_key = store_index_key(hint.integrity, hint.id);
-        let found_in_store = self.reusable_skipped_package_ids.contains(hint.id)
-            || self.store_index.as_ref().is_some_and(|store_index| {
-                store_index
-                    .lock()
-                    .ok()
-                    .and_then(|index| index.contains_key(&package_key).ok())
-                    .unwrap_or(false)
-            });
+        let package_key = store_index_key(hint.integrity, hint.identity.id);
+        let found_in_store = self.reusable_skipped_package_ids.contains(hint.identity.id)
+            || self.store_index
+                .as_ref()
+                .is_some_and(|store_index| {
+                    store_index
+                        .lock()
+                        .ok()
+                        .and_then(|index| index.contains_key(&package_key).ok())
+                        .unwrap_or(false)
+                });
         if found_in_store {
             Reporter::emit(&LogEvent::Progress(ProgressLog {
                 level: LogLevel::Debug,
                 message: ProgressMessage::FoundInStore {
-                    package_id: hint.id.to_string(),
+                    package_id: hint.identity.id.to_string(),
                     requester: self.requester.clone(),
                 },
             }));
@@ -266,9 +230,9 @@ fn reusable_skipped_package_id(
     installability_host: &InstallabilityHost,
     ignored_optional_dependencies: Option<&[String]>,
 ) -> miette::Result<Option<String>> {
-    if ignored_optional_dependencies
-        .is_some_and(|ignored| ignored.contains(&package_key.name.to_string()))
-    {
+    if ignored_optional_dependencies.is_some_and(|ignored| {
+        ignored.contains(&package_key.name.to_string())
+    }) {
         return Ok(None);
     }
     Ok(package_metadata_is_installable(package_key, metadata, installability_host)
@@ -352,16 +316,26 @@ fn snapshots_changes_json(updated: &[SnapshotDiff], added: &[String], removed: &
     let updated = updated
         .iter()
         .map(|snapshot| {
-            let changes = snapshot
-                .added
+            let changes = snapshot.added
                 .iter()
                 .map(|(alias, next)| (alias.clone(), json!({ "type": "added", "next": next })))
-                .chain(snapshot.removed.iter().map(|(alias, prev)| {
-                    (alias.clone(), json!({ "type": "removed", "prev": prev }))
-                }))
-                .chain(snapshot.updated.iter().map(|(alias, prev, next)| {
-                    (alias.clone(), json!({ "type": "updated", "prev": prev, "next": next }))
-                }))
+                .chain(
+                    snapshot.removed
+                        .iter()
+                        .map(|(alias, prev)| {
+                            (alias.clone(), json!({ "type": "removed", "prev": prev }))
+                        }),
+                )
+                .chain(
+                    snapshot.updated
+                        .iter()
+                        .map(|(alias, prev, next)| {
+                            (
+                                alias.clone(),
+                                json!({ "type": "updated", "prev": prev, "next": next }),
+                            )
+                        }),
+                )
                 .collect::<Map<_, _>>();
             (snapshot.id.clone(), Value::Object(changes))
         })
@@ -379,9 +353,20 @@ fn render_section(
     added: &[String],
     removed: &[String],
 ) -> Option<String> {
-    let mut lines: Vec<String> = updated.iter().map(render_snapshot_diff).collect();
-    lines.extend(added.iter().map(|id| format!("{} {}", green("+"), plain(id))));
-    lines.extend(removed.iter().map(|id| format!("{} {}", red("-"), plain(id))));
+    let mut lines: Vec<String> = updated
+        .iter()
+        .map(render_snapshot_diff)
+        .collect();
+    lines.extend(
+        added
+            .iter()
+            .map(|id| format!("{} {}", green("+"), plain(id))),
+    );
+    lines.extend(
+        removed
+            .iter()
+            .map(|id| format!("{} {}", red("-"), plain(id))),
+    );
     if lines.is_empty() {
         return None;
     }
@@ -389,72 +374,23 @@ fn render_section(
 }
 
 fn render_snapshot_diff(diff: &SnapshotDiff) -> String {
-    let added = diff
-        .added
+    let added = diff.added
         .iter()
         .map(|(alias, next)| format!("{} {} {}", green("+"), plain(alias), gray(next)));
-    let removed = diff
-        .removed
+    let removed = diff.removed
         .iter()
         .map(|(alias, prev)| format!("{} {} {}", red("-"), plain(alias), gray(prev)));
-    let updated = diff.updated.iter().map(|(alias, prev, next)| {
-        format!("{} {} {} {}", plain(alias), red(prev), gray("→"), green(next))
-    });
+    let updated = diff.updated
+        .iter()
+        .map(|(alias, prev, next)| {
+            format!("{} {} {} {}", plain(alias), red(prev), gray("→"), green(next))
+        });
     let nodes = added
         .chain(removed)
         .chain(updated)
         .map(|label| TreeNode::with_children(label, Vec::new()))
         .collect();
     render_archy(&TreeNode::with_children(plain(&diff.id), nodes))
-}
-
-/// Atomically write `content` to `path` via temp-file + rename, so the write
-/// does not follow symlinks and cannot produce a torn file on crash.
-fn atomic_write(path: &Path, content: &[u8]) -> miette::Result<()> {
-    let dir = path.parent().unwrap_or_else(|| Path::new("."));
-    let mut tmp = NamedTempFile::new_in(dir)
-        .into_diagnostic()
-        .wrap_err("creating temp file for atomic write")?;
-    tmp.write_all(content).into_diagnostic().wrap_err("writing temp file")?;
-    tmp.as_file().sync_all().into_diagnostic().wrap_err("syncing temp file")?;
-    tmp.persist(path).into_diagnostic().wrap_err("renaming temp file into place")?;
-    Ok(())
-}
-
-/// A drop guard for `--check` mode: restores the lockfile snapshot on drop
-/// unless [`disarm`](LockfileGuard::disarm) has been called. This way an
-/// unexpected error during deduplication still leaves the workspace in its
-/// original state.
-pub(crate) struct LockfileGuard {
-    existing: Option<String>,
-    lockfile_path: PathBuf,
-    disarmed: bool,
-}
-
-impl LockfileGuard {
-    pub(crate) fn new(existing: Option<String>, lockfile_path: &Path) -> Self {
-        Self { existing, lockfile_path: lockfile_path.to_path_buf(), disarmed: false }
-    }
-
-    pub(crate) fn disarm(&mut self) {
-        self.disarmed = true;
-    }
-}
-
-impl Drop for LockfileGuard {
-    fn drop(&mut self) {
-        if self.disarmed {
-            return;
-        }
-        match self.existing.take() {
-            Some(ref old) => {
-                let _ = atomic_write(&self.lockfile_path, old.as_bytes());
-            }
-            None => {
-                let _ = std::fs::remove_file(&self.lockfile_path);
-            }
-        }
-    }
 }
 
 /// Read pnpm-lock.yaml into an `Option<String>` for snapshot comparisons.

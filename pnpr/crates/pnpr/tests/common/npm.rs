@@ -49,9 +49,13 @@ pub fn sha1_hex(bytes: &[u8]) -> String {
     let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha1);
     opts.input(bytes);
     let integrity = opts.result();
-    let digest_bytes = BASE64.decode(&integrity.hashes[0].digest).unwrap();
-    digest_bytes.iter().fold(String::with_capacity(40), |mut hex, byte| {
-        write!(hex, "{byte:02x}").unwrap();
-        hex
-    })
+    let digest_bytes = BASE64
+        .decode(&integrity.hashes[0].digest)
+        .unwrap();
+    digest_bytes
+        .iter()
+        .fold(String::with_capacity(40), |mut hex, byte| {
+            write!(hex, "{byte:02x}").unwrap();
+            hex
+        })
 }

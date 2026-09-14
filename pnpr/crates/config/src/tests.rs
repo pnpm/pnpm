@@ -68,7 +68,9 @@ fn upstream_config_file(
 }
 
 fn auth_header(upstream: &super::UpstreamConfig) -> Option<&str> {
-    upstream.headers.get(AUTHORIZATION).map(|value| value.to_str().unwrap())
+    upstream.headers
+        .get(AUTHORIZATION)
+        .map(|value| value.to_str().unwrap())
 }
 
 /// [`resolve_upstream_config`] with no declared teams, as every serving-knob

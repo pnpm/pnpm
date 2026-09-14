@@ -16,7 +16,9 @@ use crate::{State, cli_args::add::add_package, executable_link::replace_executab
 use miette::{Context, IntoDiagnostic};
 
 use pnpm_config::{Config, NodeLinker, PackageManagerBootstrap};
-use pnpm_global::{clean_orphaned_install_dirs, create_install_dir, find_global_package};
+use pnpm_global::{
+    GlobalPackageInfo, clean_orphaned_install_dirs, create_install_dir, scan_global_packages,
+};
 use pnpm_graph_hasher::{format_global_virtual_store_path, host_arch, host_libc, host_platform};
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::{DependencyGroup, parse_manifest};
@@ -65,16 +67,8 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
         .wrap_err("create the global packages directory")?;
     clean_orphaned_install_dirs(&global_pkg_dir);
 
-    if let Some(existing) = find_global_package(&global_pkg_dir, package_name)
-        .into_diagnostic()
-        .wrap_err("scan global packages")?
-        && reuse_cached_engine(&existing.install_dir, package, version)
-    {
-        return Ok(InstallPnpmResult {
-            install_dir: existing.install_dir,
-            package_name,
-            already_existed: true,
-        });
+    if let Some(result) = reuse_global_engine(&global_pkg_dir, package, version)? {
+        return Ok(result);
     }
 
     let install_dir = create_install_dir(&global_pkg_dir)
@@ -115,24 +109,26 @@ pub(super) fn assert_pnpm_runs(
     let probe_dir = tempfile::tempdir()
         .into_diagnostic()
         .wrap_err("create a directory to check the installed pnpm from")?;
-    let reason =
-        match Command::new(&executable).arg("--version").current_dir(probe_dir.path()).output() {
-            Err(err) => err.to_string(),
-            Ok(output) if !output.status.success() => {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let stderr = stderr.trim();
-                let code = output
-                    .status
-                    .code()
-                    .map_or_else(|| "a signal".to_string(), |code| format!("code {code}"));
-                if stderr.is_empty() {
-                    format!("it exited with {code}")
-                } else {
-                    format!("it exited with {code}: {stderr}")
-                }
+    let reason = match Command::new(&executable)
+        .arg("--version")
+        .current_dir(probe_dir.path())
+        .output()
+    {
+        Err(err) => err.to_string(),
+        Ok(output) if !output.status.success() => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stderr = stderr.trim();
+            let code = output.status
+                .code()
+                .map_or_else(|| "a signal".to_string(), |code| format!("code {code}"));
+            if stderr.is_empty() {
+                format!("it exited with {code}")
+            } else {
+                format!("it exited with {code}: {stderr}")
             }
-            Ok(_) => return Ok(()),
-        };
+        }
+        Ok(_) => return Ok(()),
+    };
     Err(SelfUpdateError::BrokenPnpmInstall {
         version: version.to_string(),
         reason,
@@ -143,11 +139,8 @@ pub(super) fn assert_pnpm_runs(
 
 /// The native pnpm executable linked into an installed engine wrapper.
 pub(super) fn pnpm_executable_path(install_dir: &Path, package_name: &str) -> PathBuf {
-    package_dir(install_dir, package_name).join(if host_platform() == "win32" {
-        "pnpm.exe"
-    } else {
-        "pnpm"
-    })
+    package_dir(install_dir, package_name)
+        .join(if host_platform() == "win32" { "pnpm.exe" } else { "pnpm" })
 }
 
 /// The installed wrapper's recorded version, or `None` when the install is
@@ -156,7 +149,61 @@ pub(super) fn installed_version(install_dir: &Path, package_name: &str) -> Optio
     let pkg_json = package_dir(install_dir, package_name).join("package.json");
     let text = fs::read_to_string(pkg_json).ok()?;
     let value: Value = parse_manifest(&text).ok()?;
-    value.get("version").and_then(Value::as_str).map(ToString::to_string)
+    value
+        .get("version")
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+}
+
+/// The aliases a pnpm engine can be installed under globally. The standalone
+/// install script installs `@pnpm/exe` even for the versions
+/// [`pnpm_package_to_install`] resolves to `pnpm`, so a switch to either name
+/// has to recognize an install under the other (see pnpm/pnpm#14823).
+const ENGINE_ALIASES: [&str; 2] = [PNPM_PACKAGE_NAME, PNPM_EXE_PACKAGE_NAME];
+
+/// Every global package group holding a pnpm engine at exactly `version`,
+/// paired with the alias it is installed under.
+pub(super) fn find_global_engines(
+    global_pkg_dir: &Path,
+    version: &str,
+) -> miette::Result<Vec<(GlobalPackageInfo, &'static str)>> {
+    let packages =
+        scan_global_packages(global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
+    Ok(packages
+        .into_iter()
+        .filter_map(|pkg| engine_alias_at_version(&pkg, version).map(|alias| (pkg, alias)))
+        .collect())
+}
+
+fn engine_alias_at_version(pkg: &GlobalPackageInfo, version: &str) -> Option<&'static str> {
+    ENGINE_ALIASES
+        .into_iter()
+        .find(|alias| {
+            pkg.has_alias(alias)
+                && installed_version(&pkg.install_dir, alias).as_deref() == Some(version)
+        })
+}
+
+/// Reuse a global engine already installed at `version`, under whichever
+/// alias it was installed as, instead of downloading it again. Every
+/// candidate is tried: a group that cannot be relinked (a pre-v12 JS `pnpm`
+/// where the native `@pnpm/exe` is wanted, say) must not hide a usable one.
+fn reuse_global_engine(
+    global_pkg_dir: &Path,
+    package: PnpmPackageToInstall,
+    version: &str,
+) -> miette::Result<Option<InstallPnpmResult>> {
+    for (existing, name) in find_global_engines(global_pkg_dir, version)? {
+        let existing_package = PnpmPackageToInstall { name, ..package };
+        if reuse_cached_engine(&existing.install_dir, existing_package, version) {
+            return Ok(Some(InstallPnpmResult {
+                install_dir: existing.install_dir,
+                package_name: name,
+                already_existed: true,
+            }));
+        }
+    }
+    Ok(None)
 }
 
 /// Whether an existing global slot at `install_dir` can be reused for

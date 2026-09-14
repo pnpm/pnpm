@@ -18,7 +18,9 @@
 //! its own private namespace. The opt-in shared-artifact `PoC` is a separate
 //! stateful protocol surface.
 
-pub use artifacts::{RejectedArtifact, ResolveArtifactsOptions, VerifiedArtifact};
+pub use artifacts::{
+    ArtifactBuildPolicy, RejectedArtifact, ResolveArtifactsOptions, VerifiedArtifact,
+};
 pub use ecosystem_cache::server_resolves;
 pub use ecosystems::{CARGO_ECOSYSTEM, PYPI_ECOSYSTEM};
 pub use pnpm_shared_artifact_protocol::{
@@ -74,6 +76,16 @@ pub struct ResolveOptions {
     pub dependencies: DepMap,
     pub dev_dependencies: DepMap,
     pub optional_dependencies: DepMap,
+    pub routing: RegistryRouting,
+    pub transforms: ManifestTransforms,
+    pub resolution: ResolutionSettings,
+    pub reuse: LockfileReuseOptions,
+    pub verification: VerificationPolicy,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistryRouting {
     /// The client's default registry. The server resolves against this
     /// (and the registries declared alongside it) rather than its own
     /// configuration.
@@ -87,7 +99,13 @@ pub struct ResolveOptions {
     /// none): identifies the caller to pnpr. The client never forwards its
     /// own registry credentials — pnpr selects upstream credentials from
     /// its route policy, so none are placed in the request body.
+    #[serde(skip)]
     pub authorization: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestTransforms {
     /// The client's `overrides` (selector -> spec) as raw JSON, applied
     /// at resolve time server-side. Sent unresolved: `catalog:` references
     /// in them are resolved server-side against [`Self::catalogs`].
@@ -105,6 +123,11 @@ pub struct ResolveOptions {
     /// cannot resolve a `catalog:` specifier in either dependencies or
     /// overrides ([pnpm/pnpm#13232](https://github.com/pnpm/pnpm/issues/13232)).
     pub catalogs: Option<Catalogs>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolutionSettings {
     /// The client's current values for the settings that shape the lockfile
     /// the server resolves. `None` is not `Some(false)`: it leaves the
     /// setting to the server, which takes the input lockfile's value on a
@@ -114,6 +137,14 @@ pub struct ResolveOptions {
     pub auto_install_peers: Option<bool>,
     pub dedupe_peers: Option<bool>,
     pub exclude_links_from_lockfile: Option<bool>,
+    /// The client's `resolutionMode`. The server picks versions the way
+    /// the client would, instead of falling back to its own default.
+    pub resolution_mode: ResolutionMode,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LockfileReuseOptions {
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target and the resolution-reuse seed.
     pub lockfile: Option<Lockfile>,
@@ -133,9 +164,11 @@ pub struct ResolveOptions {
     /// skips verifying the input lockfile (it still reuses it for
     /// resolution), mirroring the local `--trust-lockfile` opt-out.
     pub trust_lockfile: bool,
-    /// The client's `resolutionMode`. The server picks versions the way
-    /// the client would, instead of falling back to its own default.
-    pub resolution_mode: ResolutionMode,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerificationPolicy {
     /// The client's verification policy. The server verifies the input
     /// lockfile under *this* policy (not its own) before resolving.
     pub minimum_release_age: Option<u64>,
@@ -162,39 +195,22 @@ pub struct ResolveProject {
 }
 
 /// Inputs for a multi-project workspace resolution.
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ResolveProjectsOptions {
     pub projects: Vec<ResolveProject>,
-    pub registry: String,
-    /// The registries the client declares, keyed by URL, in the shape
-    /// of the `registries` setting. The default registry is not among
-    /// them: it travels as `registry`.
-    pub registries: RegistryDeclarations,
-    pub authorization: Option<String>,
-    pub overrides: Option<serde_json::Value>,
-    pub patched_dependencies: Option<IndexMap<String, String>>,
-    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
-    pub allow_unused_patches: bool,
-    pub catalogs: Option<Catalogs>,
-    pub auto_install_peers: Option<bool>,
-    pub dedupe_peers: Option<bool>,
-    pub exclude_links_from_lockfile: Option<bool>,
-    pub lockfile: Option<Lockfile>,
-    pub frozen_lockfile: bool,
-    pub prefer_frozen_lockfile: Option<bool>,
-    pub update_patches: bool,
     /// Regenerate derived lockfile metadata while retaining compatible pins.
     pub fix_lockfile: bool,
-    pub ignore_manifest_check: bool,
-    pub trust_lockfile: bool,
-    /// See [`ResolveOptions::resolution_mode`].
-    pub resolution_mode: ResolutionMode,
-    pub minimum_release_age: Option<u64>,
-    pub minimum_release_age_exclude: Option<Vec<String>>,
-    pub minimum_release_age_ignore_missing_time: bool,
-    pub trust_policy: TrustPolicy,
-    pub trust_policy_exclude: Option<Vec<String>>,
-    pub trust_policy_ignore_after: Option<u64>,
+    #[serde(flatten)]
+    pub routing: RegistryRouting,
+    #[serde(flatten)]
+    pub transforms: ManifestTransforms,
+    #[serde(flatten)]
+    pub resolution: ResolutionSettings,
+    #[serde(flatten)]
+    pub reuse: LockfileReuseOptions,
+    #[serde(flatten)]
+    pub verification: VerificationPolicy,
 }
 
 impl From<ResolveOptions> for ResolveProjectsOptions {
@@ -208,54 +224,28 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
                 dev_dependencies: opts.dev_dependencies,
                 optional_dependencies: opts.optional_dependencies,
             }],
-            registry: opts.registry,
-            registries: opts.registries,
-            authorization: opts.authorization,
-            overrides: opts.overrides,
-            patched_dependencies: opts.patched_dependencies,
-            package_extensions: opts.package_extensions,
-            allow_unused_patches: opts.allow_unused_patches,
-            catalogs: opts.catalogs,
-            auto_install_peers: opts.auto_install_peers,
-            dedupe_peers: opts.dedupe_peers,
-            exclude_links_from_lockfile: opts.exclude_links_from_lockfile,
-            lockfile: opts.lockfile,
-            frozen_lockfile: opts.frozen_lockfile,
-            prefer_frozen_lockfile: opts.prefer_frozen_lockfile,
-            update_patches: opts.update_patches,
             fix_lockfile: false,
-            ignore_manifest_check: opts.ignore_manifest_check,
-            trust_lockfile: opts.trust_lockfile,
-            resolution_mode: opts.resolution_mode,
-            minimum_release_age: opts.minimum_release_age,
-            minimum_release_age_exclude: opts.minimum_release_age_exclude,
-            minimum_release_age_ignore_missing_time: opts.minimum_release_age_ignore_missing_time,
-            trust_policy: opts.trust_policy,
-            trust_policy_exclude: opts.trust_policy_exclude,
-            trust_policy_ignore_after: opts.trust_policy_ignore_after,
+            routing: opts.routing,
+            transforms: opts.transforms,
+            resolution: opts.resolution,
+            reuse: opts.reuse,
+            verification: opts.verification,
         }
     }
 }
 
 /// Inputs for `/-/pnpr/v0/verify-lockfile`, the resolution-free trust verdict
 /// used by frozen restores that already know the local lockfile is fresh.
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VerifyLockfileOptions {
-    pub registry: String,
-    /// The registries the client declares, keyed by URL, in the shape
-    /// of the `registries` setting. The default registry is not among
-    /// them: it travels as `registry`.
-    pub registries: RegistryDeclarations,
-    pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub lockfile: Lockfile,
     pub trust_lockfile: bool,
-    pub minimum_release_age: Option<u64>,
-    pub minimum_release_age_exclude: Option<Vec<String>>,
-    pub minimum_release_age_ignore_missing_time: bool,
-    pub trust_policy: TrustPolicy,
-    pub trust_policy_exclude: Option<Vec<String>>,
-    pub trust_policy_ignore_after: Option<u64>,
+    #[serde(flatten)]
+    pub routing: RegistryRouting,
+    #[serde(flatten)]
+    pub verification: VerificationPolicy,
 }
 
 impl VerifyLockfileOptions {
@@ -271,18 +261,11 @@ impl VerifyLockfileOptions {
 
     fn from_owned_resolve_projects_options(opts: ResolveProjectsOptions) -> Option<Self> {
         Some(Self {
-            registry: opts.registry,
-            registries: opts.registries,
-            authorization: opts.authorization,
-            overrides: opts.overrides,
-            lockfile: opts.lockfile?,
-            trust_lockfile: opts.trust_lockfile,
-            minimum_release_age: opts.minimum_release_age,
-            minimum_release_age_exclude: opts.minimum_release_age_exclude,
-            minimum_release_age_ignore_missing_time: opts.minimum_release_age_ignore_missing_time,
-            trust_policy: opts.trust_policy,
-            trust_policy_exclude: opts.trust_policy_exclude,
-            trust_policy_ignore_after: opts.trust_policy_ignore_after,
+            overrides: opts.transforms.overrides,
+            lockfile: opts.reuse.lockfile?,
+            trust_lockfile: opts.reuse.trust_lockfile,
+            routing: opts.routing,
+            verification: opts.verification,
         })
     }
 }
@@ -492,7 +475,9 @@ impl PnprClient {
                 "pipeline report credentials require HTTPS or a loopback server".to_string(),
             ));
         }
-        let http = Client::builder().redirect(reqwest::redirect::Policy::none()).build()?;
+        let http = Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?;
         let mut put = http
             .put(format!("{}-/pnpr/v0/pipeline/runs", self.base_url))
             .timeout(self.artifact_request_timeout)
@@ -520,7 +505,9 @@ impl PnprClient {
     pub async fn supports_ecosystem(&self, ecosystem: &str) -> Result<bool, PnprClientError> {
         let capability = self.fetch_handshake(None).await?;
         Self::require_resolver_protocol(&capability)?;
-        Ok(capability.ecosystems.iter().any(|supported| supported == ecosystem))
+        Ok(capability.ecosystems
+            .iter()
+            .any(|supported| supported == ecosystem))
     }
 }
 
@@ -528,7 +515,10 @@ async fn response_body_bounded(
     response: reqwest::Response,
     limit: usize,
 ) -> Result<Vec<u8>, PnprClientError> {
-    if response.content_length().is_some_and(|length| length > limit as u64) {
+    if response
+        .content_length()
+        .is_some_and(|length| length > limit as u64)
+    {
         return Err(PnprClientError::Protocol(format!(
             "pnpr response exceeds the {limit}-byte limit",
         )));

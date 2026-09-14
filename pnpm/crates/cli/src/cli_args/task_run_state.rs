@@ -95,8 +95,10 @@ pub struct TaskRunExecutionSettings<'a> {
 }
 
 pub fn task_run_execution_settings(opts: &TaskRunExecutionSettings<'_>) -> Vec<String> {
-    let extra_bin_paths: Vec<String> =
-        opts.extra_bin_paths.iter().map(|path| path.to_string_lossy().into_owned()).collect();
+    let extra_bin_paths: Vec<String> = opts.extra_bin_paths
+        .iter()
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
     let mut extra_env: Vec<(&String, &String)> = opts.extra_env.iter().collect();
     extra_env.sort_by_key(|(key, _)| *key);
     vec![
@@ -178,8 +180,10 @@ impl TaskRunStateContext {
     }
 
     pub fn start(&self, completed_tasks: &HashSet<TaskKey>) -> miette::Result<TaskRunState> {
-        let mut completed: Vec<&TaskId> =
-            completed_tasks.iter().map(|key| &self.ids_by_key[key]).collect();
+        let mut completed: Vec<&TaskId> = completed_tasks
+            .iter()
+            .map(|key| &self.ids_by_key[key])
+            .collect();
         completed.sort();
         let (file_path, run, file) = match self.start_file(&completed) {
             Ok(state) => state,
@@ -321,14 +325,12 @@ fn task_identity(
     workspace_dir: &Path,
     script_commands: &impl Fn(&TaskNode, &str) -> Vec<String>,
 ) -> TaskIdentity {
-    let mut scripts: Vec<ScriptIdentity> = node
-        .scripts
+    let mut scripts: Vec<ScriptIdentity> = node.scripts
         .iter()
         .map(|name| ScriptIdentity { name: name.clone(), commands: script_commands(node, name) })
         .collect();
     scripts.sort_by(|left, right| left.name.cmp(&right.name));
-    let mut dependencies: Vec<TaskId> = node
-        .dependencies
+    let mut dependencies: Vec<TaskId> = node.dependencies
         .iter()
         .map(|dependency| task_id(&graph[dependency], workspace_dir))
         .collect();
@@ -351,7 +353,9 @@ fn invocation_hash(
     mut tasks: Vec<TaskIdentity>,
 ) -> String {
     tasks.sort_by(|left, right| {
-        left.project.cmp(&right.project).then_with(|| left.task.cmp(&right.task))
+        left.project
+            .cmp(&right.project)
+            .then_with(|| left.task.cmp(&right.task))
     });
     let mut settings = settings.to_vec();
     settings.sort();
@@ -406,28 +410,5 @@ fn run_id(generation: u64) -> String {
 
 #[cfg(test)]
 mod tests;
-
-fn initial_journal_contents(header: &StateHeader, completed: &[&TaskId]) -> String {
-    let mut contents = serde_json::to_string(header).expect("task state header serializes");
-    contents.push('\n');
-    for id in completed {
-        let record = TaskRecord {
-            run: header.run.clone(),
-            project: id.project.clone(),
-            task: id.task.clone(),
-        };
-        contents.push_str(&serde_json::to_string(&record).expect("task record serializes"));
-        contents.push('\n');
-    }
-    contents
-}
-
-/// Remove an unpublished journal if it cannot be reopened for appending.
-fn open_journal_for_append(file_path: &Path) -> Result<File, StateStorageError> {
-    OpenOptions::new().append(true).open(file_path).map_err(|error| {
-        let _ = fs::remove_file(file_path);
-        StateStorageError::io(error, "opening", file_path)
-    })
-}
 
 mod journal;

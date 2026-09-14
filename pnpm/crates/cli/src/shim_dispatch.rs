@@ -215,7 +215,10 @@ fn run_global_target(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
     match search_script_runtime::<CmdShimHost>(target) {
         // `.cmd` and `.bat` targets go to `Command::new` directly (see
         // `exec_program_with_path`) rather than through an explicit `cmd`.
-        Ok(Some(ScriptRuntime { prog: Some(prog), args: shebang_args })) if prog != "cmd" => {
+        Ok(Some(ScriptRuntime {
+            prog: Some(prog),
+            args: shebang_args,
+        })) if prog != "cmd" => {
             let mut argv = split_shebang_args(&shebang_args);
             argv.push(target.into());
             argv.extend_from_slice(args);
@@ -251,8 +254,16 @@ fn interpreter_path(bin_dir: &Path, prog: &str) -> PathBuf {
 /// (an unbalanced quote) falls back to whitespace splitting.
 fn split_shebang_args(shebang_args: &str) -> Vec<OsString> {
     let words = shell_words::split(shebang_args)
-        .unwrap_or_else(|_| shebang_args.split_whitespace().map(str::to_string).collect());
-    words.into_iter().map(OsString::from).collect()
+        .unwrap_or_else(|_| {
+            shebang_args
+                .split_whitespace()
+                .map(str::to_string)
+                .collect()
+        });
+    words
+        .into_iter()
+        .map(OsString::from)
+        .collect()
 }
 
 fn bypass_requested() -> bool {
@@ -317,7 +328,11 @@ fn find_candidate(cwd: &Path, name: &str, package: &str) -> Option<Candidate> {
     let runtime = is_runtime_alias(name);
     let package_manager = PackageManager::parse(package);
     cwd.ancestors()
-        .filter(|dir| !pnpm_home.as_deref().is_some_and(|home| dir.starts_with(home)))
+        .filter(|dir| {
+            !pnpm_home
+                .as_deref()
+                .is_some_and(|home| dir.starts_with(home))
+        })
         .find_map(|dir| candidate_in(dir, name, runtime, package_manager))
 }
 
@@ -371,7 +386,10 @@ fn local_bin_path(dir: &Path, name: &str) -> Option<PathBuf> {
     } else {
         vec![name.to_string()]
     };
-    candidates.iter().map(|file_name| bin_dir.join(file_name)).find(|path| path.is_file())
+    candidates
+        .iter()
+        .map(|file_name| bin_dir.join(file_name))
+        .find(|path| path.is_file())
 }
 
 fn run_runtime_from_store(

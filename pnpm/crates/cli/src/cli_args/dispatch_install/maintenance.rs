@@ -11,9 +11,9 @@ pub(in super::super) fn deploy<'a>(
     ctx: &RunCtx<'a>,
     args: DeployArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let dir = ctx.dir;
+    let dir = ctx.locations.dir;
     let reporter = ctx.reporter;
-    let config = ctx.config;
+    let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         // Boxed for `clippy::large_stack_frames`: the three monomorphized
         // deploy futures would otherwise each reserve their full size in
@@ -44,10 +44,10 @@ pub(in super::super) fn dedupe<'a>(
     ctx: &RunCtx<'a>,
     args: DedupeArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let dir = ctx.dir;
-    let manifest_path = ctx.manifest_path;
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
     let reporter = ctx.reporter;
-    let config = ctx.config;
+    let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
         args.apply_cli_config(cfg);
@@ -66,8 +66,12 @@ pub(in super::super) fn dedupe<'a>(
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(dedupe.run::<DefaultReporter>()).await?;
             }
-            ReporterType::Ndjson => Box::pin(dedupe.run::<NdjsonReporter>()).await?,
-            ReporterType::Silent => Box::pin(dedupe.run::<SilentReporter>()).await?,
+            ReporterType::Ndjson => {
+                Box::pin(dedupe.run::<NdjsonReporter>()).await?;
+            }
+            ReporterType::Silent => {
+                Box::pin(dedupe.run::<SilentReporter>()).await?;
+            }
         }
         Ok(())
     }))
@@ -77,10 +81,10 @@ pub(in super::super) fn prune<'a>(
     ctx: &RunCtx<'a>,
     args: PruneArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let dir = ctx.dir;
-    let manifest_path = ctx.manifest_path;
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
     let reporter = ctx.reporter;
-    let config = ctx.config;
+    let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
         let config_root = derive_config_root(cfg, dir, reporter)
@@ -108,10 +112,10 @@ pub(in super::super) fn fetch<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>((ctx.state)(true)?))
+            Box::pin(args.run::<DefaultReporter>((ctx.loaders.state)(true)?))
         }
-        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>((ctx.state)(true)?)),
-        ReporterType::Silent => Box::pin(args.run::<SilentReporter>((ctx.state)(true)?)),
+        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>((ctx.loaders.state)(true)?)),
+        ReporterType::Silent => Box::pin(args.run::<SilentReporter>((ctx.loaders.state)(true)?)),
     })
 }
 
@@ -119,9 +123,9 @@ pub(in super::super) fn import<'a>(
     ctx: &RunCtx<'a>,
     args: ImportArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.config)()?;
-    let dir = ctx.dir;
-    let manifest_path = ctx.manifest_path.to_path_buf();
+    let config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path.to_path_buf();
     let reporter = ctx.reporter;
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
@@ -141,9 +145,9 @@ pub(in super::super) fn link<'a>(
     ctx: &RunCtx<'a>,
     args: LinkArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.config)()?;
-    let dir = ctx.dir;
-    let manifest_path = ctx.manifest_path.to_path_buf();
+    let config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path.to_path_buf();
     let reporter = ctx.reporter;
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
@@ -161,10 +165,10 @@ pub(in super::super) fn unlink<'a>(
     ctx: &RunCtx<'a>,
     args: UnlinkArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let dir = ctx.dir;
-    let manifest_path = ctx.manifest_path;
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
     let reporter = ctx.reporter;
-    let config = ctx.config;
+    let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
         let recursive_sort = cfg.sort;
@@ -195,8 +199,12 @@ pub(in super::super) fn unlink<'a>(
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(pipeline.run::<DefaultReporter>()).await?;
             }
-            ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
-            ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
+            ReporterType::Ndjson => {
+                Box::pin(pipeline.run::<NdjsonReporter>()).await?;
+            }
+            ReporterType::Silent => {
+                Box::pin(pipeline.run::<SilentReporter>()).await?;
+            }
         }
         Ok(())
     }))
@@ -206,10 +214,10 @@ pub(in super::super) fn rebuild<'a>(
     ctx: &RunCtx<'a>,
     mut args: RebuildArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let dir = ctx.dir;
-    let manifest_path = ctx.manifest_path;
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
     let reporter = ctx.reporter;
-    let config = ctx.config;
+    let config = ctx.loaders.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
         apply_update_config(cfg, dir, reporter).await?;
@@ -235,8 +243,8 @@ pub(in super::super) fn runtime<'a>(
     args: RuntimeArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     if args.global {
-        let config = (ctx.global_config)()?;
-        let dir = ctx.dir;
+        let config = (ctx.loaders.global_config)()?;
+        let dir = ctx.locations.dir;
         return Ok(match ctx.reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 Box::pin(args.run_global::<DefaultReporter>(config, dir))
@@ -245,7 +253,7 @@ pub(in super::super) fn runtime<'a>(
             ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config, dir)),
         });
     }
-    let command_state = (ctx.state)(false)?;
+    let command_state = (ctx.loaders.state)(false)?;
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
             Box::pin(args.run::<DefaultReporter>(command_state))
@@ -262,8 +270,8 @@ pub(in super::super) fn env<'a>(
     ctx: &RunCtx<'a>,
     args: EnvArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.global_config)()?;
-    let dir = ctx.dir;
+    let config = (ctx.loaders.global_config)()?;
+    let dir = ctx.locations.dir;
     // The reporter is chosen before the subcommand is classified because
     // classifying `env use` already emits its deprecation warning.
     match ctx.reporter {
@@ -296,28 +304,24 @@ pub(in super::super) fn approve_builds<'a>(
     args: ApproveBuildsArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     if args.global {
-        let config = (ctx.global_config)()?;
-        return Ok(match ctx.reporter {
-            ReporterType::Default | ReporterType::AppendOnly => {
-                Box::pin(global::approve_global_builds::<DefaultReporter>(config, args))
-            }
-            ReporterType::Ndjson => {
-                Box::pin(global::approve_global_builds::<NdjsonReporter>(config, args))
-            }
-            ReporterType::Silent => {
-                Box::pin(global::approve_global_builds::<SilentReporter>(config, args))
-            }
-        });
+        let config = (ctx.loaders.global_config)()?;
+        return Ok(approve_global_builds(config, args, ctx.reporter));
     }
     // The settings/prompt work is synchronous; only the rebuild is async, so
     // the non-`Send` `config` / `state` closures stay out of the awaited
     // future.
     let prepared = match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            args.prepare::<DefaultReporter>(ctx.dir, ctx.config, ctx.state)
+        ReporterType::Default | ReporterType::AppendOnly => args.prepare::<DefaultReporter>(
+            ctx.locations.dir,
+            ctx.loaders.config,
+            ctx.loaders.state,
+        ),
+        ReporterType::Ndjson => {
+            args.prepare::<NdjsonReporter>(ctx.locations.dir, ctx.loaders.config, ctx.loaders.state)
         }
-        ReporterType::Ndjson => args.prepare::<NdjsonReporter>(ctx.dir, ctx.config, ctx.state),
-        ReporterType::Silent => args.prepare::<SilentReporter>(ctx.dir, ctx.config, ctx.state),
+        ReporterType::Silent => {
+            args.prepare::<SilentReporter>(ctx.locations.dir, ctx.loaders.config, ctx.loaders.state)
+        }
     };
     let Some((rebuild_state, build_packages)) = prepared? else {
         return Ok(Box::pin(std::future::ready(Ok(()))));
@@ -378,4 +382,22 @@ async fn run_rebuild_args(
         }
     }
     Ok(())
+}
+
+fn approve_global_builds<'a>(
+    config: &'static Config,
+    args: ApproveBuildsArgs,
+    reporter: ReporterType,
+) -> CommandFuture<'a> {
+    match reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(global::approve_global_builds::<DefaultReporter>(config, args))
+        }
+        ReporterType::Ndjson => {
+            Box::pin(global::approve_global_builds::<NdjsonReporter>(config, args))
+        }
+        ReporterType::Silent => {
+            Box::pin(global::approve_global_builds::<SilentReporter>(config, args))
+        }
+    }
 }

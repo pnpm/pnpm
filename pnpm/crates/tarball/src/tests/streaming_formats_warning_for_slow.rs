@@ -182,7 +182,9 @@ fn extract_rejects_parent_dir_component_in_entry_path() {
             *result_b = 0;
         }
         header.set_cksum();
-        builder.append(&header, &b"evil!"[..]).expect("append entry");
+        builder
+            .append(&header, &b"evil!"[..])
+            .expect("append entry");
         builder.finish().expect("finalize tar");
     }
 
@@ -387,8 +389,7 @@ fn streaming_extract_matches_eager_extract() {
     );
 
     let comparable = |idx: &PackageFilesIndex| -> Vec<(String, String, u32, u64)> {
-        let mut rows: Vec<_> = idx
-            .files
+        let mut rows: Vec<_> = idx.files
             .iter()
             .map(|(path, info)| (path.clone(), info.digest.clone(), info.mode, info.size))
             .collect();
@@ -438,7 +439,9 @@ fn streaming_extract_rejects_parent_dir_component_in_entry_path() {
             *result_b = 0;
         }
         header.set_cksum();
-        builder.append(&header, &b"evil!"[..]).expect("append entry");
+        builder
+            .append(&header, &b"evil!"[..])
+            .expect("append entry");
         builder.finish().expect("finalize tar");
     }
 
@@ -524,18 +527,23 @@ fn streaming_extract_truncated_large_entry_commits_nothing() {
     );
 
     fn count_files_recursively(dir: &Path) -> usize {
-        std::fs::read_dir(dir).map_or(0, |entries| {
-            entries
-                .map(|entry| entry.expect("read dirent"))
-                .map(|entry| {
-                    if entry.file_type().expect("dirent file type").is_dir() {
-                        count_files_recursively(&entry.path())
-                    } else {
-                        1
-                    }
-                })
-                .sum()
-        })
+        std::fs::read_dir(dir)
+            .map_or(0, |entries| {
+                entries
+                    .map(|entry| entry.expect("read dirent"))
+                    .map(|entry| {
+                        if entry
+                            .file_type()
+                            .expect("dirent file type")
+                            .is_dir()
+                        {
+                            count_files_recursively(&entry.path())
+                        } else {
+                            1
+                        }
+                    })
+                    .sum()
+            })
     }
     assert_eq!(
         count_files_recursively(&store_path.root().join("files")),
@@ -661,8 +669,7 @@ fn allocate_local_tarball_buffer_rejects_absurd_size_as_local_read_error() {
 #[tokio::test]
 async fn open_local_tarball_rejects_directories() {
     let local_dir = tempdir().unwrap();
-    let err = open_local_tarball(local_dir.path())
-        .await
+    let err = open_local_tarball(local_dir.path()).await
         .expect_err("local tarballs must be regular files");
     match err {
         TarballError::ReadLocalTarball { path, source } => {
@@ -718,7 +725,12 @@ async fn revision_addressed_tarball_does_not_retry_a_transient_failure() {
     let mut server = mockito::Server::new_async().await;
     let digest = "A".repeat(86);
     let path = format!("/-/tarballs/sha512/{digest}");
-    let mock = server.mock("GET", path.as_str()).with_status(503).expect(1).create_async().await;
+    let mock = server
+        .mock("GET", path.as_str())
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
     let url = format!("{}{path}", server.url());
     let expected = integrity(&format!("sha512-{digest}=="));
 

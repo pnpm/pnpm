@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 pub use catalog_snapshots::*;
 pub use comver::*;
 pub use env_lockfile::*;
@@ -102,6 +105,13 @@ pub type LockfileExtra = IndexMap<String, serde_json::Value>;
 /// A pnpm lockfile using a supported wire format.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the pnpm-lock.yaml format."
+    )
+)]
 pub struct Lockfile {
     pub lockfile_version: LockfileVersion<9>,
 
@@ -314,12 +324,14 @@ impl Lockfile {
     /// misread as empty and delete its current lockfile.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.importers.values().all(|importer| {
-            importer.specifiers.as_ref().is_none_or(HashMap::is_empty)
-                && importer.dependencies.as_ref().is_none_or(HashMap::is_empty)
-                && importer.dev_dependencies.as_ref().is_none_or(HashMap::is_empty)
-                && importer.optional_dependencies.as_ref().is_none_or(HashMap::is_empty)
-        })
+        self.importers
+            .values()
+            .all(|importer| {
+                importer.specifiers.as_ref().is_none_or(HashMap::is_empty)
+                    && importer.dependencies.as_ref().is_none_or(HashMap::is_empty)
+                    && importer.dev_dependencies.as_ref().is_none_or(HashMap::is_empty)
+                    && importer.optional_dependencies.as_ref().is_none_or(HashMap::is_empty)
+            })
     }
 
     /// Defense-in-depth for pruned lockfiles (older `turbo prune --docker`,
@@ -351,20 +363,22 @@ impl Lockfile {
         }
         let packages = self.packages.get_or_insert_with(HashMap::new);
         for (key, directory_resolution) in to_insert {
-            packages.entry(key).or_insert_with(|| PackageMetadata {
-                resolution: LockfileResolution::Directory(directory_resolution),
-                version: None,
-                engines: None,
-                cpu: None,
-                os: None,
-                libc: None,
-                deprecated: None,
-                has_bin: None,
-                prepare: None,
-                bundled_dependencies: None,
-                peer_dependencies: None,
-                peer_dependencies_meta: None,
-            });
+            packages
+                .entry(key)
+                .or_insert_with(|| PackageMetadata {
+                    resolution: LockfileResolution::Directory(directory_resolution),
+                    version: None,
+                    engines: None,
+                    cpu: None,
+                    os: None,
+                    libc: None,
+                    deprecated: None,
+                    has_bin: None,
+                    prepare: None,
+                    bundled_dependencies: None,
+                    peer_dependencies: None,
+                    peer_dependencies_meta: None,
+                });
         }
     }
 }

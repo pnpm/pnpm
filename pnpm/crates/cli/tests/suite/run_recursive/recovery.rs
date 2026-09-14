@@ -71,11 +71,26 @@ fn recursive_run_resume_from_starts_at_the_given_package() {
         .success();
 
     assert!(
-        !workspace.join("project-1").join("ran.txt").exists(),
+        !workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
         "project-1 sorts before the resume point and must be skipped",
     );
-    assert!(workspace.join("project-2").join("ran.txt").exists(), "project-2 should run");
-    assert!(workspace.join("project-3").join("ran.txt").exists(), "project-3 should run");
+    assert!(
+        workspace
+            .join("project-2")
+            .join("ran.txt")
+            .exists(),
+        "project-2 should run",
+    );
+    assert!(
+        workspace
+            .join("project-3")
+            .join("ran.txt")
+            .exists(),
+        "project-3 should run",
+    );
 
     drop(root);
 }
@@ -134,7 +149,13 @@ fn recursive_run_resumes_from_exactly_the_tasks_that_passed_before_a_failure() {
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read resumed run");
     assert!(order.ends_with("dependency\nanchor\n"), "unfinished dependency must rerun: {order}");
-    assert_eq!(order.lines().filter(|task| *task == "completed").count(), 1);
+    assert_eq!(
+        order
+            .lines()
+            .filter(|task| *task == "completed")
+            .count(),
+        1,
+    );
     let state_dir = workspace.join("node_modules").join(".pnpm-task-run-state-v1");
     let latest: Value = serde_json::from_str(
         &fs::read_to_string(state_dir.join("latest.json")).expect("read latest state pointer"),
@@ -199,7 +220,12 @@ fn recursive_run_does_not_persist_a_task_skipped_by_the_recursion_guard() {
         .assert()
         .failure();
     let first_run = fs::read_to_string(workspace.join("order.log")).expect("read first run");
-    assert!(!first_run.lines().any(|task| task == "origin"), "origin must be recursion-guarded");
+    assert!(
+        !first_run
+            .lines()
+            .any(|task| task == "origin"),
+        "origin must be recursion-guarded",
+    );
 
     fs::remove_file(workspace.join("fail")).expect("remove failure marker");
     Command::cargo_bin("pnpm")
@@ -210,7 +236,14 @@ fn recursive_run_does_not_persist_a_task_skipped_by_the_recursion_guard() {
         .success();
 
     let order = fs::read_to_string(workspace.join("order.log")).expect("read resumed run");
-    assert_eq!(order.lines().filter(|task| *task == "origin").count(), 1, "{order}");
+    assert_eq!(
+        order
+            .lines()
+            .filter(|task| *task == "origin")
+            .count(),
+        1,
+        "{order}",
+    );
 
     drop(root);
 }
@@ -398,8 +431,12 @@ fn recursive_run_bail_without_report_summary_writes_no_file() {
         &[("project-1", build("project-1", "exit 1")), ("project-2", build("project-2", "true"))],
     );
 
-    let output =
-        pacquet.with_arg("-r").with_arg("run").with_arg("build").output().expect("spawn pacquet");
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .output()
+        .expect("spawn pacquet");
     assert!(!output.status.success(), "a failing script with bail on must fail the run");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -448,11 +485,17 @@ fn recursive_run_recursion_guard_skips_originating_project() {
         .success();
 
     assert!(
-        !workspace.join("project-1").join("ran.txt").exists(),
+        !workspace
+            .join("project-1")
+            .join("ran.txt")
+            .exists(),
         "the originating project must be recursion-guarded and skipped",
     );
     assert!(
-        workspace.join("project-2").join("ran.txt").exists(),
+        workspace
+            .join("project-2")
+            .join("ran.txt")
+            .exists(),
         "other projects should still run",
     );
 

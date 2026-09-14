@@ -68,19 +68,25 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
         let resolver = NpmResolver {
             registries,
             registries_by_prefix: HashMap::new(),
-            http_client: Arc::new(ThrottledClient::default()),
-            auth_headers: Arc::new(AuthHeaders::default()),
-            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
-            fetch_locker: Arc::clone(&shared_fetch_locker),
-            picked_manifest_cache: Arc::clone(&shared_picked_cache),
-            cache_dir: Some(cache_dir.path().to_path_buf()),
-            offline: false,
-            prefer_offline: false,
-            ignore_missing_time_field: false,
-            full_metadata: false,
-            needs_full_metadata_for: None,
-            filter_metadata: false,
-            retry_opts: RetryOpts::default(),
+            metadata: crate::RegistryMetadataClient {
+                http_client: Arc::new(ThrottledClient::default()),
+                auth_headers: Arc::new(AuthHeaders::default()),
+                meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+                fetch_locker: Arc::clone(&shared_fetch_locker),
+                picked_manifest_cache: Arc::clone(&shared_picked_cache),
+                cache_dir: Some(cache_dir.path().to_path_buf()),
+                retry_opts: RetryOpts::default(),
+            },
+            format: crate::RegistryMetadataFormat {
+                full_metadata: false,
+                needs_full_metadata_for: None,
+                filter_metadata: false,
+            },
+            cache_policy: crate::MetadataCachePolicy {
+                offline: false,
+                prefer_offline: false,
+                ignore_missing_time_field: false,
+            },
         };
         (resolver, cache_dir)
     };
@@ -105,14 +111,12 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
         .expect("resolver B")
         .expect("resolver B picks");
 
-    let deps_a = result_a
-        .manifest
+    let deps_a = result_a.package.manifest
         .as_ref()
         .and_then(|m| m.get("dependencies"))
         .and_then(|d| d.as_object())
         .expect("resolver A manifest carries dependencies");
-    let deps_b = result_b
-        .manifest
+    let deps_b = result_b.package.manifest
         .as_ref()
         .and_then(|m| m.get("dependencies"))
         .and_then(|d| d.as_object())
@@ -144,7 +148,11 @@ async fn revision_metadata_is_validated_and_preserved() {
 
     let wanted =
         WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
 
     mock.assert_async().await;
     let LockfileResolution::Tarball(resolution) = result.resolution else {
@@ -203,7 +211,12 @@ async fn invalid_shasum_error_redacts_registry_metadata() {
         },
     })
     .to_string();
-    let _mock = server.mock("GET", "/acme").with_status(200).with_body(body).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(body)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 

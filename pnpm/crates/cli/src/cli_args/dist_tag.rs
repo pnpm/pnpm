@@ -197,8 +197,10 @@ impl DistTagArgs {
     }
 
     fn context<'config>(&self, config: &'config Config) -> miette::Result<DistTagContext<'config>> {
-        let mut registries: HashMap<String, String> =
-            config.resolved_registries().into_iter().collect();
+        let mut registries: HashMap<String, String> = config
+            .resolved_registries()
+            .into_iter()
+            .collect();
         if let Some(registry) = &self.registry {
             registries.insert("default".to_string(), normalize_registry_url(registry));
         }
@@ -271,10 +273,12 @@ async fn dist_tag_rm(context: &DistTagContext<'_>, params: &[String]) -> miette:
     let auth_header = auth_header_for_registry(context, &registry_url, &package_name);
     let dist_tags =
         fetch_dist_tags(context, &package_name, &registry_url, auth_header.as_deref()).await?;
-    let version = dist_tags.get(tag).ok_or_else(|| DistTagError::DistTagNotFound {
-        tag: tag.clone(),
-        package_name: package_name.clone(),
-    })?;
+    let version = dist_tags
+        .get(tag)
+        .ok_or_else(|| DistTagError::DistTagNotFound {
+            tag: tag.clone(),
+            package_name: package_name.clone(),
+        })?;
     let auth_type = if context.otp.is_some() { AuthType::Legacy } else { AuthType::Web };
     delete_dist_tag(
         context,

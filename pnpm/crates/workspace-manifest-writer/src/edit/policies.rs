@@ -18,7 +18,7 @@ pub(crate) fn set_audit_ignore_ghsas(
     manifest: &mut Manifest,
     ghsas: &[String],
 ) -> Result<bool, Box<yamlpatch::Error>> {
-    if manifest.audit_ignore.is_some() {
+    if manifest.exceptions.audit.is_some() {
         return Ok(set_audit_ignore(manifest, ghsas));
     }
 
@@ -26,22 +26,22 @@ pub(crate) fn set_audit_ignore_ghsas(
     if ghsas.is_empty() {
         return Ok(remove_audit_config_ghsas(manifest, BLOCK));
     }
-    if manifest.audit_ignore_ghsas.as_deref().unwrap_or_default() == ghsas {
+    if manifest.exceptions.legacy_audit_ghsas.as_deref().unwrap_or_default() == ghsas {
         return Ok(false);
     }
 
-    let text = manifest.text();
+    let text = manifest.document.text();
     if locate(text, &[BLOCK]).is_some() {
         let new_text = upsert_sequence_entry(text, BLOCK, "ignoreGhsas", ghsas);
-        manifest.set_text(new_text);
+        manifest.document.set_text(new_text);
     } else {
         let block = render_audit_config_block(ghsas);
         let new_text = insert_top_level_block(manifest, BLOCK, &block);
-        manifest.set_text(new_text);
-        manifest.top_level_keys =
-            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+        manifest.document.set_text(new_text);
+        manifest.document.keys =
+            render::target_order(&manifest.document.keys, &[BLOCK.to_string()]);
     }
-    manifest.audit_ignore_ghsas = Some(ghsas.to_vec());
+    manifest.exceptions.legacy_audit_ghsas = Some(ghsas.to_vec());
     Ok(true)
 }
 
@@ -50,35 +50,37 @@ pub(crate) fn set_audit_ignore_ghsas(
 fn set_audit_ignore(manifest: &mut Manifest, ghsas: &[String]) -> bool {
     let mut changed = if ghsas.is_empty() {
         remove_block_list_key(manifest, "audit", "ignore");
-        manifest.audit_ignore = None;
+        manifest.exceptions.audit = None;
         true
-    } else if manifest.audit_ignore.as_deref() == Some(ghsas) {
+    } else if manifest.exceptions.audit.as_deref() == Some(ghsas) {
         false
     } else {
-        let new_text = upsert_sequence_entry(manifest.text(), "audit", "ignore", ghsas);
-        manifest.set_text(new_text);
-        manifest.audit_ignore = Some(ghsas.to_vec());
+        let new_text = upsert_sequence_entry(manifest.document.text(), "audit", "ignore", ghsas);
+        manifest.document.set_text(new_text);
+        manifest.exceptions.audit = Some(ghsas.to_vec());
         true
     };
-    if manifest.audit_ignore_ghsas.is_some() {
+    if manifest.exceptions.legacy_audit_ghsas.is_some() {
         remove_block_list_key(manifest, "auditConfig", "ignoreGhsas");
-        manifest.audit_ignore_ghsas = None;
+        manifest.exceptions.legacy_audit_ghsas = None;
         changed = true;
     }
     changed
 }
 
 fn remove_audit_config_ghsas(manifest: &mut Manifest, block: &str) -> bool {
-    let text = manifest.text();
+    let text = manifest.document.text();
     // Nothing to remove if `ignoreGhsas` isn't present — and crucially,
     // don't touch sibling `auditConfig` keys.
     if locate(text, &[block]).is_none()
-        || !mapping_keys(text, &[block]).iter().any(|key| key == "ignoreGhsas")
+        || !mapping_keys(text, &[block])
+            .iter()
+            .any(|key| key == "ignoreGhsas")
     {
         return false;
     }
     remove_block_list_key(manifest, block, "ignoreGhsas");
-    manifest.audit_ignore_ghsas = None;
+    manifest.exceptions.legacy_audit_ghsas = None;
     true
 }
 
@@ -86,7 +88,7 @@ fn remove_audit_config_ghsas(manifest: &mut Manifest, block: &str) -> bool {
 /// its only entry, so no empty mapping is left behind. Sibling keys of
 /// `block` are never touched. A missing block or key is a no-op.
 fn remove_block_list_key(manifest: &mut Manifest, block: &str, key: &str) {
-    let text = manifest.text();
+    let text = manifest.document.text();
     if locate(text, &[block]).is_none() {
         return;
     }
@@ -96,11 +98,11 @@ fn remove_block_list_key(manifest: &mut Manifest, block: &str, key: &str) {
     }
     if keys.iter().all(|k| k == key) {
         let new_text = remove_top_level_block(text, block);
-        manifest.set_text(new_text);
-        manifest.top_level_keys.retain(|k| k != block);
+        manifest.document.set_text(new_text);
+        manifest.document.keys.retain(|k| k != block);
     } else {
         let new_text = remove_mapping_entries(text, &[block], &[key.to_string()]);
-        manifest.set_text(new_text);
+        manifest.document.set_text(new_text);
     }
 }
 
@@ -116,12 +118,12 @@ struct ExcludeList {
 
 const MINIMUM_RELEASE_AGE_EXCLUDE: ExcludeList = ExcludeList {
     key: "minimumReleaseAgeExclude",
-    decoded: |manifest| &mut manifest.minimum_release_age_exclude,
+    decoded: |manifest| &mut manifest.exceptions.release_age,
 };
 
 const TRUST_POLICY_EXCLUDE: ExcludeList = ExcludeList {
     key: "trustPolicyExclude",
-    decoded: |manifest| &mut manifest.trust_policy_exclude,
+    decoded: |manifest| &mut manifest.exceptions.trust_policy,
 };
 
 /// Set the top-level `minimumReleaseAgeExclude:` block to `items` (the
@@ -151,14 +153,19 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
     }
     // `text` borrows the manifest for the rest of the write, so the
     // reconciliation reads the current entries from a copy.
-    let current: Vec<String> = decoded(manifest).as_deref().unwrap_or_default().to_vec();
+    let current: Vec<String> = decoded(manifest)
+        .as_deref()
+        .unwrap_or_default()
+        .to_vec();
 
-    let text = manifest.text();
+    let text = manifest.document.text();
     match locate_sequence(text, &[block]) {
         Inline::Flow(collection) => {
-            let rendered: Vec<String> =
-                items.iter().map(|item| render::render_value(item)).collect();
-            manifest.set_text(flow::set_items(text, &collection, &rendered));
+            let rendered: Vec<String> = items
+                .iter()
+                .map(|item| render::render_value(item))
+                .collect();
+            manifest.document.set_text(flow::set_items(text, &collection, &rendered));
             *decoded(manifest) = Some(items.to_vec());
             return true;
         }
@@ -170,33 +177,43 @@ fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]
     }
 
     if let Some(new_text) = reconcile_sequence_items(text, block, &current, items) {
-        manifest.set_text(new_text);
+        manifest.document.set_text(new_text);
         *decoded(manifest) = Some(items.to_vec());
         return true;
     }
 
-    let rendered = render_top_level_sequence(block, items);
-    if let Some(span) = top_level_span(text, block) {
-        manifest.set_text(replace_top_level_block(text, &span, &rendered));
-    } else {
-        let new_text = insert_top_level_block(manifest, block, &rendered);
-        manifest.set_text(new_text);
-        manifest.top_level_keys =
-            render::target_order(&manifest.top_level_keys, &[block.to_string()]);
-    }
+    replace_exclude_sequence(manifest, block, items);
     *decoded(manifest) = Some(items.to_vec());
     true
 }
 
+fn replace_exclude_sequence(manifest: &mut Manifest, block: &str, items: &[String]) {
+    let rendered = render_top_level_sequence(block, items);
+    if let Some(span) = top_level_span(manifest.document.text(), block) {
+        manifest.document.set_text(replace_top_level_block(
+            manifest.document.text(),
+            &span,
+            &rendered,
+        ));
+    } else {
+        let new_text = insert_top_level_block(manifest, block, &rendered);
+        manifest.document.set_text(new_text);
+        manifest.document.keys =
+            render::target_order(&manifest.document.keys, &[block.to_string()]);
+    }
+}
+
 fn remove_exclude_list(manifest: &mut Manifest, list: ExcludeList) -> bool {
     let ExcludeList { key: block, decoded } = list;
-    let has_block = manifest.top_level_keys.iter().any(|key| key == block);
+    let has_block = manifest.document.keys
+        .iter()
+        .any(|key| key == block);
     if !has_block {
         return false;
     }
-    manifest.set_text(remove_top_level_block(manifest.text(), block));
+    manifest.document.set_text(remove_top_level_block(manifest.document.text(), block));
     *decoded(manifest) = None;
-    manifest.top_level_keys.retain(|key| key != block);
+    manifest.document.keys.retain(|key| key != block);
     true
 }
 

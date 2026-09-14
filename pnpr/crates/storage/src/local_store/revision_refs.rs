@@ -6,7 +6,10 @@ use super::{
 impl Store {
     pub(in super::super) async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
         let index = self.read_revision_ref_index(digest).await?;
-        Ok(index.bodies().map(<[u8]>::to_vec).collect())
+        Ok(index
+            .bodies()
+            .map(<[u8]>::to_vec)
+            .collect())
     }
 
     pub(in super::super) async fn write_revision_ref(

@@ -185,28 +185,36 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
 
     // Cold install: fetch the fixture, synthesize the manifest, queue the row.
     let cold_cas_paths = super::super::InstallPackageBySnapshot {
+        fetching: crate::SnapshotFetchContext {
+            http_client: &pnpm_network::ThrottledClient::default(),
+            store_index: None,
+            store_index_writer: Some(&writer),
+            prefetched_cas_paths: None,
+            tarball_mem_cache: None,
+            progress_reported: None,
+            verified_files_cache: &verified_files_cache,
+            custom_fetcher_session: None,
+        },
         ctx: &crate::InstallContext {
+            linker: crate::ModuleLinkerContext {
+                layout: &layout,
+                kind: pnpm_config::NodeLinker::Hoisted,
+                bin_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            },
             config,
             workspace_root: store_tmp.path(),
             requester: "/project",
-            layout: &layout,
-            node_linker: pnpm_config::NodeLinker::Hoisted,
+
             allow_build_policy: &allow_build_policy,
-            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
         },
-        http_client: &pnpm_network::ThrottledClient::default(),
-        store_index: None,
-        store_index_writer: Some(&writer),
-        prefetched_cas_paths: None,
-        progress_reported: None,
-        tarball_mem_cache: None,
-        verified_files_cache: &verified_files_cache,
+
         skipped: &skipped,
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
-        custom_fetcher_session: None,
+
         defer_link: false,
         link_concurrency_probe: None,
     }
@@ -240,7 +248,10 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     assert!(row.files.contains_key("package.json"), "the row records the synthesized package.json");
     let manifest = row.manifest.expect("the row records a bundled manifest");
     assert_eq!(
-        manifest.get("bin").and_then(|bin| bin.get("node")).and_then(serde_json::Value::as_str),
+        manifest
+            .get("bin")
+            .and_then(|bin| bin.get("node"))
+            .and_then(serde_json::Value::as_str),
         Some("bin/node"),
         "the bundled manifest carries the runtime bin",
     );
@@ -254,31 +265,39 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     let warm_verified = SharedVerifiedFilesCache::default();
     let warm_logged = AtomicU8::new(0);
     let warm_cas_paths = super::super::InstallPackageBySnapshot {
+        fetching: crate::SnapshotFetchContext {
+            http_client: &pnpm_network::ThrottledClient::default(),
+            store_index: warm_index.as_ref(),
+            store_index_writer: None,
+            prefetched_cas_paths: None,
+            tarball_mem_cache: None,
+            progress_reported: None,
+            verified_files_cache: &warm_verified,
+            custom_fetcher_session: None,
+        },
         ctx: &crate::InstallContext {
+            linker: crate::ModuleLinkerContext {
+                layout: &layout,
+                kind: pnpm_config::NodeLinker::Hoisted,
+                bin_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+            },
             config,
             workspace_root: store_tmp.path(),
             requester: "/project",
-            layout: &layout,
-            node_linker: pnpm_config::NodeLinker::Hoisted,
+
             allow_build_policy: &allow_build_policy,
-            link_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+
             // Deliberately not the cold run's counter: the assertion
             // below is that the warm path logs its import method on its
             // own.
             logged_methods: &warm_logged,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
         },
-        http_client: &pnpm_network::ThrottledClient::default(),
-        store_index: warm_index.as_ref(),
-        store_index_writer: None,
-        prefetched_cas_paths: None,
-        progress_reported: None,
-        tarball_mem_cache: None,
-        verified_files_cache: &warm_verified,
+
         skipped: &skipped,
         include_optional_dependencies: true,
         runtime_platform_selector: &host_platform_selector(),
-        custom_fetcher_session: None,
+
         defer_link: false,
         link_concurrency_probe: None,
     }

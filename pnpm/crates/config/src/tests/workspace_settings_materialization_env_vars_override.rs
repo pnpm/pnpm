@@ -418,7 +418,12 @@ pub fn lockfile_dir_from_workspace_yaml_moves_the_paths_anchored_on_it() {
     assert_eq!(config.lockfile_dir_for(&workspace), tmp.path());
     assert_eq!(config.root_project_manifest_dir(&workspace), tmp.path());
     assert_eq!(config.modules_dir, tmp.path().join("node_modules"));
-    assert_eq!(config.virtual_store_dir, tmp.path().join("node_modules").join(".pnpm"));
+    assert_eq!(
+        config.virtual_store_dir,
+        tmp.path()
+            .join("node_modules")
+            .join(".pnpm"),
+    );
 }
 
 #[test]
@@ -511,5 +516,13 @@ pub fn extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace() {
     fs::write(project.path().join("pnpm-workspace.yaml"), "packages:\n  - .\n")
         .expect("write pnpm-workspace.yaml");
     let config = load_with_fake_env(project.path());
-    assert_eq!(config.extra_bin_paths, vec![project.path().join("node_modules").join(".bin")]);
+    assert_eq!(
+        config.extra_bin_paths,
+        vec![
+            project
+                .path()
+                .join("node_modules")
+                .join(".bin")
+        ],
+    );
 }

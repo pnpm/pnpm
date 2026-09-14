@@ -179,15 +179,17 @@ impl NodeResolver {
         });
         Ok(Some(ResolveResult {
             id: format!("node@runtime:{version}").into(),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: Some(std::sync::Arc::new(manifest)),
             resolution,
             resolved_via: RESOLVED_VIA.to_string(),
             normalized_bare_specifier: Some(format!("runtime:{range}")),
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: Some(std::sync::Arc::new(manifest)),
+            },
         }))
     }
 
@@ -306,9 +308,10 @@ impl NodeResolver {
             spec_owned = "latest";
             spec_owned
         };
-        let parsed = parse_node_specifier(version_spec).map_err(|err| {
-            Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
-        })?;
+        let parsed = parse_node_specifier(version_spec)
+            .map_err(|err| {
+                Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
+            })?;
         let mirror = get_node_mirror(Some(&self.node_download_mirrors), &parsed.release_channel);
         let version = resolve_node_version_with_auth(
             &self.http_client,
@@ -407,7 +410,9 @@ fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> 
     if wanted.alias.as_deref() != Some(expected_alias) {
         return None;
     }
-    wanted.bare_specifier.as_deref().and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier
+        .as_deref()
+        .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
 }
 
 fn normalize_node_runtime_version_specifier(

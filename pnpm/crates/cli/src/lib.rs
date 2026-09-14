@@ -1,3 +1,5 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 // A command's install future carries the engine's whole resolve-and-fetch
 // graph; proving it `Send` walks deeper than rustc's default limit.
 #![recursion_limit = "256"]
@@ -58,14 +60,16 @@ pub fn main() -> ExitCode {
 }
 
 fn is_reported_error(error: &miette::Report) -> bool {
-    error.code().is_some_and(|code| {
-        matches!(
-            code.to_string().as_str(),
-            "ERR_PNPM_DEDUPE_CHECK_ISSUES"
-                | "ERR_PNPM_PEER_DEP_ISSUES"
-                | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
-        )
-    })
+    error
+        .code()
+        .is_some_and(|code| {
+            matches!(
+                code.to_string().as_str(),
+                "ERR_PNPM_DEDUPE_CHECK_ISSUES"
+                    | "ERR_PNPM_PEER_DEP_ISSUES"
+                    | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
+            )
+        })
 }
 
 /// Parse and execute the CLI, including shim dispatch and startup fast paths.
@@ -83,7 +87,11 @@ fn run_cli() -> miette::Result<()> {
         std::process::exit(exit_code);
     }
     let argv_with_alias = argv_with_alias_subcommand(argv);
-    let child_argv = argv_with_alias.iter().skip(1).cloned().collect::<Vec<_>>();
+    let child_argv = argv_with_alias
+        .iter()
+        .skip(1)
+        .cloned()
+        .collect::<Vec<_>>();
     // `pnpm pm <cmd>` is stripped before every other pass, so they all see
     // the command line the prefix stands for; the child argv above keeps
     // it, since a dispatched pnpm has to force the built-in too. See
@@ -123,11 +131,20 @@ fn run_cli() -> miette::Result<()> {
 
 /// Parse argv, recording whether `--dir` came from the command line.
 fn parse_cli_args(command: clap::Command, argv: Vec<OsString>) -> Result<CliArgs, clap::Error> {
-    command.try_get_matches_from(argv).and_then(|matches| {
-        let dir_from_command_line =
-            matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
-        CliArgs::from_arg_matches(&matches).map(|args| CliArgs { dir_from_command_line, ..args })
-    })
+    command
+        .try_get_matches_from(argv)
+        .and_then(|matches| {
+            let dir_from_command_line =
+                matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
+            CliArgs::from_arg_matches(&matches)
+                .map(|args| CliArgs {
+                    paths: crate::cli_args::cli_command::CliPathArgs {
+                        dir_from_command_line,
+                        ..args.paths
+                    },
+                    ..args
+                })
+        })
 }
 
 /// pnpm prints the bare version, not clap's `pnpm <version>` rendering —
@@ -137,17 +154,38 @@ fn print_version(
     child_argv: &[OsString],
     config_overrides: &ConfigOverrides,
 ) -> miette::Result<()> {
-    if let Some(plan) =
-        cli_args::pre_command::pre_command_plan_for_version_flag(argv, config_overrides)?
-        && block_on_runtime(
-            "pacquet-pre-command",
-            cli_args::pre_command::execute_plan(plan, child_argv),
-        )?
-    {
+    // The version is the command's output, so every warning the checks
+    // below raise belongs on stderr, leaving stdout a bare version string.
+    pnpm_default_reporter::use_stderr();
+    if pinned_pnpm_printed_the_version(argv, child_argv, config_overrides)? {
         return Ok(());
     }
     println!("{}", pnpm_config::PNPM_VERSION);
     Ok(())
+}
+
+/// Whether the pinned pnpm answered `--version` for this one. Installing
+/// that pnpm, and recording the pin, both write, and a sandbox with a
+/// read-only home has nowhere to write — printing a version has to work
+/// there too, so the failure is reported and the running version answers.
+/// The checks themselves still fail the command: a project pinned to
+/// another package manager is not something a version string can stand in
+/// for.
+fn pinned_pnpm_printed_the_version(
+    argv: &[OsString],
+    child_argv: &[OsString],
+    config_overrides: &ConfigOverrides,
+) -> miette::Result<bool> {
+    let Some(plan) =
+        cli_args::pre_command::pre_command_plan_for_version_flag(argv, config_overrides)?
+    else {
+        return Ok(false);
+    };
+    block_on_runtime("pacquet-pre-command", cli_args::pre_command::execute_plan(plan, child_argv))
+        .or_else(|error| {
+            cli_args::pre_command::warn_pinned_pnpm_unusable(&error);
+            Ok(false)
+        })
 }
 
 /// Whether the pnpm the project pins took the command. When it did, it has
@@ -223,8 +261,10 @@ where
 /// themselves — and there `current_exe` is the only signal of the launch name.
 fn argv_with_alias_subcommand(argv: Vec<OsString>) -> Vec<OsString> {
     let exe = std::env::current_exe().ok();
-    let exe_name =
-        exe.as_deref().and_then(Path::file_stem).map(|stem| stem.to_string_lossy().to_lowercase());
+    let exe_name = exe
+        .as_deref()
+        .and_then(Path::file_stem)
+        .map(|stem| stem.to_string_lossy().to_lowercase());
     inject_alias_subcommand(exe_name.as_deref(), argv)
 }
 

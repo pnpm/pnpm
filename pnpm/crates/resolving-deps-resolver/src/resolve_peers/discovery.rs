@@ -49,7 +49,7 @@ impl PeerHoistDiscovery {
     /// `workspace` first when the context changed since the last pass.
     ///
     /// A children-ownership handover that rewrote existing occurrence
-    /// nodes ([`crate::WorkspaceTreeCtx::children_rewrites`]) discards
+    /// nodes (the children-rewrite counter in [`crate::WorkspaceTreeCtx::tree`]) discards
     /// the whole view: the retained realized children and the walk
     /// verdicts derived from them predate the rewrite, and an
     /// incremental sync cannot tell which of them the rewrite
@@ -66,9 +66,9 @@ impl PeerHoistDiscovery {
         walk_direct: &[DirectDep],
         opts: ResolvePeersOptions,
     ) -> PeerDiscoveryResult {
-        let revision = workspace.revision();
+        let revision = workspace.tree.revision();
         if self.synced_revision != Some(revision) {
-            let children_rewrites = workspace.children_rewrites();
+            let children_rewrites = workspace.tree.children_rewrites();
             let stale =
                 self.synced_children_rewrites.is_some_and(|synced| synced != children_rewrites);
             if stale || !workspace.sync_discovery_tree(&mut self.tree, &mut self.cursor) {
@@ -161,7 +161,7 @@ fn discover_peers(
     let root = RootWalk::of(&walker, parents_direct);
     let (own_direct, provider_direct): (Vec<&DirectDep>, Vec<&DirectDep>) = walk_direct
         .iter()
-        .partition(|dep| !walker.opts.hoisted_peer_provider_node_ids.contains(&dep.node_id));
+        .partition(|dep| !walker.opts.scope.hoisted_peer_provider_node_ids.contains(&dep.node_id));
     let mut result = PeerDiscoveryResult::default();
     for dep in &own_direct {
         walker.remember_parent_context_if_peer_provider(
@@ -178,7 +178,7 @@ fn discover_peers(
     // walk above; only one whose position was pruned still needs the
     // root-context fallback.
     for dep in &provider_direct {
-        if walker.visited_this_call.contains(&dep.node_id) {
+        if walker.traversal.visited_this_call.contains(&dep.node_id) {
             continue;
         }
         walker.remember_parent_context_if_peer_provider(
@@ -189,8 +189,8 @@ fn discover_peers(
         result.fold(walker.resolve_node(&dep.node_id, &root.context()));
     }
     walker.drain_pending_canonical_nodes(&root.importer_parents, &root.parent_dep_paths);
-    result.peer_dependency_issues = std::mem::take(&mut walker.issues);
-    result.missing_ancestor_pkg_ids = std::mem::take(&mut walker.missing_ancestor_pkg_ids);
+    result.peer_dependency_issues = std::mem::take(&mut walker.output.issues);
+    result.missing_ancestor_pkg_ids = std::mem::take(&mut walker.output.missing_ancestor_pkg_ids);
     (result, walker.into_caches())
 }
 
@@ -239,8 +239,8 @@ fn discovery_provider_sources(
             .iter()
             .map(|dep| (dep.alias.clone(), dep.node_id.clone()))
             .collect(),
-        declared_direct_dependencies: opts.declared_direct_dependencies.clone(),
-        explicitly_requested_direct_dependencies: opts
+        declared_direct_dependencies: opts.scope.declared_direct_dependencies.clone(),
+        explicitly_requested_direct_dependencies: opts.scope
             .explicitly_requested_direct_dependencies
             .clone(),
     }]

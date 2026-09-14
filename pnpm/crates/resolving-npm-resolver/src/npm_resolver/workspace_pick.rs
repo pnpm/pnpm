@@ -47,10 +47,10 @@ pub(super) fn workspace_shadow_pick(
     }
     let mut result =
         try_workspace_shadow(workspace_packages?, spec, &picked.version, wanted_dependency, opts)?;
-    result.latest = latest_allowed_by_policy(
+    result.package.latest = latest_allowed_by_policy(
         &picked.meta,
-        opts.published_by,
-        opts.published_by_exclude.as_ref(),
+        opts.policy.published_by,
+        opts.policy.published_by_exclude.as_ref(),
     )
     .map(str::to_string);
     Some(result)
@@ -69,11 +69,11 @@ pub(super) fn prefer_workspace_pick(
     wanted_dependency: &WantedDependency,
     opts: &ResolveOptions,
 ) -> Option<ResolveResult> {
-    let eligible = opts.prefer_workspace_packages
+    let eligible = opts.project.prefer_workspace_packages
         && spec.revision.is_none()
-        && opts.trust_policy != Some(TrustPolicy::NoDowngrade)
-        && !opts.update_checksums
-        && !opts.inject_workspace_packages
+        && opts.policy.trust_policy != Some(TrustPolicy::NoDowngrade)
+        && !opts.refresh.update_checksums
+        && !opts.project.inject_workspace_packages
         && !wanted_dependency.injected.unwrap_or(false);
     if !eligible {
         return None;
@@ -88,8 +88,8 @@ pub(super) fn prefer_workspace_pick(
         local_package,
         wanted_dependency,
         false,
-        opts.project_dir.as_path(),
-        opts.lockfile_dir.as_path(),
+        opts.project.project_dir.as_path(),
+        opts.project.lockfile_dir.as_path(),
         saved_specifier_options(opts),
     ))
 }
@@ -109,7 +109,9 @@ pub(super) fn wanted_spec(
             registry,
         );
     }
-    let alias = wanted_dependency.alias.as_deref().filter(|alias| !alias.is_empty())?;
+    let alias = wanted_dependency.alias
+        .as_deref()
+        .filter(|alias| !alias.is_empty())?;
     Some(default_tag_spec(alias, default_tag))
 }
 
@@ -118,7 +120,7 @@ pub(super) fn wanted_spec(
 /// every published version can be too young to match — a policy outcome the
 /// caller renders as "nothing to update to", not an error.
 pub(crate) fn swallowed_as_no_latest(err: &ResolveError, opts: &ResolveOptions) -> bool {
-    opts.published_by.is_some() && err.is::<NoMatchingVersionError>()
+    opts.policy.published_by.is_some() && err.is::<NoMatchingVersionError>()
 }
 
 /// The `ERR_PNPM_NO_MATCHING_VERSION` error for a registry that publishes the
@@ -163,9 +165,10 @@ pub(super) fn try_workspace_shadow(
     opts: &ResolveOptions,
 ) -> Option<ResolveResult> {
     let matching_name = workspace_packages.get(picked.name.as_str())?;
-    let hard_link = opts.inject_workspace_packages || wanted_dependency.injected.unwrap_or(false);
-    let project_dir = opts.project_dir.as_path();
-    let lockfile_dir = opts.lockfile_dir.as_path();
+    let hard_link =
+        opts.project.inject_workspace_packages || wanted_dependency.injected.unwrap_or(false);
+    let project_dir = opts.project.project_dir.as_path();
+    let lockfile_dir = opts.project.lockfile_dir.as_path();
 
     let picked_version_string = picked.version.to_string();
     if let Some(matched) = matching_name.get(&picked_version_string) {
@@ -181,7 +184,7 @@ pub(super) fn try_workspace_shadow(
 
     let local_version = pick_matching_local_version_or_null(matching_name, spec)?;
     let local_parsed = Version::parse(&local_version).ok()?;
-    let prefer = opts.prefer_workspace_packages || local_parsed > picked.version;
+    let prefer = opts.project.prefer_workspace_packages || local_parsed > picked.version;
     if !prefer {
         return None;
     }
@@ -203,12 +206,12 @@ pub(super) fn try_workspace_shadow(
 pub(super) fn workspace_fallback_options(opts: &ResolveOptions) -> ResolveFromWorkspaceOptions<'_> {
     const UNUSED: &str = "";
     ResolveFromWorkspaceOptions {
-        project_dir: opts.project_dir.as_path(),
-        lockfile_dir: opts.lockfile_dir.as_path(),
+        project_dir: opts.project.project_dir.as_path(),
+        lockfile_dir: opts.project.lockfile_dir.as_path(),
         registry: UNUSED,
         default_tag: UNUSED,
-        workspace_packages: opts.workspace_packages.as_deref(),
-        inject_workspace_packages: opts.inject_workspace_packages,
+        workspace_packages: opts.project.workspace_packages.as_deref(),
+        inject_workspace_packages: opts.project.inject_workspace_packages,
         saved_specifier: saved_specifier_options(opts),
     }
 }
@@ -217,9 +220,9 @@ pub(super) fn workspace_fallback_options(opts: &ResolveOptions) -> ResolveFromWo
 /// workspace entry point, which carries its own options struct.
 pub(super) fn saved_specifier_options(opts: &ResolveOptions) -> SavedSpecifierOptions {
     SavedSpecifierOptions {
-        calc_specifier: opts.calc_specifier,
-        range_spec_style: opts.range_spec_style,
-        save_workspace_protocol: opts.save_workspace_protocol,
+        calc_specifier: opts.specifier.calc_specifier,
+        range_spec_style: opts.specifier.range_spec_style,
+        save_workspace_protocol: opts.specifier.save_workspace_protocol,
     }
 }
 
@@ -241,14 +244,13 @@ pub(super) fn workspace_packages_active<'o>(
     opts: &'o ResolveOptions,
     spec: &RegistryPackageSpec,
 ) -> Option<&'o std::sync::Arc<WorkspacePackages>> {
-    let can_keep_workspace_resolution = opts
-        .current_pkg
+    let can_keep_workspace_resolution = opts.refresh.current_pkg
         .as_ref()
         .is_none_or(|current| matches!(current.resolution, LockfileResolution::Directory(_)));
     (spec.revision.is_none()
-        && opts.link_workspace_packages.enabled_at_depth(0)
-        && (opts.update != UpdateBehavior::Patches || can_keep_workspace_resolution))
-        .then_some(opts.workspace_packages.as_ref())
+        && opts.project.link_workspace_packages.enabled_at_depth(0)
+        && (opts.refresh.update != UpdateBehavior::Patches || can_keep_workspace_resolution))
+        .then_some(opts.project.workspace_packages.as_ref())
         .flatten()
 }
 

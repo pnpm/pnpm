@@ -55,8 +55,7 @@ impl ReferrerFilter {
     pub(super) fn needs_manifest(&self, indexed: Option<&ReferrerMetadata>) -> bool {
         indexed.is_none_or(|metadata| {
             metadata.subject.as_ref() == Some(&self.subject)
-                && self
-                    .artifact_type_digest
+                && self.artifact_type_digest
                     .as_ref()
                     .is_none_or(|filter| metadata.artifact_type_digest.as_ref() == Some(filter))
         })
@@ -64,8 +63,7 @@ impl ReferrerFilter {
 
     pub(super) fn matches(&self, manifest: &Manifest) -> bool {
         manifest.referrer_metadata().subject.as_ref() == Some(&self.subject)
-            && self
-                .artifact_type
+            && self.artifact_type
                 .as_deref()
                 .is_none_or(|filter| manifest.artifact_type() == Some(filter))
     }

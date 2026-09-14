@@ -7,9 +7,19 @@ use assert_cmd::assert::OutputAssertExt;
 
 #[test]
 fn install_via_pnpr_links_node_modules() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        npmrc_path,
+        store_dir,
+        mock_instance,
+        ..
+    } = npmrc_info;
 
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
@@ -50,8 +60,13 @@ fn install_via_pnpr_replaces_a_conflicted_lockfile() {
         ">>>>>>> branch"
     };
 
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
@@ -89,8 +104,13 @@ fn install_via_pnpr_replaces_a_conflicted_lockfile() {
 
 #[test]
 fn patched_dependencies_resolve_via_pnpr() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
@@ -129,8 +149,13 @@ fn patched_dependencies_resolve_via_pnpr() {
 
 #[test]
 fn package_extensions_resolve_via_pnpr() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
@@ -223,9 +248,19 @@ fn install_via_pnpr_preserves_the_lockfiles_time_section() {
 
 #[test]
 fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redownloading() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { npmrc_path, cache_dir, mock_instance, .. } = npmrc_info;
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        npmrc_path,
+        cache_dir,
+        mock_instance,
+        ..
+    } = npmrc_info;
 
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
@@ -262,7 +297,10 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
     // fetch a single tarball: point the registry at a server that rejects
     // every request.
     let mut silent_registry = mockito::Server::new();
-    let no_downloads = silent_registry.mock("GET", mockito::Matcher::Any).expect(0).create();
+    let no_downloads = silent_registry
+        .mock("GET", mockito::Matcher::Any)
+        .expect(0)
+        .create();
     point_npmrc_registry_at(&npmrc_path, &silent_registry.url());
 
     pacquet_at(&workspace)
@@ -285,8 +323,13 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
 /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
 #[test]
 fn repeat_install_via_pnpr_short_circuits_without_contacting_the_server() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
 
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
@@ -307,7 +350,10 @@ fn repeat_install_via_pnpr_short_circuits_without_contacting_the_server() {
         .success();
 
     let mut silent_pnpr = mockito::Server::new();
-    let no_pnpr_requests = silent_pnpr.mock("POST", mockito::Matcher::Any).expect(0).create();
+    let no_pnpr_requests = silent_pnpr
+        .mock("POST", mockito::Matcher::Any)
+        .expect(0)
+        .create();
 
     let assert = pacquet_at(&workspace)
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
@@ -331,8 +377,13 @@ fn repeat_install_via_pnpr_short_circuits_without_contacting_the_server() {
 /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
 #[test]
 fn install_via_pnpr_skips_the_server_when_the_lockfile_satisfies_the_manifest() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
 
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
@@ -354,10 +405,16 @@ fn install_via_pnpr_skips_the_server_when_the_lockfile_satisfies_the_manifest() 
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
     let mut silent_pnpr = mockito::Server::new();
-    let no_pnpr_requests = silent_pnpr.mock("POST", mockito::Matcher::Any).expect(0).create();
+    let no_pnpr_requests = silent_pnpr
+        .mock("POST", mockito::Matcher::Any)
+        .expect(0)
+        .create();
     // The warm store must serve every tarball; reject any registry fetch.
     let mut silent_registry = mockito::Server::new();
-    let no_downloads = silent_registry.mock("GET", mockito::Matcher::Any).expect(0).create();
+    let no_downloads = silent_registry
+        .mock("GET", mockito::Matcher::Any)
+        .expect(0)
+        .create();
     point_npmrc_registry_at(&npmrc_path, &silent_registry.url());
 
     pacquet_at(&workspace)
@@ -379,9 +436,19 @@ fn install_via_pnpr_skips_the_server_when_the_lockfile_satisfies_the_manifest() 
 /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
 #[test]
 fn satisfied_install_via_pnpr_delegates_verification_when_the_cache_is_cold() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { npmrc_path, cache_dir, mock_instance, .. } = npmrc_info;
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        npmrc_path,
+        cache_dir,
+        mock_instance,
+        ..
+    } = npmrc_info;
 
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
@@ -410,7 +477,10 @@ fn satisfied_install_via_pnpr_delegates_verification_when_the_cache_is_cold() {
         .with_body("{\"type\":\"done\"}\n")
         .expect(1)
         .create();
-    let no_resolve = verifier.mock("POST", "/-/pnpr/v0/resolve").expect(0).create();
+    let no_resolve = verifier
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .expect(0)
+        .create();
 
     pacquet_at(&workspace)
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
@@ -430,9 +500,19 @@ fn satisfied_install_via_pnpr_delegates_verification_when_the_cache_is_cold() {
 
 #[test]
 fn install_via_pnpr_lockfile_only_writes_lockfile_without_linking() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        npmrc_path,
+        store_dir,
+        mock_instance,
+        ..
+    } = npmrc_info;
 
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
@@ -467,9 +547,19 @@ fn install_via_pnpr_lockfile_only_writes_lockfile_without_linking() {
 /// says so rather than silently ignoring the server.
 #[test]
 fn import_ignores_the_pnpr_server_and_resolves_locally() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        npmrc_path,
+        store_dir,
+        mock_instance,
+        ..
+    } = npmrc_info;
 
     let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
@@ -513,7 +603,9 @@ fn import_ignores_the_pnpr_server_and_resolves_locally() {
     let cas_blobs: Vec<String> = get_all_files(&store_dir)
         .into_iter()
         .filter(|path| {
-            Path::new(path).components().any(|component| component.as_os_str() == "files")
+            Path::new(path)
+                .components()
+                .any(|component| component.as_os_str() == "files")
         })
         .collect();
     assert!(cas_blobs.is_empty(), "import must not fetch package content: {cas_blobs:?}");

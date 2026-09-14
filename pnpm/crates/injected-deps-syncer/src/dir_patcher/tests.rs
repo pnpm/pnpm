@@ -13,12 +13,18 @@ fn create_file(path: &std::path::Path, content: &str) {
 #[cfg(unix)]
 fn create_fifo(path: &std::path::Path) {
     fs::create_dir_all(path.parent().expect("fifo has a parent")).expect("create parent");
-    let status = std::process::Command::new("mkfifo").arg(path).status().expect("run mkfifo");
+    let status = std::process::Command::new("mkfifo")
+        .arg(path)
+        .status()
+        .expect("run mkfifo");
     assert!(status.success(), "mkfifo failed for {path:?}");
 }
 
 fn files_map(root: &std::path::Path, relative_paths: &[&str]) -> HashMap<String, PathBuf> {
-    relative_paths.iter().map(|relative| ((*relative).to_string(), root.join(relative))).collect()
+    relative_paths
+        .iter()
+        .map(|relative| ((*relative).to_string(), root.join(relative)))
+        .collect()
 }
 
 fn sync(source: &std::path::Path, target: &std::path::Path) {

@@ -142,7 +142,12 @@ fn fetch_failed_snapshot_is_pruned() {
     assert!(snaps.contains_key(&key("keep", "1.0.0")));
     assert!(!snaps.contains_key(&key("drop", "1.0.0")));
     let imp = filtered.importers.get(".").unwrap();
-    assert!(imp.optional_dependencies.as_ref().unwrap().is_empty());
+    assert!(
+        imp.optional_dependencies
+            .as_ref()
+            .unwrap()
+            .is_empty(),
+    );
 }
 #[test]
 fn empty_skipped_and_full_include_is_identity_for_reachables() {
@@ -173,7 +178,12 @@ fn empty_skipped_and_full_include_is_identity_for_reachables() {
     assert!(snaps.contains_key(&key("b", "1.0.0")));
 
     let imp = filtered.importers.get(".").unwrap();
-    assert!(imp.dependencies.as_ref().unwrap().contains_key(&pkg("a")));
+    assert!(
+        imp.dependencies
+            .as_ref()
+            .unwrap()
+            .contains_key(&pkg("a")),
+    );
 }
 #[test]
 fn orphan_snapshots_are_pruned() {
@@ -285,7 +295,9 @@ fn skip_closure_extends_installability_roots() {
     );
 
     assert!(
-        skipped.iter_installability().any(|key| key.to_string() == "child@1.0.0"),
+        skipped
+            .iter_installability()
+            .any(|key| key.to_string() == "child@1.0.0"),
         "a snapshot only reachable through an installability skip joins the persisted set",
     );
 }

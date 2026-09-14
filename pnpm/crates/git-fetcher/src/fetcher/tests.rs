@@ -6,7 +6,6 @@ use crate::{
     error::{GitFetcherError, PreparePackageError},
     prepare_package::AllowBuildRef,
 };
-use miette::Diagnostic;
 use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreDir;
@@ -47,7 +46,10 @@ fn make_bare_repo_with_prepare_script(tmp: &Path, prepare_script: &str) -> (Path
     fs::write(work.join("index.js"), "module.exports = 'src';\n").unwrap();
     exec_git(&["add", "-A"], Some(&work)).unwrap();
     exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
-    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work)).unwrap().trim().to_string();
+    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
+        .unwrap()
+        .trim()
+        .to_string();
     exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
         .unwrap();
     (bare, commit)
@@ -77,7 +79,10 @@ fn make_bare_repo(tmp: &Path) -> (PathBuf, String) {
     // `-c commit.gpgsign=false` neutralises a user-global `gpgsign=true`
     // setting that would otherwise demand a real signing key in CI.
     exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
-    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work)).unwrap().trim().to_string();
+    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
+        .unwrap()
+        .trim()
+        .to_string();
     exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
         .unwrap();
     (bare, commit)
@@ -104,7 +109,10 @@ fn make_bare_repo_with_sub_package(tmp: &Path) -> (PathBuf, String) {
     fs::write(work.join("packages/no-manifest/readme.md"), "no manifest here\n").unwrap();
     exec_git(&["add", "-A"], Some(&work)).unwrap();
     exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
-    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work)).unwrap().trim().to_string();
+    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
+        .unwrap()
+        .trim()
+        .to_string();
     exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
         .unwrap();
     (bare, commit)
@@ -141,7 +149,10 @@ fn make_monorepo_bare_repo(tmp: &Path) -> (PathBuf, String) {
     fs::write(work.join("packages/other/index.js"), "module.exports = 'other';\n").unwrap();
     exec_git(&["add", "-A"], Some(&work)).unwrap();
     exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
-    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work)).unwrap().trim().to_string();
+    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
+        .unwrap()
+        .trim()
+        .to_string();
     exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
         .unwrap();
     (bare, commit)
@@ -162,7 +173,10 @@ fn make_bare_repo_without_manifest(tmp: &Path) -> (PathBuf, String) {
     fs::write(work.join("index.js"), "module.exports = 1;\n").unwrap();
     exec_git(&["add", "-A"], Some(&work)).unwrap();
     exec_git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], Some(&work)).unwrap();
-    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work)).unwrap().trim().to_string();
+    let commit = exec_git(&["rev-parse", "HEAD"], Some(&work))
+        .unwrap()
+        .trim()
+        .to_string();
     exec_git(&["clone", "--bare", "-q", &work.to_string_lossy(), &bare.to_string_lossy()], None)
         .unwrap();
     (bare, commit)
@@ -236,7 +250,10 @@ pub(crate) fn parse_shim_log(log_path: &Path) -> Vec<Vec<String>> {
         .unwrap()
         .lines()
         .map(|line| {
-            line.split('\t').filter(|part| !part.is_empty()).map(str::to_string).collect::<Vec<_>>()
+            line.split('\t')
+                .filter(|part| !part.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
         })
         .filter(|args| !args.is_empty())
         .collect()
@@ -250,7 +267,13 @@ pub(crate) fn parse_shim_log(log_path: &Path) -> Vec<Vec<String>> {
 fn position_of(invocations: &[Vec<String>], argv: &[&str]) -> Option<usize> {
     invocations
         .iter()
-        .position(|args| args.len() == argv.len() && args.iter().zip(argv).all(|(a, b)| a == b))
+        .position(|args| {
+            args.len() == argv.len()
+                && args
+                    .iter()
+                    .zip(argv)
+                    .all(|(a, b)| a == b)
+        })
 }
 
 /// A `git` shim that fails every invocation, so the transport-failure branch
@@ -278,27 +301,35 @@ fn failing_fetcher<'a>(
     git_bin: &'a Path,
 ) -> GitFetcher<'a> {
     GitFetcher {
-        source_cache,
-        repo,
-        commit: "c9b30e71d704cd30fa71f2edd1ecc7dcc4985493",
-        path: None,
-        git_shallow_hosts: &[],
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            pnpm_execpath: None,
+        },
+        source: crate::GitSource {
+            cache: source_cache,
+            repo,
+            commit: "c9b30e71d704cd30fa71f2edd1ecc7dcc4985493",
+            path: None,
+            shallow_hosts: &[],
+            git_bin: Some(git_bin),
+        },
+        store: crate::GitStoreContext {
+            dir: store_dir,
+            index_writer: None,
+            files_index_file: "@scope/pkg@1.0.0\tbuilt",
+        },
+
         allow_build: deny_all_builds(),
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
-        store_dir,
+
         package_id: "git+ssh://git@github.com/acme/widget.git#c9b30e71d704cd30fa71f2edd1ecc7dcc4985493",
         package_name: "@scope/pkg",
         requester: "/test",
-        store_index_writer: None,
-        files_index_file: "@scope/pkg@1.0.0\tbuilt",
-        git_bin: Some(git_bin),
     }
 }
 

@@ -48,7 +48,7 @@ pub fn check_deps_status_before_run(
     let outdated =
         |issue: String| RunDepsStatus::Outdated { issue, install_args: install_args.clone() };
 
-    if check.node_linker == NodeLinker::Pnp {
+    if check.layout.node_linker == NodeLinker::Pnp {
         return RunDepsStatus::SkippedPnp;
     }
     if let Some(issue) = first_static_drift(check, state) {
@@ -93,26 +93,19 @@ fn first_lockfile_or_setting_drift(
     state: &WorkspaceState,
 ) -> Option<String> {
     let &OptimisticRepeatInstallCheck {
-        workspace_root,
         config,
-        node_linker,
-        included,
-        supported_architectures,
         catalogs,
+        layout:
+            crate::RepeatInstallLayout {
+                node_linker,
+                included,
+                supported_architectures,
+                ..
+            },
         ..
     } = check;
-    if let Some((lockfile_path, failure)) =
-        first_lockfile_requiring_conflict_safe_install(check, state.last_validated_timestamp)
-    {
-        let lockfile_dir = lockfile_path.parent().unwrap_or(workspace_root).display();
-        return Some(match failure {
-            LockfileConflictCheckFailure::MergeConflict => {
-                format!("The lockfile in {lockfile_dir} has merge conflicts")
-            }
-            LockfileConflictCheckFailure::Unsafe => {
-                format!("The lockfile in {lockfile_dir} cannot be checked for merge conflicts")
-            }
-        });
+    if let Some(reason) = lockfile_conflict_drift(check, state.last_validated_timestamp) {
+        return Some(reason);
     }
     if let Some(setting) = first_setting_drift(
         state,
@@ -140,9 +133,9 @@ fn first_workspace_drift(
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker,
         project_manifests,
         is_workspace_install,
+        layout: crate::RepeatInstallLayout { node_linker, .. },
         ..
     } = check;
     if !project_structure_matches(state, project_manifests) {
@@ -205,12 +198,16 @@ fn settle_content_check(
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker,
-        included,
-        supported_architectures,
         project_manifests,
         is_workspace_install,
         catalogs,
+        layout:
+            crate::RepeatInstallLayout {
+                node_linker,
+                included,
+                supported_architectures,
+                ..
+            },
         ..
     } = check;
     missing_wanted_lockfile_stand_in_ok(check)?;
@@ -235,13 +232,7 @@ fn settle_content_check(
     new_state.settings.dev = state.settings.dev;
     new_state.settings.optional = state.settings.optional;
     new_state.settings.production = state.settings.production;
-    if let Err(error) = update_workspace_state(workspace_root, &new_state) {
-        tracing::warn!(
-            target: "pacquet::run",
-            ?error,
-            "Failed to refresh the workspace state after the verify-deps-before-run content check",
-        );
-    }
+    refresh_content_check_state(workspace_root, &new_state);
     Ok(())
 }
 
@@ -294,4 +285,37 @@ pub(crate) fn config_dependencies_drifted(config: &Config, state: &WorkspaceStat
     let empty = std::collections::BTreeMap::new();
     config.config_dependencies.as_ref().unwrap_or(&empty)
         != state.config_dependencies.as_ref().unwrap_or(&empty)
+}
+
+fn lockfile_conflict_drift(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    timestamp: i64,
+) -> Option<String> {
+    if let Some((lockfile_path, failure)) =
+        first_lockfile_requiring_conflict_safe_install(check, timestamp)
+    {
+        let lockfile_dir = lockfile_path
+            .parent()
+            .unwrap_or(check.workspace_root)
+            .display();
+        return Some(match failure {
+            LockfileConflictCheckFailure::MergeConflict => {
+                format!("The lockfile in {lockfile_dir} has merge conflicts")
+            }
+            LockfileConflictCheckFailure::Unsafe => {
+                format!("The lockfile in {lockfile_dir} cannot be checked for merge conflicts")
+            }
+        });
+    }
+    None
+}
+
+fn refresh_content_check_state(workspace_root: &std::path::Path, new_state: &WorkspaceState) {
+    if let Err(error) = update_workspace_state(workspace_root, new_state) {
+        tracing::warn!(
+            target: "pacquet::run",
+            ?error,
+            "Failed to refresh the workspace state after the verify-deps-before-run content check",
+        );
+    }
 }

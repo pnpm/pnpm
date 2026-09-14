@@ -139,8 +139,7 @@ fn resumed_exec_task_graph(
     full_task_graph: &TaskGraph,
     task_run_state_context: &TaskRunStateContext,
 ) -> miette::Result<TaskGraph> {
-    let resume_anchor = args
-        .resume_from
+    let resume_anchor = args.workspace.resume_from
         .as_ref()
         .map(|resume_from| find_resume_root(resume_from, graph))
         .transpose()?;
@@ -162,7 +161,11 @@ fn resumed_exec_task_graph(
 
 /// The tasks a resumed run starts with already completed.
 fn initially_completed(full_task_graph: &TaskGraph, task_graph: &TaskGraph) -> HashSet<TaskKey> {
-    full_task_graph.keys().filter(|key| !task_graph.contains_key(*key)).cloned().collect()
+    full_task_graph
+        .keys()
+        .filter(|key| !task_graph.contains_key(*key))
+        .cloned()
+        .collect()
 }
 
 /// One recursive exec, ready to be scheduled over its task graph.
@@ -179,7 +182,7 @@ struct ExecRun<'a> {
 impl ExecRun<'_> {
     /// Run every task, then report the outcome the way the flags ask for.
     fn execute(&self, task_graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> miette::Result<()> {
-        let bail = !self.args.no_bail;
+        let bail = !self.args.workspace.no_bail;
         let concurrency = exec_concurrency(self.args, self.config, task_graph.len());
         let result = queued_exec_results(task_graph);
         let first_failure: Mutex<Option<String>> = Mutex::new(None);
@@ -193,16 +196,20 @@ impl ExecRun<'_> {
             command: self.command,
             dir: self.dir,
             workspace_root: self.workspace_root,
-            // Unlike `run`'s `--stream`, `exec` prefixes its output only when
-            // the user turned the hiding off explicitly — pnpm gates on
-            // `reporterHidePrefix === false`, not on its falsiness.
-            show_prefix: self.config.reporter_hide_prefix == Some(false),
-            emit: self.emit,
-            result: &result,
-            first_failure: &first_failure,
-            abort: &abort,
-            process_tracker: process_tracker.as_ref(),
-            task_run_state: self.task_run_state,
+            progress: crate::cli_args::exec::recursive::tasks::ExecTaskProgress {
+                result: &result,
+                first_failure: &first_failure,
+                abort: &abort,
+                process_tracker: process_tracker.as_ref(),
+                task_run_state: self.task_run_state,
+            },
+            output: crate::cli_args::exec::recursive::tasks::ExecTaskOutput {
+                // Unlike `run`'s `--stream`, `exec` prefixes its output only when
+                // the user turned the hiding off explicitly — pnpm gates on
+                // `reporterHidePrefix === false`, not on its falsiness.
+                show_prefix: self.config.reporter_hide_prefix == Some(false),
+                emit: self.emit,
+            },
         };
         schedule_exec_tasks(&task_context, task_graph, concurrency, bail);
 
@@ -293,7 +300,7 @@ fn schedule_exec_tasks(
 ) {
     let run_task = |node: &TaskNode| run_exec_task(context, node);
     let on_task_skipped = |node: &TaskNode| {
-        context.result.lock().expect("summary lock is not poisoned")
+        context.progress.result.lock().expect("summary lock is not poisoned")
             [&node.project.to_string_lossy().into_owned()]
             .status = Status::Skipped;
     };
@@ -321,15 +328,15 @@ fn spawn_exec_task(
     context: &ExecTaskContext<'_>,
     root: &Path,
 ) -> Result<std::process::ExitStatus, ExecError> {
-    let dep_path = project_dep_path(root, context.dir, context.show_prefix);
-    let output = project_output(dep_path.as_deref(), context.emit);
+    let dep_path = project_dep_path(root, context.dir, context.output.show_prefix);
+    let output = project_output(dep_path.as_deref(), context.output.emit);
     spawn_in_dir(
         context.command,
         ExecDirs::same(root),
         context.config,
         context.args.shell_mode,
         output,
-        context.process_tracker,
+        context.progress.process_tracker,
     )
 }
 

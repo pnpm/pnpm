@@ -129,7 +129,7 @@ impl Request {
         source: &str,
         last: Option<&str>,
     ) -> Result<Vec<String>, RegistryError> {
-        let Some(hosted) = self.state.inner.config.hosted.get(source) else {
+        let Some(hosted) = self.state.inner.config.routing.hosted.get(source) else {
             return Ok(Vec::new());
         };
         let storage = self.state.inner.storage.for_hosted(&hosted.org);

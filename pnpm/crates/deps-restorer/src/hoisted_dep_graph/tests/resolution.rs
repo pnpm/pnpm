@@ -197,12 +197,12 @@ fn walker_keeps_file_dep_peer_variants_apart() {
     let r1_peer = result.graph[&r1_comp].children.get("peer").expect("r1's copy resolves peer");
     let r2_peer = result.graph[&r2_comp].children.get("peer").expect("r2's copy resolves peer");
     assert_eq!(
-        result.graph[r1_peer].dep_path,
+        result.graph[r1_peer].package.dep_path,
         DepPath::from("peer@1.0.0".to_string()),
         "r1's copy must resolve the peer version r1 pinned",
     );
     assert_eq!(
-        result.graph[r2_peer].dep_path,
+        result.graph[r2_peer].package.dep_path,
         DepPath::from("peer@2.0.0".to_string()),
         "r2's copy must resolve the peer version r2 pinned",
     );

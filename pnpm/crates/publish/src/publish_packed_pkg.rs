@@ -62,14 +62,18 @@ impl PackedPkg<'_> {
 /// resolution is handled by pacquet's shared [`AuthHeaders`] /
 /// [`ThrottledClient`] rather than per-field options.
 pub struct PublishPackedPkgOptions {
-    pub default_registry: String,
-    pub scoped_registries: BTreeMap<String, String>,
+    pub dry_run: bool,
+    pub stage: bool,
+    pub registry: PublishRegistryOptions,
+}
+
+pub struct PublishRegistryOptions {
+    pub default: String,
+    pub scoped: BTreeMap<String, String>,
     pub access: Option<Access>,
     pub tag: String,
     pub otp: Option<String>,
     pub provenance: Option<bool>,
-    pub dry_run: bool,
-    pub stage: bool,
     pub http: OidcHttpOptions,
 }
 
@@ -93,7 +97,7 @@ where
     Sys: EnvVar + Clock + OidcFetch + SignProvenance,
     Reporter: self::Reporter,
 {
-    let input = opts.create_options_input();
+    let input = opts.registry.create_options_input();
     let resolved =
         create_publish_options::<Sys, Reporter>(pkg.published_manifest, &input, true).await?;
 
@@ -128,7 +132,7 @@ where
         body,
         resolved.otp.as_deref(),
         is_stage,
-        web_auth_fetch_options(&opts.http),
+        web_auth_fetch_options(&opts.registry.http),
     )
     .await?;
 
@@ -168,7 +172,8 @@ where
     // result. Sign an SLSA attestation with sigstore and splice it into the
     // document's `_attachments`.
     if resolved.provenance == Some(true) {
-        attach_provenance::<Sys, Reporter>(&mut document, name, version, pkg, &opts.http).await?;
+        attach_provenance::<Sys, Reporter>(&mut document, name, version, pkg, &opts.registry.http)
+            .await?;
     }
     let body =
         bytes::Bytes::from(serde_json::to_vec(&document).expect("serialize publish document"));
@@ -176,11 +181,11 @@ where
     Ok(body)
 }
 
-impl PublishPackedPkgOptions {
+impl PublishRegistryOptions {
     fn create_options_input(&self) -> CreatePublishOptionsInput<'_> {
         CreatePublishOptionsInput {
-            default_registry: &self.default_registry,
-            scoped_registries: &self.scoped_registries,
+            default_registry: &self.default,
+            scoped_registries: &self.scoped,
             access: self.access,
             tag: &self.tag,
             otp: self.otp.as_deref(),
@@ -231,8 +236,7 @@ fn publish_authorization(
     registry: &NormalizedRegistryUrl,
     name: &str,
 ) -> Option<String> {
-    resolved
-        .auth_token_override
+    resolved.auth_token_override
         .as_ref()
         .map(|token| format!("Bearer {token}"))
         .or_else(|| network.auth_headers.for_url_with_package(registry.as_str(), Some(name)))

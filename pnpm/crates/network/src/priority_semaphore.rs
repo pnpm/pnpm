@@ -71,9 +71,7 @@ impl Class {
 
 struct SemState {
     free: usize,
-    latency_in_flight: usize,
-    background_in_flight: usize,
-    throughput_in_flight: usize,
+    in_flight: InFlight,
     /// Minimum number of slots queued throughput work can always
     /// grow into, even while latency work is queued.
     throughput_reserve: usize,
@@ -82,6 +80,13 @@ struct SemState {
     latency_waiters: VecDeque<Waiter>,
     background_waiters: VecDeque<Waiter>,
     throughput_waiters: BinaryHeap<Waiter>,
+}
+
+#[derive(Default)]
+struct InFlight {
+    latency: usize,
+    background: usize,
+    throughput: usize,
 }
 
 struct Waiter {
@@ -94,7 +99,9 @@ struct Waiter {
 /// priority, then by *earlier* registration among equals.
 impl Ord for Waiter {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.priority.cmp(&other.priority).then_with(|| other.seq.cmp(&self.seq))
+        self.priority
+            .cmp(&other.priority)
+            .then_with(|| other.seq.cmp(&self.seq))
     }
 }
 
@@ -137,10 +144,10 @@ impl PrioritySemaphore {
         PrioritySemaphore {
             state: Arc::new(Mutex::new(SemState {
                 free: permits,
-                latency_in_flight: 0,
-                background_in_flight: 0,
-                throughput_in_flight: 0,
-                throughput_reserve: permits.div_ceil(2).min(permits.saturating_sub(1)),
+                in_flight: InFlight::default(),
+                throughput_reserve: permits
+                    .div_ceil(2)
+                    .min(permits.saturating_sub(1)),
                 next_seq: 0,
                 latency_waiters: VecDeque::new(),
                 background_waiters: VecDeque::new(),
@@ -158,7 +165,7 @@ impl PrioritySemaphore {
             let mut state = self.state.lock().expect("priority semaphore lock poisoned");
             if state.free > 0 {
                 state.free -= 1;
-                *state.count_mut(class) += 1;
+                *state.in_flight.count_mut(class) += 1;
                 return Permit { state: Arc::clone(&self.state), class, armed: true };
             }
             let (tx, rx) = oneshot::channel();
@@ -189,19 +196,21 @@ impl PrioritySemaphore {
     }
 }
 
-impl SemState {
+impl InFlight {
     fn count_mut(&mut self, class: Class) -> &mut usize {
         match class {
-            Class::Latency => &mut self.latency_in_flight,
-            Class::Background => &mut self.background_in_flight,
-            Class::Throughput => &mut self.throughput_in_flight,
+            Class::Latency => &mut self.latency,
+            Class::Background => &mut self.background,
+            Class::Throughput => &mut self.throughput,
         }
     }
+}
 
+impl SemState {
     /// Pop the waiter the grant policy picks next, or `None` when every
     /// queue is empty.
     fn next_waiter(&mut self) -> Option<(Waiter, Class)> {
-        if self.throughput_in_flight < self.throughput_reserve
+        if self.in_flight.throughput < self.throughput_reserve
             && let Some(waiter) = self.throughput_waiters.pop()
         {
             return Some((waiter, Class::Throughput));
@@ -212,7 +221,9 @@ impl SemState {
         if let Some(waiter) = self.background_waiters.pop_front() {
             return Some((waiter, Class::Background));
         }
-        self.throughput_waiters.pop().map(|waiter| (waiter, Class::Throughput))
+        self.throughput_waiters
+            .pop()
+            .map(|waiter| (waiter, Class::Throughput))
     }
 }
 
@@ -221,9 +232,9 @@ impl std::fmt::Debug for PrioritySemaphore {
         let state = self.state.lock().expect("priority semaphore lock poisoned");
         f.debug_struct("PrioritySemaphore")
             .field("free", &state.free)
-            .field("latency_in_flight", &state.latency_in_flight)
-            .field("background_in_flight", &state.background_in_flight)
-            .field("throughput_in_flight", &state.throughput_in_flight)
+            .field("latency", &state.in_flight.latency)
+            .field("background", &state.in_flight.background)
+            .field("throughput", &state.in_flight.throughput)
             .field("latency_waiters", &state.latency_waiters.len())
             .field("background_waiters", &state.background_waiters.len())
             .field("throughput_waiters", &state.throughput_waiters.len())
@@ -236,7 +247,7 @@ impl std::fmt::Debug for PrioritySemaphore {
 /// live waiter the slot returns to the free-permit count.
 fn release(state_arc: &Arc<Mutex<SemState>>, released: Class) {
     let mut state = state_arc.lock().expect("priority semaphore lock poisoned");
-    *state.count_mut(released) -= 1;
+    *state.in_flight.count_mut(released) -= 1;
     loop {
         let Some((waiter, class)) = state.next_waiter() else {
             state.free += 1;
@@ -245,7 +256,7 @@ fn release(state_arc: &Arc<Mutex<SemState>>, released: Class) {
         let permit = Permit { state: Arc::clone(state_arc), class, armed: true };
         match waiter.tx.send(permit) {
             Ok(()) => {
-                *state.count_mut(class) += 1;
+                *state.in_flight.count_mut(class) += 1;
                 return;
             }
             Err(mut returned) => {

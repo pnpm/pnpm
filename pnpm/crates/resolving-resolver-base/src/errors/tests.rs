@@ -47,7 +47,10 @@ fn make_package(name: &str, versions: &[&str], dist_tags: &[(&str, &str)]) -> Pa
 }
 
 fn rendered_help(error: &dyn Diagnostic) -> String {
-    error.help().map(|help| help.to_string()).unwrap_or_default()
+    error
+        .help()
+        .map(|help| help.to_string())
+        .unwrap_or_default()
 }
 
 #[test]
@@ -64,7 +67,10 @@ fn no_matching_version_reports_the_upstream_code_and_message() {
         "No matching version found for is-odd@99.99.99 while fetching it from https://registry.npmjs.org/",
     );
     assert_eq!(
-        error.code().map(|code| code.to_string()).as_deref(),
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_NO_MATCHING_VERSION"),
     );
 }
@@ -120,7 +126,13 @@ fn registry_response_error_codes_the_status_and_hints_at_the_missing_package() {
     });
 
     assert_eq!(error.to_string(), "GET https://registry.npmjs.org/@repro%2Fpkg-a: Not Found - 404");
-    assert_eq!(error.code().map(|code| code.to_string()).as_deref(), Some("ERR_PNPM_FETCH_404"));
+    assert_eq!(
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_FETCH_404"),
+    );
     assert_eq!(
         rendered_help(&error),
         "@repro/pkg-a is not in the npm registry, or you have no permission to fetch it.\n\nNo authorization header was set for the request.",
@@ -152,7 +164,13 @@ fn registry_response_error_hints_only_at_authorization_for_a_403() {
         auth_header_value: None,
     });
 
-    assert_eq!(error.code().map(|code| code.to_string()).as_deref(), Some("ERR_PNPM_FETCH_403"));
+    assert_eq!(
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_FETCH_403"),
+    );
     assert_eq!(rendered_help(&error), "No authorization header was set for the request.");
 }
 
@@ -267,7 +285,12 @@ fn an_unreachable_remote_redacts_the_credentials_git_echoes_back() {
     );
 
     assert!(!err.to_string().contains("hunter2"), "{err}");
-    assert!(!err.help().expect("help").to_string().contains("hunter2"));
+    assert!(
+        !err.help()
+            .expect("help")
+            .to_string()
+            .contains("hunter2"),
+    );
 }
 
 #[test]

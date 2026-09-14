@@ -31,7 +31,10 @@ fn sha512_hex(bytes: &[u8]) -> String {
 }
 
 fn now_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64
 }
 
 fn index_with(algo: &str, info: Vec<(&str, CafsFileInfo)>) -> PackageFilesIndex {
@@ -40,7 +43,10 @@ fn index_with(algo: &str, info: Vec<(&str, CafsFileInfo)>) -> PackageFilesIndex 
         requires_build: None,
         requires_prepare: None,
         algo: algo.to_string(),
-        files: info.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
+        files: info
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect(),
         side_effects: None,
         remote_side_effects_quarantine: None,
     }
@@ -519,7 +525,10 @@ fn side_effects_overlay_with_only_deletions_keeps_cache_key_entry() {
         remote_side_effects_quarantine: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
-    let overlay = result.side_effects_maps.unwrap().remove("k1").expect("entry survives");
+    let overlay = result.side_effects_maps
+        .unwrap()
+        .remove("k1")
+        .expect("entry survives");
     assert!(overlay.contains_key("a.js"), "base survives: {overlay:?}");
     assert!(!overlay.contains_key("gone.js"), "deleted drops: {overlay:?}");
 }
@@ -585,7 +594,10 @@ fn side_effects_overlay_added_shadows_base_on_collision() {
         remote_side_effects_quarantine: None,
     };
     let result = build_file_maps_from_index(&store_dir, entry);
-    let overlay = result.side_effects_maps.unwrap().remove("k1").unwrap();
+    let overlay = result.side_effects_maps
+        .unwrap()
+        .remove("k1")
+        .unwrap();
     let path = overlay.get("collide.js").expect("collide.js present");
     // CAFS layout splits the digest as `<2-char prefix>/<rest>`, so the
     // path won't contain the digest as a single contiguous substring.

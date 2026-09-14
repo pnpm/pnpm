@@ -1,7 +1,8 @@
+#[cfg(unix)]
+use super::sync_dir;
 use super::{
     ApplyProgress, DocumentMerge, HostedDocuments, JOURNAL_DIR, JournaledPublish,
     JournaledRevisionRef, MANIFEST_FILE, Manifest, PackageId, SealedTxn, cleanup_lost_tmp_paths,
-    sync_dir,
 };
 use crate::{BlobFinalize, HostedRevisionRefWrite, Storage, publish::merge_journaled_packument};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -170,7 +171,11 @@ async fn commit_persists_revision_references() {
     }];
     let entries = [npm_publish(&name, &packument, &revision_refs)];
 
-    storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
+    storage
+        .publish_journal()
+        .commit(&storage, &entries, &NpmDocuments)
+        .await
+        .unwrap();
 
     assert_eq!(storage.read_hosted_revision_refs(&digest).await.unwrap(), vec![record.clone()]);
     assert_eq!(
@@ -216,17 +221,28 @@ async fn commit_drops_a_version_that_cannot_reserve_a_revision_reference() {
     }];
     let entries = [npm_publish(&name, &packument, &revision_refs)];
 
-    let outcome =
-        storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
+    let outcome = storage
+        .publish_journal()
+        .commit(&storage, &entries, &NpmDocuments)
+        .await
+        .unwrap();
 
     assert_eq!(outcome.reference_limit, Some(crate::MAX_HOSTED_REVISION_REFS));
-    let hosted = storage.read_hosted_document(&name).await.unwrap().unwrap();
+    let hosted = storage
+        .read_hosted_document(&name)
+        .await
+        .unwrap()
+        .unwrap();
     let hosted: serde_json::Value = serde_json::from_slice(&hosted).unwrap();
     assert_eq!(hosted["versions"], json!({}));
     assert_eq!(hosted["dist-tags"], json!({}));
     assert_eq!(hosted["time"].get("1.0.0"), None);
     assert_eq!(
-        storage.read_hosted_revision_refs(&digest).await.unwrap().len(),
+        storage
+            .read_hosted_revision_refs(&digest)
+            .await
+            .unwrap()
+            .len(),
         crate::MAX_HOSTED_REVISION_REFS,
     );
 }
@@ -281,7 +297,11 @@ async fn commit_only_removes_transaction_owned_references_for_a_dropped_version(
     ];
     let entries = [npm_publish(&name, &packument, &revision_refs)];
 
-    let txn = storage.publish_journal().seal(&entries).await.unwrap();
+    let txn = storage
+        .publish_journal()
+        .seal(&entries)
+        .await
+        .unwrap();
     let revision_ref_owner = txn.revision_ref_owner.clone();
     storage
         .write_hosted_revision_ref(&transaction_owned_digest, &ref_id, &revision_ref_owner, &record)
@@ -295,7 +315,8 @@ async fn commit_only_removes_transaction_owned_references_for_a_dropped_version(
         .commit_hosted_revision_ref(&previously_owned_digest, &ref_id, "previous-owner")
         .await
         .unwrap();
-    txn.apply(&storage, &NpmDocuments, &mut ApplyProgress::default()).await.unwrap();
+    txn.apply(&storage, &NpmDocuments, &mut ApplyProgress::default()).await
+        .unwrap();
 
     assert_eq!(
         storage.read_hosted_revision_refs(&transaction_owned_digest).await.unwrap(),
@@ -305,7 +326,11 @@ async fn commit_only_removes_transaction_owned_references_for_a_dropped_version(
         storage.read_hosted_revision_refs(&previously_owned_digest).await.unwrap(),
         vec![record],
     );
-    let hosted = storage.read_hosted_document(&name).await.unwrap().unwrap();
+    let hosted = storage
+        .read_hosted_document(&name)
+        .await
+        .unwrap()
+        .unwrap();
     let hosted: serde_json::Value = serde_json::from_slice(&hosted).unwrap();
     assert_eq!(hosted["versions"], json!({}));
 }
@@ -359,7 +384,12 @@ async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
         },
         npm_publish(&later_name, b"not-json", &[]),
     ];
-    let txn_dir = storage.publish_journal().seal(&entries).await.unwrap().dir;
+    let txn_dir = storage
+        .publish_journal()
+        .seal(&entries)
+        .await
+        .unwrap()
+        .dir;
 
     // Reopened the way startup recovery does: every document is merged, so
     // the second package's unparsable one fails the apply partway.
@@ -387,8 +417,10 @@ async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
             "2.0.0": { "version": "2.0.0" },
         },
     });
-    let later =
-        manifest.packages.iter().find(|package| package.name == later_name.as_str()).unwrap();
+    let later = manifest.packages
+        .iter()
+        .find(|package| package.name == later_name.as_str())
+        .unwrap();
     fs::write(txn_dir.join(&later.document_file), serde_json::to_vec(&later_packument).unwrap())
         .await
         .unwrap();
@@ -399,12 +431,20 @@ async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
         .await
         .unwrap();
 
-    let conflicted_hosted = storage.read_hosted_document(&conflicted_name).await.unwrap().unwrap();
+    let conflicted_hosted = storage
+        .read_hosted_document(&conflicted_name)
+        .await
+        .unwrap()
+        .unwrap();
     let conflicted_hosted: serde_json::Value = serde_json::from_slice(&conflicted_hosted).unwrap();
     assert_eq!(conflicted_hosted["versions"], json!({}));
     assert_eq!(conflicted_hosted["dist-tags"], json!({}));
     assert_eq!(conflicted_hosted["time"].get("1.0.0"), None);
-    let later_hosted = storage.read_hosted_document(&later_name).await.unwrap().unwrap();
+    let later_hosted = storage
+        .read_hosted_document(&later_name)
+        .await
+        .unwrap()
+        .unwrap();
     let later_hosted: serde_json::Value = serde_json::from_slice(&later_hosted).unwrap();
     assert_eq!(later_hosted["versions"]["2.0.0"]["version"], "2.0.0");
     #[cfg(unix)]
@@ -434,12 +474,19 @@ async fn commit_reports_a_package_whose_merge_recorded_nothing() {
     let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let document = serde_json::to_vec(&json!({ "name": "pkg", "versions": {} })).unwrap();
     let entries = [npm_publish(&name, &document, &[])];
-    storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
+    storage
+        .publish_journal()
+        .commit(&storage, &entries, &NpmDocuments)
+        .await
+        .unwrap();
 
     // The document is on disk now, so this commit's `base_version: None` is
     // stale and the merge decides what to write.
-    let outcome =
-        storage.publish_journal().commit(&storage, &entries, &RecordsNothing).await.unwrap();
+    let outcome = storage
+        .publish_journal()
+        .commit(&storage, &entries, &RecordsNothing)
+        .await
+        .unwrap();
 
     assert_eq!(outcome.unrecorded, vec![npm_package("pkg")]);
     assert!(outcome.lost_blobs.is_empty());
@@ -461,10 +508,18 @@ async fn commit_reports_an_entry_the_retry_found_recorded_by_another_writer() {
     let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let document = serde_json::to_vec(&json!({ "name": "pkg", "versions": {} })).unwrap();
     let entries = [npm_publish(&name, &document, &[])];
-    storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
+    storage
+        .publish_journal()
+        .commit(&storage, &entries, &NpmDocuments)
+        .await
+        .unwrap();
 
     let documents = FailsThenRecordsNothing::default();
-    let outcome = storage.publish_journal().commit(&storage, &entries, &documents).await.unwrap();
+    let outcome = storage
+        .publish_journal()
+        .commit(&storage, &entries, &documents)
+        .await
+        .unwrap();
 
     assert_eq!(documents.merges.load(Ordering::Relaxed), 2, "the failed apply is re-run");
     assert_eq!(outcome.unrecorded, vec![npm_package("pkg")]);
@@ -497,14 +552,22 @@ async fn commit_does_not_report_what_its_own_first_attempt_wrote() {
     ];
     // Both documents exist, so neither commit below can take the write-as-is
     // path and every package goes through the merge.
-    storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
+    storage
+        .publish_journal()
+        .commit(&storage, &entries, &NpmDocuments)
+        .await
+        .unwrap();
 
     let documents = WritesOneThenFails {
         fails: "failed-pkg",
         written: AtomicUsize::new(0),
         failed: AtomicUsize::new(0),
     };
-    let outcome = storage.publish_journal().commit(&storage, &entries, &documents).await.unwrap();
+    let outcome = storage
+        .publish_journal()
+        .commit(&storage, &entries, &documents)
+        .await
+        .unwrap();
 
     assert_eq!(outcome.unrecorded, vec![npm_package("failed-pkg")]);
 }
@@ -524,17 +587,29 @@ async fn commit_keeps_the_journal_entry_when_the_retry_fails_too() {
     let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let document = serde_json::to_vec(&json!({ "name": "pkg", "versions": {} })).unwrap();
     let entries = [npm_publish(&name, &document, &[])];
-    storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
+    storage
+        .publish_journal()
+        .commit(&storage, &entries, &NpmDocuments)
+        .await
+        .unwrap();
 
     let documents = AlwaysFails::default();
-    let err = storage.publish_journal().commit(&storage, &entries, &documents).await.unwrap_err();
+    let err = storage
+        .publish_journal()
+        .commit(&storage, &entries, &documents)
+        .await
+        .unwrap_err();
 
     assert_eq!(documents.merges.load(Ordering::Relaxed), 2);
     assert!(err.to_string().contains("attempt 0"), "{err}");
-    let journal_entries: Vec<_> = std::fs::read_dir(tmp.path().join("cache").join(JOURNAL_DIR))
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name())
-        .collect();
+    let journal_entries: Vec<_> = std::fs::read_dir(
+        tmp.path()
+            .join("cache")
+            .join(JOURNAL_DIR),
+    )
+    .unwrap()
+    .map(|entry| entry.unwrap().file_name())
+    .collect();
     assert_eq!(journal_entries.len(), 1, "{journal_entries:?}");
 }
 
@@ -548,7 +623,11 @@ async fn recovery_applies_a_journal_with_the_alias_manifest_keys() {
     let slot = storage.reserve_hosted_blob(&name, "pkg-1.0.0.tgz").await.unwrap();
     fs::write(&slot.tmp_path, b"tarball bytes").await.unwrap();
 
-    let txn_dir = tmp.path().join("hosted").join(JOURNAL_DIR).join("0000000000000001-1-0");
+    let txn_dir = tmp
+        .path()
+        .join("hosted")
+        .join(JOURNAL_DIR)
+        .join("0000000000000001-1-0");
     fs::create_dir_all(&txn_dir).await.unwrap();
     fs::write(
         txn_dir.join("packument-0.json"),
@@ -575,10 +654,24 @@ async fn recovery_applies_a_journal_with_the_alias_manifest_keys() {
     .unwrap();
     fs::write(txn_dir.join(super::COMMIT_MARKER), b"").await.unwrap();
 
-    storage.publish_journal().recover(&storage, &NpmDocuments).await.unwrap();
+    storage
+        .publish_journal()
+        .recover(&storage, &NpmDocuments)
+        .await
+        .unwrap();
 
-    let hosted = storage.read_hosted_document(&name).await.unwrap().unwrap();
+    let hosted = storage
+        .read_hosted_document(&name)
+        .await
+        .unwrap()
+        .unwrap();
     let hosted: serde_json::Value = serde_json::from_slice(&hosted).unwrap();
     assert_eq!(hosted["versions"]["1.0.0"]["version"], "1.0.0");
-    assert!(storage.open_hosted_blob(&name, "pkg-1.0.0.tgz").await.unwrap().is_some());
+    assert!(
+        storage
+            .open_hosted_blob(&name, "pkg-1.0.0.tgz")
+            .await
+            .unwrap()
+            .is_some(),
+    );
 }

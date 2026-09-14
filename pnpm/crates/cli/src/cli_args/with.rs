@@ -106,16 +106,19 @@ where
     Arg: AsRef<std::ffi::OsStr>,
 {
     let bin_dir = bin_dirs.first().expect("an installed engine has a bin directory");
-    let program = engine_bin(bin_dir, "pnpm").ok_or_else(|| EngineError::MissingEngineBin {
-        name: "pnpm",
-        dir: bin_dir.display().to_string(),
-    })?;
+    let program = engine_bin(bin_dir, "pnpm")
+        .ok_or_else(|| EngineError::MissingEngineBin {
+            name: "pnpm",
+            dir: bin_dir.display().to_string(),
+        })?;
 
     let mut cmd = Command::new(program);
     cmd.args(args);
     configure_pnpm_environment(&mut cmd, bin_dirs, package_manager_check)?;
 
-    cmd.status().into_diagnostic().wrap_err("run the requested pnpm version")
+    cmd.status()
+        .into_diagnostic()
+        .wrap_err("run the requested pnpm version")
 }
 
 fn configure_pnpm_environment(

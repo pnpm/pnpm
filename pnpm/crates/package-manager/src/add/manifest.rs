@@ -1,5 +1,5 @@
 use super::{
-    AddError, AddOwned, AddResolution, AddResolveInputs, AddView, resolve_added_dependency,
+    AddError, AddOptions, AddOwned, AddResolution, AddResolveInputs, resolve_added_dependency,
     workspace_packages_for_add,
 };
 use crate::{
@@ -22,7 +22,7 @@ use std::{collections::HashSet, path::PathBuf, sync::Arc};
 pub(super) async fn prepare_selected_add<Reporter: self::Reporter>(
     projects: &mut [pnpm_workspace::Project],
     indices: &[usize],
-    add: AddView<'_>,
+    add: AddOptions<'_>,
     owned: &AddOwned,
 ) -> Result<SelectedAddPreparation, AddError> {
     let prepared = prepare_selected_manifests::<Reporter>(projects, indices, add, owned).await?;
@@ -36,7 +36,7 @@ pub(super) async fn prepare_selected_add<Reporter: self::Reporter>(
     Ok(prepared)
 }
 pub(super) fn finish_selected_add<Reporter: self::Reporter>(
-    add: AddView<'_>,
+    add: AddOptions<'_>,
     manifest: &PackageManifest,
     projects: &mut [pnpm_workspace::Project],
     indices: &[usize],
@@ -53,7 +53,7 @@ pub(super) fn finish_selected_add<Reporter: self::Reporter>(
     Ok(())
 }
 pub(super) async fn prepare_single_add<Reporter: self::Reporter>(
-    add: AddView<'_>,
+    add: AddOptions<'_>,
     owned: &AddOwned,
     manifest: &mut PackageManifest,
 ) -> Result<(AddCatalogCtx, Catalogs), AddError> {
@@ -138,7 +138,9 @@ pub(super) fn catalog_version_request(
         .dependencies(DIRECT_GROUPS)
         .find_map(|(name, specifier)| (name == alias).then_some(specifier));
     let catalog_name = crate::per_dep_catalog_name(previous, save_catalog_name);
-    let entry = catalogs.get(catalog_name).and_then(|catalog| catalog.get(&alias))?;
+    let entry = catalogs
+        .get(catalog_name)
+        .and_then(|catalog| catalog.get(&alias))?;
     if !crate::catalog_covers(entry, &wanted) {
         return None;
     }
@@ -166,7 +168,7 @@ pub(super) struct SelectedAddPreparation {
 pub(super) async fn prepare_selected_manifests<Reporter: self::Reporter>(
     projects: &mut [pnpm_workspace::Project],
     selected_indices: &[usize],
-    add: AddView<'_>,
+    add: AddOptions<'_>,
     owned: &AddOwned,
 ) -> Result<SelectedAddPreparation, AddError> {
     let first_index = *selected_indices.first().expect("selected add requires a project");
@@ -221,7 +223,11 @@ pub(super) fn guess_dependency_group(
 ) -> Option<DependencyGroup> {
     [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Peer]
         .into_iter()
-        .find(|&group| manifest.dependencies([group]).any(|(dep, _)| dep == name))
+        .find(|&group| {
+            manifest
+                .dependencies([group])
+                .any(|(dep, _)| dep == name)
+        })
 }
 /// Resolve every selector against `catalogs` concurrently, then apply them
 /// to `manifest`.
@@ -302,10 +308,14 @@ pub(super) fn read_catalog_ctx(
     manifest: &PackageManifest,
     config: &Config,
 ) -> Result<AddCatalogCtx, AddError> {
-    let manifest_dir =
-        manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let manifest_dir = manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent dir")
+        .to_path_buf();
     let workspace_dir_opt =
-        pnpm_workspace::find_workspace_dir(&manifest_dir).map_err(AddError::FindWorkspaceDir)?;
+        crate::install::configured_or_discovered_workspace_dir(config, &manifest_dir)
+            .map_err(AddError::FindWorkspaceDir)?;
     let catalogs = if let Some(catalogs) = config.catalogs.clone() {
         catalogs
     } else {

@@ -38,36 +38,31 @@ use std::{
 pub(crate) type BaseCasPaths = HashMap<PackageKey, HashMap<String, PathBuf>>;
 
 pub struct SharedSideEffectsPublisher {
+    signer: BuilderSigningKey,
     authorization: Option<String>,
-    builder_id: String,
     builder_profile: BuilderProfile,
     client: PnprClient,
-    key_id: String,
     organization: String,
     packages: HashSet<String>,
     platform: ArtifactPlatform<'static>,
-    private_key: Vec<u8>,
     runtime: tokio::runtime::Handle,
 }
 
 pub(crate) struct ApplySharedSideEffectsOptions<'a> {
+    pub cached: SharedSideEffectsCacheRows<'a>,
     pub config: &'a Config,
     pub snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
     pub packages: &'a HashMap<PackageKey, PackageMetadata>,
     pub requires_build_by_snapshot: &'a RequiresBuildBySnapshot,
     pub allow_build_policy: &'a AllowBuildPolicy,
-    pub base_cas_paths: &'a BaseCasPaths,
     pub side_effects_maps_by_snapshot: &'a mut SideEffectsMapsBySnapshot,
-    pub side_effects_by_snapshot: &'a SideEffectsBySnapshot,
-    pub remote_side_effects_quarantine_by_snapshot: &'a RemoteSideEffectsQuarantineBySnapshot,
-    pub store_index_keys_by_snapshot: &'a StoreIndexKeysBySnapshot,
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
 }
 
 pub(crate) async fn apply_shared_side_effects(mut options: ApplySharedSideEffectsOptions<'_>) {
     let persisted_remote = take_persisted_remote_side_effects(
         options.side_effects_maps_by_snapshot,
-        options.side_effects_by_snapshot,
+        options.cached.by_snapshot,
     );
     if !options.config.side_effects_cache_read() {
         options.side_effects_maps_by_snapshot.clear();
@@ -85,8 +80,8 @@ pub(crate) async fn apply_shared_side_effects(mut options: ApplySharedSideEffect
             snapshots: options.snapshots,
             packages: options.packages,
             setup: &setup,
-            side_effects_by_snapshot: options.side_effects_by_snapshot,
-            store_index_keys_by_snapshot: options.store_index_keys_by_snapshot,
+            side_effects_by_snapshot: options.cached.by_snapshot,
+            store_index_keys_by_snapshot: options.cached.store_index_keys_by_snapshot,
         },
         roots,
         persisted_remote,
@@ -114,28 +109,33 @@ pub(crate) fn shared_side_effects_publisher(
     }
     let snapshots = snapshots?;
     let platform = artifact_platform(snapshots)?;
-    let private_key = BASE64.decode(settings.private_key.as_ref()?).ok()?;
+    let private_key = BASE64
+        .decode(settings.private_key.as_ref()?)
+        .ok()?;
     let key_id = settings.key_id.clone()?;
     let builder_id = settings.builder_id.clone()?;
     let organization = non_empty(&settings.org)?.to_string();
     let environment = settings.build_env.clone().unwrap_or_default();
     Some(SharedSideEffectsPublisher {
+        signer: BuilderSigningKey { builder_id, key_id, private_key },
         authorization: config.auth_headers.for_url(server),
-        builder_id,
+
         builder_profile: BuilderProfile {
             image_digest: settings.image_digest.clone(),
-            architecture_baseline: settings
-                .architecture_baseline
+            architecture_baseline: settings.architecture_baseline
                 .clone()
                 .unwrap_or_else(|| pnpm_graph_hasher::host_arch().to_string()),
             environment,
         },
         client: PnprClient::new(server),
-        key_id,
+
         organization,
-        packages: settings.packages.iter().cloned().collect(),
+        packages: settings.packages
+            .iter()
+            .cloned()
+            .collect(),
         platform,
-        private_key,
+
         runtime: tokio::runtime::Handle::current(),
     })
 }
@@ -173,7 +173,7 @@ impl SharedSideEffectsPublisher {
             subject,
             input_key: input_key.clone(),
             owner: OwnerScope::organization(self.organization.clone()),
-            builder_id: self.builder_id.clone(),
+            builder_id: self.signer.builder_id.clone(),
             builder_profile: self.builder_profile.clone(),
             compatibility: CompatibilityConstraints::Tagged {
                 tags: vec![self.platform.tag().map_err(|error| error.to_string())?],
@@ -199,8 +199,8 @@ impl SharedSideEffectsPublisher {
                         key: input_key,
                         envelope: SignedArtifactEnvelope::sign(
                             payload,
-                            self.key_id.clone(),
-                            &self.private_key,
+                            self.signer.key_id.clone(),
+                            &self.signer.private_key,
                         )
                         .map_err(|error| error.to_string())?,
                         blobs,
@@ -277,3 +277,16 @@ fn dependency_package(candidate: &ArtifactCandidate) -> &PackageIdentity {
 
 #[cfg(test)]
 mod tests;
+
+struct BuilderSigningKey {
+    builder_id: String,
+    key_id: String,
+    private_key: Vec<u8>,
+}
+
+pub(crate) struct SharedSideEffectsCacheRows<'a> {
+    pub base_cas_paths: &'a BaseCasPaths,
+    pub by_snapshot: &'a SideEffectsBySnapshot,
+    pub quarantine_by_snapshot: &'a RemoteSideEffectsQuarantineBySnapshot,
+    pub store_index_keys_by_snapshot: &'a StoreIndexKeysBySnapshot,
+}

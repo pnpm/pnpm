@@ -113,12 +113,21 @@ snapshots:
     );
 
     let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
-    assert_eq!(report.as_object().unwrap().keys().collect::<Vec<_>>(), ["MIT", "Zlib"]);
+    assert_eq!(
+        report
+            .as_object()
+            .unwrap()
+            .keys()
+            .collect::<Vec<_>>(),
+        ["MIT", "Zlib"],
+    );
     assert_eq!(report["Zlib"][0]["author"], "Alpha Team");
     assert_eq!(report["Zlib"][0]["homepage"], "https://github.com/example/alpha#readme");
 
-    let output =
-        pacquet_in(workspace.path()).args(["licenses", "list"]).output().expect("run licenses");
+    let output = pacquet_in(workspace.path())
+        .args(["licenses", "list"])
+        .output()
+        .expect("run licenses");
     assert!(
         output.status.success(),
         "licenses should succeed: {}",
@@ -133,8 +142,13 @@ snapshots:
 
 #[test]
 fn licenses_reads_global_store_metadata_with_a_manifest_selected_runtime() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let config_home = root.path().join("config");
     fs::create_dir(&config_home).expect("create empty config home");
@@ -166,7 +180,11 @@ fn licenses_reads_global_store_metadata_with_a_manifest_selected_runtime() {
     .expect("write package.json");
 
     let mut pacquet = pacquet;
-    pacquet.env("XDG_CONFIG_HOME", &config_home).arg("install").assert().success();
+    pacquet
+        .env("XDG_CONFIG_HOME", &config_home)
+        .arg("install")
+        .assert()
+        .success();
 
     for subcommand in ["list", "ls"] {
         let mut licenses_command = pacquet_in(&workspace);

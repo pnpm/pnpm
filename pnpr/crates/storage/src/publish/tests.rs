@@ -65,7 +65,12 @@ fn stream_rejects_missing_integrity() {
 #[test]
 fn stream_rejects_missing_dist_entry() {
     let (result, _dest, _tmp) = run_stream(b"bytes", None, None);
-    assert!(result.unwrap_err().to_string().contains("EINTEGRITY"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("EINTEGRITY"),
+    );
 }
 
 #[test]
@@ -434,8 +439,12 @@ fn merging_a_journaled_packument_drops_the_versions_of_lost_blobs() {
     .unwrap();
 
     let merged: Value = serde_json::from_slice(&merged).unwrap();
-    let versions: Vec<_> =
-        merged["versions"].as_object().unwrap().keys().map(String::as_str).collect();
+    let versions: Vec<_> = merged["versions"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert_eq!(versions, vec!["2.0.0"]);
     assert_eq!(merged["dist-tags"], json!({}));
 }

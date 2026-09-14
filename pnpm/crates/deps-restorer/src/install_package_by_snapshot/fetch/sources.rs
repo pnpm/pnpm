@@ -22,7 +22,7 @@ impl InstallPackageBySnapshot<'_> {
         package_id: &str,
         download: &IngestTarballToStore<'_>,
     ) -> Result<CustomFetched, InstallPackageBySnapshotError> {
-        let Some(session) = self.custom_fetcher_session else {
+        let Some(session) = self.fetching.custom_fetcher_session else {
             return Ok(CustomFetched { resolution: None, cas_paths: None });
         };
         let config = self.ctx.config;
@@ -56,12 +56,12 @@ impl InstallPackageBySnapshot<'_> {
     ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
         fetch_binary_resolution_to_cas::<Reporter>(
             binary,
-            self.http_client,
+            self.fetching.http_client,
             self.ctx.config,
-            self.store_index,
-            self.store_index_writer,
-            self.verified_files_cache,
-            self.prefetched_cas_paths,
+            self.fetching.store_index,
+            self.fetching.store_index_writer,
+            self.fetching.verified_files_cache,
+            self.fetching.prefetched_cas_paths,
             package_key,
             self.ctx.requester,
             archive_filter_for(package_key),
@@ -82,27 +82,35 @@ impl InstallPackageBySnapshot<'_> {
         let files_index_file = git_hosted_store_index_key(fetch.package_id, built);
         let package_name = fetch.package_key.name.to_string();
         let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
-            source_cache: self.ctx.git_source_cache,
-            repo: &git_resolution.repo,
-            commit: &git_resolution.commit,
-            path: git_resolution.path.as_deref(),
-            git_shallow_hosts: &config.git_shallow_hosts,
+            scripts: pnpm_git_fetcher::PrepareScriptOptions {
+                ignore: config.ignore_scripts,
+                unsafe_perm: config.unsafe_perm,
+                user_agent: Some(&config.user_agent),
+                prepend_node_path: exec_scripts_prepend_node_path(config),
+                shell: None,
+                node_execpath: None,
+                npm_execpath: None,
+                pnpm_execpath: PNPM_EXECPATH.as_deref(),
+            },
+            source: pnpm_git_fetcher::GitSource {
+                cache: self.ctx.git_source_cache,
+                repo: &git_resolution.repo,
+                commit: &git_resolution.commit,
+                path: git_resolution.path.as_deref(),
+                shallow_hosts: &config.git_shallow_hosts,
+                git_bin: None,
+            },
+            store: pnpm_git_fetcher::GitStoreContext {
+                dir: &config.store_dir,
+                index_writer: self.fetching.store_index_writer,
+                files_index_file: &files_index_file,
+            },
+
             allow_build,
-            ignore_scripts: config.ignore_scripts,
-            unsafe_perm: config.unsafe_perm,
-            user_agent: Some(&config.user_agent),
-            scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
-            script_shell: None,
-            node_execpath: None,
-            npm_execpath: None,
-            pnpm_execpath: PNPM_EXECPATH.as_deref(),
-            store_dir: &config.store_dir,
+
             package_id: fetch.package_id,
             package_name: &package_name,
             requester: self.ctx.requester,
-            store_index_writer: self.store_index_writer,
-            files_index_file: &files_index_file,
-            git_bin: None,
         }
         .run::<Reporter>()
         .await
@@ -127,13 +135,17 @@ impl InstallPackageBySnapshot<'_> {
             tarball_url_and_integrity(fetch.resolution, fetch.package_key, config)?;
         let tarball_url = local_file_tarball_install_url(tarball_url, self.ctx.workspace_root);
         let download = IngestTarballToStore {
-            package_url: &tarball_url,
-            package_integrity: integrity,
+            package: pnpm_tarball::TarballPackage {
+                integrity,
+                url: &tarball_url,
+                ..fetch.download.clone().package
+            },
+
             ..fetch.download.clone()
         };
         let raw_cas_paths = download_tarball::<Reporter>(
             download,
-            self.tarball_mem_cache
+            self.fetching.tarball_mem_cache
                 .filter(|_| matches!(fetch.resolution, LockfileResolution::Registry(_)))
                 .map(std::convert::AsRef::as_ref),
             revision_addressed,
@@ -167,22 +179,27 @@ impl InstallPackageBySnapshot<'_> {
         // matching pnpm's `ignoreScripts`.
         let files_index_file = git_hosted_store_index_key(fetch.package_id, !config.ignore_scripts);
         let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
+            scripts: pnpm_git_fetcher::PrepareScriptOptions {
+                ignore: config.ignore_scripts,
+                unsafe_perm: config.unsafe_perm,
+                user_agent: Some(&config.user_agent),
+                prepend_node_path: fetch.scripts_prepend_node_path,
+                shell: None,
+                node_execpath: None,
+                npm_execpath: None,
+                pnpm_execpath: PNPM_EXECPATH.as_deref(),
+            },
+            store: pnpm_git_fetcher::GitStoreContext {
+                dir: &config.store_dir,
+                index_writer: self.fetching.store_index_writer,
+                files_index_file: &files_index_file,
+            },
             cas_paths,
             path: tarball.path.as_deref(),
             allow_build: fetch.allow_build,
-            ignore_scripts: config.ignore_scripts,
-            unsafe_perm: config.unsafe_perm,
-            user_agent: Some(&config.user_agent),
-            scripts_prepend_node_path: fetch.scripts_prepend_node_path,
-            script_shell: None,
-            node_execpath: None,
-            npm_execpath: None,
-            pnpm_execpath: PNPM_EXECPATH.as_deref(),
-            store_dir: &config.store_dir,
+
             package_id: fetch.package_id,
             requester: self.ctx.requester,
-            store_index_writer: self.store_index_writer,
-            files_index_file: &files_index_file,
         }
         .run::<Reporter>()
         .await

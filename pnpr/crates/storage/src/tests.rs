@@ -92,7 +92,10 @@ async fn hosted_revision_ref_writes_enforce_the_read_bound() {
             .unwrap(),
         HostedRevisionRefWrite::AlreadyClaimed,
     );
-    let stray_dir = tmp.path().join("storage/.revisions/sha512").join(&digest);
+    let stray_dir = tmp
+        .path()
+        .join("storage/.revisions/sha512")
+        .join(&digest);
     fs::write(stray_dir.join("not-a-reference.json"), b"stray").await.unwrap();
     fs::write(stray_dir.join("interrupted.tmp"), b"stray").await.unwrap();
     let refs = storage.read_hosted_revision_refs(&digest).await.unwrap();
@@ -110,8 +113,7 @@ async fn concurrent_hosted_revision_ref_writes_cannot_exceed_the_limit() {
         let storage = storage.clone();
         let digest = digest.clone();
         writes.push(tokio::spawn(async move {
-            storage
-                .write_hosted_revision_ref(&digest, &format!("{index:064x}"), "owner-a", b"{}")
+            storage.write_hosted_revision_ref(&digest, &format!("{index:064x}"), "owner-a", b"{}")
                 .await
         }));
     }
@@ -129,7 +131,11 @@ async fn concurrent_hosted_revision_ref_writes_cannot_exceed_the_limit() {
     assert_eq!(written, MAX_HOSTED_REVISION_REFS);
     assert_eq!(rejected, MAX_HOSTED_REVISION_REFS);
     assert_eq!(
-        storage.read_hosted_revision_refs(&digest).await.unwrap().len(),
+        storage
+            .read_hosted_revision_refs(&digest)
+            .await
+            .unwrap()
+            .len(),
         MAX_HOSTED_REVISION_REFS,
     );
 }
@@ -203,7 +209,12 @@ async fn temp_file_creation_does_not_follow_symlink_candidate() {
 
     assert_eq!(fs::read(&victim).await.unwrap(), b"victim");
     assert_eq!(fs::read(&retry).await.unwrap(), b"new");
-    assert!(std::fs::symlink_metadata(&symlink_path).unwrap().file_type().is_symlink());
+    assert!(
+        std::fs::symlink_metadata(&symlink_path)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
 }
 
 #[tokio::test]
@@ -275,7 +286,11 @@ async fn a_staged_record_is_replaced_only_while_it_is_unchanged() {
         .unwrap();
     assert_eq!(second, super::DocumentWrite::Conflict);
     assert_eq!(
-        storage.read_staged_meta(stage_id).await.unwrap().as_deref(),
+        storage
+            .read_staged_meta(stage_id)
+            .await
+            .unwrap()
+            .as_deref(),
         Some(&br#"{"id":"stage","a":1}"#[..]),
     );
 
@@ -289,5 +304,11 @@ async fn a_staged_record_is_replaced_only_while_it_is_unchanged() {
         .await
         .unwrap();
     assert_eq!(removed, super::DocumentWrite::Conflict);
-    assert!(storage.read_staged_meta(stage_id).await.unwrap().is_none());
+    assert!(
+        storage
+            .read_staged_meta(stage_id)
+            .await
+            .unwrap()
+            .is_none(),
+    );
 }

@@ -131,13 +131,19 @@ importers:
     .expect("collect interactive choices");
 
     assert_eq!(
-        choices.iter().map(|choice| choice.alias.as_str()).collect::<Vec<_>>(),
+        choices
+            .iter()
+            .map(|choice| choice.alias.as_str())
+            .collect::<Vec<_>>(),
         vec!["foo", "bar"],
     );
     // Each entry remembers the project it came from, which is what the
     // interactive list's `Workspace` column shows.
     assert_eq!(
-        choices.iter().map(|choice| choice.workspace.as_deref()).collect::<Vec<_>>(),
+        choices
+            .iter()
+            .map(|choice| choice.metadata.workspace.as_deref())
+            .collect::<Vec<_>>(),
         vec![Some("packages-a"), Some("packages-b")],
     );
     foo_mock.assert_async().await;
@@ -197,7 +203,10 @@ importers:
     .expect("collect interactive choices");
 
     assert_eq!(
-        choices.iter().map(|choice| choice.alias.as_str()).collect::<Vec<_>>(),
+        choices
+            .iter()
+            .map(|choice| choice.alias.as_str())
+            .collect::<Vec<_>>(),
         vec!["foo", "fooAlias"],
     );
     foo_mock.assert_async().await;
@@ -258,7 +267,10 @@ importers:
     .expect("collect interactive choices");
 
     assert_eq!(
-        choices.iter().map(|choice| choice.workspace.as_deref()).collect::<Vec<_>>(),
+        choices
+            .iter()
+            .map(|choice| choice.metadata.workspace.as_deref())
+            .collect::<Vec<_>>(),
         vec![Some("packages-a"), Some("packages-b")],
     );
     // And they render as one row naming both.
@@ -322,7 +334,10 @@ importers:
         .expect("collect interactive choices");
 
         assert_eq!(
-            choices.iter().map(|choice| choice.workspace.as_deref()).collect::<Vec<_>>(),
+            choices
+                .iter()
+                .map(|choice| choice.metadata.workspace.as_deref())
+                .collect::<Vec<_>>(),
             vec![Some("packages/a")],
             "a {name:?} name should fall back to the importer path",
         );
@@ -541,8 +556,12 @@ impl ScriptedPrompts {
     /// Answer the next prompt by checking the rows for these packages,
     /// the way the upstream suite resolves its `@inquirer/prompts` mock.
     fn answer_next(&self, packages: &[&str]) {
-        let answer = packages.iter().map(|package| (*package).to_string()).collect();
-        self.claimed().answers.push_back(ScriptedAnswer::Check(answer));
+        let answer = packages
+            .iter()
+            .map(|package| (*package).to_string())
+            .collect();
+        self.claimed().answers
+            .push_back(ScriptedAnswer::Check(answer));
     }
 
     /// Leave the next prompt with Ctrl-C.
@@ -562,8 +581,7 @@ impl ScriptedPrompts {
 
 pub(super) fn answer_prompt(message: &str, rows: &[PromptRow]) -> Option<Vec<usize>> {
     let mut script = script();
-    let answer = script
-        .answers
+    let answer = script.answers
         .pop_front()
         .unwrap_or_else(|| panic!("the test scripted no answer for the prompt {message:?}"));
     script.seen.push(SeenPrompt {
@@ -592,13 +610,14 @@ pub(super) fn answer_prompt(message: &str, rows: &[PromptRow]) -> Option<Vec<usi
 /// versions are read back out of the padded label; how that table is laid
 /// out is pinned by the `choices` ports.
 fn offered(prompt: &SeenPrompt) -> Vec<(String, String, String)> {
-    prompt
-        .rows
+    prompt.rows
         .iter()
         .filter_map(|(label, value)| {
             let package = value.as_ref()?;
             let columns = label.split_whitespace().collect::<Vec<_>>();
-            let arrow = columns.iter().position(|column| *column == "❯")?;
+            let arrow = columns
+                .iter()
+                .position(|column| *column == "❯")?;
             Some((package.clone(), columns[arrow - 1].to_string(), columns[arrow + 1].to_string()))
         })
         .collect()
@@ -607,8 +626,7 @@ fn offered(prompt: &SeenPrompt) -> Vec<(String, String, String)> {
 /// The group headings a prompt showed, in order: the separators drawn
 /// as `── heading ──`.
 fn headings(prompt: &SeenPrompt) -> Vec<String> {
-    prompt
-        .rows
+    prompt.rows
         .iter()
         .filter(|(_, value)| value.is_none())
         .filter_map(|(label, _)| {
@@ -702,8 +720,7 @@ impl UpdateFixture {
         let text = fs::read_to_string(self.project.join("pnpm-lock.yaml"))
             .expect("read the wanted lockfile");
         let lockfile: Lockfile = serde_saphyr::from_str(&text).expect("parse the wanted lockfile");
-        let mut keys = lockfile
-            .packages
+        let mut keys = lockfile.packages
             .into_iter()
             .flatten()
             .map(|(key, _)| key.to_string())
@@ -801,7 +818,10 @@ async fn interactive_update_leaves_without_an_error_when_the_prompt_is_canceled(
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 

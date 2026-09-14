@@ -13,7 +13,10 @@ use std::{
 fn version_flag_prints_the_bare_version() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
-    let output = pacquet.with_arg("--version").output().expect("run pacquet --version");
+    let output = pacquet
+        .with_arg("--version")
+        .output()
+        .expect("run pacquet --version");
     dbg!(&output);
     assert!(output.status.success(), "pacquet --version should succeed");
     assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{}\n", pnpm_config::PNPM_VERSION));
@@ -55,7 +58,10 @@ fn version_flag_rejects_invalid_shamefully_hoist_value() {
 fn short_version_flag_prints_the_bare_version() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
-    let output = pacquet.with_arg("-v").output().expect("run pacquet -v");
+    let output = pacquet
+        .with_arg("-v")
+        .output()
+        .expect("run pacquet -v");
     dbg!(&output);
     assert!(output.status.success(), "pacquet -v should succeed");
     assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{}\n", pnpm_config::PNPM_VERSION));
@@ -65,8 +71,13 @@ fn short_version_flag_prints_the_bare_version() {
 
 #[test]
 fn version_flag_switches_to_project_package_manager_version() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
         .expect("write package.json");
@@ -89,8 +100,13 @@ fn version_flag_switches_to_project_package_manager_version() {
 /// (pnpm/pnpm#14595).
 #[test]
 fn version_flag_switches_to_the_pinned_version_under_the_hoisted_node_linker() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
         .expect("write package.json");
@@ -158,8 +174,13 @@ fn child_pnpm_selects_the_version_for_its_own_directory() {
 /// which command the project saw first.
 #[test]
 fn version_flag_records_a_pinned_package_manager_it_does_not_need_to_switch_to() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let pinned = pnpm_config::PNPM_VERSION;
     fs::write(
@@ -215,6 +236,89 @@ fn version_flag_switches_to_the_version_a_range_pin_resolved_to() {
     drop((root, mock_instance));
 }
 
+#[test]
+#[cfg(unix)]
+fn version_flag_reports_a_pin_it_cannot_record() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let pinned = pnpm_config::PNPM_VERSION;
+    fs::write(
+        workspace.join("package.json"),
+        format!(r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{pinned}"}}}}}}"#),
+    )
+    .expect("write package.json");
+
+    let writable = fs::metadata(&workspace).expect("read the workspace permissions").permissions();
+    let mut read_only = writable.clone();
+    read_only.set_readonly(true);
+    fs::set_permissions(&workspace, read_only).expect("make the workspace read-only");
+    let output = workspace_rejects_writes(&workspace)
+        .then(|| {
+            test_command(pacquet, root.path())
+                .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+                .args(["--version"])
+                .output()
+                .expect("run pacquet --version")
+        });
+    fs::set_permissions(&workspace, writable).expect("make the workspace writable again");
+
+    let output =
+        output.expect("the read-only bit must reject writes; do not run this test as root");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet --version should survive a read-only project");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{pinned}\n"));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Cannot use the pnpm version this project pins"), "{stderr}");
+    assert!(
+        EnvLockfile::read(&workspace).expect("read the env lockfile").is_none(),
+        "a read-only project cannot have recorded the pin",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Whether the read-only bit set above actually stops a write. It does not
+/// when the test runs as root, and the case above then has nothing to
+/// observe, so it fails rather than passing without having run.
+#[cfg(unix)]
+fn workspace_rejects_writes(workspace: &Path) -> bool {
+    let probe = workspace.join("write-probe");
+    if fs::write(&probe, "").is_err() {
+        return true;
+    }
+    fs::remove_file(&probe).expect("remove the write probe");
+    false
+}
+
+/// Only the steps that write are skipped when the version is all that is
+/// wanted.
+#[test]
+fn version_flag_fails_when_the_project_pins_another_package_manager() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"yarn@4.0.0"}"#)
+        .expect("write package.json");
+
+    let output = test_command(pacquet, root.path())
+        .arg("--version")
+        .output()
+        .expect("run pacquet --version");
+
+    dbg!(&output);
+    assert!(!output.status.success(), "a pin naming another package manager must fail");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("This project is configured to use yarn"),
+        "{output:?}",
+    );
+
+    drop(root);
+}
+
 fn write_dev_engine_pin(workspace: &Path, version: &str) {
     fs::write(
         workspace.join("package.json"),
@@ -258,7 +362,10 @@ fn test_command(mut command: Command, root: &Path) -> Command {
 fn pacquet_version(workspace: &Path, args: &[&str]) -> std::process::Output {
     use assert_cmd::cargo::CommandCargoExt as _;
     let mut command = Command::cargo_bin("pnpm").expect("find the pnpm binary");
-    command.current_dir(workspace).arg("version").args(args);
+    command
+        .current_dir(workspace)
+        .arg("version")
+        .args(args);
     command.output().expect("run pacquet version")
 }
 
@@ -274,7 +381,11 @@ fn manifest_version(dir: &Path) -> String {
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(dir.join("package.json")).expect("read manifest"))
             .expect("parse manifest");
-    manifest.get("version").and_then(serde_json::Value::as_str).unwrap_or_default().to_string()
+    manifest
+        .get("version")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_string()
 }
 
 /// `git init` plus the identity/signing config the commit and tag need.
@@ -286,20 +397,32 @@ fn init_git(dir: &Path) {
         vec!["config", "commit.gpgSign", "false"],
         vec!["config", "tag.gpgSign", "false"],
     ] {
-        let status = Command::new("git").args(&args).current_dir(dir).status().expect("run git");
+        let status = Command::new("git")
+            .args(&args)
+            .current_dir(dir)
+            .status()
+            .expect("run git");
         assert!(status.success(), "git {args:?} should succeed");
     }
 }
 
 fn git_commit_all(dir: &Path, message: &str) {
     for args in [vec!["add", "."], vec!["commit", "-q", "-m", message, "--no-gpg-sign"]] {
-        let status = Command::new("git").args(&args).current_dir(dir).status().expect("run git");
+        let status = Command::new("git")
+            .args(&args)
+            .current_dir(dir)
+            .status()
+            .expect("run git");
         assert!(status.success(), "git {args:?} should succeed");
     }
 }
 
 fn git_stdout(dir: &Path, args: &[&str]) -> String {
-    let output = Command::new("git").args(args).current_dir(dir).output().expect("run git");
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .expect("run git");
     assert!(output.status.success(), "git {args:?} should succeed");
     String::from_utf8_lossy(&output.stdout).trim().to_string()
 }
@@ -780,7 +903,12 @@ fn recursive_dry_run_previews_the_plan_without_applying_it() {
 /// byte-identical.
 fn release_inputs(workspace: &Path) -> BTreeMap<PathBuf, String> {
     let manifests = ["pkg-a", "pkg-b"]
-        .map(|pkg| workspace.join("packages").join(pkg).join("package.json"))
+        .map(|pkg| {
+            workspace
+                .join("packages")
+                .join(pkg)
+                .join("package.json")
+        })
         .into_iter();
     let intents = fs::read_dir(workspace.join(".changeset"))
         .expect("read .changeset")
@@ -801,7 +929,10 @@ fn release_inputs(workspace: &Path) -> BTreeMap<PathBuf, String> {
 fn pacquet_version_assuming_published(workspace: &Path, args: &[&str]) -> std::process::Output {
     use assert_cmd::cargo::CommandCargoExt as _;
     let mut command = Command::cargo_bin("pnpm").expect("find the pnpm binary");
-    command.current_dir(workspace).env("PACQUET_ASSUME_VERSIONS_PUBLISHED", "1").args(args);
+    command
+        .current_dir(workspace)
+        .env("PACQUET_ASSUME_VERSIONS_PUBLISHED", "1")
+        .args(args);
     command.output().expect("run pacquet version")
 }
 

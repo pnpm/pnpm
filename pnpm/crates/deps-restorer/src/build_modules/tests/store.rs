@@ -129,41 +129,50 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
     let requires_build: RequiresBuildBySnapshot = HashMap::from([(pkg_key.clone(), true)]);
 
     let result = BuildModules {
-        layout: &VirtualStoreLayout::legacy(
-            virtual_store_dir.path(),
-            pnpm_config::default_virtual_store_dir_max_length() as usize,
-        ),
-        modules_dir: modules_dir.path(),
-        lockfile_dir: lockfile_dir.path(),
-        snapshots: Some(&snapshots),
-        packages: Some(&packages),
-        importers: &importers,
+        cache: crate::BuildCacheContext {
+            maps_by_snapshot: Some(&side_effects_maps),
+            engine_name: Some(engine),
+            read: true,
+            write: false,
+            publisher: None,
+            store_dir: None,
+            store_index_writer: None,
+            frozen_store: false,
+        },
+        directories: crate::BuildLayout {
+            layout: &VirtualStoreLayout::legacy(
+                virtual_store_dir.path(),
+                pnpm_config::default_virtual_store_dir_max_length() as usize,
+            ),
+            pkg_roots_by_key: None,
+            gather_ancestor_bin_paths: false,
+            modules_dir: modules_dir.path(),
+            lockfile_dir: lockfile_dir.path(),
+            import_method: PackageImportMethod::Auto,
+            logged_methods: &TEST_LOGGED_METHODS,
+        },
+        graph: crate::BuildGraphInputs {
+            snapshots: Some(&snapshots),
+            packages: Some(&packages),
+            patches: None,
+            requires_build_by_snapshot: Some(&requires_build),
+            importers: &importers,
+        },
+        scripts: crate::BuildScriptOptions {
+            extra_env: &HashMap::new(),
+            user_agent: "pnpm/test",
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+            unsafe_perm: true,
+            ignore: false,
+        },
+
         allow_build_policy: &policy,
-        side_effects_maps_by_snapshot: Some(&side_effects_maps),
-        requires_build_by_snapshot: Some(&requires_build),
-        engine_name: Some(engine),
-        side_effects_cache: true,
-        side_effects_cache_write: false,
-        shared_side_effects_publisher: None,
-        store_dir: None,
-        store_index_writer: None,
-        patches: None,
 
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-
-        script_shell: None,
-        shell_emulator: false,
-        extra_env: &HashMap::new(),
-        user_agent: "pnpm/test",
-        unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_roots_by_key: None,
-        gather_ancestor_bin_paths: false,
-        frozen_store: false,
-        ignore_scripts: false,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &TEST_LOGGED_METHODS,
+
         rebuild: None,
     }
     .run::<SilentReporter>();
@@ -200,41 +209,50 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
     side_effects_maps.insert(pkg_key, std::sync::Arc::new(overlay));
 
     let err = BuildModules {
-        layout: &VirtualStoreLayout::legacy(
-            virtual_store_dir.path(),
-            pnpm_config::default_virtual_store_dir_max_length() as usize,
-        ),
-        modules_dir: modules_dir.path(),
-        lockfile_dir: lockfile_dir.path(),
-        snapshots: Some(&snapshots),
-        packages: Some(&packages),
-        importers: &importers,
+        cache: crate::BuildCacheContext {
+            maps_by_snapshot: Some(&side_effects_maps),
+            engine_name: Some("darwin;arm64;node20"),
+            read: false,
+            write: false,
+            publisher: None,
+            store_dir: None,
+            store_index_writer: None,
+            frozen_store: false,
+        },
+        directories: crate::BuildLayout {
+            layout: &VirtualStoreLayout::legacy(
+                virtual_store_dir.path(),
+                pnpm_config::default_virtual_store_dir_max_length() as usize,
+            ),
+            pkg_roots_by_key: None,
+            gather_ancestor_bin_paths: false,
+            modules_dir: modules_dir.path(),
+            lockfile_dir: lockfile_dir.path(),
+            import_method: PackageImportMethod::Auto,
+            logged_methods: &TEST_LOGGED_METHODS,
+        },
+        graph: crate::BuildGraphInputs {
+            snapshots: Some(&snapshots),
+            packages: Some(&packages),
+            patches: None,
+            requires_build_by_snapshot: None,
+            importers: &importers,
+        },
+        scripts: crate::BuildScriptOptions {
+            extra_env: &HashMap::new(),
+            user_agent: "pnpm/test",
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+            unsafe_perm: true,
+            ignore: false,
+        },
+
         allow_build_policy: &policy,
-        side_effects_maps_by_snapshot: Some(&side_effects_maps),
-        requires_build_by_snapshot: None,
-        engine_name: Some("darwin;arm64;node20"),
-        side_effects_cache: false,
-        side_effects_cache_write: false,
-        shared_side_effects_publisher: None,
-        store_dir: None,
-        store_index_writer: None,
-        patches: None,
 
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-
-        script_shell: None,
-        shell_emulator: false,
-        extra_env: &HashMap::new(),
-        user_agent: "pnpm/test",
-        unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_roots_by_key: None,
-        gather_ancestor_bin_paths: false,
-        frozen_store: false,
-        ignore_scripts: false,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &TEST_LOGGED_METHODS,
+
         rebuild: None,
     }
     .run::<SilentReporter>()
@@ -358,41 +376,50 @@ async fn write_path_populates_side_effects_row() {
     );
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(
-            virtual_store_dir.path(),
-            pnpm_config::default_virtual_store_dir_max_length() as usize,
-        ),
-        modules_dir: modules_dir.path(),
-        lockfile_dir: lockfile_dir.path(),
-        snapshots: Some(&snapshots),
-        packages: Some(&packages),
-        importers: &importers,
+        cache: crate::BuildCacheContext {
+            maps_by_snapshot: None,
+            engine_name: Some(engine),
+            read: true,
+            write: true,
+            publisher: None,
+            store_dir: Some(&store_dir),
+            store_index_writer: Some(&writer),
+            frozen_store: false,
+        },
+        directories: crate::BuildLayout {
+            layout: &VirtualStoreLayout::legacy(
+                virtual_store_dir.path(),
+                pnpm_config::default_virtual_store_dir_max_length() as usize,
+            ),
+            pkg_roots_by_key: None,
+            gather_ancestor_bin_paths: false,
+            modules_dir: modules_dir.path(),
+            lockfile_dir: lockfile_dir.path(),
+            import_method: PackageImportMethod::Auto,
+            logged_methods: &TEST_LOGGED_METHODS,
+        },
+        graph: crate::BuildGraphInputs {
+            snapshots: Some(&snapshots),
+            packages: Some(&packages),
+            patches: None,
+            requires_build_by_snapshot: None,
+            importers: &importers,
+        },
+        scripts: crate::BuildScriptOptions {
+            extra_env: &HashMap::new(),
+            user_agent: "pnpm/test",
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+            unsafe_perm: true,
+            ignore: false,
+        },
+
         allow_build_policy: &policy,
-        side_effects_maps_by_snapshot: None,
-        requires_build_by_snapshot: None,
-        engine_name: Some(engine),
-        side_effects_cache: true,
-        side_effects_cache_write: true,
-        shared_side_effects_publisher: None,
-        store_dir: Some(&store_dir),
-        store_index_writer: Some(&writer),
-        patches: None,
 
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-
-        script_shell: None,
-        shell_emulator: false,
-        extra_env: &HashMap::new(),
-        user_agent: "pnpm/test",
-        unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_roots_by_key: None,
-        gather_ancestor_bin_paths: false,
-        frozen_store: false,
-        ignore_scripts: false,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &TEST_LOGGED_METHODS,
+
         rebuild: None,
     }
     .run::<SilentReporter>()
@@ -404,7 +431,10 @@ async fn write_path_populates_side_effects_row() {
     writer_task.await.expect("await writer").expect("writer succeeds");
 
     let index = StoreIndex::open_readonly_in(&store_dir).expect("open index for read");
-    let row = index.get(&files_index_file).expect("get row").expect("row present");
+    let row = index
+        .get(&files_index_file)
+        .expect("get row")
+        .expect("row present");
     let side_effects = row.side_effects.expect("side_effects populated");
     let diff = side_effects.get(&expected_cache_key).expect("entry for cache key");
     let added = diff.added.as_ref().expect("added present");

@@ -27,10 +27,18 @@ impl PrivateAccessDescriptor {
     /// policy of the same text).
     pub(super) fn key_input(&self) -> String {
         match self {
-            PrivateAccessDescriptor::Alias { alias, credential_digest, package: None } => {
+            PrivateAccessDescriptor::Alias {
+                alias,
+                credential_digest,
+                package: None,
+            } => {
                 format!("alias\0{alias}\0{credential_digest}")
             }
-            PrivateAccessDescriptor::Alias { alias, credential_digest, package: Some(package) } => {
+            PrivateAccessDescriptor::Alias {
+                alias,
+                credential_digest,
+                package: Some(package),
+            } => {
                 format!("alias\0{alias}\0{credential_digest}\0{package}")
             }
             PrivateAccessDescriptor::Hosted { policy_id } => format!("hosted\0{policy_id}"),
@@ -89,8 +97,10 @@ pub fn credential_digest(authorization: &str) -> String {
 /// `PrivateAccessDescriptor::digest_id`.
 #[must_use]
 pub fn headers_credential_digest(headers: &HeaderMap) -> String {
-    let mut entries: Vec<(&[u8], &[u8])> =
-        headers.iter().map(|(name, value)| (name.as_str().as_bytes(), value.as_bytes())).collect();
+    let mut entries: Vec<(&[u8], &[u8])> = headers
+        .iter()
+        .map(|(name, value)| (name.as_str().as_bytes(), value.as_bytes()))
+        .collect();
     entries.sort_unstable();
     let mut hasher = Sha256::new();
     for (name, value) in entries {
@@ -148,7 +158,9 @@ impl Footprint {
     /// authorized for `identity` under the current route context.
     #[must_use]
     pub fn allows(&self, context: &RouteContext, identity: &Identity) -> bool {
-        self.descriptors.iter().all(|descriptor| context.allows_descriptor(identity, descriptor))
+        self.descriptors
+            .iter()
+            .all(|descriptor| context.allows_descriptor(identity, descriptor))
     }
 }
 

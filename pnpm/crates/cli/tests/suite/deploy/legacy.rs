@@ -10,12 +10,20 @@ use assert_cmd::assert::OutputAssertExt;
 
 #[test]
 fn legacy_deploy_installs_selected_project() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let workspace_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
     pacquet_cmd(&workspace)
         .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
@@ -34,13 +42,24 @@ fn legacy_deploy_installs_selected_project() {
 
 #[test]
 fn legacy_deploy_excludes_fetched_dependencies_of_unselected_projects() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_reachability_workspace(&workspace);
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
-    pacquet_cmd(&workspace).with_arg("fetch").assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_arg("fetch")
+        .assert()
+        .success();
     pacquet_cmd(&workspace)
         .with_args(["--filter", "app...", "install", "--frozen-lockfile", "--offline"])
         .assert()
@@ -52,12 +71,16 @@ fn legacy_deploy_excludes_fetched_dependencies_of_unselected_projects() {
 
     let virtual_store_entries = virtual_store_entries(&workspace.join("legacy-deploy"));
     assert!(
-        virtual_store_entries.iter().any(|entry| entry.starts_with("@pnpm.e2e+pkg-with-1-dep@")),
+        virtual_store_entries
+            .iter()
+            .any(|entry| entry.starts_with("@pnpm.e2e+pkg-with-1-dep@")),
         "the deploy virtual store should include the selected dependency closure: {virtual_store_entries:#?}",
     );
     for excluded in ["@pnpm.e2e+bar@", "@pnpm.e2e+qar@"] {
         assert!(
-            !virtual_store_entries.iter().any(|entry| entry.starts_with(excluded)),
+            !virtual_store_entries
+                .iter()
+                .any(|entry| entry.starts_with(excluded)),
             "the deploy virtual store should exclude packages reachable only from unselected projects: {virtual_store_entries:#?}",
         );
     }
@@ -67,8 +90,13 @@ fn legacy_deploy_excludes_fetched_dependencies_of_unselected_projects() {
 
 #[test]
 fn legacy_deploy_injects_transitive_workspace_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     write_project(
@@ -91,7 +119,10 @@ fn legacy_deploy_injects_transitive_workspace_dependencies() {
         }),
     );
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     pacquet_cmd(&workspace)
         .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
         .assert()
@@ -107,10 +138,14 @@ fn legacy_deploy_injects_transitive_workspace_dependencies() {
         .iter()
         .find(|entry| entry.starts_with("leaf@file+"))
         .expect("transitive leaf should be injected into the deploy virtual store");
-    let nested_leaf =
-        deploy_dir.join("node_modules/.pnpm").join(lib_entry).join("node_modules/leaf");
-    let deployed_leaf =
-        deploy_dir.join("node_modules/.pnpm").join(leaf_entry).join("node_modules/leaf");
+    let nested_leaf = deploy_dir
+        .join("node_modules/.pnpm")
+        .join(lib_entry)
+        .join("node_modules/leaf");
+    let deployed_leaf = deploy_dir
+        .join("node_modules/.pnpm")
+        .join(leaf_entry)
+        .join("node_modules/leaf");
     let deploy_dir = fs::canonicalize(deploy_dir).expect("resolve the deploy directory");
     let deployed_lib = fs::canonicalize(deploy_dir.join("node_modules/lib"))
         .expect("resolve the deployed lib package");
@@ -129,13 +164,21 @@ fn legacy_deploy_injects_transitive_workspace_dependencies() {
 
 #[test]
 fn legacy_deploy_prefers_workspace_lockfile_versions() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     set_app_foo_dependency(&workspace, "100.0.0");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let source_lockfile_path = workspace.join(Lockfile::FILE_NAME);
     let source_wanted_lockfile = Lockfile::load_wanted_from_dir(&workspace)
         .expect("load source wanted lockfile")
@@ -143,8 +186,7 @@ fn legacy_deploy_prefers_workspace_lockfile_versions() {
     let source_foo_key: PackageKey =
         "@pnpm.e2e/foo@100.0.0".parse().expect("parse source package key");
     assert!(
-        source_wanted_lockfile
-            .snapshots
+        source_wanted_lockfile.snapshots
             .as_ref()
             .is_some_and(|snapshots| snapshots.contains_key(&source_foo_key)),
         "the source fixture must pin foo at 100.0.0",
@@ -177,14 +219,16 @@ fn legacy_deploy_prefers_workspace_lockfile_versions() {
         .expect("load deploy current lockfile")
         .expect("deploy current lockfile exists");
     assert_eq!(
-        current_lockfile.importers.keys().map(String::as_str).collect::<Vec<_>>(),
+        current_lockfile.importers
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
         vec![Lockfile::ROOT_IMPORTER_KEY],
         "the post-hook deploy manifest should be the sole root importer",
     );
     let root_importer = current_lockfile.root_project().expect("root deploy importer exists");
     let foo_name = PkgName::parse("@pnpm.e2e/foo").expect("parse fixture package name");
-    let foo_dependency = root_importer
-        .dependencies
+    let foo_dependency = root_importer.dependencies
         .as_ref()
         .expect("root deploy dependencies exist")
         .get(&foo_name)
@@ -229,14 +273,22 @@ fn legacy_deploy_prefers_workspace_lockfile_versions() {
 
 #[test]
 fn legacy_deploy_prefers_dedicated_lockfile_versions() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     append_workspace_yaml_key(&workspace, "sharedWorkspaceLockfile", false);
     set_app_foo_dependency(&workspace, "100.0.0");
 
-    pacquet.with_args(["--filter", "app", "install"]).assert().success();
+    pacquet
+        .with_args(["--filter", "app", "install"])
+        .assert()
+        .success();
     let app_dir = workspace.join("packages/app");
     let source_lockfile_path = app_dir.join(Lockfile::FILE_NAME);
     assert!(
@@ -249,8 +301,7 @@ fn legacy_deploy_prefers_dedicated_lockfile_versions() {
     let source_foo_key: PackageKey =
         "@pnpm.e2e/foo@100.0.0".parse().expect("parse source package key");
     assert!(
-        source_wanted_lockfile
-            .snapshots
+        source_wanted_lockfile.snapshots
             .as_ref()
             .is_some_and(|snapshots| snapshots.contains_key(&source_foo_key)),
         "the source project fixture must pin foo at 100.0.0",
@@ -294,8 +345,13 @@ fn legacy_deploy_prefers_dedicated_lockfile_versions() {
 
 #[test]
 fn legacy_deploy_prefers_git_branch_lockfile_versions() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     fs::create_dir(workspace.join(".git")).expect("create source git directory");
@@ -304,7 +360,10 @@ fn legacy_deploy_prefers_git_branch_lockfile_versions() {
     append_workspace_yaml_key(&workspace, "gitBranchLockfile", true);
     set_app_foo_dependency(&workspace, "100.0.0");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let source_lockfile_path = workspace.join("pnpm-lock.feature.yaml");
     let source_lockfile = fs::read(&source_lockfile_path).expect("read source branch lockfile");
     assert!(!workspace.join(Lockfile::FILE_NAME).exists());
@@ -369,14 +428,22 @@ fn legacy_deploy_without_dedicated_lockfile_fresh_resolves() {
 
 #[test]
 fn legacy_deploy_ignores_malformed_dedicated_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     append_workspace_yaml_key(&workspace, "sharedWorkspaceLockfile", false);
     set_app_foo_dependency(&workspace, "100.0.0");
 
-    pacquet.with_args(["--filter", "app", "install"]).assert().success();
+    pacquet
+        .with_args(["--filter", "app", "install"])
+        .assert()
+        .success();
     set_app_foo_dependency(&workspace, "^100.0.0");
     let app_dir = workspace.join("packages/app");
     let source_lockfile_path = app_dir.join(Lockfile::FILE_NAME);
@@ -474,13 +541,21 @@ fn legacy_deploy_preserves_source_pnpmfile_hooks() {
 
 #[test]
 fn legacy_deploy_of_the_workspace_root_injects_its_workspace_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     write_root_project_depending_on_lib(&workspace);
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let workspace_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
     pacquet_cmd(&workspace)
         .with_args(["--filter", ".", "deploy", "--legacy", "--prod", "legacy-deploy"])
@@ -498,7 +573,9 @@ fn legacy_deploy_of_the_workspace_root_injects_its_workspace_dependencies() {
     assert!(deploy_dir.join("node_modules/lib").exists());
     let virtual_store_entries = virtual_store_entries(&deploy_dir);
     assert!(
-        virtual_store_entries.iter().any(|entry| entry.starts_with("lib@file+")),
+        virtual_store_entries
+            .iter()
+            .any(|entry| entry.starts_with("lib@file+")),
         "the root's workspace dependency should be injected into the deploy virtual store: {virtual_store_entries:#?}",
     );
     assert_workspace_lockfile_untouched(&workspace, &workspace_lockfile);
@@ -508,13 +585,21 @@ fn legacy_deploy_of_the_workspace_root_injects_its_workspace_dependencies() {
 
 #[test]
 fn legacy_deploy_without_lockfile_installs_selected_project_at_root() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     set_app_foo_dependency(&workspace, "100.0.0");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let source_lockfile_path = workspace.join(Lockfile::FILE_NAME);
     let source_lockfile = fs::read(&source_lockfile_path).expect("read source lockfile");
     set_app_foo_dependency(&workspace, "^100.0.0");
@@ -565,13 +650,21 @@ fn legacy_deploy_without_source_lockfile_fresh_resolves() {
 
 #[test]
 fn legacy_deploy_ignores_malformed_source_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
     set_app_foo_dependency(&workspace, "100.0.0");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     set_app_foo_dependency(&workspace, "^100.0.0");
     let source_lockfile_path = workspace.join(Lockfile::FILE_NAME);
     let source_lockfile = fs::read_to_string(&source_lockfile_path).expect("read source lockfile");
@@ -611,8 +704,13 @@ fn legacy_deploy_ignores_malformed_source_lockfile() {
 /// pnpmfile an install of the selected project loads is the project's own.
 #[test]
 fn legacy_deploy_ignores_the_pnpmfile_copied_into_the_deploy_dir() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, true);
     append_workspace_yaml_key(&workspace, "sharedWorkspaceLockfile", false);
@@ -620,10 +718,16 @@ fn legacy_deploy_ignores_the_pnpmfile_copied_into_the_deploy_dir() {
     write_recording_pnpmfile(&project_dir);
     pack_pnpmfile_with_project(&project_dir);
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     fs::remove_file(project_dir.join(PNPMFILE_SENTINEL)).expect("the install ran the pnpmfile");
 
-    pacquet_cmd(&workspace).with_args(["--filter", "app", "deploy", "deploy"]).assert().success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "deploy"])
+        .assert()
+        .success();
 
     assert!(
         project_dir.join(PNPMFILE_SENTINEL).exists(),
@@ -647,12 +751,20 @@ fn legacy_deploy_ignores_the_pnpmfile_copied_into_the_deploy_dir() {
 /// lockfiles and must not delete them.
 #[test]
 fn legacy_deploy_keeps_the_workspace_branch_lockfiles() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_reachability_workspace(&workspace);
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     fs::create_dir(workspace.join(".git")).unwrap();
     fs::write(workspace.join(".git/HEAD"), "ref: refs/heads/feature\n").unwrap();

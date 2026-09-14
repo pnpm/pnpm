@@ -83,14 +83,14 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
     }
 
     /// The sink to hand the resolver as
-    /// [`pnpm_resolving_deps_resolver::WorkspaceResolveOptions::finalized_package`].
+    /// [`pnpm_resolving_deps_resolver::WorkspaceResolveHooks::finalized_package`].
     pub(crate) fn hook(self: &Arc<Self>) -> FinalizedPackageFn {
         let materializer = Arc::clone(self);
         Arc::new(move |package| materializer.schedule(&package))
     }
 
     fn schedule(&self, package: &FinalizedPackage) {
-        let Some(name_ver) = package.result.name_ver.as_ref() else { return };
+        let Some(name_ver) = package.result.package.name_ver.as_ref() else { return };
         let Ok((package_url, _)) = extract_tarball(&package.result.resolution) else { return };
         // The prefetch keys its cache by the plain URL and skips these
         // shapes altogether; see `PrefetchingResolver::maybe_kickoff_download`.
@@ -139,8 +139,10 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         self.shared.closing.store(true, Ordering::Release);
         let mut tasks = std::mem::take(&mut *lock(&self.tasks));
         while tasks.join_next().await.is_some() {}
-        logged_methods
-            .fetch_or(self.shared.logged_methods.load(Ordering::Acquire), Ordering::AcqRel);
+        logged_methods.fetch_or(
+            self.shared.logged_methods.load(Ordering::Acquire),
+            Ordering::AcqRel,
+        );
         let orphans: Vec<PathBuf> = std::mem::take(&mut *lock(&self.slots))
             .into_iter()
             .filter(|(key, _)| !is_wanted(key))
@@ -185,7 +187,9 @@ struct SlotJob {
 
 impl SlotJob {
     async fn run<Reporter: pnpm_reporter::Reporter>(mut self, shared: &Arc<Shared>) {
-        let Some(cas_paths) = wait_for_cas_paths(shared, &self.package_url).await else { return };
+        let Some(cas_paths) = wait_for_cas_paths(shared, &self.package_url).await else {
+            return;
+        };
         let Ok(_permit) = shared.permits.acquire().await else { return };
         // Once the install is linking, the link phase's own parallel
         // pass takes the slot; finishing it here would only delay that.
@@ -218,8 +222,7 @@ impl SlotJob {
         shared: &Shared,
         cas_paths: &HashMap<String, PathBuf>,
     ) -> Result<(), String> {
-        std::fs::create_dir_all(&self.virtual_node_modules_dir)
-            .map_err(|error| error.to_string())?;
+        std::fs::create_dir_all(&self.virtual_node_modules_dir).map_err(|error| error.to_string())?;
         import_indexed_dir::<Reporter>(
             &shared.logged_methods,
             shared.import_method,

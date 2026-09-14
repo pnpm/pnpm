@@ -46,7 +46,11 @@ fn wheel_with_tags(
             format!("Wheel-Version: 1.0\nRoot-Is-Purelib: true\n{tags}"),
         ),
     ];
-    files.extend(extra.iter().map(|(path, contents)| (path.to_string(), contents.to_string())));
+    files.extend(
+        extra
+            .iter()
+            .map(|(path, contents)| (path.to_string(), contents.to_string())),
+    );
     let mut record = String::new();
     for (path, contents) in &files {
         writeln!(
@@ -61,7 +65,9 @@ fn wheel_with_tags(
     files.push((format!("{dist_info}/RECORD"), record));
     let mut archive = ZipWriter::new(Cursor::new(Vec::new()));
     for (path, contents) in files {
-        archive.start_file(path, SimpleFileOptions::default()).unwrap();
+        archive
+            .start_file(path, SimpleFileOptions::default())
+            .unwrap();
         archive.write_all(contents.as_bytes()).unwrap();
     }
     archive.finish().unwrap().into_inner()
@@ -158,7 +164,10 @@ fn repeated_install_excludes_configured_stores_and_caches_from_native_discovery(
         format!("{workspace}\ncargo:\n  enabled: true\n"),
     )
     .unwrap();
-    pacquet_in(root.path()).args(["install", "--offline"]).assert().success();
+    pacquet_in(root.path())
+        .args(["install", "--offline"])
+        .assert()
+        .success();
     for relative in ["store/v11/crates/cached", "cache/unpacked-project"] {
         let directory = root.path().join(relative);
         fs::create_dir_all(&directory).unwrap();
@@ -170,7 +179,10 @@ fn repeated_install_excludes_configured_stores_and_caches_from_native_discovery(
         )
         .unwrap();
     }
-    pacquet_in(root.path()).args(["install", "--offline", "--frozen-lockfile"]).assert().success();
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
 }
 
 #[tokio::test]
@@ -189,13 +201,30 @@ async fn discovers_independent_python_projects_and_ignores_environment_manifests
         )
         .unwrap();
     }
-    pacquet_in(root.path()).arg("install").assert().success();
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
     for directory in ["app-one", "app-two"] {
-        python(&root.path().join(directory)).args(["-c", "import alpha"]).assert().success();
-        assert!(root.path().join(directory).join("pylock.toml").exists());
+        python(&root.path().join(directory))
+            .args(["-c", "import alpha"])
+            .assert()
+            .success();
+        assert!(
+            root.path()
+                .join(directory)
+                .join("pylock.toml")
+                .exists(),
+        );
     }
     for directory in [".venv/ignored", ".pnpm/ignored"] {
-        assert!(!root.path().join(directory).join("pylock.toml").exists());
+        assert!(
+            !root
+                .path()
+                .join(directory)
+                .join("pylock.toml")
+                .exists(),
+        );
     }
     assert!(!root.path().join("pylock.toml").exists());
 }
@@ -215,39 +244,172 @@ async fn installs_real_environment_with_ranges_extras_markers_scripts_and_offlin
     )
     .await;
     project(root.path(), &server.url(), &["alpha[speed]>=1"]);
-    pacquet_in(root.path()).arg("install").assert().success();
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
     python(root.path())
         .args(["-c", "import alpha, beta; assert beta.VERSION == '1.0'"])
         .assert()
         .success();
-    let command = root.path().join(if cfg!(windows) {
-        ".venv/Scripts/alpha-cli.cmd"
-    } else {
-        ".venv/bin/alpha-cli"
-    });
-    Command::new(command).assert().success().stdout(if cfg!(windows) {
-        "1.0\r\n"
-    } else {
-        "1.0\n"
-    });
+    let command = root
+        .path()
+        .join(if cfg!(windows) { ".venv/Scripts/alpha-cli.cmd" } else { ".venv/bin/alpha-cli" });
+    Command::new(command)
+        .assert()
+        .success()
+        .stdout(if cfg!(windows) { "1.0\r\n" } else { "1.0\n" });
     assert_eq!(fs::read_to_string(root.path().join(".venv/share/alpha.txt")).unwrap(), "data file");
     let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
     let parsed: toml::Value = toml::from_str(&lock).unwrap();
     assert_eq!(parsed["lock-version"].as_str(), Some("1.0"));
-    assert_eq!(parsed["packages"].as_array().unwrap().len(), 2);
-    assert!(!root.path().join("pnpm-lock.yaml").exists());
-    assert!(!root.path().join("package.json").exists());
+    assert_eq!(
+        parsed["packages"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2,
+    );
+    assert!(
+        !root
+            .path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
+    assert!(
+        !root
+            .path()
+            .join("package.json")
+            .exists(),
+    );
     for mock in alpha.into_iter().chain(beta) {
         mock.assert_async().await;
     }
     drop(server);
     pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
-    pacquet_in(root.path()).args(["install", "--offline", "--frozen-lockfile"]).assert().success();
-    python(root.path()).args(["-c", "import alpha, beta"]).assert().success();
-    pacquet_in(root.path()).args(["exec", "python", "-c", "import alpha, beta"]).assert().success();
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
+    python(root.path())
+        .args(["-c", "import alpha, beta"])
+        .assert()
+        .success();
+    pacquet_in(root.path())
+        .args(["exec", "python", "-c", "import alpha, beta"])
+        .assert()
+        .success();
     let replayed_lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
     eprintln!("INITIAL LOCK:\n{lock}\nREPLAYED LOCK:\n{replayed_lock}");
     assert_eq!(lock, replayed_lock);
+}
+
+/// The scenario of pnpm/pnpm#14843: an interpreter wrapper that reports the
+/// kernel release `PNPM_TEST_KERNEL_RELEASE` names, with nothing else about
+/// the interpreter, its wheel tags, or the project changing between runs.
+#[cfg(unix)]
+#[tokio::test]
+async fn frozen_lockfile_replays_after_a_kernel_only_marker_change() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new_async().await;
+    let _alpha = serve(
+        &mut server,
+        "alpha",
+        &[("1.0", wheel("alpha", "1.0", "Requires-Dist: beta; platform_release >= '9'", &[]))],
+    )
+    .await;
+    let _beta = serve(&mut server, "beta", &[("1.0", wheel("beta", "1.0", "", &[]))]).await;
+    project(root.path(), &server.url(), &["alpha>=1"]);
+    let probe = root.path().join("python-probe");
+    fs::write(
+        &probe,
+        concat!(
+            "#!/usr/bin/env python3\n",
+            "import os, platform, sys\n",
+            "args = sys.argv[1:]\n",
+            "if args and args[0] == '-I':\n",
+            "    args = args[1:]\n",
+            "assert len(args) >= 2 and args[0] == '-c'\n",
+            "platform.release = lambda: os.environ['PNPM_TEST_KERNEL_RELEASE']\n",
+            "sys.argv = ['-c', *args[2:]]\n",
+            "exec(compile(args[1], '<pnpm-probe>', 'exec'), {'__name__': '__main__'})\n",
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&probe, fs::Permissions::from_mode(0o755)).unwrap();
+    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        workspace.replace(
+            "python:\n  enabled: true\n",
+            &format!("python:\n  enabled: true\n  executable: '{}'\n", probe.display()),
+        ),
+    )
+    .unwrap();
+    let install = |args: &[&str], kernel: &str| {
+        let mut command = pacquet_in(root.path());
+        command.args(args).env("PNPM_TEST_KERNEL_RELEASE", kernel);
+        command
+    };
+    install(&["install"], "1.0.0").assert().success();
+    let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+    eprintln!("LOCK:\n{lock}");
+    let parsed: toml::Value = toml::from_str(&lock).unwrap();
+    let environments = parsed["environments"].as_array().unwrap();
+    assert_eq!(environments.len(), 1);
+    let marker = environments[0].as_str().unwrap();
+    assert!(marker.contains("platform_release == '1.0.0'"), "{marker}");
+    assert!(marker.contains("python_version == '"), "{marker}");
+    assert!(!marker.contains("platform_version"), "{marker}");
+    assert!(!marker.contains("sys_platform"), "{marker}");
+    assert_eq!(
+        parsed["packages"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
+
+    pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
+    install(&["install", "--offline", "--frozen-lockfile"], "1.0.1").assert().success();
+    assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
+    python(root.path())
+        .args(["-c", "import alpha"])
+        .assert()
+        .success();
+
+    assert_failure_contains(
+        &mut install(&["install", "--offline", "--frozen-lockfile"], "9.0.0"),
+        "Python lockfile does not satisfy the project",
+    );
+    assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
+
+    let output = install(&["install"], "9.0.0").output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("stdout:\n{stdout}\nstderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert!(output.status.success());
+    assert!(stdout.contains("[WARN] Ignoring Python lockfile"), "{stdout}");
+    let relocked: toml::Value =
+        toml::from_str(&fs::read_to_string(root.path().join("pylock.toml")).unwrap()).unwrap();
+    assert_eq!(
+        relocked["packages"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2,
+    );
+    assert!(
+        relocked["environments"][0]
+            .as_str()
+            .unwrap()
+            .contains("platform_release == '9.0.0'"),
+        "{relocked}",
+    );
+    python(root.path())
+        .args(["-c", "import alpha, beta"])
+        .assert()
+        .success();
 }
 
 #[tokio::test]
@@ -256,13 +418,24 @@ async fn add_updates_pyproject_and_lockfile_without_creating_node_metadata() {
     let mut server = mockito::Server::new_async().await;
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &[]);
-    pacquet_in(root.path()).args(["add", "pypi:alpha@>=1", "--save-dev"]).assert().success();
+    pacquet_in(root.path())
+        .args(["add", "pypi:alpha@>=1", "--save-dev"])
+        .assert()
+        .success();
     let manifest: toml::Value =
         toml::from_str(&fs::read_to_string(root.path().join("pyproject.toml")).unwrap()).unwrap();
     assert_eq!(manifest["dependency-groups"]["dev"][0].as_str(), Some("alpha>=1"));
-    assert!(!root.path().join("package.json").exists());
+    assert!(
+        !root
+            .path()
+            .join("package.json")
+            .exists(),
+    );
     assert!(!root.path().join("Cargo.toml").exists());
-    python(root.path()).args(["-c", "import alpha"]).assert().success();
+    python(root.path())
+        .args(["-c", "import alpha"])
+        .assert()
+        .success();
     pacquet_in(root.path())
         .args(["install", "--offline", "--frozen-lockfile", "--prod"])
         .assert()
@@ -295,7 +468,10 @@ async fn python_index_and_wheel_requests_do_not_inherit_npm_credentials() {
         .assert()
         .success();
     leaked.assert_async().await;
-    python(root.path()).args(["-c", "import alpha"]).assert().success();
+    python(root.path())
+        .args(["-c", "import alpha"])
+        .assert()
+        .success();
 }
 
 #[tokio::test]
@@ -315,16 +491,24 @@ async fn python_index_uses_only_its_explicit_credentials() {
         .await;
         let mut index: url::Url = server.url().parse().unwrap();
         index.set_username(username).unwrap();
-        index.set_password(Some(password)).unwrap();
+        index
+            .set_password(Some(password))
+            .unwrap();
         project(root.path(), index.as_str().trim_end_matches('/'), &["alpha"]);
         let workspace_path = root.path().join("pnpm-workspace.yaml");
         let workspace = fs::read_to_string(&workspace_path).unwrap();
         fs::write(workspace_path, workspace.replace("/simple/'", "/simple'")).unwrap();
-        pacquet_in(root.path()).arg("install").assert().success();
+        pacquet_in(root.path())
+            .arg("install")
+            .assert()
+            .success();
         let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
         eprintln!("lockfile:\n{lock}");
         assert!(!lock.contains(password), "credentials leaked into lockfile");
-        python(root.path()).args(["-c", "import alpha"]).assert().success();
+        python(root.path())
+            .args(["-c", "import alpha"])
+            .assert()
+            .success();
     }
 }
 
@@ -353,8 +537,14 @@ async fn accepts_expanded_internal_tags_for_a_compressed_wheel_filename() {
         .create_async()
         .await;
     project(root.path(), &server.url(), &["alpha"]);
-    pacquet_in(root.path()).arg("install").assert().success();
-    python(root.path()).args(["-c", "import alpha"]).assert().success();
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    python(root.path())
+        .args(["-c", "import alpha"])
+        .assert()
+        .success();
     index.assert_async().await;
     download.assert_async().await;
 }
@@ -365,7 +555,10 @@ async fn caches_python_index_as_raw_json_and_reuses_it_offline() {
     let mut server = mockito::Server::new_async().await;
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["alpha"]);
-    pacquet_in(root.path()).arg("install").assert().success();
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
     let cache = fs::read_dir(root.path().join("cache/python-index-v2"))
         .unwrap()
         .next()
@@ -375,7 +568,10 @@ async fn caches_python_index_as_raw_json_and_reuses_it_offline() {
     let cached: serde_json::Value = serde_json::from_slice(&fs::read(cache).unwrap()).unwrap();
     dbg!(&cached);
     assert!(cached["body"]["files"].is_array(), "metadata was not stored as a JSON object");
-    pacquet_in(root.path()).args(["add", "pypi:alpha", "--offline"]).assert().success();
+    pacquet_in(root.path())
+        .args(["add", "pypi:alpha", "--offline"])
+        .assert()
+        .success();
 }
 
 #[tokio::test]
@@ -394,7 +590,10 @@ async fn frozen_wheel_downloads_replenish_slots_and_settle_before_reporting_fail
             initial_requests.extend(serve(&mut server, name, &[("1.0", archive.clone())]).await);
         }
         project(root.path(), &server.url(), &["alpha", "beta", "gamma"]);
-        pacquet_in(root.path()).args(["install", "--lockfile-only"]).assert().success();
+        pacquet_in(root.path())
+            .args(["install", "--lockfile-only"])
+            .assert()
+            .success();
         for request in initial_requests {
             request.remove_async().await;
         }
@@ -426,7 +625,10 @@ fn assert_frozen_install_outcome(command: &mut Command, root: &Path, fail: bool)
         return;
     }
     command.assert().success();
-    python(root).args(["-c", "import alpha, beta, gamma"]).assert().success();
+    python(root)
+        .args(["-c", "import alpha, beta, gamma"])
+        .assert()
+        .success();
 }
 
 /// One rendezvous-gated download mock per wheel, so every download is in
@@ -517,7 +719,10 @@ async fn wheel_scripts_rewrite_placeholder_shebangs_and_record_the_installed_byt
     let _requests =
         serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &scripts))]).await;
     project(root.path(), &server.url(), &["alpha"]);
-    pacquet_in(root.path()).arg("install").assert().success();
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
     python(root.path()).args(["-c", r#"
 import base64, csv, hashlib, sys, sysconfig
 from pathlib import Path
@@ -550,7 +755,9 @@ fn python_add_reports_unsupported_and_conflicting_save_flags() {
         let root = tempfile::tempdir().unwrap();
         project(root.path(), "https://unused.invalid", &[]);
         assert_failure_contains(
-            pacquet_in(root.path()).args(["add", "pypi:alpha"]).args(flags),
+            pacquet_in(root.path())
+                .args(["add", "pypi:alpha"])
+                .args(flags),
             expected,
         );
     }
@@ -604,7 +811,10 @@ async fn add_supports_empty_and_populated_inline_python_tables() {
         let (table, key) =
             if development { ("dependency-groups", "dev") } else { ("project", "dependencies") };
         assert_eq!(parsed[table][key][0].as_str(), Some("alpha==1.0"));
-        python(root.path()).args(["-c", "import alpha"]).assert().success();
+        python(root.path())
+            .args(["-c", "import alpha"])
+            .assert()
+            .success();
     }
 }
 
@@ -615,13 +825,19 @@ async fn add_pins_bare_requirements_and_preserves_unrelated_manifest_text() {
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &[]);
     fs::write(root.path().join("pyproject.toml"), "# keep this comment\n[project]\nname = 'app' # original quoting\nversion = '1.0'\n\n[tool.example]\nsetting = 'preserve'\n").unwrap();
-    pacquet_in(root.path()).args(["add", "pypi:alpha", "--save-exact"]).assert().success();
+    pacquet_in(root.path())
+        .args(["add", "pypi:alpha", "--save-exact"])
+        .assert()
+        .success();
     let text = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
     assert!(text.starts_with("# keep this comment\n[project]"));
     assert!(text.contains("name = 'app' # original quoting"));
     assert!(text.contains("[tool.example]\nsetting = 'preserve'"));
     assert!(text.contains("alpha==1.0"));
-    pacquet_in(root.path()).args(["install", "--offline", "--frozen-lockfile"]).assert().success();
+    pacquet_in(root.path())
+        .args(["install", "--offline", "--frozen-lockfile"])
+        .assert()
+        .success();
 }
 
 #[tokio::test]
@@ -650,9 +866,20 @@ async fn installs_node_cargo_and_python_through_the_real_coordinator() {
     )
     .unwrap();
     fs::write(root.path().join("package.json"), r#"{"name":"mixed-app","version":"1.0.0","dependencies":{"local-node":"link:./node-package"},"scripts":{"python-check":"python -c \"import alpha\""}}"#).unwrap();
-    pacquet_in(root.path()).arg("install").assert().success();
-    assert!(root.path().join("node_modules/local-node/package.json").exists());
-    assert!(root.path().join("pnpm-lock.yaml").exists());
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
+    assert!(
+        root.path()
+            .join("node_modules/local-node/package.json")
+            .exists(),
+    );
+    assert!(
+        root.path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
     assert!(root.path().join("Cargo.lock").exists());
     assert!(root.path().join("pylock.toml").exists());
     Command::new("cargo")
@@ -660,7 +887,10 @@ async fn installs_node_cargo_and_python_through_the_real_coordinator() {
         .args(["check", "--offline", "--locked"])
         .assert()
         .success();
-    pacquet_in(root.path()).args(["run", "python-check"]).assert().success();
+    pacquet_in(root.path())
+        .args(["run", "python-check"])
+        .assert()
+        .success();
 }
 
 #[tokio::test]
@@ -673,14 +903,20 @@ async fn disabled_python_and_tool_only_pyprojects_do_not_probe_an_interpreter() 
     .unwrap();
     fs::write(root.path().join("pyproject.toml"), "this is not TOML").unwrap();
     fs::write(root.path().join("package.json"), "{}").unwrap();
-    pacquet_in(root.path()).arg("install").assert().success();
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
     fs::write(
         root.path().join("pnpm-workspace.yaml"),
         "python:\n  enabled: true\n  executable: this-interpreter-does-not-exist\n",
     )
     .unwrap();
     fs::write(root.path().join("pyproject.toml"), "[tool.ruff]\nline-length = 100\n").unwrap();
-    pacquet_in(root.path()).arg("install").assert().success();
+    pacquet_in(root.path())
+        .arg("install")
+        .assert()
+        .success();
     assert!(!root.path().join("pylock.toml").exists());
 }
 

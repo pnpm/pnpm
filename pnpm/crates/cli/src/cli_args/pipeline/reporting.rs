@@ -1,7 +1,8 @@
 use super::{
     Config, ExecutionStatus, GraphPkg, HashMap, IndexMap, IntoDiagnostic, Mutex, Path,
-    PipelineInvocation, ProjectGraph, Status, TaskCache, TaskCompletion, TaskGraph, TaskKey,
-    TaskNode, Value, cache, render_task_graph_dry_run, task_environment, task_graph_to_json,
+    PipelineInvocation, PipelineResults, ProjectGraph, Status, TaskCache, TaskCompletion,
+    TaskGraph, TaskKey, TaskNode, Value, cache, format_task, render_task_graph_dry_run,
+    task_environment, task_graph_to_json,
 };
 
 pub(super) struct StatusCounts {
@@ -12,8 +13,12 @@ pub(super) struct StatusCounts {
 
 impl StatusCounts {
     pub(super) fn of(statuses: &IndexMap<String, ExecutionStatus>) -> Self {
-        let count =
-            |wanted: Status| statuses.values().filter(|status| status.status == wanted).count();
+        let count = |wanted: Status| {
+            statuses
+                .values()
+                .filter(|status| status.status == wanted)
+                .count()
+        };
         StatusCounts {
             failed: count(Status::Failure),
             passed: count(Status::Passed),
@@ -80,8 +85,7 @@ pub(super) fn compute_task_keys(
         let node = &task_graph[key];
         let manifest = graph[node.project.as_path()].package.project.manifest.value();
         let script_bodies = task_script_bodies(node, manifest, config.enable_pre_post_scripts);
-        let Some(mut dependency_keys) = node
-            .dependencies
+        let Some(mut dependency_keys) = node.dependencies
             .iter()
             .map(|dependency| keys[dependency].as_deref())
             .collect::<Option<Vec<&str>>>()
@@ -129,4 +133,18 @@ fn task_script_bodies(
         }
     }
     bodies
+}
+
+impl PipelineResults {
+    pub(super) fn new(graph: &TaskGraph, workspace_root: &Path) -> Self {
+        Self {
+            statuses: Mutex::new(
+                graph
+                    .keys()
+                    .map(|key| (format_task(key, workspace_root), ExecutionStatus::queued()))
+                    .collect(),
+            ),
+            abort: Mutex::new(None),
+        }
+    }
 }

@@ -24,7 +24,6 @@ use axum::{
     response::Response,
     routing::{any, delete, get, post, put},
 };
-use indexmap::IndexMap;
 use tower_http::{
     compression::{
         CompressionLayer,
@@ -38,25 +37,22 @@ use tracing::Span;
 use pnpr_auth::AuthState;
 use pnpr_config::Config;
 use pnpr_registry::Ecosystem;
-use pnpr_storage::Storage;
-use pnpr_upstream::Upstream;
 use serde::Deserialize;
 
 use super::{
     AppInner, AppState, AuthedCaller, MAX_ARTIFACT_BLOB_BODY_BYTES,
     MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
-    MAX_PIPELINE_RUN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES, StripedLocks, TargetRegistry,
-    addressed_registry, authenticate, batch, caller_scoped, cargo, compiler_cache,
-    compute_upstream_cache_namespace, delete_package, delete_session_token, delete_tarball,
-    delete_token_by_key, get_dist_tags, get_org_teams, get_profile, get_team_members,
-    get_token_list, get_whoami, loggable_uri, not_found, oci, pnpr_protocols_disabled,
-    private_no_cache, publish_package, put_login, pypi, reject_team_mutation, remove_dist_tag,
-    require_artifact_caller, require_pipeline_caller, require_resolver_caller, serve_artifact_blob,
-    serve_batch_publish, serve_get_pipeline_run, serve_list_pipeline_runs, serve_org_packages,
-    serve_packument, serve_ping, serve_pipeline_ui, serve_pnpr_handshake, serve_publish_artifact,
-    serve_publish_pipeline_run, serve_resolve, serve_resolve_artifacts, serve_revision_tarball,
-    serve_search, serve_tarball, serve_verify_lockfile, serve_version_manifest, set_dist_tag,
-    staged, update_packument,
+    MAX_PIPELINE_RUN_BODY_BYTES, MAX_PUBLISH_BODY_BYTES, TargetRegistry, addressed_registry,
+    authenticate, batch, caller_scoped, cargo, compiler_cache, delete_package,
+    delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams,
+    get_profile, get_team_members, get_token_list, get_whoami, loggable_uri, not_found, oci,
+    pnpr_protocols_disabled, private_no_cache, publish_package, put_login, pypi,
+    reject_team_mutation, remove_dist_tag, require_artifact_caller, require_pipeline_caller,
+    require_resolver_caller, serve_artifact_blob, serve_batch_publish, serve_get_pipeline_run,
+    serve_list_pipeline_runs, serve_org_packages, serve_packument, serve_ping, serve_pipeline_ui,
+    serve_pnpr_handshake, serve_publish_artifact, serve_publish_pipeline_run, serve_resolve,
+    serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
+    serve_verify_lockfile, serve_version_manifest, set_dist_tag, staged, update_packument,
 };
 
 pub(super) fn router_with_auth_and_osv(
@@ -65,45 +61,13 @@ pub(super) fn router_with_auth_and_osv(
     osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
 ) -> pnpr_error::Result<Router> {
     let cors_origins = cors_origins(&config)?;
-    let storage =
-        Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?;
     let surfaces = EnabledSurfaces {
-        resolver: config.resolver.enabled,
-        registry: config.registry.enabled,
-        artifacts: config.artifacts.enabled,
-        pipeline: config.pipeline.enabled,
+        resolver: config.features.resolver.enabled,
+        registry: config.features.registry.enabled,
+        artifacts: config.features.artifacts.enabled,
+        pipeline: config.features.pipeline.enabled,
     };
-    let pipeline_runs =
-        surfaces.pipeline.then(|| pnpr_pipeline_runs::PipelineRunStore::new(storage.clone()));
-    let artifacts = artifact_store(&config, surfaces.artifacts)?;
-    // Only the registry routes consult the upstreams, so a resolver-only
-    // server builds none — skipping a `ThrottledClient` allocation per
-    // configured upstream.
-    let upstreams = upstream_clients(&config, surfaces.registry);
-    let upstream_cache_namespaces = config
-        .upstreams
-        .keys()
-        .map(|name| (name.clone(), compute_upstream_cache_namespace(&config, name)))
-        .collect();
-    super::oidc::validate_workloads(&config)?;
-    let oidc = pnpr_auth::oidc::OidcState::new(&config.auth.oidc, &config.public_url)?;
-    let state = AppState {
-        inner: Arc::new(AppInner {
-            storage,
-            artifacts,
-            compiler_cache_uploads: tokio::sync::Semaphore::new(2),
-            pipeline_runs,
-            upstreams,
-            upstream_cache_namespaces,
-            config,
-            auth,
-            oidc,
-            package_locks: StripedLocks::new(),
-            referrer_migration_locks: StripedLocks::new(),
-            resolver: std::sync::OnceLock::new(),
-            osv_index,
-        }),
-    };
+    let state = AppState { inner: Arc::new(AppInner::new(config, auth, osv_index)?) };
     finish_router(state, surfaces, cors_origins)
 }
 
@@ -133,41 +97,20 @@ fn finish_router(
 }
 
 fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {
-    config
-        .cors
+    config.http.cors
         .allowed_origins()
         .iter()
         .map(|origin| {
-            HeaderValue::from_str(origin).map_err(|_| pnpr_error::RegistryError::InvalidConfig {
-                reason: format!("CORS allowed origin {origin:?} is not a valid HTTP header value"),
-            })
+            HeaderValue::from_str(origin)
+                .map_err(|_| pnpr_error::RegistryError::InvalidConfig {
+                    reason: format!(
+                        "CORS allowed origin {origin:?} is not a valid HTTP header value",
+                    ),
+                })
         })
         .collect()
 }
 
-/// Only the registry routes consult the upstreams, so a resolver-only
-/// server builds none, skipping a `ThrottledClient` allocation per
-/// configured upstream.
-fn upstream_clients(config: &Config, registry_enabled: bool) -> IndexMap<String, Upstream> {
-    if !registry_enabled {
-        return IndexMap::new();
-    }
-    config
-        .upstreams
-        .iter()
-        .map(|(name, upstream)| {
-            let client = Upstream::new(name, upstream);
-            let client = if config.registries.ecosystem(name) == Some(Ecosystem::Npm) {
-                client
-            } else {
-                client.with_fetch_guard(super::ecosystem::upstream_fetch_guard(config, upstream))
-            };
-            (name.clone(), client)
-        })
-        .collect()
-}
-
-/// The compression and access-log layers every response passes through.
 fn with_observability_layers(router: Router<AppState>) -> Router<AppState> {
     router
         // gzip metadata responses for clients that send `Accept-Encoding:
@@ -181,11 +124,12 @@ fn with_observability_layers(router: Router<AppState>) -> Router<AppState> {
         // would defeat the point of streaming — frames must flush to the
         // client as each package resolves, not wait for the encoder.
         .layer(
-            CompressionLayer::new().compress_when(
-                DefaultPredicate::new()
-                    .and(NotForContentType::const_new("application/octet-stream"))
-                    .and(NotForContentType::const_new("application/x-ndjson")),
-            ),
+            CompressionLayer::new()
+                .compress_when(
+                    DefaultPredicate::new()
+                        .and(NotForContentType::const_new("application/octet-stream"))
+                        .and(NotForContentType::const_new("application/x-ndjson")),
+                ),
         )
         // One structured access record per HTTP request: a span
         // carrying method + URI plus a single `finished processing
@@ -277,7 +221,7 @@ fn surface_routes(state: &AppState, surfaces: EnabledSurfaces) -> Router<AppStat
 /// Mount the npm-compatible registry surface and every other ecosystem the
 /// configuration declares.
 fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
-    let registries = &state.inner.config.registries;
+    let registries = &state.inner.config.routing.registries;
     let npm = npm_registry_routes();
     // One publish transaction for packages of any ecosystem. It answers here
     // rather than inside the npm surface.
@@ -396,17 +340,19 @@ fn resolver_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
     router
         .route(
             "/-/pnpr/v0/resolve",
-            post(serve_resolve).route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                require_resolver_caller,
-            )),
+            post(serve_resolve)
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
         )
         .route(
             "/-/pnpr/v0/verify-lockfile",
-            post(serve_verify_lockfile).route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                require_resolver_caller,
-            )),
+            post(serve_verify_lockfile)
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
         )
 }
 
@@ -455,10 +401,11 @@ fn pipeline_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
         )
         .route(
             "/-/pnpr/v0/pipeline/runs/{workspace}/{run_id}",
-            get(serve_get_pipeline_run).route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                require_pipeline_caller,
-            )),
+            get(serve_get_pipeline_run)
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_pipeline_caller,
+                )),
         )
         // The viewer page is static HTML with no data of its own; the
         // reads it issues are what authenticate.
@@ -466,20 +413,22 @@ fn pipeline_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
 }
 
 fn compiler_cache_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
-    router.route("/-/pnpr/v0/compiler-cache/{cache}/", any(compiler_cache::directory)).route(
-        "/-/pnpr/v0/compiler-cache/{cache}/{*key}",
-        get(compiler_cache::read)
-            .head(compiler_cache::head)
-            .put(compiler_cache::write)
-            .fallback(compiler_cache::directory)
-            .route_layer(DefaultBodyLimit::max(
-                pnpr_shared_artifacts::MAX_COMPILER_CACHE_ENTRY_SIZE,
-            ))
-            .route_layer(middleware::from_fn_with_state(
-                state.clone(),
-                compiler_cache::authorize_request,
-            )),
-    )
+    router
+        .route("/-/pnpr/v0/compiler-cache/{cache}/", any(compiler_cache::directory))
+        .route(
+            "/-/pnpr/v0/compiler-cache/{cache}/{*key}",
+            get(compiler_cache::read)
+                .head(compiler_cache::head)
+                .put(compiler_cache::write)
+                .fallback(compiler_cache::directory)
+                .route_layer(DefaultBodyLimit::max(
+                    pnpr_shared_artifacts::MAX_COMPILER_CACHE_ENTRY_SIZE,
+                ))
+                .route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    compiler_cache::authorize_request,
+                )),
+        )
 }
 
 fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
@@ -490,18 +439,4 @@ fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
         .route(&path("/-/stage/{id}"), get(staged::get_staged).delete(staged::reject_staged))
         .route(&path("/-/stage/{id}/approve"), post(staged::approve_staged))
         .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
-}
-
-fn artifact_store(
-    config: &Config,
-    enabled: bool,
-) -> pnpr_error::Result<Option<pnpr_shared_artifacts::SharedArtifactStore>> {
-    enabled
-        .then(|| {
-            pnpr_shared_artifacts::SharedArtifactStore::new(
-                &config.hosted_store,
-                &config.cache_storage,
-            )
-        })
-        .transpose()
 }

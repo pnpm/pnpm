@@ -20,8 +20,7 @@ pub(super) fn parse_content_range(range: &str) -> Option<(u64, u64)> {
 }
 
 pub(super) async fn collect_body(body: Body, limit: usize) -> Result<Bytes, Refusal> {
-    axum::body::to_bytes(body, limit)
-        .await
+    axum::body::to_bytes(body, limit).await
         .map_err(|_| Refusal::new(ErrorCode::SizeInvalid, "request body is too large or truncated"))
 }
 
@@ -120,8 +119,7 @@ pub(super) async fn read_manifest_bytes(
     let Some((body, _)) = storage.open_hosted_blob(key, filename).await? else {
         return Ok(None);
     };
-    let bytes = axum::body::to_bytes(body, limit)
-        .await
+    let bytes = axum::body::to_bytes(body, limit).await
         .map_err(|_| RegistryError::BadRequest { reason: "manifest is too large".to_string() })?;
     Ok(Some(bytes.to_vec()))
 }

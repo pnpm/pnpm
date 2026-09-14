@@ -55,7 +55,9 @@ impl ChildAliases<'_> {
     pub(super) fn contains(&self, alias: &str) -> bool {
         match self {
             ChildAliases::Realized(children) => children.contains_key(alias),
-            ChildAliases::Deferred(children) => children.iter().any(|edge| edge.alias == alias),
+            ChildAliases::Deferred(children) => children
+                .iter()
+                .any(|edge| edge.alias == alias),
         }
     }
 }
@@ -98,8 +100,11 @@ impl ChildOutputs {
                 self.external_peers.insert(peer_alias.clone(), peer_node_id.clone());
             }
         }
-        self.missing_peers
-            .extend(missing_peers.iter().map(|(name, info)| (name.clone(), info.clone())));
+        self.missing_peers.extend(
+            missing_peers
+                .iter()
+                .map(|(name, info)| (name.clone(), info.clone())),
+        );
     }
 }
 
@@ -144,10 +149,16 @@ pub(super) fn index_peer_provider_edge(
     }
     providers.relevant_edge_indices.push(edge_index);
     if alias_is_peer {
-        providers.edge_indices_by_name.entry(edge.alias.clone()).or_default().push(edge_index);
+        providers.edge_indices_by_name
+            .entry(edge.alias.clone())
+            .or_default()
+            .push(edge_index);
     }
     if real_name_is_peer && real_name != edge.alias {
-        providers.edge_indices_by_name.entry(real_name).or_default().push(edge_index);
+        providers.edge_indices_by_name
+            .entry(real_name)
+            .or_default()
+            .push(edge_index);
     }
 }
 

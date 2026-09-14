@@ -39,12 +39,18 @@ fn pacquet(workspace: &Path) -> Command {
 fn stage(workspace: &Path, args: &[&str]) -> std::process::Output {
     let mut command = pacquet(workspace);
     apply_test_registry(&mut command, workspace);
-    command.with_arg("stage").with_args(args).output().expect("spawn pacquet stage")
+    command
+        .with_arg("stage")
+        .with_args(args)
+        .output()
+        .expect("spawn pacquet stage")
 }
 
 fn apply_test_registry(command: &mut Command, workspace: &Path) {
     if let Ok(npmrc) = fs::read_to_string(workspace.join(".npmrc"))
-        && let Some(registry) = npmrc.lines().find_map(|line| line.strip_prefix("registry="))
+        && let Some(registry) = npmrc
+            .lines()
+            .find_map(|line| line.strip_prefix("registry="))
     {
         command.env("PNPM_CONFIG_REGISTRY", registry);
     }
@@ -92,7 +98,10 @@ fn publish_dry_run_reports_that_the_package_would_be_staged() {
         "module.exports = { hooks: { updateConfig: config => ({ ...config, catalogs: { default: { 'is-odd': '3.0.1' } } }) } }",
     )
     .expect("write .pnpmfile.cjs");
-    let mock = server.mock("POST", Matcher::Any).expect(0).create();
+    let mock = server
+        .mock("POST", Matcher::Any)
+        .expect(0)
+        .create();
 
     let output =
         stage(dir.path(), &["publish", "--dry-run", "--no-git-checks", "--reporter=silent"]);
@@ -308,7 +317,10 @@ fn download_registry(
 }
 
 fn outside_tarball_path(download_dir: &Path, basename: &str) -> PathBuf {
-    download_dir.parent().expect("the download dir has a parent").join(format!("{basename}.tgz"))
+    download_dir
+        .parent()
+        .expect("the download dir has a parent")
+        .join(format!("{basename}.tgz"))
 }
 
 /// After a rejected download the workspace must hold only its `.npmrc`.
@@ -316,7 +328,12 @@ fn assert_download_dir_untouched(download_dir: &Path) {
     let entries: Vec<String> = fs::read_dir(download_dir)
         .expect("read the download dir")
         .flatten()
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
     assert_eq!(entries, [".npmrc"], "no tarball may be written on a rejected download");
 }
@@ -357,8 +374,8 @@ fn spawn_hosted_registry() -> (String, tempfile::TempDir) {
     let listen = listener.local_addr().expect("read the registry listener address");
     let url = format!("http://{listen}/");
     let mut config = pnpr::Config::static_serve(listen, storage.path().to_path_buf());
-    config.public_url = url.trim_end_matches('/').to_string();
-    config.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
+    config.http.public_url = url.trim_end_matches('/').to_string();
+    config.identity.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
     std::thread::Builder::new()
         .name("stage-e2e-registry".to_string())
         .spawn(move || {
@@ -406,11 +423,18 @@ fn add_user(registry: &str) -> String {
         "roles": [],
     });
     block_on(async {
-        let response =
-            http_client().put(&url).json(&body).send().await.expect("send the adduser request");
+        let response = http_client()
+            .put(&url)
+            .json(&body)
+            .send()
+            .await
+            .expect("send the adduser request");
         assert_eq!(response.status().as_u16(), 201, "adduser must succeed");
         let payload: Value = response.json().await.expect("parse the adduser response");
-        payload["token"].as_str().expect("token in the adduser response").to_owned()
+        payload["token"]
+            .as_str()
+            .expect("token in the adduser response")
+            .to_owned()
     })
 }
 
@@ -476,7 +500,10 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
         serde_json::from_str(&String::from_utf8_lossy(&publish.stdout)).expect("keyed JSON output");
     let summary = &keyed["@stage-e2e/lifecycle"];
     assert_eq!(summary["version"], "1.0.0");
-    let stage_id = summary["stageId"].as_str().expect("a stage id").to_owned();
+    let stage_id = summary["stageId"]
+        .as_str()
+        .expect("a stage id")
+        .to_owned();
 
     // Held back: not installable until approved.
     assert_eq!(packument_status(&registry, &token, "@stage-e2e/lifecycle"), 404);
@@ -509,7 +536,12 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
         downloaded["@stage-e2e/lifecycle"]["filename"],
         Value::String(expected_filename.clone()),
     );
-    assert!(dir.path().join(&expected_filename).exists(), "the tarball must be written");
+    assert!(
+        dir.path()
+            .join(&expected_filename)
+            .exists(),
+        "the tarball must be written",
+    );
 
     let approve = stage_with_auth(dir.path(), &auth_file, &["approve", &stage_id]);
     assert_success(&approve);

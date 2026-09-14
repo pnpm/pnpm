@@ -109,8 +109,12 @@ fn looks_like_alias(value: &str) -> bool {
     let Some(at_idx) = value.find('@') else {
         return false;
     };
-    let before_paren = value.find('(').is_none_or(|idx| at_idx < idx);
-    let before_colon = value.find(':').is_none_or(|idx| at_idx < idx);
+    let before_paren = value
+        .find('(')
+        .is_none_or(|idx| at_idx < idx);
+    let before_colon = value
+        .find(':')
+        .is_none_or(|idx| at_idx < idx);
     before_paren && before_colon
 }
 

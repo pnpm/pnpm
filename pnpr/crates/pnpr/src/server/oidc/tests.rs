@@ -40,7 +40,7 @@ fn config(yaml: &str) -> Config {
 fn workload_credentials_only_permit_named_package_publication() {
     let config = config(CONFIG);
     validate_workloads(&config).unwrap();
-    let workload = &config.auth.oidc[0].workloads[0];
+    let workload = &config.identity.auth.oidc[0].workloads[0];
     for path in ["/~private/@org/pkg", "/~private/@org%2fpkg", "/~private/%40org%2Fpkg"] {
         check_workload_request(&config, workload, &Method::PUT, path).unwrap();
     }
@@ -75,12 +75,12 @@ fn workload_credentials_only_permit_named_package_publication() {
 #[test]
 fn workload_targets_validate_at_startup() {
     let mut config = config(CONFIG);
-    config.auth.oidc[0].workloads[0].registry = "unknown".to_string();
+    config.identity.auth.oidc[0].workloads[0].registry = "unknown".to_string();
     assert!(validate_workloads(&config).is_err());
-    config.auth.oidc[0].workloads[0].registry = "private".to_string();
-    config.auth.oidc[0].workloads[0].packages = vec!["@org/*".to_string()];
+    config.identity.auth.oidc[0].workloads[0].registry = "private".to_string();
+    config.identity.auth.oidc[0].workloads[0].packages = vec!["@org/*".to_string()];
     assert!(validate_workloads(&config).is_err());
-    config.auth.oidc[0].workloads[0].packages.clear();
+    config.identity.auth.oidc[0].workloads[0].packages.clear();
     assert!(validate_workloads(&config).is_err());
 }
 
@@ -94,7 +94,7 @@ fn callback_secrets_never_appear_in_request_logs() {
 async fn invalid_oidc_credentials_fail_closed_on_public_endpoints() {
     let mut config = config(CONFIG);
     let storage = tempfile::TempDir::new().unwrap();
-    config.storage = storage.path().to_path_buf();
+    config.storage.hosted_dir = storage.path().to_path_buf();
     let app = crate::try_router(config).unwrap();
     for token in ["pnpr_oidc_unknown", "pnpr_workload_e30.e30.invalid"] {
         let response = app
@@ -110,10 +110,19 @@ async fn invalid_oidc_credentials_fail_closed_on_public_endpoints() {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
     let response = app
-        .oneshot(Request::get("/-/oidc/github/login").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/oidc/github/login")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     assert_eq!(response.headers()["referrer-policy"], "no-referrer");
-    assert!(response.headers()["cache-control"].to_str().unwrap().contains("no-store"));
+    assert!(
+        response.headers()["cache-control"]
+            .to_str()
+            .unwrap()
+            .contains("no-store"),
+    );
 }

@@ -154,7 +154,10 @@ fn returns_skipped_when_a_project_file_tarball_changes_without_an_mtime_change()
     fs::create_dir_all(dir.path().join("vendor")).expect("create vendor dir");
     let tarball = dir.path().join("vendor/tar.tgz");
     fs::write(&tarball, b"original").expect("write tarball");
-    let modified = fs::metadata(&tarball).expect("stat tarball").modified().expect("tarball mtime");
+    let modified = fs::metadata(&tarball)
+        .expect("stat tarball")
+        .modified()
+        .expect("tarball mtime");
     let lockfile = write_local_tarball_lockfile(
         dir.path(),
         &config.virtual_store_dir,
@@ -233,11 +236,16 @@ fn returns_skipped_when_workspace_project_set_changes() {
         current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
-        dir.path().to_string_lossy().into_owned(),
+        dir.path()
+            .to_string_lossy()
+            .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     projects.insert(
-        dir.path().join("pkg-a").to_string_lossy().into_owned(),
+        dir.path()
+            .join("pkg-a")
+            .to_string_lossy()
+            .into_owned(),
         ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
     );
     // Re-stamp so every file reads as validated and the mtime branch
@@ -367,7 +375,9 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
         current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
     projects.insert(
-        dir.path().to_string_lossy().into_owned(),
+        dir.path()
+            .to_string_lossy()
+            .into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     projects.insert(
@@ -379,9 +389,6 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pnpm_config::NodeLinker::Isolated,
-        included: isolated_included(),
-        supported_architectures: None,
         project_manifests: &[
             (dir.path().to_path_buf(), &root_manifest),
             (sibling_dir, &sibling_manifest),
@@ -389,6 +396,11 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
     });
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
 }

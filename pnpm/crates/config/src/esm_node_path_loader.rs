@@ -131,8 +131,9 @@ pub fn keep_esm_node_path_loader_option(
     node_options: &str,
     previous_node_options: Option<&str>,
 ) -> String {
-    let carried_flag = previous_node_options
-        .is_some_and(|previous| previous.contains(esm_node_path_loader_import_flag()));
+    let carried_flag = previous_node_options.is_some_and(|previous| {
+        previous.contains(esm_node_path_loader_import_flag())
+    });
     if carried_flag {
         add_esm_node_path_loader_option(Some(node_options))
     } else {

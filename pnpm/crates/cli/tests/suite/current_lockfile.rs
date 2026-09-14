@@ -19,8 +19,7 @@ fn rerun(workspace: &Path) -> Command {
 }
 
 fn package_names(lockfile: &pnpm_lockfile::Lockfile) -> Vec<String> {
-    let mut names: Vec<String> = lockfile
-        .packages
+    let mut names: Vec<String> = lockfile.packages
         .iter()
         .flat_map(|packages| packages.keys())
         .map(ToString::to_string)
@@ -50,8 +49,13 @@ fn assert_skipped_optional_is_retained(lockfile: &pnpm_lockfile::Lockfile) {
 /// the current-lockfile half.
 #[test]
 fn a_frozen_install_writes_the_current_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -60,13 +64,19 @@ fn a_frozen_install_writes_the_current_lockfile() {
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     assert!(
         !workspace.join(CURRENT_LOCKFILE).exists(),
         "--lockfile-only materializes nothing, so there is nothing to record",
     );
 
-    rerun(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    rerun(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert_eq!(
         package_names(&read_current_lockfile(&workspace)),
@@ -83,8 +93,13 @@ fn a_frozen_install_writes_the_current_lockfile() {
 /// none behind.
 #[test]
 fn a_failed_build_writes_no_current_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -98,7 +113,10 @@ fn a_failed_build_writes_no_current_lockfile() {
     )
     .expect("write pnpm-workspace.yaml");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     let output = rerun(&workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -126,8 +144,13 @@ fn a_failed_build_writes_no_current_lockfile() {
 /// and the wanted lockfile is regenerated from them.
 #[test]
 fn a_deleted_wanted_lockfile_is_regenerated_from_the_current_one() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -142,11 +165,17 @@ fn a_deleted_wanted_lockfile_is_regenerated_from_the_current_one() {
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
     let wanted_path = workspace.join("pnpm-lock.yaml");
     let wanted = fs::read_to_string(&wanted_path).expect("read pnpm-lock.yaml");
 
-    rerun(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    rerun(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     let current = read_current_lockfile(&workspace);
     let wanted_lockfile =
         serde_saphyr::from_str(&wanted).expect("parse the original pnpm-lock.yaml");
@@ -191,8 +220,13 @@ fn a_deleted_wanted_lockfile_is_regenerated_from_the_current_one() {
 /// (`deps-installer/test/lockfile.ts:1288`).
 #[test]
 fn a_broken_wanted_lockfile_is_ignored_and_regenerated() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -205,7 +239,10 @@ fn a_broken_wanted_lockfile_is_ignored_and_regenerated() {
     .expect("write package.json");
     append_workspace_yaml_key(&workspace, "optimisticRepeatInstall", false);
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     fs::write(&lockfile_path, format!("{lockfile}\nlockfileVersion: '9.0'\n"))
@@ -257,8 +294,13 @@ fn a_broken_wanted_lockfile_is_ignored_and_regenerated() {
 /// frozen install must refuse it rather than silently take one branch.
 #[test]
 fn a_wanted_lockfile_with_duplicate_keys_fails_a_frozen_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -267,7 +309,10 @@ fn a_wanted_lockfile_with_duplicate_keys_fails_a_frozen_install() {
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
@@ -304,8 +349,13 @@ fn a_wanted_lockfile_with_duplicate_keys_fails_a_frozen_install() {
 /// `Lockfile::is_empty`, so no file is written.
 #[test]
 fn the_current_lockfile_is_filtered_to_the_installed_groups() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -315,20 +365,29 @@ fn the_current_lockfile_is_filtered_to_the_installed_groups() {
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     assert_eq!(
         package_names(&read_current_lockfile(&workspace)),
         ["@pnpm.e2e/bar@100.0.0", "@pnpm.e2e/foo@100.0.0"],
     );
 
-    rerun(&workspace).with_args(["install", "--prod"]).assert().success();
+    rerun(&workspace)
+        .with_args(["install", "--prod"])
+        .assert()
+        .success();
     assert_eq!(
         package_names(&read_current_lockfile(&workspace)),
         ["@pnpm.e2e/foo@100.0.0"],
         "a prod-only install must drop the dev dependency it did not materialize",
     );
 
-    rerun(&workspace).with_arg("install").assert().success();
+    rerun(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert_eq!(
         package_names(&read_current_lockfile(&workspace)),
         ["@pnpm.e2e/bar@100.0.0", "@pnpm.e2e/foo@100.0.0"],
@@ -345,8 +404,13 @@ fn the_current_lockfile_is_filtered_to_the_installed_groups() {
 /// already correct — the tree is re-derived from the wanted lockfile.
 #[test]
 fn stale_state_files_do_not_stop_node_modules_from_being_repaired() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
@@ -359,7 +423,10 @@ fn stale_state_files_do_not_stop_node_modules_from_being_repaired() {
         let value: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(manifest).expect("read the dep manifest"))
                 .expect("parse the dep manifest");
-        value["version"].as_str().expect("version string").to_string()
+        value["version"]
+            .as_str()
+            .expect("version string")
+            .to_string()
     };
 
     let pin = |version: &str| {
@@ -370,14 +437,20 @@ fn stale_state_files_do_not_stop_node_modules_from_being_repaired() {
     };
 
     pin("100.0.0");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     assert_eq!(installed_version(&workspace), "100.0.0");
 
     let stale_modules = fs::read(workspace.join("node_modules/.modules.yaml")).expect("read state");
     let stale_current = fs::read(workspace.join(CURRENT_LOCKFILE)).expect("read state");
 
     pin("100.1.0");
-    rerun(&workspace).with_arg("install").assert().success();
+    rerun(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert_eq!(installed_version(&workspace), "100.1.0");
 
     // Roll both state files back to what the 100.0.0 install wrote while
@@ -387,7 +460,10 @@ fn stale_state_files_do_not_stop_node_modules_from_being_repaired() {
     fs::write(workspace.join(CURRENT_LOCKFILE), &stale_current).expect("restore state");
 
     pin("100.0.0");
-    rerun(&workspace).with_arg("install").assert().success();
+    rerun(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert_eq!(
         installed_version(&workspace),
         "100.0.0",
@@ -403,8 +479,13 @@ fn stale_state_files_do_not_stop_node_modules_from_being_repaired() {
 /// the packages it names live in the shared store.
 #[test]
 fn a_global_virtual_store_install_still_writes_the_current_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -414,7 +495,10 @@ fn a_global_virtual_store_install_still_writes_the_current_lockfile() {
         .expect("write package.json");
     enable_gvs_in_workspace_yaml(&workspace, "");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let expected = package_names(&read_current_lockfile(&workspace));
     assert_eq!(
         expected,
@@ -422,7 +506,10 @@ fn a_global_virtual_store_install_still_writes_the_current_lockfile() {
     );
 
     fs::remove_dir_all(workspace.join("node_modules")).expect("wipe node_modules");
-    rerun(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    rerun(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert_eq!(package_names(&read_current_lockfile(&workspace)), expected);
 
@@ -434,8 +521,13 @@ fn a_global_virtual_store_install_still_writes_the_current_lockfile() {
 /// forever (<https://github.com/pnpm/pnpm/issues/13312>).
 #[test]
 fn a_skipped_optional_dependency_still_lets_a_repeat_frozen_install_be_a_no_op() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let package_json = serde_json::json!({
@@ -448,7 +540,10 @@ fn a_skipped_optional_dependency_still_lets_a_repeat_frozen_install_be_a_no_op()
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let wanted_text =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
@@ -463,7 +558,10 @@ fn a_skipped_optional_dependency_still_lets_a_repeat_frozen_install_be_a_no_op()
     let log_path = workspace.join("postinstall.log");
     assert_eq!(fs::read_to_string(&log_path).expect("read postinstall.log"), "x");
 
-    rerun(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    rerun(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert_eq!(
         fs::read_to_string(&log_path).expect("read postinstall.log"),
@@ -478,8 +576,13 @@ fn a_skipped_optional_dependency_still_lets_a_repeat_frozen_install_be_a_no_op()
 /// (`deps-installer/test/lockfile.ts:1351`).
 #[test]
 fn a_broken_current_lockfile_is_ignored_with_a_warning() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -495,7 +598,10 @@ fn a_broken_current_lockfile_is_ignored_with_a_warning() {
     yaml.push_str("optimisticRepeatInstall: false\n");
     fs::write(&yaml_path, yaml).expect("disable the optimistic repeat-install shortcut");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let current_path = workspace.join(CURRENT_LOCKFILE);
     let current = fs::read_to_string(&current_path).expect("read current lockfile");
     fs::write(&current_path, format!("{current}\nlockfileVersion: '9.0'\n"))

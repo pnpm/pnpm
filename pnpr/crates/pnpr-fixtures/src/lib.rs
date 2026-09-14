@@ -261,8 +261,7 @@ impl Package {
     }
 
     fn packument(&self) -> Value {
-        let versions = self
-            .versions
+        let versions = self.versions
             .iter()
             .map(|(version, package)| (version.clone(), package.packument_manifest.clone()))
             .collect();
@@ -334,17 +333,20 @@ fn fixture_manifests(root: &Path) -> Vec<PathBuf> {
         .into_iter()
         .map(walkdir::DirEntry::into_path)
         .filter(|path| {
-            path.file_name().is_some_and(|name| name == "package.json")
+            path.file_name()
+                .is_some_and(|name| name == "package.json")
                 && is_version_dir(path.parent())
         })
         .collect()
 }
 
 fn substituted_manifest_text(manifest_path: &Path, substitutions: &[(&str, &str)]) -> String {
-    substitutions.iter().fold(
-        fs::read_to_string(manifest_path).expect("read fixture package.json"),
-        |manifest, (from, to)| manifest.replace(from, to),
-    )
+    substitutions
+        .iter()
+        .fold(
+            fs::read_to_string(manifest_path).expect("read fixture package.json"),
+            |manifest, (from, to)| manifest.replace(from, to),
+        )
 }
 
 fn manifest_string(manifest: &Value, key: &str) -> String {
@@ -360,8 +362,10 @@ fn manifest_string(manifest: &Value, key: &str) -> String {
 fn with_dist(mut packument_manifest: Value, tarball_url: &str, integrity: &str) -> Value {
     let manifest_object =
         packument_manifest.as_object_mut().expect("fixture package.json is an object");
-    manifest_object
-        .insert("dist".to_string(), json!({ "tarball": tarball_url, "integrity": integrity }));
+    manifest_object.insert(
+        "dist".to_string(),
+        json!({ "tarball": tarball_url, "integrity": integrity }),
+    );
     // Verdaccio's abbreviated metadata exposes `bundleDependencies` (no "d"),
     // and that is the key pnpm reads, so mirror `bundledDependencies` onto it
     // when only the longer spelling is present in the fixture manifest.
@@ -382,12 +386,19 @@ fn is_version_dir(dir: Option<&Path>) -> bool {
 }
 
 fn tarball_basename(name: &str) -> String {
-    name.rsplit('/').next().unwrap_or(name).to_string()
+    name.rsplit('/')
+        .next()
+        .unwrap_or(name)
+        .to_string()
 }
 
 fn latest_version<'a>(versions: impl Iterator<Item = &'a String>) -> Option<String> {
     versions
-        .filter_map(|raw| Version::parse(raw).ok().map(|version| (version, raw.clone())))
+        .filter_map(|raw| {
+            Version::parse(raw)
+                .ok()
+                .map(|version| (version, raw.clone()))
+        })
         .max_by(|(left, _), (right, _)| left.cmp(right))
         .map(|(_, raw)| raw)
 }

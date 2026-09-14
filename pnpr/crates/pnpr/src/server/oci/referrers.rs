@@ -59,11 +59,8 @@ impl Request {
         filter: &ReferrerFilter,
         last: Option<Digest>,
     ) -> Result<ReferrerPage<'a>, Response> {
-        let start = document.manifests().partition_point(|entry| {
-            last.as_ref().is_some_and(|last| entry.digest.hex() <= last.hex())
-        });
-        let mut entries = document.manifests()[start..].iter().peekable();
-        let mut page = ReferrerPage::new(self.state.inner.config.oci.max_manifest_bytes);
+        let mut entries = referrer_entries_after(document, last.as_ref()).iter().peekable();
+        let mut page = ReferrerPage::new(self.state.inner.config.http.oci.max_manifest_bytes);
         // The index is migrated in place the first time a manifest is read for
         // metadata it should already carry. The re-read document is the one
         // every later entry is judged against, under a lock so two scans do
@@ -74,7 +71,9 @@ impl Request {
             let indexed = indexed_referrer(migrated.as_ref(), entry);
             // The lock is only held while the migration has something to
             // write; an entry the index already answers for releases it.
-            if migration_guard.is_some() && indexed.flatten().is_some() && page.additions.is_empty()
+            if migration_guard.is_some()
+                && indexed.flatten().is_some()
+                && page.additions.is_empty()
             {
                 drop(migration_guard.take());
             }
@@ -83,7 +82,7 @@ impl Request {
                 ReferrerStep::Stop => break,
                 ReferrerStep::Migrate => {
                     migration_guard =
-                        Some(self.state.inner.referrer_migration_locks.lock(key.as_str()).await);
+                        Some(self.state.inner.locks.referrer_migrations.lock(key.as_str()).await);
                     migrated = Some(read_image_document(storage, key).await?);
                     continue;
                 }
@@ -117,7 +116,7 @@ impl Request {
             storage,
             key,
             &entry.digest.blob_filename(),
-            self.state.inner.config.oci.max_manifest_bytes,
+            self.state.inner.config.http.oci.max_manifest_bytes,
         )
         .await;
         let bytes = match read {
@@ -143,14 +142,17 @@ impl Request {
         if additions.is_empty() {
             return Ok(());
         }
-        let _guard = self.state.inner.package_locks.lock(key.as_str()).await;
+        let _guard = self.state.inner.locks.packages.lock(key.as_str()).await;
         storage
             .update_hosted_document_with_retry(key, DOCUMENT_WRITE_RETRIES, |existing| {
                 let Some(bytes) = existing else { return Ok(None) };
                 let mut current = ImageDocument::parse(bytes)?;
                 let mut changed = false;
                 for entry in additions {
-                    if current.manifest(&entry.digest).is_some_and(|held| held.referrer.is_none()) {
+                    if current
+                        .manifest(&entry.digest)
+                        .is_some_and(|held| held.referrer.is_none())
+                    {
                         current.insert_manifest(entry.clone());
                         changed = true;
                     }
@@ -168,8 +170,7 @@ impl Request {
         filter: &ReferrerFilter,
         page: &ReferrerPage<'_>,
     ) -> Response {
-        let manifests = page
-            .referrers
+        let manifests = page.referrers
             .iter()
             .map(|(entry, manifest)| ReferrerDescriptor::new(entry, manifest))
             .collect();
@@ -186,4 +187,14 @@ impl Request {
         }
         response
     }
+}
+
+fn referrer_entries_after<'a>(
+    document: &'a ImageDocument,
+    last: Option<&Digest>,
+) -> &'a [ManifestEntry] {
+    let start = document
+        .manifests()
+        .partition_point(|entry| last.is_some_and(|last| entry.digest.hex() <= last.hex()));
+    &document.manifests()[start..]
 }

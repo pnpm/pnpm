@@ -38,7 +38,13 @@ fn safe_to_skip_keeps_a_target_a_concurrent_importer_already_completed() {
     );
     let strays: Vec<_> = fs::read_dir(tmp.path())
         .unwrap()
-        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .filter(|name| name != "cas" && name != "slot")
         .collect();
     assert_eq!(strays, Vec::<String>::new(), "staging dir must be cleaned up");
@@ -76,14 +82,23 @@ fn concurrent_importers_of_one_shared_slot_both_succeed() {
         .collect();
 
     for handle in handles {
-        handle.join().expect("importer thread panicked").expect("both importers must succeed");
+        handle
+            .join()
+            .expect("importer thread panicked")
+            .expect("both importers must succeed");
     }
 
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"1.0.0\"}");
     assert_eq!(fs::read(target.join("index.js")).unwrap(), b"module.exports = 1");
     let strays: Vec<String> = fs::read_dir(tmp.path())
         .unwrap()
-        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .filter(|name| name != "cas" && name != "slot")
         .collect();
     assert_eq!(strays, Vec::<String>::new(), "neither importer may leak a staging dir");

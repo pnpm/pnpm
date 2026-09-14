@@ -275,8 +275,9 @@ async fn create_publish_options_skips_oidc_when_disabled() {
         http: &http,
     };
 
-    let resolved =
-        create_publish_options::<Sys, SilentReporter>(&manifest, &input, false).await.unwrap();
+    let resolved = create_publish_options::<Sys, SilentReporter>(&manifest, &input, false)
+        .await
+        .unwrap();
     assert_eq!(resolved.registry.as_str(), "https://default.example/");
     assert_eq!(resolved.default_tag, "latest");
     assert_eq!(resolved.otp, Some("123456".to_owned()));
@@ -303,8 +304,9 @@ async fn create_publish_options_applies_oidc_when_enabled() {
         http: &http,
     };
 
-    let resolved =
-        create_publish_options::<Sys, SilentReporter>(&manifest, &input, true).await.unwrap();
+    let resolved = create_publish_options::<Sys, SilentReporter>(&manifest, &input, true)
+        .await
+        .unwrap();
     assert_eq!(resolved.auth_token_override, Some("registry-token".to_owned()));
     assert_eq!(resolved.provenance, Some(true));
 }
@@ -340,7 +342,8 @@ async fn create_publish_options_rejects_unsupported_protocol() {
         http: &http,
     };
 
-    let err =
-        create_publish_options::<Sys, SilentReporter>(&manifest, &input, true).await.unwrap_err();
+    let err = create_publish_options::<Sys, SilentReporter>(&manifest, &input, true)
+        .await
+        .unwrap_err();
     assert!(matches!(err, CreatePublishOptionsError::UnsupportedProtocol(_)));
 }

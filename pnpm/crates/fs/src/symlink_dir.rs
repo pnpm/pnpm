@@ -53,7 +53,11 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
 pub fn to_native_separators(path: &Path) -> Cow<'_, Path> {
     // In WTF-8 a 0x2F byte appears iff the path holds a literal `/`, so
     // scanning bytes is a correct, allocation-free check.
-    if !path.as_os_str().as_encoded_bytes().contains(&b'/') {
+    if !path
+        .as_os_str()
+        .as_encoded_bytes()
+        .contains(&b'/')
+    {
         return Cow::Borrowed(path);
     }
     // A string replace, not `Path::components`: in a verbatim `\\?\`
@@ -259,16 +263,17 @@ fn create_symlink_parent(target: &Path, link: &Path) -> io::Result<()> {
     let Some(parent) = link.parent() else {
         return Ok(());
     };
-    create_dir_all_healing_reparse(parent).map_err(|mkdir_err| {
-        io::Error::new(
-            mkdir_err.kind(),
-            format!(
-                "Error while trying to symlink {target:?} to {link:?}. \
+    create_dir_all_healing_reparse(parent)
+        .map_err(|mkdir_err| {
+            io::Error::new(
+                mkdir_err.kind(),
+                format!(
+                    "Error while trying to symlink {target:?} to {link:?}. \
                  The error happened while trying to create the parent directory \
                  for the symlink target. Details: {mkdir_err}",
-            ),
-        )
-    })
+                ),
+            )
+        })
 }
 
 /// Move whatever regular file or directory occupies the link path out of the
@@ -280,7 +285,11 @@ fn create_symlink_parent(target: &Path, link: &Path) -> io::Result<()> {
 /// [pnpm/pnpm#5909](https://github.com/pnpm/pnpm/issues/5909#issuecomment-1400066890).
 fn clear_symlink_occupant(link: &Path, rename_tried: bool) -> io::Result<Option<String>> {
     let parent = link.parent().unwrap_or_else(|| Path::new(""));
-    let basename = link.file_name().unwrap_or_default().to_string_lossy().into_owned();
+    let basename = link
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
     if rename_tried {
         remove_occupant(link)?;
         return Ok(Some(format!(
@@ -354,7 +363,9 @@ fn existing_symlink_up_to_date(wanted: &Path, link: &Path, existing_link_string:
     let existing_absolute = if existing_link_string.is_absolute() {
         existing_link_string.to_path_buf()
     } else {
-        link.parent().unwrap_or_else(|| Path::new("")).join(existing_link_string)
+        link.parent()
+            .unwrap_or_else(|| Path::new(""))
+            .join(existing_link_string)
     };
     crate::lexical_normalize(&existing_absolute) == crate::lexical_normalize(wanted)
 }

@@ -1,20 +1,16 @@
 use super::super::{
     BTreeSet, Catalogs, Config, GlobalLog, HashSet, Host, InstallError, Lockfile, LogEvent,
-    LogLevel, NodeLinker, PackageManifest, Path, PathBuf, ProjectMutation, ProjectScriptsInputs,
-    RebuildOptions, Reporter, SummaryLog, WorkspaceInstallSelection, drain_settled_projects,
-    project_lifecycle_graph, projects_running_own_scripts, run_projects_lifecycle_scripts,
+    LogLevel, NodeLinker, PackageManifest, Path, PathBuf, ProjectScriptsInputs, Reporter,
+    SummaryLog, drain_settled_projects, project_lifecycle_graph, projects_running_own_scripts,
+    run_projects_lifecycle_scripts,
 };
 use crate::peer_dependency_issues::report_peer_dependency_issues;
 use pnpm_store_dir::VerifiedFileIntegrity;
 use std::time::Duration;
 
 pub(super) struct ResolveOnlyCompletionInputs<'a> {
-    pub(super) resolve_only: bool,
-    pub(super) dry_run: bool,
-    pub(super) peer_issues_sink_is_none: bool,
-    pub(super) existing_wanted_lockfile: Option<&'a Lockfile>,
-    pub(super) peer_issue_importer_ids: &'a HashSet<String>,
-    pub(super) fresh_lockfile: Option<&'a Lockfile>,
+    pub(crate) mode: crate::install::state_options::CompletionMode,
+    pub(crate) peers: crate::install::state_options::PeerIssueLockfiles<'a>,
     pub(super) prefix: &'a str,
     pub(super) config: &'static Config,
     pub(super) catalogs: Option<&'a Catalogs>,
@@ -24,17 +20,17 @@ pub(super) struct ResolveOnlyCompletionInputs<'a> {
 pub(super) fn complete_resolve_only<Reporter: self::Reporter>(
     inputs: &ResolveOnlyCompletionInputs<'_>,
 ) -> Result<bool, InstallError> {
-    if !inputs.resolve_only {
+    if !inputs.mode.resolve_only {
         return Ok(false);
     }
 
     // A sink-driven dry run is a programmatic query, not a CLI preview.
-    if inputs.dry_run && inputs.peer_issues_sink_is_none {
+    if inputs.mode.dry_run && inputs.mode.peer_issues_sink_is_none {
         use std::io::Write as _;
         let report =
             crate::lockfile_diff::render_dry_run_report(&crate::lockfile_diff::diff_lockfiles(
-                inputs.existing_wanted_lockfile,
-                inputs.fresh_lockfile,
+                inputs.peers.wanted,
+                inputs.peers.fresh,
                 crate::lockfile_diff::ImporterDiffKey::Specifier,
             ));
         let mut stdout = std::io::stdout();
@@ -43,10 +39,10 @@ pub(super) fn complete_resolve_only<Reporter: self::Reporter>(
     }
     // A programmatic peer-issue query asks for the issues; it must not
     // also be told about them, nor fail over them.
-    if inputs.peer_issues_sink_is_none {
+    if inputs.mode.peer_issues_sink_is_none {
         report_peer_dependency_issues::<Reporter>(
-            inputs.fresh_lockfile,
-            inputs.peer_issue_importer_ids,
+            inputs.peers.fresh,
+            inputs.peers.importer_ids,
             inputs.installed_importer_ids,
             inputs.workspace_root,
             inputs.config,
@@ -61,13 +57,10 @@ pub(super) fn complete_resolve_only<Reporter: self::Reporter>(
 }
 #[derive(Clone, Copy)]
 pub(super) struct MaterializedProjectScriptsInputs<'a, 'selection> {
+    pub(crate) request: crate::install::state_options::ProjectScriptSelection<'a, 'selection>,
     pub(super) config: &'static Config,
     pub(super) node_linker: NodeLinker,
     pub(super) workspace_root: &'a Path,
-    pub(super) rebuild: Option<&'a RebuildOptions>,
-    pub(super) mutation: ProjectMutation,
-    pub(super) manifest_dir: &'a Path,
-    pub(super) selection: Option<&'a WorkspaceInstallSelection<'selection>>,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) materialized_project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) materialized_current_lockfile: Option<&'a Lockfile>,
@@ -79,7 +72,7 @@ pub(super) fn run_materialized_project_scripts<Reporter: self::Reporter>(
     if !projects_to_run.is_empty() {
         let project_graph = project_lifecycle_graph(
             &projects_to_run,
-            inputs.selection.map(|selection| selection.project_dependencies),
+            inputs.request.workspace.map(|selection| selection.project_dependencies),
             inputs.workspace_root,
             inputs.materialized_current_lockfile,
         )?;
@@ -91,7 +84,7 @@ pub(super) fn run_materialized_project_scripts<Reporter: self::Reporter>(
                 inputs.workspace_root,
             )?;
         }
-        if let Some(rebuild) = inputs.rebuild {
+        if let Some(rebuild) = inputs.request.rebuild {
             drain_settled_projects::<Host>(&inputs.config.modules_dir, &rebuild.pending_projects)?;
         }
     }
@@ -104,9 +97,8 @@ pub(super) fn materialized_script_projects<'a>(
 ) -> Vec<(PathBuf, &'a PackageManifest)> {
     if inputs.config.ignore_scripts || inputs.config.virtual_store_only {
         Vec::new()
-    } else if let Some(rebuild) = inputs.rebuild {
-        inputs
-            .materialized_project_manifests
+    } else if let Some(rebuild) = inputs.request.rebuild {
+        inputs.materialized_project_manifests
             .iter()
             .filter(|(project_dir, _)| {
                 let importer_id =
@@ -117,20 +109,17 @@ pub(super) fn materialized_script_projects<'a>(
             .collect()
     } else {
         projects_running_own_scripts(&ProjectScriptsInputs {
-            mutation: inputs.mutation,
+            mutation: inputs.request.mutation,
             workspace_root: inputs.workspace_root,
-            active_project_dir: inputs.manifest_dir,
-            selected_dirs: inputs.selection.map(|selection| selection.selected_dirs),
+            active_project_dir: inputs.request.manifest_dir,
+            selected_dirs: inputs.request.workspace.map(|selection| selection.selected_dirs),
             project_manifests: inputs.project_manifests,
             materialized_project_manifests: inputs.materialized_project_manifests,
         })
     }
 }
 pub(super) struct ReportInstallCompletionInputs<'a> {
-    pub(super) config: &'static Config,
-    pub(super) catalogs: Option<&'a Catalogs>,
-    pub(super) workspace_root: &'a Path,
-    pub(super) workspace_manifest_dir: &'a Path,
+    pub(crate) workspace: crate::install::state_options::CompletionWorkspace<'a>,
     pub(super) prefix: String,
     pub(super) ignored_builds: Vec<String>,
     pub(super) verified_file_integrity_baseline: VerifiedFileIntegrity,
@@ -151,9 +140,9 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
         inputs.resolved_lockfile,
         inputs.peer_issue_importer_ids,
         inputs.installed_importer_ids,
-        inputs.workspace_root,
-        inputs.config,
-        inputs.catalogs,
+        inputs.workspace.workspace_root,
+        inputs.workspace.config,
+        inputs.workspace.catalogs,
     )?;
     // `pnpm:summary` closes the install and lets the reporter render
     // the accumulated `pnpm:root` events as a "+N -M" block. Must
@@ -171,25 +160,25 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
     // throwaway per-group directory, and the approval prompt that
     // follows it records the ignored builds against the stable global
     // packages dir instead.
-    let is_global_install = inputs
-        .config
-        .global_pkg_dir
+    let is_global_install = inputs.workspace.config.global_pkg_dir
         .as_deref()
-        .is_some_and(|global_pkg_dir| inputs.workspace_root.starts_with(global_pkg_dir));
+        .is_some_and(|global_pkg_dir| inputs.workspace.workspace_root.starts_with(global_pkg_dir));
     // Leave the user a line to edit in `pnpm-workspace.yaml` for every
     // build this install blocked, so approving one is an edit rather
     // than recalling the `allowBuilds` shape. Written before the strict
     // failure below, which is the very run whose message it answers.
     // `--ignore-workspace` opts out: the run disowned the workspace
     // manifest, so it must not write to one either.
-    if !inputs.ignored_builds.is_empty() && !is_global_install && !inputs.config.ignore_workspace {
-        let allow_build_keys: BTreeSet<String> = inputs
-            .ignored_builds
+    if !inputs.ignored_builds.is_empty()
+        && !is_global_install
+        && !inputs.workspace.config.ignore_workspace
+    {
+        let allow_build_keys: BTreeSet<String> = inputs.ignored_builds
             .iter()
             .map(|dep_path| crate::allow_build_key_from_ignored_build(dep_path))
             .collect();
         pnpm_workspace_manifest_writer::scaffold_allow_builds(
-            inputs.workspace_manifest_dir,
+            inputs.workspace.workspace_manifest_dir,
             allow_build_keys.iter().map(String::as_str),
         )
         .map_err(InstallError::ScaffoldAllowBuilds)?;
@@ -200,7 +189,7 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
     // `ERR_PNPM_IGNORED_BUILDS` *after* the artifacts are written, so
     // the package is still added/installed and the user approves the
     // builds and reinstalls.
-    if inputs.config.strict_dep_builds && !inputs.ignored_builds.is_empty() {
+    if inputs.workspace.config.strict_dep_builds && !inputs.ignored_builds.is_empty() {
         return Err(InstallError::IgnoredBuilds { package_names: inputs.ignored_builds });
     }
 

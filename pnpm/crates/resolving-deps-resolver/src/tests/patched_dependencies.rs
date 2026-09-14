@@ -74,8 +74,8 @@ async fn patches_git_dependency_with_manifest_version() {
     let mut result =
         fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" }));
     result.id = PkgResolutionId::from(git_ref);
-    result.name_ver = None;
-    result.latest = None;
+    result.package.name_ver = None;
+    result.package.latest = None;
     result.resolution = LockfileResolution::Git(GitResolution {
         repo: "file:///repo".to_string(),
         commit: "0123456789012345678901234567890123456789".to_string(),
@@ -118,8 +118,8 @@ async fn leaves_local_directory_dependencies_unpatched() {
     let mut result =
         fake_result("foo", "1.0.0", serde_json::json!({ "name": "foo", "version": "1.0.0" }));
     result.id = PkgResolutionId::from(local_ref);
-    result.name_ver = None;
-    result.latest = None;
+    result.package.name_ver = None;
+    result.package.latest = None;
     result.resolution =
         LockfileResolution::Directory(DirectoryResolution { directory: "../foo".to_string() });
     result.resolved_via = "local-filesystem".to_string();

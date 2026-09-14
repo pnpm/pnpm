@@ -48,8 +48,7 @@ fn importer_roots<'a>(
         &'a pnpm_lockfile::ProjectSnapshot,
     ) -> &'a [Option<pnpm_lockfile::ResolvedDependencyMap>],
 ) -> Vec<PackageKey> {
-    lockfile
-        .importers
+    lockfile.importers
         .values()
         .flat_map(|importer| maps(importer).iter().flatten())
         .flatten()
@@ -81,7 +80,11 @@ fn detect_dep_types_walk(
             .then(|| snapshot.optional_dependencies.iter().flatten())
             .into_iter()
             .flatten();
-        for (alias, dep_ref) in snapshot.dependencies.iter().flatten().chain(optional_iter) {
+        for (alias, dep_ref) in snapshot.dependencies
+            .iter()
+            .flatten()
+            .chain(optional_iter)
+        {
             if let Some(child_key) = dep_ref.resolve(alias) {
                 queue.push(child_key);
             }
@@ -166,12 +169,22 @@ struct RootMetadata {
 
 impl RootMetadata {
     pub(super) fn of(manifest: &serde_json::Value) -> Self {
-        let name = manifest.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-        let version =
-            manifest.get("version").and_then(|v| v.as_str()).unwrap_or("0.0.0").to_string();
+        let name = manifest
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let version = manifest
+            .get("version")
+            .and_then(|v| v.as_str())
+            .unwrap_or("0.0.0")
+            .to_string();
         RootMetadata {
             purl: build_purl(&name, &version),
-            license: manifest.get("license").and_then(|v| v.as_str()).map(ToString::to_string),
+            license: manifest
+                .get("license")
+                .and_then(|v| v.as_str())
+                .map(ToString::to_string),
             description: manifest
                 .get("description")
                 .and_then(|v| v.as_str())
@@ -186,8 +199,7 @@ impl RootMetadata {
 }
 
 fn initial_importer_ids(lockfile: &Lockfile, filter_importer_ids: Option<&[&str]>) -> Vec<String> {
-    lockfile
-        .importers
+    lockfile.importers
         .keys()
         .filter(|id| filter_importer_ids.is_none_or(|ids| ids.contains(&id.as_str())))
         .cloned()
@@ -230,6 +242,8 @@ fn assemble_sbom_result(
     stores: WalkStores,
 ) -> SbomResult {
     SbomResult {
+        components: stores.components_map.into_values().collect(),
+        relationships: stores.relationships,
         root_name: root.name,
         root_version: root.version,
         root_type: sbom_type,
@@ -238,7 +252,5 @@ fn assemble_sbom_result(
         root_author: root.author,
         root_repository: root.repository,
         root_bugs_url: root.bugs_url,
-        components: stores.components_map.into_values().collect(),
-        relationships: stores.relationships,
     }
 }

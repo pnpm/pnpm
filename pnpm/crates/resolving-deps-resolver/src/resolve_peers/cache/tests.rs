@@ -35,7 +35,7 @@ fn materialized_nodes_referenced_by_peer_outputs_are_retained() {
         &HashSet::from_iter([unreferenced.clone()]),
         None,
         &unreferenced,
-    ));
+    ),);
 }
 
 #[test]

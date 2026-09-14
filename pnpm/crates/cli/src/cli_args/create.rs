@@ -88,7 +88,14 @@ impl CreateArgs {
         dir: &Path,
         config: &'static mut Config,
     ) -> miette::Result<()> {
-        let CreateArgs { command, allow_build, shell_mode, cpu, os, libc } = self;
+        let CreateArgs {
+            command,
+            allow_build,
+            shell_mode,
+            cpu,
+            os,
+            libc,
+        } = self;
         let mut command_iter = command.into_iter();
         let name = command_iter.next().ok_or(CreateError::MissingArgs)?;
         let args: Vec<String> = command_iter.collect();

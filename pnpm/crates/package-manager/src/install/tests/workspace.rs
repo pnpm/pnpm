@@ -1,6 +1,7 @@
 use super::{
     super::{
-        Install, ProjectMutation, load_workspace_projects, project_requires_lifecycle_scripts,
+        Install, ProjectMutation, configured_or_discovered_workspace_dir, load_workspace_projects,
+        project_requires_lifecycle_scripts,
     },
     InstallDirs, empty_test_lockfile, install_with_pnpmfile,
     install_workspace_member_with_pnpmfile,
@@ -39,6 +40,26 @@ fn project_lifecycle_detection_includes_scripts_and_binding_gyp_fallback() {
     );
     assert!(project_requires_lifecycle_scripts(project_dir, &with_prepare));
 }
+/// [`Config::workspace_search_skipped`] alone suppresses the ancestor walk,
+/// never [`Config::ignore_workspace`]. No CLI run reaches the state where
+/// the two disagree, so only a direct call holds them apart.
+#[test]
+fn only_a_skipped_search_suppresses_the_ancestor_walk() {
+    let dir = tempdir().unwrap();
+    let workspace = dir.path();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    let project = workspace.join("packages/alfa");
+    fs::create_dir_all(&project).unwrap();
+
+    let configured = Config { ignore_workspace: true, ..Config::default() };
+    assert_eq!(
+        configured_or_discovered_workspace_dir(&configured, &project).unwrap(),
+        Some(workspace.to_path_buf()),
+    );
+
+    let flagged = Config { workspace_search_skipped: true, ..Config::default() };
+    assert_eq!(configured_or_discovered_workspace_dir(&flagged, &project).unwrap(), None);
+}
 #[test]
 fn workspace_without_packages_field_enumerates_root_only() {
     let dir = tempdir().unwrap();
@@ -66,7 +87,12 @@ fn workspace_without_packages_field_enumerates_root_only() {
         .expect("workspace projects");
     let names: Vec<&str> = projects
         .iter()
-        .filter_map(|project| project.manifest.value().get("name").and_then(|name| name.as_str()))
+        .filter_map(|project| {
+            project.manifest
+                .value()
+                .get("name")
+                .and_then(|name| name.as_str())
+        })
         .collect();
 
     assert_eq!(names, vec!["root"]);
@@ -94,45 +120,61 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
     let config = config.leak();
 
     Install {
-        tarball_mem_cache: Default::default(),
-        http_client: &Default::default(),
-        http_client_arc: std::sync::Arc::new(Default::default()),
-        config,
-        manifest: &manifest,
-        emit_initial_manifest: true,
-        lockfile: MaybeLazyLockfile::Loaded(None),
-        lockfile_path: None,
-        dependency_groups: [DependencyGroup::Prod],
-        frozen_lockfile: false,
-        prefer_frozen_lockfile: Some(false),
-        ignore_manifest_check: false,
-        skip_runtimes: false,
-        trust_lockfile: false,
-        update_checksums: false,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        supported_architectures: None,
-        node_linker: pnpm_config::NodeLinker::default(),
-        lockfile_only: false,
-        dry_run: false,
-        policy_excludes: PolicyExcludes::Persist,
-        resolved_packages: &Default::default(),
-        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: false,
+            prefer_frozen: Some(false),
+            ignore_manifest_check: false,
+            trust: false,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
     }
     .run_with_prompt_eligibility::<SilentReporter>(false)
     .await
     .expect("loose mode lets the immature pick through");
 
-    assert!(dir.path().join("pnpm-lock.yaml").exists());
+    assert!(
+        dir.path()
+            .join("pnpm-lock.yaml")
+            .exists(),
+    );
     let workspace = std::fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
         .expect("install must create pnpm-workspace.yaml with the persisted excludes");
     assert!(
@@ -177,42 +219,54 @@ async fn install_writes_workspace_state() {
     .expect("parse minimal v9 lockfile");
 
     Install {
-        tarball_mem_cache: Default::default(),
-        http_client: &Default::default(),
-        http_client_arc: std::sync::Arc::new(Default::default()),
-        config,
-        manifest: &manifest,
-        emit_initial_manifest: true,
-        lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
-        lockfile_path: None,
-        // Same `included` shape as `install_writes_modules_yaml` so the
-        // dev/optional/production assertions below line up with the
-        // dispatched groups.
-        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
-        frozen_lockfile: true,
-        prefer_frozen_lockfile: None,
-        ignore_manifest_check: false,
-        skip_runtimes: false,
-        trust_lockfile: false,
-        update_checksums: false,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        supported_architectures: None,
-        node_linker: pnpm_config::NodeLinker::default(),
-        lockfile_only: false,
-        dry_run: false,
-        policy_excludes: PolicyExcludes::Persist,
-        resolved_packages: &Default::default(),
-        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: true,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: false,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(Some(&lockfile)),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            // Same `included` shape as `install_writes_modules_yaml` so the
+            // dev/optional/production assertions below line up with the
+            // dispatched groups.
+            dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
     }
     .run::<SilentReporter>()
     .await
@@ -242,9 +296,11 @@ async fn install_writes_workspace_state() {
     // check passes. Single-project install → exactly one entry, keyed
     // on the workspace dirs.dir.
     assert_eq!(state.projects.len(), 1);
-    let project_key = dirs.path().to_string_lossy().into_owned();
-    let project = state
-        .projects
+    let project_key = dirs
+        .path()
+        .to_string_lossy()
+        .into_owned();
+    let project = state.projects
         .get(&project_key)
         .unwrap_or_else(|| panic!("project entry for {project_key:?} should exist"));
     assert_eq!(
@@ -490,39 +546,51 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     // workspace state next to `node_modules` (via
     // `Install::run`'s end-of-run `update_workspace_state` call).
     Install {
-        tarball_mem_cache: Default::default(),
-        http_client: &Default::default(),
-        http_client_arc: std::sync::Arc::new(Default::default()),
-        config,
-        manifest: &manifest,
-        emit_initial_manifest: true,
-        lockfile: MaybeLazyLockfile::Loaded(None),
-        lockfile_path: None,
-        dependency_groups: [DependencyGroup::Prod],
-        frozen_lockfile: false,
-        prefer_frozen_lockfile: None,
-        ignore_manifest_check: false,
-        skip_runtimes: false,
-        trust_lockfile: false,
-        update_checksums: false,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        supported_architectures: None,
-        node_linker: pnpm_config::NodeLinker::default(),
-        lockfile_only: false,
-        dry_run: false,
-        policy_excludes: PolicyExcludes::Persist,
-        resolved_packages: &Default::default(),
-        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: false,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: false,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
     }
     .run::<SilentReporter>()
     .await
@@ -547,49 +615,64 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
     Install {
-        tarball_mem_cache: Default::default(),
-        http_client: &Default::default(),
-        http_client_arc: std::sync::Arc::new(Default::default()),
-        config,
-        manifest: &manifest,
-        emit_initial_manifest: true,
-        // Don't pass the in-memory lockfile — the optimistic check
-        // doesn't need it, and we want to prove the fast path runs
-        // *before* the lockfile is even loaded. (Matching pnpm's
-        // dispatch ordering: `checkDepsStatus` runs before any
-        // lockfile parse.)
-        lockfile: MaybeLazyLockfile::Loaded(None),
-        lockfile_path: None,
-        dependency_groups: [DependencyGroup::Prod],
-        frozen_lockfile: false,
-        prefer_frozen_lockfile: None,
-        ignore_manifest_check: false,
-        skip_runtimes: false,
-        trust_lockfile: false,
-        update_checksums: false,
-        mutation: ProjectMutation::InstallWorkspace,
-        installs_only: true,
-        supported_architectures: None,
-        node_linker: pnpm_config::NodeLinker::default(),
-        lockfile_only: false,
-        dry_run: false,
-        policy_excludes: PolicyExcludes::Persist,
-        resolved_packages: &Default::default(),
-        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
+        lockfile_policy: crate::InstallLockfilePolicy {
+            frozen: false,
+            prefer_frozen: None,
+            ignore_manifest_check: false,
+            trust: false,
+            update_checksums: false,
+            excludes: PolicyExcludes::Persist,
+            disable_optimistic_repeat: false,
+        },
+        execution: crate::InstallExecution {
+            skip_runtimes: false,
+            mutation: ProjectMutation::InstallWorkspace,
+            installs_only: true,
+            node_linker: pnpm_config::NodeLinker::default(),
+            lockfile_only: false,
+            dry_run: false,
+        },
+        resolution: crate::ResolutionInputs {
+            update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            preferred_versions_override: None,
+            auth_override: None,
+            observer: None,
+            peer_issues_sink: None,
+            deps_requiring_build_sink: None,
+        },
+        context: crate::InstallInvocation {
+            http_client: &Default::default(),
+            config,
+            manifest: &manifest,
+            emit_initial_manifest: true,
+            // Don't pass the in-memory lockfile — the optimistic check
+            // doesn't need it, and we want to prove the fast path runs
+            // *before* the lockfile is even loaded. (Matching pnpm's
+            // dispatch ordering: `checkDepsStatus` runs before any
+            // lockfile parse.)
+            lockfile: MaybeLazyLockfile::Loaded(None),
+            lockfile_path: None,
+        },
+        fetching: crate::InstallFetching {
+            tarball_mem_cache: Default::default(),
+            http_client_arc: std::sync::Arc::new(Default::default()),
+            resolved_packages: &Default::default(),
+        },
+        projects: crate::InstallProjects {
+            dependency_groups: [DependencyGroup::Prod],
+            supported_architectures: None,
+            catalogs_override: None,
+            pnpmfile_hook_override: None,
+            workspace_projects_override: None,
+        },
     }
     .run::<RecordingReporter>()
     .await
@@ -597,10 +680,12 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
 
     let captured = EVENTS.lock().unwrap();
     assert!(
-        captured.iter().any(|event| matches!(
-            event,
-            LogEvent::Pnpm(log) if log.message == "Already up to date"
-        )),
+        captured
+            .iter()
+            .any(|event| matches!(
+                event,
+                LogEvent::Pnpm(log) if log.message == "Already up to date"
+            )),
         "second install must emit `Already up to date`; got events: {captured:#?}",
     );
 
@@ -738,7 +823,10 @@ fn workspace_packages_map_prefers_the_dependency_manifest() {
     }];
 
     let map = crate::build_workspace_packages_map(Some(&projects)).expect("map for projects");
-    let package = map.get("component").and_then(|by_version| by_version.get("1.2.3")).unwrap();
+    let package = map
+        .get("component")
+        .and_then(|by_version| by_version.get("1.2.3"))
+        .unwrap();
     assert_eq!(
         package.manifest.get("dependencies"),
         Some(&serde_json::json!({ "sibling": "workspace:*" })),

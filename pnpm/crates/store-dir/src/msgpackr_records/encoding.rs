@@ -329,7 +329,10 @@ fn encode_json_object(
         writer.push(slot);
     } else {
         let slot = state.allocate_slot()?;
-        let field_refs: Vec<&str> = fields.iter().map(String::as_str).collect();
+        let field_refs: Vec<&str> = fields
+            .iter()
+            .map(String::as_str)
+            .collect();
         write_record_def_header(writer, slot, &field_refs);
         state.json_object_slots.insert(fields, slot);
     }

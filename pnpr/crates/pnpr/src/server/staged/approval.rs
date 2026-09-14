@@ -1,10 +1,11 @@
 use super::{
     APPROVAL_CLAIM_LEASE, AppState, ApprovalClaim, CanonicalPackageName, DocumentWrite, Identity,
     RegistryError, Response, StatusCode, StoredStagedRecord, Value, cleanup_tmp_slots,
-    commit_publishes, json, json_response, load_authorized_record, now_iso, report_unrecorded,
+    commit_publishes, json, json_response, load_authorized_record, report_unrecorded,
     stage_publish, validate_publish_doc,
 };
 use axum::response::IntoResponse;
+use pnpr_storage::publish::now_iso;
 
 /// `POST /-/stage/:id/approve` — claim the record, publish the held document
 /// through the regular validate → stage → commit flow, then drop the record.
@@ -44,11 +45,9 @@ pub(super) async fn claim_for_approval(
     let mut record = stored.record;
     record.approving_since = Some(now_iso());
     let claimed_bytes = serde_json::to_vec(&record).expect("a staged record serializes");
-    let written = state
-        .inner
-        .storage
-        .replace_staged_meta_if_current(stage_id, &stored.bytes, &claimed_bytes)
-        .await?;
+    let written =
+        state.inner.storage.replace_staged_meta_if_current(stage_id, &stored.bytes, &claimed_bytes)
+            .await?;
     match written {
         DocumentWrite::Written => {
             Ok(ApprovalClaim { record, unclaimed_bytes: stored.bytes, claimed_bytes })
@@ -105,11 +104,12 @@ pub(super) async fn release_approval_claim(
     stage_id: &str,
     claim: &ApprovalClaim,
 ) {
-    let restored = state
-        .inner
-        .storage
-        .replace_staged_meta_if_current(stage_id, &claim.claimed_bytes, &claim.unclaimed_bytes)
-        .await;
+    let restored = state.inner.storage.replace_staged_meta_if_current(
+        stage_id,
+        &claim.claimed_bytes,
+        &claim.unclaimed_bytes,
+    )
+    .await;
     if let Err(err) = restored {
         tracing::warn!(error = %err, stage_id, "failed to release the claim on a staged publish");
     }
@@ -137,7 +137,7 @@ pub(super) async fn approve_claimed(
     let (validated, target) =
         validate_publish_doc(state, identity, record.registry.as_deref(), name, incoming).await?;
 
-    let _packument_guard = state.inner.package_locks.lock(validated.name.as_str()).await;
+    let _packument_guard = state.inner.locks.packages.lock(validated.name.as_str()).await;
     let staged = stage_publish(state, validated, &now_iso(), Some(&target.org)).await?;
     // Nothing is visible yet, which is the last moment a rejection can still
     // take the stage back. Past the commit it cannot: the publish is served.

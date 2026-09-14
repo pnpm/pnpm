@@ -312,7 +312,10 @@ fn gh_aliases() -> HashSet<String> {
 }
 
 fn aliases(names: &[&str]) -> HashSet<String> {
-    names.iter().map(|name| (*name).to_string()).collect()
+    names
+        .iter()
+        .map(|name| (*name).to_string())
+        .collect()
 }
 
 #[test]

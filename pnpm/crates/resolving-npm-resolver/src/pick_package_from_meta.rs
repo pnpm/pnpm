@@ -294,8 +294,7 @@ fn without_version(meta: &Package, version: &str) -> Package {
         // Tags pointing at the removed version go with it — the
         // latest-tag fast path would otherwise re-pick the version
         // this clone exists to exclude.
-        dist_tags: meta
-            .dist_tags
+        dist_tags: meta.dist_tags
             .iter()
             .filter(|(_, target)| *target != version)
             .map(|(tag, target)| (tag.clone(), target.clone()))
@@ -345,7 +344,10 @@ pub fn pick_version_by_version_range(
         return Some(latest.to_string());
     }
 
-    let all_versions: Vec<&str> = opts.meta.versions.keys().map(String::as_str).collect();
+    let all_versions: Vec<&str> = opts.meta.versions
+        .keys()
+        .map(String::as_str)
+        .collect();
     let max_pick = max_satisfying(&all_versions, opts.version_range)?;
     non_deprecated_pick(opts, &all_versions, &max_pick).or(Some(max_pick))
 }
@@ -360,7 +362,9 @@ fn preferred_max_pick(
     let groups = prioritize_preferred_versions(opts.meta, opts.version_range, Some(selectors));
     for group in groups {
         if let Some(latest) = latest
-            && group.iter().any(|version| version == latest)
+            && group
+                .iter()
+                .any(|version| version == latest)
             && semver_satisfies_loose(latest, opts.version_range)
         {
             return Some(latest.to_string());
@@ -407,11 +411,18 @@ pub fn pick_lowest_version_by_version_range(
         }
     }
 
-    let all_versions: Vec<&str> = opts.meta.versions.keys().map(String::as_str).collect();
+    let all_versions: Vec<&str> = opts.meta.versions
+        .keys()
+        .map(String::as_str)
+        .collect();
     if opts.version_range == "*" {
         let mut parsed: Vec<(Version, &str)> = all_versions
             .iter()
-            .filter_map(|raw| Version::parse(raw).ok().map(|version| (version, *raw)))
+            .filter_map(|raw| {
+                Version::parse(raw)
+                    .ok()
+                    .map(|version| (version, *raw))
+            })
             .collect();
         parsed.sort_by(|left, right| left.0.cmp(&right.0));
         return parsed.first().map(|(_, raw)| (*raw).to_string());

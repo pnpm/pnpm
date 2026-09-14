@@ -1,6 +1,9 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
 use std::{collections::HashSet, ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
 
@@ -17,7 +20,11 @@ fn copy_fixture(name: &str) -> TempDir {
     for entry in fs::read_dir(&fixture_dir).expect("read fixture dir") {
         let entry = entry.expect("read dir entry");
         let dest = tmp.path().join(entry.file_name());
-        if entry.file_type().expect("file type").is_dir() {
+        if entry
+            .file_type()
+            .expect("file type")
+            .is_dir()
+        {
             copy_dir_recursive(&entry.path(), &dest);
         } else {
             fs::copy(entry.path(), dest).expect("copy file");
@@ -31,7 +38,11 @@ fn copy_dir_recursive(src: &Path, dest: &Path) {
     for entry in fs::read_dir(src).expect("read dir") {
         let entry = entry.expect("read entry");
         let target = dest.join(entry.file_name());
-        if entry.file_type().expect("file type").is_dir() {
+        if entry
+            .file_type()
+            .expect("file type")
+            .is_dir()
+        {
             copy_dir_recursive(&entry.path(), &target);
         } else {
             fs::copy(entry.path(), target).expect("copy file");
@@ -67,8 +78,10 @@ fn sbom_cyclonedx_basic() {
     let components = parsed["components"].as_array().expect("components array");
     assert!(!components.is_empty());
 
-    let is_positive =
-        components.iter().find(|comp| comp["name"] == "is-positive").expect("find is-positive");
+    let is_positive = components
+        .iter()
+        .find(|comp| comp["name"] == "is-positive")
+        .expect("find is-positive");
     assert_eq!(is_positive["purl"], "pkg:npm/is-positive@3.1.0");
     assert_eq!(is_positive["version"], "3.1.0");
 }
@@ -133,11 +146,15 @@ fn sbom_prod_excludes_dev() {
 
     let components = parsed["components"].as_array().expect("components array");
     assert!(
-        components.iter().any(|comp| comp["name"] == "is-positive"),
+        components
+            .iter()
+            .any(|comp| comp["name"] == "is-positive"),
         "prod dep should be included",
     );
     assert!(
-        !components.iter().any(|comp| comp["name"] == "typescript"),
+        !components
+            .iter()
+            .any(|comp| comp["name"] == "typescript"),
         "dev dep should be excluded with --prod",
     );
 }
@@ -148,8 +165,10 @@ fn sbom_dev_only_scope_excluded() {
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
 
     let components = parsed["components"].as_array().expect("components array");
-    let typescript =
-        components.iter().find(|comp| comp["name"] == "typescript").expect("find typescript");
+    let typescript = components
+        .iter()
+        .find(|comp| comp["name"] == "typescript")
+        .expect("find typescript");
     assert_eq!(typescript["scope"], "excluded");
 
     let props = typescript["properties"].as_array().expect("properties");
@@ -165,7 +184,12 @@ fn sbom_spec_version_1_6() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--sbom-spec-version", "1.6"]);
     assert_eq!(parsed["specVersion"], "1.6");
-    assert!(parsed["$schema"].as_str().unwrap().contains("1.6"));
+    assert!(
+        parsed["$schema"]
+            .as_str()
+            .unwrap()
+            .contains("1.6"),
+    );
 }
 
 #[test]
@@ -196,10 +220,22 @@ fn sbom_dependencies_present() {
 
     let root_dep = deps
         .iter()
-        .find(|dep| dep["ref"].as_str().unwrap().contains("simple-sbom-test"))
+        .find(|dep| {
+            dep["ref"]
+                .as_str()
+                .unwrap()
+                .contains("simple-sbom-test")
+        })
         .expect("root in dependencies");
     let depends_on = root_dep["dependsOn"].as_array().expect("dependsOn");
-    assert!(depends_on.iter().any(|dep| dep.as_str().unwrap().contains("is-positive")));
+    assert!(
+        depends_on
+            .iter()
+            .any(|dep| dep
+                .as_str()
+                .unwrap()
+                .contains("is-positive")),
+    );
 }
 
 #[test]
@@ -207,10 +243,16 @@ fn sbom_component_has_distribution_ref() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
     let components = parsed["components"].as_array().expect("components");
-    let is_positive =
-        components.iter().find(|comp| comp["name"] == "is-positive").expect("is-positive");
+    let is_positive = components
+        .iter()
+        .find(|comp| comp["name"] == "is-positive")
+        .expect("is-positive");
     let ext_refs = is_positive["externalReferences"].as_array().expect("externalReferences");
-    assert!(ext_refs.iter().any(|ext_ref| ext_ref["type"] == "distribution"));
+    assert!(
+        ext_refs
+            .iter()
+            .any(|ext_ref| ext_ref["type"] == "distribution"),
+    );
 }
 
 #[test]
@@ -242,13 +284,21 @@ fn sbom_includes_peers_by_default() {
     let tmp = copy_fixture("with-peer-dependency");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
     let components = parsed["components"].as_array().expect("components");
-    assert!(components.iter().any(|comp| comp["name"] == "is-positive"));
     assert!(
-        components.iter().any(|comp| comp["name"] == "is-odd"),
+        components
+            .iter()
+            .any(|comp| comp["name"] == "is-positive"),
+    );
+    assert!(
+        components
+            .iter()
+            .any(|comp| comp["name"] == "is-odd"),
         "peer dep should be included by default",
     );
     assert!(
-        components.iter().any(|comp| comp["name"] == "is-number"),
+        components
+            .iter()
+            .any(|comp| comp["name"] == "is-number"),
         "transitive of peer should be included",
     );
 }
@@ -259,12 +309,21 @@ fn sbom_exclude_peers_drops_subtree() {
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--exclude-peers"]);
     let components = parsed["components"].as_array().expect("components");
     assert!(
-        components.iter().any(|comp| comp["name"] == "is-positive"),
+        components
+            .iter()
+            .any(|comp| comp["name"] == "is-positive"),
         "non-peer dep should remain",
     );
-    assert!(!components.iter().any(|comp| comp["name"] == "is-odd"), "peer dep should be excluded");
     assert!(
-        !components.iter().any(|comp| comp["name"] == "is-number"),
+        !components
+            .iter()
+            .any(|comp| comp["name"] == "is-odd"),
+        "peer dep should be excluded",
+    );
+    assert!(
+        !components
+            .iter()
+            .any(|comp| comp["name"] == "is-number"),
         "transitive dep reachable only through peer should be excluded",
     );
     let root_ref = parsed["metadata"]["component"]["bom-ref"].as_str().expect("bom-ref");
@@ -291,7 +350,9 @@ fn sbom_exclude_peers_tolerates_malformed_manifest() {
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--exclude-peers"]);
     let components = parsed["components"].as_array().expect("components");
     assert!(
-        components.iter().any(|comp| comp["name"] == "is-positive"),
+        components
+            .iter()
+            .any(|comp| comp["name"] == "is-positive"),
         "should still produce output",
     );
 }
@@ -302,7 +363,9 @@ fn sbom_exclude_peers_keeps_real_dep_in_other_importer() {
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--exclude-peers"]);
     let components = parsed["components"].as_array().expect("components");
     assert!(
-        components.iter().any(|comp| comp["name"] == "is-odd"),
+        components
+            .iter()
+            .any(|comp| comp["name"] == "is-odd"),
         "is-odd is a peer in pkg-a but a real dep in pkg-b; should be kept",
     );
 }
@@ -357,11 +420,15 @@ fn sbom_dev_flag_excludes_prod() {
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--dev"]);
     let components = parsed["components"].as_array().expect("components");
     assert!(
-        !components.iter().any(|comp| comp["name"] == "is-positive"),
+        !components
+            .iter()
+            .any(|comp| comp["name"] == "is-positive"),
         "prod dep should be excluded with --dev",
     );
     assert!(
-        components.iter().any(|comp| comp["name"] == "typescript"),
+        components
+            .iter()
+            .any(|comp| comp["name"] == "typescript"),
         "dev dep should be included",
     );
 }
@@ -375,7 +442,10 @@ fn sbom_split_outputs_ndjson() {
             .expect("run pacquet");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let lines: Vec<&str> = stdout.lines().filter(|line| !line.is_empty()).collect();
+    let lines: Vec<&str> = stdout
+        .lines()
+        .filter(|line| !line.is_empty())
+        .collect();
     // Fixture lockfile only has root importer (TS tests install first to populate all importers)
     assert!(!lines.is_empty(), "should output at least one NDJSON line");
     for line in &lines {
@@ -408,7 +478,16 @@ fn sbom_split_out_writes_per_package_files() {
     assert!(out_dir.exists(), "output directory should be created");
     let files: Vec<String> = fs::read_dir(&out_dir)
         .expect("read output dir")
-        .filter_map(|entry| entry.ok().map(|entry| entry.file_name().to_string_lossy().to_string()))
+        .filter_map(|entry| {
+            entry
+                .ok()
+                .map(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .to_string()
+                })
+        })
         .collect();
     assert!(!files.is_empty(), "should write at least one file");
 }
@@ -503,7 +582,12 @@ fn sbom_no_optional_does_not_break_output() {
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--no-optional"]);
     assert_eq!(parsed["bomFormat"], "CycloneDX");
     let components = parsed["components"].as_array().expect("components");
-    assert!(components.iter().any(|comp| comp["name"] == "is-positive"), "prod dep still present");
+    assert!(
+        components
+            .iter()
+            .any(|comp| comp["name"] == "is-positive"),
+        "prod dep still present",
+    );
 }
 
 #[test]
@@ -538,8 +622,10 @@ fn sbom_prod_scope_undefined_for_prod_components() {
     let tmp = copy_fixture("with-dev-dependency");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
     let components = parsed["components"].as_array().expect("components");
-    let is_positive =
-        components.iter().find(|comp| comp["name"] == "is-positive").expect("is-positive");
+    let is_positive = components
+        .iter()
+        .find(|comp| comp["name"] == "is-positive")
+        .expect("is-positive");
     assert!(is_positive.get("scope").is_none(), "prod components should not have scope field");
 }
 
@@ -559,11 +645,15 @@ fn sbom_dev_flag_includes_only_dev() {
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--dev"]);
     let components = parsed["components"].as_array().expect("components");
     assert!(
-        components.iter().any(|comp| comp["name"] == "typescript"),
+        components
+            .iter()
+            .any(|comp| comp["name"] == "typescript"),
         "dev dep should be included",
     );
     assert!(
-        !components.iter().any(|comp| comp["name"] == "is-positive"),
+        !components
+            .iter()
+            .any(|comp| comp["name"] == "is-positive"),
         "prod dep should be excluded with --dev",
     );
 }
@@ -576,7 +666,10 @@ fn split_root_names(stdout: &str) -> Vec<String> {
         .filter(|line| !line.is_empty())
         .map(|line| {
             let parsed: serde_json::Value = serde_json::from_str(line).expect("valid JSON");
-            parsed["metadata"]["component"]["name"].as_str().expect("root name").to_string()
+            parsed["metadata"]["component"]["name"]
+                .as_str()
+                .expect("root name")
+                .to_string()
         })
         .collect()
 }
@@ -642,6 +735,116 @@ fn parse_sbom_output(output: &std::process::Output) -> serde_json::Value {
         String::from_utf8_lossy(&output.stderr),
     );
     serde_json::from_slice(&output.stdout).expect("parse JSON output")
+}
+
+#[test]
+fn sbom_root_repository_shorthand_is_expanded_to_github_url() {
+    let tmp = copy_fixture("sbom-repository");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
+    let root = &parsed["metadata"]["component"];
+    let ext_refs = root["externalReferences"].as_array().expect("root externalReferences");
+    let vcs = ext_refs
+        .iter()
+        .find(|ext_ref| ext_ref["type"] == "vcs")
+        .expect("vcs reference");
+    assert_eq!(vcs["url"], "git+https://github.com/acme/sbom-repository-test.git");
+}
+
+#[test]
+fn sbom_spdx_root_repository_shorthand_is_expanded_to_github_url() {
+    let tmp = copy_fixture("sbom-repository");
+    let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
+    let root = &parsed["packages"].as_array().expect("packages")[0];
+    assert_eq!(root["homepage"], "git+https://github.com/acme/sbom-repository-test.git");
+}
+
+#[test]
+fn sbom_root_repository_that_is_not_a_url_is_omitted() {
+    let tmp = copy_fixture("sbom-repository");
+    fs::write(
+        tmp.path().join("package.json"),
+        r#"{
+  "name": "sbom-repository-test",
+  "version": "1.0.0",
+  "license": "ISC",
+  "repository": "maintainers@example.com",
+  "dependencies": { "is-positive": "^3.1.0" }
+}"#,
+    )
+    .expect("write package.json");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
+    let root = &parsed["metadata"]["component"];
+    assert!(
+        !root
+            .get("externalReferences")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|ext_refs| ext_refs
+                .iter()
+                .any(|ext_ref| ext_ref["type"] == "vcs")),
+        "an email is not a repository URL and must not be published: {root}",
+    );
+}
+
+/// The fixture package's manifest carries `"repository": "pnpm/sbom-shorthand-repo"`.
+#[test]
+fn sbom_component_repository_shorthand_is_expanded_to_github_url() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry = mock_instance.url();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "sbom-component-repository",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/sbom-shorthand-repo": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args(["install"])
+        .with_arg(format!("--registry={registry}"))
+        .assert()
+        .success();
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config()
+        .with_args(["sbom", "--sbom-format", "cyclonedx"])
+        .with_arg(format!("--registry={registry}"))
+        .output()
+        .expect("run pacquet sbom");
+    assert!(
+        output.status.success(),
+        "pacquet sbom failed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout).expect("parse SBOM");
+    let component = parsed["components"]
+        .as_array()
+        .expect("components array")
+        .iter()
+        .find(|component| {
+            component["name"] == "sbom-shorthand-repo" && component["version"] == "1.0.0"
+        })
+        .expect("@pnpm.e2e/sbom-shorthand-repo component");
+    let ext_refs =
+        component["externalReferences"].as_array().expect("component externalReferences");
+    let vcs = ext_refs
+        .iter()
+        .find(|ext_ref| ext_ref["type"] == "vcs")
+        .expect("vcs reference");
+    assert_eq!(vcs["url"], "git+https://github.com/pnpm/sbom-shorthand-repo.git");
+
+    drop((root, mock_instance));
 }
 
 /// Gives the root manifest the string form of the `author` field.

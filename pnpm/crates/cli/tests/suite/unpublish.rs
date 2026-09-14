@@ -91,7 +91,10 @@ fn fails_when_package_is_not_found() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let get_mock = server.mock("GET", "/nonexistent-package-99999").with_status(404).create();
+    let get_mock = server
+        .mock("GET", "/nonexistent-package-99999")
+        .with_status(404)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output =
@@ -161,7 +164,10 @@ fn refuses_a_full_unpublish_without_force() {
         .with_status(200)
         .with_body(two_version_packument(&server.url()))
         .create();
-    let delete_mock = server.mock("DELETE", "/test-pkg/-rev/3-abc").expect(0).create();
+    let delete_mock = server
+        .mock("DELETE", "/test-pkg/-rev/3-abc")
+        .expect(0)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg"]);
@@ -207,8 +213,11 @@ fn force_unpublishes_the_entire_package() {
         .with_status(200)
         .with_body(two_version_packument(&server.url()))
         .create();
-    let delete_mock =
-        server.mock("DELETE", "/test-pkg/-rev/3-abc").with_status(200).with_body("{}").create();
+    let delete_mock = server
+        .mock("DELETE", "/test-pkg/-rev/3-abc")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg", "--force"]);
@@ -281,8 +290,11 @@ fn a_tarball_delete_404_is_tolerated() {
         .with_body(two_version_packument(&server.url()))
         .expect_at_least(2)
         .create();
-    let put_mock =
-        server.mock("PUT", "/test-pkg/-rev/3-abc").with_status(200).with_body("{}").create();
+    let put_mock = server
+        .mock("PUT", "/test-pkg/-rev/3-abc")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     // Some registries clean tarballs up on the packument update themselves.
     let tarball_delete_mock = server
         .mock("DELETE", "/test-pkg/-/test-pkg-0.0.1.tgz/-rev/3-abc")
@@ -309,7 +321,10 @@ fn a_405_on_a_full_unpublish_reports_unpublish_forbidden() {
         .with_status(200)
         .with_body(two_version_packument(&server.url()))
         .create();
-    let delete_mock = server.mock("DELETE", "/test-pkg/-rev/3-abc").with_status(405).create();
+    let delete_mock = server
+        .mock("DELETE", "/test-pkg/-rev/3-abc")
+        .with_status(405)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_unpublish(&workspace, &auth_file, Some(&registry), &["test-pkg", "--force"]);

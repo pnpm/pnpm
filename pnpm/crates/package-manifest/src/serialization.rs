@@ -30,8 +30,9 @@ fn detect_indent(contents: &str) -> &str {
         .lines()
         .find_map(|line| {
             let trimmed = line.trim_start_matches([' ', '\t']);
-            (!trimmed.is_empty() && trimmed.len() < line.len())
-                .then(|| &line[..line.len() - trimmed.len()])
+            (!trimmed.is_empty() && trimmed.len() < line.len()).then(|| {
+                &line[..line.len() - trimmed.len()]
+            })
         })
         .unwrap_or("")
 }
@@ -71,7 +72,9 @@ pub fn safe_read_package_json_from_dir(dir: &Path) -> Result<Option<Value>, Pack
         Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(err) => return Err(PackageManifestError::Io(err)),
     };
-    parse_manifest(&text).map(Some).map_err(|source| PackageManifestError::Parse { path, source })
+    parse_manifest(&text)
+        .map(Some)
+        .map_err(|source| PackageManifestError::Parse { path, source })
 }
 
 /// Parse the contents of a `package.json`.
@@ -150,12 +153,15 @@ impl PackageManifest {
         // same missing-manifest error a pre-check would raise, without
         // paying a stat before every successful read.
         let rendered_path = path.display().to_string();
-        PackageManifest::read_from_file(path).map_err(|error| match error {
-            PackageManifestError::Io(io_error) if io_error.kind() == io::ErrorKind::NotFound => {
-                PackageManifestError::NoImporterManifestFound(rendered_path)
-            }
-            other => other,
-        })
+        PackageManifest::read_from_file(path)
+            .map_err(|error| match error {
+                PackageManifestError::Io(io_error)
+                    if io_error.kind() == io::ErrorKind::NotFound =>
+                {
+                    PackageManifestError::NoImporterManifestFound(rendered_path)
+                }
+                other => other,
+            })
     }
 
     pub fn create_if_needed(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {

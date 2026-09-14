@@ -107,7 +107,7 @@ pub struct DistStats {
 pub type ObservedDistStats = Arc<DashMap<(String, String), DistStats>>;
 
 /// Construct a fresh sink for
-/// [`CreateNpmResolutionVerifierOptions::observed_dist_stats`].
+/// [`VerificationArtifacts::observed_stats`].
 #[must_use]
 pub fn observed_dist_stats_sink() -> ObservedDistStats {
     Arc::new(DashMap::new())
@@ -118,17 +118,52 @@ pub fn observed_dist_stats_sink() -> ObservedDistStats {
 /// The verifier owns the option bag once constructed — these fields
 /// flow into [`NpmResolutionVerifier`] verbatim.
 pub struct CreateNpmResolutionVerifierOptions {
+    /// `default` + per-scope registry map. Keyed by `"default"` or
+    /// `"@scope"`.
+    pub registries: HashMap<String, String>,
+    /// User-defined named-registry aliases (e.g. `gh:` →
+    /// `https://npm.pkg.github.com/`). Merged with
+    /// [`crate::BUILTIN_REGISTRIES_BY_PREFIX`].
+    pub registries_by_prefix: HashMap<String, String>,
+    /// Override for `Utc::now()` when computing the age cutoff and
+    /// the `trustPolicyIgnoreAfter` window. `None` falls back to
+    /// wall-clock at construction time.
+    pub now: Option<DateTime<Utc>>,
+    pub release_age: VerificationReleaseAgeOptions,
+    pub trust: VerificationTrustOptions,
+    pub metadata: VerificationMetadataClient,
+    pub artifacts: VerificationArtifacts,
+}
+
+pub struct VerificationReleaseAgeOptions {
     /// Minimum age in **minutes** a published version must reach
     /// before it is accepted. `None` disables the age check.
-    pub minimum_release_age: Option<u64>,
+    pub minimum_minutes: Option<u64>,
     /// Wildcard / exact-version patterns whose packages skip the age
     /// check. `None` (or empty) means "no exclusions".
-    pub minimum_release_age_exclude: Option<PackageVersionPolicy>,
-    /// Raw spec strings backing [`Self::minimum_release_age_exclude`].
+    pub exclude: Option<PackageVersionPolicy>,
+    /// Raw spec strings backing [`Self::exclude`].
     /// The verifier keeps the strings — not the compiled policy — for
     /// the cache snapshot in `policy()` so the persisted record can be
     /// compared byte-for-byte across runs.
-    pub minimum_release_age_exclude_patterns: Vec<String>,
+    pub exclude_patterns: Vec<String>,
+}
+
+pub struct VerificationTrustOptions {
+    /// `'no-downgrade'` enables the trust check;
+    /// [`TrustPolicy::Off`] disables it. Stored as an [`Option`] so
+    /// `None` and `Some(Off)` both disable the check while still
+    /// snapshotting differently for `policy()` (`null` vs the explicit
+    /// `off`).
+    pub policy: Option<TrustPolicy>,
+    pub exclude: Option<PackageVersionPolicy>,
+    pub exclude_patterns: Vec<String>,
+    /// Maximum age (in minutes) before which the trust check still
+    /// applies. `None` means "always check".
+    pub ignore_after: Option<u64>,
+}
+
+pub struct VerificationMetadataClient {
     /// Backs the `minimumReleaseAgeIgnoreMissingTime` opt-in: when
     /// `true` and the registry strips per-version `time`, the verifier
     /// passes the entry instead of failing closed. Applies to the
@@ -145,24 +180,6 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// paying an attestation round-trip and a full-packument download
     /// per cold-cache package. Default `false`.
     pub registry_supports_time_field: bool,
-    /// `'no-downgrade'` enables the trust check;
-    /// [`TrustPolicy::Off`] disables it. Stored as an [`Option`] so
-    /// `None` and `Some(Off)` both disable the check while still
-    /// snapshotting differently for `policy()` (`null` vs the explicit
-    /// `off`).
-    pub trust_policy: Option<TrustPolicy>,
-    pub trust_policy_exclude: Option<PackageVersionPolicy>,
-    pub trust_policy_exclude_patterns: Vec<String>,
-    /// Maximum age (in minutes) before which the trust check still
-    /// applies. `None` means "always check".
-    pub trust_policy_ignore_after: Option<u64>,
-    /// `default` + per-scope registry map. Keyed by `"default"` or
-    /// `"@scope"`.
-    pub registries: HashMap<String, String>,
-    /// User-defined named-registry aliases (e.g. `gh:` →
-    /// `https://npm.pkg.github.com/`). Merged with
-    /// [`crate::BUILTIN_REGISTRIES_BY_PREFIX`].
-    pub registries_by_prefix: HashMap<String, String>,
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     /// Root of pnpm's on-disk metadata mirror. When set, the verifier
@@ -186,14 +203,13 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// fetches. Sourced from the same `fetch-retries` config the
     /// resolver and tarball paths use.
     pub retry_opts: RetryOpts,
-    /// Override for `Utc::now()` when computing the age cutoff and
-    /// the `trustPolicyIgnoreAfter` window. `None` falls back to
-    /// wall-clock at construction time.
-    pub now: Option<DateTime<Utc>>,
+}
+
+pub struct VerificationArtifacts {
     /// Optional sink the verifier fills with each verified entry's
     /// `dist` work statistics (see [`ObservedDistStats`]). `None`
     /// skips collection.
-    pub observed_dist_stats: Option<ObservedDistStats>,
+    pub observed_stats: Option<ObservedDistStats>,
     /// Fetch evidence the materialization path fills after its
     /// warm/cold partition (see
     /// [`pnpm_resolving_resolver_base::PlannedCanonicalFetches`]).
@@ -203,7 +219,7 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// no metadata body is needed. `None` (paths that materialize
     /// nothing or run a resolver alongside) keeps the metadata-backed
     /// chain for every entry.
-    pub planned_canonical_fetches: Option<pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
+    pub canonical_fetches: Option<pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
 }
 
 /// Verifier returned by [`create_npm_resolution_verifier`]. Stores
@@ -211,50 +227,54 @@ pub struct CreateNpmResolutionVerifierOptions {
 /// caches, and the pre-built policy snapshot the cache reads via
 /// [`ResolutionVerifier::policy`].
 pub struct NpmResolutionVerifier {
-    minimum_release_age_minutes: Option<u64>,
+    now: Option<DateTime<Utc>>,
+    policy_snapshot: serde_json::Map<String, JsonValue>,
+    lookup_context: PublishedAtLookupContext,
+    release_age: ReleaseAgeCheck,
+    trust: TrustCheck,
+    metadata: VerificationMetadataClient,
+    artifacts: VerificationArtifacts,
+    routing: VerificationRegistryRoutes,
+}
+
+struct ReleaseAgeCheck {
+    minimum_minutes: Option<u64>,
     cutoff: Option<DateTime<Utc>>,
-    minimum_release_age_exclude: Option<PackageVersionPolicy>,
-    ignore_missing_time_field: bool,
-    registry_supports_time_field: bool,
-    trust_policy: Option<TrustPolicy>,
-    trust_policy_exclude: Option<PackageVersionPolicy>,
-    trust_policy_ignore_after: Option<u64>,
+    exclude: Option<PackageVersionPolicy>,
     /// Saved copy of the trust-exclude patterns so [`TrustCheckOptions`]
     /// can borrow them per-call without reconstructing the policy.
     /// Kept in sync with `trust_policy_exclude`.
-    sorted_min_age_excludes: Vec<String>,
-    sorted_trust_excludes: Vec<String>,
+    sorted_excludes: Vec<String>,
+}
+
+struct TrustCheck {
+    policy: Option<TrustPolicy>,
+    exclude: Option<PackageVersionPolicy>,
+    ignore_after: Option<u64>,
+    sorted_excludes: Vec<String>,
+}
+
+struct VerificationRegistryRoutes {
     registries: HashMap<String, String>,
     named_registry_prefixes: Vec<String>,
     /// Alias → URL map (built-ins merged with the user's setting) for
     /// routing registry-qualified lockfile keys, which carry no tarball
     /// URL for the prefix list to match.
     registries_by_prefix: HashMap<String, String>,
-    http_client: Arc<ThrottledClient>,
-    auth_headers: Arc<AuthHeaders>,
-    cache_dir: Option<PathBuf>,
-    meta_cache: Option<Arc<dyn PackageMetaCache>>,
-    offline: bool,
-    retry_opts: RetryOpts,
-    now: Option<DateTime<Utc>>,
-    policy_snapshot: serde_json::Map<String, JsonValue>,
-    lookup_context: PublishedAtLookupContext,
-    observed_dist_stats: Option<ObservedDistStats>,
-    planned_canonical_fetches: Option<pnpm_resolving_resolver_base::PlannedCanonicalFetches>,
 }
 
 impl std::fmt::Debug for NpmResolutionVerifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NpmResolutionVerifier")
-            .field("minimum_release_age_minutes", &self.minimum_release_age_minutes)
-            .field("cutoff", &self.cutoff)
-            .field("ignore_missing_time_field", &self.ignore_missing_time_field)
-            .field("registry_supports_time_field", &self.registry_supports_time_field)
-            .field("trust_policy", &self.trust_policy)
-            .field("trust_policy_ignore_after", &self.trust_policy_ignore_after)
-            .field("offline", &self.offline)
-            .field("sorted_min_age_excludes", &self.sorted_min_age_excludes)
-            .field("sorted_trust_excludes", &self.sorted_trust_excludes)
+            .field("minimum_release_age_minutes", &self.release_age.minimum_minutes)
+            .field("cutoff", &self.release_age.cutoff)
+            .field("ignore_missing_time_field", &self.metadata.ignore_missing_time_field)
+            .field("registry_supports_time_field", &self.metadata.registry_supports_time_field)
+            .field("trust_policy", &self.trust.policy)
+            .field("trust_policy_ignore_after", &self.trust.ignore_after)
+            .field("offline", &self.metadata.offline)
+            .field("sorted_min_age_excludes", &self.release_age.sorted_excludes)
+            .field("sorted_trust_excludes", &self.trust.sorted_excludes)
             .field("policy_snapshot", &self.policy_snapshot)
             .finish_non_exhaustive()
     }
@@ -269,49 +289,47 @@ impl std::fmt::Debug for NpmResolutionVerifier {
 pub fn create_npm_resolution_verifier(
     opts: CreateNpmResolutionVerifierOptions,
 ) -> NpmResolutionVerifier {
-    let cutoff = minimum_release_age_cutoff(&opts);
+    let cutoff = minimum_release_age_cutoff(&opts.release_age, opts.now);
 
     let named_registry_prefixes = named_registry_tarball_prefixes(&opts.registries_by_prefix);
 
-    let sorted_min_age_excludes = sorted_unique(&opts.minimum_release_age_exclude_patterns);
-    let sorted_trust_excludes = sorted_unique(&opts.trust_policy_exclude_patterns);
+    let sorted_min_age_excludes = sorted_unique(&opts.release_age.exclude_patterns);
+    let sorted_trust_excludes = sorted_unique(&opts.trust.exclude_patterns);
     let named_registries_routing = named_registries_routing_digest(&opts.registries_by_prefix);
 
     let policy_snapshot = build_policy_snapshot(&BuildPolicySnapshot {
-        minimum_release_age: opts.minimum_release_age.unwrap_or(0),
+        minimum_release_age: opts.release_age.minimum_minutes.unwrap_or(0),
         sorted_min_age_excludes: &sorted_min_age_excludes,
-        ignore_missing_time_field: opts.ignore_missing_time_field,
-        trust_policy: opts.trust_policy,
+        ignore_missing_time_field: opts.metadata.ignore_missing_time_field,
+        trust_policy: opts.trust.policy,
         sorted_trust_excludes: &sorted_trust_excludes,
-        trust_policy_ignore_after: opts.trust_policy_ignore_after,
+        trust_policy_ignore_after: opts.trust.ignore_after,
         named_registries_routing: &named_registries_routing,
     });
 
     NpmResolutionVerifier {
-        minimum_release_age_minutes: opts.minimum_release_age,
-        cutoff,
-        minimum_release_age_exclude: opts.minimum_release_age_exclude,
-        ignore_missing_time_field: opts.ignore_missing_time_field,
-        registry_supports_time_field: opts.registry_supports_time_field,
-        trust_policy: opts.trust_policy,
-        trust_policy_exclude: opts.trust_policy_exclude,
-        trust_policy_ignore_after: opts.trust_policy_ignore_after,
-        sorted_min_age_excludes,
-        sorted_trust_excludes,
-        registries: opts.registries,
-        named_registry_prefixes,
-        registries_by_prefix: opts.registries_by_prefix,
-        http_client: opts.http_client,
-        auth_headers: opts.auth_headers,
-        cache_dir: opts.cache_dir,
-        meta_cache: opts.meta_cache,
-        offline: opts.offline,
-        retry_opts: opts.retry_opts,
         now: opts.now,
         policy_snapshot,
         lookup_context: PublishedAtLookupContext::new(),
-        observed_dist_stats: opts.observed_dist_stats,
-        planned_canonical_fetches: opts.planned_canonical_fetches,
+        release_age: ReleaseAgeCheck {
+            minimum_minutes: opts.release_age.minimum_minutes,
+            cutoff,
+            exclude: opts.release_age.exclude,
+            sorted_excludes: sorted_min_age_excludes,
+        },
+        trust: TrustCheck {
+            policy: opts.trust.policy,
+            exclude: opts.trust.exclude,
+            ignore_after: opts.trust.ignore_after,
+            sorted_excludes: sorted_trust_excludes,
+        },
+        metadata: opts.metadata,
+        artifacts: opts.artifacts,
+        routing: VerificationRegistryRoutes {
+            registries: opts.registries,
+            named_registry_prefixes,
+            registries_by_prefix: opts.registries_by_prefix,
+        },
     }
 }
 
@@ -323,10 +341,10 @@ impl ResolutionVerifier for NpmResolutionVerifier {
         if tarball_url.is_some() || resolution.checkable_integrity().is_none() {
             return true;
         }
-        self.age_check_active()
-            && !is_excluded(self.minimum_release_age_exclude.as_ref(), ctx.name, ctx.version)
-            || self.trust_check_active()
-                && !is_excluded(self.trust_policy_exclude.as_ref(), ctx.name, ctx.version)
+        self.release_age.age_check_active()
+            && !is_excluded(self.release_age.exclude.as_ref(), ctx.name, ctx.version)
+            || self.trust.trust_check_active()
+                && !is_excluded(self.trust.exclude.as_ref(), ctx.name, ctx.version)
     }
 
     fn verify<'a>(
@@ -350,32 +368,34 @@ impl ResolutionVerifier for NpmResolutionVerifier {
         // (stricter window) is trustworthy under a smaller current one
         // — the set of accepted versions is a subset of today's.
         // Tightening the cutoff invalidates the cached run.
-        let past_min_age =
-            cached_policy.get("minimumReleaseAge").and_then(JsonValue::as_u64).unwrap_or(0);
-        if past_min_age < self.minimum_release_age_minutes.unwrap_or(0) {
+        let past_min_age = cached_policy
+            .get("minimumReleaseAge")
+            .and_then(JsonValue::as_u64)
+            .unwrap_or(0);
+        if past_min_age < self.release_age.minimum_minutes.unwrap_or(0) {
             return false;
         }
 
         let past_min_age_excludes =
             cached_policy_patterns(cached_policy, "minimumReleaseAgeExclude");
-        if past_min_age_excludes != self.sorted_min_age_excludes {
+        if past_min_age_excludes != self.release_age.sorted_excludes {
             return false;
         }
 
         let past_trust_policy = cached_policy.get("trustPolicy").and_then(JsonValue::as_str);
-        let today_trust_policy = self.trust_policy_wire_str();
+        let today_trust_policy = self.trust.trust_policy_wire_str();
         if past_trust_policy != today_trust_policy {
             return false;
         }
 
         let past_trust_excludes = cached_policy_patterns(cached_policy, "trustPolicyExclude");
-        if past_trust_excludes != self.sorted_trust_excludes {
+        if past_trust_excludes != self.trust.sorted_excludes {
             return false;
         }
 
         let past_ignore_after =
             cached_policy.get("trustPolicyIgnoreAfter").and_then(JsonValue::as_u64);
-        if past_ignore_after != self.trust_policy_ignore_after {
+        if past_ignore_after != self.trust.ignore_after {
             return false;
         }
 
@@ -389,7 +409,7 @@ impl ResolutionVerifier for NpmResolutionVerifier {
             .get("minimumReleaseAgeIgnoreMissingTime")
             .and_then(JsonValue::as_bool)
             .unwrap_or(false);
-        if past_ignore_missing_time && !self.ignore_missing_time_field {
+        if past_ignore_missing_time && !self.metadata.ignore_missing_time_field {
             return false;
         }
 
@@ -425,7 +445,7 @@ impl NpmResolutionVerifier {
             return ResolutionVerification::Ok;
         }
 
-        let named_registry = match self.named_registry_url(ctx.registry_name) {
+        let named_registry = match self.routing.named_registry_url(ctx.registry_name) {
             Ok(named_registry) => named_registry,
             Err(violation) => return violation,
         };
@@ -434,17 +454,17 @@ impl NpmResolutionVerifier {
         if tarball_url.is_none() && !age_applies && !trust_applies {
             return ResolutionVerification::Ok;
         }
-        let registry = named_registry.unwrap_or_else(|| self.pick_registry(ctx.name, tarball_url));
+        let registry =
+            named_registry.unwrap_or_else(|| self.routing.pick_registry(ctx.name, tarball_url));
 
-        if let Some(violation) = self
-            .run_artifact_binding(
-                &registry,
-                &ctx,
-                resolution,
-                tarball_url,
-                age_applies || trust_applies,
-            )
-            .await
+        if let Some(violation) = self.run_artifact_binding(
+            &registry,
+            &ctx,
+            resolution,
+            tarball_url,
+            age_applies || trust_applies,
+        )
+        .await
         {
             return violation;
         }
@@ -478,10 +498,10 @@ impl NpmResolutionVerifier {
 
     /// Whether the maturity and trust policies apply to this entry.
     fn policies_for(&self, ctx: &VerifyCtx<'_>) -> (bool, bool) {
-        let age_applies = self.age_check_active()
-            && !is_excluded(self.minimum_release_age_exclude.as_ref(), ctx.name, ctx.version);
-        let trust_applies = self.trust_check_active()
-            && !is_excluded(self.trust_policy_exclude.as_ref(), ctx.name, ctx.version);
+        let age_applies = self.release_age.age_check_active()
+            && !is_excluded(self.release_age.exclude.as_ref(), ctx.name, ctx.version);
+        let trust_applies = self.trust.trust_check_active()
+            && !is_excluded(self.trust.exclude.as_ref(), ctx.name, ctx.version);
         (age_applies, trust_applies)
     }
 
@@ -507,7 +527,43 @@ impl NpmResolutionVerifier {
         }
         ResolutionVerification::Ok
     }
+}
 
+fn render_fetch_metadata_error(error: &crate::FetchMetadataError) -> String {
+    let code = error.code().map(|code| code.to_string());
+    let message = redact_url_credentials(&error.to_string());
+    match code {
+        Some(code) => format!("{code}: {message}"),
+        None => message,
+    }
+}
+
+fn is_excluded(policy: Option<&PackageVersionPolicy>, name: &PkgName, version: &str) -> bool {
+    let Some(policy) = policy else { return false };
+    match policy.matches(&name.to_string()) {
+        pnpm_config::version_policy::PolicyMatch::No => false,
+        pnpm_config::version_policy::PolicyMatch::AnyVersion => true,
+        pnpm_config::version_policy::PolicyMatch::ExactVersions(versions) => versions
+            .iter()
+            .any(|exact| exact == version),
+    }
+}
+
+fn uncheckable(policy: &str, why: &str) -> String {
+    format!("could not be checked against {policy} ({why})")
+}
+
+fn format_trust_violation(err: TrustViolation) -> String {
+    match err {
+        TrustViolation::TrustCheckFailed { reason } => uncheckable("trustPolicy", &reason),
+        other => other.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests;
+
+impl VerificationRegistryRoutes {
     /// The URL a registry-qualified entry routes to.
     ///
     /// Registry-qualified entries name their registry in the dep path, so
@@ -531,10 +587,6 @@ impl NpmResolutionVerifier {
         }
     }
 
-    fn age_check_active(&self) -> bool {
-        self.minimum_release_age_minutes.is_some_and(|minutes| minutes > 0)
-    }
-
     fn pick_registry(&self, name: &PkgName, tarball_url: Option<&str>) -> String {
         if let Some(url) = tarball_url {
             // Match on the same canonical form the tarball comparison uses, so
@@ -553,36 +605,8 @@ impl NpmResolutionVerifier {
     }
 }
 
-fn render_fetch_metadata_error(error: &crate::FetchMetadataError) -> String {
-    let code = error.code().map(|code| code.to_string());
-    let message = redact_url_credentials(&error.to_string());
-    match code {
-        Some(code) => format!("{code}: {message}"),
-        None => message,
+impl ReleaseAgeCheck {
+    fn age_check_active(&self) -> bool {
+        self.minimum_minutes.is_some_and(|minutes| minutes > 0)
     }
 }
-
-fn is_excluded(policy: Option<&PackageVersionPolicy>, name: &PkgName, version: &str) -> bool {
-    let Some(policy) = policy else { return false };
-    match policy.matches(&name.to_string()) {
-        pnpm_config::version_policy::PolicyMatch::No => false,
-        pnpm_config::version_policy::PolicyMatch::AnyVersion => true,
-        pnpm_config::version_policy::PolicyMatch::ExactVersions(versions) => {
-            versions.iter().any(|exact| exact == version)
-        }
-    }
-}
-
-fn uncheckable(policy: &str, why: &str) -> String {
-    format!("could not be checked against {policy} ({why})")
-}
-
-fn format_trust_violation(err: TrustViolation) -> String {
-    match err {
-        TrustViolation::TrustCheckFailed { reason } => uncheckable("trustPolicy", &reason),
-        other => other.to_string(),
-    }
-}
-
-#[cfg(test)]
-mod tests;

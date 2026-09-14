@@ -70,10 +70,11 @@ snapshots:
 
 fn fixture_env_lockfile() -> EnvLockfile {
     let mut env = EnvLockfile::create();
-    env.root_importer_mut().config_dependencies.insert(
-        "config-dep".to_string(),
-        SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
-    );
+    env.root_importer_mut().config_dependencies
+        .insert(
+            "config-dep".to_string(),
+            SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
+        );
     env.snapshots.insert("config-dep@1.0.0".parse().unwrap(), SnapshotEntry::default());
     env
 }
@@ -99,11 +100,17 @@ importers:
 }
 
 fn vulnerable_names(names: &[&str]) -> HashSet<String> {
-    names.iter().map(|name| (*name).to_string()).collect()
+    names
+        .iter()
+        .map(|name| (*name).to_string())
+        .collect()
 }
 
 fn path_info<'a>(index: &'a AuditPathIndex, name: &str, version: &str) -> &'a PathInfo {
-    index.get(name).and_then(|by_version| by_version.get(version)).expect("path info")
+    index
+        .get(name)
+        .and_then(|by_version| by_version.get(version))
+        .expect("path info")
 }
 
 fn snapshot(deps: &[(&str, &str)], optional_deps: &[(&str, &str)]) -> SnapshotEntry {
@@ -303,7 +310,13 @@ fn render_json_filters_by_audit_level_after_ignores() {
 
     let rendered = render_json_report(&report, ConfigAuditLevel::Moderate).unwrap();
     let value: serde_json::Value = serde_json::from_str(&rendered).unwrap();
-    assert_eq!(value["advisories"].as_object().unwrap().len(), 0);
+    assert_eq!(
+        value["advisories"]
+            .as_object()
+            .unwrap()
+            .len(),
+        0,
+    );
     assert_eq!(value["metadata"]["vulnerabilities"]["low"], 1);
     assert_eq!(value["metadata"]["vulnerabilities"]["high"], 1);
 }

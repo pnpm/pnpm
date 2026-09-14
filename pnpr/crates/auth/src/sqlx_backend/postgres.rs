@@ -78,7 +78,11 @@ impl AuthSqlBackend for PostgresDatabase {
     async fn user_count(&self) -> Result<u64> {
         let Some(count) = self.user_counter().await? else {
             self.ensure_user_counter().await?;
-            return Ok(self.user_counter().await?.unwrap_or(0).max(0) as u64);
+            return Ok(self
+                .user_counter()
+                .await?
+                .unwrap_or(0)
+                .max(0) as u64);
         };
         Ok(count.max(0) as u64)
     }
@@ -148,7 +152,9 @@ impl AuthSqlBackend for PostgresDatabase {
             .bind(token_hash)
             .fetch_optional(&self.pool)
             .await?;
-        row.map(|row| row.try_get(0)).transpose().map_err(RegistryError::from)
+        row.map(|row| row.try_get(0))
+            .transpose()
+            .map_err(RegistryError::from)
     }
 
     async fn find_token(&self, token_hash: &str) -> Result<Option<TokenRecord>> {
@@ -170,7 +176,9 @@ impl AuthSqlBackend for PostgresDatabase {
         .bind(username)
         .fetch_all(&self.pool)
         .await?;
-        rows.into_iter().map(|row| keyed_token_record_from_row(&row)).collect()
+        rows.into_iter()
+            .map(|row| keyed_token_record_from_row(&row))
+            .collect()
     }
 
     async fn delete_token(&self, token_hash: &str) -> Result<()> {
@@ -289,8 +297,8 @@ fn token_record_from_offset(
     token_hash: &str,
 ) -> Result<TokenRecord> {
     let cidr_json: String = row.try_get(offset + 4)?;
-    let cidr_whitelist: Vec<String> =
-        serde_json::from_str(&cidr_json).map_err(|err| RegistryError::Internal {
+    let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json)
+        .map_err(|err| RegistryError::Internal {
             reason: format!("token {token_hash} has an unreadable cidr_whitelist: {err}"),
         })?;
     let readonly: i16 = row.try_get(offset + 3)?;

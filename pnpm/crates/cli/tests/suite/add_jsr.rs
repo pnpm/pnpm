@@ -29,8 +29,7 @@ fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
 
 fn root_dependency<'a>(lockfile: &'a Lockfile, alias: &str) -> &'a ResolvedDependencySpec {
     let alias: PkgName = alias.parse().expect("parse alias");
-    lockfile
-        .importers
+    lockfile.importers
         .get(Lockfile::ROOT_IMPORTER_KEY)
         .expect("root importer")
         .dependencies
@@ -44,7 +43,10 @@ fn root_dependency<'a>(lockfile: &'a Lockfile, alias: &str) -> &'a ResolvedDepen
 fn add_saves_a_jsr_selector_under_its_jsr_name() {
     let (root, workspace, anchor) = setup();
 
-    pacquet_in(&workspace).with_args(["add", "jsr:@pnpm-e2e/bar"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["add", "jsr:@pnpm-e2e/bar"])
+        .assert()
+        .success();
 
     assert_eq!(
         dependency_spec(&workspace, "dependencies", "@pnpm-e2e/bar").as_deref(),
@@ -63,7 +65,10 @@ fn add_saves_a_jsr_selector_under_its_jsr_name() {
 fn add_keeps_the_range_operator_a_jsr_selector_asks_for() {
     let (root, workspace, anchor) = setup();
 
-    pacquet_in(&workspace).with_args(["add", "jsr:@pnpm-e2e/bar@1.0"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["add", "jsr:@pnpm-e2e/bar@1.0"])
+        .assert()
+        .success();
 
     assert_eq!(
         dependency_spec(&workspace, "dependencies", "@pnpm-e2e/bar").as_deref(),

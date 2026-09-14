@@ -75,7 +75,10 @@ fn approve_downloads_every_tarball_before_approving_any_stage_with_one_otp() {
                 server
                     .mock("GET", format!("/-/stage/{stage_id}/tarball").as_str())
                     .with_body_from_request(move |_| {
-                        events.lock().expect("lock events").push(format!("tarball:{stage_id}"));
+                        events
+                            .lock()
+                            .expect("lock events")
+                            .push(format!("tarball:{stage_id}"));
                         tarball.clone()
                     })
                     .expect(1)
@@ -91,7 +94,10 @@ fn approve_downloads_every_tarball_before_approving_any_stage_with_one_otp() {
                 .match_header("npm-otp", "123456")
                 .with_status(201)
                 .with_body_from_request(move |_| {
-                    events.lock().expect("lock events").push(format!("approve:{stage_id}"));
+                    events
+                        .lock()
+                        .expect("lock events")
+                        .push(format!("approve:{stage_id}"));
                     br#"{"ok":true}"#.to_vec()
                 })
                 .expect(1)
@@ -104,7 +110,11 @@ fn approve_downloads_every_tarball_before_approving_any_stage_with_one_otp() {
         &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
     );
 
-    for mock in described_mocks.iter().chain(&tarball_mocks).chain(&approve_mocks) {
+    for mock in described_mocks
+        .iter()
+        .chain(&tarball_mocks)
+        .chain(&approve_mocks)
+    {
         mock.assert();
     }
     assert_success(&output);
@@ -171,8 +181,10 @@ fn approve_skips_a_staged_package_whose_selected_dependency_could_not_be_approve
         .with_body(r#"{"error":"version already exists"}"#)
         .expect_at_least(1)
         .create();
-    let dependent_mock =
-        server.mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str()).expect(0).create();
+    let dependent_mock = server
+        .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
+        .expect(0)
+        .create();
 
     let output = stage(
         dir.path(),
@@ -239,7 +251,10 @@ fn approve_derives_package_identity_and_aliases_from_tarballs() {
                 .mock("POST", format!("/-/stage/{stage_id}/approve").as_str())
                 .with_status(201)
                 .with_body_from_request(move |_| {
-                    approved.lock().expect("lock approvals").push(stage_id);
+                    approved
+                        .lock()
+                        .expect("lock approvals")
+                        .push(stage_id);
                     br#"{"ok":true}"#.to_vec()
                 })
                 .expect(1)
@@ -252,7 +267,11 @@ fn approve_derives_package_identity_and_aliases_from_tarballs() {
         &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
     );
 
-    for mock in described_mocks.iter().chain(&tarball_mocks).chain(&approve_mocks) {
+    for mock in described_mocks
+        .iter()
+        .chain(&tarball_mocks)
+        .chain(&approve_mocks)
+    {
         mock.assert();
     }
     assert_success(&output);
@@ -309,7 +328,10 @@ fn approve_does_not_bind_an_npm_alias_tag_to_a_selected_version() {
                 .mock("POST", format!("/-/stage/{stage_id}/approve").as_str())
                 .with_status(201)
                 .with_body_from_request(move |_| {
-                    approved.lock().expect("lock approvals").push(stage_id);
+                    approved
+                        .lock()
+                        .expect("lock approvals")
+                        .push(stage_id);
                     br#"{"ok":true}"#.to_vec()
                 })
                 .expect(1)
@@ -322,7 +344,11 @@ fn approve_does_not_bind_an_npm_alias_tag_to_a_selected_version() {
         &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
     );
 
-    for mock in described_mocks.iter().chain(&tarball_mocks).chain(&approve_mocks) {
+    for mock in described_mocks
+        .iter()
+        .chain(&tarball_mocks)
+        .chain(&approve_mocks)
+    {
         mock.assert();
     }
     assert_success(&output);
@@ -359,7 +385,10 @@ fn approve_rejects_duplicate_package_versions_before_approving_the_batch() {
                 .create()
         })
         .collect::<Vec<_>>();
-    let approve_mock = server.mock("POST", Matcher::Any).expect(0).create();
+    let approve_mock = server
+        .mock("POST", Matcher::Any)
+        .expect(0)
+        .create();
 
     let output = stage(
         dir.path(),
@@ -379,7 +408,10 @@ fn approve_sends_one_request_for_a_repeated_stage_id() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     write_registry_config(dir.path(), &registry);
-    let read_mock = server.mock("GET", Matcher::Any).expect(0).create();
+    let read_mock = server
+        .mock("GET", Matcher::Any)
+        .expect(0)
+        .create();
     let approve_mock = server
         .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
         .match_header("npm-otp", "123456")
@@ -406,7 +438,10 @@ fn approve_without_a_stage_id_requires_an_interactive_terminal() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     write_registry_config(dir.path(), &registry);
-    let mock = server.mock("GET", Matcher::Any).expect(0).create();
+    let mock = server
+        .mock("GET", Matcher::Any)
+        .expect(0)
+        .create();
 
     // The spawned binary has no TTY, so the staged packages cannot be chosen.
     let output = stage(dir.path(), &["approve"]);

@@ -60,9 +60,13 @@ pub fn resolve_boolean_values(mut argv: Vec<OsString>) -> Vec<OsString> {
         }
         // A token past the boundary is the child's, so it can be neither
         // rewritten nor read as an option's value.
-        let next = (index + 1 < owned_by_pnpm).then(|| argv[index + 1].to_str()).flatten();
+        let next = (index + 1 < owned_by_pnpm)
+            .then(|| argv[index + 1].to_str())
+            .flatten();
         let width = option_width(token, next, arity).unwrap_or(1);
-        if let Some((name, value)) = token.strip_prefix("--").and_then(|rest| rest.split_once('='))
+        if let Some((name, value)) = token
+            .strip_prefix("--")
+            .and_then(|rest| rest.split_once('='))
             && let Some(spelling) = flags.spelling_for(name, value)
         {
             argv[index] = spelling;
@@ -100,7 +104,10 @@ impl BooleanFlags {
         // there, and a flag whose opposite is one has no false spelling.
         flags.opposites.retain(|name, _| !value_taking.contains(name));
         for opposite in flags.opposites.values_mut() {
-            if opposite.as_ref().is_some_and(|name| value_taking.contains(name)) {
+            if opposite
+                .as_ref()
+                .is_some_and(|name| value_taking.contains(name))
+            {
                 *opposite = None;
             }
         }
@@ -108,7 +115,10 @@ impl BooleanFlags {
     }
 
     fn absorb(&mut self, command: &Command, value_taking: &mut HashSet<String>) {
-        let longs: HashSet<&str> = command.get_arguments().flat_map(spellings).collect();
+        let longs: HashSet<&str> = command
+            .get_arguments()
+            .flat_map(spellings)
+            .collect();
         for arg in command.get_arguments() {
             if arg.get_action().takes_values() {
                 value_taking.extend(spellings(arg).map(str::to_owned));
@@ -149,7 +159,13 @@ impl BooleanFlags {
 
 /// The long spellings `arg` answers to: its own, plus its aliases.
 fn spellings(arg: &Arg) -> impl Iterator<Item = &str> {
-    arg.get_long().into_iter().chain(arg.get_all_aliases().into_iter().flatten())
+    arg.get_long()
+        .into_iter()
+        .chain(
+            arg.get_all_aliases()
+                .into_iter()
+                .flatten(),
+        )
 }
 
 fn boolean_flags() -> &'static BooleanFlags {

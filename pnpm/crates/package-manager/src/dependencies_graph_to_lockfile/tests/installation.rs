@@ -440,7 +440,7 @@ fn file_dep_child_renders_as_bare_file_ref() {
 
     let child = make_file_node("nested-child", "child");
     let mut parent = make_file_node("nested-parent", "parent");
-    parent.children.insert("nested-child".to_string(), child.dep_path.clone());
+    parent.edges.children.insert("nested-child".to_string(), child.dep_path.clone());
 
     let mut graph = DependenciesGraph::default();
     let parent_dep_path = parent.dep_path.clone();
@@ -456,7 +456,9 @@ fn file_dep_child_renders_as_bare_file_ref() {
     let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
     let parent_key: PackageKey = "nested-parent@file:parent".parse().unwrap();
     let deps = snapshots[&parent_key].dependencies.as_ref().expect("nested-parent dependencies");
-    let child_ref = deps.get(&PkgName::parse("nested-child").unwrap()).expect("nested-child child");
+    let child_ref = deps
+        .get(&PkgName::parse("nested-child").unwrap())
+        .expect("nested-child child");
     assert_eq!(dbg!(child_ref).to_string(), "file:child");
 }
 /// An injected workspace dep whose alias equals its package name must
@@ -473,29 +475,33 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
         resolved_package_id: "file:comp1".to_string(),
         resolve_result: std::sync::Arc::new(ResolveResult {
             id: "file:comp1".into(),
-            // Directory resolutions carry no structured name.
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: Some(std::sync::Arc::new(
-                serde_json::json!({ "name": "@scope/comp1", "version": "1.0.0" }),
-            )),
-            resolution: pnpm_lockfile::DirectoryResolution { directory: "comp1".to_string() }
-                .into(),
+            resolution: pnpm_lockfile::DirectoryResolution { directory: "comp1".to_string() }.into(
+            ),
             resolved_via: "local-filesystem".to_string(),
             normalized_bare_specifier: None,
             alias: Some("@scope/comp1".to_string()),
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                // Directory resolutions carry no structured name.
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: Some(std::sync::Arc::new(
+                    serde_json::json!({ "name": "@scope/comp1", "version": "1.0.0" }),
+                )),
+            },
         }),
-        children: BTreeMap::new(),
-        optional_children: HashSet::default(),
-        peer_dependencies: BTreeMap::new(),
-        transitive_peer_dependencies: HashSet::default(),
-        resolved_peer_names: HashSet::default(),
         depth: 0,
         installable: true,
         is_pure: false,
         optional: false,
+        edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
+            children: BTreeMap::new(),
+            optional_children: HashSet::default(),
+            peer_dependencies: BTreeMap::new(),
+            transitive_peer_dependencies: HashSet::default(),
+            resolved_peer_names: HashSet::default(),
+        },
     };
 
     let version = crate::dependencies_graph_to_lockfile::importers::importer_dep_version(
@@ -541,7 +547,7 @@ fn named_registry_package_keeps_the_format_and_drops_a_canonical_tarball() {
 
     let registries_by_prefix = named_registries_with("work", "https://npm.enterprise.example.com/");
     let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
-    opts.registries_by_prefix = &registries_by_prefix;
+    opts.metadata_sources.registries_by_prefix = &registries_by_prefix;
 
     let lockfile = dependencies_graph_to_lockfile(opts);
 
@@ -584,7 +590,7 @@ fn unchanged_resolutions_keep_their_previous_package_metadata() {
         let direct =
             BTreeMap::from([("react".to_string(), DepPath::from("react@17.0.2".to_string()))]);
         let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
-        opts.previous_packages = previous;
+        opts.metadata_sources.previous_packages = previous;
         let lockfile = dependencies_graph_to_lockfile(opts);
         let key: PackageKey = "react@17.0.2".parse().unwrap();
         lockfile.packages.expect("packages map")[&key].clone()

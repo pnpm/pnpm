@@ -54,8 +54,9 @@ pub(crate) async fn star_action(
     is_star: bool,
 ) -> miette::Result<()> {
     let action = action_word(is_star);
-    let auth_header =
-        config.auth_headers.for_url(&config.registry).ok_or(StarError::Unauthorized { action })?;
+    let auth_header = config.auth_headers
+        .for_url(&config.registry)
+        .ok_or(StarError::Unauthorized { action })?;
     let http_client = build_registry_client(config)?;
     let retry_opts = RetryOpts {
         retries: config.fetch_retries,
@@ -117,8 +118,7 @@ async fn perform_legacy_star_action(
     let pkg_url = format!("{registry_url}{escaped_name}");
 
     let mut pkg_data =
-        fetch_package_document(http_client, &pkg_url, auth_header, retry_opts, package_name)
-            .await?;
+        fetch_package_document(http_client, &pkg_url, auth_header, retry_opts, package_name).await?;
 
     apply_star_to_users(&mut pkg_data, &username, is_star);
 
@@ -147,7 +147,10 @@ async fn perform_legacy_star_action(
         return Err(StarError::LegacyFailed {
             action,
             status: status.as_u16(),
-            status_text: status.canonical_reason().unwrap_or_default().to_string(),
+            status_text: status
+                .canonical_reason()
+                .unwrap_or_default()
+                .to_string(),
             body,
         }
         .into());
@@ -181,12 +184,18 @@ async fn fetch_package_document(
         }
         return Err(StarError::FetchPackageInfo {
             status: status.as_u16(),
-            status_text: status.canonical_reason().unwrap_or_default().to_string(),
+            status_text: status
+                .canonical_reason()
+                .unwrap_or_default()
+                .to_string(),
         }
         .into());
     }
-    let pkg_data =
-        response.json().await.into_diagnostic().wrap_err("parsing the package metadata")?;
+    let pkg_data = response
+        .json()
+        .await
+        .into_diagnostic()
+        .wrap_err("parsing the package metadata")?;
     drop(client);
     Ok(pkg_data)
 }
@@ -195,7 +204,9 @@ async fn fetch_package_document(
 /// missing or not an object, mirroring `pkgData.users = pkgData.users || {}`.
 fn apply_star_to_users(pkg_data: &mut Value, username: &str, is_star: bool) {
     let Some(obj) = pkg_data.as_object_mut() else { return };
-    let users = obj.entry("users").or_insert_with(|| Value::Object(Map::new()));
+    let users = obj
+        .entry("users")
+        .or_insert_with(|| Value::Object(Map::new()));
     if !users.is_object() {
         *users = Value::Object(Map::new());
     }
@@ -255,12 +266,19 @@ async fn fetch_alternate_star(
         )
         .await;
     }
-    let body = response2.text().await.unwrap_or_default();
-    Err(StarError::Failed {
+    Err(star_error(response2, action).await.into())
+}
+
+async fn star_error(response: reqwest::Response, action: &'static str) -> StarError {
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    StarError::Failed {
         action,
         status: status.as_u16(),
-        status_text: status.canonical_reason().unwrap_or_default().to_string(),
+        status_text: status
+            .canonical_reason()
+            .unwrap_or_default()
+            .to_string(),
         body,
     }
-    .into())
 }

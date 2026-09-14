@@ -1,5 +1,5 @@
 use super::{
-    Context, DependencyGroup, IncludedDependencies, Install, InstallFamilySelection,
+    Context, DependencyGroup, IncludedDependencies, InstallFamilySelection,
     InstallFrozenLockfileError, Lockfile, LockfileVerificationOverride, MaybeLazyLockfile,
     NodeLinker, PnprClient, PnprClientError, PnprLink, PnprRequestInputs, PnprSession, Reporter,
     ResolveProject, SkippedSnapshots, State, TarballPrefetcher, VerifyLockfileOptions,
@@ -18,17 +18,18 @@ pub(super) async fn link_pnpr_lockfile<Reporter: self::Reporter + 'static>(
     lockfile: &Lockfile,
     pnpmfile_hook: Option<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 ) -> miette::Result<()> {
-    let install = Install {
-        lockfile_path: link.lockfile_path,
-        frozen_lockfile: true,
-        ignore_manifest_check: link.ignore_manifest_check,
-        skip_runtimes: link.skip_runtimes,
-        trust_lockfile: true,
-        supported_architectures: link.supported_architectures,
-        node_linker: link.node_linker,
-        pnpmfile_hook_override: pnpmfile_hook,
-        lockfile: MaybeLazyLockfile::Loaded(Some(lockfile)),
-        ..state.install(link.dependency_groups)
+    let install = {
+        let mut base_install = state.install(link.dependency_groups);
+        base_install.lockfile_policy.frozen = true;
+        base_install.lockfile_policy.ignore_manifest_check = link.lockfile.ignore_manifest_check;
+        base_install.lockfile_policy.trust = true;
+        base_install.execution.skip_runtimes = link.skip_runtimes;
+        base_install.execution.node_linker = link.node_linker;
+        base_install.context.lockfile_path = link.lockfile_path;
+        base_install.context.lockfile = MaybeLazyLockfile::Loaded(Some(lockfile));
+        base_install.projects.supported_architectures = link.supported_architectures;
+        base_install.projects.pnpmfile_hook_override = pnpmfile_hook;
+        base_install
     };
     match selection {
         Some(selection) => {
@@ -81,13 +82,11 @@ pub(super) fn selection_importer_ids(
 ) -> Option<(std::collections::HashSet<String>, std::collections::HashSet<String>)> {
     let selection = selection?;
     let importer_root = state.config.lockfile_dir_for(&selection.workspace_root);
-    let real_importer_ids = selection
-        .projects
+    let real_importer_ids = selection.projects
         .iter()
         .map(|project| pnpm_workspace::importer_id_from_root_dir(importer_root, &project.root_dir))
         .collect();
-    let selected_importer_ids = selection
-        .install_dirs
+    let selected_importer_ids = selection.install_dirs
         .iter()
         .map(|project_dir| pnpm_workspace::importer_id_from_root_dir(importer_root, project_dir))
         .collect();
@@ -109,8 +108,10 @@ pub(super) fn full_workspace_importer_ids(
     {
         return None;
     }
-    let importer_ids: std::collections::HashSet<_> =
-        projects.iter().map(|project| project.dir.clone()).collect();
+    let importer_ids: std::collections::HashSet<_> = projects
+        .iter()
+        .map(|project| project.dir.clone())
+        .collect();
     Some((importer_ids.clone(), importer_ids))
 }
 
@@ -124,11 +125,11 @@ async fn verify_merged_repair<Reporter: self::Reporter + 'static>(
     lockfile: &Lockfile,
 ) -> miette::Result<Option<Vec<std::sync::Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>>>
 {
-    if !(link.fix_lockfile && partial_selection) {
+    if !(link.lockfile.fix && partial_selection) {
         return Ok(None);
     }
     let verifiers =
-        if link.trust_lockfile { Vec::new() } else { state_resolution_verifiers(state)? };
+        if link.lockfile.trust { Vec::new() } else { state_resolution_verifiers(state)? };
     if !lockfile_verification_is_cached_by_content(&state.config.cache_dir, lockfile, &verifiers) {
         verify_lockfile_resolutions::<Reporter>(
             lockfile,
@@ -160,7 +161,7 @@ fn save_pnpr_lockfile(
         .save_to_path(lockfile_path)
         .map_err(|err| miette::miette!("{err}"))
         .wrap_err("writing the pnpr-resolved lockfile")?;
-    if link.trust_lockfile {
+    if link.lockfile.trust {
         return Ok(());
     }
     if let Some(verifiers) = merged_repair_verifiers {
@@ -212,18 +213,21 @@ pub(super) async fn install_from_local_lockfile<Reporter: self::Reporter + 'stat
     let lockfile_verification_override =
         local_lockfile_verification(state, pnpr_server, link, local)?;
 
-    let install = Install {
-        lockfile_path: link.lockfile_path,
-        frozen_lockfile: true,
-        ignore_manifest_check: link.ignore_manifest_check,
-        skip_runtimes: link.skip_runtimes,
-        trust_lockfile: true,
-        supported_architectures: link.supported_architectures.clone(),
-        node_linker: link.node_linker,
-        lockfile_only: link.lockfile_only,
-        pnpmfile_hook_override: local.pnpmfile_hook.clone(),
-        lockfile: MaybeLazyLockfile::Loaded(Some(local.lockfile)),
-        ..state.install(link.dependency_groups.clone())
+    let install = {
+        let mut base_install = state.install(link.dependency_groups.clone());
+        base_install.lockfile_policy.frozen = true;
+        base_install.lockfile_policy.ignore_manifest_check = link.lockfile.ignore_manifest_check;
+        base_install.lockfile_policy.trust = true;
+        base_install.execution.skip_runtimes = link.skip_runtimes;
+        base_install.execution.node_linker = link.node_linker;
+        base_install.execution.lockfile_only = link.lockfile.only;
+        base_install.context.lockfile_path = link.lockfile_path;
+        base_install.context.lockfile = MaybeLazyLockfile::Loaded(Some(local.lockfile));
+        base_install.projects.supported_architectures = link
+            .supported_architectures
+            .clone();
+        base_install.projects.pnpmfile_hook_override = local.pnpmfile_hook.clone();
+        base_install
     };
 
     let result = match (selection, lockfile_verification_override) {
@@ -265,7 +269,7 @@ async fn prefetch_local_lockfile(
     link: &PnprLink<'_>,
     local: &LocalLockfileInstall<'_>,
 ) -> Option<TarballPrefetcher> {
-    if link.lockfile_only || !local.prefetch_allowed {
+    if link.lockfile.only || !local.prefetch_allowed {
         return None;
     }
     let selected_prefetch_lockfile = selected_prefetch_lockfile(link, local);
@@ -277,12 +281,11 @@ async fn prefetch_local_lockfile(
         &local.lockfile_dir.to_string_lossy(),
     )
     .await;
-    prefetcher
-        .prefetch_lockfile(
-            selected_prefetch_lockfile.as_ref().unwrap_or(local.lockfile),
-            state.config,
-        )
-        .await;
+    prefetcher.prefetch_lockfile(
+        selected_prefetch_lockfile.as_ref().unwrap_or(local.lockfile),
+        state.config,
+    )
+    .await;
     tokio::task::yield_now().await;
     Some(prefetcher)
 }
@@ -296,7 +299,7 @@ fn local_lockfile_verification<'a>(
     link: &PnprLink<'_>,
     local: &LocalLockfileInstall<'a>,
 ) -> miette::Result<Option<LockfileVerificationOverride<'a>>> {
-    if link.trust_lockfile {
+    if link.lockfile.trust {
         return Ok(None);
     }
     let verifiers = state_resolution_verifiers(state)?;
@@ -341,20 +344,15 @@ fn local_verify_options(
     local: &LocalLockfileInstall<'_>,
 ) -> VerifyLockfileOptions {
     VerifyLockfileOptions {
-        registry: local.resolve_registry.to_owned(),
-        registries: state.config.registry_declarations(),
-        authorization: state.config.auth_headers.for_url(pnpr_server),
         overrides: local.overrides.cloned(),
         lockfile: local.lockfile.clone(),
-        trust_lockfile: link.trust_lockfile,
-        minimum_release_age: state.config.minimum_release_age,
-        minimum_release_age_exclude: state.config.minimum_release_age_exclude.clone(),
-        minimum_release_age_ignore_missing_time: state
-            .config
-            .minimum_release_age_ignore_missing_time,
-        trust_policy: state.config.trust_policy,
-        trust_policy_exclude: state.config.trust_policy_exclude.clone(),
-        trust_policy_ignore_after: state.config.trust_policy_ignore_after,
+        trust_lockfile: link.lockfile.trust,
+        routing: pnpm_pnpr_client::RegistryRouting {
+            registry: local.resolve_registry.to_owned(),
+            registries: state.config.registry_declarations(),
+            authorization: state.config.auth_headers.for_url(pnpr_server),
+        },
+        verification: super::pnpr_request::verification_policy(state.config),
     }
 }
 
@@ -364,7 +362,10 @@ fn selected_prefetch_lockfile(
 ) -> Option<Lockfile> {
     local.selection_importer_ids.map(|(_, selected_importer_ids)| {
         let hoisted_importer_ids = matches!(link.node_linker, NodeLinker::Hoisted).then(|| {
-            local.lockfile.importers.keys().cloned().collect::<std::collections::HashSet<_>>()
+            local.lockfile.importers
+                .keys()
+                .cloned()
+                .collect::<std::collections::HashSet<_>>()
         });
         let initial_importer_ids = hoisted_importer_ids.as_ref().unwrap_or(selected_importer_ids);
         materialization_closure(
@@ -397,9 +398,14 @@ fn state_resolution_verifiers(
 }
 
 pub(super) fn pnpr_lockfile_dir<'a>(state: &'a State, link: &PnprLink<'a>) -> &'a std::path::Path {
-    link.lockfile_path.and_then(|path| path.parent()).unwrap_or_else(|| {
-        state.manifest.path().parent().expect("manifest path always has a parent dir")
-    })
+    link.lockfile_path
+        .and_then(|path| path.parent())
+        .unwrap_or_else(|| {
+            state.manifest
+                .path()
+                .parent()
+                .expect("manifest path always has a parent dir")
+        })
 }
 
 pub(super) async fn merge_and_save_pnpr_lockfile<Reporter: self::Reporter + 'static>(
@@ -416,7 +422,9 @@ pub(super) async fn merge_and_save_pnpr_lockfile<Reporter: self::Reporter + 'sta
     lockfile = merge_selected_importers(
         state,
         selection,
-        session.selection_importer_ids.as_ref().or(session.full_workspace_importer_ids.as_ref()),
+        session.selection_importer_ids
+            .as_ref()
+            .or(session.full_workspace_importer_ids.as_ref()),
         session.merge_wanted,
         lockfile,
     )?;

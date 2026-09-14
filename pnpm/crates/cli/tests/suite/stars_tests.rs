@@ -200,8 +200,11 @@ fn stars_other_user_falls_back_to_util_endpoint() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let primary_mock =
-        server.mock("GET", "/-/user/alice/stars").with_status(404).expect_at_least(1).create();
+    let primary_mock = server
+        .mock("GET", "/-/user/alice/stars")
+        .with_status(404)
+        .expect_at_least(1)
+        .create();
     let util_mock = server
         .mock("GET", "/-/util/user/alice/stars")
         .with_status(200)
@@ -231,8 +234,11 @@ fn stars_user_not_found() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let primary_mock =
-        server.mock("GET", "/-/user/missing/stars").with_status(404).expect_at_least(1).create();
+    let primary_mock = server
+        .mock("GET", "/-/user/missing/stars")
+        .with_status(404)
+        .expect_at_least(1)
+        .create();
     let util_mock = server
         .mock("GET", "/-/util/user/missing/stars")
         .with_status(404)
@@ -263,8 +269,11 @@ fn stars_other_user_401_falls_through_to_util_endpoint() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let primary_mock =
-        server.mock("GET", "/-/user/alice/stars").with_status(401).expect_at_least(1).create();
+    let primary_mock = server
+        .mock("GET", "/-/user/alice/stars")
+        .with_status(401)
+        .expect_at_least(1)
+        .create();
     let util_mock = server
         .mock("GET", "/-/util/user/alice/stars")
         .with_status(200)
@@ -294,10 +303,16 @@ fn stars_other_user_registry_error() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let primary_mock =
-        server.mock("GET", "/-/user/alice/stars").with_status(500).expect_at_least(1).create();
-    let util_mock =
-        server.mock("GET", "/-/util/user/alice/stars").with_status(500).expect_at_least(1).create();
+    let primary_mock = server
+        .mock("GET", "/-/user/alice/stars")
+        .with_status(500)
+        .expect_at_least(1)
+        .create();
+    let util_mock = server
+        .mock("GET", "/-/util/user/alice/stars")
+        .with_status(500)
+        .expect_at_least(1)
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
     let output = pacquet_at(&workspace)
         .with_arg("--npmrc-auth-file")

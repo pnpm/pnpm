@@ -181,7 +181,10 @@ pub fn get_pkg_mirror_path(
 ) -> Result<PathBuf, EncodeRegistryError> {
     let registry_name = get_registry_name(registry)?;
     let encoded_name = encode_pkg_name(pkg_name);
-    Ok(cache_dir.join(meta_dir).join(registry_name).join(format!("{encoded_name}.jsonl")))
+    Ok(cache_dir
+        .join(meta_dir)
+        .join(registry_name)
+        .join(format!("{encoded_name}.jsonl")))
 }
 
 /// Magic + format version. The trailing space separates it from the
@@ -325,20 +328,21 @@ pub fn clear_meta(meta: &Package) -> Result<Package, EncodeMetaError> {
         pkg.insert("modified".to_string(), Value::String(modified.clone()));
     }
 
-    let mut cleared: Package =
-        serde_json::from_value(Value::Object(pkg)).map_err(EncodeMetaError)?;
+    let mut cleared: Package = serde_json::from_value(Value::Object(pkg)).map_err(EncodeMetaError)?;
     cleared.etag.clone_from(&meta.etag);
     Ok(cleared)
 }
 
 fn meta_modified(meta: &Package) -> Option<String> {
-    meta.modified.clone().or_else(|| {
-        meta.time
-            .as_ref()
-            .and_then(|time| time.get("modified"))
-            .and_then(Value::as_str)
-            .map(str::to_string)
-    })
+    meta.modified
+        .clone()
+        .or_else(|| {
+            meta.time
+                .as_ref()
+                .and_then(|time| time.get("modified"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
 }
 
 /// One-time, best-effort raise of the process's soft `RLIMIT_NOFILE`
@@ -405,7 +409,9 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
     let mut buf = [0u8; 1024];
     let filled = fill_probe(file, &mut buf)?;
     let chunk = &buf[..filled];
-    let newline = chunk.iter().position(|&byte| byte == b'\n')?;
+    let newline = chunk
+        .iter()
+        .position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&chunk[..newline]).ok()?;
     let Some((headers_len, _)) = parse_mirror_magic(line) else {
         return serde_json::from_str(line).ok();
@@ -536,12 +542,13 @@ pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError
         file.write_all(contents)
             .map_err(|error| SaveMetaError::WriteTemp { temp: temp.clone(), error })?;
     }
-    fs::rename(&temp, pkg_mirror).map_err(|error| {
-        // Best-effort cleanup so a stale temp doesn't accumulate on
-        // a rename failure (e.g. cross-device move on an unusual mount).
-        let _ = fs::remove_file(&temp);
-        SaveMetaError::Rename { temp, target: pkg_mirror.to_path_buf(), error }
-    })?;
+    fs::rename(&temp, pkg_mirror)
+        .map_err(|error| {
+            // Best-effort cleanup so a stale temp doesn't accumulate on
+            // a rename failure (e.g. cross-device move on an unusual mount).
+            let _ = fs::remove_file(&temp);
+            SaveMetaError::Rename { temp, target: pkg_mirror.to_path_buf(), error }
+        })?;
     Ok(())
 }
 

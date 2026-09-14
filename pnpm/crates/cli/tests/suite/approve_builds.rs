@@ -49,7 +49,10 @@ fn install_with_ignored_build() -> (CommandTempCwd<AddMockedRegistry>, std::path
         .expect("write package.json");
     disable_strict_dep_builds(&workspace);
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         !workspace.join(INSTALL_MARKER).exists(),
@@ -59,7 +62,14 @@ fn install_with_ignored_build() -> (CommandTempCwd<AddMockedRegistry>, std::path
 }
 
 fn stdout_of(command: assert_cmd::assert::Assert) -> String {
-    String::from_utf8(command.success().get_output().stdout.clone()).expect("utf-8 stdout")
+    String::from_utf8(
+        command
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .expect("utf-8 stdout")
 }
 
 #[test]
@@ -122,7 +132,8 @@ fn allow_builds_placeholder_does_not_block_commands() {
     // satisfy a `contains` on the prefix while still reading as a
     // string, leaving the package undecided.
     assert!(
-        yaml.lines().any(|line| line.trim() == r#""@pnpm.e2e/install-script-example": true"#),
+        yaml.lines()
+            .any(|line| line.trim() == r#""@pnpm.e2e/install-script-example": true"#),
         "the decided entry is replaced cleanly: {yaml}",
     );
     // A package the approval didn't name keeps its placeholder, even
@@ -152,7 +163,10 @@ fn install_scaffolds_an_allow_builds_entry_for_the_blocked_build() {
         "yaml: {yaml}",
     );
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     assert_eq!(
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("reread"),
         yaml,
@@ -186,7 +200,10 @@ fn install_scaffolds_allow_builds_in_discovered_workspace_with_project_lockfiles
     )
     .expect("write project package.json");
 
-    pacquet(&project).with_arg("install").assert().success();
+    pacquet(&project)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let yaml =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
@@ -284,7 +301,10 @@ fn approve_builds_with_nothing_pending_reports_so() {
     let harness = CommandTempCwd::init().add_mocked_registry();
     let workspace = harness.workspace.clone();
     fs::write(workspace.join("package.json"), "{}").expect("write package.json");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let output = stdout_of(pacquet(&workspace).with_arg("approve-builds").assert());
     assert!(output.contains("There are no packages awaiting approval"), "output: {output}");
@@ -300,11 +320,17 @@ fn approve_builds_denies_a_package_that_is_not_installed_yet() {
     let harness = CommandTempCwd::init().add_mocked_registry();
     let workspace = harness.workspace.clone();
     fs::write(workspace.join("package.json"), "{}").expect("write package.json");
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let deny_install = format!("!{INSTALL}");
-    let output =
-        stdout_of(pacquet(&workspace).with_args(["approve-builds", &deny_install]).assert());
+    let output = stdout_of(
+        pacquet(&workspace)
+            .with_args(["approve-builds", &deny_install])
+            .assert(),
+    );
     assert!(
         output.contains(&format!("The following packages are not awaiting approval: {INSTALL}")),
         "output: {output}",
@@ -322,7 +348,10 @@ fn approve_builds_rejects_an_argument_that_names_no_package() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").expect("write package.json");
 
-    let assert = pacquet(&workspace).with_args(["approve-builds", "!"]).assert().failure();
+    let assert = pacquet(&workspace)
+        .with_args(["approve-builds", "!"])
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
     assert!(stderr.contains("ERR_PNPM_APPROVE_BUILDS_MISSING_PACKAGE"), "stderr: {stderr}");
     assert!(!workspace.join("pnpm-workspace.yaml").exists(), "a rejected run persists nothing");
@@ -359,9 +388,15 @@ fn rebuild_runs_with_ndjson_and_silent_reporters() {
         let harness = CommandTempCwd::init().add_mocked_registry();
         let workspace = harness.workspace.clone();
         fs::write(workspace.join("package.json"), "{}").expect("write package.json");
-        pacquet(&workspace).with_arg("install").assert().success();
+        pacquet(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
 
-        pacquet(&workspace).with_args([reporter, "rebuild"]).assert().success();
+        pacquet(&workspace)
+            .with_args([reporter, "rebuild"])
+            .assert()
+            .success();
 
         drop(harness);
     }
@@ -389,7 +424,10 @@ fn install_two_with_ignored_builds() -> (CommandTempCwd<AddMockedRegistry>, std:
         .expect("write package.json");
     disable_strict_dep_builds(&workspace);
 
-    pacquet(&workspace).with_arg("install").assert().success();
+    pacquet(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(!workspace.join(PREPOST_MARKER).exists(), "prepost build must be ignored initially");
     assert!(!workspace.join(INSTALL_MARKER).exists(), "install build must be ignored initially");
@@ -400,13 +438,19 @@ fn install_two_with_ignored_builds() -> (CommandTempCwd<AddMockedRegistry>, std:
 fn approve_builds_works_after_removing_an_unrelated_dependency() {
     let (harness, workspace) = install_two_with_ignored_builds();
 
-    pacquet(&workspace).with_args(["remove", INSTALL]).assert().success();
+    pacquet(&workspace)
+        .with_args(["remove", INSTALL])
+        .assert()
+        .success();
 
     let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
     assert!(output.contains(PREPOST), "the remaining package stays pending: {output}");
     assert!(!output.contains(INSTALL), "the removed package must not stay pending: {output}");
 
-    pacquet(&workspace).with_args(["approve-builds", "--all"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["approve-builds", "--all"])
+        .assert()
+        .success();
 
     assert!(workspace.join(PREPOST_MARKER).exists(), "remaining package built under --all");
     assert!(!workspace.join(INSTALL_MARKER).exists(), "removed package was not rebuilt");
@@ -462,7 +506,10 @@ fn seed_allow_build(workspace: &Path, name: &str) {
 fn approve_builds_all_flag_builds_everything() {
     let (harness, workspace) = install_two_with_ignored_builds();
 
-    pacquet(&workspace).with_args(["approve-builds", "--all"]).assert().success();
+    pacquet(&workspace)
+        .with_args(["approve-builds", "--all"])
+        .assert()
+        .success();
 
     assert!(workspace.join(PREPOST_MARKER).exists(), "prepost built under --all");
     assert!(workspace.join(INSTALL_MARKER).exists(), "install built under --all");
@@ -505,7 +552,10 @@ fn approve_builds_deny_only_keeps_other_pending() {
     let (harness, workspace) = install_two_with_ignored_builds();
 
     let deny_install = format!("!{INSTALL}");
-    pacquet(&workspace).with_args(["approve-builds", deny_install.as_str()]).assert().success();
+    pacquet(&workspace)
+        .with_args(["approve-builds", deny_install.as_str()])
+        .assert()
+        .success();
 
     // Only the denied package is decided; the other stays pending.
     assert_eq!(
@@ -528,7 +578,10 @@ fn approve_builds_preserves_existing_allow_builds_entries() {
     let (harness, workspace) = install_two_with_ignored_builds();
     seed_allow_build(&workspace, "@pnpm.e2e/existing-package");
 
-    pacquet(&workspace).with_args(["approve-builds", PREPOST]).assert().success();
+    pacquet(&workspace)
+        .with_args(["approve-builds", PREPOST])
+        .assert()
+        .success();
 
     let builds = allow_builds(&workspace);
     assert_eq!(builds.get("@pnpm.e2e/existing-package"), Some(&true), "existing entry kept");
@@ -552,7 +605,10 @@ fn approve_builds_clears_legacy_build_settings() {
     ));
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 
-    pacquet(&workspace).with_args(["approve-builds", PREPOST]).assert().success();
+    pacquet(&workspace)
+        .with_args(["approve-builds", PREPOST])
+        .assert()
+        .success();
 
     let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
     for key in [
@@ -573,8 +629,10 @@ fn approve_builds_all_with_args_is_rejected() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").expect("write package.json");
 
-    let assert =
-        pacquet(&workspace).with_args(["approve-builds", "--all", "foo"]).assert().failure();
+    let assert = pacquet(&workspace)
+        .with_args(["approve-builds", "--all", "foo"])
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
     assert!(stderr.contains("ERR_PNPM_APPROVE_BUILDS_ALL_WITH_ARGS"), "stderr: {stderr}");
 

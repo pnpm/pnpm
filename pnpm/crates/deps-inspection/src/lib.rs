@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! Lockfile-backed dependency inspection, shared by `pnpm list`, `pnpm why`,
 //! `pnpm licenses`, `pnpm dedupe`, and the `@pnpm/napi` bindings.
 //!
@@ -72,12 +75,27 @@ impl TreeNodeId {
 #[derive(Debug, Default, Clone)]
 pub struct DependencyNode {
     pub alias: String,
+    pub dependencies: Vec<DependencyNode>,
+    pub package: DependencyPackage,
+    pub status: DependencyStatus,
+    pub search: DependencySearch,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct DependencyPackage {
     pub name: String,
     pub version: String,
     /// Absolute filesystem path of the package.
     pub path: String,
     /// Tarball URL the package was resolved from, when reconstructible.
     pub resolved: Option<String>,
+    /// Short hash distinguishing peer-dependency variants of the same
+    /// `name@version`.
+    pub peers_suffix_hash: Option<String>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct DependencyStatus {
     pub is_peer: bool,
     pub is_skipped: bool,
     /// `Some(true)` when the package is only reachable through
@@ -90,12 +108,12 @@ pub struct DependencyNode {
     /// When `deduped`, the number of transitive dependencies elided
     /// because this subtree was already expanded elsewhere.
     pub deduped_dependencies_count: Option<u64>,
-    /// Short hash distinguishing peer-dependency variants of the same
-    /// `name@version`.
-    pub peers_suffix_hash: Option<String>,
-    pub searched: bool,
-    pub search_message: Option<String>,
-    pub dependencies: Vec<DependencyNode>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct DependencySearch {
+    pub matched: bool,
+    pub message: Option<String>,
 }
 
 /// Short hash of a depPath's peer-dependency suffix, used to

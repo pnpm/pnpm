@@ -4,6 +4,10 @@
 //! pins fixed blocks below scrolling non-fixed blocks, with one rendering
 //! path per log channel.
 
+pub use options::{LifecycleOptions, ProgressOptions, ReporterOptions, ScopeOptions};
+
+mod options;
+
 use std::{
     collections::HashMap,
     path::{Component, Path, PathBuf},
@@ -40,80 +44,6 @@ pub enum Output {
     Frame(String),
     /// Lines to append verbatim (append-only mode).
     Lines(Vec<String>),
-}
-
-/// Rendering settings that cannot be recovered from the event stream.
-#[derive(Debug, Clone)]
-pub struct ReporterOptions {
-    /// Emit each update as a new line instead of replacing the current frame.
-    pub append_only: bool,
-    /// Omit the `added` counter from dependency progress lines.
-    pub hide_added_pkgs_progress: bool,
-    /// Omit the workspace-project prefix from progress lines.
-    pub hide_progress_prefix: bool,
-    /// Select which project prefixes contribute to the package summary.
-    pub summary_scope: SummaryScope,
-    /// Whether the running command reports the workspace scope it
-    /// selected. Mirrors pnpm's `COMMANDS_THAT_REPORT_SCOPE` gate, which
-    /// lives in the reporter because the `pnpm:scope` event itself is
-    /// command-agnostic.
-    pub reports_scope: bool,
-    /// Whether direct dependency warnings use workspace-relative prefixes.
-    pub is_recursive: bool,
-    /// Verbosity ceiling from pnpm's `--loglevel` setting.
-    pub max_log_level: MaxLogLevel,
-    /// Keep lifecycle script output in its collapsed block instead of
-    /// streaming each line, even in append-only mode. pnpm's
-    /// `hideLifecycleOutput`, which the TypeScript reporter applies by
-    /// forcing the lifecycle stream's own `appendOnly` off.
-    pub hide_lifecycle_output: bool,
-    /// Stream lifecycle script output line by line even when the rest of
-    /// the frame renders in place. pnpm's `streamLifecycleOutput`, which
-    /// its reporter implements by turning on the lifecycle stream's own
-    /// `appendOnly`.
-    pub stream_lifecycle_output: bool,
-    /// Hold each script's streamed lines until it exits, then print the
-    /// whole run as one block. pnpm's `aggregateOutput`.
-    pub aggregate_output: bool,
-    /// Drop the project prefix from streamed script output lines. pnpm's
-    /// `hideLifecyclePrefix` — the `$ <script>` and `Done` / `Failed`
-    /// lines keep theirs.
-    pub hide_lifecycle_prefix: bool,
-    /// Replaces the second line of the ignored-builds box — the one that
-    /// tells the user how to approve a build. pnpm's
-    /// `approveBuildsInstructionText`, for embedders whose users approve
-    /// builds through the embedder's own configuration rather than
-    /// `pnpm approve-builds`.
-    pub ignored_builds_instruction_text: Option<String>,
-    /// Package-name patterns whose *linked* entries are left out of the
-    /// packages-diff summary — an entry is linked when it carries a
-    /// `from`, i.e. it is symlinked in rather than materialized from the
-    /// store. The Rust counterpart of the TypeScript reporter's
-    /// `filterPkgsDiff` callback: an embedder that links its own runtime
-    /// into every project (Bit's core aspects) silences that noise
-    /// without silencing the same packages when they are really
-    /// installed.
-    pub hide_linked_pkgs_diff: Vec<String>,
-}
-
-impl Default for ReporterOptions {
-    fn default() -> Self {
-        Self {
-            append_only: false,
-            hide_added_pkgs_progress: false,
-            hide_progress_prefix: false,
-            summary_scope: SummaryScope::CurrentPrefix,
-            reports_scope: false,
-            is_recursive: false,
-            max_log_level: MaxLogLevel::Info,
-            hide_lifecycle_output: false,
-            stream_lifecycle_output: false,
-            aggregate_output: false,
-            hide_lifecycle_prefix: false,
-            ignored_builds_instruction_text: None,
-            hide_linked_pkgs_diff: Vec::new(),
-        }
-    }
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -200,57 +130,79 @@ struct BigTarball {
 /// The whole renderer state. One instance lives behind the sink's mutex in
 /// production; tests construct it directly.
 pub struct ReporterState {
+    options: ReporterOptions,
+    rendering: RenderingContext,
+    display: DisplayState,
+    install: InstallProgress,
+    summary: SummaryState,
+    scripts: LifecycleState,
+    notices: NoticeState,
+    downloads: DownloadState,
+}
+
+struct RenderingContext {
     cwd: String,
     width: usize,
     colors: Colors,
     /// Compiled [`ReporterOptions::hide_linked_pkgs_diff`]. Never matches
     /// when no patterns were configured.
     hidden_linked_pkgs: Matcher,
+}
+
+#[derive(Default)]
+struct DisplayState {
     frame: Frame,
     last_frame: Option<String>,
-
-    progress: HashMap<String, ProgressEntry>,
-
-    context: Option<ContextLog>,
-    import_method: Option<PackageImportMethod>,
-    context_slot: BlockSlot,
-    context_rendered: bool,
-
-    stats_added: Option<u64>,
-    stats_removed: Option<u64>,
-    stats_slot: BlockSlot,
-
-    diff: HashMap<&'static str, HashMap<String, PackageDiff>>,
-    manifest_diffs: HashMap<String, ManifestDiff>,
-    summary_slot: BlockSlot,
-    summary_seen: bool,
-    summary_rendered: bool,
-
     scope_slot: BlockSlot,
-
-    lifecycle: HashMap<String, LifecycleEntry>,
-    /// Events withheld under [`ReporterOptions::aggregate_output`], keyed
-    /// the same way [`Self::lifecycle`] is.
-    lifecycle_buffers: HashMap<String, Vec<LifecycleMessage>>,
-    lifecycle_slots: HashMap<String, BlockSlot>,
-    lifecycle_colors: HashMap<String, usize>,
-    color_wheel: usize,
-
-    big: HashMap<String, BigTarball>,
-
     config_deps_slot: BlockSlot,
     lockfile_verification_slot: BlockSlot,
     pending_lockfile_message: Option<String>,
     exec_slot: BlockSlot,
+}
 
-    warnings_counter: usize,
-    collapsed_warn_slot: BlockSlot,
+#[derive(Default)]
+struct InstallProgress {
+    context: Option<ContextLog>,
+    import_method: Option<PackageImportMethod>,
+    context_slot: BlockSlot,
+    context_rendered: bool,
+    stats_added: Option<u64>,
+    stats_removed: Option<u64>,
+    stats_slot: BlockSlot,
+}
 
+struct SummaryState {
+    diff: HashMap<&'static str, HashMap<String, PackageDiff>>,
+    manifest_diffs: HashMap<String, ManifestDiff>,
+    slot: BlockSlot,
+    seen: bool,
+    rendered: bool,
+}
+
+#[derive(Default)]
+struct LifecycleState {
+    entries: HashMap<String, LifecycleEntry>,
+    /// Events withheld under [`LifecycleOptions::aggregate_output`], keyed
+    /// the same way [`Self::entries`] is.
+    buffers: HashMap<String, Vec<LifecycleMessage>>,
+    slots: HashMap<String, BlockSlot>,
+    colors: HashMap<String, usize>,
+    color_wheel: usize,
+}
+
+#[derive(Default)]
+struct NoticeState {
+    warnings: usize,
+    collapsed_slot: BlockSlot,
     deprecated_subdeps: Vec<DeprecationLog>,
     deprecated_slot: BlockSlot,
+    reported_peer_issues: bool,
+}
 
-    reported_peer_dependency_issues: bool,
-    options: ReporterOptions,
+#[derive(Default)]
+struct DownloadState {
+    progress: HashMap<String, ProgressEntry>,
+    tarballs: HashMap<String, BigTarball>,
 }
 
 const MAX_SHOWN_WARNINGS: usize = 5;
@@ -290,7 +242,11 @@ impl ReporterState {
             cwd,
             width,
             colors,
-            ReporterOptions { append_only, summary_scope, ..ReporterOptions::default() },
+            ReporterOptions {
+                append_only,
+                scope: crate::state::ScopeOptions { summary: summary_scope, ..Default::default() },
+                ..ReporterOptions::default()
+            },
         )
     }
 
@@ -301,43 +257,19 @@ impl ReporterState {
         colors: Colors,
         options: ReporterOptions,
     ) -> Self {
-        let diff = SUMMARY_ORDER.into_iter().map(|kind| (diff_key(kind), HashMap::new())).collect();
         ReporterState {
-            cwd,
-            width,
-            colors,
-            frame: Frame::new(options.append_only),
-            last_frame: None,
-            progress: HashMap::new(),
-            context: None,
-            import_method: None,
-            context_slot: BlockSlot::default(),
-            context_rendered: false,
-            stats_added: None,
-            stats_removed: None,
-            stats_slot: BlockSlot::default(),
-            diff,
-            manifest_diffs: HashMap::new(),
-            summary_slot: BlockSlot::default(),
-            summary_seen: false,
-            summary_rendered: false,
-            scope_slot: BlockSlot::default(),
-            lifecycle: HashMap::new(),
-            lifecycle_buffers: HashMap::new(),
-            lifecycle_slots: HashMap::new(),
-            lifecycle_colors: HashMap::new(),
-            color_wheel: 0,
-            big: HashMap::new(),
-            config_deps_slot: BlockSlot::default(),
-            lockfile_verification_slot: BlockSlot::default(),
-            pending_lockfile_message: None,
-            exec_slot: BlockSlot::default(),
-            warnings_counter: 0,
-            collapsed_warn_slot: BlockSlot::default(),
-            deprecated_subdeps: Vec::new(),
-            deprecated_slot: BlockSlot::default(),
-            reported_peer_dependency_issues: false,
-            hidden_linked_pkgs: create_matcher(&options.hide_linked_pkgs_diff),
+            rendering: RenderingContext {
+                cwd,
+                width,
+                colors,
+                hidden_linked_pkgs: create_matcher(&options.hide_linked_pkgs_diff),
+            },
+            display: DisplayState { frame: Frame::new(options.append_only), ..Default::default() },
+            install: InstallProgress::default(),
+            summary: SummaryState::default(),
+            scripts: LifecycleState::default(),
+            notices: NoticeState::default(),
+            downloads: DownloadState::default(),
             options,
         }
     }
@@ -362,7 +294,7 @@ impl ReporterState {
         ) {
             self.flush_pending_lockfile_message();
         }
-        self.finish()
+        self.display.finish(self.options.append_only)
     }
 
     fn handle_event(&mut self, event: &LogEvent) {
@@ -371,8 +303,8 @@ impl ReporterState {
             // Prompt lifetime is handled by `Sink` before state folding.
             LogEvent::Prompt(_) => {}
             LogEvent::PackageImportMethod(log) => {
-                self.import_method = Some(log.method);
-                self.maybe_render_context();
+                self.install.import_method = Some(log.method);
+                self.install.maybe_render_context(&self.rendering.cwd, &mut self.display.frame);
             }
             LogEvent::Progress(log) => self.on_progress(&log.message),
             LogEvent::Stage(log) => self.on_stage(&log.prefix, log.stage),
@@ -421,26 +353,6 @@ impl ReporterState {
             | LogEvent::PeerDependencyIssues(_) => self.options.max_log_level >= MaxLogLevel::Warn,
             _ => self.options.max_log_level >= MaxLogLevel::Info,
         }
-    }
-
-    fn finish(&mut self) -> Output {
-        if self.options.append_only {
-            let lines = std::mem::take(&mut self.frame.pending);
-            if lines.is_empty() { Output::None } else { Output::Lines(lines) }
-        } else {
-            let frame = self.frame.render();
-            if self.last_frame.as_deref() == Some(frame.as_str()) {
-                Output::None
-            } else {
-                self.last_frame = Some(frame.clone());
-                Output::Frame(frame)
-            }
-        }
-    }
-
-    fn push_block(&mut self, message: String) {
-        let mut slot = BlockSlot::default();
-        self.frame.emit(&mut slot, message, false);
     }
 }
 
@@ -497,3 +409,42 @@ use frame::{BlockSlot, Frame};
 
 mod paths;
 use paths::normalized_prefix;
+
+impl DisplayState {
+    fn finish(&mut self, append_only: bool) -> Output {
+        if append_only {
+            let lines = std::mem::take(&mut self.frame.pending);
+            if lines.is_empty() { Output::None } else { Output::Lines(lines) }
+        } else {
+            let frame = self.frame.render();
+            if self.last_frame.as_deref() == Some(frame.as_str()) {
+                Output::None
+            } else {
+                self.last_frame = Some(frame.clone());
+                Output::Frame(frame)
+            }
+        }
+    }
+}
+
+impl Frame {
+    pub(super) fn push_block(&mut self, message: String) {
+        let mut slot = BlockSlot::default();
+        self.emit(&mut slot, message, false);
+    }
+}
+
+impl Default for SummaryState {
+    fn default() -> Self {
+        Self {
+            diff: SUMMARY_ORDER
+                .into_iter()
+                .map(|kind| (diff_key(kind), HashMap::new()))
+                .collect(),
+            manifest_diffs: HashMap::new(),
+            slot: BlockSlot::default(),
+            seen: false,
+            rendered: false,
+        }
+    }
+}

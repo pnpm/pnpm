@@ -62,28 +62,37 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     // package status again.
     let progress_reported = SharedReportedProgressKeys::default();
     let download = IngestTarballToStore {
-        http_client: &fast_fail_client(),
-        store_dir: store_path,
-        store_index: StoreIndex::shared_readonly_in(store_path),
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &fast_fail_client(),
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: "http://127.0.0.1:1/unreachable.tgz",
+            id: pkg_id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: StoreIndex::shared_readonly_in(store_path),
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         // Any request that reaches the network here would fail the
         // test; the cache lookup must short-circuit before we get
         // near it. `fast_fail_client` caps that at 1 s per side in
         // case a firewalled runner drops the packet silently.
-        package_url: "http://127.0.0.1:1/unreachable.tgz",
-        package_id: pkg_id,
         requester: "",
-        prefetched_cas_paths: None,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     };
@@ -137,28 +146,37 @@ async fn reuses_prefetched_cas_paths_when_provided() {
     let (_keep, store_path) = tempdir_with_leaked_path();
 
     let cas_paths = IngestTarballToStore {
-        http_client: &fast_fail_client(),
-        store_dir: store_path,
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &fast_fail_client(),
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: "http://127.0.0.1:1/unreachable.tgz",
+            id: pkg_id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: Some(&prefetched),
+        },
+
         // No SQLite handle: any fall-through to the per-snapshot
         // SQLite lookup would just miss, so a network attempt
         // would follow — and that would fail against the
         // unreachable URL below, failing the test.
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: "http://127.0.0.1:1/unreachable.tgz",
-        package_id: pkg_id,
         requester: "",
-        prefetched_cas_paths: Some(&prefetched),
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -330,9 +348,11 @@ async fn prefetch_cas_paths_skips_filesystem_checks_when_verify_disabled() {
     )
     .await;
 
-    let map = prefetched.cas_paths.get(&index_key).expect(
-        "verify=false should trust the index row and surface the entry without checking disk",
-    );
+    let map = prefetched.cas_paths
+        .get(&index_key)
+        .expect(
+            "verify=false should trust the index row and surface the entry without checking disk",
+        );
     assert!(map.contains_key("package.json"));
     drop(store_dir);
 }
@@ -440,24 +460,33 @@ async fn falls_through_when_cafs_file_missing() {
     drop(index);
 
     let err = IngestTarballToStore {
-        http_client: &fast_fail_client(),
-        store_dir: store_path,
-        store_index: StoreIndex::shared_readonly_in(store_path),
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: "http://127.0.0.1:1/unreachable.tgz",
-        package_id: pkg_id,
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &fast_fail_client(),
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: "http://127.0.0.1:1/unreachable.tgz",
+            id: pkg_id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: StoreIndex::shared_readonly_in(store_path),
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         requester: "",
-        prefetched_cas_paths: None,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -510,24 +539,33 @@ async fn falls_through_when_cafs_path_is_a_directory() {
     drop(index);
 
     let err = IngestTarballToStore {
-        http_client: &fast_fail_client(),
-        store_dir: store_path,
-        store_index: StoreIndex::shared_readonly_in(store_path),
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        package_integrity: Some(&pkg_integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: "http://127.0.0.1:1/unreachable.tgz",
-        package_id: pkg_id,
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &fast_fail_client(),
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: false,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&pkg_integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: "http://127.0.0.1:1/unreachable.tgz",
+            id: pkg_id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: StoreIndex::shared_readonly_in(store_path),
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         requester: "",
-        prefetched_cas_paths: None,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: false,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
@@ -604,24 +642,33 @@ async fn raw_archive_projection_ignores_legacy_package_rows() {
 
     let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
     let cas_paths = IngestTarballToStore {
-        http_client: &fast_fail_client(),
-        store_dir: store_path,
-        store_index: StoreIndex::shared_readonly_in(store_path),
-        store_index_writer: Some(Arc::clone(&writer)),
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: Some(&integrity),
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &package_url,
-        package_id,
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &fast_fail_client(),
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: true,
+        },
+        package: crate::TarballPackage {
+            integrity: Some(&integrity),
+            unpacked_size: None,
+            file_count: None,
+            url: &package_url,
+            id: package_id,
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: StoreIndex::shared_readonly_in(store_path),
+            index_writer: Some(Arc::clone(&writer)),
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         requester: "",
-        prefetched_cas_paths: None,
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: true,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::RawArchive,
     }
@@ -640,8 +687,17 @@ async fn raw_archive_projection_ignores_legacy_package_rows() {
     assert_ne!(raw_key, legacy_key);
 
     let index = StoreIndex::open_in(store_path).expect("open store index");
-    assert!(index.get(&legacy_key).unwrap().is_some(), "legacy row is retained");
-    let raw_entry = index.get(&raw_key).unwrap().expect("raw row is indexed separately");
+    assert!(
+        index
+            .get(&legacy_key)
+            .unwrap()
+            .is_some(),
+        "legacy row is retained",
+    );
+    let raw_entry = index
+        .get(&raw_key)
+        .unwrap()
+        .expect("raw row is indexed separately");
     assert_eq!(raw_entry.files.keys().collect::<Vec<_>>(), ["README.md"]);
 
     drop((index, store_dir, local_dir));

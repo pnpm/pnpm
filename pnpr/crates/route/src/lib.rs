@@ -33,7 +33,7 @@ pub use footprint::{
 };
 
 mod url_credentials;
-use url_credentials::scheme_of;
+use url_credentials::{addressed_registry_segment, contains_dot_segment, nerf_prefix, scheme_of};
 
 mod route_hook;
 
@@ -165,9 +165,10 @@ impl RouteContext {
     /// Resolve route-classification inputs from the server config.
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
-        let hosted_origin = nerf_prefix(&config.public_url);
-        let mut registries = config.registries.clone();
-        for name in config.upstreams.keys() {
+        let routing = &config.routing;
+        let hosted_origin = nerf_prefix(&config.http.public_url);
+        let mut registries = routing.registries.clone();
+        for name in routing.upstreams.keys() {
             registries.ensure_upstream(name);
         }
         // The registries pnpm itself routes to without configuration are
@@ -176,25 +177,24 @@ impl RouteContext {
         // credential for the same origin — public wins).
         let public_routes = [RouteMatcher::npmjs(), RouteMatcher::jsr()]
             .into_iter()
-            .chain(config.route_policy.public.iter().filter_map(RouteMatcher::from_public_route))
+            .chain(routing.route_policy.public.iter().filter_map(RouteMatcher::from_public_route))
             .collect();
         // Proxied-route credentials come from `upstreams:` entries that declare
         // an `access:` policy. They are matched by registry origin and exposed
         // to clients at `/~<name>/`.
-        let aliases = config
-            .upstreams
+        let aliases = routing.upstreams
             .iter()
             .filter_map(|(name, upstream)| ResolvedAlias::from_upstream(name, upstream))
             .collect();
-        let upstream_origins =
-            config.upstreams.values().filter_map(|upstream| nerf_prefix(&upstream.url)).collect();
-        let hosted_rules = config
-            .hosted
+        let upstream_origins = routing.upstreams
+            .values()
+            .filter_map(|upstream| nerf_prefix(&upstream.url))
+            .collect();
+        let hosted_rules = routing.hosted
             .iter()
             .map(|(name, hosted)| (name.clone(), hosted.rules.clone()))
             .collect();
-        let upstream_rules = config
-            .upstreams
+        let upstream_rules = routing.upstreams
             .iter()
             .map(|(name, upstream)| (name.clone(), upstream.rules.clone()))
             .collect();
@@ -321,12 +321,14 @@ impl RouteContext {
             return RouteClass::Public;
         };
         match self.registries.resolve_default(pnpr_registry::Ecosystem::Npm, package) {
-            Resolved::Concrete { registry, kind: ConcreteKind::Hosted } => {
-                self.classify_hosted(identity, registry, Some(package))
-            }
-            Resolved::Concrete { registry, kind: ConcreteKind::Upstream } => {
-                self.classify_upstream(identity, registry, package)
-            }
+            Resolved::Concrete {
+                registry,
+                kind: ConcreteKind::Hosted,
+            } => self.classify_hosted(identity, registry, Some(package)),
+            Resolved::Concrete {
+                registry,
+                kind: ConcreteKind::Upstream,
+            } => self.classify_upstream(identity, registry, package),
             // Unclaimed or no default registry: the endpoint answers
             // not-found, so there is no private content to key.
             Resolved::Unclaimed | Resolved::UnknownRegistry => RouteClass::Public,
@@ -380,11 +382,15 @@ impl RouteContext {
     }
 
     fn authorized_alias(&self, identity: &Identity, registry: &str) -> Option<&ResolvedAlias> {
-        self.aliases.iter().find(|alias| alias.name == registry && alias.access.allows(identity))
+        self.aliases
+            .iter()
+            .find(|alias| alias.name == registry && alias.access.allows(identity))
     }
 
     fn is_public_route(&self, fetch: &str, package: Option<&str>) -> bool {
-        self.public_routes.iter().any(|route| route.matches(fetch, package))
+        self.public_routes
+            .iter()
+            .any(|route| route.matches(fetch, package))
     }
 
     /// Whether pnpr is permitted to fetch from `url`'s registry at all. The
@@ -413,13 +419,21 @@ impl RouteContext {
         if contains_dot_segment(&fetch) {
             return false;
         }
-        if self.hosted_origin.as_deref().is_some_and(|hosted| fetch.starts_with(hosted)) {
+        if self.hosted_origin
+            .as_deref()
+            .is_some_and(|hosted| fetch.starts_with(hosted))
+        {
             return true;
         }
-        if self.public_routes.iter().any(|route| route.allowlists(&fetch, scheme_of(url))) {
+        if self.public_routes
+            .iter()
+            .any(|route| route.allowlists(&fetch, scheme_of(url)))
+        {
             return true;
         }
-        self.upstream_origins.iter().any(|origin| fetch.starts_with(origin))
+        self.upstream_origins
+            .iter()
+            .any(|origin| fetch.starts_with(origin))
     }
 
     /// A pnpr-hosted route is public when the hosted registry's effective
@@ -468,11 +482,13 @@ impl RouteContext {
         fetch: &str,
         package: Option<&str>,
     ) -> Option<&ResolvedAlias> {
-        self.aliases.iter().find(|alias| {
-            fetch.starts_with(&alias.origin)
-                && alias.access.allows(identity)
-                && self.upstream_admits(&alias.name, identity, package)
-        })
+        self.aliases
+            .iter()
+            .find(|alias| {
+                fetch.starts_with(&alias.origin)
+                    && alias.access.allows(identity)
+                    && self.upstream_admits(&alias.name, identity, package)
+            })
     }
 
     pub(crate) fn allows_descriptor(
@@ -498,23 +514,23 @@ impl RouteContext {
                 // strict as a fresh resolve; unqualified descriptors gate at
                 // the registry level, shared among the callers the upstream's
                 // `access:` admits.
-                self.aliases.iter().find(|candidate| candidate.name == alias.as_str()).is_some_and(
-                    |candidate| {
+                self.aliases
+                    .iter()
+                    .find(|candidate| candidate.name == alias.as_str())
+                    .is_some_and(|candidate| {
                         self.select_alias(identity, &candidate.origin, package.as_deref())
                             .is_some_and(|selected| {
                                 selected.name == alias.as_str()
                                     && selected.credential_digest == *credential_digest
                             })
-                    },
-                )
+                    })
             }
             PrivateAccessDescriptor::Hosted { policy_id } => {
                 // The id is registry-qualified (see `hosted_policy_id`); a
                 // descriptor that doesn't parse — including one written by a
                 // pre-registry-scoped build — fails closed and re-resolves.
                 match policy_id.split_once('\0') {
-                    Some((registry, package)) => self
-                        .hosted_rules
+                    Some((registry, package)) => self.hosted_rules
                         .get(registry)
                         .is_some_and(|rules| rules.for_package(package).access.allows(identity)),
                     None => false,
@@ -581,17 +597,29 @@ impl RouteMatcher {
     fn from_public_route(route: &PublicRoute) -> Option<Self> {
         let origin = match route.registry.as_deref() {
             None => None,
-            Some(registry) => Some(nerf_prefix(registry).or_else(|| {
-                tracing::warn!(registry, "ignoring public route with an unparsable registry URL");
-                None
-            })?),
+            Some(registry) => Some(
+                nerf_prefix(registry)
+                    .or_else(|| {
+                        tracing::warn!(
+                            registry,
+                            "ignoring public route with an unparsable registry URL",
+                        );
+                        None
+                    })?,
+            ),
         };
         let package = match route.package.as_deref() {
             None => None,
-            Some(pattern) => Some(compile_glob(pattern).or_else(|| {
-                tracing::warn!(pattern, "ignoring public route with an invalid package glob");
-                None
-            })?),
+            Some(pattern) => Some(
+                compile_glob(pattern)
+                    .or_else(|| {
+                        tracing::warn!(
+                            pattern,
+                            "ignoring public route with an invalid package glob",
+                        );
+                        None
+                    })?,
+            ),
         };
         Some(Self { origin, package, https_only: false })
     }
@@ -601,39 +629,21 @@ impl RouteMatcher {
     /// registry allowlists nothing: it narrows an origin another rule already
     /// admits.
     fn allowlists(&self, fetch: &str, scheme: Option<&str>) -> bool {
-        self.origin.as_deref().is_some_and(|origin| fetch.starts_with(origin))
+        self.origin
+            .as_deref()
+            .is_some_and(|origin| fetch.starts_with(origin))
             && (!self.https_only
                 || scheme.is_some_and(|scheme| scheme.eq_ignore_ascii_case("https")))
     }
 
     fn matches(&self, fetch: &str, package: Option<&str>) -> bool {
-        let origin_ok = self.origin.as_deref().is_none_or(|origin| fetch.starts_with(origin));
-        let package_ok = self
-            .package
+        let origin_ok = self.origin
+            .as_deref()
+            .is_none_or(|origin| fetch.starts_with(origin));
+        let package_ok = self.package
             .as_ref()
             .is_none_or(|glob| package.is_some_and(|name| glob.is_match(name)));
         origin_ok && package_ok
-    }
-}
-
-impl ResolvedAlias {
-    /// Build a proxied-route alias from a `upstreams:` entry. An upstream
-    /// participates in route classification only when it declares both an
-    /// `access:` policy and a resolved `Authorization` credential; routing is
-    /// by registry origin, so no package glob is attached.
-    fn from_upstream(name: &str, upstream: &UpstreamConfig) -> Option<Self> {
-        let access = upstream.access.clone()?;
-        let authorization =
-            upstream.headers.get(AUTHORIZATION).and_then(|value| value.to_str().ok())?.to_string();
-        Some(Self {
-            name: name.to_string(),
-            credential_digest: credential_digest(&authorization),
-            registry: upstream.url.clone(),
-            origin: nerf_prefix(&upstream.url)?,
-            scheme: scheme_of(&upstream.url)?.to_string(),
-            authorization,
-            access,
-        })
     }
 }
 
@@ -643,35 +653,6 @@ impl ResolvedAlias {
 /// narrows matching instead of opening a private route up.
 fn compile_glob(pattern: &str) -> Option<Glob<'static>> {
     Glob::new(pattern).ok().map(Glob::into_owned)
-}
-
-/// Nerf-dart a registry URL down to its host-only origin
-/// (`//host[:port]/`), the prefix every fetch under it shares. `None`
-/// for an unparsable URL.
-/// The nerf-darted registry prefix used to match fetches to a hosted, public,
-/// or proxied-upstream route. Path-preserving (`//host/base/`), unlike a bare
-/// host: a pnpr served under a path prefix (`https://host/pnpr/`) still
-/// recognizes its own `/pnpr/~<name>/` endpoints, and a public/upstream route
-/// declared for `https://host/base/` does not also match a sibling
-/// `https://host/other/` path on the same host.
-fn nerf_prefix(url: &str) -> Option<String> {
-    let nerfed = nerf_dart(url);
-    if nerfed.is_empty() { None } else { Some(nerfed) }
-}
-
-/// The URL scheme (`https`, `http`, ...), i.e. the segment before `://`. `None`
-/// for a value with no scheme.
-/// The registry a `/~<name>/` endpoint path addresses, if it names one.
-fn addressed_registry_segment<'a>(fetch: &'a str, npm_endpoint: &str) -> Option<&'a str> {
-    let rest = fetch.strip_prefix(npm_endpoint)?;
-    let registry = rest.strip_prefix('~')?.split('/').next()?;
-    (!registry.is_empty()).then_some(registry)
-}
-
-/// Whether a nerf-darted key (`//host/path/`) has a `.` or `..` path segment,
-/// which could escape a path-scoped prefix match in [`RouteContext::allows_registry`].
-fn contains_dot_segment(nerfed: &str) -> bool {
-    nerfed.split('/').any(|segment| segment == "." || segment == "..")
 }
 
 #[cfg(test)]

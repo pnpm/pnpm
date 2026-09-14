@@ -27,7 +27,8 @@ fn bundle_dependencies_rejects_path_traversal() {
     let out = packlist(&root, &manifest).unwrap();
 
     assert!(
-        !out.iter().any(|path| path.contains("escape") || path.contains("secret")),
+        !out.iter()
+            .any(|path| path.contains("escape") || path.contains("secret")),
         "bundle name traversal must not leak files outside pkg_dir: {out:?}",
     );
 }
@@ -60,7 +61,8 @@ fn bundle_dependency_symlink_escaping_pkg_dir_is_refused() {
     let out = packlist(&root, &manifest).unwrap();
 
     assert!(
-        !out.iter().any(|path| path.contains("secret")),
+        !out.iter()
+            .any(|path| path.contains("secret")),
         "a node_modules symlink escaping pkg_dir must not leak host files: {out:?}",
     );
 }
@@ -86,7 +88,8 @@ fn main_resolving_through_a_symlinked_dir_is_not_force_included() {
     let out = packlist(root, &manifest).unwrap();
 
     assert!(
-        !out.iter().any(|path| path.contains("secret")),
+        !out.iter()
+            .any(|path| path.contains("secret")),
         "main resolving outside the package via a symlinked dir must not be included: {out:?}",
     );
 }

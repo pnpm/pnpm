@@ -1,7 +1,8 @@
 use super::{
     AccessList, AuthState, Body, Ecosystem, PackagePattern, PackageRules, Registries, Registry,
     Request, ServiceExt, StatusCode, TempDir, Value, access_rule, body_json, config_for, header,
-    hosted_with_access, json, router, router_with_auth, seed_hosted, sha512_integrity, to_bytes,
+    hosted_with_access, json, router, router_config, router_with_auth, seed_hosted,
+    sha512_integrity, to_bytes,
 };
 
 #[tokio::test]
@@ -54,12 +55,16 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
     let tmp = TempDir::new().unwrap();
     seed_hosted(tmp.path(), "ajv");
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
     let app = router(config);
 
     let first_page = app
         .clone()
-        .oneshot(Request::get("/-/v1/search?text=ajv&size=2").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=ajv&size=2")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(first_page.status(), StatusCode::OK);
@@ -69,7 +74,11 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
     assert_eq!(first_page["objects"][1]["package"]["name"], json!("ajv-remote-a"));
 
     let second_page = app
-        .oneshot(Request::get("/-/v1/search?text=ajv&from=2&size=1").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?text=ajv&from=2&size=1")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(second_page.status(), StatusCode::OK);
@@ -78,6 +87,105 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
     assert_eq!(second_page["objects"][0]["package"]["name"], json!("ajv-remote-b"));
     shadowed.assert_async().await;
     visible.assert_async().await;
+}
+
+#[tokio::test]
+async fn search_truncates_a_huge_upstream_instead_of_refusing() {
+    let mut upstream = mockito::Server::new_async().await;
+    let pages = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::UrlEncoded("text".into(), "jquery".into()))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [
+                    { "package": { "name": "jquery" } },
+                    { "package": { "name": "jquery-ui" } },
+                    { "package": { "name": "jquery-form" } },
+                ],
+                "total": 23_547,
+            })
+            .to_string(),
+        )
+        .expect(8)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let response = app
+        .oneshot(
+            Request::get("/-/v1/search?text=jquery&size=20")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    let objects = body["objects"].as_array().unwrap();
+    assert_eq!(objects.len(), 3);
+    assert_eq!(objects[0]["package"]["name"], json!("jquery"));
+    // Three deduplicated names plus everything past the 24 results the
+    // eight budgeted pages walked.
+    assert_eq!(body["total"], json!(23_526));
+    pages.assert_async().await;
+}
+
+#[tokio::test]
+async fn starved_upstream_still_counts_toward_the_search_total() {
+    let mut corp = mockito::Server::new_async().await;
+    let corp_objects: Vec<_> = (0..250)
+        .map(|i| json!({ "package": { "name": format!("@corp/widget-{i}") } }))
+        .collect();
+    let corp_pages = corp
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::UrlEncoded("text".into(), "widget".into()))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(json!({ "objects": corp_objects, "total": 23_547 }).to_string())
+        .expect(8)
+        .create_async()
+        .await;
+    let mut npmjs = mockito::Server::new_async().await;
+    let npmjs_body = json!({ "objects": [{ "package": { "name": "widget-solo" } }], "total": 1 });
+    let npmjs_page = npmjs
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::UrlEncoded("text".into(), "widget".into()),
+            mockito::Matcher::UrlEncoded("size".into(), "1".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(npmjs_body.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = router_config(&npmjs.url(), &corp.url(), tmp.path().to_path_buf());
+    config.routing.upstreams.get_mut("corp").unwrap().search = true;
+    config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let response = app
+        .oneshot(
+            Request::get("/-/v1/search?text=widget&size=20")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    // corp: 250 deduplicated names + 21,547 unscanned. npmjs: its result
+    // budget is gone, so its single match lands in the total (+1) through
+    // the guaranteed first fetch rather than in the page.
+    assert_eq!(body["total"], json!(21_798));
+    corp_pages.assert_async().await;
+    npmjs_page.assert_async().await;
 }
 
 /// Every registry operation routes through the registry graph when addressed as
@@ -93,9 +201,9 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
     // No default target: the registry is addressable only at `/~acme/`.
-    config.registries = Registries::new(
+    config.routing.registries = Registries::new(
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
@@ -182,7 +290,11 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     // whoami through the registry.
     let whoami = app
         .clone()
-        .oneshot(authed(Request::get("/~acme/-/whoami")).body(Body::empty()).unwrap())
+        .oneshot(
+            authed(Request::get("/~acme/-/whoami"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(whoami.status(), StatusCode::OK);
@@ -193,7 +305,9 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let search = app
         .clone()
         .oneshot(
-            authed(Request::get("/~acme/-/v1/search?text=widget")).body(Body::empty()).unwrap(),
+            authed(Request::get("/~acme/-/v1/search?text=widget"))
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -202,7 +316,11 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     assert_eq!(body["objects"][0]["package"]["name"], json!("@acme/widget"));
     let anon_search = app
         .clone()
-        .oneshot(Request::get("/~acme/-/v1/search?text=widget").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/~acme/-/v1/search?text=widget")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(body_json(anon_search.into_body()).await["total"], json!(0));
@@ -211,7 +329,11 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     // the registry's own base.
     let manifest = app
         .clone()
-        .oneshot(authed(Request::get("/~acme/@acme/widget/1.0.0")).body(Body::empty()).unwrap())
+        .oneshot(
+            authed(Request::get("/~acme/@acme/widget/1.0.0"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(manifest.status(), StatusCode::OK);
@@ -247,16 +369,26 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         .await
         .unwrap();
     assert_eq!(delete_tar.status(), StatusCode::CREATED);
-    assert!(!tmp.path().join("acme/@acme/widget/widget-1.0.0.tgz").exists());
+    assert!(
+        !tmp.path()
+            .join("acme/@acme/widget/widget-1.0.0.tgz")
+            .exists(),
+    );
     let delete_pkg = app
         .clone()
         .oneshot(
-            authed(Request::delete("/~acme/@acme%2Fwidget/-rev/1")).body(Body::empty()).unwrap(),
+            authed(Request::delete("/~acme/@acme%2Fwidget/-rev/1"))
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(delete_pkg.status(), StatusCode::CREATED);
-    assert!(!tmp.path().join("acme/@acme/widget").exists());
+    assert!(
+        !tmp.path()
+            .join("acme/@acme/widget")
+            .exists(),
+    );
 }
 
 /// Path-less responses resolved to a private registry carry the same
@@ -269,8 +401,8 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
+    config.routing.registries = Registries::new(
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
@@ -291,12 +423,18 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "GET {path}");
         assert_eq!(
-            response.headers().get(header::CACHE_CONTROL).and_then(|value| value.to_str().ok()),
+            response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .and_then(|value| value.to_str().ok()),
             Some("private, no-store"),
             "missing private cache header on {path}",
         );
         assert_eq!(
-            response.headers().get(header::VARY).and_then(|value| value.to_str().ok()),
+            response
+                .headers()
+                .get(header::VARY)
+                .and_then(|value| value.to_str().ok()),
             Some("Authorization"),
             "missing Vary on {path}",
         );
@@ -306,17 +444,26 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
     let tmp_public = TempDir::new().unwrap();
     seed_hosted(&tmp_public.path().join("acme"), "@acme/widget");
     let mut config = config_for("http://127.0.0.1:1", tmp_public.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
+    config.routing.registries = Registries::new(
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     let app = router_with_auth(config, AuthState::in_memory());
-    let response =
-        app.oneshot(Request::get("/@acme/widget").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/@acme/widget")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert!(
-        response.headers().get(header::CACHE_CONTROL).is_none(),
+        response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .is_none(),
         "a public path-less response must stay cacheable",
     );
 }
@@ -331,13 +478,12 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
+    config.routing.registries = Registries::new(
         vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
-    config
-        .hosted
+    config.routing.hosted
         .get_mut("acme")
         .expect("hosted acme")
         .rules
@@ -357,12 +503,18 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
-        response.headers().get(header::CACHE_CONTROL).and_then(|value| value.to_str().ok()),
+        response
+            .headers()
+            .get(header::CACHE_CONTROL)
+            .and_then(|value| value.to_str().ok()),
         Some("private, no-store"),
         "an ACL-gated path-less response must not be shared-cacheable",
     );
     assert_eq!(
-        response.headers().get(header::VARY).and_then(|value| value.to_str().ok()),
+        response
+            .headers()
+            .get(header::VARY)
+            .and_then(|value| value.to_str().ok()),
         Some("Authorization"),
     );
 }
@@ -397,14 +549,14 @@ async fn browse_paginates_hosted_packages_without_contacting_upstreams() {
         .create_async()
         .await;
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    config.routing.upstreams.get_mut("npmjs").unwrap().search = true;
     let mut hosted = hosted_with_access("", "$all");
     hosted.rules = PackageRules::new(
         vec![access_rule("hidden", "alice")],
         Some(AccessList::from_tokens(["$all"])),
     );
-    config.hosted.insert("local".to_string(), hosted);
-    config.registries = Registries::new(
+    config.routing.hosted.insert("local".to_string(), hosted);
+    config.routing.registries = Registries::new(
         [
             (
                 "local".to_string(),
@@ -441,12 +593,22 @@ async fn browse_paginates_hosted_packages_without_contacting_upstreams() {
             assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
             let body = body_json(response.into_body()).await;
             assert_eq!(body["total"], 3);
-            assert_eq!(body["objects"].as_array().unwrap().len(), 1);
+            assert_eq!(
+                body["objects"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                1,
+            );
             assert_eq!(body["objects"][0]["package"]["name"], name);
         }
     }
     let response = app
-        .oneshot(Request::get("/-/v1/search?browse=true&from=3").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/v1/search?browse=true&from=3")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let body = body_json(response.into_body()).await;
@@ -459,9 +621,9 @@ async fn browse_paginates_hosted_packages_without_contacting_upstreams() {
 async fn registry_directory_filters_private_registries_and_routing_details() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://example.invalid/secret-upstream", tmp.path().to_path_buf());
-    config.hosted.insert("private".to_string(), hosted_with_access("private", "alice"));
-    config.hosted.insert("crates".to_string(), hosted_with_access("crates", "$all"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("private".to_string(), hosted_with_access("private", "alice"));
+    config.routing.hosted.insert("crates".to_string(), hosted_with_access("crates", "$all"));
+    config.routing.registries = Registries::new(
         [
             (
                 "private".to_string(),
@@ -489,7 +651,11 @@ async fn registry_directory_filters_private_registries_and_routing_details() {
         if authenticated {
             request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
         }
-        let response = app.clone().oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(request.body(Body::empty()).unwrap())
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
@@ -497,8 +663,16 @@ async fn registry_directory_filters_private_registries_and_routing_details() {
         assert_eq!(body["defaultRegistries"], json!({"npm": "main", "cargo": "main"}));
         assert_eq!(body["ecosystems"]["cargo"], json!({"available": true, "prefixed": true}));
         let entries = body["registries"].as_array().unwrap();
-        let main = entries.iter().find(|registry| registry["name"] == "main").unwrap();
-        assert_eq!(entries.iter().any(|registry| registry["name"] == "private"), authenticated);
+        let main = entries
+            .iter()
+            .find(|registry| registry["name"] == "main")
+            .unwrap();
+        assert_eq!(
+            entries
+                .iter()
+                .any(|registry| registry["name"] == "private"),
+            authenticated,
+        );
         if authenticated {
             assert_eq!(main["sources"], json!(["private", "npmjs"]));
         } else {

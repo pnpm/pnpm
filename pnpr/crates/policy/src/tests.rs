@@ -168,11 +168,36 @@ fn specificity_chain_orders_all_four_tiers() {
         ],
         None,
     );
-    assert!(rules.for_package("@acme/exact").access.allows(&user("exact")));
-    assert!(!rules.for_package("@acme/exact").access.allows(&user("acme")));
-    assert!(rules.for_package("@acme/other").access.allows(&user("acme")));
-    assert!(rules.for_package("@beta/pkg").access.allows(&user("scoped")));
-    assert!(rules.for_package("unscoped").access.allows(&user("everyone")));
+    assert!(
+        rules
+            .for_package("@acme/exact")
+            .access
+            .allows(&user("exact")),
+    );
+    assert!(
+        !rules
+            .for_package("@acme/exact")
+            .access
+            .allows(&user("acme")),
+    );
+    assert!(
+        rules
+            .for_package("@acme/other")
+            .access
+            .allows(&user("acme")),
+    );
+    assert!(
+        rules
+            .for_package("@beta/pkg")
+            .access
+            .allows(&user("scoped")),
+    );
+    assert!(
+        rules
+            .for_package("unscoped")
+            .access
+            .allows(&user("everyone")),
+    );
 }
 
 #[test]

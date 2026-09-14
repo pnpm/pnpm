@@ -248,7 +248,11 @@ fn modify_preserves_executable_mode() {
     let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
     apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
 
-    let mode = fs::metadata(&target).unwrap().permissions().mode() & 0o777;
+    let mode = fs::metadata(&target)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o755, "executable bit must be preserved across the rewrite");
     assert_eq!(fs::read_to_string(&target).unwrap(), IS_POSITIVE_INDEX_JS_PATCHED);
 }
@@ -273,7 +277,10 @@ fn modify_does_not_destroy_target_on_write_failure() {
 
     // Make the directory read-only so the sibling temp file open in
     // `write_atomic_with_mode` fails with `PermissionDenied`.
-    let dir_mode = fs::metadata(patched.path()).unwrap().permissions().mode();
+    let dir_mode = fs::metadata(patched.path())
+        .unwrap()
+        .permissions()
+        .mode();
     fs::set_permissions(patched.path(), fs::Permissions::from_mode(0o555)).unwrap();
 
     let err = apply_patch_to_dir(patched.path(), &patch);

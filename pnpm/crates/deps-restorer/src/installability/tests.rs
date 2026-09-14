@@ -68,11 +68,29 @@ fn synthetic_metadata(
         }),
         version: None,
         engines: engines.map(|entries| {
-            entries.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
+            entries
+                .iter()
+                .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+                .collect()
         }),
-        cpu: cpu.map(|values| values.iter().map(|s| (*s).to_string()).collect()),
-        os: os.map(|values| values.iter().map(|s| (*s).to_string()).collect()),
-        libc: libc.map(|values| values.iter().map(|s| (*s).to_string()).collect()),
+        cpu: cpu.map(|values| {
+            values
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect()
+        }),
+        os: os.map(|values| {
+            values
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect()
+        }),
+        libc: libc.map(|values| {
+            values
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect()
+        }),
         deprecated: None,
         has_bin: None,
         prepare: None,

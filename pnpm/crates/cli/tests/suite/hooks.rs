@@ -16,7 +16,10 @@ fn filter_log_is_ignored_with_a_warning() {
     .expect("write filterLog hook");
     fs::write(workspace.join("pnpm-lock.yaml"), "not: [valid").expect("write broken lockfile");
 
-    let output = pacquet_in(&workspace).with_arg("install").assert().success();
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert!(stdout.contains("filterLog hook is deprecated"), "STDOUT:\n{stdout}");
     assert!(stdout.contains("Ignoring broken lockfile"), "STDOUT:\n{stdout}");
@@ -67,7 +70,10 @@ fn update_config_catalog_applies_to_link() {
     fs::write(target.join("package.json"), r#"{ "name": "other-pkg", "version": "1.0.0" }"#)
         .expect("write link target manifest");
 
-    pacquet_in(&workspace).with_args(["link", "../other-pkg"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["link", "../other-pkg"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }
@@ -79,8 +85,14 @@ fn update_config_catalog_applies_to_outdated() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_catalog_hook_project(&workspace);
 
-    pacquet_in(&workspace).with_arg("install").assert().success();
-    let output = pacquet_in(&workspace).with_arg("outdated").output().expect("run outdated");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let output = pacquet_in(&workspace)
+        .with_arg("outdated")
+        .output()
+        .expect("run outdated");
 
     assert_eq!(output.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -116,7 +128,10 @@ fn update_config_catalog_applies_to_import() {
     )
     .expect("write package-lock.json");
 
-    pacquet_in(&workspace).with_arg("import").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("import")
+        .assert()
+        .success();
 
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     assert!(lockfile.starts_with("---\n"), "env document must lead pnpm-lock.yaml");
@@ -131,8 +146,7 @@ fn update_config_catalog_applies_to_import() {
             .parse()
             .expect("parse config dependency package key");
     assert!(
-        env_lockfile
-            .packages
+        env_lockfile.packages
             .get(&config_dependency_key)
             .expect("config dependency package must be retained")
             .resolution
@@ -144,7 +158,10 @@ fn update_config_catalog_applies_to_import() {
         lockfile.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"),
         "the imported lockfile should resolve the hook-provided catalog entry:\n{lockfile}",
     );
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }
@@ -164,7 +181,11 @@ fn update_config_applies_to_run() {
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
     fs::write(workspace.join(".pnpmfile.cjs"), EXTRA_ENV_PNPMFILE).expect("write pnpmfile");
 
-    pacquet_in(&workspace).with_arg("run").with_arg("write-marker").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("run")
+        .with_arg("write-marker")
+        .assert()
+        .success();
 
     assert_eq!(fs::read_to_string(workspace.join("marker.txt")).expect("read marker"), "from-hook");
 
@@ -270,7 +291,10 @@ fn update_config_applies_to_recursive_run_defaults() {
     )
     .expect("write next project package.json");
 
-    pacquet_in(&workspace).with_args(["--recursive", "run", "check"]).assert().failure();
+    pacquet_in(&workspace)
+        .with_args(["--recursive", "run", "check"])
+        .assert()
+        .failure();
 
     assert!(
         next.join("marker.txt").exists(),
@@ -294,10 +318,16 @@ fn update_config_applies_to_rebuild() {
     fs::write(workspace.join(".pnpmfile.cjs"), EXTRA_ENV_PNPMFILE).expect("write pnpmfile");
     let marker = workspace.join("marker.txt");
 
-    pacquet_in(&workspace).with_args(["install", "--ignore-scripts"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--ignore-scripts"])
+        .assert()
+        .success();
     assert!(!marker.exists(), "--ignore-scripts must leave the install script for rebuild");
 
-    pacquet_in(&workspace).with_args(["rebuild", "--pending"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["rebuild", "--pending"])
+        .assert()
+        .success();
 
     assert_eq!(fs::read_to_string(&marker).expect("read marker"), "from-hook");
 
@@ -327,8 +357,15 @@ fn update_config_applies_before_the_verify_deps_check() {
     )
     .expect("write pnpmfile");
 
-    pacquet_in(&workspace).with_arg("install").assert().success();
-    let output = pacquet_in(&workspace).with_arg("run").with_arg("foo").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let output = pacquet_in(&workspace)
+        .with_arg("run")
+        .with_arg("foo")
+        .assert()
+        .success();
 
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert!(stdout.contains("ran"), "the script should have run\nSTDOUT:\n{stdout}");
@@ -357,7 +394,10 @@ fn update_config_sees_npmrc_scoped_registries() {
         .expect("write .npmrc");
     fs::write(workspace.join(".pnpmfile.cjs"), DUMP_CONFIG_PNPMFILE).expect("write pnpmfile");
 
-    pacquet_in(&workspace).with_arg("install").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let seen = config_seen_by_hook(&workspace);
     dbg!(&seen["registriesByScope"]);
@@ -367,7 +407,11 @@ fn update_config_sees_npmrc_scoped_registries() {
     );
     // Every unscoped package resolves through the default registry, so it is
     // reported whether or not a source named it.
-    assert!(seen["registry"].as_str().is_some_and(|url| !url.is_empty()));
+    assert!(
+        seen["registry"]
+            .as_str()
+            .is_some_and(|url| !url.is_empty()),
+    );
     assert_eq!(seen["registriesByScope"]["default"], seen["registry"]);
 
     drop(root);
@@ -407,12 +451,18 @@ fn update_config_omits_the_settings_nothing_set() {
     fs::write(workspace.join("package.json"), "{}").expect("write package.json");
     fs::write(workspace.join(".pnpmfile.cjs"), DUMP_CONFIG_PNPMFILE).expect("write pnpmfile");
 
-    pacquet_in(&workspace).with_arg("install").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let seen = config_seen_by_hook(&workspace);
     let settings = seen.as_object().expect("the configuration seen is an object");
-    let reported_as_null: Vec<&String> =
-        settings.iter().filter(|(_, value)| value.is_null()).map(|(key, _)| key).collect();
+    let reported_as_null: Vec<&String> = settings
+        .iter()
+        .filter(|(_, value)| value.is_null())
+        .map(|(key, _)| key)
+        .collect();
     dbg!(&reported_as_null);
     assert!(reported_as_null.is_empty());
     assert!(!settings.contains_key("registries"));
@@ -429,7 +479,11 @@ fn update_config_omits_the_settings_nothing_set() {
     assert_eq!(pnpmfiles.len(), 1);
     assert!(pnpmfiles[0].ends_with(".pnpmfile.cjs"));
     assert!(Path::new(pnpmfiles[0]).is_absolute());
-    assert!(seen["cacheDir"].as_str().is_some_and(|dir| Path::new(dir).is_absolute()));
+    assert!(
+        seen["cacheDir"]
+            .as_str()
+            .is_some_and(|dir| Path::new(dir).is_absolute()),
+    );
 
     drop(root);
 }
@@ -448,7 +502,10 @@ fn update_config_sees_registry_credentials() {
     .expect("write .npmrc");
     fs::write(workspace.join(".pnpmfile.cjs"), DUMP_CONFIG_PNPMFILE).expect("write pnpmfile");
 
-    pacquet_in(&workspace).with_arg("install").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     let seen = config_seen_by_hook(&workspace);
     dbg!(&seen["authConfig"], &seen["configByUri"]);
@@ -504,7 +561,10 @@ fn update_config_can_rewrite_registry_routing() {
     )
     .expect("write pnpmfile");
 
-    pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }

@@ -52,9 +52,10 @@ fn save_added(
     let path = project.root.join("pyproject.toml");
     manifest::add(&path, &requirements, options.development)?;
     let manifest = manifest::Manifest::parse(&fs::read_to_string(path).into_diagnostic()?)?;
-    lock.tool
-        .pnpm
-        .set_requirements(&manifest.requirements(config, manifest::DependencySelection::ALL)?);
+    lock.tool.pnpm.set_requirements(&manifest.requirements(
+        config,
+        manifest::DependencySelection::ALL,
+    )?);
     project.lock = toml::to_string_pretty(&lock).into_diagnostic()?;
     Ok(())
 }
@@ -70,7 +71,9 @@ fn pin_to_locked_version(
     if !options.exact && requirement.version_or_url.is_some() {
         return Ok(());
     }
-    let Some(package) = lock.packages.iter().find(|package| package.name == requirement.name)
+    let Some(package) = lock.packages
+        .iter()
+        .find(|package| package.name == requirement.name)
     else {
         return Ok(());
     };

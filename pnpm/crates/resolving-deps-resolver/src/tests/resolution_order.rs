@@ -66,13 +66,22 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
     assert!(tree.packages.contains_key("b@1.0.0"));
     assert!(tree.packages.contains_key("shared@1.0.0"));
 
-    let a_tree = tree.dependencies_tree.get(&tree.direct[0].node_id).unwrap();
-    let b_tree = tree.dependencies_tree.get(&tree.direct[1].node_id).unwrap();
-    let shared_via_a = a_tree.children.realized().get("shared").unwrap();
-    let shared_via_b = b_tree.children.realized().get("shared").unwrap();
+    let a_tree = tree.dependencies_tree
+        .get(&tree.direct[0].node_id)
+        .unwrap();
+    let b_tree = tree.dependencies_tree
+        .get(&tree.direct[1].node_id)
+        .unwrap();
+    let shared_via_a = a_tree.children
+        .realized()
+        .get("shared")
+        .unwrap();
+    let shared_via_b = b_tree.children
+        .realized()
+        .get("shared")
+        .unwrap();
     assert_eq!(shared_via_a, shared_via_b);
-    let shared_occurrences = tree
-        .dependencies_tree
+    let shared_occurrences = tree.dependencies_tree
         .values()
         .filter(|n| n.resolved_package_id == "shared@1.0.0".into())
         .count();

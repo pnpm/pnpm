@@ -10,17 +10,17 @@ pub(in super::super) fn start_early_materialization<Reporter: self::Reporter + '
     setup: &ResolverSetup,
 ) -> Option<Arc<crate::early_materializer::EarlyMaterializer<Reporter>>> {
     early_materialization_eligible(EarlyMaterializationFit {
-        config: install.config,
-        node_linker: install.node_linker,
-        lockfile_only: install.lockfile_only,
+        config: install.drivers.config,
+        node_linker: install.execution.node_linker,
+        lockfile_only: install.execution.lockfile_only,
         filtered_isolated: setup.shape.filtered_isolated,
         is_hoisted: setup.shape.is_hoisted,
         has_custom_fetcher: setup.chain.custom_fetcher_session.is_some(),
     })
     .then(|| {
         Arc::new(crate::early_materializer::EarlyMaterializer::<Reporter>::new(
-            install.config,
-            Arc::clone(&owned.tarball_mem_cache),
+            install.drivers.config,
+            Arc::clone(&owned.fetching.tarball_mem_cache),
         ))
     })
 }

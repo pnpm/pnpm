@@ -23,15 +23,17 @@ impl ScriptShortcutArgs {
         RunArgs {
             script: RunArgs::script(script_name, self.args),
             if_present,
-            resume_from: None,
-            report_summary: false,
-            no_bail: false,
-            sort: true,
-            reverse: false,
-            parallel: false,
             sequential: false,
             dry_run: false,
             json: false,
+            workspace: crate::cli_args::recursive::RecursiveExecutionArgs {
+                resume_from: None,
+                report_summary: false,
+                no_bail: false,
+                sort: true,
+                reverse: false,
+                parallel: false,
+            },
         }
     }
 

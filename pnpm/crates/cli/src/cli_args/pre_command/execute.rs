@@ -14,7 +14,12 @@ pub(crate) async fn execute_plan(
     match plan {
         PreCommandPlan::Switch(plan) => execute_switch(plan, child_argv).await,
         PreCommandPlan::SyncEnvLockfile(sync) => {
-            let EnvLockfileSync { config, env_root, package_manager, frozen_lockfile } = sync;
+            let EnvLockfileSync {
+                config,
+                env_root,
+                package_manager,
+                frozen_lockfile,
+            } = sync;
             config_deps::sync_package_manager_dependencies(
                 &config,
                 &env_root,
@@ -70,7 +75,12 @@ async fn install_switch_target(
             .await?;
             Ok(Some((version, bin_dir)))
         }
-        SwitchSource::Resolve { env_root, frozen_lockfile, force_resync, locked_version } => {
+        SwitchSource::Resolve {
+            env_root,
+            frozen_lockfile,
+            force_resync,
+            locked_version,
+        } => {
             install_resolved_switch_target(
                 config,
                 spec,
@@ -122,8 +132,7 @@ async fn install_resolved_switch_target(
     let version = match locked_version.filter(|_| frozen_lockfile) {
         Some(locked) => locked,
         None => {
-            config_deps::resolve_engine_version(config, "pnpm", spec)
-                .await?
+            config_deps::resolve_engine_version(config, "pnpm", spec).await?
                 .ok_or_else(|| miette::miette!(r#"Cannot resolve pnpm version for "{}""#, spec))?
                 .version
         }

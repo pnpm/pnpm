@@ -22,9 +22,11 @@ impl PatchFileWriteContext {
                 patches_dir: patches_dir_setting.to_string(),
             });
         }
-        let real_patches_dir = dunce::canonicalize(&patches_dir).map_err(|source| {
-            PatchCommitError::ReadPatchFileMetadata { path: patches_dir.clone(), source }
-        })?;
+        let real_patches_dir = dunce::canonicalize(&patches_dir)
+            .map_err(|source| PatchCommitError::ReadPatchFileMetadata {
+                path: patches_dir.clone(),
+                source,
+            })?;
         if !is_subdir(&real_project_root, &real_patches_dir) {
             return Err(PatchCommitError::PatchesDirOutsideProject {
                 patches_dir: patches_dir_setting.to_string(),
@@ -42,21 +44,26 @@ impl PatchFileWriteContext {
         }
 
         let parent_dir = target_path.parent().map_or_else(PathBuf::new, Path::to_path_buf);
-        let real_parent_dir = dunce::canonicalize(&parent_dir).map_err(|source| {
-            PatchCommitError::ReadPatchFileMetadata { path: parent_dir.clone(), source }
-        })?;
+        let real_parent_dir = dunce::canonicalize(&parent_dir)
+            .map_err(|source| PatchCommitError::ReadPatchFileMetadata {
+                path: parent_dir.clone(),
+                source,
+            })?;
         if !is_subdir(&self.real_patches_dir, &real_parent_dir) {
             return Err(PatchCommitError::PatchFileOutsidePatchesDir {
                 patch_file: patch_file.to_string(),
             });
         }
 
-        if lstat_if_exists(&target_path)?.as_ref().is_some_and(|stats| {
-            stats.file_type().is_symlink()
-                && dunce::canonicalize(&target_path)
-                    .ok()
-                    .is_none_or(|real_target| !is_subdir(&self.real_patches_dir, &real_target))
-        }) {
+        if lstat_if_exists(&target_path)?
+            .as_ref()
+            .is_some_and(|stats| {
+                stats.file_type().is_symlink()
+                    && dunce::canonicalize(&target_path)
+                        .ok()
+                        .is_none_or(|real_target| !is_subdir(&self.real_patches_dir, &real_target))
+            })
+        {
             return Err(PatchCommitError::PatchFileOutsidePatchesDir {
                 patch_file: patch_file.to_string(),
             });
@@ -104,17 +111,21 @@ pub(super) fn write_patch_file_atomically(target: &Path, content: &[u8]) -> io::
 
 pub(super) fn clean_source_dir(state: &State, patch_dir: &Path) -> PathBuf {
     let hash = create_short_hash(&patch_dir.to_string_lossy());
-    state.config.store_dir.tmp().join("patch-commit").join(hash)
+    state.config.store_dir
+        .tmp()
+        .join("patch-commit")
+        .join(hash)
 }
 
 pub(super) fn cleanup_after_diff(
     clean_dir: &Path,
     filtered: &PkgFilesForDiff,
 ) -> Result<(), PatchCommitError> {
-    remove_dir_if_exists(clean_dir).map_err(|source| PatchCommitError::CleanupTempDir {
-        path: clean_dir.to_path_buf(),
-        source,
-    })?;
+    remove_dir_if_exists(clean_dir)
+        .map_err(|source| PatchCommitError::CleanupTempDir {
+            path: clean_dir.to_path_buf(),
+            source,
+        })?;
     if let PkgFilesForDiff::Temporary(path) = filtered {
         remove_dir_if_exists(path)
             .map_err(|source| PatchCommitError::CleanupTempDir { path: path.clone(), source })?;

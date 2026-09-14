@@ -1,7 +1,10 @@
 use super::{WildcardMatcher, create_matcher, create_matcher_with_index};
 
 fn pats<const LEN: usize>(patterns: [&str; LEN]) -> Vec<String> {
-    patterns.iter().map(std::string::ToString::to_string).collect()
+    patterns
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect()
 }
 
 /// Boolean `matcher()` semantics across includes, ignores, and ordering.

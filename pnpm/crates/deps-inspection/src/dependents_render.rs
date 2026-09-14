@@ -84,7 +84,11 @@ fn root_label(
 
 /// The `--long` manifest fields a package has, in display order.
 fn long_info_fields(info: &LongPkgInfo) -> Vec<String> {
-    [&info.description, &info.repository, &info.homepage].into_iter().flatten().cloned().collect()
+    [&info.description, &info.repository, &info.homepage]
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect()
 }
 
 fn name_at_version_plain(name: &str, version: &str) -> String {
@@ -103,11 +107,14 @@ fn why_summary(trees: &[DependentsTree]) -> String {
     let mut order: Vec<String> = Vec::new();
     let mut by_name: HashMap<String, Entry> = HashMap::new();
     for tree in trees {
-        let displayed_name = tree.display_name.clone().unwrap_or_else(|| tree.name.clone());
-        let entry = by_name.entry(displayed_name.clone()).or_insert_with(|| {
-            order.push(displayed_name);
-            Entry { versions: Vec::new(), count: 0 }
-        });
+        let displayed_name =
+            tree.display_name.clone().unwrap_or_else(|| tree.name.clone());
+        let entry = by_name
+            .entry(displayed_name.clone())
+            .or_insert_with(|| {
+                order.push(displayed_name);
+                Entry { versions: Vec::new(), count: 0 }
+            });
         if !entry.versions.contains(&tree.version) {
             entry.versions.push(tree.version.clone());
         }

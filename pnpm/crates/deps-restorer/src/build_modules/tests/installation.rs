@@ -77,8 +77,9 @@ fn explicit_allow_by_git_hosted_tarball_repo_url() {
     // Bitbucket and GitLab (with nested groups) tarball downloads too.
     assert_eq!(policy.check("bar@https://bitbucket.org/org/bar/get/abc123.tar.gz"), Some(true));
     assert_eq!(
-        policy
-            .check("baz@https://gitlab.com/group/subgroup/baz/-/archive/abc123/baz-abc123.tar.gz"),
+        policy.check(
+            "baz@https://gitlab.com/group/subgroup/baz/-/archive/abc123/baz-abc123.tar.gz"
+        ),
         Some(true),
     );
     // A different repository under the same package name is not approved.
@@ -212,7 +213,10 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -232,41 +236,50 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     create_failing_postinstall_fixture(virtual_store_dir.path(), &pkg_key);
 
     let ignored = BuildModules {
-        layout: &VirtualStoreLayout::legacy(
-            virtual_store_dir.path(),
-            pnpm_config::default_virtual_store_dir_max_length() as usize,
-        ),
-        modules_dir: modules_dir.path(),
-        lockfile_dir: lockfile_dir.path(),
-        snapshots: Some(&snapshots),
-        importers: &importers,
-        packages: None,
+        cache: crate::BuildCacheContext {
+            maps_by_snapshot: None,
+            engine_name: None,
+            read: true,
+            write: false,
+            publisher: None,
+            store_dir: None,
+            store_index_writer: None,
+            frozen_store: false,
+        },
+        directories: crate::BuildLayout {
+            layout: &VirtualStoreLayout::legacy(
+                virtual_store_dir.path(),
+                pnpm_config::default_virtual_store_dir_max_length() as usize,
+            ),
+            pkg_roots_by_key: None,
+            gather_ancestor_bin_paths: false,
+            modules_dir: modules_dir.path(),
+            lockfile_dir: lockfile_dir.path(),
+            import_method: PackageImportMethod::Auto,
+            logged_methods: &TEST_LOGGED_METHODS,
+        },
+        graph: crate::BuildGraphInputs {
+            snapshots: Some(&snapshots),
+            packages: None,
+            patches: None,
+            requires_build_by_snapshot: None,
+            importers: &importers,
+        },
+        scripts: crate::BuildScriptOptions {
+            extra_env: &HashMap::new(),
+            user_agent: "pnpm/test",
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+            unsafe_perm: true,
+            ignore: false,
+        },
+
         allow_build_policy: &policy,
-        side_effects_maps_by_snapshot: None,
-        requires_build_by_snapshot: None,
-        engine_name: None,
-        side_effects_cache: true,
-        side_effects_cache_write: false,
-        shared_side_effects_publisher: None,
-        store_dir: None,
-        store_index_writer: None,
-        patches: None,
 
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-
-        script_shell: None,
-        shell_emulator: false,
-        extra_env: &HashMap::new(),
-        user_agent: "pnpm/test",
-        unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_roots_by_key: None,
-        gather_ancestor_bin_paths: false,
-        frozen_store: false,
-        ignore_scripts: false,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &TEST_LOGGED_METHODS,
+
         rebuild: None,
     }
     .run::<RecordingReporter>()
@@ -318,41 +331,50 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
     create_failing_postinstall_fixture(virtual_store_dir.path(), &pkg_key);
 
     let err = BuildModules {
-        layout: &VirtualStoreLayout::legacy(
-            virtual_store_dir.path(),
-            pnpm_config::default_virtual_store_dir_max_length() as usize,
-        ),
-        modules_dir: modules_dir.path(),
-        lockfile_dir: lockfile_dir.path(),
-        snapshots: Some(&snapshots),
-        importers: &importers,
-        packages: None,
+        cache: crate::BuildCacheContext {
+            maps_by_snapshot: None,
+            engine_name: None,
+            read: true,
+            write: false,
+            publisher: None,
+            store_dir: None,
+            store_index_writer: None,
+            frozen_store: false,
+        },
+        directories: crate::BuildLayout {
+            layout: &VirtualStoreLayout::legacy(
+                virtual_store_dir.path(),
+                pnpm_config::default_virtual_store_dir_max_length() as usize,
+            ),
+            pkg_roots_by_key: None,
+            gather_ancestor_bin_paths: false,
+            modules_dir: modules_dir.path(),
+            lockfile_dir: lockfile_dir.path(),
+            import_method: PackageImportMethod::Auto,
+            logged_methods: &TEST_LOGGED_METHODS,
+        },
+        graph: crate::BuildGraphInputs {
+            snapshots: Some(&snapshots),
+            packages: None,
+            patches: None,
+            requires_build_by_snapshot: None,
+            importers: &importers,
+        },
+        scripts: crate::BuildScriptOptions {
+            extra_env: &HashMap::new(),
+            user_agent: "pnpm/test",
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+            unsafe_perm: true,
+            ignore: false,
+        },
+
         allow_build_policy: &policy,
-        side_effects_maps_by_snapshot: None,
-        requires_build_by_snapshot: None,
-        engine_name: None,
-        side_effects_cache: true,
-        side_effects_cache_write: false,
-        shared_side_effects_publisher: None,
-        store_dir: None,
-        store_index_writer: None,
-        patches: None,
 
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-
-        script_shell: None,
-        shell_emulator: false,
-        extra_env: &HashMap::new(),
-        user_agent: "pnpm/test",
-        unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_roots_by_key: None,
-        gather_ancestor_bin_paths: false,
-        frozen_store: false,
-        ignore_scripts: false,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &TEST_LOGGED_METHODS,
+
         rebuild: None,
     }
     .run::<SilentReporter>()
@@ -428,41 +450,50 @@ async fn write_path_disabled_skips_upload() {
     let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(
-            virtual_store_dir.path(),
-            pnpm_config::default_virtual_store_dir_max_length() as usize,
-        ),
-        modules_dir: modules_dir.path(),
-        lockfile_dir: lockfile_dir.path(),
-        snapshots: Some(&snapshots),
-        packages: Some(&packages),
-        importers: &importers,
+        cache: crate::BuildCacheContext {
+            maps_by_snapshot: None,
+            engine_name: Some("darwin;arm64;node20"),
+            read: true,
+            write: false,
+            publisher: None,
+            store_dir: Some(&store_dir),
+            store_index_writer: Some(&writer),
+            frozen_store: false,
+        },
+        directories: crate::BuildLayout {
+            layout: &VirtualStoreLayout::legacy(
+                virtual_store_dir.path(),
+                pnpm_config::default_virtual_store_dir_max_length() as usize,
+            ),
+            pkg_roots_by_key: None,
+            gather_ancestor_bin_paths: false,
+            modules_dir: modules_dir.path(),
+            lockfile_dir: lockfile_dir.path(),
+            import_method: PackageImportMethod::Auto,
+            logged_methods: &TEST_LOGGED_METHODS,
+        },
+        graph: crate::BuildGraphInputs {
+            snapshots: Some(&snapshots),
+            packages: Some(&packages),
+            patches: None,
+            requires_build_by_snapshot: None,
+            importers: &importers,
+        },
+        scripts: crate::BuildScriptOptions {
+            extra_env: &HashMap::new(),
+            user_agent: "pnpm/test",
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+            unsafe_perm: true,
+            ignore: false,
+        },
+
         allow_build_policy: &policy,
-        side_effects_maps_by_snapshot: None,
-        requires_build_by_snapshot: None,
-        engine_name: Some("darwin;arm64;node20"),
-        side_effects_cache: true,
-        side_effects_cache_write: false,
-        shared_side_effects_publisher: None,
-        store_dir: Some(&store_dir),
-        store_index_writer: Some(&writer),
-        patches: None,
 
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-
-        script_shell: None,
-        shell_emulator: false,
-        extra_env: &HashMap::new(),
-        user_agent: "pnpm/test",
-        unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_roots_by_key: None,
-        gather_ancestor_bin_paths: false,
-        frozen_store: false,
-        ignore_scripts: false,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &TEST_LOGGED_METHODS,
+
         rebuild: None,
     }
     .run::<SilentReporter>()
@@ -472,7 +503,10 @@ async fn write_path_disabled_skips_upload() {
     writer_task.await.expect("await writer").expect("writer succeeds");
 
     let index = StoreIndex::open_readonly_in(&store_dir).expect("open index for read");
-    let row = index.get(&files_index_file).expect("get row").expect("row present");
+    let row = index
+        .get(&files_index_file)
+        .expect("get row")
+        .expect("row present");
     assert!(row.side_effects.is_none(), "write disabled must NOT populate side_effects");
 }
 /// Uploading errors do not interrupt the install: the install
@@ -557,41 +591,50 @@ async fn upload_error_does_not_interrupt_install() {
     let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
 
     BuildModules {
-        layout: &VirtualStoreLayout::legacy(
-            virtual_store_dir.path(),
-            pnpm_config::default_virtual_store_dir_max_length() as usize,
-        ),
-        modules_dir: modules_dir.path(),
-        lockfile_dir: lockfile_dir.path(),
-        snapshots: Some(&snapshots),
-        packages: Some(&packages),
-        importers: &importers,
+        cache: crate::BuildCacheContext {
+            maps_by_snapshot: None,
+            engine_name: Some("darwin;arm64;node20"),
+            read: true,
+            write: true,
+            publisher: None,
+            store_dir: Some(&store_dir),
+            store_index_writer: Some(&writer),
+            frozen_store: false,
+        },
+        directories: crate::BuildLayout {
+            layout: &VirtualStoreLayout::legacy(
+                virtual_store_dir.path(),
+                pnpm_config::default_virtual_store_dir_max_length() as usize,
+            ),
+            pkg_roots_by_key: None,
+            gather_ancestor_bin_paths: false,
+            modules_dir: modules_dir.path(),
+            lockfile_dir: lockfile_dir.path(),
+            import_method: PackageImportMethod::Auto,
+            logged_methods: &TEST_LOGGED_METHODS,
+        },
+        graph: crate::BuildGraphInputs {
+            snapshots: Some(&snapshots),
+            packages: Some(&packages),
+            patches: None,
+            requires_build_by_snapshot: None,
+            importers: &importers,
+        },
+        scripts: crate::BuildScriptOptions {
+            extra_env: &HashMap::new(),
+            user_agent: "pnpm/test",
+            prepend_node_path: ScriptsPrependNodePath::Never,
+            shell: None,
+            shell_emulator: false,
+            unsafe_perm: true,
+            ignore: false,
+        },
+
         allow_build_policy: &policy,
-        side_effects_maps_by_snapshot: None,
-        requires_build_by_snapshot: None,
-        engine_name: Some("darwin;arm64;node20"),
-        side_effects_cache: true,
-        side_effects_cache_write: true,
-        shared_side_effects_publisher: None,
-        store_dir: Some(&store_dir),
-        store_index_writer: Some(&writer),
-        patches: None,
 
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-
-        script_shell: None,
-        shell_emulator: false,
-        extra_env: &HashMap::new(),
-        user_agent: "pnpm/test",
-        unsafe_perm: true,
         child_concurrency: 1,
         skipped: &SkippedSnapshots::default(),
-        pkg_roots_by_key: None,
-        gather_ancestor_bin_paths: false,
-        frozen_store: false,
-        ignore_scripts: false,
-        import_method: PackageImportMethod::Auto,
-        logged_methods: &TEST_LOGGED_METHODS,
+
         rebuild: None,
     }
     .run::<SilentReporter>()
@@ -609,7 +652,10 @@ async fn upload_error_does_not_interrupt_install() {
     // error fired before `queue_side_effects_upload` ran, so the
     // writer task never saw a `SideEffectsUpload` for this row.
     let index = StoreIndex::open_readonly_in(&store_dir).expect("open index for read");
-    let row = index.get(&files_index_file).expect("get row").expect("base row present");
+    let row = index
+        .get(&files_index_file)
+        .expect("get row")
+        .expect("base row present");
     assert!(
         row.side_effects.is_none(),
         "swallowed upload error must leave `side_effects` unmodified",

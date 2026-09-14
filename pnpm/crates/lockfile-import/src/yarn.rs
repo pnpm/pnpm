@@ -60,7 +60,9 @@ pub fn collect_yarn_lockfile_versions(
 /// Yarn berry stamps every lockfile it writes with a `__metadata` block.
 /// The TypeScript CLI looks for the same marker anywhere in the file.
 fn is_berry(contents: &str) -> bool {
-    contents.lines().any(|line| line.trim_start().starts_with(METADATA_KEY))
+    contents
+        .lines()
+        .any(|line| line.trim_start().starts_with(METADATA_KEY))
 }
 
 fn collect_berry_versions(
@@ -171,7 +173,9 @@ fn start_classic_entry<'a>(
     line: usize,
     entry_names: &mut Vec<&'a str>,
 ) -> Result<(), YarnSyntaxError> {
-    let key = content.strip_suffix(':').ok_or(YarnSyntaxError::EntryKeyExpected { line })?;
+    let key = content
+        .strip_suffix(':')
+        .ok_or(YarnSyntaxError::EntryKeyExpected { line })?;
     if key != METADATA_KEY {
         entry_names.extend(descriptor_package_names(key));
     }
@@ -214,11 +218,12 @@ fn split_key_and_value(content: &str) -> Option<(&str, &str)> {
 /// `@`, which keeps a scope's leading `@` and drops yarn berry's
 /// protocol along with the range (`minimatch@npm:^3.0.4`).
 fn descriptor_package_names(key: &str) -> impl Iterator<Item = &str> {
-    key.split(',').filter_map(|descriptor| {
-        let descriptor = descriptor.trim().trim_matches(QUOTES);
-        let name = &descriptor[..descriptor.rfind('@')?];
-        (!name.is_empty()).then_some(name)
-    })
+    key.split(',')
+        .filter_map(|descriptor| {
+            let descriptor = descriptor.trim().trim_matches(QUOTES);
+            let name = &descriptor[..descriptor.rfind('@')?];
+            (!name.is_empty()).then_some(name)
+        })
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 pub use output::StreamedScript;
 
 use crate::{
-    extend_path::{ScriptsPrependNodePath, extend_path},
+    extend_path::extend_path,
     make_env::{EnvBuild, EnvOptions, build_env, path_value},
     process_tracker::spawn_child,
     script_exit::ScriptExit,
@@ -19,7 +19,7 @@ use std::{
     ffi::OsString,
     fs,
     io::{self, BufRead, BufReader, Read},
-    path::{Path, PathBuf},
+    path::Path,
     process::{Child, Command, ExitStatus, Stdio},
     thread,
 };
@@ -78,56 +78,20 @@ pub struct RunPostinstallHooks<'a> {
     pub dep_path: &'a str,
     pub pkg_root: &'a Path,
     pub root_modules_dir: &'a Path,
-    pub init_cwd: &'a Path,
-    pub extra_bin_paths: &'a [PathBuf],
-    pub extra_env: &'a HashMap<String, String>,
-    /// Path to a `node` binary for `npm_node_execpath` / `NODE`. When
-    /// `None`, [`crate::build_env`] falls back to looking `node` up
-    /// on `PATH`. Required for native postinstalls that shell out
-    /// via `$NODE`.
-    pub node_execpath: Option<&'a Path>,
-    /// Path written into `npm_execpath` so postinstalls can re-invoke
-    /// the package manager. When `None`, `std::env::current_exe()`
-    /// is used.
-    pub npm_execpath: Option<&'a Path>,
-    /// `node-gyp` entry point written into `npm_config_node_gyp`.
-    /// `None` leaves the variable unset, which is what pnpm does: the
-    /// wrapper found through [`node_gyp_bin`](Self::node_gyp_bin) reads
-    /// this variable and falls back to the shipped copy when it is
-    /// unset, so setting it here would override a user's own choice.
-    pub node_gyp_path: Option<&'a Path>,
-    /// Value written into `npm_config_user_agent`. Caller-supplied
-    /// (typically `"pnpm/<version>"`); `None` skips the stamp.
-    pub user_agent: Option<&'a str>,
     /// When `false`, a per-package `node_modules/.tmp` directory is
     /// created and exposed as `TMPDIR`, and (on POSIX) lifecycle
     /// scripts run with a dropped uid/gid. Pacquet does not yet
     /// surface the privilege drop, so callers currently pass
     /// `true` everywhere.
     pub unsafe_perm: bool,
-    /// Directory holding the shipped `node-gyp` wrapper, prepended to
-    /// `PATH` so install scripts that shell out to `node-gyp` resolve
-    /// it. Supplied by [`crate::bundled_node_gyp_bin`]; `None` when
-    /// nothing was shipped beside the executable.
-    pub node_gyp_bin: Option<&'a Path>,
-    /// Tri-state from `scriptsPrependNodePath` config. `Never` is the
-    /// safe default; `Always` appends `dirname(node)` to `PATH`.
-    pub scripts_prepend_node_path: ScriptsPrependNodePath,
-    /// Custom shell from `scriptShell` config (e.g. `bash`,
-    /// `/usr/local/bin/bash`). `None` means use the platform default
-    /// (`sh -c` on POSIX, `cmd /d /s /c` on Windows).
-    pub script_shell: Option<&'a Path>,
-    /// The `shellEmulator` config: run the script through pacquet's
-    /// built-in shell rather than the platform's. Callers that mirror a
-    /// pnpm call site which does not thread the setting — publishing,
-    /// packing, patching, git package preparation — pass `false`.
-    pub shell_emulator: bool,
     /// Whether the dep is reachable only through optional edges
     /// (`snapshots[<key>].optional` in the v9 lockfile).
     /// Does NOT affect failure handling — `BuildModules` consults the
     /// same flag independently to decide whether to swallow a build
     /// failure (see [#397](https://github.com/pnpm/pacquet/issues/397) item 6).
     pub optional: bool,
+    pub environment: crate::ScriptEnvironment<'a>,
+    pub execution: crate::ScriptExecutionOptions<'a>,
 }
 
 /// The lifecycle stages pnpm runs for a *dependency* during the build
@@ -207,20 +171,14 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
     opts: &RunPostinstallHooks<'_>,
     stages: &[&str],
 ) -> Result<bool, LifecycleScriptError> {
-    let manifest = match safe_read_package_json_from_dir(opts.pkg_root) {
-        Ok(Some(value)) => value,
-        Ok(None) => return Ok(false),
-        Err(source) => {
-            return Err(LifecycleScriptError::ReadManifest {
-                path: opts.pkg_root.join("package.json").display().to_string(),
-                source,
-            });
-        }
-    };
+    let Some(manifest) = read_lifecycle_manifest(opts.pkg_root)? else { return Ok(false) };
 
     let scripts = manifest.get("scripts").and_then(|v| v.as_object());
-    let get_script =
-        |name: &str| -> Option<&str> { scripts.and_then(|s| s.get(name)).and_then(|v| v.as_str()) };
+    let get_script = |name: &str| -> Option<&str> {
+        scripts
+            .and_then(|s| s.get(name))
+            .and_then(|v| v.as_str())
+    };
 
     // Snapshot the process env once for this package. Every stage reads
     // from this snapshot, which keeps the runs observably consistent
@@ -232,11 +190,14 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
 
     for &stage in stages {
         let script = if stage == "install" {
-            get_script("install").map(String::from).or_else(|| {
-                (get_script("preinstall").is_none() && opts.pkg_root.join("binding.gyp").exists())
+            get_script("install")
+                .map(String::from)
+                .or_else(|| {
+                    (get_script("preinstall").is_none()
+                        && opts.pkg_root.join("binding.gyp").exists())
                     .then_some("node-gyp rebuild")
                     .map(String::from)
-            })
+                })
         } else {
             get_script(stage).map(String::from)
         };
@@ -251,6 +212,19 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
     }
 
     Ok(ran_any)
+}
+
+fn read_lifecycle_manifest(
+    pkg_root: &Path,
+) -> Result<Option<serde_json::Value>, LifecycleScriptError> {
+    safe_read_package_json_from_dir(pkg_root)
+        .map_err(|source| LifecycleScriptError::ReadManifest {
+            path: pkg_root
+                .join("package.json")
+                .display()
+                .to_string(),
+            source,
+        })
 }
 
 /// Run a single lifecycle hook and emit `pnpm:lifecycle` events.
@@ -297,13 +271,12 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     // shell pick anyway). The pick also runs when the emulator will
     // take over below, because pnpm rejects a `.bat` / `.cmd`
     // `scriptShell` regardless of `shellEmulator`.
-    let shell = select_shell(opts.script_shell, cfg!(windows)).map_err(|source| {
-        LifecycleScriptError::ScriptShell {
+    let shell = select_shell(opts.execution.shell, cfg!(windows))
+        .map_err(|source| LifecycleScriptError::ScriptShell {
             dep_path: opts.dep_path.to_string(),
             stage: stage.to_string(),
             source,
-        }
-    })?;
+        })?;
 
     // Drop any inherited PATH-like key (`Path` on Windows, `PATH`
     // on POSIX) from the env map before spawning — otherwise on
@@ -314,7 +287,7 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     child_env.retain(|key, _| !key.eq_ignore_ascii_case("PATH"));
     child_env.insert("PATH".to_string(), path_env.to_string_lossy().into_owned());
 
-    let status = if opts.shell_emulator {
+    let status = if opts.execution.shell_emulator {
         run_in_emulator::<Reporter>(script, opts, stage, &child_env, &pkg_root_str)?
     } else {
         run_in_shell::<Reporter>(&shell, script, opts, stage, &child_env, &pkg_root_str)?
@@ -361,17 +334,14 @@ fn lifecycle_env(
     parent_env: &HashMap<String, String>,
 ) -> EnvBuild {
     let env_opts = EnvOptions {
+        environment: opts.environment,
         stage,
         script,
         pkg_root: opts.pkg_root,
-        init_cwd: opts.init_cwd,
+
         script_src_dir: opts.pkg_root,
-        node_execpath: opts.node_execpath,
-        npm_execpath: opts.npm_execpath,
-        node_gyp_path: opts.node_gyp_path,
-        user_agent: opts.user_agent,
+
         unsafe_perm: opts.unsafe_perm,
-        extra_env: opts.extra_env,
     };
     build_env(&env_opts, manifest, parent_env.clone())
 }
@@ -386,11 +356,12 @@ fn prepare_lifecycle_path(
         // directories (it returns `Ok(())`), so no `EEXIST` swallow is
         // needed. Treat any error here — including `AlreadyExists`,
         // which signals a *file* at that path — as a real spawn failure.
-        fs::create_dir_all(tmpdir).map_err(|error| LifecycleScriptError::Spawn {
-            dep_path: opts.dep_path.to_string(),
-            stage: stage.to_string(),
-            source: error,
-        })?;
+        fs::create_dir_all(tmpdir)
+            .map_err(|error| LifecycleScriptError::Spawn {
+                dep_path: opts.dep_path.to_string(),
+                stage: stage.to_string(),
+                source: error,
+            })?;
     }
 
     // Set PATH via `extend_path`, with the original PATH coming from
@@ -401,10 +372,10 @@ fn prepare_lifecycle_path(
     let path_env = extend_path(
         opts.pkg_root,
         original_path.as_ref(),
-        opts.node_gyp_bin,
-        opts.extra_bin_paths,
-        opts.scripts_prepend_node_path,
-        opts.node_execpath,
+        opts.execution.node_gyp_bin,
+        opts.execution.extra_bin_paths,
+        opts.execution.prepend_node_path,
+        opts.environment.node_execpath,
     );
 
     Ok(path_env)
@@ -436,11 +407,12 @@ fn run_in_shell<Reporter: self::Reporter>(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let mut child = spawn_child(&mut cmd, None).map_err(|error| LifecycleScriptError::Spawn {
-        dep_path: opts.dep_path.to_string(),
-        stage: stage.to_string(),
-        source: error,
-    })?;
+    let mut child = spawn_child(&mut cmd, None)
+        .map_err(|error| LifecycleScriptError::Spawn {
+            dep_path: opts.dep_path.to_string(),
+            stage: stage.to_string(),
+            source: error,
+        })?;
 
     let stdout = child.child_mut().stdout.take();
     let stderr = child.child_mut().stderr.take();
@@ -449,11 +421,13 @@ fn run_in_shell<Reporter: self::Reporter>(
     let stdout_handle = stdout.map(|stream| target.pump_stream(stream, LifecycleStdio::Stdout));
     let stderr_handle = stderr.map(|stream| target.pump_stream(stream, LifecycleStdio::Stderr));
 
-    let status = child.wait().map_err(|error| LifecycleScriptError::Wait {
-        dep_path: opts.dep_path.to_string(),
-        stage: stage.to_string(),
-        source: error,
-    })?;
+    let status = child
+        .wait()
+        .map_err(|error| LifecycleScriptError::Wait {
+            dep_path: opts.dep_path.to_string(),
+            stage: stage.to_string(),
+            source: error,
+        })?;
 
     // Joining the pumps after `wait` ensures every line they read is
     // emitted before the caller's `Exit` event, matching pnpm's ordering.

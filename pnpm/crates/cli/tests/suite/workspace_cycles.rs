@@ -153,7 +153,10 @@ fn adding_a_dependency_to_one_project_reports_no_cycles() {
 
     let mut add = Command::cargo_bin("pnpm").unwrap();
     add.current_dir(workspace.join("packages/project-1"));
-    let output = add.args(["add", "is-odd@3.0.1"]).assert().success();
+    let output = add
+        .args(["add", "is-odd@3.0.1"])
+        .assert()
+        .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert!(!stdout.contains(CYCLE_MESSAGE), "{stdout}");
 }

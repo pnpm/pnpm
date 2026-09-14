@@ -20,30 +20,29 @@ async fn main() {
     let args: cli_args::CliArgs = clap::Parser::parse();
 
     let repository =
-        std::fs::canonicalize(&args.repository).expect("get absolute path to repository");
-    let pnpm_repository = args
-        .pnpm_repository
+        std::fs::canonicalize(&args.build.repository).expect("get absolute path to repository");
+    let pnpm_repository = args.build.pnpm_repository
         .as_ref()
         .map(|path| std::fs::canonicalize(path).expect("get absolute path to pnpm repository"));
     let work_env = prepared_work_env(&args.work_env);
     let registry = RegistryLink::plan(&args);
 
-    if !args.build_only {
-        seed_scenario_fixture(args.scenario, args.registry);
+    if !args.build.build_only {
+        seed_scenario_fixture(args.selection.scenario, args.network.registry);
     }
 
     let verdaccio = benchmark_registry(&args, &registry, &work_env).await;
     let registry_proxy = registry_proxy(&args, &registry);
 
     verify_prerequisites(
-        &args.targets,
+        &args.selection.targets,
         &repository,
         pnpm_repository.as_deref(),
-        args.with_pnpm,
-        args.registry,
+        args.selection.with_pnpm,
+        args.network.registry,
     );
 
-    let build_only = args.build_only;
+    let build_only = args.build.build_only;
     let env = configured_work_env(args, registry, work_env, repository, pnpm_repository);
     if build_only {
         env.build();
@@ -59,11 +58,11 @@ async fn benchmark_registry(
     registry: &RegistryLink,
     work_env: &std::path::Path,
 ) -> Option<pnpm_registry_mock::MockInstance> {
-    if args.build_only {
+    if args.build.build_only {
         None
     } else {
         spawn_registry(SpawnRegistry {
-            registry_mode: args.registry,
+            registry_mode: args.network.registry,
             registry: &registry.url,
             work_env,
             spawned_registry_port: registry.spawned_port,
@@ -80,41 +79,32 @@ fn configured_work_env(
     repository: std::path::PathBuf,
     pnpm_repository: Option<std::path::PathBuf>,
 ) -> work_env::WorkEnv {
+    let mut options = args;
+    options.work_env = work_env;
+    options.build.repository = repository;
+    options.build.pnpm_repository = pnpm_repository;
+    options.network.registry_port = registry.spawned_port;
     work_env::WorkEnv {
-        root: work_env,
-        with_pnpm: args.with_pnpm,
-        targets: args.targets,
-        registry: registry.url,
-        registry_cache_populator: registry.cache_populator,
-        registry_mode: args.registry,
-        repository,
-        pnpm_repository,
-        scenario: args.scenario,
-        hyperfine_options: args.hyperfine_options,
-        fixture_dir: args.fixture_dir,
-        pnpr_latency_ms: args.pnpr_latency_ms,
-        registry_latency_ms: args.registry_latency_ms,
-        pnpr_server_registry_latency_ms: args.pnpr_server_registry_latency_ms,
-        registry_bandwidth_mbps: args.registry_bandwidth_mbps,
-        registry_slow_start: args.registry_slow_start,
-        registry_port: registry.spawned_port,
-        reuse_prebuilt_binaries: args.reuse_prebuilt_binaries,
-        serve_timing: args.serve_timing,
+        options,
+        registry: work_env::RegistryEndpoints {
+            client: registry.url,
+            cache_populator: registry.cache_populator,
+        },
     }
 }
 
 fn registry_proxy(args: &cli_args::CliArgs, registry: &RegistryLink) -> Option<LatencyProxy> {
     registry.proxied.then(|| {
         spawn_registry_proxy(
-            args.registry_port,
+            args.network.registry_port,
             registry.spawned_port,
             LinkProfile {
-                one_way: Duration::from_millis(args.registry_latency_ms) / 2,
+                one_way: Duration::from_millis(args.network.registry_latency_ms) / 2,
                 rate_limit: registry.rate_limit,
-                slow_start: args.registry_slow_start,
+                slow_start: args.network.registry_slow_start,
             },
-            args.registry_latency_ms,
-            args.registry_bandwidth_mbps,
+            args.network.registry_latency_ms,
+            args.network.registry_bandwidth_mbps,
         )
     })
 }
@@ -133,12 +123,13 @@ struct RegistryLink {
 
 impl RegistryLink {
     fn plan(args: &cli_args::CliArgs) -> Self {
-        let url = registry_url(args.registry, args.registry_port);
-        let rate_limit = mbps_to_bytes_per_sec(args.registry_bandwidth_mbps);
-        let proxied = !args.build_only
-            && matches!(args.registry, RegistryMode::Verdaccio)
-            && (args.registry_latency_ms > 0 || rate_limit.is_some());
-        let (spawned_port, cache_populator) = upstream_registry(proxied, args.registry_port, &url);
+        let url = registry_url(args.network.registry, args.network.registry_port);
+        let rate_limit = mbps_to_bytes_per_sec(args.network.registry_bandwidth_mbps);
+        let proxied = !args.build.build_only
+            && matches!(args.network.registry, RegistryMode::Verdaccio)
+            && (args.network.registry_latency_ms > 0 || rate_limit.is_some());
+        let (spawned_port, cache_populator) =
+            upstream_registry(proxied, args.network.registry_port, &url);
         let public_url = url.trim_end_matches('/').to_string();
         RegistryLink { url, rate_limit, proxied, spawned_port, cache_populator, public_url }
     }
@@ -160,13 +151,21 @@ async fn spawn_registry(opts: SpawnRegistry<'_>) -> Option<pnpm_registry_mock::M
 
     match opts.registry_mode {
         RegistryMode::Verdaccio => {
-            verify::ensure_program("just").arg("install").pipe(verify::executor("just install"));
+            verify::ensure_program("just")
+                .arg("install")
+                .pipe(verify::executor("just install"));
             pnpm_registry_mock::MockInstanceOptions {
                 client: &reqwest::Client::default(),
                 port: opts.spawned_registry_port,
                 public_url: opts.public_url,
-                stdout: opts.work_env.join("verdaccio.stdout.log").pipe(Some).as_deref(),
-                stderr: opts.work_env.join("verdaccio.stderr.log").pipe(Some).as_deref(),
+                stdout: opts.work_env
+                    .join("verdaccio.stdout.log")
+                    .pipe(Some)
+                    .as_deref(),
+                stderr: opts.work_env
+                    .join("verdaccio.stderr.log")
+                    .pipe(Some)
+                    .as_deref(),
                 max_retries: 10,
                 retry_delay: Duration::from_millis(500),
             }
@@ -212,12 +211,18 @@ fn verify_prerequisites(
     with_pnpm: bool,
     registry_mode: RegistryMode,
 ) {
-    let has_pacquet_target = targets.iter().any(|target| target.kind == TargetKind::Pacquet);
-    let has_pnpm_target = targets.iter().any(|target| target.kind == TargetKind::Pnpm);
+    let has_pacquet_target = targets
+        .iter()
+        .any(|target| target.kind == TargetKind::Pacquet);
+    let has_pnpm_target = targets
+        .iter()
+        .any(|target| target.kind == TargetKind::Pnpm);
     // A pnpr target builds the `pacquet` + `pnpr` binaries from the same
     // monorepo clone a pacquet target uses, so it needs the pacquet repo
     // and cargo just like a pacquet target does.
-    let has_pnpr_target = targets.iter().any(|target| target.kind == TargetKind::Pnpr);
+    let has_pnpr_target = targets
+        .iter()
+        .any(|target| target.kind == TargetKind::Pnpr);
     let needs_pacquet_repo = has_pacquet_target || has_pnpr_target;
     if needs_pacquet_repo {
         verify::ensure_pacquet_git_repo(repository);

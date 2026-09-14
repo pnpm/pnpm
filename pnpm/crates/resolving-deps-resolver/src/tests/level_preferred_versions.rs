@@ -23,12 +23,20 @@ impl Resolver for OverlayRecordingResolver {
     ) -> ResolveFuture<'a> {
         let name = wanted.alias.clone().unwrap_or_default();
         let range = wanted.bare_specifier.clone().unwrap_or_default();
-        let overlay_view: Vec<String> = opts
-            .preferred_versions_overlay
+        let overlay_view: Vec<String> = opts.version.preferred_versions_overlay
             .as_ref()
-            .map(|overlay| overlay.versions_for("pinned").into_iter().map(str::to_string).collect())
+            .map(|overlay| {
+                overlay
+                    .versions_for("pinned")
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect()
+            })
             .unwrap_or_default();
-        self.seen_overlay.lock().unwrap().insert((name.clone(), range.clone()), overlay_view);
+        self.seen_overlay
+            .lock()
+            .unwrap()
+            .insert((name.clone(), range.clone()), overlay_view);
         let result = self.table.get(&(name, range)).cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
     }

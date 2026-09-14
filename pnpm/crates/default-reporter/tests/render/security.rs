@@ -22,7 +22,10 @@ fn prints_progress_beginning_for_node_modules_outside_cwd() {
 fn hides_progress_prefix_for_node_modules_outside_cwd() {
     let requester = "/repo/foo";
     let mut reporter = state_with_options(ReporterOptions {
-        hide_progress_prefix: true,
+        progress: pnpm_default_reporter::state::ProgressOptions {
+            hide_prefix: true,
+            ..Default::default()
+        },
         ..ReporterOptions::default()
     });
     let frame = render(

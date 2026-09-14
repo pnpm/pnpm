@@ -80,7 +80,10 @@ fn render_tree_for_project(
     opts: &RenderTreeOptions,
     multi_peer_pkgs: &HashMap<String, usize>,
 ) -> Option<String> {
-    let has_deps = project.groups().iter().any(|(_, nodes)| !nodes.is_empty())
+    let has_deps = project
+        .groups()
+        .iter()
+        .any(|(_, nodes)| !nodes.is_empty())
         || (opts.show_extraneous && !project.hierarchy.unsaved_dependencies.is_empty());
     if !opts.always_print_root_package && !has_deps {
         return None;
@@ -137,9 +140,9 @@ fn project_label(project: &ProjectHierarchy) -> String {
 type PkgColor = fn(&DependencyNode) -> ColorFn;
 
 fn get_pkg_color(node: &DependencyNode) -> ColorFn {
-    if node.dev == Some(true) {
+    if node.status.dev == Some(true) {
         yellow
-    } else if node.optional {
+    } else if node.status.optional {
         blue
     } else {
         plain
@@ -157,11 +160,11 @@ fn to_archy_nodes(
     multi_peer_pkgs: &HashMap<String, usize>,
 ) -> Vec<TreeNode> {
     let mut sorted: Vec<&DependencyNode> = nodes.iter().collect();
-    sorted.sort_by(|a, b| a.name.cmp(&b.name));
+    sorted.sort_by(|a, b| a.package.name.cmp(&b.package.name));
     sorted
         .iter()
         .map(|node| {
-            let children = if node.deduped {
+            let children = if node.status.deduped {
                 Vec::new()
             } else {
                 to_archy_nodes(get_color, &node.dependencies, long, multi_peer_pkgs)
@@ -181,19 +184,19 @@ fn node_label_lines(
     long: bool,
 ) -> String {
     let mut label_lines = vec![print_label(get_color, Some(multi_peer_pkgs), node)];
-    if let Some(message) = &node.search_message {
+    if let Some(message) = &node.search.message {
         label_lines.push(plain(message));
     }
     if long {
-        let info = read_long_pkg_info(Path::new(&node.path));
+        let info = read_long_pkg_info(Path::new(&node.package.path));
         label_lines.extend(
             [info.description, info.repository, info.homepage]
                 .into_iter()
                 .flatten()
                 .map(|line| plain(&line)),
         );
-        if !node.path.is_empty() {
-            label_lines.push(plain(&node.path));
+        if !node.package.path.is_empty() {
+            label_lines.push(plain(&node.package.path));
         }
     }
     label_lines.join("\n")
@@ -205,44 +208,52 @@ fn print_label(
     node: &DependencyNode,
 ) -> String {
     let mut label = node_name_label(get_color(node), node);
-    if node.is_peer {
+    if node.status.is_peer {
         label.push_str(" peer");
     }
-    if node.is_skipped {
+    if node.status.is_skipped {
         label.push_str(" skipped");
     }
     if let Some(multi_peer_pkgs) = multi_peer_pkgs {
         label.push_str(&peer_hash_suffix(
             multi_peer_pkgs,
-            &node.name,
-            &node.version,
-            node.peers_suffix_hash.as_deref(),
+            &node.package.name,
+            &node.package.version,
+            node.package.peers_suffix_hash.as_deref(),
         ));
     }
-    if node.deduped {
+    if node.status.deduped {
         label.push_str(&deduped_label());
     }
-    if node.searched { bold_styled(&label) } else { label }
+    if node.search.matched { bold_styled(&label) } else { label }
 }
 
 /// `name@version`, or — for an npm: protocol alias —
 /// `alias@npm:name@version`, unless the version already carries an `@`
 /// (`file:`, `link:`, ...).
 fn node_name_label(color: ColorFn, node: &DependencyNode) -> String {
-    if node.alias == node.name {
-        return name_at_version(&node.name, &node.version, color);
+    if node.alias == node.package.name {
+        return name_at_version(&node.package.name, &node.package.version, color);
     }
-    if node.version.contains('@') {
-        return format!("{}{}", color(&node.alias), gray(&format!("@{}", node.version)));
+    if node.package.version.contains('@') {
+        return format!("{}{}", color(&node.alias), gray(&format!("@{}", node.package.version)));
     }
-    format!("{}{}", color(&node.alias), gray(&format!("@npm:{}@{}", node.name, node.version)))
+    format!(
+        "{}{}",
+        color(&node.alias),
+        gray(&format!("@npm:{}@{}", node.package.name, node.package.version)),
+    )
 }
 
 fn find_multi_peer_packages(projects: &[ProjectHierarchy]) -> HashMap<String, usize> {
     let mut variants = PeerVariants::default();
     fn walk(variants: &mut PeerVariants, nodes: &[DependencyNode]) {
         for node in nodes {
-            variants.collect(&node.name, &node.version, node.peers_suffix_hash.as_deref());
+            variants.collect(
+                &node.package.name,
+                &node.package.version,
+                node.package.peers_suffix_hash.as_deref(),
+            );
             walk(variants, &node.dependencies);
         }
     }
@@ -256,11 +267,20 @@ fn find_multi_peer_packages(projects: &[ProjectHierarchy]) -> HashMap<String, us
 
 fn list_summary(projects: &[ProjectHierarchy]) -> String {
     fn count(nodes: &[DependencyNode]) -> u64 {
-        nodes.iter().map(|node| 1 + count(&node.dependencies)).sum()
+        nodes
+            .iter()
+            .map(|node| 1 + count(&node.dependencies))
+            .sum()
     }
     let total: u64 = projects
         .iter()
-        .map(|project| project.groups().iter().map(|(_, nodes)| count(nodes)).sum::<u64>())
+        .map(|project| {
+            project
+                .groups()
+                .iter()
+                .map(|(_, nodes)| count(nodes))
+                .sum::<u64>()
+        })
         .sum();
     let mut parts = vec![format!("{total} package{}", if total == 1 { "" } else { "s" })];
     if projects.len() > 1 {

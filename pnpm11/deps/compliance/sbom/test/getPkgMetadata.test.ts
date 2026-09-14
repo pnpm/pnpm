@@ -7,7 +7,7 @@ import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
 
-import { authorNameFromField, bugsUrlFromField, getPkgMetadata } from '../lib/getPkgMetadata.js'
+import { authorNameFromField, bugsUrlFromField, getPkgMetadata, repositoryFromField } from '../lib/getPkgMetadata.js'
 
 const DEFAULT_REGISTRY_OPTS = {
   registriesByScope: {
@@ -186,5 +186,100 @@ describe('authorNameFromField', () => {
     expect(authorNameFromField(undefined)).toBeUndefined()
     expect(authorNameFromField({ email: 'jane@example.com' })).toBeUndefined()
     expect(authorNameFromField({ name: 42 })).toBeUndefined()
+  })
+})
+
+describe('repositoryFromField', () => {
+  it('expands the shorthands hosted-git-info knows to the URL npm derives', () => {
+    expect(repositoryFromField('vercel/ms')).toBe('git+https://github.com/vercel/ms.git')
+    expect(repositoryFromField('acme/widgets.git')).toBe('git+https://github.com/acme/widgets.git')
+    expect(repositoryFromField('  vercel/ms  ')).toBe('git+https://github.com/vercel/ms.git')
+    expect(repositoryFromField({ type: 'git', url: 'acme/widgets' })).toBe('git+https://github.com/acme/widgets.git')
+    expect(repositoryFromField('github:vercel/ms')).toBe('git+https://github.com/vercel/ms.git')
+    expect(repositoryFromField('gitlab:acme/widgets')).toBe('git+https://gitlab.com/acme/widgets.git')
+    expect(repositoryFromField('bitbucket:acme/widgets')).toBe('git+https://bitbucket.org/acme/widgets.git')
+    expect(repositoryFromField('gitlab:foo/bar/baz')).toBe('git+https://gitlab.com/foo/bar/baz.git')
+    expect(repositoryFromField('owner/repo#main')).toBe('git+https://github.com/owner/repo.git#main')
+    expect(repositoryFromField('git@github.com:foo/bar.git')).toBe('git+https://github.com/foo/bar.git')
+  })
+
+  it('keeps absolute URLs of other schemes', () => {
+    for (const url of [
+      'https://github.com/foo/bar.git',
+      'git://github.com/foo/bar.git',
+      'git+https://github.com/foo/bar.git',
+      'git+ssh://git@github.com/foo/bar.git',
+      'ssh://git@github.com/foo/bar.git',
+    ]) {
+      expect(repositoryFromField(url)).toBe(url)
+    }
+  })
+
+  it('completes a URL missing a slash', () => {
+    expect(repositoryFromField('https:/github.com/foo/bar.git')).toBe('https://github.com/foo/bar.git')
+  })
+
+  it('strips the userinfo of an http(s) URL but keeps an ssh login', () => {
+    expect(repositoryFromField('https://user:token@github.com/foo/bar')).toBe('https://github.com/foo/bar')
+    expect(repositoryFromField('https://token@github.com/foo/bar')).toBe('https://github.com/foo/bar')
+    expect(repositoryFromField('git+https://token@github.com/foo/bar.git')).toBe('git+https://github.com/foo/bar.git')
+    expect(repositoryFromField('git+ssh://git@github.com/foo/bar.git')).toBe('git+ssh://git@github.com/foo/bar.git')
+    expect(repositoryFromField('ssh://git:token@github.com/foo/bar.git')).toBe('ssh://github.com/foo/bar.git')
+    expect(repositoryFromField('not-ssh://token@example.com/foo/bar')).toBe('not-ssh://example.com/foo/bar')
+    expect(repositoryFromField('https://github.com/foo/bar/baz@qux')).toBe('https://github.com/foo/bar/baz@qux')
+  })
+
+  // Expanding the shorthand in one pnpm version alone would split the two.
+  it('keeps a gist URL and drops the gist shorthand', () => {
+    expect(repositoryFromField('gist:11081aaa281')).toBeUndefined()
+    expect(repositoryFromField('https://gist.github.com/11081aaa281')).toBe('https://gist.github.com/11081aaa281')
+  })
+
+  it('does not treat userinfo lookalikes in the query as credentials', () => {
+    // The query, not the authority, carries the `@`: the URL must come out
+    // unchanged, not re-pointed at the query's host.
+    expect(
+      repositoryFromField('https://github.com?x=user:pass@evil.example/repo')
+    ).toBe('https://github.com/?x=user:pass@evil.example/repo')
+  })
+
+  it('percent-encodes whitespace in URLs', () => {
+    expect(repositoryFromField('https://example.com/a b')).toBe('https://example.com/a%20b')
+  })
+
+  it('drops an incomplete percent escape', () => {
+    expect(repositoryFromField('https://example.com/%zz')).toBeUndefined()
+    expect(repositoryFromField('https://example.com/%')).toBeUndefined()
+    // The hosted parser decodes a shorthand's committish, so this `%251`
+    // reaches the derived URL as a stray `%1`.
+    expect(repositoryFromField('owner/repo#release%251')).toBeUndefined()
+  })
+
+  it('drops absolute URLs that do not parse', () => {
+    for (const value of ['https://', 'http://user:pass@']) {
+      expect(repositoryFromField(value)).toBeUndefined()
+    }
+  })
+
+  it('drops values that name no repository', () => {
+    for (const value of [
+      'foo@example.com',
+      'a/b/c',
+      '/abs/path',
+      '.hidden/repo',
+      'owner/',
+      'owner',
+      'owner /repo',
+      // Only a project name, with no owner.
+      'github:owner',
+      'mailto:bugs@example.com',
+      'git+file:/tmp/repo',
+      '',
+      '   ',
+    ]) {
+      expect(repositoryFromField(value)).toBeUndefined()
+    }
+    expect(repositoryFromField({ email: 'foo@example.com' })).toBeUndefined()
+    expect(repositoryFromField(undefined)).toBeUndefined()
   })
 })

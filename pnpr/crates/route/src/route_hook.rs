@@ -1,6 +1,7 @@
 use super::{
-    Arc, Footprint, Identity, MetadataCacheScope, Mutex, PrivateAccessDescriptor, RouteClass,
-    RouteContext, UpstreamRouteHook, fmt,
+    AUTHORIZATION, Arc, Footprint, Identity, MetadataCacheScope, Mutex, PrivateAccessDescriptor,
+    ResolvedAlias, RouteClass, RouteContext, UpstreamConfig, UpstreamRouteHook, credential_digest,
+    fmt, nerf_prefix, scheme_of,
 };
 
 /// The [`UpstreamRouteHook`] pnpr installs on a resolve's
@@ -54,9 +55,7 @@ impl UpstreamRouteHook for RouteHook {
                 None
             }
             RouteClass::Proxied { alias, credential_digest } => {
-                let authorization = self
-                    .context
-                    .aliases
+                let authorization = self.context.aliases
                     .iter()
                     .find(|candidate| candidate.name == alias)
                     .map(|candidate| candidate.authorization.clone());
@@ -79,14 +78,16 @@ impl UpstreamRouteHook for RouteHook {
         match self.context.classify(&self.identity, url, package) {
             RouteClass::Public => MetadataCacheScope::Public,
             RouteClass::Hosted { policy_id } => MetadataCacheScope::Private {
-                descriptor_id: PrivateAccessDescriptor::Hosted { policy_id }
-                    .digest_id(&self.secret),
+                descriptor_id: PrivateAccessDescriptor::Hosted { policy_id }.digest_id(
+                    &self.secret,
+                ),
             },
             RouteClass::Proxied { alias, credential_digest } => MetadataCacheScope::Private {
                 descriptor_id: {
                     let package = self.context.alias_package_qualifier(&alias, package);
-                    PrivateAccessDescriptor::Alias { alias, credential_digest, package }
-                        .digest_id(&self.secret)
+                    PrivateAccessDescriptor::Alias { alias, credential_digest, package }.digest_id(
+                        &self.secret,
+                    )
                 },
             },
         }
@@ -95,6 +96,32 @@ impl UpstreamRouteHook for RouteHook {
 
 impl RouteHook {
     pub(super) fn record(&self, descriptor: PrivateAccessDescriptor) {
-        self.footprint.lock().expect("footprint poisoned").add(descriptor);
+        self.footprint
+            .lock()
+            .expect("footprint poisoned")
+            .add(descriptor);
+    }
+}
+
+impl ResolvedAlias {
+    /// Build a proxied-route alias from a `upstreams:` entry. An upstream
+    /// participates in route classification only when it declares both an
+    /// `access:` policy and a resolved `Authorization` credential; routing is
+    /// by registry origin, so no package glob is attached.
+    pub(super) fn from_upstream(name: &str, upstream: &UpstreamConfig) -> Option<Self> {
+        let access = upstream.access.clone()?;
+        let authorization = upstream.headers
+            .get(AUTHORIZATION)
+            .and_then(|value| value.to_str().ok())?
+            .to_string();
+        Some(Self {
+            name: name.to_string(),
+            credential_digest: credential_digest(&authorization),
+            registry: upstream.url.clone(),
+            origin: nerf_prefix(&upstream.url)?,
+            scheme: scheme_of(&upstream.url)?.to_string(),
+            authorization,
+            access,
+        })
     }
 }

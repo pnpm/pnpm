@@ -6,44 +6,74 @@ use std::{path::PathBuf, process::Command, str::FromStr};
 
 #[derive(Debug, Parser)]
 pub struct CliArgs {
+    /// Flags to pass to `hyperfine`.
+    #[clap(flatten)]
+    pub hyperfine_options: HyperfineOptions,
+    /// Path to the work environment.
+    #[clap(long, short, default_value = "bench-work-env")]
+    pub work_env: PathBuf,
+    /// Diagnostic: run every `pnpr` mock/server with
+    /// `RUST_LOG=pnpr::serve_timing=debug` so each serve emits per-phase timing
+    /// (upstream fetch vs cache read) into its log. Isolates server-side serve
+    /// cost from the client's filesystem/link noise — useful for cold-store perf
+    /// questions. Adds logging overhead, so it skews the measured means; enable
+    /// only for a diagnostic run, not a baseline.
+    #[clap(long)]
+    pub serve_timing: bool,
+    #[clap(flatten)]
+    pub selection: crate::cli_args::BenchmarkSelection,
+    #[clap(flatten)]
+    pub build: crate::cli_args::BuildOptions,
+    #[clap(flatten)]
+    pub network: crate::cli_args::NetworkOptions,
+}
+
+#[derive(Debug, Args)]
+pub struct BenchmarkSelection {
     /// Task to benchmark.
     #[clap(long, short, required_unless_present = "build_only", conflicts_with = "build_only")]
     pub scenario: Option<BenchmarkScenario>,
+    /// Override default `package.json` and `pnpm-lock.yaml` by specifying the directory containing them.
+    #[clap(long, short = 'D')]
+    pub fixture_dir: Option<PathBuf>,
+    /// Also benchmark the system-installed pnpm.
+    #[clap(long)]
+    pub with_pnpm: bool,
+    /// Targets to benchmark. Each is `pacquet@<rev>`, `pnpm@<rev>`, or
+    /// `pnpr@<rev>` (a pacquet client driven through a pnpr server).
+    #[clap(required = true)]
+    pub targets: Vec<TargetSpec>,
+}
 
-    /// Port of the local virtual registry. Ignored when `--registry=npm`.
-    #[clap(long, short = 'p', default_value_t = 4873)]
-    pub registry_port: u16,
-
-    /// Which registry the benchmarked installs hit.
-    #[clap(long, value_enum, default_value_t = RegistryMode::Virtual)]
-    pub registry: RegistryMode,
-
+#[derive(Debug, Args)]
+pub struct BuildOptions {
     /// Path to the git repository of pacquet.
     #[clap(long, short = 'R', default_value = ".")]
     pub repository: PathBuf,
-
     /// Path to pnpm's git repository. Only set this if pnpm and pacquet
     /// live in separate clones; defaults to `--repository`, which is
     /// correct for the `pnpm/pnpm` monorepo (where both live together).
     #[clap(long)]
     pub pnpm_repository: Option<PathBuf>,
-
-    /// Override default `package.json` and `pnpm-lock.yaml` by specifying the directory containing them.
-    #[clap(long, short = 'D')]
-    pub fixture_dir: Option<PathBuf>,
-
-    /// Flags to pass to `hyperfine`.
-    #[clap(flatten)]
-    pub hyperfine_options: HyperfineOptions,
-
-    /// Path to the work environment.
-    #[clap(long, short, default_value = "bench-work-env")]
-    pub work_env: PathBuf,
-
-    /// Also benchmark the system-installed pnpm.
+    /// Build each target without running the benchmark.
     #[clap(long)]
-    pub with_pnpm: bool,
+    pub build_only: bool,
+    /// Skip cloning + building a target whose output binary is already
+    /// present, e.g. restored from a per-commit CI cache. A `pnpr@<rev>`
+    /// build also yields the `pacquet` client binary, so a same-revision
+    /// `pacquet@<rev>` reuses it rather than recompiling the commit.
+    #[clap(long)]
+    pub reuse_prebuilt_binaries: bool,
+}
 
+#[derive(Debug, Args)]
+pub struct NetworkOptions {
+    /// Port of the local virtual registry. Ignored when `--registry=npm`.
+    #[clap(long, short = 'p', default_value_t = 4873)]
+    pub registry_port: u16,
+    /// Which registry the benchmarked installs hit.
+    #[clap(long, value_enum, default_value_t = RegistryMode::Virtual)]
+    pub registry: RegistryMode,
     /// Round-trip latency, in milliseconds, to inject between the pacquet
     /// client and the pnpr server, so `pnpr@<rev>` targets are measured
     /// as the remote service pnpr is in production rather than a loopback
@@ -51,7 +81,6 @@ pub struct CliArgs {
     /// injection; non-pnpr targets are unaffected.
     #[clap(long, default_value_t = 0)]
     pub pnpr_latency_ms: u64,
-
     /// Round-trip latency, in milliseconds, to inject on the client link
     /// to the registry. Direct `pacquet@<rev>` / `pnpm@<rev>` installs and
     /// pnpr clients' tarball fetches use this link. The pnpr server's own
@@ -62,7 +91,6 @@ pub struct CliArgs {
     /// remote).
     #[clap(long, default_value_t = 0)]
     pub registry_latency_ms: u64,
-
     /// Round-trip latency, in milliseconds, to inject between each
     /// `pnpr@<rev>` server and the registry it uses for resolution. Keep
     /// this low (often `0`) when modeling production, where pnpr sits near
@@ -72,7 +100,6 @@ pub struct CliArgs {
     /// unaffected; they use `--registry-latency-ms`.
     #[clap(long, default_value_t = 0)]
     pub pnpr_server_registry_latency_ms: u64,
-
     /// Download-bandwidth cap, in **megabits per second**, on the link to
     /// the client-facing registry, applied to direct installs and pnpr
     /// clients' tarball fetches, so tarballs take the time they would over
@@ -85,7 +112,6 @@ pub struct CliArgs {
     /// `--registry=npm` (already remote).
     #[clap(long, default_value_t = 0.0)]
     pub registry_bandwidth_mbps: f64,
-
     /// Model TCP slow start on the client↔registry link: each
     /// connection ramps from a ~14.6 KB initial window toward
     /// `--registry-bandwidth-mbps`, doubling per round trip, instead
@@ -95,31 +121,6 @@ pub struct CliArgs {
     /// `--registry-bandwidth-mbps` to be set; no effect otherwise.
     #[clap(long)]
     pub registry_slow_start: bool,
-
-    /// Build each target without running the benchmark.
-    #[clap(long)]
-    pub build_only: bool,
-
-    /// Skip cloning + building a target whose output binary is already
-    /// present, e.g. restored from a per-commit CI cache. A `pnpr@<rev>`
-    /// build also yields the `pacquet` client binary, so a same-revision
-    /// `pacquet@<rev>` reuses it rather than recompiling the commit.
-    #[clap(long)]
-    pub reuse_prebuilt_binaries: bool,
-
-    /// Diagnostic: run every `pnpr` mock/server with
-    /// `RUST_LOG=pnpr::serve_timing=debug` so each serve emits per-phase timing
-    /// (upstream fetch vs cache read) into its log. Isolates server-side serve
-    /// cost from the client's filesystem/link noise — useful for cold-store perf
-    /// questions. Adds logging overhead, so it skews the measured means; enable
-    /// only for a diagnostic run, not a baseline.
-    #[clap(long)]
-    pub serve_timing: bool,
-
-    /// Targets to benchmark. Each is `pacquet@<rev>`, `pnpm@<rev>`, or
-    /// `pnpr@<rev>` (a pacquet client driven through a pnpr server).
-    #[clap(required = true)]
-    pub targets: Vec<TargetSpec>,
 }
 
 /// A benchmark target — a specific revision of pacquet or pnpm to build
@@ -145,9 +146,11 @@ impl FromStr for TargetSpec {
     type Err = String;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let (prefix, rev) = input.split_once('@').ok_or_else(|| {
-            format!("target {input:?}: must be `pacquet@<rev>`, `pnpm@<rev>`, or `pnpr@<rev>`")
-        })?;
+        let (prefix, rev) = input
+            .split_once('@')
+            .ok_or_else(|| {
+                format!("target {input:?}: must be `pacquet@<rev>`, `pnpm@<rev>`, or `pnpr@<rev>`")
+            })?;
         let kind = match prefix {
             "pacquet" => TargetKind::Pacquet,
             "pnpm" => TargetKind::Pnpm,
@@ -347,7 +350,8 @@ impl BenchmarkScenario {
         Text: Into<String>,
         LoadLockfile: FnOnce() -> Text,
     {
-        self.seeds_lockfile().then(|| load_lockfile().into())
+        self.seeds_lockfile()
+            .then(|| load_lockfile().into())
     }
 
     /// Per-iteration cleanup (paths to remove and saved copies to
@@ -510,8 +514,14 @@ pub struct HyperfineOptions {
 
 impl HyperfineOptions {
     pub fn append_to(&self, hyperfine_command: &mut Command) {
-        let &HyperfineOptions { show_output, warmup, min_runs, max_runs, runs, ignore_failure } =
-            self;
+        let &HyperfineOptions {
+            show_output,
+            warmup,
+            min_runs,
+            max_runs,
+            runs,
+            ignore_failure,
+        } = self;
         hyperfine_command.arg("--warmup").arg(warmup.to_string());
         if let Some(min_runs) = min_runs {
             hyperfine_command.arg("--min-runs").arg(min_runs.to_string());

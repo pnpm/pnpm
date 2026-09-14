@@ -41,7 +41,11 @@ pub(crate) fn warn_ignored_pnpm_manifest_fields(manifest: Option<&Value>) {
     if ignored.is_empty() {
         return;
     }
-    let keys = ignored.iter().map(|key| format!(r#""pnpm.{key}""#)).collect::<Vec<_>>().join(", ");
+    let keys = ignored
+        .iter()
+        .map(|key| format!(r#""pnpm.{key}""#))
+        .collect::<Vec<_>>()
+        .join(", ");
     emit_config_warning(&format!(
         "The \"pnpm\" field in package.json is no longer read by pnpm. \
          The following keys were ignored: {keys}. \
@@ -50,8 +54,9 @@ pub(crate) fn warn_ignored_pnpm_manifest_fields(manifest: Option<&Value>) {
 }
 
 fn ignored_pnpm_field_keys(manifest: Option<&Value>) -> Vec<String> {
-    let Some(legacy_field) =
-        manifest.and_then(|manifest| manifest.get("pnpm")).and_then(Value::as_object)
+    let Some(legacy_field) = manifest
+        .and_then(|manifest| manifest.get("pnpm"))
+        .and_then(Value::as_object)
     else {
         return Vec::new();
     };

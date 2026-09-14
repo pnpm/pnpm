@@ -15,18 +15,29 @@ use axum::response::IntoResponse;
 /// `/-/pnpr/vN/publish` protocol versions, the cross-ecosystem publish
 /// transaction.
 pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
-    let resolver_enabled = state.inner.config.resolver.enabled;
-    let versions = resolver_enabled.then_some(0).into_iter().collect::<Vec<_>>();
+    let resolver_enabled = state.inner.config.features.resolver.enabled;
+    let versions = resolver_enabled
+        .then_some(0)
+        .into_iter()
+        .collect::<Vec<_>>();
     let fix_lockfile = versions.clone();
     let ecosystems: Vec<&str> = if resolver_enabled {
         crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect()
     } else {
         Vec::new()
     };
-    let artifacts =
-        state.inner.config.artifacts.enabled.then_some(0).into_iter().collect::<Vec<_>>();
-    let publish = state.inner.config.registry.enabled.then_some(0).into_iter().collect::<Vec<_>>();
-    let pipeline = state.inner.config.pipeline.enabled.then_some(0).into_iter().collect::<Vec<_>>();
+    let artifacts = state.inner.config.features.artifacts.enabled
+        .then_some(0)
+        .into_iter()
+        .collect::<Vec<_>>();
+    let publish = state.inner.config.features.registry.enabled
+        .then_some(0)
+        .into_iter()
+        .collect::<Vec<_>>();
+    let pipeline = state.inner.config.features.pipeline.enabled
+        .then_some(0)
+        .into_iter()
+        .collect::<Vec<_>>();
     (
         StatusCode::OK,
         axum::Json(serde_json::json!({
@@ -94,9 +105,7 @@ pub(super) async fn serve_publish_artifact(
         Err(err) => return private_no_cache(err.into_response()),
     };
     private_no_cache(
-        match state
-            .inner
-            .artifacts
+        match state.inner.builds.artifacts
             .as_ref()
             .expect("artifact routes require an artifact store")
             .publish(&username, request)
@@ -119,9 +128,7 @@ pub(super) async fn serve_resolve_artifacts(
         Err(err) => return private_no_cache(err.into_response()),
     };
     private_no_cache(
-        match state
-            .inner
-            .artifacts
+        match state.inner.builds.artifacts
             .as_ref()
             .expect("artifact routes require an artifact store")
             .resolve(&username, &body)
@@ -142,9 +149,7 @@ pub(super) async fn serve_artifact_blob(
         Ok(username) => username,
         Err(err) => return private_no_cache(err.into_response()),
     };
-    match state
-        .inner
-        .artifacts
+    match state.inner.builds.artifacts
         .as_ref()
         .expect("artifact routes require an artifact store")
         .read_blob(&username, &body)

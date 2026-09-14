@@ -25,12 +25,16 @@ async fn fetch_artifact_response_sends_headers_only_to_the_upstream_origin() {
         .await;
 
     let upstream = upstream(index.url(), auth_and_custom_headers());
-    let response =
-        upstream.fetch_artifact_response(&format!("{}/dl/serde/1.0.0", index.url())).await.unwrap();
+    let response = upstream
+        .fetch_artifact_response(&format!("{}/dl/serde/1.0.0", index.url()))
+        .await
+        .unwrap();
     let FetchOutcome::Ok(response) = response else { panic!("expected a response") };
     assert_eq!(response.bytes().await.unwrap(), "crate bytes");
-    let response =
-        upstream.fetch_artifact_response(&format!("{}/packages/x.whl", files.url())).await.unwrap();
+    let response = upstream
+        .fetch_artifact_response(&format!("{}/packages/x.whl", files.url()))
+        .await
+        .unwrap();
     let FetchOutcome::Ok(response) = response else { panic!("expected a response") };
     assert_eq!(response.bytes().await.unwrap(), "wheel bytes");
     same_origin.assert_async().await;
@@ -41,7 +45,11 @@ async fn fetch_artifact_response_sends_headers_only_to_the_upstream_origin() {
 async fn artifact_fetch_guard_rejects_initial_urls_and_redirects() {
     let mut source = mockito::Server::new_async().await;
     let mut target = mockito::Server::new_async().await;
-    let target_mock = target.mock("GET", "/artifact").expect(0).create_async().await;
+    let target_mock = target
+        .mock("GET", "/artifact")
+        .expect(0)
+        .create_async()
+        .await;
     let redirect = source
         .mock("GET", "/artifact")
         .with_status(302)
@@ -52,8 +60,18 @@ async fn artifact_fetch_guard_rejects_initial_urls_and_redirects() {
     let allowed = reqwest::Url::parse(&source.url()).unwrap().origin();
     let upstream = upstream(source.url(), HeaderMap::new())
         .with_fetch_guard(std::sync::Arc::new(move |url| url.origin() == allowed));
-    assert!(upstream.fetch_artifact_response(&format!("{}/artifact", target.url())).await.is_err());
-    assert!(upstream.fetch_artifact_response(&format!("{}/artifact", source.url())).await.is_err());
+    assert!(
+        upstream
+            .fetch_artifact_response(&format!("{}/artifact", target.url()))
+            .await
+            .is_err(),
+    );
+    assert!(
+        upstream
+            .fetch_artifact_response(&format!("{}/artifact", source.url()))
+            .await
+            .is_err(),
+    );
     target_mock.assert_async().await;
     redirect.assert_async().await;
 }
@@ -121,7 +139,7 @@ async fn artifact_and_npm_downloads_hold_permits_after_returning_headers() {
         .create_async()
         .await;
     let mut upstream = upstream(server.url(), HeaderMap::new());
-    upstream.client = std::sync::Arc::new(
+    upstream.http.client = std::sync::Arc::new(
         pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
     );
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
@@ -137,7 +155,7 @@ async fn artifact_and_npm_downloads_hold_permits_after_returning_headers() {
         assert!(
             tokio::time::timeout(
                 Duration::from_millis(20),
-                upstream.client.acquire_for_url(&server.url())
+                upstream.http.client.acquire_for_url(&server.url())
             )
             .await
             .is_err(),
@@ -145,7 +163,7 @@ async fn artifact_and_npm_downloads_hold_permits_after_returning_headers() {
         drop(response);
         let guard = tokio::time::timeout(
             Duration::from_secs(1),
-            upstream.client.acquire_for_url(&server.url()),
+            upstream.http.client.acquire_for_url(&server.url()),
         )
         .await
         .unwrap();
@@ -169,12 +187,12 @@ async fn revision_download_budget_starts_after_waiting_for_a_permit() {
         socket.write_all(b"body").await.unwrap();
     });
     let mut config = UpstreamConfig::with_defaults(url.clone(), HeaderMap::new());
-    config.timeout = Duration::from_millis(250);
+    config.requests.timeout = Duration::from_millis(250);
     let mut upstream = Upstream::new("test", &config);
-    upstream.client = std::sync::Arc::new(
+    upstream.http.client = std::sync::Arc::new(
         pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
     );
-    let held = upstream.client.acquire_for_url(&url).await;
+    let held = upstream.http.client.acquire_for_url(&url).await;
     let fetch = upstream.fetch_revision_tarball_response("digest");
     let release_permit = async {
         tokio::time::sleep(Duration::from_millis(400)).await;

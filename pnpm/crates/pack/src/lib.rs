@@ -18,10 +18,14 @@
 
 pub use capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile, Host};
 pub use contents::sort_paths_en_locale;
+pub use options::{
+    PackManifestOptions, PackOptions, PackOutputLocks, PackOutputOptions, PackScripts,
+};
 pub use output::{format_pack_output, pack_output_path, to_pack_result_json};
 
 mod capabilities;
 mod manifest_entry;
+mod options;
 mod tarball;
 
 #[cfg(test)]
@@ -59,79 +63,6 @@ use std::{
 /// `package.json`; the name appears in the "name/version not defined"
 /// errors, matching pnpm's `manifestFileName`.
 const MANIFEST_FILE_NAME: &str = "package.json";
-
-/// Inputs for [`api`]. The CLI maps the resolved [`pnpm_config::Config`]
-/// and command-line flags onto this struct.
-pub struct PackOptions {
-    /// Project directory to pack.
-    pub dir: PathBuf,
-    /// Parsed workspace catalogs, for `catalog:` specifier rewriting.
-    pub catalogs: Catalogs,
-    /// Skip the `prepack` / `prepare` / `postpack` lifecycle scripts.
-    pub ignore_scripts: bool,
-    /// `--unsafe-perm`: run lifecycle scripts without dropping privileges.
-    /// Threaded from [`pnpm_config::Config::unsafe_perm`] so packing
-    /// honors the same policy (and `TMPDIR` isolation) as an install.
-    pub unsafe_perm: bool,
-    /// Embed the project's `README.md` into the published manifest.
-    pub embed_readme: bool,
-    /// gzip compression level (`0..=9`); `None` uses the zlib default.
-    pub pack_gzip_level: Option<u32>,
-    /// Node linker mode; `bundledDependencies` only work under
-    /// [`NodeLinker::Hoisted`].
-    pub node_linker: NodeLinker,
-    /// Keep `packageManager` and publish-lifecycle scripts in the packed
-    /// manifest.
-    pub skip_manifest_obfuscation: bool,
-    /// `npm_config_user_agent` stamped on lifecycle scripts.
-    pub user_agent: String,
-    /// Extra directories prepended to `PATH` for lifecycle scripts.
-    pub extra_bin_paths: Vec<PathBuf>,
-    /// Extra environment variables for lifecycle scripts.
-    pub extra_env: HashMap<String, String>,
-    /// Workspace root, used to inject a root `LICENSE` into a
-    /// sub-package tarball that lacks one.
-    pub workspace_dir: Option<PathBuf>,
-    /// Loaded pnpmfiles whose `beforePacking` hook runs against the
-    /// published manifest before the file list is computed, in
-    /// application order (config-dependency plugin pnpmfiles first, then
-    /// the workspace-root pnpmfile). Empty when none are configured.
-    ///
-    /// Holding the loaded hooks (rather than paths) lets a recursive pack
-    /// share one worker per pnpmfile across every packed project instead
-    /// of re-spawning it per project.
-    pub before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
-    /// Do everything except writing the tarball to disk.
-    pub dry_run: bool,
-    /// Directory to write the tarball into.
-    pub pack_destination: Option<String>,
-    /// Custom output path template (`%s` = name, `%v` = version).
-    pub out: Option<String>,
-    /// In-memory tar entries (`package/<path>` → contents) with no file on
-    /// disk, packed on top of `files_map` (superseding a same-named on-disk
-    /// entry). Used for the composed CHANGELOG.md in `registry` changelog
-    /// storage; the caller (which has registry access) fetches the previous
-    /// version's changelog and renders the new section onto it.
-    pub injected_files: Vec<(String, Vec<u8>)>,
-    /// Per-invocation destination locks shared by recursive pack tasks.
-    pub output_locks: Option<Arc<PackOutputLocks>>,
-}
-
-/// Locks recursive pack destinations for the lifetime of their write phase.
-#[derive(Default)]
-pub struct PackOutputLocks {
-    by_path: tokio::sync::Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>,
-}
-
-impl PackOutputLocks {
-    async fn lock(&self, path: &Path) -> tokio::sync::OwnedMutexGuard<()> {
-        let lock = {
-            let mut by_path = self.by_path.lock().await;
-            Arc::clone(by_path.entry(lexical_normalize(path)).or_default())
-        };
-        lock.lock_owned().await
-    }
-}
 
 /// Result of packing one project.
 #[derive(Debug)]
@@ -254,32 +185,39 @@ where
 {
     let source = prepare_source::<Reporter>(opts).await?;
     let (tarball_name, pack_destination) =
-        resolve_output(opts, &source.normalized_name, &source.published_version)?;
+        resolve_output(&opts.output, &source.normalized_name, &source.published_version)?;
     let files_map = packed_files_map(opts, &source)?;
     let manifest_json = serde_json::to_string_pretty(&source.publish_manifest)
         .expect("publish manifest serializes to JSON")
         .into_bytes();
 
     let dest_dir = resolve_dest_dir(&source.dir, pack_destination.as_deref());
-    if !opts.dry_run {
+    if !opts.output.dry_run {
         create_dest_dir::<Sys>(&dest_dir)?;
     }
 
     // The size pass must run before `postpack`, which may delete
     // prepack-generated files that were packed. See pnpm/pnpm#12775.
     let unpacked_size = unpacked_size::<Sys>(&files_map, manifest_json.len() as u64)?
-        + opts.injected_files.iter().map(|(_, bytes)| bytes.len() as u64).sum::<u64>();
-    let contents = packed_contents_with_injected(&files_map, &opts.injected_files);
+        + opts.output.injected_files
+            .iter()
+            .map(|(_, bytes)| bytes.len() as u64)
+            .sum::<u64>();
+    let contents = packed_contents_with_injected(&files_map, &opts.output.injected_files);
 
-    if !opts.dry_run {
+    if !opts.output.dry_run {
         let packed = PackedTarball {
             dest_file: dest_dir.join(&tarball_name),
             files_map: &files_map,
             manifest_json: &manifest_json,
         };
-        write_tarball::<Sys>(opts, &source, &packed).await?;
-        if !opts.ignore_scripts {
-            run_scripts_if_present::<Reporter>(opts, &["postpack"], &source.entry_manifest)?;
+        write_tarball::<Sys>(&opts.output, &source, &packed).await?;
+        if !opts.scripts.ignore {
+            opts.scripts.run_if_present::<Reporter>(
+                &opts.dir,
+                &["postpack"],
+                &source.entry_manifest,
+            )?;
         }
     }
 
@@ -303,10 +241,14 @@ async fn prepare_source<Reporter: self::Reporter>(
     opts: &PackOptions,
 ) -> Result<PackSource, PackError> {
     let entry_manifest = read_manifest(&opts.dir)?;
-    prevent_bundled_dependencies_without_hoisted(opts.node_linker, &entry_manifest)?;
+    prevent_bundled_dependencies_without_hoisted(opts.manifest.node_linker, &entry_manifest)?;
 
-    if !opts.ignore_scripts {
-        run_scripts_if_present::<Reporter>(opts, &["prepack", "prepare"], &entry_manifest)?;
+    if !opts.scripts.ignore {
+        opts.scripts.run_if_present::<Reporter>(
+            &opts.dir,
+            &["prepack", "prepare"],
+            &entry_manifest,
+        )?;
     }
 
     // The publish directory may differ from the project root when
@@ -319,35 +261,11 @@ async fn prepare_source<Reporter: self::Reporter>(
     // Re-read the manifest from `dir`: a `prepack` / `prepare` script
     // may have rewritten it.
     let manifest = read_manifest(&dir)?;
-    prevent_bundled_dependencies_without_hoisted(opts.node_linker, &manifest)?;
+    prevent_bundled_dependencies_without_hoisted(opts.manifest.node_linker, &manifest)?;
 
     let name = packed_identity(&manifest)?;
 
-    let modules_dir = opts.dir.join("node_modules");
-    let mut publish_manifest = create_exportable_manifest(
-        &dir,
-        &manifest,
-        &CreateExportableManifestOptions {
-            catalogs: &opts.catalogs,
-            modules_dir: Some(&modules_dir),
-            skip_manifest_obfuscation: opts.skip_manifest_obfuscation,
-            embed_readme: opts.embed_readme,
-        },
-    )
-    .map_err(PackError::CreateManifest)?;
-
-    // Run `beforePacking` hooks against the built manifest, before the
-    // file list is computed, so a hook that rewrites `files` / `bin` /
-    // dependency fields is honored. pnpm runs it inside
-    // `createExportableManifest`; pacquet applies it here because
-    // `create_exportable_manifest` is a pure, synchronous transform.
-    publish_manifest = apply_before_packing::<Reporter>(
-        &opts.dir,
-        &dir,
-        publish_manifest,
-        &opts.before_packing_hooks,
-    )
-    .await?;
+    let mut publish_manifest = opts.manifest.export::<Reporter>(&opts.dir, &dir, &manifest).await?;
 
     let (normalized_name, published_version) = published_identity(&mut publish_manifest, name)?;
     Ok(PackSource {
@@ -374,7 +292,7 @@ fn packed_files_map(
     inject_workspace_license(opts, &source.dir, &mut files_map);
     // A composed entry supersedes any same-named on-disk file (e.g. a stale
     // committed CHANGELOG.md), so drop it from the file map before packing.
-    for (name, _) in &opts.injected_files {
+    for (name, _) in &opts.output.injected_files {
         files_map.shift_remove(name);
     }
     Ok(files_map)
@@ -392,12 +310,12 @@ struct PackedTarball<'a> {
 }
 
 async fn write_tarball<Sys: FsReadFile + FsAtomicWrite>(
-    opts: &PackOptions,
+    opts: &PackOutputOptions,
     source: &PackSource,
     packed: &PackedTarball<'_>,
 ) -> Result<(), PackError> {
     let bins = executable_sources(&source.publish_manifest, &source.manifest, &source.dir);
-    let _output_guard = match &opts.output_locks {
+    let _output_guard = match &opts.locks {
         Some(locks) => Some(locks.lock(&packed.dest_file).await),
         None => None,
     };
@@ -407,7 +325,7 @@ async fn write_tarball<Sys: FsReadFile + FsAtomicWrite>(
             packed.files_map,
             packed.manifest_json,
             &bins,
-            opts.pack_gzip_level,
+            opts.gzip_level,
             &opts.injected_files,
         )
     })
@@ -466,9 +384,13 @@ fn published_identity(
     publish_manifest: &mut Value,
     name: &str,
 ) -> Result<(String, String), PackError> {
-    let published_version =
-        strip_build_metadata(publish_manifest.get("version").and_then(Value::as_str).unwrap_or(""))
-            .to_string();
+    let published_version = strip_build_metadata(
+        publish_manifest
+            .get("version")
+            .and_then(Value::as_str)
+            .unwrap_or(""),
+    )
+    .to_string();
     if let Some(object) = publish_manifest.as_object_mut() {
         object.insert("version".to_string(), Value::String(published_version.clone()));
     }
@@ -489,7 +411,10 @@ fn published_identity(
 /// [`create_exportable_manifest`]), which is why it is filled in on the returned manifest here
 /// rather than in the packed one.
 fn with_registry_readme(mut manifest: Value, dir: &Path) -> Result<Value, PackError> {
-    if manifest.get("readme").is_some_and(|readme| !readme.is_null()) {
+    if manifest
+        .get("readme")
+        .is_some_and(|readme| !readme.is_null())
+    {
         return Ok(manifest);
     }
     let readme = read_readme_file(dir)
@@ -563,4 +488,41 @@ use contents::{
 };
 
 mod lifecycle;
-use lifecycle::{apply_before_packing, run_scripts_if_present};
+use lifecycle::apply_before_packing;
+
+impl PackManifestOptions {
+    async fn export<Reporter: self::Reporter>(
+        &self,
+        project_dir: &Path,
+        dir: &Path,
+        manifest: &Value,
+    ) -> Result<Value, PackError> {
+        let modules_dir = project_dir.join("node_modules");
+        let mut publish_manifest = create_exportable_manifest(
+            dir,
+            manifest,
+            &CreateExportableManifestOptions {
+                catalogs: &self.catalogs,
+                modules_dir: Some(&modules_dir),
+                skip_manifest_obfuscation: self.skip_obfuscation,
+                embed_readme: self.embed_readme,
+            },
+        )
+        .map_err(PackError::CreateManifest)?;
+
+        // Run `beforePacking` hooks against the built manifest, before the
+        // file list is computed, so a hook that rewrites `files` / `bin` /
+        // dependency fields is honored. pnpm runs it inside
+        // `createExportableManifest`; pacquet applies it here because
+        // `create_exportable_manifest` is a pure, synchronous transform.
+        publish_manifest = apply_before_packing::<Reporter>(
+            project_dir,
+            dir,
+            publish_manifest,
+            &self.before_packing_hooks,
+        )
+        .await?;
+
+        Ok(publish_manifest)
+    }
+}

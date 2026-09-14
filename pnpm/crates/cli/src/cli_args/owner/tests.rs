@@ -136,8 +136,11 @@ async fn owner_ls_success() {
 #[tokio::test]
 async fn owner_ls_404_returns_package_not_found() {
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("GET", "/-/package/unknown-pkg/owners").with_status(404).create_async().await;
+    let mock = server
+        .mock("GET", "/-/package/unknown-pkg/owners")
+        .with_status(404)
+        .create_async()
+        .await;
 
     let config = config_with_registry(&server.url());
     let args = owner_args("ls", &["unknown-pkg"]);

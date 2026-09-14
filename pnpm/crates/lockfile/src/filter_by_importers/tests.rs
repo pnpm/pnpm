@@ -83,14 +83,22 @@ fn key(text: &str) -> PackageKey {
 }
 
 fn has_alias(group: Option<&crate::ResolvedDependencyMap>, alias: &str) -> bool {
-    group.is_some_and(|group| group.keys().any(|name| name.to_string() == alias))
+    group.is_some_and(|group| {
+        group
+            .keys()
+            .any(|name| name.to_string() == alias)
+    })
 }
 
 fn snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<String> = lockfile
-        .snapshots
+    let mut keys: Vec<String> = lockfile.snapshots
         .as_ref()
-        .map(|snapshots| snapshots.keys().map(ToString::to_string).collect())
+        .map(|snapshots| {
+            snapshots
+                .keys()
+                .map(ToString::to_string)
+                .collect()
+        })
         .unwrap_or_default();
     keys.sort();
     keys
@@ -123,8 +131,16 @@ fn prunes_the_metadata_map_too() {
         .expect("filter lockfile");
 
     let packages = filtered.packages.as_ref().expect("packages survive");
-    assert!(!packages.keys().any(|key| key.to_string() == "other-dep@1.0.0"));
-    assert!(packages.keys().any(|key| key.to_string() == "prod-dep@1.0.0"));
+    assert!(
+        !packages
+            .keys()
+            .any(|key| key.to_string() == "other-dep@1.0.0"),
+    );
+    assert!(
+        packages
+            .keys()
+            .any(|key| key.to_string() == "prod-dep@1.0.0"),
+    );
 }
 
 #[test]
@@ -142,7 +158,12 @@ fn an_excluded_group_is_emptied_and_its_edges_are_not_walked() {
 
     assert_eq!(snapshot_keys(&filtered), vec!["deep@1.0.0", "prod-dep@1.0.0"]);
     let importer = &filtered.importers["packages/app"];
-    assert!(importer.dev_dependencies.as_ref().expect("group present").is_empty());
+    assert!(
+        importer.dev_dependencies
+            .as_ref()
+            .expect("group present")
+            .is_empty(),
+    );
     assert!(has_alias(importer.dependencies.as_ref(), "prod-dep"));
 }
 

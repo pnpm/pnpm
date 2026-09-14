@@ -1,5 +1,5 @@
 use super::{
-    UpdateError, UpdateOwned, UpdateView, is_workspace_local_path_specifier,
+    UpdateError, UpdateOptions, UpdateResources, is_workspace_local_path_specifier,
     prepare_selected_manifests, reject_versions_of_indirect_update_specs, selected_project_indices,
 };
 use crate::update::{
@@ -24,24 +24,24 @@ fn test_update(
     packages: &[String],
     latest: bool,
     save: bool,
-) -> (UpdateView<'_>, UpdateOwned) {
+) -> (UpdateOptions<'_>, UpdateResources) {
     (
-        UpdateView {
+        UpdateOptions {
             resolved_packages: Box::leak(Box::new(super::ResolvedPackages::default())),
             http_client: Box::leak(Box::new(pnpm_network::ThrottledClient::default())),
             config: Box::leak(Box::new(config)),
             lockfile: None,
             lockfile_path: None,
-            packages,
-            latest,
-            patches: false,
-            save_exact: false,
-            save,
-            depth: 0,
-            workspace_packages: None,
             lockfile_only: false,
+            selection: crate::UpdateSelection { packages, depth: 0, workspace_packages: None },
+            version: crate::UpdateVersionOptions {
+                latest,
+                patches: false,
+                save_exact: false,
+                save,
+            },
         },
-        UpdateOwned {
+        UpdateResources {
             tarball_mem_cache: std::sync::Arc::new(pnpm_tarball::MemCache::default()),
             http_client_arc: std::sync::Arc::new(pnpm_network::ThrottledClient::default()),
             include_direct: vec![DependencyGroup::Prod],
@@ -255,7 +255,10 @@ fn dependency_specifier_in<'a>(
     group: DependencyGroup,
     alias: &str,
 ) -> Option<&'a str> {
-    manifest.dependencies([group]).find(|(name, _)| *name == alias).map(|(_, spec)| spec)
+    manifest
+        .dependencies([group])
+        .find(|(name, _)| *name == alias)
+        .map(|(_, spec)| spec)
 }
 
 #[tokio::test]
@@ -268,7 +271,10 @@ async fn selected_update_prepares_and_persists_only_selected_projects() {
         .map(|name| project_with_foo(dir.path(), name))
         .collect::<Vec<_>>();
     let ordered_dirs = [projects[1].root_dir.clone(), projects[0].root_dir.clone()];
-    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let selected_dirs = ordered_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
     let config = Config::new();
 
@@ -300,10 +306,15 @@ async fn selected_update_no_save_mutates_in_memory_without_persisting() {
     let dir = tempdir().expect("create tempdir");
     std::fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - '*'\n")
         .expect("write workspace manifest");
-    let mut projects =
-        ["a", "b"].into_iter().map(|name| project_with_foo(dir.path(), name)).collect::<Vec<_>>();
+    let mut projects = ["a", "b"]
+        .into_iter()
+        .map(|name| project_with_foo(dir.path(), name))
+        .collect::<Vec<_>>();
     let ordered_dirs = [projects[0].root_dir.clone()];
-    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let selected_dirs = ordered_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
     let mut config = Config::new();
     config.catalog_mode = CatalogMode::Prefer;
@@ -325,8 +336,7 @@ async fn selected_update_no_save_mutates_in_memory_without_persisting() {
     assert_eq!(saved_dependency_specifier(&projects[0].manifest), "^1.0.0");
     assert!(prepared.persist_indices.is_empty());
     assert_eq!(
-        prepared
-            .catalogs_override
+        prepared.catalogs_override
             .as_ref()
             .and_then(|catalogs| catalogs.get("default"))
             .and_then(|catalog| catalog.get("foo"))
@@ -342,7 +352,10 @@ async fn selected_update_no_save_skips_a_selector_outside_the_kept_range() {
         .expect("write workspace manifest");
     let mut projects = vec![project_with_foo(dir.path(), "a")];
     let ordered_dirs = [projects[0].root_dir.clone()];
-    let selected_dirs = ordered_dirs.iter().cloned().collect::<HashSet<_>>();
+    let selected_dirs = ordered_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
     let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
     let config = Config::new();
 
@@ -570,7 +583,10 @@ fn only_a_requested_version_gets_a_verdict() {
 /// rendered as `(covers 1.x, covers 2.x)` — the shape the reuse walk asks
 /// [`UpdateTargets::covers`] for.
 fn covers(selectors: &[&str], name: &str, versions: &[&str]) -> Vec<bool> {
-    let parsed = selectors.iter().map(|selector| parse_update_param(selector)).collect::<Vec<_>>();
+    let parsed = selectors
+        .iter()
+        .map(|selector| parse_update_param(selector))
+        .collect::<Vec<_>>();
     let expanded = expand_update_selectors(&parsed);
     let mut targets = pnpm_resolving_deps_resolver::UpdateTargets::default();
     insert_update_target(&mut targets, &expanded, name);
@@ -645,7 +661,10 @@ fn reject_indirect(selectors: &[&str]) -> Result<(), super::UpdateError> {
     )
     .expect("write package.json");
     let manifest = PackageManifest::from_path(package_json).expect("read package.json");
-    let parsed = selectors.iter().map(|input| parse_update_param(input)).collect::<Vec<_>>();
+    let parsed = selectors
+        .iter()
+        .map(|input| parse_update_param(input))
+        .collect::<Vec<_>>();
     reject_versions_of_indirect_update_specs::<SilentReporter>(
         &parsed,
         &[&manifest],

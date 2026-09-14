@@ -112,7 +112,10 @@ pub(crate) fn read_cached_bytes(
     // race-free: at most one byte past the bound is ever read,
     // whatever the file's size becomes between open and read.
     let mut body = Vec::new();
-    let bytes_read = file.take(MAX_CACHED_SHASUMS_LEN + 1).read_to_end(&mut body).ok()?;
+    let bytes_read = file
+        .take(MAX_CACHED_SHASUMS_LEN + 1)
+        .read_to_end(&mut body)
+        .ok()?;
     (bytes_read > 0 && bytes_read as u64 <= MAX_CACHED_SHASUMS_LEN).then_some(body)
 }
 
@@ -142,7 +145,10 @@ pub(crate) fn write_cached_shasums(
     // — a colliding writer or a pre-seeded symlink fails the open
     // instead of being followed — and any failure just skips the write.
     static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
-    let mut temp_name = path.file_name().unwrap_or_default().to_os_string();
+    let mut temp_name = path
+        .file_name()
+        .unwrap_or_default()
+        .to_os_string();
     temp_name.push(format!(
         ".tmp-{}-{}",
         std::process::id(),
@@ -153,8 +159,11 @@ pub(crate) fn write_cached_shasums(
     // renamed name pointing at partially-written content — a torn
     // SHASUMS prefix still parses and would otherwise be served
     // (missing platform rows) until the cache is cleared.
-    let written =
-        fs::OpenOptions::new().write(true).create_new(true).open(&temp).and_then(|mut file| {
+    let written = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp)
+        .and_then(|mut file| {
             file.write_all(body)?;
             file.sync_all()
         });
@@ -172,7 +181,9 @@ pub(crate) fn shasums_cache_path(
     trust: ShasumsTrust,
     url: &str,
 ) -> Option<PathBuf> {
-    let rest = url.strip_prefix("https://").or_else(|| url.strip_prefix("http://"))?;
+    let rest = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))?;
     if rest.contains(['?', '#', '@']) {
         return None;
     }

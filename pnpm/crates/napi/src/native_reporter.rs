@@ -43,6 +43,13 @@ pub type OutputSink = ThreadsafeFunction<String, UnknownReturnValue, String, Sta
 /// the same name in `@pnpm/cli.default-reporter`'s `reportingOptions`.
 #[napi(object)]
 #[derive(Default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct ReporterOptions {
     /// Print each update on its own line instead of redrawing the frame in
     /// place. The right choice whenever the output is not a live terminal.
@@ -118,7 +125,10 @@ impl Destination {
             }
             #[cfg(test)]
             Destination::Buffer(buffer) => {
-                buffer.lock().expect("the test buffer is never poisoned").push_str(chunk);
+                buffer
+                    .lock()
+                    .expect("the test buffer is never poisoned")
+                    .push_str(chunk);
             }
         }
     }
@@ -181,24 +191,15 @@ impl NativeRenderer {
         let append_only = options.append_only.unwrap_or(!is_terminal);
         let width = renderer_width(options, &destination, is_terminal);
         let colors = Colors {
-            enabled: options
-                .color
-                .unwrap_or_else(|| is_terminal && std::env::var_os("NO_COLOR").is_none()),
+            enabled: options.color.unwrap_or_else(|| {
+                is_terminal && std::env::var_os("NO_COLOR").is_none()
+            }),
         };
         let state = ReporterState::new_with_options(
             options.cwd.clone().unwrap_or_else(|| dir.to_string()),
             width,
             colors,
-            StateOptions {
-                append_only,
-                hide_added_pkgs_progress: options.hide_added_pkgs_progress.unwrap_or(false),
-                hide_progress_prefix: options.hide_progress_prefix.unwrap_or(false),
-                hide_lifecycle_output: options.hide_lifecycle_output.unwrap_or(false),
-                ignored_builds_instruction_text: options.ignored_builds_instruction_text.clone(),
-                hide_linked_pkgs_diff: options.hide_linked_pkgs_diff.clone().unwrap_or_default(),
-                max_log_level: parse_log_level(options.log_level.as_deref()),
-                ..StateOptions::default()
-            },
+            renderer_state_options(options, append_only),
         );
         let throttle = options.throttle_progress.map_or(
             if append_only { Duration::from_secs(1) } else { Duration::from_millis(200) },
@@ -271,17 +272,37 @@ impl NativeRenderer {
 }
 
 /// Match pnpm's outputMaxWidth, floored at one column for narrow terminals.
+fn renderer_state_options(options: &ReporterOptions, append_only: bool) -> StateOptions {
+    StateOptions {
+        append_only,
+        ignored_builds_instruction_text: options.ignored_builds_instruction_text.clone(),
+        hide_linked_pkgs_diff: options.hide_linked_pkgs_diff.clone().unwrap_or_default(),
+        max_log_level: parse_log_level(options.log_level.as_deref()),
+        lifecycle: pnpm_default_reporter::state::LifecycleOptions {
+            hide_output: options.hide_lifecycle_output.unwrap_or(false),
+            ..Default::default()
+        },
+        progress: pnpm_default_reporter::state::ProgressOptions {
+            hide_added_pkgs: options.hide_added_pkgs_progress.unwrap_or(false),
+            hide_prefix: options.hide_progress_prefix.unwrap_or(false),
+        },
+        ..StateOptions::default()
+    }
+}
+
 fn renderer_width(
     options: &ReporterOptions,
     destination: &Destination,
     is_terminal: bool,
 ) -> usize {
-    options
-        .width
+    options.width
         .map_or_else(
             || {
                 if is_terminal {
-                    destination.terminal_columns().unwrap_or(82).saturating_sub(2)
+                    destination
+                        .terminal_columns()
+                        .unwrap_or(82)
+                        .saturating_sub(2)
                 } else {
                     80
                 }
@@ -332,8 +353,9 @@ fn terminal_columns(stream: StreamFd) -> Option<usize> {
     // the return code is checked before it is read.
     unsafe {
         let mut ws: libc::winsize = std::mem::zeroed();
-        (libc::ioctl(fd, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0)
-            .then_some(ws.ws_col as usize)
+        (libc::ioctl(fd, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0).then_some(
+            ws.ws_col as usize,
+        )
     }
 }
 

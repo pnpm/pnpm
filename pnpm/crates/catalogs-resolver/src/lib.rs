@@ -86,8 +86,9 @@ pub fn resolve_from_catalog(
         return CatalogResolutionResult::Unused;
     };
 
-    let catalog_lookup =
-        catalogs.get(catalog_name).and_then(|catalog| catalog.get(&wanted_dependency.alias));
+    let catalog_lookup = catalogs
+        .get(catalog_name)
+        .and_then(|catalog| catalog.get(&wanted_dependency.alias));
     let Some(catalog_lookup) = catalog_lookup else {
         return CatalogResolutionResult::Misconfiguration(CatalogResolutionMisconfiguration {
             catalog_name: catalog_name.to_string(),
@@ -99,16 +100,13 @@ pub fn resolve_from_catalog(
     };
 
     if parse_catalog_protocol(catalog_lookup).is_some() {
-        return CatalogResolutionResult::Misconfiguration(CatalogResolutionMisconfiguration {
-            catalog_name: catalog_name.to_string(),
-            error: CatalogResolutionError::EntryInvalidRecursiveDefinition {
-                alias: wanted_dependency.alias.clone(),
-                catalog_name: catalog_name.to_string(),
-            },
-        });
+        return recursive_catalog_error(catalog_name, &wanted_dependency.alias);
     }
 
-    let protocol_of_lookup = catalog_lookup.split(':').next().unwrap_or("");
+    let protocol_of_lookup = catalog_lookup
+        .split(':')
+        .next()
+        .unwrap_or("");
     if matches!(protocol_of_lookup, "link" | "file") {
         return CatalogResolutionResult::Misconfiguration(CatalogResolutionMisconfiguration {
             catalog_name: catalog_name.to_string(),
@@ -124,6 +122,16 @@ pub fn resolve_from_catalog(
         resolution: CatalogResolution {
             catalog_name: catalog_name.to_string(),
             specifier: catalog_lookup.clone(),
+        },
+    })
+}
+
+fn recursive_catalog_error(catalog_name: &str, alias: &str) -> CatalogResolutionResult {
+    CatalogResolutionResult::Misconfiguration(CatalogResolutionMisconfiguration {
+        catalog_name: catalog_name.to_string(),
+        error: CatalogResolutionError::EntryInvalidRecursiveDefinition {
+            alias: alias.to_string(),
+            catalog_name: catalog_name.to_string(),
         },
     })
 }

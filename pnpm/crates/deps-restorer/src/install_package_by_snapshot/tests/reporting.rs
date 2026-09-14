@@ -18,7 +18,10 @@ fn emits_resolved_with_supplied_identifiers() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().unwrap().push(event.clone());
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
         }
     }
 
@@ -42,9 +45,10 @@ fn emits_resolved_with_supplied_identifiers() {
 fn registry_resolution_uses_scoped_registry_tarball_base() {
     let mut config = Config::new();
     config.registry = "https://default.example/npm/".to_string();
-    config
-        .registries_by_scope
-        .insert("@private".to_string(), "https://private.example/npm/".to_string());
+    config.registries_by_scope.insert(
+        "@private".to_string(),
+        "https://private.example/npm/".to_string(),
+    );
 
     let integrity = DUMMY_SHA512.parse().expect("parse integrity");
     let resolution = LockfileResolution::Registry(RegistryResolution { integrity, revision: None });
@@ -59,9 +63,10 @@ fn registry_resolution_uses_scoped_registry_tarball_base() {
 fn registry_revision_uses_the_scoped_registry_digest_route() {
     let mut config = Config::new();
     config.registry = "https://default.example/npm/".to_string();
-    config
-        .registries_by_scope
-        .insert("@private".to_string(), "https://private.example/npm/".to_string());
+    config.registries_by_scope.insert(
+        "@private".to_string(),
+        "https://private.example/npm/".to_string(),
+    );
     let resolution = LockfileResolution::Registry(RegistryResolution {
         integrity: DUMMY_SHA512.parse().expect("parse integrity"),
         revision: Some(TarballRevision::try_from(2).unwrap()),

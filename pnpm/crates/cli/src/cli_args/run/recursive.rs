@@ -135,13 +135,15 @@ pub fn run_recursive(
         args,
         config,
         dir,
-        emit,
-        silent,
         graph,
         selection: &selection,
         workspace_root,
-        script_name,
-        all_packages_selected: graph.len() == projects.len(),
+        script: RecursiveScript {
+            emit,
+            silent,
+            script_name,
+            all_packages_selected: graph.len() == projects.len(),
+        },
     };
     run.run_and_report()
 }
@@ -153,8 +155,7 @@ fn emit_selection_scope(emit: fn(&LogEvent), config: &Config, selected: usize, t
         level: LogLevel::Debug,
         selected,
         total: Some(total),
-        workspace_prefix: config
-            .workspace_dir
+        workspace_prefix: config.workspace_dir
             .as_deref()
             .map(|dir| dir.to_string_lossy().into_owned()),
     }));
@@ -166,11 +167,15 @@ struct RecursiveRun<'a, 'project> {
     args: &'a RunArgs,
     config: &'a Config,
     dir: &'a Path,
-    emit: fn(&LogEvent),
-    silent: bool,
     graph: &'a ProjectGraph<GraphPkg<'project>>,
     selection: &'a crate::cli_args::recursive::RecursiveSelection<'project>,
     workspace_root: &'a Path,
+    script: RecursiveScript<'a>,
+}
+
+pub(crate) struct RecursiveScript<'a> {
+    emit: fn(&LogEvent),
+    silent: bool,
     script_name: &'a str,
     all_packages_selected: bool,
 }
@@ -200,9 +205,9 @@ impl RecursiveRun<'_, '_> {
         report_run_outcome(
             &RunReporting {
                 args: self.args,
-                script_name: self.script_name,
+                script_name: self.script.script_name,
                 workspace_root: self.workspace_root,
-                all_packages_selected: self.all_packages_selected,
+                all_packages_selected: self.script.all_packages_selected,
                 ran_a_command: results.ran_a_command,
                 task_run_state: &prepared.task_run_state,
             },
@@ -231,7 +236,7 @@ impl RecursiveRun<'_, '_> {
             self.args,
             self.graph,
             &full_task_graph,
-            self.script_name,
+            self.script.script_name,
         )?;
         // Also the cycle check: a cyclic graph cannot be scheduled, and
         // sequenced into an arbitrary order it would succeed or fail by luck.
@@ -240,7 +245,7 @@ impl RecursiveRun<'_, '_> {
             &SequenceTasksOptions {
                 workspace_dir: self.workspace_root,
                 ignore_cycles: self.config.ignore_workspace_cycles,
-                emit: self.emit,
+                emit: self.script.emit,
             },
         )?;
 
@@ -249,35 +254,43 @@ impl RecursiveRun<'_, '_> {
             return Ok(None);
         }
 
+        self.validate_requested_scripts(&mut task_graph)?;
+
+        let task_run_state = task_run_state_context.start(&initially_completed_tasks(
+            &full_task_graph,
+            &task_graph,
+        ))?;
+        Ok(Some(PreparedRun { task_graph, sequenced_tasks, extra_env, task_run_state }))
+    }
+
+    fn validate_requested_scripts(&self, task_graph: &mut TaskGraph) -> miette::Result<()> {
         // Hidden scripts (names starting with `.`) can only be invoked from
         // within another script, detected by an inherited
         // `npm_lifecycle_event`. Checked only for the tasks the invocation
         // named: a `dependsOn` declaration naming a hidden script is a
         // deliberate reference, like a call from another script.
-        filter_hidden_requested_scripts(&mut task_graph, self.script_name)?;
+        filter_hidden_requested_scripts(task_graph, self.script.script_name)?;
 
         check_a_project_has_the_script(
-            &task_graph,
+            task_graph,
             self.args,
-            self.script_name,
-            self.all_packages_selected,
+            self.script.script_name,
+            self.script.all_packages_selected,
         )?;
 
-        let task_run_state = task_run_state_context
-            .start(&initially_completed_tasks(&full_task_graph, &task_graph))?;
-        Ok(Some(PreparedRun { task_graph, sequenced_tasks, extra_env, task_run_state }))
+        Ok(())
     }
 
     fn task_graph(&self) -> miette::Result<TaskGraph> {
-        let selector = ScriptSelector::new(self.script_name)?;
+        let selector = ScriptSelector::new(self.script.script_name)?;
         build_run_task_graph(
-            self.script_name,
+            self.script.script_name,
             &selector,
             self.args,
             self.config,
             self.graph,
             self.selection,
-            self.emit,
+            self.script.emit,
         )
     }
 
@@ -293,7 +306,7 @@ impl RecursiveRun<'_, '_> {
 
     /// Schedule every task and collect what each left behind.
     fn execute(&self, prepared: &PreparedRun) -> miette::Result<RunResults> {
-        let bail = !self.args.no_bail;
+        let bail = !self.args.workspace.no_bail;
         let concurrency = run_concurrency(self.args, self.config, prepared.task_graph.len());
         let runs_concurrently = concurrency > 1
             && !is_serial_task_graph(&prepared.task_graph, &prepared.sequenced_tasks);
@@ -312,9 +325,9 @@ impl RecursiveRun<'_, '_> {
                 workspace_root: self.workspace_root,
             },
             extra_env: &prepared.extra_env,
-            init_cwd: &init_cwd,
             bail,
             inherit_output: !self.config.stream && !runs_concurrently,
+            init_cwd: &init_cwd,
         };
         let run_task = |node: &TaskNode| runner.run_task(node);
         let on_task_skipped = |node: &TaskNode| {
@@ -340,7 +353,11 @@ fn initially_completed_tasks(
     full_task_graph: &TaskGraph,
     task_graph: &TaskGraph,
 ) -> HashSet<TaskKey> {
-    full_task_graph.keys().filter(|key| !task_graph.contains_key(*key)).cloned().collect()
+    full_task_graph
+        .keys()
+        .filter(|key| !task_graph.contains_key(*key))
+        .cloned()
+        .collect()
 }
 
 mod execution;

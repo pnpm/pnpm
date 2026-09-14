@@ -1,7 +1,7 @@
 use super::{
     AccessList, AuthState, Body, Ecosystem, PackagePattern, PackageRule, PackageRules, Request,
     ServiceExt, StatusCode, TempDir, Value, app, basic, body_bytes, get, header, json, oci_config,
-    push_image, router_with_auth, token,
+    push_blob, push_image, router_with_auth, token,
 };
 
 #[tokio::test]
@@ -29,7 +29,11 @@ async fn a_name_no_hosted_registry_claims_is_not_served() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
     assert_eq!(get(&app, "/v2/other/app/tags/list").await.status(), StatusCode::NOT_FOUND);
@@ -39,7 +43,7 @@ async fn a_name_no_hosted_registry_claims_is_not_served() {
 async fn the_catalog_omits_repositories_the_caller_may_not_read() {
     let tmp = TempDir::new().unwrap();
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    let hosted = config.hosted.get_mut("images").expect("the hosted image registry");
+    let hosted = config.routing.hosted.get_mut("images").expect("the hosted image registry");
     // Reads are open by default, and `acme/secret` refines that to require a
     // caller. A listing must apply the same rule its fetches would.
     hosted.rules = PackageRules::new(
@@ -68,4 +72,18 @@ async fn the_catalog_omits_repositories_the_caller_may_not_read() {
     let response = app.oneshot(request).await.unwrap();
     let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(payload["repositories"], json!(["acme/app", "acme/secret"]));
+}
+
+#[tokio::test]
+async fn catalog_lists_repositories_under_published_and_blob_only_parents() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "latest").await;
+    push_image(&app, &auth, "acme/app/tool", "latest").await;
+    push_blob(&app, &auth, "acme/blobs", b"loose").await;
+    push_image(&app, &auth, "acme/blobs/tool", "latest").await;
+    let response = get(&app, "/v2/_catalog").await;
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["repositories"], json!(["acme/app", "acme/app/tool", "acme/blobs/tool"]));
 }

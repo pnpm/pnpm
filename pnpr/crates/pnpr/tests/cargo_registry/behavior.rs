@@ -27,8 +27,14 @@ async fn search_lists_hosted_crates_by_newest_version_and_description() {
     let search = |app: axum::Router, query: &str| {
         let uri = format!("/cargo/api/v1/crates?{query}");
         async move {
-            let response =
-                app.oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap();
+            let response = app
+                .oneshot(
+                    Request::get(uri)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
             assert_eq!(response.status(), StatusCode::OK);
             serde_json::from_slice::<Value>(&body_bytes(response.into_body()).await).unwrap()
         }
@@ -72,7 +78,11 @@ async fn search_lists_hosted_crates_by_newest_version_and_description() {
 
     // Results depend on the caller, so they must never be shared-cached.
     let response = app
-        .oneshot(Request::get("/cargo/api/v1/crates?q=demo").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/api/v1/crates?q=demo")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
@@ -84,18 +94,24 @@ async fn cargo_advertises_auth_for_package_specific_private_access() {
     use pnpr::{AccessList, Ecosystem, PackagePattern, PackageRule};
     let tmp = TempDir::new().unwrap();
     let mut config = cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all");
-    config.hosted.get_mut("crates").unwrap().rules.push_rule(PackageRule {
-        pattern: PackagePattern::parse("demo", Ecosystem::Npm).unwrap(),
-        access: Some(AccessList::from_tokens(["$authenticated"])),
-        publish: None,
-        unpublish: None,
-    });
+    config.routing.hosted
+        .get_mut("crates")
+        .unwrap()
+        .rules
+        .push_rule(PackageRule {
+            pattern: PackagePattern::parse("demo", Ecosystem::Npm).unwrap(),
+            access: Some(AccessList::from_tokens(["$authenticated"])),
+            publish: None,
+            unpublish: None,
+        });
     let app = router_with_auth(config, AuthState::in_memory());
     for prefix in ["/cargo", "/cargo/~crates", "/cargo/~main"] {
         let response = app
             .clone()
             .oneshot(
-                Request::get(format!("{prefix}/index/config.json")).body(Body::empty()).unwrap(),
+                Request::get(format!("{prefix}/index/config.json"))
+                    .body(Body::empty())
+                    .unwrap(),
             )
             .await
             .unwrap();

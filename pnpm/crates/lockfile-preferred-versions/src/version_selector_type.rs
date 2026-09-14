@@ -32,10 +32,12 @@ pub fn get_version_selector_type(spec: &str) -> Option<VersionSelectorType> {
 /// exactly when every character of `s` is in that set.
 fn is_uri_component_safe(spec: &str) -> bool {
     !spec.is_empty()
-        && spec.chars().all(|ch| {
-            ch.is_ascii_alphanumeric()
-                || matches!(ch, '-' | '_' | '.' | '!' | '~' | '*' | '\'' | '(' | ')')
-        })
+        && spec
+            .chars()
+            .all(|ch| {
+                ch.is_ascii_alphanumeric()
+                    || matches!(ch, '-' | '_' | '.' | '!' | '~' | '*' | '\'' | '(' | ')')
+            })
 }
 
 #[cfg(test)]

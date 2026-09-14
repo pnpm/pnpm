@@ -112,7 +112,9 @@ impl Diff {
     fn clear_trailing(&mut self, next: &[Line], old: &[Line], out: &mut String) {
         let Some(old_last) = old.last() else { return };
         let old_last_row = old_last.row + old_last.height;
-        let new_last_row = next.last().map_or(0, |line| line.row + line.height);
+        let new_last_row = next
+            .last()
+            .map_or(0, |line| line.row + line.height);
         if next.is_empty() || new_last_row < old_last_row {
             self.clear_down(out, old_last_row);
         }
@@ -232,14 +234,20 @@ impl Line {
         }
         let self_chars: Vec<char> = self.raw.chars().collect();
         let other_chars: Vec<char> = other.raw.chars().collect();
-        let left = self_chars.iter().zip(&other_chars).take_while(|(ca, cb)| ca == cb).count();
+        let left = self_chars
+            .iter()
+            .zip(&other_chars)
+            .take_while(|(ca, cb)| ca == cb)
+            .count();
         let right = self_chars
             .iter()
             .rev()
             .zip(other_chars.iter().rev())
             .take_while(|(ca, cb)| ca == cb)
             .count();
-        let changed_len = self_chars.len().saturating_sub(left + right);
+        let changed_len = self_chars
+            .len()
+            .saturating_sub(left + right);
         if left + right <= 4 || left + changed_len >= width.saturating_sub(1) {
             return false;
         }

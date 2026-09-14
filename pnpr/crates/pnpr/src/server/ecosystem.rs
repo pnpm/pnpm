@@ -34,7 +34,9 @@ pub(super) fn addressed_registry(
     ecosystem: Ecosystem,
 ) -> Option<String> {
     match registry {
-        Some(name) => state.inner.config.registries.addressed(name, ecosystem).map(str::to_string),
+        Some(name) => {
+            state.inner.config.routing.registries.addressed(name, ecosystem).map(str::to_string)
+        }
         None => default_registry_target(state, ecosystem),
     }
 }
@@ -59,8 +61,9 @@ pub(super) fn registry_endpoint(
     ecosystem: Ecosystem,
     registry: Option<&str>,
 ) -> String {
-    let public_url = state.inner.config.public_url.trim_end_matches('/');
-    let base = format!("{public_url}{}", state.inner.config.registries.base_path(ecosystem));
+    let public_url = state.inner.config.http.public_url.trim_end_matches('/');
+    let base =
+        format!("{public_url}{}", state.inner.config.routing.registries.base_path(ecosystem));
     match registry {
         Some(registry) => format!("{base}/~{registry}"),
         None => base,
@@ -104,18 +107,18 @@ pub(super) fn registry_requires_auth(
     ecosystem: Ecosystem,
 ) -> bool {
     let config = &state.inner.config;
-    config.registries.sources(registry, ecosystem).into_iter().any(|source| {
-        match config.registries.get(source) {
-            Some(Registry::Hosted { .. }) => config
-                .hosted
+    config.routing.registries
+        .sources(registry, ecosystem)
+        .into_iter()
+        .any(|source| match config.routing.registries.get(source) {
+            Some(Registry::Hosted { .. }) => config.routing.hosted
                 .get(source)
                 .is_some_and(|hosted| !hosted.rules.all_access_admit(&Identity::Anonymous)),
-            Some(Registry::Upstream { .. }) => {
-                config.upstreams.get(source).is_some_and(|upstream| upstream.access.is_some())
-            }
+            Some(Registry::Upstream { .. }) => config.routing.upstreams
+                .get(source)
+                .is_some_and(|upstream| upstream.access.is_some()),
             Some(Registry::Router { .. }) | None => false,
-        }
-    })
+        })
 }
 
 /// The hosted registries of `ecosystem` a request through `registry` can land on.
@@ -124,7 +127,7 @@ pub(super) fn hosted_sources(
     registry: &str,
     ecosystem: Ecosystem,
 ) -> Vec<String> {
-    let registries = &state.inner.config.registries;
+    let registries = &state.inner.config.routing.registries;
     registries
         .sources(registry, ecosystem)
         .into_iter()
@@ -190,7 +193,7 @@ pub(super) async fn load_upstream_document(
     encode: impl FnOnce(FetchedDocument) -> Result<Vec<u8>, RegistryError>,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     let storage = &state.inner.storage;
-    let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
+    let ttl = upstream.maxage().unwrap_or(state.inner.config.http.packument_ttl);
     if let Some(bytes) = storage.read_upstream_document(namespace, request.name, ttl).await? {
         return Ok(Some(bytes));
     }

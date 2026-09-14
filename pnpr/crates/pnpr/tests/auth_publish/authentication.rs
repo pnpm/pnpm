@@ -36,7 +36,10 @@ async fn adduser_rejects_wrong_password_for_existing_user() {
         "name": "alice", "password": "wrong",
         "email": "foo@bar.net", "type": "user", "roles": []
     });
-    let response = app.oneshot(put_json(path, body)).await.unwrap();
+    let response = app
+        .oneshot(put_json(path, body))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -95,7 +98,11 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
 
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
     // Packument on disk
@@ -113,7 +120,14 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     assert_eq!(on_disk_tarball, bytes);
 
     // Subsequent GET serves it back with the public URL rewritten.
-    let response = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let served = body_json(response.into_body()).await;
     assert_eq!(
@@ -154,21 +168,42 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
     assert!(storage.join("unpub-policy/package.json").exists());
 
     let request = Request::delete("/unpub-policy/-rev/anything")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::empty())
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN,
+    );
     assert!(storage.join("unpub-policy/package.json").exists());
 
     let request = Request::delete("/unpub-policy/-rev/anything")
         .header("Authorization", format!("Bearer {admin}"))
         .body(Body::empty())
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
     assert!(!storage.join("unpub-policy").exists());
 }
 
@@ -192,20 +227,41 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
     assert!(storage.join("tarball-policy/tarball-policy-1.0.0.tgz").exists());
 
     let request = Request::delete("/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::empty())
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::FORBIDDEN,
+    );
     assert!(storage.join("tarball-policy/tarball-policy-1.0.0.tgz").exists());
 
     let request = Request::delete("/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {admin}"))
         .body(Body::empty())
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
     assert!(!storage.join("tarball-policy/tarball-policy-1.0.0.tgz").exists());
 }

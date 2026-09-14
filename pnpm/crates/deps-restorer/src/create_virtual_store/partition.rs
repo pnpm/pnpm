@@ -149,16 +149,22 @@ impl IndexRows {
         if !marker_rebuilds.contains(snapshot_key)
             && let Some(maps) = prefetch.side_effects_maps.get(cache_key)
         {
-            self.side_effects_maps_by_snapshot
-                .insert(snapshot_key.clone(), std::sync::Arc::clone(maps));
+            self.side_effects_maps_by_snapshot.insert(
+                snapshot_key.clone(),
+                std::sync::Arc::clone(maps),
+            );
         }
         if let Some(diffs) = prefetch.side_effects.get(cache_key) {
-            self.side_effects_by_snapshot
-                .insert(snapshot_key.clone(), std::sync::Arc::clone(diffs));
+            self.side_effects_by_snapshot.insert(
+                snapshot_key.clone(),
+                std::sync::Arc::clone(diffs),
+            );
         }
         if let Some(quarantine) = prefetch.remote_side_effects_quarantine.get(cache_key) {
-            self.remote_side_effects_quarantine_by_snapshot
-                .insert(snapshot_key.clone(), std::sync::Arc::clone(quarantine));
+            self.remote_side_effects_quarantine_by_snapshot.insert(
+                snapshot_key.clone(),
+                std::sync::Arc::clone(quarantine),
+            );
         }
         if let Some(&requires_build) = prefetch.requires_build.get(cache_key) {
             self.requires_build_by_snapshot.insert(snapshot_key.clone(), requires_build);
@@ -177,8 +183,10 @@ impl IndexRows {
         let (snapshot_key, snapshot, cache_key) = entry;
         let key = cache_key.as_deref()?;
         let cas_paths = prefetch.cas_paths.get(key)?;
-        let requires_build =
-            self.requires_build_by_snapshot.get(*snapshot_key).copied().unwrap_or(false);
+        let requires_build = self.requires_build_by_snapshot
+            .get(*snapshot_key)
+            .copied()
+            .unwrap_or(false);
         Some((
             *snapshot_key,
             *snapshot,

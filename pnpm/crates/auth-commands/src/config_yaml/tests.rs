@@ -4,7 +4,10 @@ use pretty_assertions::assert_eq;
 /// The value `login_fields` assigns to `key`, or `None` when the login does
 /// not touch that field.
 fn field(fields: &ConfigYamlFields, key: &str) -> Option<Value> {
-    fields.iter().find(|(name, _)| *name == key).map(|(_, value)| value.clone())
+    fields
+        .iter()
+        .find(|(name, _)| *name == key)
+        .map(|(_, value)| value.clone())
 }
 
 fn login(document: Option<&str>, scope: Option<&str>) -> ConfigYamlFields {

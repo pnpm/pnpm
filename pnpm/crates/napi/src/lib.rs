@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! Node.js NAPI bindings for the pnpm v12 Rust engine (pacquet).
 //!
 //! This cdylib exposes pnpm's programmatic engine surface — pack, dependency

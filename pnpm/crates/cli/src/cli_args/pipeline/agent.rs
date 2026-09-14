@@ -19,6 +19,16 @@ use std::{
 
 pub struct WatchInvocation {
     pub pipeline_name: Option<String>,
+    pub no_cache: bool,
+    pub report: bool,
+    pub report_to: Option<String>,
+    /// Forwarded to the child so a build can authenticate its reporting
+    /// (and its installs) from an explicit auth file.
+    pub npmrc_auth_file: Option<PathBuf>,
+    pub polling: WatchPolling,
+}
+
+pub(crate) struct WatchPolling {
     /// The repository to poll — a URL or a local path, anything `git`
     /// accepts as a remote.
     pub repo: String,
@@ -26,12 +36,6 @@ pub struct WatchInvocation {
     pub interval: Duration,
     /// Poll once, build if there is a new revision, and exit.
     pub once: bool,
-    pub no_cache: bool,
-    pub report: bool,
-    pub report_to: Option<String>,
-    /// Forwarded to the child so a build can authenticate its reporting
-    /// (and its installs) from an explicit auth file.
-    pub npmrc_auth_file: Option<PathBuf>,
 }
 
 /// Where the agent keeps its state for one `(repo, branch)`: the
@@ -42,13 +46,16 @@ struct AgentDirs {
 }
 
 pub fn run_watch(invocation: &WatchInvocation, state_dir: &Path) -> miette::Result<()> {
-    if invocation.interval.is_zero() {
+    if invocation.polling.interval.is_zero() {
         return Err(miette::miette!("watch interval must be at least one second"));
     }
     let agent_dir = state_dir
         .join("pipeline")
         .join("agent")
-        .join(create_short_hash(&format!("{}\0{}", invocation.repo, invocation.branch)));
+        .join(create_short_hash(&format!(
+            "{}\0{}",
+            invocation.polling.repo, invocation.polling.branch,
+        )));
     fs::create_dir_all(&agent_dir)
         .map_err(|error| miette::miette!("creating the agent directory: {error}"))?;
     let agent_display = agent_dir.display();
@@ -58,30 +65,36 @@ pub fn run_watch(invocation: &WatchInvocation, state_dir: &Path) -> miette::Resu
     // path — the run record's workspace identity above all — reads as the
     // project, not as "checkout".
     let dirs = AgentDirs {
-        checkout: agent_dir.join("checkout").join(repo_basename(&invocation.repo)),
+        checkout: agent_dir
+            .join("checkout")
+            .join(repo_basename(&invocation.polling.repo)),
         head_file: agent_dir.join("head"),
     };
     println!(
         "Watching {} ({}) every {}s; checkout: {}",
-        invocation.repo,
-        invocation.branch,
-        invocation.interval.as_secs(),
+        invocation.polling.repo,
+        invocation.polling.branch,
+        invocation.polling.interval.as_secs(),
         dirs.checkout.display(),
     );
+    watch_revisions(invocation, &dirs)
+}
+
+fn watch_revisions(invocation: &WatchInvocation, dirs: &AgentDirs) -> miette::Result<()> {
     loop {
-        let result = poll_and_build(invocation, &dirs);
+        let result = poll_and_build(invocation, dirs);
         match result {
             Ok(Some(revision)) => println!("Built {revision}."),
-            Ok(None) => println!("{} is up to date.", invocation.branch),
+            Ok(None) => println!("{} is up to date.", invocation.polling.branch),
             // A failed poll (the remote is briefly unreachable, a fetch
             // hiccup) must not kill a daemon; the next tick retries.
-            Err(error) if invocation.once => return Err(error),
+            Err(error) if invocation.polling.once => return Err(error),
             Err(error) => eprintln!("[WARN] poll failed: {error}"),
         }
-        if invocation.once {
+        if invocation.polling.once {
             return Ok(());
         }
-        std::thread::sleep(invocation.interval);
+        std::thread::sleep(invocation.polling.interval);
     }
 }
 
@@ -92,7 +105,7 @@ fn poll_and_build(
     invocation: &WatchInvocation,
     dirs: &AgentDirs,
 ) -> miette::Result<Option<String>> {
-    let head = remote_head(&invocation.repo, &invocation.branch)?;
+    let head = remote_head(&invocation.polling.repo, &invocation.polling.branch)?;
     let last_built = fs::read_to_string(&dirs.head_file).ok();
     if last_built.as_deref().map(str::trim) == Some(head.as_str()) {
         return Ok(None);
@@ -151,16 +164,16 @@ fn materialize(
     revision: &str,
 ) -> miette::Result<()> {
     if dirs.checkout.join(".git").exists() {
-        git_ok(Some(&dirs.checkout), &["fetch", "origin", &invocation.branch])?;
+        git_ok(Some(&dirs.checkout), &["fetch", "origin", &invocation.polling.branch])?;
     } else {
         git_ok(
             None,
             &[
                 "clone",
                 "--branch",
-                &invocation.branch,
+                &invocation.polling.branch,
                 "--",
-                &invocation.repo,
+                &invocation.polling.repo,
                 &dirs.checkout.to_string_lossy(),
             ],
         )?;
@@ -176,8 +189,9 @@ fn git_ok(cwd: Option<&Path>, args: &[&str]) -> miette::Result<()> {
     if let Some(cwd) = cwd {
         command.current_dir(cwd);
     }
-    let output =
-        command.output().map_err(|error| miette::miette!("running git {args:?}: {error}"))?;
+    let output = command
+        .output()
+        .map_err(|error| miette::miette!("running git {args:?}: {error}"))?;
     if output.status.success() {
         return Ok(());
     }

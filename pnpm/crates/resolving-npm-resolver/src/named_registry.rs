@@ -118,7 +118,11 @@ pub fn named_registry_tarball_prefixes(
             format!("{}{}", parsed.origin().ascii_serialization(), pathname)
         })
         .collect();
-    prefixes.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
+    prefixes.sort_by(|a, b| {
+        b.len()
+            .cmp(&a.len())
+            .then_with(|| a.cmp(b))
+    });
     prefixes
 }
 

@@ -394,12 +394,22 @@ fn get_bin_name(cached_dir: &Path) -> Result<String, DlxError> {
         [] => Err(DlxError::NoBin { package: pkg_name }),
         [bin] => Ok(bin.name.clone()),
         bins => {
-            let manifest_name = manifest.get("name").and_then(Value::as_str).unwrap_or(&pkg_name);
+            let manifest_name = manifest
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or(&pkg_name);
             let scopeless_name = scopeless(manifest_name);
-            if let Some(bin) = bins.iter().find(|bin| bin.name == scopeless_name) {
+            if let Some(bin) = bins
+                .iter()
+                .find(|bin| bin.name == scopeless_name)
+            {
                 return Ok(bin.name.clone());
             }
-            let names = bins.iter().map(|bin| bin.name.as_str()).collect::<Vec<_>>().join(", ");
+            let names = bins
+                .iter()
+                .map(|bin| bin.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
             Err(DlxError::MultipleBins { package: pkg_name, bins: names })
         }
     }

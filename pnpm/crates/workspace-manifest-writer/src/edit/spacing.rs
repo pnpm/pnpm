@@ -13,7 +13,11 @@ use super::{Line, lines, top_level_key_line};
 pub(super) fn blanks_belong_to_kept_scalar(text: &str, line_start: usize) -> bool {
     let all = lines(&text[..line_start]);
     let mut enclosing_indent = usize::MAX;
-    for line in all.iter().rev().filter(|line| !line.content.trim().is_empty()) {
+    for line in all
+        .iter()
+        .rev()
+        .filter(|line| !line.content.trim().is_empty())
+    {
         let indent = indent_width(line.content);
         if indent >= enclosing_indent {
             continue;
@@ -122,8 +126,14 @@ fn opens_kept_chomping_scalar(value: &str) -> bool {
     let Some(indicators) = value.strip_prefix(['|', '>']) else {
         return false;
     };
-    let indicators = indicators.split_whitespace().next().unwrap_or_default();
-    indicators.contains('+') && indicators.chars().all(|char| char == '+' || char.is_ascii_digit())
+    let indicators = indicators
+        .split_whitespace()
+        .next()
+        .unwrap_or_default();
+    indicators.contains('+')
+        && indicators
+            .chars()
+            .all(|char| char == '+' || char.is_ascii_digit())
 }
 
 /// Leading-space count of `content`, whatever the line holds — unlike
@@ -172,7 +182,9 @@ pub(crate) fn uses_blank_line_style(text: &str, top_level_keys: &[String]) -> bo
 /// [`blank_run_start`] and [`has_blank_before`] use — so a whitespace-only
 /// separator counts as one too.
 pub(super) fn ends_with_blank_line(text: &str) -> bool {
-    lines(text).last().is_some_and(|line| line.content.trim().is_empty())
+    lines(text)
+        .last()
+        .is_some_and(|line| line.content.trim().is_empty())
 }
 
 /// Whether a blank line precedes the key at `idx`, looking past the key's own

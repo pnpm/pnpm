@@ -157,7 +157,11 @@ pub fn replay(scripts: &[CapturedScript], project_dir: &Path, emit: fn(&LogEvent
 
 fn with_buffer(dep_path: &str, stage: &str, mutate: impl FnOnce(&mut Buffer)) {
     let mut buffers = BUFFERS.lock().expect("capture buffer lock is not poisoned");
-    mutate(buffers.entry((dep_path.to_string(), stage.to_string())).or_default());
+    mutate(
+        buffers
+            .entry((dep_path.to_string(), stage.to_string()))
+            .or_default(),
+    );
 }
 
 fn stdio_name(stdio: LifecycleStdio) -> String {

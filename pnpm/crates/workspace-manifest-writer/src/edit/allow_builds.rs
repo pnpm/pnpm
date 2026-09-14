@@ -10,7 +10,7 @@ use super::{
 /// each denied/unselected package set to `false`.
 pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) -> bool {
     const BLOCK: &str = "allowBuilds";
-    let changed = if locate(manifest.text(), &[BLOCK]).is_some() {
+    let changed = if locate(manifest.document.text(), &[BLOCK]).is_some() {
         let Some(changed) = write_allow_build(manifest, BLOCK, name, value) else {
             return false;
         };
@@ -18,15 +18,14 @@ pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) 
     } else {
         let block = format!("{BLOCK}:\n  {}: {}\n", render::render_value(name), render_bool(value));
         let new_text = insert_top_level_block(manifest, BLOCK, &block);
-        manifest.set_text(new_text);
-        manifest.top_level_keys =
-            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+        manifest.document.set_text(new_text);
+        manifest.document.keys =
+            render::target_order(&manifest.document.keys, &[BLOCK.to_string()]);
         true
     };
     // Keep the decoded view in sync so later upserts in the same write see
     // this entry (for both no-op detection and block-presence checks).
-    manifest
-        .allow_builds
+    manifest.allow_builds
         .get_or_insert_with(IndexMap::new)
         .insert(name.to_string(), AllowBuildValue::Bool(value));
     changed
@@ -41,13 +40,18 @@ fn write_allow_build(
     name: &str,
     value: bool,
 ) -> Option<bool> {
-    let text = manifest.text();
-    if !mapping_keys(text, &[block]).iter().any(|key| key == name) {
+    let text = manifest.document.text();
+    if !mapping_keys(text, &[block])
+        .iter()
+        .any(|key| key == name)
+    {
         let new_text = write_rendered_entry_at(text, &[block], name, render_bool(value));
-        manifest.set_text(new_text);
+        manifest.document.set_text(new_text);
         return Some(true);
     }
-    if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name))
+    if manifest.allow_builds
+        .as_ref()
+        .and_then(|builds| builds.get(name))
         == Some(&AllowBuildValue::Bool(value))
     {
         return None;
@@ -57,7 +61,7 @@ fn write_allow_build(
     } else {
         replace_bool_value_at(text, &[block], name, value)
     };
-    manifest.set_text(new_text);
+    manifest.document.set_text(new_text);
     Some(true)
 }
 
@@ -71,14 +75,17 @@ pub(crate) fn add_undecided_allow_build(
     placeholder: &str,
 ) -> bool {
     const BLOCK: &str = "allowBuilds";
-    let text = manifest.text();
+    let text = manifest.document.text();
     if locate(text, &[BLOCK]).is_some() {
-        if mapping_keys(text, &[BLOCK]).iter().any(|key| key == name) {
+        if mapping_keys(text, &[BLOCK])
+            .iter()
+            .any(|key| key == name)
+        {
             return false;
         }
         let new_text =
             write_rendered_entry_at(text, &[BLOCK], name, &render::render_value(placeholder));
-        manifest.set_text(new_text);
+        manifest.document.set_text(new_text);
     } else {
         let block = format!(
             "{BLOCK}:\n  {}: {}\n",
@@ -86,12 +93,11 @@ pub(crate) fn add_undecided_allow_build(
             render::render_value(placeholder),
         );
         let new_text = insert_top_level_block(manifest, BLOCK, &block);
-        manifest.set_text(new_text);
-        manifest.top_level_keys =
-            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+        manifest.document.set_text(new_text);
+        manifest.document.keys =
+            render::target_order(&manifest.document.keys, &[BLOCK.to_string()]);
     }
-    manifest
-        .allow_builds
+    manifest.allow_builds
         .get_or_insert_with(IndexMap::new)
         .insert(name.to_string(), AllowBuildValue::String(placeholder.to_string()));
     true
@@ -120,19 +126,23 @@ pub(crate) fn prune_allow_builds(
     // The decoded map came from this same text, so an empty key list means
     // the narrow re-parse failed; without it surviving entries can't be
     // told apart from prunable ones, so the block must stay untouched.
-    let all_keys = allow_builds_keys_in_text(manifest.text());
+    let all_keys = allow_builds_keys_in_text(manifest.document.text());
     if all_keys.is_empty() {
         return false;
     }
 
-    if all_keys.iter().all(|key| prunable.contains(key)) {
-        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
+    if all_keys
+        .iter()
+        .all(|key| prunable.contains(key))
+    {
+        manifest.document.set_text(remove_top_level_block(manifest.document.text(), BLOCK));
         manifest.allow_builds = None;
-        manifest.top_level_keys.retain(|key| key != BLOCK);
+        manifest.document.keys.retain(|key| key != BLOCK);
         return true;
     }
 
-    let Some(new_text) = text_without_allow_builds(manifest.text(), BLOCK, &prunable, &all_keys)
+    let Some(new_text) =
+        text_without_allow_builds(manifest.document.text(), BLOCK, &prunable, &all_keys)
     else {
         return false;
     };
@@ -141,7 +151,7 @@ pub(crate) fn prune_allow_builds(
             builds.shift_remove(key);
         }
     }
-    manifest.set_text(new_text);
+    manifest.document.set_text(new_text);
     true
 }
 
@@ -208,7 +218,10 @@ fn allow_build_key_package_name(key: &str) -> Option<&str> {
     if !key.contains('#') && (key.starts_with("git+") || key.contains("@git+")) {
         return None;
     }
-    let name = match key.get(1..).and_then(|rest| rest.find('@')) {
+    let name = match key
+        .get(1..)
+        .and_then(|rest| rest.find('@'))
+    {
         // The version part after the `@` separator must be non-empty.
         Some(off) if off + 2 < key.len() => &key[..=off],
         Some(_) => return None,

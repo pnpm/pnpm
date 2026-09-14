@@ -91,7 +91,10 @@ pub fn bench_workspace_sort(criterion: &mut Criterion) {
 
 fn sort_workspace(projects: &[SyntheticProject]) -> (usize, usize) {
     let graph = create_projects_graph(
-        projects.iter().map(SyntheticRef).collect(),
+        projects
+            .iter()
+            .map(SyntheticRef)
+            .collect(),
         &CreateProjectsGraphOptions {
             link_workspace_packages: Some(true),
             ..CreateProjectsGraphOptions::default()
@@ -99,12 +102,14 @@ fn sort_workspace(projects: &[SyntheticProject]) -> (usize, usize) {
     )
     .graph;
     let dirs: Vec<PathBuf> = graph.keys().cloned().collect();
-    let included: HashSet<&Path> = dirs.iter().map(PathBuf::as_path).collect();
+    let included: HashSet<&Path> = dirs
+        .iter()
+        .map(PathBuf::as_path)
+        .collect();
     let edges: HashMap<PathBuf, Vec<PathBuf>> = graph
         .iter()
         .map(|(dir, node)| {
-            let dependencies = node
-                .dependencies
+            let dependencies = node.dependencies
                 .iter()
                 .filter(|dependency| included.contains(dependency.as_path()))
                 .cloned()

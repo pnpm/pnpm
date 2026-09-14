@@ -1,4 +1,10 @@
+pub use arguments::{
+    InstallFetchArgs, InstallLockfileArgs, InstallMaterializationArgs, LockfileUpdateArgs,
+};
+
 pub(crate) use pnpr_resolution::{install_selected_via_pnpr, install_via_pnpr};
+
+mod arguments;
 
 use crate::{
     State,
@@ -25,11 +31,10 @@ use pnpm_lockfile_verification::{
 };
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manager::{
-    Install, InstallFrozenLockfileError, LockfileVerificationOverride, PolicyExcludes,
-    SkippedSnapshots, TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy,
-    WantedLockfileSatisfactionCheck, WorkspaceInstallSelection, build_resolution_verifiers,
-    install_already_up_to_date, materialization_closure, merge_filtered_wanted_lockfile,
-    wanted_lockfile_satisfies_workspace,
+    InstallFrozenLockfileError, LockfileVerificationOverride, PolicyExcludes, SkippedSnapshots,
+    TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy, WantedLockfileSatisfactionCheck,
+    WorkspaceInstallSelection, build_resolution_verifiers, install_already_up_to_date,
+    materialization_closure, merge_filtered_wanted_lockfile, wanted_lockfile_satisfies_workspace,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_pnpr_client::{
@@ -121,178 +126,22 @@ impl InstallDependencyOptions {
 pub struct InstallArgs {
     #[clap(flatten)]
     pub dependency_options: InstallDependencyOptions,
-
     /// Restrict which optional dependencies are installed, by CPU
     /// (`--cpu`), OS (`--os`), and C library (`--libc`).
     #[clap(flatten)]
     pub supported_architectures: SupportedArchitecturesArgs,
-
-    /// Don't generate a lockfile, and fail if an update to it is needed. This
-    /// setting is enabled by default in CI when a lockfile is present.
-    #[clap(long, overrides_with = "no_frozen_lockfile")]
-    pub frozen_lockfile: bool,
-
-    /// Allow the lockfile to be updated, overriding a `frozenLockfile: true`
-    /// setting.
-    #[clap(long = "no-frozen-lockfile", overrides_with = "frozen_lockfile")]
-    pub no_frozen_lockfile: bool,
-
-    /// Only update `pnpm-lock.yaml`. Don't download packages or write
-    /// `node_modules`.
-    #[clap(long = "lockfile-only")]
-    pub lockfile_only: bool,
-
-    /// Repair broken lockfile entries by re-resolving their metadata while
-    /// preserving compatible locked versions.
-    #[clap(long = "fix-lockfile")]
-    pub fix_lockfile: bool,
-
     #[clap(flatten)]
-    pub lockfile_dir: LockfileDirArg,
-
-    /// Fold every per-branch lockfile (`pnpm-lock.<branch>.yaml`, written
-    /// under the `gitBranchLockfile` setting) into `pnpm-lock.yaml` and
-    /// delete them.
-    #[clap(long = "merge-git-branch-lockfiles")]
-    pub merge_git_branch_lockfiles: bool,
-
-    /// Glob patterns naming the branches that merge the per-branch
-    /// lockfiles, so a mainline branch does not have to pass
-    /// `--merge-git-branch-lockfiles` by hand.
-    #[clap(long = "merge-git-branch-lockfiles-branch-pattern")]
-    pub merge_git_branch_lockfiles_branch_pattern: Vec<String>,
-
-    /// Show what an install would change without writing anything to disk.
-    #[clap(long = "dry-run")]
-    pub dry_run: bool,
-
-    /// Reinstall every package the lockfile names: relink packages an
-    /// earlier install already materialized, and install optional
-    /// dependencies whose `cpu` / `os` / `libc` / `engines` don't match
-    /// the host instead of skipping them.
-    #[clap(long)]
-    pub force: bool,
-
-    /// Prefer the existing lockfile over re-resolving, even when the
-    /// manifest may have changed.
-    #[clap(long = "prefer-frozen-lockfile", overrides_with = "no_prefer_frozen_lockfile")]
-    pub prefer_frozen_lockfile: bool,
-
-    /// Always re-resolve against the registry instead of preferring the
-    /// existing lockfile.
-    #[clap(long = "no-prefer-frozen-lockfile", overrides_with = "prefer_frozen_lockfile")]
-    pub no_prefer_frozen_lockfile: bool,
-
-    /// Run the install already requested by `verifyDepsBeforeRun` without
-    /// independently short-circuiting it as up to date.
-    #[clap(long, hide = true)]
-    pub verify_deps_before_run_install: bool,
-
-    /// Skip the check that `pnpm-lock.yaml` is up to date with
-    /// `package.json` under `--frozen-lockfile`. For callers that just
-    /// wrote the lockfile themselves and know the manifest is about to
-    /// catch up.
-    #[clap(long)]
-    pub ignore_manifest_check: bool,
-
-    /// Don't install runtime dependencies (`node`, `deno`, `bun`). Their
-    /// archives aren't fetched and their bins aren't linked; the rest of
-    /// the install proceeds normally.
-    #[clap(long = "no-runtime")]
-    pub no_runtime: bool,
-
-    /// Don't run lifecycle scripts of the project or its dependencies.
-    /// Packages are still installed; only their build scripts are skipped,
-    /// and the install won't fail because of it.
-    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
-    pub ignore_scripts: bool,
-
-    /// Run lifecycle scripts even when the configuration disables them.
-    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
-    pub no_ignore_scripts: bool,
-
-    /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
-    /// pnpmfiles of config dependencies.
-    #[clap(long = "ignore-pnpmfile")]
-    pub ignore_pnpmfile: bool,
-
-    /// Which node linker to use: `isolated` (the default, a symlinked
-    /// store), `hoisted` (a flat `node_modules`), or `pnp` (Plug'n'Play).
-    /// Overrides the configured value.
-    #[clap(long = "node-linker", value_enum)]
-    pub node_linker: Option<NodeLinkerArg>,
-
-    /// Fail on a cache miss instead of fetching from the registry, using
-    /// only packages already in the store.
-    #[clap(long, overrides_with = "no_offline")]
-    pub offline: bool,
-
-    /// Allow network fetches even when the configuration enables offline
-    /// mode.
-    #[clap(long = "no-offline", overrides_with = "offline")]
-    pub no_offline: bool,
-
-    /// Open the store read-only and skip all store writes. For installing
-    /// against a store on a read-only filesystem (e.g. a Nix store); pair
-    /// with `--offline --frozen-lockfile`.
-    #[clap(long = "frozen-store", overrides_with = "no_frozen_store")]
-    pub frozen_store: bool,
-
-    /// Allow store writes even when the configuration enables the
-    /// read-only store.
-    #[clap(long = "no-frozen-store", overrides_with = "frozen_store")]
-    pub no_frozen_store: bool,
-
-    /// Prefer packages already in the cache over the network, even past
-    /// their freshness window.
-    #[clap(long, overrides_with = "no_prefer_offline")]
-    pub prefer_offline: bool,
-
-    /// Don't prefer cached packages even when the configuration enables
-    /// it.
-    #[clap(long = "no-prefer-offline", overrides_with = "prefer_offline")]
-    pub no_prefer_offline: bool,
-
-    /// Skip verifying the lockfile against supply-chain policies.
-    #[clap(long = "trust-lockfile", overrides_with = "no_trust_lockfile")]
-    pub trust_lockfile: bool,
-
-    /// Verify the lockfile against supply-chain policies even when the
-    /// configuration trusts it.
-    #[clap(long = "no-trust-lockfile", overrides_with = "trust_lockfile")]
-    pub no_trust_lockfile: bool,
-
-    /// Refresh the integrity checksums in `pnpm-lock.yaml` from the
-    /// registry. Cannot be combined with `--frozen-lockfile`.
-    #[clap(long = "update-checksums")]
-    pub update_checksums: bool,
-
-    /// Maximum number of concurrent network requests during install.
-    #[clap(long = "network-concurrency")]
-    pub network_concurrency: Option<usize>,
-
-    /// Per-request network timeout, in milliseconds.
-    #[clap(long = "fetch-timeout")]
-    pub fetch_timeout: Option<u64>,
-
-    /// Warn when a registry metadata request takes longer than this many
-    /// milliseconds.
-    #[clap(long = "fetch-warn-timeout-ms")]
-    pub fetch_warn_timeout_ms: Option<u64>,
-
-    /// Warn when a tarball download's average speed is below this many KiB/s.
-    #[clap(long = "fetch-min-speed-ki-bps")]
-    pub fetch_min_speed_ki_bps: Option<u64>,
-
-    /// `User-Agent` header to send on registry requests.
-    #[clap(long = "user-agent")]
-    pub user_agent: Option<String>,
-
-    /// URL of a pnpr server to offload resolution and file fetching to.
-    /// `node_modules` is still linked locally from the server-produced
-    /// lockfile.
-    #[clap(long = "pnpr-server")]
-    pub pnpr_server: Option<String>,
+    pub scripts: crate::cli_args::install_options::ScriptExecutionArgs,
+    #[clap(flatten)]
+    pub network_cache: crate::cli_args::install_options::OfflineArgs,
+    #[clap(flatten)]
+    pub lockfile: InstallLockfileArgs,
+    #[clap(flatten)]
+    pub lockfile_updates: LockfileUpdateArgs,
+    #[clap(flatten)]
+    pub fetching: InstallFetchArgs,
+    #[clap(flatten)]
+    pub materialization: InstallMaterializationArgs,
 }
 
 /// Resolve a boolean whose CLI surface is a `--flag` / `--no-flag` pair
@@ -316,7 +165,14 @@ impl InstallArgs {
     /// inputs re-resolve rather than reusing — or failing against — the
     /// stale lockfile.
     pub(crate) fn for_reresolving_install() -> Self {
-        Self { no_frozen_lockfile: true, no_prefer_frozen_lockfile: true, ..Self::default() }
+        Self {
+            lockfile: InstallLockfileArgs {
+                no_frozen: true,
+                no_prefer_frozen: true,
+                ..Default::default()
+            },
+            ..Self::default()
+        }
     }
 
     /// `--frozen-lockfile` / `--no-frozen-lockfile` layered over the
@@ -332,9 +188,9 @@ impl InstallArgs {
     /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
     /// line, before the `frozenLockfile` setting is layered under it.
     pub(crate) fn frozen_lockfile_flag(&self) -> Option<bool> {
-        if self.frozen_lockfile {
+        if self.lockfile.frozen {
             Some(true)
-        } else if self.no_frozen_lockfile {
+        } else if self.lockfile.no_frozen {
             Some(false)
         } else {
             None
@@ -363,7 +219,7 @@ impl InstallArgs {
         let lockfile_path = state.lockfile_path();
         let link = self.resolve_link_options(state.config, &lockfile_path, frozen_lockfile);
         if let Some(pnpr_server) = state.config.pnpr_server.as_deref() {
-            if self.dry_run {
+            if self.materialization.dry_run {
                 return Err(DryRunIncompatibleWithPnpr.into());
             }
             return Box::pin(install_via_pnpr_inner::<Reporter>(
@@ -389,34 +245,39 @@ impl InstallArgs {
     ) -> PnprLink<'a> {
         PnprLink {
             dependency_groups: self.dependency_options.dependency_groups(config.optional).collect(),
-            supported_architectures: self
-                .supported_architectures
-                .apply_to(config.supported_architectures.clone()),
-            node_linker: self.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config),
-            skip_runtimes: config.skip_runtimes || self.no_runtime,
-            frozen_lockfile,
-            prefer_frozen_lockfile: self
-                .prefer_frozen_override()
-                .unwrap_or(config.prefer_frozen_lockfile),
-            update_patches: false,
-            fix_lockfile: self.fix_lockfile,
-            lockfile_only: self.lockfile_only,
-            ignore_manifest_check: self.ignore_manifest_check,
-            trust_lockfile: resolve_bool_override(
-                self.trust_lockfile,
-                self.no_trust_lockfile,
-                config.trust_lockfile,
+            supported_architectures: self.supported_architectures.apply_to(
+                config.supported_architectures.clone(),
             ),
+            node_linker: self.materialization.node_linker.map_or(
+                config.node_linker,
+                NodeLinkerArg::into_config,
+            ),
+            skip_runtimes: config.skip_runtimes || self.materialization.no_runtime,
             lockfile_path: Some(lockfile_path),
             use_state_lockfile: true,
+            lockfile: PnprLockfilePolicy {
+                frozen: frozen_lockfile,
+                prefer_frozen: self
+                    .prefer_frozen_override()
+                    .unwrap_or(config.prefer_frozen_lockfile),
+                update_patches: false,
+                fix: self.lockfile.fix,
+                only: self.lockfile.only,
+                ignore_manifest_check: self.lockfile.ignore_manifest_check,
+                trust: resolve_bool_override(
+                    self.lockfile_updates.trust_lockfile,
+                    self.lockfile_updates.no_trust_lockfile,
+                    config.trust_lockfile,
+                ),
+            },
         }
     }
 
     fn prefer_frozen_override(&self) -> Option<bool> {
         prefer_frozen_lockfile_override(
-            self.fix_lockfile,
-            self.prefer_frozen_lockfile,
-            self.no_prefer_frozen_lockfile,
+            self.lockfile.fix,
+            self.lockfile.prefer_frozen,
+            self.lockfile.no_prefer_frozen,
         )
     }
 
@@ -426,32 +287,38 @@ impl InstallArgs {
         link: PnprLink<'_>,
         selection: Option<&InstallFamilySelection>,
     ) -> miette::Result<()> {
-        let install_lockfile = if self.fix_lockfile {
+        let install_lockfile = if self.lockfile.fix {
             MaybeLazyLockfile::Repair(&state.lockfile)
         } else {
             MaybeLazyLockfile::Lazy(&state.lockfile)
         };
-        let install = Install {
-            lockfile_path: link.lockfile_path,
-            frozen_lockfile: link.frozen_lockfile,
-            prefer_frozen_lockfile: self.prefer_frozen_override(),
-            ignore_manifest_check: link.ignore_manifest_check,
-            skip_runtimes: link.skip_runtimes,
-            trust_lockfile: link.trust_lockfile,
-            update_checksums: self.update_checksums,
-            supported_architectures: link.supported_architectures,
-            node_linker: link.node_linker,
-            lockfile_only: link.lockfile_only,
-            dry_run: self.dry_run,
-            policy_excludes: PolicyExcludes::Persist,
-            update_seed_policy: if self.fix_lockfile {
+        let install = {
+            let mut base_install = state.install(link.dependency_groups);
+            base_install.lockfile_policy.frozen = link.lockfile.frozen;
+            base_install.lockfile_policy.prefer_frozen = self.prefer_frozen_override();
+            base_install.lockfile_policy.ignore_manifest_check =
+                link.lockfile.ignore_manifest_check;
+            base_install.lockfile_policy.trust = link.lockfile.trust;
+            base_install.lockfile_policy.update_checksums = self
+                .lockfile_updates
+                .update_checksums;
+            base_install.lockfile_policy.excludes = PolicyExcludes::Persist;
+            base_install.lockfile_policy.disable_optimistic_repeat = self
+                .materialization
+                .verify_deps_before_run_install;
+            base_install.execution.skip_runtimes = link.skip_runtimes;
+            base_install.execution.node_linker = link.node_linker;
+            base_install.execution.lockfile_only = link.lockfile.only;
+            base_install.execution.dry_run = self.materialization.dry_run;
+            base_install.resolution.update_seed_policy = if self.lockfile.fix {
                 UpdateSeedPolicy::FixLockfile
             } else {
                 UpdateSeedPolicy::KeepAll
-            },
-            disable_optimistic_repeat_install: self.verify_deps_before_run_install,
-            lockfile: install_lockfile,
-            ..state.install(link.dependency_groups)
+            };
+            base_install.context.lockfile_path = link.lockfile_path;
+            base_install.context.lockfile = install_lockfile;
+            base_install.projects.supported_architectures = link.supported_architectures;
+            base_install
         };
         match selection {
             Some(selection) => {
@@ -470,21 +337,23 @@ impl InstallArgs {
     /// `--lockfile-only`, either `preferFrozenLockfile` flag, or the
     /// setting itself.
     fn resolve_frozen_lockfile(&self, state: &State) -> miette::Result<bool> {
-        if self.fix_lockfile {
+        if self.lockfile.fix {
             return Ok(false);
         }
         if let Some(value) = self.configured_frozen_lockfile(state.config) {
             return Ok(value);
         }
         let ci_default = state.config.ci
-            && !self.lockfile_only
-            && !self.prefer_frozen_lockfile
-            && !self.no_prefer_frozen_lockfile
+            && !self.lockfile.only
+            && !self.lockfile.prefer_frozen
+            && !self.lockfile.no_prefer_frozen
             && !state.config.explicit_settings.contains_key("preferFrozenLockfile");
         if !ci_default {
             return Ok(false);
         }
-        Ok(state.lockfile.get()?.is_some_and(|lockfile| !lockfile.is_empty()))
+        Ok(state.lockfile
+            .get()?
+            .is_some_and(|lockfile| !lockfile.is_empty()))
     }
 }
 
@@ -498,14 +367,13 @@ pub(crate) fn workspace_install_selection(
         selected_dirs: selection.selected_dirs.as_ref(),
         install_dirs: selection.install_dirs.as_ref(),
         active_manifest_is_standin: selection.active_manifest_is_standin,
-        workspace_cycles: selection.workspace_cycles.as_ref().map_or(
-            pnpm_package_manager::PrecomputedWorkspaceCycles::Unknown,
-            |cycles| {
+        workspace_cycles: selection.workspace_cycles
+            .as_ref()
+            .map_or(pnpm_package_manager::PrecomputedWorkspaceCycles::Unknown, |cycles| {
                 pnpm_package_manager::PrecomputedWorkspaceCycles::Known(
                     (!cycles.is_empty()).then_some(cycles.as_slice()),
                 )
-            },
-        ),
+            }),
     }
 }
 
@@ -516,31 +384,37 @@ pub(crate) struct PnprLink<'a> {
     pub(crate) supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     pub(crate) node_linker: NodeLinker,
     pub(crate) skip_runtimes: bool,
+    pub(crate) lockfile_path: Option<&'a std::path::Path>,
+    pub(crate) use_state_lockfile: bool,
+    pub(crate) lockfile: PnprLockfilePolicy,
+}
+
+pub(crate) struct PnprLockfilePolicy {
     /// Governs the *server's* resolution behavior (frozen vs
     /// reuse-and-update); forwarded to `/-/pnpr/v0/resolve`. The local
     /// materialization always runs frozen against the server-produced
     /// lockfile.
-    pub(crate) frozen_lockfile: bool,
+    pub(crate) frozen: bool,
     /// The *effective* `preferFrozenLockfile` (the CLI tri-state already
     /// resolved against `config.prefer_frozen_lockfile`, exactly as the
     /// local `Install` resolves it); forwarded to `/-/pnpr/v0/resolve`. `false`
     /// forces the server to re-resolve. Resolving here — rather than
     /// sending the raw CLI override — keeps a yaml `preferFrozenLockfile:
     /// false` honored on the pnpr path without `--no-prefer-frozen-lockfile`.
-    pub(crate) prefer_frozen_lockfile: bool,
+    pub(crate) prefer_frozen: bool,
     /// Refresh registry artifacts while retaining every locked package
     /// version. This disables the exchange-free satisfied-lockfile path and
     /// is forwarded to `/-/pnpr/v0/resolve`.
     pub(crate) update_patches: bool,
     /// Regenerate derived lockfile metadata while retaining compatible pins.
-    pub(crate) fix_lockfile: bool,
+    pub(crate) fix: bool,
     /// `--lockfile-only`. Forwarded to `/-/pnpr/v0/resolve` so the server
     /// resolves only — returning the lockfile without fetching files —
     /// after which [`install_via_pnpr`] writes the lockfile and skips
     /// materialization, mirroring pnpm's resolve + write, fetch nothing,
     /// link nothing. See
     /// [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
-    pub(crate) lockfile_only: bool,
+    pub(crate) only: bool,
     /// `--ignore-manifest-check`; forwarded so the server's frozen
     /// freshness check and the local materialization both skip the
     /// manifest ↔ lockfile comparison.
@@ -548,9 +422,7 @@ pub(crate) struct PnprLink<'a> {
     /// The effective `trustLockfile` (yaml `trustLockfile` OR
     /// `--trust-lockfile`); forwarded so the server skips verifying the
     /// input lockfile when the user opted out, mirroring the local path.
-    pub(crate) trust_lockfile: bool,
-    pub(crate) lockfile_path: Option<&'a std::path::Path>,
-    pub(crate) use_state_lockfile: bool,
+    pub(crate) trust: bool,
 }
 
 /// `--prefer-frozen-lockfile` / `--no-prefer-frozen-lockfile` map to

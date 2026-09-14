@@ -14,7 +14,11 @@ async fn config_json_points_downloads_and_the_api_back_at_the_registry() {
 
     let response = app
         .clone()
-        .oneshot(Request::get("/cargo/index/config.json").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/index/config.json")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -44,13 +48,21 @@ async fn config_json_points_downloads_and_the_api_back_at_the_registry() {
 
     let response = app
         .clone()
-        .oneshot(Request::get("/npm/~main/-/whoami").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/npm/~main/-/whoami")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
     let response = app
-        .oneshot(Request::get("/npm/~crates/index/config.json").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/npm/~crates/index/config.json")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -76,8 +88,15 @@ async fn search_hides_a_private_registry_from_an_anonymous_caller() {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
 
-        let response =
-            app.clone().oneshot(Request::get(url).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(url)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
         assert_eq!(body, json!({ "crates": [], "meta": { "total": 0 } }));
@@ -120,7 +139,11 @@ async fn crate_names_are_case_insensitive_in_the_index_path() {
     // `cargo` requests the lowercase path; the entry keeps the published case.
     let response = app
         .clone()
-        .oneshot(Request::get("/cargo/index/in/fl/inflector").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/index/in/fl/inflector")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -154,7 +177,11 @@ async fn private_hosted_registry_advertises_auth_required_and_masks_anonymous_re
     );
     let response = app
         .clone()
-        .oneshot(Request::get("/cargo/index/config.json").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/index/config.json")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let config: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
@@ -173,14 +200,20 @@ async fn private_hosted_registry_advertises_auth_required_and_masks_anonymous_re
     // The registry-level default masks the crate from anonymous callers.
     let response = app
         .clone()
-        .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/index/de/mo/demo")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let response = app
         .clone()
         .oneshot(
-            Request::get("/cargo/api/v1/crates/demo/0.1.0/download").body(Body::empty()).unwrap(),
+            Request::get("/cargo/api/v1/crates/demo/0.1.0/download")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -246,7 +279,11 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
     // The index file is proxied verbatim.
     let response = app
         .clone()
-        .oneshot(Request::get("/cargo/index/se/rd/serde").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/index/se/rd/serde")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -274,9 +311,17 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
     assert!(find_file(&cache, "serde-1.0.0.crate").is_some(), "download is cached");
 
     // An unknown crate is a definitive 404, and the cache holds nothing for it.
-    let missing = upstream.mock("GET", "/no/pe/nope").with_status(404).create_async().await;
+    let missing = upstream
+        .mock("GET", "/no/pe/nope")
+        .with_status(404)
+        .create_async()
+        .await;
     let response = app
-        .oneshot(Request::get("/cargo/index/no/pe/nope").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/index/no/pe/nope")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -308,7 +353,11 @@ async fn a_download_that_fails_the_index_checksum_is_never_cached() {
         .create_async()
         .await;
     // A `dl` template without markers gets `/{crate}/{version}/download` appended.
-    upstream.mock("GET", "/dl/serde/1.0.0/download").with_body(archive).create_async().await;
+    upstream
+        .mock("GET", "/dl/serde/1.0.0/download")
+        .with_body(archive)
+        .create_async()
+        .await;
 
     let tmp = TempDir::new().unwrap();
     let app = router_with_auth(
@@ -317,7 +366,9 @@ async fn a_download_that_fails_the_index_checksum_is_never_cached() {
     );
     let response = app
         .oneshot(
-            Request::get("/cargo/api/v1/crates/serde/1.0.0/download").body(Body::empty()).unwrap(),
+            Request::get("/cargo/api/v1/crates/serde/1.0.0/download")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -339,19 +390,37 @@ async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloadin
     })
     .to_string();
     let mut index = valid_index.as_bytes().to_vec();
-    let invalid_byte = index.iter_mut().find(|byte| **byte == b'X').unwrap();
+    let invalid_byte = index
+        .iter_mut()
+        .find(|byte| **byte == b'X')
+        .unwrap();
     *invalid_byte = 0xff;
-    let index_mock =
-        upstream.mock("GET", "/se/rd/serde").with_body(index).expect(2).create_async().await;
-    let config_mock = upstream.mock("GET", "/config.json").expect(0).create_async().await;
+    let index_mock = upstream
+        .mock("GET", "/se/rd/serde")
+        .with_body(index)
+        .expect(2)
+        .create_async()
+        .await;
+    let config_mock = upstream
+        .mock("GET", "/config.json")
+        .expect(0)
+        .create_async()
+        .await;
     let tmp = TempDir::new().unwrap();
     let app = router_with_auth(
         cargo_config(tmp.path().to_path_buf(), &upstream.url(), "$all"),
         AuthState::in_memory(),
     );
     for path in ["/cargo/index/se/rd/serde", "/cargo/api/v1/crates/serde/1.0.0/download"] {
-        let response =
-            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     }
     index_mock.assert_async().await;
@@ -364,7 +433,11 @@ async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloadin
         .await;
     let response = app
         .clone()
-        .oneshot(Request::get("/cargo/index/se/rd/serde").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/index/se/rd/serde")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -372,7 +445,11 @@ async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloadin
     let cached_index = find_file(&tmp.path().join(".pnpr-cache"), "package.json").unwrap();
     tokio::fs::write(cached_index, [0xff]).await.unwrap();
     let response = app
-        .oneshot(Request::get("/cargo/index/se/rd/serde").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/cargo/index/se/rd/serde")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);

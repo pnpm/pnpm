@@ -48,8 +48,10 @@ fn make_package(
             (version.to_string(), make_pkg_version(name, version, *deprecated))
         })
         .collect();
-    let dist_tags_map =
-        dist_tags.iter().map(|(tag, version)| (tag.to_string(), version.to_string())).collect();
+    let dist_tags_map = dist_tags
+        .iter()
+        .map(|(tag, version)| (tag.to_string(), version.to_string()))
+        .collect();
     Package {
         name: name.to_string(),
         dist_tags: dist_tags_map,

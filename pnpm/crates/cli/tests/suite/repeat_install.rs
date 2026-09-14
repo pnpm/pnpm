@@ -24,7 +24,10 @@ fn version_of(workspace: &Path, relative: &str) -> String {
     let text = fs::read_to_string(workspace.join(relative).join("package.json"))
         .unwrap_or_else(|error| panic!("read {relative}/package.json: {error}"));
     let manifest: serde_json::Value = serde_json::from_str(&text).expect("parse package.json");
-    manifest["version"].as_str().expect("version is a string").to_string()
+    manifest["version"]
+        .as_str()
+        .expect("version is a string")
+        .to_string()
 }
 
 /// TS: `reinstalls missing packages to node_modules during headless
@@ -34,12 +37,19 @@ fn version_of(workspace: &Path, relative: &str) -> String {
 /// it.
 #[test]
 fn reinstalls_missing_packages_during_headless_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    let first =
-        pacquet.with_args(["add", "is-positive@1.0.0", "--reporter=ndjson"]).assert().success();
+    let first = pacquet
+        .with_args(["add", "is-positive@1.0.0", "--reporter=ndjson"])
+        .assert()
+        .success();
     let first_events = String::from_utf8_lossy(&first.get_output().stderr).into_owned();
     assert!(
         !first_events.contains("pnpm:_broken_node_modules"),
@@ -74,15 +84,26 @@ fn reinstalls_missing_packages_during_headless_install() {
 /// packages in node_modules` (`deps-installer lockfile.ts:547`).
 #[test]
 fn repeat_install_with_no_inner_lockfile_keeps_packages_usable() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    pacquet.with_args(["add", "is-negative@1.0.0"]).assert().success();
+    pacquet
+        .with_args(["add", "is-negative@1.0.0"])
+        .assert()
+        .success();
     fs::remove_file(workspace.join("node_modules/.pnpm/lock.yaml"))
         .expect("remove the inner lockfile");
 
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert_eq!(version_of(&workspace, "node_modules/is-negative"), "1.0.0");
 
     drop((root, mock_instance));
@@ -95,8 +116,13 @@ fn repeat_install_with_no_inner_lockfile_keeps_packages_usable() {
 /// regenerating only the outer lockfile.
 #[test]
 fn subdeps_updated_when_outer_lockfile_diverges_from_inner() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let manifest = |pin: &str| {
@@ -109,7 +135,10 @@ fn subdeps_updated_when_outer_lockfile_diverges_from_inner() {
         .to_string()
     };
     fs::write(workspace.join("package.json"), manifest("100.0.0")).expect("write package.json");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let subdep_in_parent_slot = workspace.join(
         "node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep",
     );
@@ -119,9 +148,15 @@ fn subdeps_updated_when_outer_lockfile_diverges_from_inner() {
     // one (and node_modules) still holds 100.0.0 while the outer now
     // records 100.1.0 for both the direct dep and the subdep edge.
     fs::write(workspace.join("package.json"), manifest("100.1.0")).expect("bump the pin");
-    pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert_eq!(
         version_of(&workspace, subdep_in_parent_slot.to_str().expect("utf-8")),
         "100.1.0",
@@ -139,8 +174,13 @@ fn subdeps_updated_when_outer_lockfile_diverges_from_inner() {
 /// so it must not surface at the root until the prod group installs.
 #[test]
 fn installing_non_prod_deps_then_all_deps() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -153,8 +193,14 @@ fn installing_non_prod_deps_then_all_deps() {
     )
     .expect("write package.json");
 
-    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile", "--dev"]).assert().success();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--dev"])
+        .assert()
+        .success();
 
     assert!(workspace.join("node_modules/inflight").exists());
     assert!(
@@ -162,20 +208,29 @@ fn installing_non_prod_deps_then_all_deps() {
         "the prod dep must not surface at the root of a dev-only install",
     );
     let current = read_current_lockfile(&workspace);
-    let has_is_positive = current
-        .packages
+    let has_is_positive = current.packages
         .as_ref()
-        .is_some_and(|packages| packages.keys().any(|key| key.to_string() == "is-positive@1.0.0"));
+        .is_some_and(|packages| {
+            packages
+                .keys()
+                .any(|key| key.to_string() == "is-positive@1.0.0")
+        });
     assert!(!has_is_positive, "the excluded prod dep must not enter the current lockfile");
 
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert!(workspace.join("node_modules/once").exists());
     assert!(workspace.join("node_modules/inflight").exists());
     let current = read_current_lockfile(&workspace);
-    let has_is_positive = current
-        .packages
+    let has_is_positive = current.packages
         .as_ref()
-        .is_some_and(|packages| packages.keys().any(|key| key.to_string() == "is-positive@1.0.0"));
+        .is_some_and(|packages| {
+            packages
+                .keys()
+                .any(|key| key.to_string() == "is-positive@1.0.0")
+        });
     assert!(has_is_positive, "the full install must record the prod dep in the current lockfile");
 
     drop((root, mock_instance));
@@ -188,8 +243,13 @@ fn installing_non_prod_deps_then_all_deps() {
 /// newly wanted ones.
 #[test]
 fn available_packages_used_when_node_modules_not_clean() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -197,7 +257,10 @@ fn available_packages_used_when_node_modules_not_clean() {
         serde_json::json!({ "dependencies": { "@pnpm.e2e/foobarqar": "1.0.0" } }).to_string(),
     )
     .expect("write package.json");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let foobarqar_manifest = workspace
         .join("node_modules/.pnpm/@pnpm.e2e+foobarqar@1.0.0/node_modules/@pnpm.e2e/foobarqar/package.json");
@@ -214,14 +277,23 @@ fn available_packages_used_when_node_modules_not_clean() {
         .to_string(),
     )
     .expect("extend package.json");
-    pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     // Wipe the store: the still-valid packages must be served from the
     // dirty `node_modules`, not refetched.
-    let store_dir = workspace.parent().expect("workspace has a parent").join("pacquet-store");
+    let store_dir = workspace
+        .parent()
+        .expect("workspace has a parent")
+        .join("pacquet-store");
     fs::remove_dir_all(&store_dir).expect("wipe the store");
 
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep").exists());
     assert_eq!(
@@ -247,8 +319,13 @@ fn available_packages_used_when_node_modules_not_clean() {
 /// re-import a package whose previous install looks unchanged.
 #[test]
 fn available_packages_are_relinked_during_forced_fresh_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -256,7 +333,10 @@ fn available_packages_are_relinked_during_forced_fresh_install() {
         serde_json::json!({ "dependencies": { "@pnpm.e2e/foobarqar": "1.0.0" } }).to_string(),
     )
     .expect("write package.json");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     // Extend the manifest only, so the wanted lockfile is stale and the
     // next install resolves rather than taking the frozen path.
@@ -300,8 +380,13 @@ fn available_packages_are_relinked_during_forced_fresh_install() {
 /// is re-reported as `resolved` alongside the newly added one.
 #[test]
 fn available_packages_are_relinked_during_forced_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -309,7 +394,10 @@ fn available_packages_are_relinked_during_forced_install() {
         serde_json::json!({ "dependencies": { "@pnpm.e2e/foobarqar": "1.0.0" } }).to_string(),
     )
     .expect("write package.json");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     // Extend the manifest and wanted lockfile without touching
     // `node_modules` — the CLI equivalent of upstream's fixture swap
@@ -325,7 +413,10 @@ fn available_packages_are_relinked_during_forced_install() {
         .to_string(),
     )
     .expect("extend package.json");
-    pacquet_in(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
 
     // Damage the already-materialized package: a plain frozen install
     // skips it as unchanged (its slot dir still exists), so only the
@@ -353,7 +444,9 @@ fn available_packages_are_relinked_during_forced_install() {
         .collect();
     for package_id in ["@pnpm.e2e/foobarqar@1.0.0", "@pnpm.e2e/pkg-with-1-dep@100.0.0"] {
         assert!(
-            resolved.iter().any(|id| id == package_id),
+            resolved
+                .iter()
+                .any(|id| id == package_id),
             "{package_id} must be re-reported as resolved: {resolved:?}",
         );
     }
@@ -366,8 +459,13 @@ fn available_packages_are_relinked_during_forced_install() {
 /// change to signal it.
 #[test]
 fn a_directory_dependency_is_recopied_when_its_source_changes() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let local = workspace.join("local-pkg");
@@ -393,7 +491,10 @@ fn a_directory_dependency_is_recopied_when_its_source_changes() {
     )
     .expect("write the root package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let linked_marker = workspace.join("node_modules/local-pkg/marker.txt");
     assert_eq!(
         fs::read_to_string(&linked_marker).expect("read the linked marker"),
@@ -404,7 +505,10 @@ fn a_directory_dependency_is_recopied_when_its_source_changes() {
     // The version is left alone so nothing in the lockfile changes and
     // only a re-copy of the source can surface the edit.
     write_local("second");
-    pacquet_in(&workspace).with_arg("install").assert().success();
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert_eq!(
         fs::read_to_string(&linked_marker).expect("read the linked marker"),
@@ -445,7 +549,10 @@ fn install_hoisted_workspace_member(
     )
     .expect("write the member package.json");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     assert!(
         !workspace.join("member/node_modules").exists(),
@@ -461,14 +568,22 @@ fn install_hoisted_workspace_member(
 /// reading that absence as a project that was never installed.
 #[test]
 fn repeat_hoisted_install_with_workspace_member_deps_is_up_to_date() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let hoisted_manifest = install_hoisted_workspace_member(pacquet, &workspace);
     let inode_before = fs::metadata(&hoisted_manifest).expect("stat the hoisted dep").ino();
 
-    let second = pacquet_in(&workspace).with_arg("install").assert().success();
+    let second = pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let second_output = String::from_utf8_lossy(&second.get_output().stdout).into_owned();
     assert!(
         second_output.contains("Already up to date"),
@@ -487,8 +602,13 @@ fn repeat_hoisted_install_with_workspace_member_deps_is_up_to_date() {
 /// workspace reinstall its registry dependency tree.
 #[test]
 fn repeat_hoisted_install_with_unchanged_local_tarball_is_up_to_date() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
@@ -524,12 +644,18 @@ fn repeat_hoisted_install_with_unchanged_local_tarball_is_up_to_date() {
     )
     .expect("write local tarball");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let hoisted_manifest =
         workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json");
     let inode_before = fs::metadata(&hoisted_manifest).expect("stat the hoisted dep").ino();
 
-    let second = pacquet_in(&workspace).with_arg("install").assert().success();
+    let second = pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
     let second_output = String::from_utf8_lossy(&second.get_output().stdout).into_owned();
     assert!(
         second_output.contains("Already up to date"),
@@ -551,16 +677,23 @@ fn repeat_hoisted_install_with_unchanged_local_tarball_is_up_to_date() {
 /// the pipeline.
 #[test]
 fn repeat_hoisted_install_reports_nothing_broken() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let hoisted_manifest = install_hoisted_workspace_member(pacquet, &workspace);
     fs::remove_file(workspace.join("node_modules/.pnpm-workspace-state-v1.json"))
         .expect("remove the workspace state");
 
-    let second =
-        pacquet_in(&workspace).with_args(["install", "--reporter=ndjson"]).assert().success();
+    let second = pacquet_in(&workspace)
+        .with_args(["install", "--reporter=ndjson"])
+        .assert()
+        .success();
     let second_events = String::from_utf8_lossy(&second.get_output().stderr).into_owned();
     assert!(
         !second_events.contains("pnpm:_broken_node_modules"),

@@ -264,8 +264,7 @@ async fn revisit_with_peer_only_child_keeps_per_occurrence_node_id() {
     // `realize_children` misclassified the package and collapsed
     // distinct occurrences, breaking per-call-site state for any
     // future visitor that descends through it.
-    let peer_only_node_ids: Vec<&NodeId> = tree
-        .dependencies_tree
+    let peer_only_node_ids: Vec<&NodeId> = tree.dependencies_tree
         .iter()
         .filter(|(_, node)| node.resolved_package_id == "peer-only@1.0.0".into())
         .map(|(id, _)| id)
@@ -309,12 +308,6 @@ async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
         ("peer-a".to_string(), "link:/abs/external".to_string()),
         pnpm_resolving_resolver_base::ResolveResult {
             id: PkgResolutionId::from(link_id.to_string()),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: Some(std::sync::Arc::new(
-                serde_json::json!({ "name": "peer-a", "version": "1.0.0" }),
-            )),
             resolution: LockfileResolution::Directory(DirectoryResolution {
                 directory: "/abs/external".to_string(),
             }),
@@ -322,6 +315,14 @@ async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
             normalized_bare_specifier: None,
             alias: Some("peer-a".to_string()),
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: Some(std::sync::Arc::new(
+                    serde_json::json!({ "name": "peer-a", "version": "1.0.0" }),
+                )),
+            },
         },
     );
     let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
@@ -353,22 +354,27 @@ async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
         ResolvePeersOptions {
             peers_suffix_max_length: 1000,
             dedupe_peers: false,
-            exclude_links_from_lockfile: true,
-            lockfile_dir: Some(lockfile_dir),
-            modules_dir: Some(modules_dir),
+            links: crate::PeerLinkOptions {
+                exclude_links_from_lockfile: true,
+                lockfile_dir: Some(lockfile_dir),
+                modules_dir: Some(modules_dir),
+            },
             ..ResolvePeersOptions::default()
         },
     );
 
-    let abc_dep_path =
-        result.direct_dependencies_by_alias.get("abc").cloned().expect("abc is a direct dep");
+    let abc_dep_path = result.direct_dependencies_by_alias
+        .get("abc")
+        .cloned()
+        .expect("abc is a direct dep");
     assert_eq!(
         abc_dep_path,
         DepPath::from("abc@1.0.0(peer-a@node_modules+peer-a)".to_string()),
         "abc's peer suffix encodes `<modules_dir-relative>/<alias>` via link_path_to_peer_version",
     );
     let abc_node = result.graph.get(&abc_dep_path).expect("abc node in graph");
-    let peer_child = abc_node.children.get("peer-a").expect("abc snapshot has a peer-a child edge");
+    let peer_child =
+        abc_node.edges.children.get("peer-a").expect("abc snapshot has a peer-a child edge");
     assert_eq!(
         peer_child,
         &DepPath::from("link:node_modules/peer-a".to_string()),

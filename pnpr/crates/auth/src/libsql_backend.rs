@@ -95,9 +95,9 @@ impl LibsqlAuth {
             Some(path) => {
                 let mut builder =
                     Builder::new_remote_replica(path, settings.url.clone(), auth_token);
-                let interval = settings
-                    .sync_interval_secs
-                    .unwrap_or(LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS);
+                let interval = settings.sync_interval_secs.unwrap_or(
+                    LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS,
+                );
                 if interval > 0 {
                     builder = builder.sync_interval(Duration::from_secs(interval));
                 }
@@ -134,10 +134,11 @@ impl LibsqlAuth {
     /// user exists.
     async fn stored_hash(&self, username: &str) -> Result<Option<String>> {
         with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self
-                .conn
-                .query("SELECT bcrypt_hash FROM users WHERE username = ?1", params![username])
-                .await?;
+            let mut rows = self.conn.query(
+                "SELECT bcrypt_hash FROM users WHERE username = ?1",
+                params![username],
+            )
+            .await?;
             match rows.next().await? {
                 Some(row) => Ok(Some(row.get::<String>(0)?)),
                 None => Ok(None),
@@ -221,13 +222,11 @@ impl LibsqlAuth {
         password: &str,
         hash: &str,
     ) -> Result<(UpsertOutcome, String)> {
-        let inserted = self
-            .conn
-            .execute(
-                "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
-                params![username, hash],
-            )
-            .await;
+        let inserted = self.conn.execute(
+            "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+            params![username, hash],
+        )
+        .await;
         match inserted {
             Ok(_) => Ok((UpsertOutcome::Created, username.to_string())),
             Err(err) if is_unique_violation(&err) => {
@@ -258,12 +257,11 @@ impl LibsqlAuth {
                 }
                 return self.reject_over_cap(username, password).await;
             };
-            let inserted = tx
-                .execute(
-                    "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
-                    params![username, hash],
-                )
-                .await;
+            let inserted = tx.execute(
+                "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+                params![username, hash],
+            )
+            .await;
             match inserted {
                 Ok(_) => {
                     tx.commit().await?;
@@ -329,24 +327,24 @@ impl TokenBackend for LibsqlAuth {
         let raw = mint_token(&self.secret, nonce, username);
         let token_hash = sha256_hex(raw.as_bytes());
         let now = unix_seconds() as i64;
-        self.conn
-            .execute(
-                "INSERT INTO tokens
+        self.conn.execute(
+            "INSERT INTO tokens
                  (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
              VALUES (?1, ?2, ?3, ?3, 0, '[]')",
-                params![token_hash, username, now],
-            )
-            .await?;
+            params![token_hash, username, now],
+        )
+        .await?;
         Ok(raw)
     }
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
         with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self
-                .conn
-                .query("SELECT username FROM tokens WHERE token_hash = ?1", params![token_hash])
-                .await?;
+            let mut rows = self.conn.query(
+                "SELECT username FROM tokens WHERE token_hash = ?1",
+                params![token_hash],
+            )
+            .await?;
             match rows.next().await? {
                 Some(row) => Ok(Some(row.get::<String>(0)?)),
                 None => Ok(None),
@@ -398,8 +396,8 @@ fn row_to_keyed_record(row: &Row) -> Result<(String, TokenRecord)> {
     let last_used_at: i64 = row.get(3)?;
     let readonly: i64 = row.get(4)?;
     let cidr_json: String = row.get(5)?;
-    let cidr_whitelist: Vec<String> =
-        serde_json::from_str(&cidr_json).map_err(|err| RegistryError::Internal {
+    let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json)
+        .map_err(|err| RegistryError::Internal {
             reason: format!("token {token_hash} has an unreadable cidr_whitelist: {err}"),
         })?;
     Ok((

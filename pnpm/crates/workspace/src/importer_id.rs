@@ -24,7 +24,9 @@ pub fn importer_id_from_root_dir(lockfile_dir: &Path, project_dir: &Path) -> Str
     if let Ok(rel) = project_dir.strip_prefix(lockfile_dir)
         && let Some(rel_str) = rel.to_str()
         && !rel_str.is_empty()
-        && rel_str.split(['/', '\\']).all(|segment| !matches!(segment, "" | "." | ".."))
+        && rel_str
+            .split(['/', '\\'])
+            .all(|segment| !matches!(segment, "" | "." | ".."))
     {
         return rel_str.replace('\\', "/");
     }

@@ -26,10 +26,24 @@ async fn jsr_specifier_suppresses_latest_when_published_by_holds_back_raw_latest
         ..WantedDependency::default()
     };
     let opts = ResolveOptions {
-        published_by: Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap()),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: Some(chrono::Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap()),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
-    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.0.0");
-    assert!(result.latest.is_none(), "immature dist-tags.latest suppresses the hint");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .expect("name_ver")
+            .suffix
+            .to_string(),
+        "1.0.0",
+    );
+    assert!(result.package.latest.is_none(), "immature dist-tags.latest suppresses the hint");
 }

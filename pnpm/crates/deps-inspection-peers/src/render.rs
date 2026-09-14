@@ -59,13 +59,19 @@ fn push_missing_sections(project_issues: &PeerIssues, sections: &mut Vec<String>
 fn format_required_by(issues: &[impl RequiredByIssue]) -> String {
     let mut by_range: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for issue in issues {
-        let declaring = issue.parents().last().cloned().unwrap_or_default();
+        let declaring = issue
+            .parents()
+            .last()
+            .cloned()
+            .unwrap_or_default();
         let pkg = if declaring.name.is_empty() {
             "<unknown>".to_string()
         } else {
             format!("{}@{}", declaring.name, declaring.version)
         };
-        let pkgs = by_range.entry(issue.wanted_range().to_string()).or_default();
+        let pkgs = by_range
+            .entry(issue.wanted_range().to_string())
+            .or_default();
         if !pkgs.contains(&pkg) {
             pkgs.push(pkg);
         }
@@ -107,7 +113,10 @@ impl RequiredByIssue for BadPeerIssue {
 fn group_by_found_version(issues: &[BadPeerIssue]) -> BTreeMap<String, Vec<BadPeerIssue>> {
     let mut groups: BTreeMap<String, Vec<BadPeerIssue>> = BTreeMap::new();
     for issue in issues {
-        groups.entry(issue.found_version.clone()).or_default().push(issue.clone());
+        groups
+            .entry(issue.found_version.clone())
+            .or_default()
+            .push(issue.clone());
     }
     groups
 }
@@ -118,30 +127,48 @@ pub(super) fn format_range(range: &str) -> String {
 
 fn bold(text: &str) -> String {
     let cleaned = sanitize(text);
-    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
+    cleaned
+        .as_ref()
+        .if_supports_color(Stream::Stdout, |t| t.bold())
+        .to_string()
 }
 
 fn dim(text: &str) -> String {
     let cleaned = sanitize(text);
-    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
+    cleaned
+        .as_ref()
+        .if_supports_color(Stream::Stdout, |t| t.dimmed())
+        .to_string()
 }
 
 fn yellow_bright(text: &str) -> String {
     let cleaned = sanitize(text);
-    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.bright_yellow()).to_string()
+    cleaned
+        .as_ref()
+        .if_supports_color(Stream::Stdout, |t| t.bright_yellow())
+        .to_string()
 }
 
 fn red(text: &str) -> String {
     let cleaned = sanitize(text);
-    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.red()).to_string()
+    cleaned
+        .as_ref()
+        .if_supports_color(Stream::Stdout, |t| t.red())
+        .to_string()
 }
 
 fn cyan(text: &str) -> String {
     let cleaned = sanitize(text);
-    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.cyan()).to_string()
+    cleaned
+        .as_ref()
+        .if_supports_color(Stream::Stdout, |t| t.cyan())
+        .to_string()
 }
 
 fn cyan_bright(text: &str) -> String {
     let cleaned = sanitize(text);
-    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.bright_cyan()).to_string()
+    cleaned
+        .as_ref()
+        .if_supports_color(Stream::Stdout, |t| t.bright_cyan())
+        .to_string()
 }

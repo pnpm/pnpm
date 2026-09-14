@@ -143,13 +143,15 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
-        node_linker: pnpm_config::NodeLinker::Isolated,
-        included: isolated_included(),
-        supported_architectures: None,
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
     });
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -187,13 +189,15 @@ fn run_status_reports_wanted_lockfile_merge_conflicts() {
         &OptimisticRepeatInstallCheck {
             workspace_root: dir.path(),
             config,
-            node_linker: pnpm_config::NodeLinker::Isolated,
-            included: isolated_included(),
-            supported_architectures: None,
             project_manifests: &[(dir.path().to_path_buf(), &manifest)],
             is_workspace_install: false,
             lockfile: MaybeLazyLockfile::Loaded(None),
             catalogs: &BTreeMap::default(),
+            layout: crate::RepeatInstallLayout {
+                node_linker: pnpm_config::NodeLinker::Isolated,
+                included: isolated_included(),
+                supported_architectures: None,
+            },
         },
         &state,
     );
@@ -442,7 +446,12 @@ fn regenerates_missing_wanted_lockfile_when_touched_manifest_satisfies_current()
     let decision =
         content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
     assert_eq!(decision, Decision::UpToDate);
-    assert!(dir.path().join(Lockfile::FILE_NAME).exists(), "pnpm-lock.yaml must be regenerated");
+    assert!(
+        dir.path()
+            .join(Lockfile::FILE_NAME)
+            .exists(),
+        "pnpm-lock.yaml must be regenerated",
+    );
 }
 /// A manifest that no longer matches the current lockfile cannot ride
 /// the current-as-wanted fallback — the full install must resolve.
@@ -464,7 +473,9 @@ fn returns_skipped_when_missing_wanted_lockfile_and_manifest_adds_a_dependency()
         "expected Skipped(no longer satisfied), got {decision:?}",
     );
     assert!(
-        !dir.path().join(Lockfile::FILE_NAME).exists(),
+        !dir.path()
+            .join(Lockfile::FILE_NAME)
+            .exists(),
         "must not regenerate on a failed check",
     );
 }
@@ -485,7 +496,12 @@ fn workspace_regenerates_missing_wanted_lockfile_and_bumps_state() {
     let decision =
         content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]);
     assert_eq!(decision, Decision::UpToDate);
-    assert!(dir.path().join(Lockfile::FILE_NAME).exists(), "pnpm-lock.yaml must be regenerated");
+    assert!(
+        dir.path()
+            .join(Lockfile::FILE_NAME)
+            .exists(),
+        "pnpm-lock.yaml must be regenerated",
+    );
     let after = pnpm_workspace_state::load_workspace_state(dir.path())
         .unwrap()
         .unwrap()
@@ -514,7 +530,12 @@ fn does_not_regenerate_wanted_lockfile_when_lockfile_writing_disabled() {
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
-    assert!(!dir.path().join(Lockfile::FILE_NAME).exists(), "lockfile: false must skip the write");
+    assert!(
+        !dir.path()
+            .join(Lockfile::FILE_NAME)
+            .exists(),
+        "lockfile: false must skip the write",
+    );
 }
 /// On a sub-second filesystem the lockfile freshness check uses
 /// whole-millisecond precision so the unchanged lockfile is never flagged

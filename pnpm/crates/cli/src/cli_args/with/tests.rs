@@ -31,12 +31,16 @@ fn automatically_switched_pnpm_inherits_the_parent_environment() {
 }
 
 fn command_env_value<'command>(command: &'command Command, name: &str) -> Option<&'command OsStr> {
-    command.get_envs().find(|(key, _)| env_key_matches(key, name)).and_then(|(_, value)| value)
+    command
+        .get_envs()
+        .find(|(key, _)| env_key_matches(key, name))
+        .and_then(|(_, value)| value)
 }
 
 #[cfg(windows)]
 fn env_key_matches(key: &OsStr, name: &str) -> bool {
-    key.to_str().is_some_and(|key| key.eq_ignore_ascii_case(name))
+    key.to_str()
+        .is_some_and(|key| key.eq_ignore_ascii_case(name))
 }
 
 #[cfg(not(windows))]
@@ -55,7 +59,10 @@ fn resolves_unscoped_package_dir_to_global_virtual_store_slot() {
 #[test]
 fn resolves_scoped_package_dir_to_global_virtual_store_slot() {
     let slot = Path::new("/store/links/hash");
-    let package_dir = slot.join("node_modules").join("@pnpm").join("exe");
+    let package_dir = slot
+        .join("node_modules")
+        .join("@pnpm")
+        .join("exe");
 
     assert_eq!(slot_from_package_dir(&package_dir, "@pnpm/exe").as_deref(), Some(slot));
 }

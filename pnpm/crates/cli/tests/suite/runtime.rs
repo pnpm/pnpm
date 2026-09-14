@@ -42,7 +42,12 @@ fn setting_a_project_runtime_suggests_the_explicit_global_shim() {
 
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     assert!(stdout.contains("pnpm shim add node"), "stdout was:\n{stdout}");
-    assert!(!pnpm_home.join("bin").join(format!("node{}", std::env::consts::EXE_SUFFIX)).exists());
+    assert!(
+        !pnpm_home
+            .join("bin")
+            .join(format!("node{}", std::env::consts::EXE_SUFFIX))
+            .exists(),
+    );
 }
 
 fn configure_node_runtime(root: &tempfile::TempDir, workspace: &Path, server: &mockito::Server) {

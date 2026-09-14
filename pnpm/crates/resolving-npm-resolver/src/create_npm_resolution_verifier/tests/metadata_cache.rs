@@ -57,11 +57,13 @@ async fn private_scope_verifier_ignores_public_mirror_and_writes_private_mirror(
         .expect("warm public mirror");
 
     let mut opts = default_opts(&registry);
-    opts.cache_dir = Some(cache.path().to_path_buf());
-    opts.auth_headers =
-        Arc::new(AuthHeaders::default().with_route_hook(Arc::new(ScopeHook {
-            scope: MetadataCacheScope::Private { descriptor_id: "private-scope".to_string() },
-        }) as Arc<dyn UpstreamRouteHook>));
+    opts.metadata.cache_dir = Some(cache.path().to_path_buf());
+    opts.metadata.auth_headers = Arc::new(
+        AuthHeaders::default()
+            .with_route_hook(Arc::new(ScopeHook {
+                scope: MetadataCacheScope::Private { descriptor_id: "private-scope".to_string() },
+            }) as Arc<dyn UpstreamRouteHook>),
+    );
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: public_tarball.clone(),
@@ -100,7 +102,11 @@ async fn private_scope_verifier_ignores_public_mirror_and_writes_private_mirror(
 async fn registry_resolution_with_no_active_policy_skips_metadata_lookup() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
-    let _meta_mock = server.mock("GET", "/acme").expect(0).create_async().await;
+    let _meta_mock = server
+        .mock("GET", "/acme")
+        .expect(0)
+        .create_async()
+        .await;
 
     let opts = default_opts(&registry);
     let verifier = create_npm_resolution_verifier(opts);
@@ -124,19 +130,25 @@ async fn planned_fetch_head_shortcut_skips_the_metadata_body() {
         .await;
     // The whole point: no metadata body is fetched for a planned entry
     // whose package-level Last-Modified is older than the cutoff.
-    let _meta_mock = server.mock("GET", "/acme").expect(0).create_async().await;
+    let _meta_mock = server
+        .mock("GET", "/acme")
+        .expect(0)
+        .create_async()
+        .await;
     let mut opts = default_opts(&registry);
-    opts.minimum_release_age = Some(60 * 24);
+    opts.release_age.minimum_minutes = Some(60 * 24);
     opts.now = Some(now_at("2025-12-01T00:00:00Z"));
     let planned = pnpm_resolving_resolver_base::PlannedCanonicalFetches::default();
     planned
         .set(std::collections::HashSet::from([("acme".to_string(), "1.0.0".to_string(), None)]))
         .expect("first fill");
-    opts.planned_canonical_fetches = Some(std::sync::Arc::clone(&planned));
+    opts.artifacts.canonical_fetches = Some(std::sync::Arc::clone(&planned));
     let verifier = create_npm_resolution_verifier(opts);
-    let result = verifier
-        .verify(&registry_resolution(), ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"))
-        .await;
+    let result = verifier.verify(
+        &registry_resolution(),
+        ctx(&"acme".parse::<PkgName>().expect("parse"), "1.0.0"),
+    )
+    .await;
     assert_eq!(result, ResolutionVerification::Ok);
 }
 

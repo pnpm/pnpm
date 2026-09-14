@@ -213,6 +213,11 @@ pub fn select(names: &[String]) -> Result<Vec<&'static Stack>, &str> {
     }
     names
         .iter()
-        .map(|name| STACKS.iter().find(|stack| stack.name == name).ok_or(name.as_str()))
+        .map(|name| {
+            STACKS
+                .iter()
+                .find(|stack| stack.name == name)
+                .ok_or(name.as_str())
+        })
         .collect()
 }

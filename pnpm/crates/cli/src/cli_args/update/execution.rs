@@ -4,7 +4,11 @@ use super::{
 };
 
 fn manifest_root(manifest: &pnpm_package_manifest::PackageManifest) -> std::path::PathBuf {
-    manifest.path().parent().expect("manifest path always has a parent directory").to_path_buf()
+    manifest
+        .path()
+        .parent()
+        .expect("manifest path always has a parent directory")
+        .to_path_buf()
 }
 
 /// The matcher for the workflow selectors, when this run updates
@@ -12,7 +16,9 @@ fn manifest_root(manifest: &pnpm_package_manifest::PackageManifest) -> std::path
 fn loaded_lockfile(
     lockfile: &pnpm_lockfile::LazyLockfile,
 ) -> miette::Result<Option<&pnpm_lockfile::Lockfile>> {
-    lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))
+    lockfile
+        .get()
+        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))
 }
 
 /// The workspace's packages when the update runs inside one.
@@ -74,14 +80,13 @@ impl UpdateArgs {
         if let Some(pnpr_server) =
             self.delegated_pnpr_server(state.config, update_actions, &include_direct)
         {
-            return self
-                .run_patch_refresh::<Reporter>(
-                    &state,
-                    selection.as_ref(),
-                    pnpr_server,
-                    &lockfile_path,
-                )
-                .await;
+            return self.run_patch_refresh::<Reporter>(
+                &state,
+                selection.as_ref(),
+                pnpr_server,
+                &lockfile_path,
+            )
+            .await;
         }
         let workspace_packages = match &selection {
             Some(selection) => {
@@ -139,7 +144,7 @@ impl UpdateArgs {
         else {
             return Ok(());
         };
-        let action_matcher = if self.interactive {
+        let action_matcher = if self.selection.interactive {
             github_actions::selector_matcher(&packages)
         } else {
             actions_selector_matcher(inputs.update_actions, &self.packages)
@@ -171,7 +176,7 @@ impl UpdateArgs {
         inputs: &UpdateInputs,
     ) -> miette::Result<Option<Vec<String>>> {
         let packages = filter_package_selectors(&self.packages, inputs.update_actions);
-        if !self.interactive && !self.packages.is_empty() && packages.is_empty() {
+        if !self.selection.interactive && !self.packages.is_empty() && packages.is_empty() {
             self.update_github_actions::<Reporter>(
                 inputs.update_actions,
                 &inputs.actions_root,
@@ -215,27 +220,35 @@ impl UpdateArgs {
         packages: &'a [String],
     ) -> miette::Result<Update<'a>> {
         Ok(Update {
-            tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
-            resolved_packages: &state.resolved_packages,
-            http_client: &state.http_client,
-            http_client_arc: std::sync::Arc::clone(&state.http_client),
-            config: state.config,
             manifest: &mut state.manifest,
-            lockfile: loaded_lockfile(&state.lockfile)?,
-            lockfile_path: Some(&inputs.lockfile_path),
-            packages,
-            latest: self.latest,
-            patches: self.patches,
-            save_exact: self.save_exact || state.config.save_exact,
-            save: !self.no_save,
-            include_direct: inputs.include_direct.clone(),
-            depth: self.depth.unwrap_or(usize::MAX),
-            workspace_packages: inputs.workspace_packages.as_ref(),
-            supported_architectures: self
-                .supported_architectures
-                .apply_to(state.config.supported_architectures.clone()),
-            lockfile_only: self.lockfile_only,
-            resolution_observer: None,
+            options: pnpm_package_manager::UpdateOptions {
+                resolved_packages: &state.resolved_packages,
+                http_client: &state.http_client,
+                config: state.config,
+                lockfile: loaded_lockfile(&state.lockfile)?,
+                lockfile_path: Some(&inputs.lockfile_path),
+                lockfile_only: self.install.lockfile_only,
+                selection: pnpm_package_manager::UpdateSelection {
+                    packages,
+                    depth: self.selection.depth.unwrap_or(usize::MAX),
+                    workspace_packages: inputs.workspace_packages.as_ref(),
+                },
+                version: pnpm_package_manager::UpdateVersionOptions {
+                    latest: self.selection.latest,
+                    patches: self.selection.patches,
+                    save_exact: self.save.exact || state.config.save_exact,
+                    save: !self.save.no_save,
+                },
+            },
+            resources: pnpm_package_manager::UpdateResources {
+                tarball_mem_cache: std::sync::Arc::clone(&state.tarball_mem_cache),
+                http_client_arc: std::sync::Arc::clone(&state.http_client),
+                include_direct: inputs.include_direct.clone(),
+                supported_architectures: self.supported_architectures.apply_to(
+                    state.config.supported_architectures.clone(),
+                ),
+                resolution_observer: None,
+            },
         })
     }
 
@@ -252,7 +265,7 @@ impl UpdateArgs {
         }
         github_actions::update::<Reporter>(
             actions_root,
-            self.latest,
+            self.selection.latest,
             matcher,
             config.update_config.github_actions_server.as_deref(),
         )
@@ -263,7 +276,7 @@ impl UpdateArgs {
     /// Whether the package half of the update runs. An interactive run that
     /// ended with no package selected updates only workflow files.
     fn updates_packages(&self, package_selectors: &[String]) -> bool {
-        !self.interactive || !package_selectors.is_empty()
+        !self.selection.interactive || !package_selectors.is_empty()
     }
 
     /// The pnpr server this run may delegate to, when it has nothing to do

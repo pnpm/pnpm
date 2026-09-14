@@ -133,11 +133,13 @@ fn selected_lane_entries(
 }
 
 fn selected_reference_lines(selected: &[(String, String, String)]) -> String {
-    selected.iter().fold(String::new(), |mut lines, (_, _, reference)| {
-        use std::fmt::Write as _;
-        writeln!(lines, "  {reference}").expect("write to string");
-        lines
-    })
+    selected
+        .iter()
+        .fold(String::new(), |mut lines, (_, _, reference)| {
+            use std::fmt::Write as _;
+            writeln!(lines, "  {reference}").expect("write to string");
+            lines
+        })
 }
 
 /// The `versioning` setting to write back: absent once nothing is set.
@@ -206,9 +208,10 @@ fn check_lane_name(lane_name: &str) -> Result<(), LaneError> {
     if lane_name.eq_ignore_ascii_case(MAIN_LANE) {
         return Err(LaneError::ReservedLaneName { name: lane_name.to_owned() });
     }
-    let valid_name =
-        lane_name.chars().all(|character| character.is_ascii_alphanumeric() || character == '-')
-            && !lane_name.chars().all(|character| character.is_ascii_digit());
+    let valid_name = lane_name
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || character == '-')
+        && !lane_name.chars().all(|character| character.is_ascii_digit());
     if !valid_name {
         return Err(LaneError::InvalidLaneName { name: lane_name.to_owned() });
     }
@@ -247,7 +250,10 @@ fn render_lanes(lanes: &indexmap::IndexMap<String, String>) -> String {
     }
     let mut by_lane: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for (pkg_name, lane_name) in lanes {
-        by_lane.entry(lane_name).or_default().push(pkg_name);
+        by_lane
+            .entry(lane_name)
+            .or_default()
+            .push(pkg_name);
     }
     use std::fmt::Write as _;
     let mut output = String::from("Lanes:\n");

@@ -42,13 +42,18 @@ pub(super) fn chmod_tolerating_removal(
 /// `dir` must already be symlink-free — [`shim_node_path`](super::shim_node_path) passes the
 /// caller-resolved location or a canonicalized fallback.
 pub(super) fn bin_node_paths(dir: &Path) -> Vec<String> {
-    let Some(node_modules_dir) = dir.ancestors().find(|ancestor| {
-        ancestor.file_name().is_some_and(|name| name == "node_modules")
-            && ancestor
-                .parent()
-                .and_then(Path::file_name)
-                .is_none_or(|parent_name| parent_name != "node_modules")
-    }) else {
+    let Some(node_modules_dir) = dir
+        .ancestors()
+        .find(|ancestor| {
+            ancestor
+                .file_name()
+                .is_some_and(|name| name == "node_modules")
+                && ancestor
+                    .parent()
+                    .and_then(Path::file_name)
+                    .is_none_or(|parent_name| parent_name != "node_modules")
+        })
+    else {
         return Vec::new();
     };
     let mut result = Vec::new();
@@ -64,7 +69,12 @@ pub(super) fn bin_node_paths(dir: &Path) -> Vec<String> {
         } else {
             node_modules_dir.join(first)
         };
-        result.push(pkg_dir.join("node_modules").to_string_lossy().into_owned());
+        result.push(
+            pkg_dir
+                .join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+        );
     }
     result.push(node_modules_dir.to_string_lossy().into_owned());
     result
@@ -103,11 +113,12 @@ pub(super) fn is_node_bin_name(shim_path: &Path) -> bool {
 pub(super) fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsError> {
     use std::os::unix::fs::symlink;
     remove_stale_bin(shim_path)?;
-    symlink(target_path, shim_path).map_err(|error| LinkBinsError::LinkNodeBin {
-        src: target_path.to_path_buf(),
-        dst: shim_path.to_path_buf(),
-        error,
-    })?;
+    symlink(target_path, shim_path)
+        .map_err(|error| LinkBinsError::LinkNodeBin {
+            src: target_path.to_path_buf(),
+            dst: shim_path.to_path_buf(),
+            error,
+        })?;
     Ok(true)
 }
 
@@ -129,11 +140,12 @@ pub(super) fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool
     }
     remove_stale_bin(&exe_path)?;
     if fs::hard_link(target_path, &exe_path).is_err() {
-        fs::copy(target_path, &exe_path).map_err(|error| LinkBinsError::LinkNodeBin {
-            src: target_path.to_path_buf(),
-            dst: exe_path,
-            error,
-        })?;
+        fs::copy(target_path, &exe_path)
+            .map_err(|error| LinkBinsError::LinkNodeBin {
+                src: target_path.to_path_buf(),
+                dst: exe_path,
+                error,
+            })?;
     }
     Ok(true)
 }
@@ -171,16 +183,19 @@ where
         ensure_target_executable::<Sys>(target_path)?;
         return Ok(true);
     }
-    let link_target = shim_path.parent().map_or_else(
-        || target_path.to_path_buf(),
-        |bins_dir| pnpm_fs::relative_path(bins_dir, target_path),
-    );
+    let link_target = shim_path
+        .parent()
+        .map_or_else(
+            || target_path.to_path_buf(),
+            |bins_dir| pnpm_fs::relative_path(bins_dir, target_path),
+        );
     remove_stale_bin(shim_path)?;
-    symlink(&link_target, shim_path).map_err(|error| LinkBinsError::SymlinkBin {
-        src: target_path.to_path_buf(),
-        dst: shim_path.to_path_buf(),
-        error,
-    })?;
+    symlink(&link_target, shim_path)
+        .map_err(|error| LinkBinsError::SymlinkBin {
+            src: target_path.to_path_buf(),
+            dst: shim_path.to_path_buf(),
+            error,
+        })?;
     match Sys::ensure_executable_bits(target_path) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
@@ -202,6 +217,10 @@ where
 }
 
 #[cfg(windows)]
+#[expect(
+    clippy::extra_unused_type_parameters,
+    reason = "the stub keeps the unix signature so callers stay platform-agnostic"
+)]
 pub(super) fn link_symlinked_executable<Sys>(
     _target_path: &Path,
     _shim_path: &Path,

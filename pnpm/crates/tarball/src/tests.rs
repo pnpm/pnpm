@@ -89,8 +89,12 @@ fn test_retry_opts() -> RetryOpts {
 /// The `'static` path becomes dangling outside the scope of [`TempDir`].
 fn tempdir_with_leaked_path() -> (TempDir, &'static StoreDir) {
     let tempdir = tempdir().unwrap();
-    let leaked_path =
-        tempdir.path().to_path_buf().pipe(StoreDir::from).pipe(Box::new).pipe(Box::leak);
+    let leaked_path = tempdir
+        .path()
+        .to_path_buf()
+        .pipe(StoreDir::from)
+        .pipe(Box::new)
+        .pipe(Box::leak);
     (tempdir, leaked_path)
 }
 
@@ -146,7 +150,11 @@ fn gzip_bomb_tarball(generated: &[(&str, u64)], verbatim: &[(&str, &[u8])]) -> V
             .append_data(&mut header(bytes.len() as u64), path, bytes)
             .expect("append verbatim entry");
     }
-    builder.into_inner().expect("finish tar").finish().expect("finish gzip")
+    builder
+        .into_inner()
+        .expect("finish tar")
+        .finish()
+        .expect("finish gzip")
 }
 
 /// Build a tar archive spanning every entry shape the streaming
@@ -155,8 +163,9 @@ fn gzip_bomb_tarball(generated: &[(&str, u64)], verbatim: &[(&str, &[u8])]) -> V
 /// [`STREAM_ENTRY_BUFFER_MAX`] that must take the
 /// direct-to-store streaming branch.
 fn mixed_size_tar() -> (Vec<u8>, Vec<u8>) {
-    let large_payload: Vec<u8> =
-        (0..=STREAM_ENTRY_BUFFER_MAX).map(|index| (index % 251) as u8).collect();
+    let large_payload: Vec<u8> = (0..=STREAM_ENTRY_BUFFER_MAX)
+        .map(|index| (index % 251) as u8)
+        .collect();
 
     let mut builder = tar::Builder::new(Vec::new());
     let mut dir_header = tar::Header::new_gnu();
@@ -164,7 +173,9 @@ fn mixed_size_tar() -> (Vec<u8>, Vec<u8>) {
     dir_header.set_mode(0o755);
     dir_header.set_entry_type(tar::EntryType::Directory);
     dir_header.set_cksum();
-    builder.append_data(&mut dir_header, "package/lib/", &b""[..]).expect("append dir entry");
+    builder
+        .append_data(&mut dir_header, "package/lib/", &b""[..])
+        .expect("append dir entry");
     for (path, mode, body) in [
         (
             "package/package.json",
@@ -294,7 +305,9 @@ impl Read for EndlessReader {
         if self.bytes_read >= self.cap {
             return Err(std::io::Error::other("test reader ran past its safety cap"));
         }
-        let take = buf.len().min(usize::try_from(self.cap - self.bytes_read).unwrap_or(usize::MAX));
+        let take = buf
+            .len()
+            .min(usize::try_from(self.cap - self.bytes_read).unwrap_or(usize::MAX));
         buf[..take].fill(b'x');
         self.bytes_read += take as u64;
         Ok(take)

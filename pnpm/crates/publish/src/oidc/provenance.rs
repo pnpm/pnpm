@@ -63,11 +63,13 @@ where
 
     // The success path parses the response body unguarded, so a malformed body
     // is a hard error rather than a silent "not public".
-    let visibility = response
-        .body
+    let visibility = response.body
         .pipe_as_ref(serde_json::from_str::<Value>)
         .map_err(|error| DetermineProvenanceError::VisibilityParse(error.to_string()))?;
-    let public = visibility.get("public").and_then(Value::as_bool).unwrap_or(false);
+    let public = visibility
+        .get("public")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     Ok(public.then_some(true))
 }
 
@@ -142,9 +144,20 @@ impl ProvenanceError {
         registry: &str,
     ) -> Self {
         let parsed = serde_json::from_str::<Value>(body).ok();
-        let code = parsed.as_ref().and_then(|json| json.get("code")?.as_str().map(str::to_owned));
-        let detail =
-            parsed.as_ref().and_then(|json| json.get("message")?.as_str().map(str::to_owned));
+        let code = parsed
+            .as_ref()
+            .and_then(|json| {
+                json.get("code")?
+                    .as_str()
+                    .map(str::to_owned)
+            });
+        let detail = parsed
+            .as_ref()
+            .and_then(|json| {
+                json.get("message")?
+                    .as_str()
+                    .map(str::to_owned)
+            });
         let message = match (code, detail) {
             (Some(code), Some(detail)) => format!("{code}: {detail}"),
             (Some(code), None) => code,

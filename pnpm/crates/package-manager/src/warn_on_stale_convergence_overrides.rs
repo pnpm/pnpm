@@ -84,17 +84,24 @@ fn better_convergence(
     // here is unreachable in practice; bailing out keeps the
     // "satisfies EVERY collected range" guarantee if it ever
     // happens.
-    let parsed_ranges =
-        ranges.iter().map(|range| parse_declared_range(range)).collect::<Option<Vec<_>>>()?;
+    let parsed_ranges = ranges
+        .iter()
+        .map(|range| parse_declared_range(range))
+        .collect::<Option<Vec<_>>>()?;
     if parsed_ranges.is_empty() {
         return None;
     }
-    let mut candidates: Vec<Version> =
-        candidates.filter(|candidate| *candidate > current).collect();
+    let mut candidates: Vec<Version> = candidates
+        .filter(|candidate| *candidate > current)
+        .collect();
     candidates.sort_unstable_by(|lhs, rhs| rhs.cmp(lhs));
     candidates
         .into_iter()
-        .find(|candidate| parsed_ranges.iter().all(|range| range.satisfies(candidate)))
+        .find(|candidate| {
+            parsed_ranges
+                .iter()
+                .all(|range| range.satisfies(candidate))
+        })
 }
 
 /// Resolve the best version `range` admits for `name` through the
@@ -114,11 +121,15 @@ pub(crate) async fn resolve_best_admitted_version(
         bare_specifier: Some(range),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, opts).await.ok().flatten()?;
+    let result = resolver
+        .resolve(&wanted, opts)
+        .await
+        .ok()
+        .flatten()?;
     if result.policy_violation.is_some() {
         return None;
     }
-    result.name_ver.map(|name_ver| name_ver.suffix)
+    result.package.name_ver.map(|name_ver| name_ver.suffix)
 }
 
 /// Emit the `pnpm:global` warning for each stale convergence override

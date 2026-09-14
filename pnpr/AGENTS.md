@@ -136,5 +136,5 @@ Run the same checks pacquet does before declaring work done:
 just check     # cargo check --locked --workspace --all-targets
 just test      # cargo nextest run
 just lint      # cargo clippy --workspace --all-targets -- --deny warnings
-just fmt       # cargo fmt + taplo format
+just fmt       # pinned rustfmt fork + taplo format
 ```

@@ -49,12 +49,16 @@ pub(super) fn settle_repeat_install(
     let &OptimisticRepeatInstallCheck {
         workspace_root,
         config,
-        node_linker,
-        included,
-        supported_architectures,
         project_manifests,
         is_workspace_install,
         catalogs,
+        layout:
+            crate::RepeatInstallLayout {
+                node_linker,
+                included,
+                supported_architectures,
+                ..
+            },
         ..
     } = check;
     regenerate_wanted_lockfile_if_missing(check, loaded_current)?;
@@ -129,7 +133,10 @@ impl<'a> LinkedPackagesContext<'a> {
                 manifest_string_field(manifest, "name"),
                 manifest_string_field(manifest, "version"),
             ) {
-                workspace_packages.entry(name).or_default().insert(version, root_dir.as_path());
+                workspace_packages
+                    .entry(name)
+                    .or_default()
+                    .insert(version, root_dir.as_path());
             }
         }
         LinkedPackagesContext {
@@ -148,7 +155,12 @@ impl<'a> LinkedPackagesContext<'a> {
         pnpm_package_manifest::safe_read_package_json_from_dir(dir)
             .ok()
             .flatten()
-            .and_then(|value| value.get("version").and_then(|v| v.as_str()).map(str::to_string))
+            .and_then(|value| {
+                value
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+            })
     }
 }
 pub(super) fn current_lockfile_unusable_with_non_empty_wanted(
@@ -182,15 +194,17 @@ pub(super) fn project_structure_matches(
     if state.projects.len() != project_manifests.len() {
         return false;
     }
-    project_manifests.iter().all(|(root_dir, manifest)| {
-        let key = root_dir.to_string_lossy().into_owned();
-        let Some(entry) = state.projects.get(&key) else {
-            return false;
-        };
-        entry.name.as_deref() == manifest_string_field(manifest, "name").as_deref()
-            && entry.version.as_deref().unwrap_or("0.0.0")
-                == manifest_string_field(manifest, "version").as_deref().unwrap_or("0.0.0")
-    })
+    project_manifests
+        .iter()
+        .all(|(root_dir, manifest)| {
+            let key = root_dir.to_string_lossy().into_owned();
+            let Some(entry) = state.projects.get(&key) else {
+                return false;
+            };
+            entry.name.as_deref() == manifest_string_field(manifest, "name").as_deref()
+                && entry.version.as_deref().unwrap_or("0.0.0")
+                    == manifest_string_field(manifest, "version").as_deref().unwrap_or("0.0.0")
+        })
 }
 pub(super) fn modules_dirs_present(
     config: &Config,
@@ -209,30 +223,32 @@ pub(super) fn first_project_missing_modules_dir(
 ) -> Option<String> {
     let root_modules_dir_exists = config.modules_dir.exists();
 
-    project_manifests.iter().find_map(|(root_dir, manifest)| {
-        if !manifest_has_runtime_deps(manifest) {
-            return None;
-        }
-        // The root importer uses `config.modules_dir`; siblings use
-        // their own `<root>/node_modules`. Matches the isolated-linker
-        // default — `config.modules_dir` is `<workspace_root>/node_modules`
-        // unless the user overrode it explicitly.
-        let modules_dir_exists = match node_linker {
-            NodeLinker::Hoisted => root_modules_dir_exists,
-            NodeLinker::Isolated | NodeLinker::Pnp => {
-                if *root_dir == workspace_dir_of(config, root_dir) {
-                    root_modules_dir_exists
-                } else {
-                    root_dir.join("node_modules").exists()
-                }
+    project_manifests
+        .iter()
+        .find_map(|(root_dir, manifest)| {
+            if !manifest_has_runtime_deps(manifest) {
+                return None;
             }
-        };
+            // The root importer uses `config.modules_dir`; siblings use
+            // their own `<root>/node_modules`. Matches the isolated-linker
+            // default — `config.modules_dir` is `<workspace_root>/node_modules`
+            // unless the user overrode it explicitly.
+            let modules_dir_exists = match node_linker {
+                NodeLinker::Hoisted => root_modules_dir_exists,
+                NodeLinker::Isolated | NodeLinker::Pnp => {
+                    if *root_dir == workspace_dir_of(config, root_dir) {
+                        root_modules_dir_exists
+                    } else {
+                        root_dir.join("node_modules").exists()
+                    }
+                }
+            };
 
-        (!modules_dir_exists).then(|| {
-            manifest_string_field(manifest, "name")
-                .unwrap_or_else(|| root_dir.to_string_lossy().into_owned())
+            (!modules_dir_exists).then(|| {
+                manifest_string_field(manifest, "name")
+                    .unwrap_or_else(|| root_dir.to_string_lossy().into_owned())
+            })
         })
-    })
 }
 /// Recover the workspace root from `config.modules_dir`. The root
 /// importer's `root_dir` equals `config.modules_dir.parent()` because

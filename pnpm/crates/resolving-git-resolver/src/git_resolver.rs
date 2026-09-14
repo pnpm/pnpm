@@ -184,7 +184,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 .await
                 .map_err(|err| Box::new(err) as ResolveError)?;
 
-                result.manifest = resolved.manifest.map(Arc::new);
+                result.package.manifest = resolved.manifest.map(Arc::new);
                 if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
                     // A git host's archive carries no integrity of its
                     // own, and the install pass refuses a tarball
@@ -209,7 +209,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
                 })
                 .await
                 .map_err(|err| Box::new(err) as ResolveError)?;
-                result.manifest = manifest.map(Arc::new);
+                result.package.manifest = manifest.map(Arc::new);
             }
             _ => {}
         }
@@ -270,15 +270,17 @@ async fn build_resolve_result<Probe: GitProbe + ?Sized, Runner: GitCommandRunner
 
     Ok(ResolveResult {
         id: id_string.into(),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: None,
         resolution,
         resolved_via: "git-repository".to_string(),
         normalized_bare_specifier: Some(spec.normalized_bare_specifier),
         alias: wanted_dependency.alias.clone(),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: None,
+        },
     })
 }
 

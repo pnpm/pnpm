@@ -321,7 +321,10 @@ fn patch_commit_rejects_symlinked_patch_file_outside_patches_dir() {
     write_patch_edit(&edit_dir, "symlink write attempt");
     let patches_dir = workspace.join("patches");
     fs::create_dir_all(&patches_dir).expect("create patches dir");
-    let outside_target = workspace.parent().expect("workspace parent").join("outside.patch");
+    let outside_target = workspace
+        .parent()
+        .expect("workspace parent")
+        .join("outside.patch");
     fs::write(&outside_target, "outside original\n").expect("write outside target");
     std::os::unix::fs::symlink(&outside_target, patches_dir.join("is-positive@1.0.0.patch"))
         .expect("create patch symlink");

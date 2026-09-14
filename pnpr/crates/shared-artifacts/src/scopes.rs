@@ -70,7 +70,12 @@ impl SharedArtifactStore {
         publication: &PreparedPublication,
     ) -> Result<bool> {
         let PreparedPublication {
-            owner, entry, envelope_digest, variant_path, envelope_bytes, ..
+            owner,
+            entry,
+            envelope_digest,
+            variant_path,
+            envelope_bytes,
+            ..
         } = publication;
         if self
             .read_object_bounded(variant_path, MAX_RESOLVE_RESPONSE_SIZE as u64)
@@ -197,12 +202,11 @@ impl SharedArtifactStore {
         holder: &str,
     ) -> Result<ScopeMarker> {
         Ok(
-            match self
-                .read_object_bounded(
-                    &scope_marker_path(owner, entry, scope),
-                    MAX_SCOPE_MARKER_BYTES,
-                )
-                .await?
+            match self.read_object_bounded(
+                &scope_marker_path(owner, entry, scope),
+                MAX_SCOPE_MARKER_BYTES,
+            )
+            .await?
             {
                 None => ScopeMarker::Gone,
                 Some(stored) if stored == holder.as_bytes() => ScopeMarker::Ours,

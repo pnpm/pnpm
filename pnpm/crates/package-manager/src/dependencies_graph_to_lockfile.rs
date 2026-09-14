@@ -7,11 +7,12 @@
 //! fanning it out on write.
 
 pub(crate) use importers::manifest_publish_config;
+pub use packages::PackageMetadataSources;
 pub(crate) use packages::manifest_has_bin;
 
 mod packages;
 
-use packages::{PackageMetadataSources, build_packages_and_snapshots};
+use packages::build_packages_and_snapshots;
 
 mod importers;
 
@@ -25,9 +26,9 @@ use miette::Diagnostic;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{
-    CatalogSnapshots, ComVer, Lockfile, LockfileFormError, LockfileSettings, LockfileVersion,
-    PackageKey, PackageMetadata, ParseImporterDepVersionError, ParsePkgNameSuffixError,
-    ParsePkgVerPeerError, ProjectSnapshot, RegistryOptions, ResolvedCatalogEntry,
+    CatalogSnapshots, ComVer, Lockfile, LockfileFormError, LockfileVersion,
+    ParseImporterDepVersionError, ParsePkgNameSuffixError, ParsePkgVerPeerError, ProjectSnapshot,
+    ResolvedCatalogEntry,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{
@@ -73,23 +74,23 @@ pub struct GraphToLockfileOptions<'a> {
     /// this one map before calling — identical snapshot keys collapse
     /// onto one entry.
     pub graph: &'a DependenciesGraph,
-    /// Round-tripped into the lockfile's top-level `settings:` block
-    /// so a subsequent pnpm install can compare its own settings via
-    /// `@pnpm/lockfile.settings-checker`'s `getOutdatedLockfileSetting`.
-    pub auto_install_peers: bool,
-    /// When `true`, the resolver ran with `dedupePeers` on.
-    pub dedupe_peers: bool,
-    pub exclude_links_from_lockfile: bool,
-    /// `injectWorkspacePackages` recorded into the lockfile's
-    /// `settings.injectWorkspacePackages`. `false` is omitted on save
-    /// via [`LockfileSettings`]'s serde `skip_serializing_if`.
-    pub inject_workspace_packages: bool,
-    /// `peersSuffixMaxLength` round-tripped into the lockfile's
-    /// `settings.peersSuffixMaxLength` so a later install detects
-    /// drift via `@pnpm/lockfile.settings-checker`. Pass `None` when
-    /// the value equals the default (1000) so the field is stripped
-    /// from the serialized lockfile.
-    pub peers_suffix_max_length: Option<u64>,
+    /// The workspace catalogs (with any `add` / `update` edits already
+    /// merged in) used to render the lockfile's `catalogs:` snapshot —
+    /// the resolved specifier + version for every `catalog:` direct
+    /// dependency. Empty for projects with no catalogs.
+    pub catalogs: &'a Catalogs,
+    /// The lockfile's `time:` section: the prior lockfile's recorded
+    /// publish dates with this run's freshly resolved ones layered over
+    /// them. Empty on a first install that did not resolve `time-based`.
+    /// Saving prunes it to the importers' direct dependencies.
+    pub time: BTreeMap<String, String>,
+    pub settings: pnpm_lockfile::LockfileSettings,
+    pub metadata_sources: crate::PackageMetadataSources<'a>,
+    pub manifest_settings: crate::LockfileManifestSettings,
+    pub reuse: crate::LockfileImporterReuse<'a>,
+}
+
+pub struct LockfileManifestSettings {
     /// `overrides` recorded into the lockfile so a later install can
     /// detect drift. An [`IndexMap`] so the user's declaration order is
     /// preserved on serialization (this map is left unsorted).
@@ -107,43 +108,24 @@ pub struct GraphToLockfileOptions<'a> {
     /// `pnpmfileChecksum` recorded the same way. `None` when the project
     /// has no `.pnpmfile.{cjs,mjs}` — or one that exports no `hooks`.
     pub pnpmfile_checksum: Option<String>,
-    /// The workspace catalogs (with any `add` / `update` edits already
-    /// merged in) used to render the lockfile's `catalogs:` snapshot —
-    /// the resolved specifier + version for every `catalog:` direct
-    /// dependency. Empty for projects with no catalogs.
-    pub catalogs: &'a Catalogs,
-    /// Default registry URL, used to decide whether a resolved registry
-    /// package's tarball URL is reconstructible (and so droppable from the
-    /// lockfile in favor of bare `{integrity}`).
-    pub registry: &'a str,
-    /// Alias → URL map of named registries (built-ins merged with the
-    /// user's setting). Registry-qualified package keys route their
-    /// tarball-reconstructibility check through this map instead of the
-    /// default registry.
-    pub registries_by_prefix: &'a HashMap<String, String>,
-    pub registry_options_by_url: &'a BTreeMap<String, RegistryOptions>,
-    /// When `true`, registry tarball URLs are kept in the lockfile even when
-    /// reconstructible (the `lockfileIncludeTarballUrl` setting).
-    pub lockfile_include_tarball_url: bool,
+}
+
+pub struct LockfileImporterReuse<'a> {
     /// The previous run's importer entries (the wanted lockfile's
     /// `importers:` map), keyed by the same importer ids as
-    /// [`Self::importers`]. Used to preserve a workspace dependency's
+    /// [`GraphToLockfileOptions::importers`]. Used to preserve a workspace dependency's
     /// prior `link:` entry when this install does not target it — see
     /// `build_importer` and pnpm/pnpm#10433. `None` when there is no
     /// previous lockfile (a first install) or when `dedupeInjectedDeps`
     /// is off.
     pub previous_importers: Option<&'a HashMap<String, ProjectSnapshot>>,
-    /// The previous run's `packages:` map. A rebuilt entry whose
-    /// resolution is unchanged never loses a recorded `deprecated`
-    /// marker to registry metadata drift. `None` on a first install.
-    pub previous_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     /// How this install reuses the prior resolution, mapped from the
     /// `pacquet update` seed policy. Together with a spec change it
     /// decides whether an importer's workspace dependency is *targeted*
     /// by the run (and so may legitimately change its `link:`/`file:`
     /// form) — see `build_importer`. This is the workspace-wide default;
-    /// [`Self::update_reuse_scopes_by_importer`] overrides it per importer.
-    pub update_reuse_scope: UpdateReuseScope,
+    /// [`Self::scopes_by_importer`] overrides it per importer.
+    pub scope: UpdateReuseScope,
     /// Per-importer update scopes, mirroring the resolver's
     /// `update_reuse_scope_for`: a `pacquet update <name> --recursive`
     /// lowers to a `ByImporter` policy whose workspace-wide scope is `All`
@@ -152,12 +134,7 @@ pub struct GraphToLockfileOptions<'a> {
     /// is `None`, else this map's entry, else the global — so a recursive
     /// update targets the named dependency in the importer that declares
     /// it while leaving untouched importers' `link:` entries intact.
-    pub update_reuse_scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
-    /// The lockfile's `time:` section: the prior lockfile's recorded
-    /// publish dates with this run's freshly resolved ones layered over
-    /// them. Empty on a first install that did not resolve `time-based`.
-    /// Saving prunes it to the importers' direct dependencies.
-    pub time: BTreeMap<String, String>,
+    pub scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
 }
 
 /// Error returned while converting a resolver graph into a lockfile.
@@ -177,7 +154,7 @@ pub enum DependenciesGraphToLockfileError {
         source: Box<ParseImporterDepVersionError>,
     },
 
-    /// A resolved package whose depPath parses as no [`PackageKey`], so
+    /// A resolved package whose depPath parses as no [`pnpm_lockfile::PackageKey`], so
     /// it can key neither `packages:` nor `snapshots:`. Every resolution
     /// but a `link:` gets a name prefixed onto its depPath — from the
     /// resolver, or failing that from the manifest the deps-resolver
@@ -204,7 +181,7 @@ pub enum DependenciesGraphToLockfileError {
 ///   maps keyed by the manifest's declared alias. The root project
 ///   lives under `"."`; sibling workspace projects under their POSIX
 ///   path from the lockfile root (e.g. `"packages/foo"`).
-/// - `packages` carries one [`PackageMetadata`] entry per resolved
+/// - `packages` carries one [`pnpm_lockfile::PackageMetadata`] entry per resolved
 ///   package version, keyed by the *peer-stripped* depPath (the
 ///   `pkgIdWithPatchHash`).
 /// - `snapshots` carries one [`SnapshotEntry`](pnpm_lockfile::SnapshotEntry) per *peer-suffixed*
@@ -214,36 +191,23 @@ pub fn dependencies_graph_to_lockfile(
     opts: GraphToLockfileOptions<'_>,
 ) -> Result<Lockfile, DependenciesGraphToLockfileError> {
     let optional_overrides = compute_corrected_optional(&opts.importers, opts.graph);
-    let (packages, snapshots) = build_packages_and_snapshots(
-        opts.graph,
-        &optional_overrides,
-        &PackageMetadataSources {
-            registry: opts.registry,
-            registries_by_prefix: opts.registries_by_prefix,
-            registry_options_by_url: opts.registry_options_by_url,
-            lockfile_include_tarball_url: opts.lockfile_include_tarball_url,
-            previous_packages: opts.previous_packages,
-        },
-    )?;
+    let (packages, snapshots) =
+        build_packages_and_snapshots(opts.graph, &optional_overrides, &opts.metadata_sources)?;
     let importers = build_importers(&opts)?;
     Ok(Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0))
             .expect("the generated lockfile version is supported"),
-        settings: Some(LockfileSettings {
-            auto_install_peers: opts.auto_install_peers,
-            dedupe_peers: opts.dedupe_peers.then_some(true),
-            exclude_links_from_lockfile: opts.exclude_links_from_lockfile,
-            inject_workspace_packages: opts.inject_workspace_packages,
-            peers_suffix_max_length: opts.peers_suffix_max_length,
-        }),
+        settings: Some(opts.settings),
         catalogs: build_catalog_snapshots(&importers, opts.catalogs),
-        overrides: opts.overrides.filter(|map| !map.is_empty()),
-        package_extensions_checksum: opts.package_extensions_checksum,
-        pnpmfile_checksum: opts.pnpmfile_checksum,
-        ignored_optional_dependencies: opts
+        overrides: opts.manifest_settings.overrides.filter(|map| !map.is_empty()),
+        package_extensions_checksum: opts.manifest_settings.package_extensions_checksum,
+        pnpmfile_checksum: opts.manifest_settings.pnpmfile_checksum,
+        ignored_optional_dependencies: opts.manifest_settings
             .ignored_optional_dependencies
             .filter(|list| !list.is_empty()),
-        patched_dependencies: opts.patched_dependencies.filter(|map| !map.is_empty()),
+        patched_dependencies: opts.manifest_settings.patched_dependencies.filter(|map| {
+            !map.is_empty()
+        }),
         importers,
         packages: (!packages.is_empty()).then_some(packages),
         snapshots: (!snapshots.is_empty()).then_some(snapshots),
@@ -272,16 +236,20 @@ fn build_catalog_snapshots(
         let Some(specifiers) = importer.specifiers.as_ref() else { continue };
         for (alias, specifier) in specifiers {
             let Some(catalog_name) = parse_catalog_protocol(specifier) else { continue };
-            let Some(entry_specifier) =
-                catalogs.get(catalog_name).and_then(|catalog| catalog.get(alias))
+            let Some(entry_specifier) = catalogs
+                .get(catalog_name)
+                .and_then(|catalog| catalog.get(alias))
             else {
                 continue;
             };
             let Some(version) = importer_resolved_version(importer, alias) else { continue };
-            snapshots.entry(catalog_name.to_string()).or_default().insert(
-                alias.clone(),
-                ResolvedCatalogEntry { specifier: entry_specifier.clone(), version },
-            );
+            snapshots
+                .entry(catalog_name.to_string())
+                .or_default()
+                .insert(
+                    alias.clone(),
+                    ResolvedCatalogEntry { specifier: entry_specifier.clone(), version },
+                );
         }
     }
     (!snapshots.is_empty()).then_some(snapshots)
@@ -365,7 +333,10 @@ fn walk_subgraph<'g>(
     seeds: Vec<&'g DepPath>,
     optional: bool,
 ) {
-    let mut stack: Vec<(&'g DepPath, bool)> = seeds.into_iter().map(|dp| (dp, optional)).collect();
+    let mut stack: Vec<(&'g DepPath, bool)> = seeds
+        .into_iter()
+        .map(|dp| (dp, optional))
+        .collect();
     while let Some((dep_path, optional)) = stack.pop() {
         if !walked.insert((dep_path, optional)) {
             continue;
@@ -376,7 +347,7 @@ fn walk_subgraph<'g>(
             non_optional.insert(dep_path);
         }
         let opt_children = optional_children_of(node);
-        for (alias, child_dep_path) in &node.children {
+        for (alias, child_dep_path) in &node.edges.children {
             let child_optional = optional || opt_children.contains(alias.as_str());
             stack.push((child_dep_path, child_optional));
         }
@@ -387,15 +358,15 @@ fn walk_subgraph<'g>(
 /// `optionalDependencies` entries plus the names of peers marked
 /// optional by `peerDependenciesMeta`.
 fn optional_children_of(node: &DependenciesGraphNode) -> rustc_hash::FxHashSet<String> {
-    let mut out: rustc_hash::FxHashSet<String> = node.optional_children.clone();
-    if let Some(manifest) = node.resolve_result.manifest.as_ref()
+    let mut out: rustc_hash::FxHashSet<String> = node.edges.optional_children.clone();
+    if let Some(manifest) = node.resolve_result.package.manifest.as_ref()
         && let Some(map) = manifest.get("optionalDependencies").and_then(Value::as_object)
     {
         for name in map.keys() {
             out.insert(name.clone());
         }
     }
-    for (name, peer) in &node.peer_dependencies {
+    for (name, peer) in &node.edges.peer_dependencies {
         if peer.optional {
             out.insert(name.clone());
         }

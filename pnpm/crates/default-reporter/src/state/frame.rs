@@ -10,7 +10,7 @@ pub(super) struct BlockSlot {
 /// The frame buffer: scrolling `blocks` rendered above pinned `fixed_blocks`,
 /// or — in append-only mode — a list of `pending` lines to print as they
 /// arrive.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(super) struct Frame {
     pub(super) append_only: bool,
     pub(super) blocks: Vec<Option<String>>,
@@ -64,8 +64,14 @@ impl Frame {
     }
 
     pub(super) fn render(&self) -> String {
-        let non_fixed: Vec<&str> = self.blocks.iter().filter_map(|b| b.as_deref()).collect();
-        let fixed: Vec<&str> = self.fixed_blocks.iter().filter_map(|b| b.as_deref()).collect();
+        let non_fixed: Vec<&str> = self.blocks
+            .iter()
+            .filter_map(|b| b.as_deref())
+            .collect();
+        let fixed: Vec<&str> = self.fixed_blocks
+            .iter()
+            .filter_map(|b| b.as_deref())
+            .collect();
         let non_fixed_part = non_fixed.join("\n");
         if fixed.is_empty() {
             return non_fixed_part;

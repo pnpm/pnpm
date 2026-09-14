@@ -9,11 +9,19 @@ async fn the_version_check_answers_at_the_host_root() {
     let tmp = TempDir::new().unwrap();
     let app = app(&tmp);
     let auth = basic(&token(&app).await);
-    let request =
-        Request::get("/v2/").header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
+    let request = Request::get("/v2/")
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(response.headers().get("docker-distribution-api-version").unwrap(), "registry/2.0");
+    assert_eq!(
+        response
+            .headers()
+            .get("docker-distribution-api-version")
+            .unwrap(),
+        "registry/2.0",
+    );
 }
 
 #[tokio::test]
@@ -24,7 +32,13 @@ async fn the_version_check_challenges_an_anonymous_caller_even_where_reads_are_o
     // leave it with no way to authenticate a later push.
     let response = get(&app(&tmp), "/v2/").await;
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    assert_eq!(response.headers().get(header::WWW_AUTHENTICATE).unwrap(), CHALLENGE);
+    assert_eq!(
+        response
+            .headers()
+            .get(header::WWW_AUTHENTICATE)
+            .unwrap(),
+        CHALLENGE,
+    );
 }
 
 #[tokio::test]
@@ -47,9 +61,18 @@ async fn an_image_pushed_in_one_request_each_pulls_back() {
 
     let response = get(&app, "/v2/acme/app/manifests/1.0").await;
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(response.headers().get("docker-content-digest").unwrap(), &manifest_digest);
     assert_eq!(
-        response.headers().get(header::CONTENT_TYPE).unwrap(),
+        response
+            .headers()
+            .get("docker-content-digest")
+            .unwrap(),
+        &manifest_digest,
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .unwrap(),
         "application/vnd.oci.image.manifest.v1+json",
     );
     assert_eq!(body_bytes(response.into_body()).await, image_manifest("config", &["layer"]));
@@ -72,8 +95,14 @@ async fn a_head_request_carries_the_headers_without_the_body() {
     for path in
         ["/v2/acme/app/manifests/1.0", &format!("/v2/acme/app/blobs/{}", digest_of(b"layer"))]
     {
-        let request = Request::head(path).body(Body::empty()).unwrap();
-        let response = app.clone().oneshot(request).await.unwrap();
+        let request = Request::head(path)
+            .body(Body::empty())
+            .unwrap();
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{path}");
         assert!(response.headers().contains_key("docker-content-digest"), "{path}");
         assert!(response.headers().contains_key(header::CONTENT_LENGTH), "{path}");
@@ -92,7 +121,11 @@ async fn bytes_that_do_not_match_the_promised_digest_are_refused() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::from("real bytes"))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     let response = get(&app, &format!("/v2/acme/app/blobs/{lie}")).await;
@@ -104,10 +137,22 @@ async fn an_anonymous_push_is_refused_with_a_challenge() {
     let tmp = TempDir::new().unwrap();
     let app = app(&tmp);
 
-    let request = Request::post("/v2/acme/app/blobs/uploads/").body(Body::empty()).unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let request = Request::post("/v2/acme/app/blobs/uploads/")
+        .body(Body::empty())
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    assert_eq!(response.headers().get(header::WWW_AUTHENTICATE).unwrap(), CHALLENGE);
+    assert_eq!(
+        response
+            .headers()
+            .get(header::WWW_AUTHENTICATE)
+            .unwrap(),
+        CHALLENGE,
+    );
 }
 
 #[tokio::test]
@@ -173,7 +218,14 @@ async fn an_index_over_pushed_children_publishes() {
         .header(header::CONTENT_TYPE, "application/vnd.oci.image.index.v1+json")
         .body(Body::from(index))
         .unwrap();
-    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
     assert_eq!(get(&app, "/v2/acme/app/manifests/multi").await.status(), StatusCode::OK);
 }
 
@@ -187,8 +239,18 @@ async fn a_range_that_contradicts_itself_or_the_body_is_refused() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
 
     // An end before the start, and a body that is not the length the range
     // declares. Both would otherwise leave the upload somewhere neither side
@@ -200,14 +262,30 @@ async fn a_range_that_contradicts_itself_or_the_body_is_refused() {
             .header(header::CONTENT_LENGTH, body.len())
             .body(Body::from(body))
             .unwrap();
-        let response = app.clone().oneshot(request).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{range}");
     }
 
-    let request =
-        Request::get(&location).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-0");
+    let request = Request::get(&location)
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(
+        response
+            .headers()
+            .get(header::RANGE)
+            .unwrap(),
+        "0-0",
+    );
 }
 
 #[tokio::test]
@@ -235,8 +313,18 @@ async fn a_chunk_that_ends_early_leaves_the_prefix_to_resume_from() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
 
     let torn = futures_util::stream::iter([
         Ok::<_, std::io::Error>(axum::body::Bytes::from_static(b"hello")),
@@ -246,23 +334,43 @@ async fn a_chunk_that_ends_early_leaves_the_prefix_to_resume_from() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::from_stream(torn))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     // The bytes that did arrive are an ordered prefix of the blob, so the
     // upload keeps them and says so. Dropping them would cost the client the
     // whole layer for one lost connection.
-    let request =
-        Request::get(&location).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-4");
+    let request = Request::get(&location)
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(
+        response
+            .headers()
+            .get(header::RANGE)
+            .unwrap(),
+        "0-4",
+    );
 
     let request = Request::patch(&location)
         .header(header::AUTHORIZATION, &auth)
         .header(header::CONTENT_RANGE, "5-10")
         .body(Body::from(" world"))
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::ACCEPTED);
 
     let digest = digest_of(b"hello world");
@@ -270,7 +378,11 @@ async fn a_chunk_that_ends_early_leaves_the_prefix_to_resume_from() {
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 }
 
@@ -284,11 +396,11 @@ async fn protocol_surface_on_filesystem() {
 async fn protocol_surface_on_object_store() {
     let tmp = TempDir::new().unwrap();
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    config.hosted_store = pnpr::HostedStoreConfig::ObjectStore {
+    config.storage.hosted_backend = pnpr::HostedStoreConfig::ObjectStore {
         store: std::sync::Arc::new(object_store::memory::InMemory::new()),
         prefix: "protocol/".into(),
     };
-    let hosted = config.hosted.get_mut("images").unwrap();
+    let hosted = config.routing.hosted.get_mut("images").unwrap();
     hosted.rules = std::mem::take(&mut hosted.rules)
         .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
     check_protocol_surface(router_with_auth(config, AuthState::in_memory())).await;
@@ -298,7 +410,7 @@ async fn protocol_surface_on_object_store() {
 async fn scoped_bearer_credentials_cannot_write_escape_repository_or_survive_revocation() {
     let tmp = TempDir::new().unwrap();
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
-    config.oci.bearer_auth = true;
+    config.http.oci.bearer_auth = true;
     let auth_state = AuthState::in_memory();
     let app = router_with_auth(config, auth_state.clone());
     let parent = token(&app).await;
@@ -306,7 +418,12 @@ async fn scoped_bearer_credentials_cannot_write_escape_repository_or_survive_rev
     push_image(&app, &auth, "acme/app", "latest").await;
     push_image(&app, &auth, "acme/other", "latest").await;
     let challenge = get(&app, "/v2/").await;
-    assert!(challenge.headers()[header::WWW_AUTHENTICATE].to_str().unwrap().starts_with("Bearer "));
+    assert!(
+        challenge.headers()[header::WWW_AUTHENTICATE]
+            .to_str()
+            .unwrap()
+            .starts_with("Bearer "),
+    );
     let response = app
         .clone()
         .oneshot(
@@ -340,7 +457,10 @@ async fn scoped_bearer_credentials_cannot_write_escape_repository_or_survive_rev
             .unwrap();
         assert_eq!(response.status(), expected, "{method} {path}");
     }
-    auth_state.tokens.revoke_by_key(&sha256_hex(parent.as_bytes())).await.unwrap();
+    auth_state.tokens
+        .revoke_by_key(&sha256_hex(parent.as_bytes()))
+        .await
+        .unwrap();
     let response = app
         .oneshot(
             Request::get("/v2/acme/app/manifests/latest")

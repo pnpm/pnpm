@@ -32,7 +32,7 @@ mod servers;
 mod build;
 
 use crate::{
-    cli_args::{BenchmarkScenario, HyperfineOptions, RegistryMode, TargetKind, TargetSpec},
+    cli_args::{RegistryMode, TargetKind, TargetSpec},
     verify::executor,
 };
 use os_display::Quotable;
@@ -82,51 +82,14 @@ const PNPM_BUNDLE_PATHS: [&str; 4] = [
 
 #[derive(Debug)]
 pub struct WorkEnv {
-    pub root: PathBuf,
-    pub with_pnpm: bool,
-    pub targets: Vec<TargetSpec>,
-    /// Registry URL used by benchmarked clients.
-    pub registry: String,
-    /// Registry URL used only by the pre-benchmark cache populator.
-    pub registry_cache_populator: String,
-    pub registry_mode: RegistryMode,
-    pub repository: PathBuf,
-    pub pnpm_repository: Option<PathBuf>,
-    pub scenario: Option<BenchmarkScenario>,
-    pub hyperfine_options: HyperfineOptions,
-    pub fixture_dir: Option<PathBuf>,
-    /// Round-trip latency (ms) to inject between the client and each
-    /// `pnpr@<rev>` target's server. `0` leaves the server on loopback.
-    pub pnpr_latency_ms: u64,
-    /// Round-trip latency (ms) on the link to the registry, applied to
-    /// every client (direct installs and the pnpr server + client alike).
-    /// `0` leaves the registry on loopback. Ignored in `--registry=npm`
-    /// mode (already remote).
-    pub registry_latency_ms: u64,
-    /// Round-trip latency (ms) between a pnpr server and the registry it
-    /// resolves against. Separate from `registry_latency_ms` so the
-    /// benchmark can model a co-located server with fast metadata access
-    /// while clients still fetch tarballs over a remote link. Ignored in
-    /// `--registry=npm` mode.
-    pub pnpr_server_registry_latency_ms: u64,
-    /// Download-bandwidth cap (megabits/sec) on the link to the registry,
-    /// applied to every client, so tarball fetches cost real time instead
-    /// of being free on loopback. `0` leaves the registry at loopback
-    /// speed. Ignored in `--registry=npm` mode (already remote).
-    pub registry_bandwidth_mbps: f64,
-    pub registry_slow_start: bool,
-    /// Port the local registry listens on, used as the proxy's upstream
-    /// when latency or a bandwidth cap is requested.
-    pub registry_port: u16,
-    /// Skip the clone + `cargo build` for a target whose output binary is
-    /// already present — i.e. restored from a per-commit CI cache. Off by
-    /// default so a local run always rebuilds.
-    pub reuse_prebuilt_binaries: bool,
+    pub options: crate::cli_args::CliArgs,
+    pub registry: RegistryEndpoints,
+}
 
-    /// Diagnostic: launch every `pnpr` mock/server with
-    /// `RUST_LOG=pnpr::serve_timing=debug` so its per-phase serve timing lands
-    /// in the process log. Skews the measured means, so it is for diagnosis only.
-    pub serve_timing: bool,
+#[derive(Debug)]
+pub struct RegistryEndpoints {
+    pub client: String,
+    pub cache_populator: String,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -191,36 +154,34 @@ impl fmt::Display for BenchId<'_> {
     }
 }
 
-#[cfg(test)]
-mod tests;
-
 impl WorkEnv {
     const INIT_PROXY_CACHE: BenchId<'static> = BenchId::Static(INIT_PROXY_CACHE_ID);
     const SYSTEM_PNPM: BenchId<'static> = BenchId::Static("pnpm");
 
     fn root(&self) -> &'_ Path {
-        &self.root
+        &self.options.work_env
     }
 
     fn target_ids(&self) -> impl Iterator<Item = BenchId<'_>> + '_ {
-        self.targets.iter().map(BenchId::from)
+        self.options.selection.targets.iter().map(BenchId::from)
     }
 
     /// Every bench dir the run will touch — every target plus, when
     /// requested, the system-pnpm sibling.
     fn benchmarked_ids(&self) -> impl Iterator<Item = BenchId<'_>> + '_ {
-        self.target_ids().chain(self.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM))
+        self.target_ids()
+            .chain(self.options.selection.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM))
     }
 
     fn repository(&self) -> &'_ Path {
-        &self.repository
+        &self.options.build.repository
     }
 
     /// Repository to fetch pnpm revisions from. Falls back to the
     /// pacquet repo when the caller didn't override it — useful when
     /// the same monorepo checkout contains both code bases.
     fn pnpm_repository(&self) -> &'_ Path {
-        self.pnpm_repository.as_deref().unwrap_or_else(|| self.repository())
+        self.options.build.pnpm_repository.as_deref().unwrap_or_else(|| self.repository())
     }
 
     fn bench_dir(&self, id: BenchId) -> PathBuf {
@@ -232,7 +193,7 @@ impl WorkEnv {
     }
 
     /// Path of the untimed online priming script, written only for
-    /// scenarios with [`BenchmarkScenario::prewarm_install_args`].
+    /// scenarios with [`crate::cli_args::BenchmarkScenario::prewarm_install_args`].
     fn prewarm_script_path(&self, id: BenchId) -> PathBuf {
         self.bench_dir(id).join(PREWARM_SCRIPT)
     }
@@ -285,8 +246,9 @@ impl WorkEnv {
                 // so the existence check sees the bundle produced by
                 // `pnpm run compile-only`, not the empty tree visible
                 // during `init()`.
-                let candidates =
-                    PNPM_BUNDLE_PATHS.map(|path| format!("./pnpm-source/{path}")).join(" ");
+                let candidates = PNPM_BUNDLE_PATHS
+                    .map(|path| format!("./pnpm-source/{path}"))
+                    .join(" ");
                 format!(
                     r#"node "$(for f in {candidates}; do if [ -f "$f" ]; then echo "$f"; break; fi; done)""#,
                 )
@@ -296,30 +258,37 @@ impl WorkEnv {
     }
 
     fn init(&self, direct_registry: &str, revision_mocks: &HashMap<String, RevisionMockRegistry>) {
-        let scenario = self.scenario.expect("scenario set when init() is reached");
+        let scenario =
+            self.options.selection.scenario.expect("scenario set when init() is reached");
         eprintln!("Initializing...");
         // The proxy-cache populator only runs against a local
         // verdaccio/virtual registry to warm its on-disk cache. With
         // `--registry=npm`, no proxy exists. The peer-heavy fixture is
         // already seeded into hosted storage, so it needs no population
         // pass either.
-        let populate_proxy_cache =
-            matches!(self.registry_mode, RegistryMode::Verdaccio | RegistryMode::Virtual)
-                && !scenario.uses_peer_heavy_fixture();
+        let populate_proxy_cache = matches!(
+            self.options.network.registry,
+            RegistryMode::Verdaccio | RegistryMode::Virtual,
+        ) && !scenario.uses_peer_heavy_fixture();
         let id_list = self
             .target_ids()
             .chain(populate_proxy_cache.then_some(WorkEnv::INIT_PROXY_CACHE))
-            .chain(self.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM));
+            .chain(self.options.selection.with_pnpm.then_some(WorkEnv::SYSTEM_PNPM));
         for id in id_list {
             eprintln!("ID: {id}");
             let dir = self.bench_dir(id);
             let registry = self.registry_for(id, direct_registry, revision_mocks);
             fs::create_dir_all(&dir).expect("create directory for the revision");
-            create_package_json(&dir, self.fixture_dir.as_deref(), scenario);
-            create_pnpm_workspace(&dir, self.fixture_dir.as_deref(), registry, scenario);
+            create_package_json(&dir, self.options.selection.fixture_dir.as_deref(), scenario);
+            create_pnpm_workspace(
+                &dir,
+                self.options.selection.fixture_dir.as_deref(),
+                registry,
+                scenario,
+            );
             create_install_script(&dir, scenario, &WorkEnv::install_command(id), id);
             create_npmrc(&dir, registry, scenario);
-            may_create_lockfile(&dir, scenario, self.fixture_dir.as_deref());
+            may_create_lockfile(&dir, scenario, self.options.selection.fixture_dir.as_deref());
             save_pristine_copies(&dir);
         }
 
@@ -336,7 +305,8 @@ impl WorkEnv {
         pnpr_server_registry: &str,
         revision_mocks: HashMap<String, RevisionMockRegistry>,
     ) {
-        let scenario = self.scenario.expect("scenario set when benchmark() is reached");
+        let scenario =
+            self.options.selection.scenario.expect("scenario set when benchmark() is reached");
 
         // Pre-benchmark wipe of `node_modules`, `store-dir`, and
         // `cache-dir` for every benchmark target, regardless of scenario.
@@ -358,7 +328,10 @@ impl WorkEnv {
         // long-running server even while the client is cold. `cold-mock-storage`
         // (only the cold-pnpr scenario) is wiped here too so the warmup run
         // starts cold even on a reused work-env, not just the timed iterations.
-        for dir in self.benchmarked_ids().map(|id| self.bench_dir(id)) {
+        for dir in self
+            .benchmarked_ids()
+            .map(|id| self.bench_dir(id))
+        {
             wipe_bench_dir(&dir);
         }
 
@@ -415,13 +388,27 @@ impl WorkEnv {
             self.prewarm_caches(&cleanup_command);
         }
 
-        let mut command = Command::new("hyperfine");
-        command.current_dir(self.root()).arg("--prepare").arg(&cleanup_command);
+        self.run_hyperfine(&cleanup_command);
+        if scenario.uses_peer_heavy_fixture() {
+            self.install_for_lockfile_comparison(&cleanup_command);
+        }
+        self.write_benchmark_diagnostics();
+    }
 
-        self.hyperfine_options.append_to(&mut command);
+    fn run_hyperfine(&self, cleanup_command: &str) {
+        let mut command = Command::new("hyperfine");
+        command
+            .current_dir(self.root())
+            .arg("--prepare")
+            .arg(cleanup_command);
+
+        self.options.hyperfine_options.append_to(&mut command);
 
         for id in self.benchmarked_ids() {
-            command.arg("--command-name").arg(id.to_string()).arg(self.bash_command(id));
+            command
+                .arg("--command-name")
+                .arg(id.to_string())
+                .arg(self.bash_command(id));
         }
 
         command
@@ -431,10 +418,6 @@ impl WorkEnv {
             .arg(self.root().join("BENCHMARK_REPORT.md"));
 
         executor("hyperfine")(&mut command);
-        if scenario.uses_peer_heavy_fixture() {
-            self.install_for_lockfile_comparison(&cleanup_command);
-        }
-        self.write_benchmark_diagnostics();
     }
 
     /// Prime the install state for the scenarios whose contract is "GVS
@@ -444,7 +427,9 @@ impl WorkEnv {
     fn prewarm_install_state(&self) {
         for id in self.benchmarked_ids() {
             eprintln!("Pre-warming the install state for {id}...");
-            Command::new("bash").arg(self.script_path(id)).pipe_mut(executor("install.bash"));
+            Command::new("bash")
+                .arg(self.script_path(id))
+                .pipe_mut(executor("install.bash"));
         }
     }
 
@@ -499,12 +484,17 @@ impl WorkEnv {
         let registry_proxy = self.start_client_registry_proxy();
         let client_registry = registry_proxy
             .as_ref()
-            .map_or_else(|| self.registry.clone(), |proxy| format!("http://{}/", proxy.addr));
+            .map_or_else(
+                || self.registry.client.clone(),
+                |proxy| format!("http://{}/", proxy.addr),
+            );
         let pnpr_server_registry_proxy = self.start_pnpr_server_registry_proxy();
-        let pnpr_server_registry = pnpr_server_registry_proxy.as_ref().map_or_else(
-            || self.registry_cache_populator.clone(),
-            |proxy| format!("http://{}/", proxy.addr),
-        );
+        let pnpr_server_registry = pnpr_server_registry_proxy
+            .as_ref()
+            .map_or_else(
+                || self.registry.cache_populator.clone(),
+                |proxy| format!("http://{}/", proxy.addr),
+            );
 
         let revision_mocks = self.plan_revision_mocks();
         self.init(&client_registry, &revision_mocks);
@@ -516,3 +506,6 @@ impl WorkEnv {
         self.verify_benchmark_diagnostics();
     }
 }
+
+#[cfg(test)]
+mod tests;

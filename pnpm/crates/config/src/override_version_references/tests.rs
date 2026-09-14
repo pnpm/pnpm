@@ -13,7 +13,10 @@ fn root_with_manifest(manifest: &serde_json::Value) -> TempDir {
 }
 
 fn overrides_map(entries: &[(&str, &str)]) -> IndexMap<String, String> {
-    entries.iter().map(|(selector, spec)| ((*selector).to_string(), (*spec).to_string())).collect()
+    entries
+        .iter()
+        .map(|(selector, spec)| ((*selector).to_string(), (*spec).to_string()))
+        .collect()
 }
 
 #[test]

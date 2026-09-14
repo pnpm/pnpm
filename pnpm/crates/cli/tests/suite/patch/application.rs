@@ -108,13 +108,14 @@ fn install_level_patch_that_adds_install_scripts_outlives_a_pre_fix_cache_entry(
 
     pacquet(&workspace, ["install", "--ignore-scripts", "--reporter=silent"]).assert().success();
     assert!(!marker.exists(), "--ignore-scripts must not run the postinstall");
-    let cache_keys: Vec<String> = is_positive_store_row(&store_dir)
-        .side_effects
+    let cache_keys: Vec<String> = is_positive_store_row(&store_dir).side_effects
         .expect("a patched package populates `sideEffects`")
         .into_keys()
         .collect();
     assert!(
-        cache_keys.iter().any(|key| !key.contains(";deps=")),
+        cache_keys
+            .iter()
+            .any(|key| !key.contains(";deps=")),
         "the store must hold the dep-graph-free key a pre-fix pnpm 12 wrote; got {cache_keys:?}",
     );
 
@@ -190,7 +191,9 @@ fn install_level_patch_that_adds_a_hooks_file_does_not_ask_for_approval() {
 fn git_dependency_patch_applies_on_fresh_and_frozen_install() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, store_dir, cache_dir, .. } = npmrc_info;
+    let AddMockedRegistry {
+        mock_instance, store_dir, cache_dir, ..
+    } = npmrc_info;
     let repo = GitRepoFixture::init(root.path(), "patched-git-dependency");
     repo.write_file(
         "package.json",
@@ -228,7 +231,9 @@ fn git_dependency_patch_applies_on_fresh_and_frozen_install() {
     let patch_hash = patch_file_hash(&workspace, "is-positive@3.1.0.patch");
     let snapshots = snapshot_keys(&read_wanted_lockfile(&workspace));
     assert!(
-        snapshots.iter().any(|key| key.contains(&format!("(patch_hash={patch_hash})"))),
+        snapshots
+            .iter()
+            .any(|key| key.contains(&format!("(patch_hash={patch_hash})"))),
         "snapshots: {snapshots:?}",
     );
 

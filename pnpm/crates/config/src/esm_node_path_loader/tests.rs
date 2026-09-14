@@ -13,9 +13,10 @@ fn flag_matches_the_golden_copy_shared_with_the_typescript_cli() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../pnpm11/exec/esm-node-path-loader/test/import-flag.txt",
     );
-    let golden = std::fs::read_to_string(path).unwrap_or_else(|err| {
-        panic!("the golden flag file must be readable at {path}: {err}");
-    });
+    let golden = std::fs::read_to_string(path)
+        .unwrap_or_else(|err| {
+            panic!("the golden flag file must be readable at {path}: {err}");
+        });
     assert_eq!(esm_node_path_loader_import_flag(), golden);
 }
 

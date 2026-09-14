@@ -19,13 +19,25 @@ fn assert_recovers_after_lock<Error: Debug>(
     operation: impl FnOnce() -> Result<(), Error>,
 ) {
     // Permit normal reads and writes, but omit FILE_SHARE_DELETE.
-    let mut handle =
-        Some(fs::OpenOptions::new().read(true).share_mode(0x1 | 0x2).open(path).unwrap());
+    let mut handle = Some(
+        fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0x1 | 0x2)
+            .open(path)
+            .unwrap(),
+    );
     let (sender, receiver) = mpsc::channel();
     let result = with_retry_observer(
         path,
         move |attempt| {
-            sender.send(attempt.as_ref().copied().map_err(std::io::Error::raw_os_error)).unwrap();
+            sender
+                .send(
+                    attempt
+                        .as_ref()
+                        .copied()
+                        .map_err(std::io::Error::raw_os_error),
+                )
+                .unwrap();
             if attempt.is_err() {
                 // Release only after a real failed attempt, not after a scheduled delay.
                 drop(handle.take());
@@ -106,7 +118,10 @@ fn node_binary_replacement_recovers_after_transient_lock() {
         package,
         Arc::new(json!({"name": "node", "version": "1.0.0", "bin": "node.exe"})),
     )];
-    let pool = rayon::ThreadPoolBuilder::new().num_threads(2).build().unwrap();
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(2)
+        .build()
+        .unwrap();
 
     assert_recovers_after_lock(&shim, || {
         pool.install(|| {

@@ -53,7 +53,10 @@ fn deep_chain_flattens_in_one_pass() {
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["a", "b", "c", "d"], "depth-4 chain flattens: {result:#?}");
     for entry in root_children.iter() {
@@ -99,7 +102,10 @@ fn transitive_npm_alias_resolves_target_snapshot() {
     let result =
         hoist(&lockfile, &HoistOpts::default()).expect("aliased transitive should resolve");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(names, ["aliased-name", "host"]);
     let aliased = Rc::clone(
@@ -117,7 +123,13 @@ fn transitive_npm_alias_resolves_target_snapshot() {
         "reference is the resolved snapshot key, not the alias: {refs:?}",
     );
     assert_eq!(refs.len(), 1);
-    let host = Rc::clone(&root_children.iter().find(|dep| dep.0.name == "host").unwrap().0);
+    let host = Rc::clone(
+        &root_children
+            .iter()
+            .find(|dep| dep.0.name == "host")
+            .unwrap()
+            .0,
+    );
     assert!(host.dependencies.borrow().is_empty(), "host stripped of its aliased dep: {host:#?}");
 }
 
@@ -189,15 +201,21 @@ fn conflict_nested_shared_cycle_is_cut() {
             node.references.borrow(),
         );
         path.push(Rc::as_ptr(node));
-        let children: Vec<Rc<HoisterResult>> =
-            node.dependencies.borrow().iter().map(|dep| Rc::clone(&dep.0)).collect();
+        let children: Vec<Rc<HoisterResult>> = node.dependencies
+            .borrow()
+            .iter()
+            .map(|dep| Rc::clone(&dep.0))
+            .collect();
         for child in children {
             assert_acyclic(&child, path);
         }
         path.pop();
     }
-    let root_children: Vec<Rc<HoisterResult>> =
-        result.dependencies.borrow().iter().map(|dep| Rc::clone(&dep.0)).collect();
+    let root_children: Vec<Rc<HoisterResult>> = result.dependencies
+        .borrow()
+        .iter()
+        .map(|dep| Rc::clone(&dep.0))
+        .collect();
     let mut path = Vec::new();
     for child in &root_children {
         assert_acyclic(child, &mut path);
@@ -248,7 +266,10 @@ fn self_alias_keeps_its_entry_and_only_the_alias_repeat_is_cut() {
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("self-alias hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let mut names: Vec<&str> = root_children.iter().map(|dep| dep.0.name.as_str()).collect();
+    let mut names: Vec<&str> = root_children
+        .iter()
+        .map(|dep| dep.0.name.as_str())
+        .collect();
     names.sort_unstable();
     assert_eq!(
         names,
@@ -305,9 +326,17 @@ fn ancestor_conflict_blocks_dedup_against_the_root_copy() {
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let node_a = &root_children.iter().find(|dep| dep.0.name == "a").unwrap().0;
+    let node_a = &root_children
+        .iter()
+        .find(|dep| dep.0.name == "a")
+        .unwrap()
+        .0;
     let a_kids = node_a.dependencies.borrow();
-    let b_nested = &a_kids.iter().find(|dep| dep.0.name == "b").expect("b@1 nests under a").0;
+    let b_nested = &a_kids
+        .iter()
+        .find(|dep| dep.0.name == "b")
+        .expect("b@1 nests under a")
+        .0;
     let b_kids = b_nested.dependencies.borrow();
     let x_kept = b_kids
         .iter()
@@ -363,15 +392,24 @@ fn nested_root_does_not_shadow_names_its_subtree_uses_from_above() {
 
     let result = hoist(&lockfile, &HoistOpts::default()).expect("hoist should succeed");
     let root_children = result.dependencies.borrow();
-    let node_e = &root_children.iter().find(|dep| dep.0.name == "e").unwrap().0;
+    let node_e = &root_children
+        .iter()
+        .find(|dep| dep.0.name == "e")
+        .unwrap()
+        .0;
     let e_kids = node_e.dependencies.borrow();
     assert!(
-        !e_kids.iter().any(|dep| dep.0.name == "m"),
+        !e_kids
+            .iter()
+            .any(|dep| dep.0.name == "m"),
         "m@1 must not hoist onto e - s@1's requires resolve m through the root: {node_e:#?}",
     );
-    let d_nested = &e_kids.iter().find(|dep| dep.0.name == "d").expect("d@1 nests under e").0;
-    let m_kept = d_nested
-        .dependencies
+    let d_nested = &e_kids
+        .iter()
+        .find(|dep| dep.0.name == "d")
+        .expect("d@1 nests under e")
+        .0;
+    let m_kept = d_nested.dependencies
         .borrow()
         .iter()
         .any(|dep| dep.0.name == "m" && dep.0.references.borrow().contains("m@1.0.0"));

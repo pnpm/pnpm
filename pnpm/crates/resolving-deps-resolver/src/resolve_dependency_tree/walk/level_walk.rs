@@ -31,15 +31,15 @@ pub(super) fn assign_level_owners<'seed>(
     let winners: Vec<usize> = {
         let mut best: HashMap<&str, usize> = HashMap::default();
         for (index, pending) in level.iter().enumerate() {
-            let best_so_far = *best.entry(pending.id.as_str()).or_insert(index);
+            let best_so_far = *best.entry(pending.identity.id.as_str()).or_insert(index);
             let standing = &level[best_so_far];
             // Depth joins the comparison even though one level shares
             // it, so this cannot drift from [`ChildrenOwner::wins_over`]
             // if a frontier ever carries more than one depth.
-            if (standing.depth, &standing.parent_ancestors)
-                > (pending.depth, &pending.parent_ancestors)
+            if (standing.ancestry.depth, &standing.ancestry.parent_ancestors)
+                > (pending.ancestry.depth, &pending.ancestry.parent_ancestors)
             {
-                best.insert(pending.id.as_str(), index);
+                best.insert(pending.identity.id.as_str(), index);
             }
         }
         let mut winners: Vec<usize> = best.into_values().collect();
@@ -51,9 +51,9 @@ pub(super) fn assign_level_owners<'seed>(
         let peer_shadowed = std::mem::take(&mut pending.peer_shadowed);
         let claim = claim_children_owner(
             ctx,
-            &pending.id,
-            pending.depth,
-            &pending.parent_ancestors,
+            &pending.identity.id,
+            pending.ancestry.depth,
+            &pending.ancestry.parent_ancestors,
             peer_shadowed,
         );
         install_owner_peer_dependencies(ctx, pending, &claim)?;
@@ -80,15 +80,15 @@ pub(super) fn install_owner_peer_dependencies(
         &claim.peer_shadowed,
         catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
     )?;
-    let mut packages = lock_recoverable(&ctx.workspace.packages);
-    let Some(existing) = packages.get_mut(pending.id.as_str()) else { return Ok(()) };
+    let mut packages = lock_recoverable(&ctx.workspace.tree.packages);
+    let Some(existing) = packages.get_mut(pending.identity.id.as_str()) else { return Ok(()) };
     if existing.peer_dependencies == peer_dependencies {
         return Ok(());
     }
     existing.peer_dependencies = peer_dependencies.clone();
     drop(packages);
     register_peer_dep_names(ctx, &peer_dependencies);
-    ctx.workspace.record_package_write(&pending.id);
+    ctx.workspace.record_package_write(&pending.identity.id);
     Ok(())
 }
 
@@ -122,14 +122,18 @@ pub(super) fn settle_seeds(
             continue;
         }
         let Some(claim) = claim.filter(|claim| claim.owns_children) else {
-            let children = lazy_children(&pending.parent_ancestors);
+            let children = lazy_children(&pending.ancestry.parent_ancestors);
             insert_walked_node(ctx, &pending, children);
             continue;
         };
         if !pending.resolves_children_through_catalogs
-            && recorded_children_match(ctx, &pending.id, &children_context(ctx, &pending, &claim))
+            && recorded_children_match(
+                ctx,
+                &pending.identity.id,
+                &children_context(ctx, &pending, &claim),
+            )
         {
-            let children = lazy_children(&pending.parent_ancestors);
+            let children = lazy_children(&pending.ancestry.parent_ancestors);
             insert_walked_node(ctx, &pending, children);
             continue;
         }
@@ -163,9 +167,9 @@ pub(super) fn settle_level(
             record_walked_children(ctx, &pending, &claim, &child_specs, &seeds);
         insert_walked_node(ctx, &pending, children);
         if (others_stale || !claim.children_context_unchanged)
-            && is_current_children_owner(ctx, &pending.id, &claim.owner)
+            && is_current_children_owner(ctx, &pending.identity.id, &claim.owner)
         {
-            make_non_owner_nodes_lazy(ctx, &pending.id, &pending.node_id);
+            make_non_owner_nodes_lazy(ctx, &pending.identity.id, &pending.identity.node_id);
         }
         frontier.extend(settle_seeds(
             ctx,
@@ -192,15 +196,20 @@ pub(super) fn record_walked_children(
     child_specs: &[ChildSpec],
     seeds: &[NodeSeed],
 ) -> (crate::resolved_tree::TreeChildren, bool) {
-    if !is_current_children_owner(ctx, &pending.id, &claim.owner) {
-        return (lazy_children(&pending.parent_ancestors), false);
+    if !is_current_children_owner(ctx, &pending.identity.id, &claim.owner) {
+        return (lazy_children(&pending.ancestry.parent_ancestors), false);
     }
-    let optional_by_alias: HashMap<&str, bool> =
-        child_specs.iter().map(|(name, _, optional, _)| (name.as_str(), *optional)).collect();
+    let optional_by_alias: HashMap<&str, bool> = child_specs
+        .iter()
+        .map(|(name, _, optional, _)| (name.as_str(), *optional))
+        .collect();
     let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
     let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
     for dep in seeds.iter().filter_map(seeded_dep) {
-        let optional = optional_by_alias.get(dep.alias.as_str()).copied().unwrap_or(false);
+        let optional = optional_by_alias
+            .get(dep.alias.as_str())
+            .copied()
+            .unwrap_or(false);
         by_id.push(crate::resolved_tree::ChildEdge {
             alias: dep.alias.clone(),
             pkg_id: Arc::from(dep.id),
@@ -208,8 +217,14 @@ pub(super) fn record_walked_children(
         });
         realized.insert(dep.alias, dep.node_id);
     }
-    record_children(ctx, &pending.id, &claim.owner, by_id, children_context(ctx, pending, claim))
-        .into_children(realized, &pending.parent_ancestors)
+    record_children(
+        ctx,
+        &pending.identity.id,
+        &claim.owner,
+        by_id,
+        children_context(ctx, pending, claim),
+    )
+    .into_children(realized, &pending.ancestry.parent_ancestors)
 }
 
 /// The edge one seed contributes to its parent's children. `None` for
@@ -218,9 +233,9 @@ pub(super) fn seeded_dep(seed: &NodeSeed) -> Option<DirectDep> {
     match seed {
         NodeSeed::Done(dep) => dep.clone(),
         NodeSeed::Pending(pending) => Some(DirectDep {
-            alias: pending.alias.clone(),
-            node_id: pending.node_id.clone(),
-            id: pending.id.clone(),
+            alias: pending.identity.alias.clone(),
+            node_id: pending.identity.node_id.clone(),
+            id: pending.identity.id.clone(),
         }),
     }
 }
@@ -253,9 +268,13 @@ pub(super) fn insert_walked_node(
     pending: &PendingNode,
     children: crate::resolved_tree::TreeChildren,
 ) {
-    let depth = if pending.is_link { -1 } else { pending.depth };
-    remember_node_parent_ids(ctx, &pending.node_id, Arc::clone(&pending.parent_ancestors));
-    insert_tree_node(ctx, pending.node_id.clone(), &pending.id, children, depth);
+    let depth = if pending.is_link { -1 } else { pending.ancestry.depth };
+    remember_node_parent_ids(
+        ctx,
+        &pending.identity.node_id,
+        Arc::clone(&pending.ancestry.parent_ancestors),
+    );
+    insert_tree_node(ctx, pending.identity.node_id.clone(), &pending.identity.id, children, depth);
 }
 
 /// The install aliases one resolved level contributes to its
@@ -266,7 +285,7 @@ pub(in super::super) fn level_aliases(seeds: &[NodeSeed]) -> HashSet<String> {
     seeds
         .iter()
         .filter_map(|seed| match seed {
-            NodeSeed::Pending(pending) => Some(pending.alias.clone()),
+            NodeSeed::Pending(pending) => Some(pending.identity.alias.clone()),
             NodeSeed::Done(Some(dep)) => Some(dep.alias.clone()),
             NodeSeed::Done(None) => None,
         })
@@ -280,14 +299,14 @@ pub(in super::super) fn level_versions(
     ctx: &TreeCtx,
     seeds: &[NodeSeed],
 ) -> BTreeMap<String, Vec<String>> {
-    let packages = lock_recoverable(&ctx.workspace.packages);
+    let packages = lock_recoverable(&ctx.workspace.tree.packages);
     let mut level: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for seed in seeds {
         let name_ver = match seed {
-            NodeSeed::Pending(pending) => pending.result.name_ver.as_ref(),
-            NodeSeed::Done(Some(dep)) => {
-                packages.get(dep.id.as_str()).and_then(|pkg| pkg.result.name_ver.as_ref())
-            }
+            NodeSeed::Pending(pending) => pending.result.package.name_ver.as_ref(),
+            NodeSeed::Done(Some(dep)) => packages
+                .get(dep.id.as_str())
+                .and_then(|pkg| pkg.result.package.name_ver.as_ref()),
             NodeSeed::Done(None) => None,
         };
         let Some(name_ver) = name_ver else { continue };
@@ -308,11 +327,13 @@ pub(super) fn pkgs_info_from_ids(
     ctx: &TreeCtx,
     ancestor_ids: &[String],
 ) -> Vec<SkippedOptionalDependencyParent> {
-    let packages = lock_recoverable(&ctx.workspace.packages);
+    let packages = lock_recoverable(&ctx.workspace.tree.packages);
     ancestor_ids
         .iter()
         .map(|id| {
-            let name_ver = packages.get(id.as_str()).and_then(|pkg| pkg.result.name_ver.as_ref());
+            let name_ver = packages
+                .get(id.as_str())
+                .and_then(|pkg| pkg.result.package.name_ver.as_ref());
             SkippedOptionalDependencyParent {
                 id: id.clone(),
                 name: name_ver.map(|name_ver| name_ver.name.to_string()).unwrap_or_default(),

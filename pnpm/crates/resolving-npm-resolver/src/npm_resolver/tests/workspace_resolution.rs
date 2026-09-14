@@ -17,7 +17,10 @@ async fn workspace_path_form_falls_through_to_local_resolver() {
         bare_specifier: Some("workspace:./acme".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap();
     assert!(result.is_none());
 }
 
@@ -28,7 +31,11 @@ async fn workspace_path_form_falls_through_to_local_resolver() {
 #[tokio::test]
 async fn falls_back_to_workspace_when_registry_returns_404() {
     let mut server = mockito::Server::new_async().await;
-    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -40,7 +47,11 @@ async fn falls_back_to_workspace_when_registry_returns_404() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace fallback");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
     match &result.resolution {
@@ -52,7 +63,11 @@ async fn falls_back_to_workspace_when_registry_returns_404() {
 #[tokio::test]
 async fn revision_qualified_selector_does_not_fall_back_to_workspace() {
     let mut server = mockito::Server::new_async().await;
-    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -74,20 +89,28 @@ async fn revision_qualified_selector_does_not_fall_back_to_workspace() {
 #[tokio::test]
 async fn revision_refresh_preserves_an_implicit_workspace_resolution() {
     let mut server = mockito::Server::new_async().await;
-    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let mut opts = workspace_resolve_options(packages);
-    opts.update = UpdateBehavior::Patches;
+    opts.refresh.update = UpdateBehavior::Patches;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
         bare_specifier: Some("1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace fallback");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
 }
@@ -115,12 +138,16 @@ async fn workspace_shadows_registry_when_name_and_version_match() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace shadow");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace shadow");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
     // `latest` is back-stamped from the registry packument so the
     // install layer can still surface upgrade hints.
-    assert_eq!(result.latest.as_deref(), Some("1.0.0"));
+    assert_eq!(result.package.latest.as_deref(), Some("1.0.0"));
 }
 
 #[tokio::test]
@@ -146,7 +173,11 @@ async fn registry_version_higher_than_workspace_keeps_registry_pick() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("registry pick");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("registry pick");
     assert_eq!(result.resolved_via, "npm-registry");
     assert_eq!(result.id.as_str(), "acme@1.1.0");
 }
@@ -174,7 +205,11 @@ async fn workspace_higher_version_shadows_registry_pick() {
         bare_specifier: Some(">=1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace shadow");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace shadow");
     assert_eq!(result.resolved_via, "workspace");
 }
 
@@ -202,7 +237,11 @@ async fn injected_workspace_match_emits_file_resolution() {
         injected: Some(true),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace shadow");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace shadow");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "file:packages/acme");
     match &result.resolution {
@@ -214,7 +253,11 @@ async fn injected_workspace_match_emits_file_resolution() {
 #[tokio::test]
 async fn workspace_fallback_picks_highest_version_for_latest_tag() {
     let mut server = mockito::Server::new_async().await;
-    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -233,7 +276,11 @@ async fn workspace_fallback_picks_highest_version_for_latest_tag() {
         bare_specifier: Some("latest".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace fallback");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme-2.0.0");
 }
@@ -241,7 +288,11 @@ async fn workspace_fallback_picks_highest_version_for_latest_tag() {
 #[tokio::test]
 async fn workspace_fallback_resolves_specific_version_request() {
     let mut server = mockito::Server::new_async().await;
-    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -260,7 +311,11 @@ async fn workspace_fallback_resolves_specific_version_request() {
         bare_specifier: Some("1.1.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace fallback");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme-1.1.0");
 }
@@ -290,7 +345,11 @@ async fn workspace_fallback_kicks_in_when_registry_lacks_requested_version() {
         bare_specifier: Some("100.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace fallback");
     assert_eq!(result.resolved_via, "workspace");
     assert_eq!(result.id.as_str(), "link:../acme");
 }
@@ -298,7 +357,11 @@ async fn workspace_fallback_kicks_in_when_registry_lacks_requested_version() {
 #[tokio::test]
 async fn workspace_version_mismatch_surfaces_for_exact_request_on_registry_404() {
     let mut server = mockito::Server::new_async().await;
-    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -315,10 +378,11 @@ async fn workspace_version_mismatch_surfaces_for_exact_request_on_registry_404()
         .await
         .expect_err("workspace can't satisfy 2.0.0; workspace version mismatch must surface");
     assert!(
-        err.downcast_ref::<ResolveFromWorkspaceError>().is_some_and(|ws_err| matches!(
-            ws_err,
-            ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace { .. }
-        )),
+        err.downcast_ref::<ResolveFromWorkspaceError>()
+            .is_some_and(|ws_err| matches!(
+                ws_err,
+                ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace { .. }
+            )),
         "expected NoMatchingVersionInsideWorkspace, got: {err}",
     );
     let err_msg = err.to_string();
@@ -355,7 +419,11 @@ async fn registry_pick_wins_when_workspace_version_does_not_match() {
         bare_specifier: Some("3.1.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("registry pick");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("registry pick");
     assert_eq!(result.resolved_via, "npm-registry");
     assert_eq!(result.id.as_str(), "acme@3.1.0");
 }
@@ -363,7 +431,11 @@ async fn registry_pick_wins_when_workspace_version_does_not_match() {
 #[tokio::test]
 async fn workspace_version_mismatch_surfaces_for_range_request_on_registry_404() {
     let mut server = mockito::Server::new_async().await;
-    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -431,7 +503,11 @@ async fn workspace_version_mismatch_surfaces_when_registry_lacks_matching_versio
 #[tokio::test]
 async fn workspace_fallback_succeeds_for_range_request_on_registry_404() {
     let mut server = mockito::Server::new_async().await;
-    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (resolver, _tempdir) = build_resolver(&registry);
 
@@ -443,19 +519,27 @@ async fn workspace_fallback_succeeds_for_range_request_on_registry_404() {
         bare_specifier: Some("^1.0.0".to_string()),
         ..WantedDependency::default()
     };
-    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .expect("workspace fallback");
     assert_eq!(result.resolved_via, "workspace");
 }
 
 #[tokio::test]
 async fn non_404_registry_error_not_masked_by_workspace_version_mismatch() {
     let mut server = mockito::Server::new_async().await;
-    let _mock = server.mock("GET", "/acme").with_status(500).create_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(500)
+        .create_async()
+        .await;
     let registry = format!("{}/", server.url());
     let (mut resolver, _tempdir) = build_resolver(&registry);
     // A 5xx is retried with backoff; skip the retries so the test
     // doesn't spend over a minute sleeping.
-    resolver.retry_opts = RetryOpts { retries: 0, ..RetryOpts::default() };
+    resolver.metadata.retry_opts = RetryOpts { retries: 0, ..RetryOpts::default() };
 
     let packages = build_workspace_packages("acme", &["1.0.0"]);
     let opts = workspace_resolve_options(packages);

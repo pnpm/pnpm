@@ -1,9 +1,10 @@
 use super::{
     CliArgs, CliCommand, Config, Context, DefaultReporter, Host, IntoDiagnostic, NdjsonReporter,
-    Path, PathBuf, ReporterType, SilentReporter, SummaryScope, apply_registry_override,
-    apply_state_dir_override, apply_store_dir_override, configure_color, default_pnpm_home_dir,
-    now_millis, prepare_config, prints_json_errors,
+    Path, PathBuf, ReporterType, SilentReporter, SummaryScope, apply_state_dir_override,
+    apply_store_dir_override, configure_color, default_pnpm_home_dir, now_millis, prepare_config,
+    prints_json_errors,
 };
+use crate::config_overrides::apply_registry_override;
 
 /// The directories a run is anchored at.
 pub(super) struct RunAnchors {
@@ -32,10 +33,12 @@ impl RunAnchors {
     /// becomes `config.dir` (used as the install `lockfileDir`, threaded
     /// into every event's `prefix`).
     pub(super) fn resolve(args: &CliArgs) -> miette::Result<Self> {
-        let dir = dunce::canonicalize(&args.dir).into_diagnostic().wrap_err_with(|| {
-            format!("canonicalizing the `--dir` argument: {}", args.dir.display())
-        })?;
-        let cli_dir = if args.dir_from_command_line {
+        let dir = dunce::canonicalize(&args.paths.dir)
+            .into_diagnostic()
+            .wrap_err_with(|| {
+                format!("canonicalizing the `--dir` argument: {}", args.paths.dir.display())
+            })?;
+        let cli_dir = if args.paths.dir_from_command_line {
             dir.clone()
         } else {
             std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_else(|_| dir.clone())
@@ -92,7 +95,7 @@ impl RunSetup {
             print_json_errors: prints_json_errors(&args.command),
             recursive_by_default: args.command.recursive_by_default(),
             summary_scope: args.command.default_reporter_summary_scope(),
-            reports_scope: args.command.reports_scope(args.recursive),
+            reports_scope: args.command.reports_scope(args.workspace.recursive),
             uses_stderr_reporter: args.command.uses_stderr_reporter(),
         }
     }
@@ -104,7 +107,10 @@ impl RunSetup {
 /// turbofish `Host` explicitly so the dependency-injection plumbing is
 /// visible at the call site. See
 /// [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339).
-pub(super) fn seed_config(npmrc_auth_file: Option<&Path>, ignore_workspace: bool) -> Config {
+pub(in crate::cli_args) fn seed_config(
+    npmrc_auth_file: Option<&Path>,
+    ignore_workspace: bool,
+) -> Config {
     Config {
         npmrc_auth_file: npmrc_auth_file.map(Path::to_path_buf),
         ignore_workspace,
@@ -200,7 +206,9 @@ pub(super) fn apply_output_overrides(cfg: &mut Config, overrides: &OutputOverrid
         cfg.test_pattern = overrides.test_pattern.to_vec();
     }
     if !overrides.changed_files_ignore_pattern.is_empty() {
-        cfg.changed_files_ignore_pattern = overrides.changed_files_ignore_pattern.to_vec();
+        cfg.changed_files_ignore_pattern = overrides
+            .changed_files_ignore_pattern
+            .to_vec();
     }
     if let Some(workspace_concurrency) = overrides.workspace_concurrency {
         cfg.workspace_concurrency =
@@ -214,7 +222,7 @@ pub(super) fn apply_output_overrides(cfg: &mut Config, overrides: &OutputOverrid
 /// processes the command starts. pnpm applies them once per invocation,
 /// whatever the command.
 ///
-/// Every [`RunCtx::config`](super::RunCtx::config) call yields a fresh `Config`, so the pass has to
+/// Every [`CommandLoaders::config`](super::CommandLoaders::config) call yields a fresh `Config`, so the pass has to
 /// run on the instance the handler goes on to use — it cannot be hoisted ahead
 /// of [`route`](super::routing::route). The install family and pack/publish apply the same pass at
 /// their own entry points, where they already hold that instance.

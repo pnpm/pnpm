@@ -160,15 +160,28 @@ fn is_valid_interval(lower: &Bound<Version>, upper: &Bound<Version>) -> bool {
 pub(super) fn normalize_version_str(version_raw: &str) -> String {
     let version_raw = version_raw.trim();
     let version_parts: Vec<&str> = version_raw.split('.').collect();
-    let numeric: Vec<String> =
-        version_parts.iter().take(3).map(|part| part.replace(['x', 'X', '*'], "0")).collect();
-    if !numeric.iter().all(|part| part.chars().all(|character| character.is_ascii_digit())) {
+    let numeric: Vec<String> = version_parts
+        .iter()
+        .take(3)
+        .map(|part| part.replace(['x', 'X', '*'], "0"))
+        .collect();
+    if !numeric
+        .iter()
+        .all(|part| part.chars().all(|character| character.is_ascii_digit()))
+    {
         return version_raw.to_string();
     }
     let mut padded = numeric;
     padded.resize(3, "0".to_string());
-    let rest = version_parts.get(3..).unwrap_or_default();
-    padded.iter().map(String::as_str).chain(rest.iter().copied()).collect::<Vec<_>>().join(".")
+    let rest = version_parts
+        .get(3..)
+        .unwrap_or_default();
+    padded
+        .iter()
+        .map(String::as_str)
+        .chain(rest.iter().copied())
+        .collect::<Vec<_>>()
+        .join(".")
 }
 
 /// How many of `major.minor.patch` a range's version actually pins.
@@ -179,8 +192,15 @@ pub(super) fn normalize_version_str(version_raw: &str) -> String {
 fn version_specificity(version_raw: &str) -> usize {
     let mut specificity = 0;
     for part in version_raw.trim().split('.') {
-        let head = part.split(['-', '+']).next().unwrap_or(part);
-        if head.is_empty() || head.chars().all(|character| matches!(character, 'x' | 'X' | '*')) {
+        let head = part
+            .split(['-', '+'])
+            .next()
+            .unwrap_or(part);
+        if head.is_empty()
+            || head
+                .chars()
+                .all(|character| matches!(character, 'x' | 'X' | '*'))
+        {
             break;
         }
         specificity += 1;
@@ -320,7 +340,11 @@ pub(super) fn preprocess_hyphen_ranges(range: &str) -> String {
 
 pub(super) fn parse_range_to_intervals(range: &str) -> Option<Vec<Interval>> {
     let mut intervals = Vec::new();
-    for part in range.split("||").map(str::trim).filter(|part| !part.is_empty()) {
+    for part in range
+        .split("||")
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+    {
         let part_interval = parse_comparator_set(part)?;
         if is_valid_interval(&part_interval.lower, &part_interval.upper) {
             intervals.push(part_interval);

@@ -9,8 +9,10 @@
 /// output through the characters masking leaves behind.
 #[must_use]
 pub fn hide_auth_information(auth_header_value: &str) -> String {
-    let sanitized: String =
-        auth_header_value.chars().filter(|character| !character.is_control()).collect();
+    let sanitized: String = auth_header_value
+        .chars()
+        .filter(|character| !character.is_control())
+        .collect();
     let mut parts = sanitized.split(' ');
     let auth_type = parts.next().unwrap_or_default();
     let Some(token) = parts.next() else {
@@ -82,7 +84,9 @@ pub fn redact_url_for_display(url: &str) -> String {
 }
 
 fn sanitize_control_characters(text: &str) -> String {
-    text.chars().filter(|character| !character.is_control()).collect()
+    text.chars()
+        .filter(|character| !character.is_control())
+        .collect()
 }
 
 /// [`redact_and_sanitize`] for text whose line breaks are worth keeping, such
@@ -96,7 +100,11 @@ fn sanitize_control_characters(text: &str) -> String {
 #[must_use]
 pub fn redact_and_sanitize_multiline(text: &str) -> String {
     let collapsed = redact_and_sanitize(text);
-    let per_line = text.split('\n').map(redact_and_sanitize).collect::<Vec<_>>().join("\n");
+    let per_line = text
+        .split('\n')
+        .map(redact_and_sanitize)
+        .collect::<Vec<_>>()
+        .join("\n");
     if per_line.replace('\n', "") == collapsed { per_line } else { collapsed }
 }
 

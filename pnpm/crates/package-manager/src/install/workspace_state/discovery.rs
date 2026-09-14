@@ -49,8 +49,10 @@ pub fn check_deps_status_before_run_at(
         GateManifest::NoManifest => return None,
         GateManifest::Unreadable => return cannot_check_deps(),
     };
-    let Ok(workspace_manifest) =
-        workspace_dir_opt.as_deref().map(pnpm_workspace::read_workspace_manifest).transpose()
+    let Ok(workspace_manifest) = workspace_dir_opt
+        .as_deref()
+        .map(pnpm_workspace::read_workspace_manifest)
+        .transpose()
     else {
         return cannot_check_deps();
     };
@@ -109,27 +111,29 @@ pub(super) fn check_discovered_deps(
         &OptimisticRepeatInstallCheck {
             workspace_root: lockfile_root,
             config,
-            node_linker: config.node_linker,
-            supported_architectures: config.supported_architectures.as_ref(),
-            // The gate ignores dependency-group drift, so the groups only
-            // shape the settings snapshot written back after a passing
-            // content check — where the recorded values win anyway.
-            included: IncludedDependencies {
-                dependencies: true,
-                dev_dependencies: true,
-                optional_dependencies: true,
-            },
             project_manifests: &project_manifests,
             is_workspace_install: workspace_manifest.is_some(),
             lockfile: MaybeLazyLockfile::Lazy(&lazy_wanted_lockfile(config, lockfile_root)),
             catalogs: &catalogs,
+            layout: crate::RepeatInstallLayout {
+                node_linker: config.node_linker,
+                supported_architectures: config.supported_architectures.as_ref(),
+                // The gate ignores dependency-group drift, so the groups only
+                // shape the settings snapshot written back after a passing
+                // content check — where the recorded values win anyway.
+                included: IncludedDependencies {
+                    dependencies: true,
+                    dev_dependencies: true,
+                    optional_dependencies: true,
+                },
+            },
         },
         workspace_state,
     ))
 }
 /// The manifest the verify-deps gate compares against.
 pub(super) enum GateManifest {
-    Found(PackageManifest),
+    Found(Box<PackageManifest>),
     /// No manifest to check against, so the gate has nothing to say.
     NoManifest,
     Unreadable,
@@ -140,7 +144,7 @@ pub(super) fn read_gate_manifest(
     shares_one_lockfile: bool,
 ) -> GateManifest {
     match pnpm_workspace::read_project_manifest_only(manifest_dir) {
-        Ok(manifest) => GateManifest::Found(manifest),
+        Ok(manifest) => GateManifest::Found(Box::new(manifest)),
         Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
             if !in_workspace || !shares_one_lockfile =>
         {

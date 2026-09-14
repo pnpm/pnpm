@@ -19,7 +19,9 @@ pub(super) fn specialized_pattern(pattern: &str) -> Option<SpecializedPattern<'_
 }
 
 fn is_safe_relative_literal(pattern: &str) -> bool {
-    !pattern.chars().any(|ch| ch == '\\' || wax::is_meta_character(ch))
+    !pattern
+        .chars()
+        .any(|ch| ch == '\\' || wax::is_meta_character(ch))
         && !pattern.starts_with('/')
         && pattern
             .split('/')
@@ -27,7 +29,10 @@ fn is_safe_relative_literal(pattern: &str) -> bool {
 }
 
 pub(super) fn normalize_manifest_patterns(pattern: &str) -> Vec<String> {
-    PROJECT_MANIFEST_BASENAMES.iter().map(|basename| format!("{pattern}/{basename}")).collect()
+    PROJECT_MANIFEST_BASENAMES
+        .iter()
+        .map(|basename| format!("{pattern}/{basename}"))
+        .collect()
 }
 
 pub(super) fn collect_manifests_in_children(
@@ -101,8 +106,8 @@ fn for_each_directory_entry(
         Err(source) => return Err(workspace_walk_error(workspace_root, source)),
     };
     for entry in entries {
-        if let Some(entry) = ignore_not_found(entry)
-            .map_err(|source| workspace_walk_error(workspace_root, source))?
+        if let Some(entry) =
+            ignore_not_found(entry).map_err(|source| workspace_walk_error(workspace_root, source))?
         {
             visit(entry)?;
         }
@@ -141,12 +146,13 @@ fn is_ignored_manifest(
 /// match without running the glob engine once per candidate.
 fn has_always_ignored_component(path: &Path) -> bool {
     use std::path::Component;
-    path.components().any(|component| {
-        matches!(
-            component,
-            Component::Normal(name) if name == "node_modules" || name == "bower_components",
-        )
-    })
+    path.components()
+        .any(|component| {
+            matches!(
+                component,
+                Component::Normal(name) if name == "node_modules" || name == "bower_components",
+            )
+        })
 }
 
 /// Strip the pattern's leading `../` components, walking `workspace_root`
@@ -247,5 +253,7 @@ fn starts_with_dot(name: &std::ffi::OsStr) -> bool {
 }
 
 pub(super) fn is_literal_pattern(pattern: &str) -> bool {
-    !pattern.chars().any(|ch| matches!(ch, '*' | '?' | '[' | ']' | '{' | '}'))
+    !pattern
+        .chars()
+        .any(|ch| matches!(ch, '*' | '?' | '[' | ']' | '{' | '}'))
 }

@@ -62,10 +62,11 @@ pub(crate) fn package_manager_to_sync(
     }
     // A range pin names no exact version, so the running pnpm's version is
     // the one the project actually uses.
-    version_satisfies(PNPM_VERSION, wanted_version).then(|| PackageManagerToSync {
-        specifier: wanted_version.to_string(),
-        version: PNPM_VERSION.to_string(),
-    })
+    version_satisfies(PNPM_VERSION, wanted_version)
+        .then(|| PackageManagerToSync {
+            specifier: wanted_version.to_string(),
+            version: PNPM_VERSION.to_string(),
+        })
 }
 
 /// The root project's `package.json` as raw JSON, for the config-load
@@ -88,7 +89,9 @@ pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
 
 pub(crate) fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageManager> {
     if let Some(mut pm) = parse_dev_engines_package_manager(manifest) {
-        if pm.version.as_deref().is_some_and(|version| node_semver::Range::parse(version).is_err())
+        if pm.version
+            .as_deref()
+            .is_some_and(|version| node_semver::Range::parse(version).is_err())
         {
             pm.version = None;
         }
@@ -102,7 +105,10 @@ pub(crate) fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageMa
 
 fn parse_dev_engines_package_manager(manifest: &Value) -> Option<WantedPackageManager> {
     let entries: Vec<&Value> = dev_engines_package_managers(manifest).collect();
-    let declared_as_list = manifest.get("devEngines")?.get("packageManager")?.is_array();
+    let declared_as_list = manifest
+        .get("devEngines")?
+        .get("packageManager")?
+        .is_array();
     let (index, entry) = if declared_as_list {
         // pnpm's own entry is the one that governs this CLI; without one,
         // the first entry does.
@@ -114,8 +120,11 @@ fn parse_dev_engines_package_manager(manifest: &Value) -> Option<WantedPackageMa
     } else {
         (None, *entries.first()?)
     };
-    let on_fail =
-        entry.get("onFail").and_then(Value::as_str).map(ToString::to_string).or_else(|| {
+    let on_fail = entry
+        .get("onFail")
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+        .or_else(|| {
             let index = index?;
             Some(if index == entries.len() - 1 { "error" } else { "ignore" }.to_string())
         });
@@ -129,7 +138,10 @@ fn package_manager_from_engine(
 ) -> Option<WantedPackageManager> {
     Some(WantedPackageManager {
         name: value.get("name")?.as_str()?.to_string(),
-        version: value.get("version").and_then(Value::as_str).map(ToString::to_string),
+        version: value
+            .get("version")
+            .and_then(Value::as_str)
+            .map(ToString::to_string),
         from_dev_engines,
         on_fail,
     })
@@ -162,9 +174,15 @@ pub(crate) fn current_source_pnpm_version() -> Option<String> {
 }
 
 fn pnpm_version_from(root_dir: &Path) -> Option<String> {
-    let path = root_dir.join("pnpm11").join("pnpm").join("package.json");
+    let path = root_dir
+        .join("pnpm11")
+        .join("pnpm")
+        .join("package.json");
     let value = read_manifest_json(&path).ok()??;
-    value.get("version").and_then(Value::as_str).map(ToString::to_string)
+    value
+        .get("version")
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
 }
 
 /// The one version `version` pins, or `None` when it pins a range, a

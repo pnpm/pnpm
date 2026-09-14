@@ -46,7 +46,10 @@ async fn test_registry_package_name_defaults_to_latest() {
         &config.network_settings(),
     )
     .expect("create HTTP client");
-    let registries = config.resolved_registries().into_iter().collect::<HashMap<_, _>>();
+    let registries = config
+        .resolved_registries()
+        .into_iter()
+        .collect::<HashMap<_, _>>();
 
     let url = get_repo_url_from_registry(
         &config,
@@ -71,7 +74,10 @@ async fn test_opens_repository_url_from_local_manifest() {
 
     impl OpenUrlAndWait for RecordingBrowser {
         fn open_url_and_wait(url: &str) -> io::Result<()> {
-            OPENED_URLS.lock().unwrap().push(url.to_owned());
+            OPENED_URLS
+                .lock()
+                .unwrap()
+                .push(url.to_owned());
             Ok(())
         }
     }

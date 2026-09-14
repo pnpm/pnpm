@@ -307,8 +307,10 @@ impl SharedArtifactStore {
                 variants.push(ArtifactVariant { envelope });
             }
         }
-        Ok((!variants.is_empty())
-            .then(|| ResolvedArtifact { key: candidate.key.clone(), variants }))
+        Ok((!variants.is_empty()).then(|| ResolvedArtifact {
+            key: candidate.key.clone(),
+            variants,
+        }))
     }
 
     #[cfg(test)]
@@ -374,9 +376,10 @@ fn verify_stored_blob(id: &str, integrity: &str, size: u64, bytes: &[u8]) -> Res
             ),
         });
     }
-    verify_blob(integrity, bytes).map_err(|err| RegistryError::Internal {
-        reason: format!("stored shared artifact blob failed verification: {err}"),
-    })
+    verify_blob(integrity, bytes)
+        .map_err(|err| RegistryError::Internal {
+            reason: format!("stored shared artifact blob failed verification: {err}"),
+        })
 }
 
 fn stored_object_too_large(size: u64, max_size: u64) -> RegistryError {
@@ -390,7 +393,9 @@ async fn acquire_artifact_lock(path: PathBuf) -> Result<File> {
     loop {
         match file.try_lock() {
             Ok(()) => return Ok(file),
-            Err(TryLockError::WouldBlock) => sleep(ARTIFACT_LOCK_POLL_INTERVAL).await,
+            Err(TryLockError::WouldBlock) => {
+                sleep(ARTIFACT_LOCK_POLL_INTERVAL).await;
+            }
             Err(TryLockError::Error(error)) => return Err(error.into()),
         }
     }
@@ -400,7 +405,12 @@ fn open_lock_file(path: &Path) -> std::io::Result<File> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    OpenOptions::new().read(true).write(true).create(true).truncate(false).open(path)
+    OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(path)
 }
 
 fn is_write_conflict(error: &object_store::Error) -> bool {

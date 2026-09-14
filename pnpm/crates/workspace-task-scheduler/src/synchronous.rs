@@ -16,8 +16,10 @@ where
     Run: Fn(&TaskNode) -> TaskCompletion + Sync,
     Skip: Fn(&TaskNode) + Sync,
 {
-    let dependencies: IndexMap<TaskKey, Vec<TaskKey>> =
-        graph.iter().map(|(key, node)| (key.clone(), node.dependencies.clone())).collect();
+    let dependencies: IndexMap<TaskKey, Vec<TaskKey>> = graph
+        .iter()
+        .map(|(key, node)| (key.clone(), node.dependencies.clone()))
+        .collect();
     let run_node = |key: TaskKey| {
         let node = &graph[&key];
         if node.scripts.is_empty() {
@@ -78,7 +80,10 @@ where
         graph,
         options,
         dependents,
-        concurrency_limits: graph.keys().map(concurrency_limit).collect(),
+        concurrency_limits: graph
+            .keys()
+            .map(concurrency_limit)
+            .collect(),
     };
     let state =
         Mutex::new(initial_scheduler_state(pending_dependencies, &scheduling.concurrency_limits));
@@ -87,8 +92,7 @@ where
     let workers = options.concurrency.max(1).min(graph.len());
     std::thread::scope(|scope| -> Result<(), std::io::Error> {
         for _ in 0..workers {
-            std::thread::Builder::new()
-                .spawn_scoped(scope, || scheduling.work(&state, &progress))?;
+            std::thread::Builder::new().spawn_scoped(scope, || scheduling.work(&state, &progress))?;
         }
         Ok(())
     })
@@ -98,19 +102,27 @@ pub(super) fn node_edges<Node: Clone + Eq + std::hash::Hash>(
     graph: &IndexMap<Node, Vec<Node>>,
 ) -> NodeEdges {
     let order = sequenced_order(graph);
-    let order_index: HashMap<&Node, usize> =
-        order.iter().enumerate().map(|(index, node)| (node, index)).collect();
-    let index_of: HashMap<&Node, usize> =
-        graph.keys().enumerate().map(|(index, key)| (key, index)).collect();
+    let order_index: HashMap<&Node, usize> = order
+        .iter()
+        .enumerate()
+        .map(|(index, node)| (node, index))
+        .collect();
+    let index_of: HashMap<&Node, usize> = graph
+        .keys()
+        .enumerate()
+        .map(|(index, key)| (key, index))
+        .collect();
 
     let mut dependents: Vec<Vec<usize>> = vec![Vec::new(); graph.len()];
     let mut pending_dependencies: Vec<usize> = vec![0; graph.len()];
     for (index, (node, dependencies)) in graph.iter().enumerate() {
-        let dependencies = dependencies.iter().filter(|dependency| {
-            order_index
-                .get(*dependency)
-                .is_some_and(|dependency_index| *dependency_index < order_index[node])
-        });
+        let dependencies = dependencies
+            .iter()
+            .filter(|dependency| {
+                order_index
+                    .get(*dependency)
+                    .is_some_and(|dependency_index| *dependency_index < order_index[node])
+            });
         for dependency in dependencies {
             pending_dependencies[index] += 1;
             dependents[index_of[dependency]].push(index);
@@ -127,8 +139,10 @@ fn sequenced_order<Node: Clone + Eq + std::hash::Hash>(
     graph: &IndexMap<Node, Vec<Node>>,
 ) -> Vec<Node> {
     let included: Vec<Node> = graph.keys().cloned().collect();
-    let edges: HashMap<Node, Vec<Node>> =
-        graph.iter().map(|(node, dependencies)| (node.clone(), dependencies.clone())).collect();
+    let edges: HashMap<Node, Vec<Node>> = graph
+        .iter()
+        .map(|(node, dependencies)| (node.clone(), dependencies.clone()))
+        .collect();
     graph_sequencer(&edges, &included).order
 }
 
@@ -177,7 +191,11 @@ where
             guard = returned;
             let Some(index) = ready else { return };
 
-            let node = self.graph.get_index(index).expect("graph index exists").0.clone();
+            let node = self.graph
+                .get_index(index)
+                .expect("graph index exists")
+                .0
+                .clone();
             guard.in_flight += 1;
             drop(guard);
             // A panic in `run_node` must not strand the other

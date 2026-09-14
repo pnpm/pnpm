@@ -122,8 +122,10 @@ fn get_registry_name_escapes_delimiters() {
         "https://npm.example/a%2Fb/",
         "https://npm.example/a%3Ab/",
     ];
-    let mut keys: Vec<String> =
-        distinct.iter().map(|url| get_registry_name(url).expect("encode")).collect();
+    let mut keys: Vec<String> = distinct
+        .iter()
+        .map(|url| get_registry_name(url).expect("encode"))
+        .collect();
     keys.sort();
     let key_count = keys.len();
     keys.dedup();
@@ -382,7 +384,10 @@ fn fixture_package() -> Package {
 #[test]
 fn load_meta_headers_round_trip() {
     let dir = TempDir::new().expect("tmp dir");
-    let mirror = dir.path().join("nested").join("lodash.jsonl");
+    let mirror = dir
+        .path()
+        .join("nested")
+        .join("lodash.jsonl");
     let pkg = fixture_package();
     save_meta_indexed(&mirror, &pkg, Some(r#"W/"abc""#)).expect("save");
     let headers = load_meta_headers(&mirror).expect("read headers back");
@@ -471,9 +476,13 @@ fn load_meta_past_the_hold_cap_ignores_a_sparse_tail() {
     let mirror = dir.path().join("acme.jsonl");
     let pkg = fixture_package();
     save_meta_indexed(&mirror, &pkg, None).expect("save");
-    let file = std::fs::OpenOptions::new().write(true).open(&mirror).expect("open");
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&mirror)
+        .expect("open");
     let size = file.metadata().expect("metadata").len();
-    file.set_len(size + 64 * 1024 * 1024).expect("extend sparsely");
+    file.set_len(size + 64 * 1024 * 1024)
+        .expect("extend sparsely");
     let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
     let manifest = loaded.versions.get("1.0.0").expect("hydrate from buffered fragment");
     assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
@@ -493,8 +502,12 @@ fn load_meta_past_the_hold_cap_skips_a_sparse_gap_between_spans() {
     let contents =
         format!("pacquet-meta-v1 {} {}\n{headers}{index}{fragment}", headers.len(), index.len());
     std::fs::write(&mirror, &contents).expect("write");
-    let file = std::fs::OpenOptions::new().write(true).open(&mirror).expect("open");
-    file.set_len(contents.len() as u64 + far_offset + 16).expect("extend sparsely");
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&mirror)
+        .expect("open");
+    file.set_len(contents.len() as u64 + far_offset + 16)
+        .expect("extend sparsely");
     let loaded = load_meta_with_hold_cap(&mirror, 0).expect("read full back without a handle");
     let manifest = loaded.versions.get("1.0.0").expect("hydrate the near fragment");
     assert_eq!(manifest.dist.tarball, "https://registry/acme-1.0.0.tgz");
@@ -520,8 +533,12 @@ fn load_meta_treats_an_oversized_fragment_span_as_absent() {
     std::fs::write(&mirror, &contents).expect("write");
     // A sparse tail makes the file size cover the declared span
     // without paying for the bytes, like a corrupt mirror would.
-    let file = std::fs::OpenOptions::new().write(true).open(&mirror).expect("open");
-    file.set_len(contents.len() as u64 + 64 * 1024 * 1024).expect("extend sparsely");
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&mirror)
+        .expect("open");
+    file.set_len(contents.len() as u64 + 64 * 1024 * 1024)
+        .expect("extend sparsely");
     let loaded = load_meta(&mirror).expect("read full back");
     assert!(loaded.versions.get("9.9.9").is_none(), "oversized span must read as absent");
     let manifest = loaded.versions.get("1.0.0").expect("hydrate the in-bounds fragment");

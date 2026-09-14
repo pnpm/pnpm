@@ -36,7 +36,11 @@ fn restart_runs_stop_restart_start_in_order() {
         .run(dir, &config, ReporterType::Silent)
         .expect("restart should succeed");
     let content = std::fs::read_to_string(&log_file).expect("read log file");
-    let lines: Vec<&str> = content.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
+    let lines: Vec<&str> = content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
     assert_eq!(lines, vec!["stop", "restart", "start"]);
 }
 
@@ -88,7 +92,11 @@ fn restart_passes_args_to_each_script() {
         .run(dir, &config, ReporterType::Silent)
         .expect("restart should succeed");
     let content = std::fs::read_to_string(&log_file).expect("read log file");
-    let lines: Vec<&str> = content.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
+    let lines: Vec<&str> = content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
     assert_eq!(lines, vec!["stop myarg", "restart myarg", "start myarg"]);
 }
 

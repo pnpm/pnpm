@@ -79,7 +79,8 @@ fn strip_last_segment(key: &str) -> String {
 
 /// If `text` starts with `prefix`, replace that prefix with `//`.
 fn replace_prefix(text: &str, prefix: &str) -> Option<String> {
-    text.strip_prefix(prefix).map(|rest| format!("//{rest}"))
+    text.strip_prefix(prefix)
+        .map(|rest| format!("//{rest}"))
 }
 
 /// Ensure `text` ends with a single trailing slash.

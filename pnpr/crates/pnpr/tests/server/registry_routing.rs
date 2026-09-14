@@ -20,8 +20,14 @@ async fn scoped_packument_is_served() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
-    let response =
-        app.oneshot(Request::get("/@types/node").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/@types/node")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     mock.assert_async().await;
 }
@@ -47,7 +53,13 @@ async fn every_address_of_one_scoped_package_reaches_it() {
         let app = app.clone();
         let path = path.to_string();
         async move {
-            app.oneshot(Request::get(path.as_str()).body(Body::empty()).unwrap()).await.unwrap()
+            app.oneshot(
+                Request::get(path.as_str())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
         }
     };
 
@@ -87,8 +99,14 @@ async fn invalid_package_name_returns_bad_request() {
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     // `.hidden` trips the dot-prefix rejection in `CanonicalPackageName::parse`.
-    let response =
-        app.oneshot(Request::get("/.hidden").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/.hidden")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
@@ -107,7 +125,9 @@ async fn router_routes_each_package_to_its_declared_source() {
     let corp_tar = app
         .clone()
         .oneshot(
-            Request::get("/~main/@corp/secret/-/secret-1.0.0.tgz").body(Body::empty()).unwrap(),
+            Request::get("/~main/@corp/secret/-/secret-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -117,7 +137,11 @@ async fn router_routes_each_package_to_its_declared_source() {
     // Everything else falls to the npmjs upstream via the `**` route.
     let public_tar = app
         .clone()
-        .oneshot(Request::get("/~main/lodash/-/lodash-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/~main/lodash/-/lodash-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(public_tar.status(), StatusCode::OK);
@@ -126,7 +150,11 @@ async fn router_routes_each_package_to_its_declared_source() {
     // The path-less base aliases the `main` router (the default target), so the
     // bare host routes identically.
     let bare = app
-        .oneshot(Request::get("/lodash/-/lodash-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/lodash/-/lodash-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(bare.status(), StatusCode::OK);
@@ -143,14 +171,20 @@ async fn router_not_found_does_not_fall_through_to_public() {
     // server-owned credential) is consulted.
     let mut corp = mockito::Server::new_async().await;
     let _ = mock_package(&mut corp, "@corp/secret", "private").await;
-    let off_pattern_fetch = corp.mock("GET", "/lodash").expect(0).create_async().await;
+    let off_pattern_fetch = corp
+        .mock("GET", "/lodash")
+        .expect(0)
+        .create_async()
+        .await;
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    let mut corp_upstream =
-        config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+    let mut corp_upstream = config.routing.upstreams
+        .get("npmjs")
+        .expect("default `npmjs` upstream")
+        .clone();
     corp_upstream.url = corp.url();
-    config.upstreams.insert("corp".to_string(), corp_upstream);
+    config.routing.upstreams.insert("corp".to_string(), corp_upstream);
     let graph = vec![
         (
             "corp".to_string(),
@@ -160,13 +194,18 @@ async fn router_not_found_does_not_fall_through_to_public() {
         ),
         ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
-    config.registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    config.routing.registries =
+        Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let app = router_with_auth(config, AuthState::in_memory());
 
     // The claimed private scope still serves.
     let matched = app
         .clone()
-        .oneshot(Request::get("/~main/@corp/secret").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/~main/@corp/secret")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(matched.status(), StatusCode::OK);
@@ -174,15 +213,25 @@ async fn router_not_found_does_not_fall_through_to_public() {
     // An unclaimed public name is a definitive not-found, not a fall-through.
     let unclaimed = app
         .clone()
-        .oneshot(Request::get("/~main/lodash").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/~main/lodash")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(unclaimed.status(), StatusCode::NOT_FOUND);
 
     // Addressing the upstream registry directly is bounded the same way, without
     // an upstream fetch.
-    let direct =
-        app.oneshot(Request::get("/~corp/lodash").body(Body::empty()).unwrap()).await.unwrap();
+    let direct = app
+        .oneshot(
+            Request::get("/~corp/lodash")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(direct.status(), StatusCode::NOT_FOUND);
     off_pattern_fetch.assert_async().await;
 }
@@ -195,10 +244,12 @@ async fn router_unavailable_source_errors_not_404() {
     let tmp = TempDir::new().unwrap();
     // Point `corp` at a closed port so every fetch is a transport failure.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    let mut corp_upstream =
-        config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+    let mut corp_upstream = config.routing.upstreams
+        .get("npmjs")
+        .expect("default `npmjs` upstream")
+        .clone();
     corp_upstream.url = "http://127.0.0.1:1".to_string();
-    config.upstreams.insert("corp".to_string(), corp_upstream);
+    config.routing.upstreams.insert("corp".to_string(), corp_upstream);
     let graph = vec![
         (
             "corp".to_string(),
@@ -208,11 +259,16 @@ async fn router_unavailable_source_errors_not_404() {
         ),
         ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
-    config.registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    config.routing.registries =
+        Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let app = router_with_auth(config, AuthState::in_memory());
 
     let response = app
-        .oneshot(Request::get("/~main/@corp/secret").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/~main/@corp/secret")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_ne!(response.status(), StatusCode::NOT_FOUND);
@@ -226,7 +282,7 @@ async fn router_unavailable_source_errors_not_404() {
 async fn building_the_server_rejects_an_invalid_programmatic_registry_graph() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.registries = Registries::new(
+    config.routing.registries = Registries::new(
         vec![("main".to_string(), Registry::Router { sources: vec!["ghost".to_string()] })]
             .into_iter()
             .collect(),
@@ -246,7 +302,7 @@ async fn building_the_server_rejects_a_concrete_registry_without_serving_config(
 
     // A hosted graph entry with no hosted-table row.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.registries = Registries::new(
+    config.routing.registries = Registries::new(
         vec![("ghost-org".to_string(), Registry::Hosted { patterns: vec![] })]
             .into_iter()
             .collect(),
@@ -257,7 +313,7 @@ async fn building_the_server_rejects_a_concrete_registry_without_serving_config(
 
     // An upstream graph entry with no upstream serving config.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.registries = Registries::new(
+    config.routing.registries = Registries::new(
         vec![("phantom".to_string(), Registry::Upstream { patterns: vec![] })]
             .into_iter()
             .collect(),
@@ -276,7 +332,7 @@ async fn building_the_server_rejects_a_name_shared_by_two_registry_kinds() {
 
     // Upstream serving config under a name the graph declares as hosted.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.registries = Registries::new(
+    config.routing.registries = Registries::new(
         vec![("npmjs".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
@@ -285,8 +341,8 @@ async fn building_the_server_rejects_a_name_shared_by_two_registry_kinds() {
 
     // A hosted serving row under a name the graph declares as a router.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted.insert("corp".to_string(), hosted_with_access("corp", "$all"));
-    config.registries = Registries::new(
+    config.routing.hosted.insert("corp".to_string(), hosted_with_access("corp", "$all"));
+    config.routing.registries = Registries::new(
         vec![("corp".to_string(), Registry::Router { sources: vec!["npmjs".to_string()] })]
             .into_iter()
             .collect(),
@@ -308,7 +364,7 @@ async fn building_the_server_rejects_a_name_shared_by_two_registry_kinds() {
 async fn identity_endpoints_are_served_under_any_registry_prefix() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     // Login against a registry prefix that is NOT a defined registry.
@@ -326,9 +382,16 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
             .body(Body::from(serde_json::to_vec(&registration).unwrap()))
             .unwrap()
     };
-    let logged_in = app.clone().oneshot(login()).await.unwrap();
+    let logged_in = app
+        .clone()
+        .oneshot(login())
+        .await
+        .unwrap();
     assert_eq!(logged_in.status(), StatusCode::CREATED);
-    let token = body_json(logged_in.into_body()).await["token"].as_str().unwrap().to_string();
+    let token = body_json(logged_in.into_body()).await["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     // whoami, profile, and token list answer under the same prefix.
     for path in ["/~corp/-/whoami", "/~corp/-/npm/v1/user", "/~corp/-/npm/v1/tokens"] {
@@ -374,9 +437,16 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
 
     // Log back in and out (`npm logout` sends the raw token in the URL);
     // afterwards the token no longer authenticates.
-    let logged_in = app.clone().oneshot(login()).await.unwrap();
+    let logged_in = app
+        .clone()
+        .oneshot(login())
+        .await
+        .unwrap();
     assert_eq!(logged_in.status(), StatusCode::CREATED);
-    let token = body_json(logged_in.into_body()).await["token"].as_str().unwrap().to_string();
+    let token = body_json(logged_in.into_body()).await["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let logout = app
         .clone()
         .oneshot(
@@ -403,8 +473,15 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
     // No existence oracle: anonymous whoami answers 401 identically whether
     // or not the prefix names a real registry (`npmjs` is defined by config_for).
     for path in ["/~corp/-/whoami", "/~npmjs/-/whoami"] {
-        let response =
-            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "GET {path}");
     }
 }
@@ -416,12 +493,19 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
 async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_endpoints() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     for path in ["/~/-/whoami", "/corp/-/npm/v1/tokens", "/~/-/npm/v1/user"] {
-        let response =
-            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "GET {path}");
     }
 
@@ -429,8 +513,14 @@ async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_e
     // file `whoami` — so it reads through the registry graph instead of
     // answering as whoami. The configured upstream is unreachable, which is
     // what a package read of it reports.
-    let tarball_shaped =
-        app.oneshot(Request::get("/corp/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
+    let tarball_shaped = app
+        .oneshot(
+            Request::get("/corp/-/whoami")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(tarball_shaped.status(), StatusCode::SERVICE_UNAVAILABLE);
 }
 
@@ -442,7 +532,7 @@ async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_e
 async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     for (method, path) in [
@@ -457,7 +547,13 @@ async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
     ] {
         let response = app
             .clone()
-            .oneshot(Request::builder().method(method).uri(path).body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {path}");
@@ -468,7 +564,7 @@ async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
 async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     for (method, path) in [
@@ -482,7 +578,13 @@ async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
     ] {
         let response = app
             .clone()
-            .oneshot(Request::builder().method(method).uri(path).body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED, "{method} {path}");
@@ -496,11 +598,17 @@ async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
 async fn a_prefix_that_is_not_valid_utf8_is_not_found() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
-    let response =
-        app.oneshot(Request::get("/%ff/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/%ff/-/whoami")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
@@ -524,7 +632,14 @@ async fn url_delimiters_in_a_package_name_are_rejected() {
 
     for path in ["/foo%23bar", "/foo%3Fbar", "/foo%25bar", "/foo%20bar"] {
         let app = router(config.clone());
-        let response = app.oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{path}");
     }
     bare.assert_async().await;
@@ -546,10 +661,21 @@ async fn a_single_npm_ecosystem_answers_at_the_root() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
-    let doc = app.clone().oneshot(Request::get("/npm").body(Body::empty()).unwrap()).await.unwrap();
+    let doc = app
+        .clone()
+        .oneshot(
+            Request::get("/npm")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(doc.status(), StatusCode::OK);
     let doc = body_json(doc.into_body()).await;
-    let advertised = doc["versions"]["10.0.0"]["dist"]["tarball"].as_str().unwrap().to_string();
+    let advertised = doc["versions"]["10.0.0"]["dist"]["tarball"]
+        .as_str()
+        .unwrap()
+        .to_string();
     assert_eq!(advertised, "http://example.test/npm/-/npm-10.0.0.tgz");
 
     let fetched = app
@@ -593,8 +719,15 @@ async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
         "/oci/~main/v2/",
         "/v2/",
     ] {
-        let response =
-            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(
             response.status(),
             if path.ends_with("/v2/") { StatusCode::UNAUTHORIZED } else { StatusCode::OK },
@@ -606,8 +739,15 @@ async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
         "/npm/~cargo%2Finternal/demo",
         "/cargo/~npm%2Finternal/index/config.json",
     ] {
-        let response =
-            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
     }
 }

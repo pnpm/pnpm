@@ -9,9 +9,9 @@ yellow() { printf '\033[0;33m%s\033[0m\n' "$*" >&2; }
 failed=0
 
 if command -v cargo >/dev/null 2>&1; then
-    yellow '▸ cargo fmt --all -- --check'
-    if ! cargo fmt --all -- --check; then
-        red '✗ cargo fmt found unformatted Rust files — run `cargo fmt --all` (or `just fmt`) and commit.'
+    yellow '▸ node pnpm/scripts/rustfmt.mjs --all -- --check'
+    if ! node pnpm/scripts/rustfmt.mjs --all -- --check; then
+        red '✗ Rust formatting check failed — run `just fmt` and commit.'
         failed=1
     fi
 

@@ -55,7 +55,10 @@ fn from_pathbuf_does_not_double_append_when_already_suffixed() {
 fn modules_yaml_serialized_store_dir_carries_store_version() {
     let store = StoreDir::new("/tmp/.pnpm-store");
     let recorded = store.display().to_string();
-    let pnpm_would_emit = Path::new("/tmp/.pnpm-store").join(STORE_VERSION).display().to_string();
+    let pnpm_would_emit = Path::new("/tmp/.pnpm-store")
+        .join(STORE_VERSION)
+        .display()
+        .to_string();
     assert_eq!(recorded, pnpm_would_emit);
 }
 

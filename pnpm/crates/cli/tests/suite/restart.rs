@@ -24,9 +24,16 @@ fn restart_runs_stop_restart_start_scripts() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("restart").assert().success();
+    pacquet
+        .with_arg("restart")
+        .assert()
+        .success();
     let content = fs::read_to_string(&log_file).expect("read log file");
-    let lines: Vec<&str> = content.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
+    let lines: Vec<&str> = content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
     assert_eq!(lines, vec!["stop", "restart", "start"]);
 
     drop(root);
@@ -51,7 +58,10 @@ fn restart_fails_when_stop_script_fails() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("restart").output().expect("spawn pacquet restart");
+    let output = pacquet
+        .with_arg("restart")
+        .output()
+        .expect("spawn pacquet restart");
     assert!(!output.status.success(), "restart should fail when stop fails");
     assert!(!restart_marker.exists(), "restart script should NOT have run after stop failure");
 
@@ -77,7 +87,10 @@ fn restart_fails_when_restart_script_fails() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("restart").output().expect("spawn pacquet restart");
+    let output = pacquet
+        .with_arg("restart")
+        .output()
+        .expect("spawn pacquet restart");
     assert!(!output.status.success(), "restart should fail when restart script fails");
     assert!(!start_marker.exists(), "start script should NOT have run after restart failure");
 
@@ -101,7 +114,11 @@ fn restart_with_if_present_skips_missing_scripts() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("restart").with_arg("--if-present").assert().success();
+    pacquet
+        .with_arg("restart")
+        .with_arg("--if-present")
+        .assert()
+        .success();
     assert!(start_marker.exists(), "start script should have run");
 
     drop(root);
@@ -135,9 +152,17 @@ fn restart_passes_args_to_scripts() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("restart").with_arg("hello-world").assert().success();
+    pacquet
+        .with_arg("restart")
+        .with_arg("hello-world")
+        .assert()
+        .success();
     let content = fs::read_to_string(&log_file).expect("read log file");
-    let lines: Vec<&str> = content.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
+    let lines: Vec<&str> = content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
     assert_eq!(lines, vec!["stop hello-world", "restart hello-world", "start hello-world"]);
 
     drop(root);
@@ -159,7 +184,10 @@ fn stop_runs_declared_script() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("stop").assert().success();
+    pacquet
+        .with_arg("stop")
+        .assert()
+        .success();
     assert!(marker.exists(), "stop script should have created the marker");
 
     drop(root);
@@ -177,7 +205,10 @@ fn stop_without_script_fails() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("stop").assert().failure();
+    pacquet
+        .with_arg("stop")
+        .assert()
+        .failure();
 
     drop(root);
 }
@@ -196,7 +227,11 @@ fn stop_without_script_succeeds_with_if_present() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("--if-present").with_arg("stop").assert().success();
+    pacquet
+        .with_arg("--if-present")
+        .with_arg("stop")
+        .assert()
+        .success();
 
     drop(root);
 }
@@ -215,7 +250,11 @@ fn stop_without_script_fails_when_if_present_follows_the_command() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("stop").with_arg("--if-present").assert().failure();
+    pacquet
+        .with_arg("stop")
+        .with_arg("--if-present")
+        .assert()
+        .failure();
 
     drop(root);
 }
@@ -238,7 +277,10 @@ fn start_runs_declared_script() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("start").assert().success();
+    pacquet
+        .with_arg("start")
+        .assert()
+        .success();
     assert!(marker.exists(), "start script should have created the marker");
 
     drop(root);

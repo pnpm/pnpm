@@ -14,7 +14,10 @@ use std::{
 };
 
 fn argv<Items: IntoIterator<Item = &'static str>>(items: Items) -> Vec<OsString> {
-    items.into_iter().map(OsString::from).collect()
+    items
+        .into_iter()
+        .map(OsString::from)
+        .collect()
 }
 
 #[test]
@@ -121,13 +124,14 @@ fn scoped_registry_override_wins_over_existing_config() {
     let (overrides, _) =
         ConfigOverrides::extract(argv(["--config.@private:registry=https://cli.example/npm/"]));
     let mut config = Config::default();
-    config
-        .registries_by_scope
-        .insert("@private".to_string(), "https://workspace.example/npm/".to_string());
-    config
-        .package_manager_bootstrap
-        .registries
-        .insert("@private".to_string(), "https://json-env.example/npm/".to_string());
+    config.registries_by_scope.insert(
+        "@private".to_string(),
+        "https://workspace.example/npm/".to_string(),
+    );
+    config.package_manager_bootstrap.registries.insert(
+        "@private".to_string(),
+        "https://json-env.example/npm/".to_string(),
+    );
     overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(
         config.registries_by_scope.get("@private").map(String::as_str),
@@ -583,7 +587,10 @@ fn install_with_a_package_claims_the_options_of_add() {
         &["pacquet", "install", "--offline", "--no-prefer-offline", "--", "valibot"],
     ] {
         let (overrides, remaining) = ConfigOverrides::extract(argv(command_line.iter().copied()));
-        let expected = command_line.iter().copied().filter(|token| !token.ends_with("offline"));
+        let expected = command_line
+            .iter()
+            .copied()
+            .filter(|token| !token.ends_with("offline"));
         assert_eq!(remaining, argv(expected), "{command_line:?}");
 
         let mut config = Config { prefer_offline: true, ..Config::default() };

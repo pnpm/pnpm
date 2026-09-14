@@ -131,8 +131,7 @@ pub(in super::super) fn verify_upload(
 ) -> Result<PypiPublication, RegistryError> {
     let PypiTarget { key, org } = target;
     let sha256 = sha256_hex(&upload.content);
-    if upload
-        .sha256_digest
+    if upload.sha256_digest
         .as_deref()
         .is_some_and(|declared| !declared.eq_ignore_ascii_case(&sha256))
     {

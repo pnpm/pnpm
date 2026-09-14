@@ -60,7 +60,11 @@ struct RecordingResolver {
 
 impl RecordingResolver {
     fn opts_for(&self, alias: &str) -> RecordedOpts {
-        *self.seen.lock().unwrap().get(alias).expect("alias was resolved")
+        *self.seen
+            .lock()
+            .unwrap()
+            .get(alias)
+            .expect("alias was resolved")
     }
 }
 
@@ -75,7 +79,7 @@ impl Resolver for RecordingResolver {
         self.seen
             .lock()
             .unwrap()
-            .insert(alias.clone(), (opts.pick_lowest_version, opts.published_by));
+            .insert(alias.clone(), (opts.version.pick_lowest_version, opts.policy.published_by));
         let result = self.table.get(&(alias, range)).cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
     }
@@ -121,7 +125,7 @@ impl Resolver for ProjectRelativeWorkspaceResolver {
         let alias = wanted.alias.clone().unwrap_or_default();
         let range = wanted.bare_specifier.clone().unwrap_or_default();
         let target_dir = self.target_dir.clone();
-        let project_dir = opts.project_dir.clone();
+        let project_dir = opts.project.project_dir.clone();
         let shared_specifier = self.shared_specifier;
         Box::pin(async move {
             if alias == "wrapper" && range == "1.0.0" {
@@ -147,17 +151,19 @@ impl Resolver for ProjectRelativeWorkspaceResolver {
                 .replace('\\', "/");
             Ok(Some(ResolveResult {
                 id: PkgResolutionId::from(format!("link:{rel}")),
-                name_ver: None,
-                latest: None,
-                published_at: None,
-                manifest: Some(std::sync::Arc::new(
-                    serde_json::json!({ "name": "shared", "version": "1.0.0" }),
-                )),
                 resolution: LockfileResolution::Directory(DirectoryResolution { directory: rel }),
                 resolved_via: "workspace".to_string(),
                 normalized_bare_specifier: None,
                 alias: Some(alias),
                 policy_violation: None,
+                package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                    name_ver: None,
+                    latest: None,
+                    published_at: None,
+                    manifest: Some(std::sync::Arc::new(
+                        serde_json::json!({ "name": "shared", "version": "1.0.0" }),
+                    )),
+                },
             }))
         })
     }
@@ -184,10 +190,6 @@ fn fake_result(
     );
     ResolveResult {
         id: (&name_ver).into(),
-        name_ver: Some(name_ver),
-        latest: Some(version.to_string()),
-        published_at: published_at.map(str::to_string),
-        manifest: Some(std::sync::Arc::new(manifest)),
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://registry.example/{name}-{version}.tgz"),
             integrity: None,
@@ -199,6 +201,12 @@ fn fake_result(
         normalized_bare_specifier: None,
         alias: Some(name.to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: Some(name_ver),
+            latest: Some(version.to_string()),
+            published_at: published_at.map(str::to_string),
+            manifest: Some(std::sync::Arc::new(manifest)),
+        },
     }
 }
 
@@ -220,56 +228,81 @@ fn importer_opts(
     published_by: Option<DateTime<Utc>>,
 ) -> ResolveImporterOptions {
     ResolveImporterOptions {
-        auto_install_peers: false,
-        auto_install_peers_from_highest_match: false,
-        resolve_peers_from_workspace_root: false,
-        dedupe_peers: false,
-        dedupe_peer_dependents: true,
-        all_preferred_versions: Arc::new(PreferredVersions::new()),
-        override_bare_specifier: None,
-        patched_dependencies: None,
-        base_opts: ResolveOptions { published_by, project_dir, ..ResolveOptions::default() },
-        pick_lowest_direct: false,
-        subdep_published_by: published_by,
-        catalogs: pnpm_catalogs_types::Catalogs::new(),
-        exclude_links_from_lockfile: false,
-        lockfile_dir: None,
-        modules_dir: None,
+        base_opts: ResolveOptions {
+            project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+                project_dir,
+                ..Default::default()
+            },
+            policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+                published_by,
+                ..Default::default()
+            },
+            ..ResolveOptions::default()
+        },
         peers_suffix_max_length: 1000,
-        catalog_server: false,
-        manifest_hook: None,
-        overrides_hook: None,
-        pnpmfile_hook: None,
+        peers: crate::ImporterPeerOptions {
+            auto_install_peers: false,
+            auto_install_peers_from_highest_match: false,
+            resolve_peers_from_workspace_root: false,
+            dedupe_peers: false,
+            dedupe_peer_dependents: true,
+        },
+        links: crate::PeerLinkOptions {
+            exclude_links_from_lockfile: false,
+            lockfile_dir: None,
+            modules_dir: None,
+        },
+        resolution: crate::ImporterResolutionInputs {
+            all_preferred_versions: Arc::new(PreferredVersions::new()),
+            override_bare_specifier: None,
+            patched_dependencies: None,
+            pick_lowest_direct: false,
+            subdep_published_by: published_by,
+            catalogs: pnpm_catalogs_types::Catalogs::new(),
+            catalog_server: false,
+        },
+        hooks: crate::ManifestTransformHooks {
+            manifest_hook: None,
+            overrides_hook: None,
+            pnpmfile_hook: None,
+        },
     }
 }
 
 fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolveOptions {
     WorkspaceResolveOptions {
         registry_context: RegistryContext::default(),
-        dedupe_peers: false,
-        dedupe_injected_deps: false,
-        dedupe_peer_dependents: false,
-        resolve_peers_from_workspace_root: false,
-        exclude_links_from_lockfile: false,
-        lockfile_dir: std::path::PathBuf::from("/lockfile-dir"),
-        peers_suffix_max_length: 1000,
         share_workspace_resolutions: true,
-        manifest_hook: None,
-        overrides_hook: None,
-        pnpmfile_hook: None,
-        read_package_log: None,
-        skipped_optional_log: None,
-        finalized_package: None,
         allowed_deprecated_versions: BTreeMap::new(),
-        deprecation_log: None,
-        pick_lowest_direct,
-        time_based,
-        wanted_lockfile: None,
-        reuse_lockfile_subtrees: true,
-        update_reuse_scope: crate::UpdateReuseScope::All,
-        update_reuse_scopes_by_importer: BTreeMap::new(),
-        update_depth: crate::UpdateDepth::UNLIMITED,
-        auto_install_peers: false,
+        peers: crate::WorkspacePeerResolutionOptions {
+            dedupe_peers: false,
+            dedupe_injected_deps: false,
+            dedupe_peer_dependents: false,
+            resolve_peers_from_workspace_root: false,
+            exclude_links_from_lockfile: false,
+            lockfile_dir: std::path::PathBuf::from("/lockfile-dir"),
+            peers_suffix_max_length: 1000,
+            auto_install_peers: false,
+        },
+        hooks: crate::WorkspaceResolveHooks {
+            read_package_log: None,
+            skipped_optional_log: None,
+            finalized_package: None,
+            deprecation_log: None,
+            manifests: crate::ManifestTransformHooks {
+                manifest_hook: None,
+                overrides_hook: None,
+                pnpmfile_hook: None,
+            },
+        },
+        reuse: crate::WorkspaceLockfileReuse {
+            lockfile: None,
+            subtrees: true,
+            scope: crate::UpdateReuseScope::All,
+            scopes_by_importer: BTreeMap::new(),
+            depth: crate::UpdateDepth::UNLIMITED,
+        },
+        version: crate::WorkspaceVersionResolution { pick_lowest_direct, time_based },
     }
 }
 
@@ -331,8 +364,8 @@ async fn resolve_with_transient_shared_walk(
     let resolver = SlowAliasResolver { table, slow: ("shared".to_string(), "1.0.0".to_string()) };
     let pinned_dep_key = format!("dep@{pinned_dep_version}");
     let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
-    opts.wanted_lockfile = Some(Arc::new(reuse_graph_lockfile(
+    opts.peers.auto_install_peers = true;
+    opts.reuse.lockfile = Some(Arc::new(reuse_graph_lockfile(
         "pkg-b",
         &[("shared", "1.0.0", "1.0.0")],
         &[("shared@1.0.0", &[("dep", pinned_dep_version)]), (&pinned_dep_key, &[])],
@@ -361,7 +394,9 @@ impl Resolver for SlowAliasResolver {
     ) -> ResolveFuture<'a> {
         let alias = wanted.alias.clone().unwrap_or_default();
         let range = wanted.bare_specifier.clone().unwrap_or_default();
-        let result = self.table.get(&(alias.clone(), range.clone())).cloned();
+        let result = self.table
+            .get(&(alias.clone(), range.clone()))
+            .cloned();
         let slow = self.slow == (alias, range);
         Box::pin(async move {
             if slow {
@@ -434,7 +469,9 @@ impl Resolver for FailingAliasResolver {
         let range = wanted.bare_specifier.clone().unwrap_or_default();
         let failing = self.failing.contains(&alias);
         let failure = self.failure;
-        let result = self.table.get(&(alias.clone(), range.clone())).cloned();
+        let result = self.table
+            .get(&(alias.clone(), range.clone()))
+            .cloned();
         Box::pin(async move {
             if failing {
                 return Err(failure.error(&alias, &range));
@@ -489,73 +526,6 @@ enum ManifestAvailability {
     Absent,
 }
 
-async fn project_relative_root_dep_is_not_a_provider(local: &str, manifest: ManifestAvailability) {
-    let (_root_tmp, root_manifest) = fake_manifest(serde_json::json!({ "real-peer": local }));
-    let (_app_tmp, app_manifest) = fake_manifest(serde_json::json!({ "consumer": "1.0.0" }));
-    let importers = vec![
-        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
-        WorkspaceImporter { id: "app-b".to_string(), manifest: &app_manifest },
-    ];
-    let mut unnamed = fake_result(
-        "real-peer",
-        "1.0.0",
-        None,
-        serde_json::json!({ "name": "real-peer", "version": "1.0.0" }),
-    );
-    unnamed.name_ver = None;
-    if matches!(manifest, ManifestAvailability::Absent) {
-        unnamed.manifest = None;
-    }
-    unnamed.normalized_bare_specifier = Some(local.to_string());
-    unnamed.id = pnpm_resolving_resolver_base::PkgResolutionId::from(local.to_string());
-    let resolver = RecordingResolver {
-        table: HashMap::from_iter([
-            (("real-peer".to_string(), local.to_string()), unnamed),
-            (
-                ("real-peer".to_string(), "^1.0.0".to_string()),
-                fake_result(
-                    "real-peer",
-                    "1.9.9",
-                    None,
-                    serde_json::json!({ "name": "real-peer", "version": "1.9.9" }),
-                ),
-            ),
-            (
-                ("consumer".to_string(), "1.0.0".to_string()),
-                fake_result(
-                    "consumer",
-                    "1.0.0",
-                    None,
-                    serde_json::json!({
-                        "name": "consumer",
-                        "version": "1.0.0",
-                        "peerDependencies": { "real-peer": "^1.0.0" },
-                    }),
-                ),
-            ),
-        ]),
-        seen: Mutex::new(HashMap::default()),
-    };
-    let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
-    opts.resolve_peers_from_workspace_root = true;
-    let result =
-        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
-            let mut importer_opts =
-                importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None);
-            importer_opts.resolve_peers_from_workspace_root = true;
-            importer_opts
-        })
-        .await
-        .expect("resolve workspace with a project-relative root dep");
-
-    assert_eq!(
-        result.peers.direct_dependencies_by_importer["app-b"]["real-peer"].as_str(),
-        "real-peer@1.9.9",
-        "`{local}` must not be hoisted into app-b",
-    );
-}
-
 async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &str) {
     let root_tmp = tempfile::tempdir().expect("tempdir");
     let linked_dir = root_tmp.path().join("vendor/real-peer");
@@ -590,7 +560,7 @@ async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &st
         None,
         serde_json::json!({ "name": "real-peer", "version": "1.2.3" }),
     );
-    linked.name_ver = None;
+    linked.package.name_ver = None;
     linked.normalized_bare_specifier = Some("link:vendor/real-peer".to_string());
     linked.id = pnpm_resolving_resolver_base::PkgResolutionId::from("link:vendor/real-peer");
     let resolver = RecordingResolver {
@@ -631,15 +601,15 @@ async fn link_root_dep_peer_provider(linked_version: Option<&str>, expected: &st
         seen: Mutex::new(HashMap::default()),
     };
     let mut opts = workspace_opts(false, false);
-    opts.auto_install_peers = true;
-    opts.resolve_peers_from_workspace_root = true;
+    opts.peers.auto_install_peers = true;
+    opts.peers.resolve_peers_from_workspace_root = true;
     let root_dir = root_tmp.path().to_path_buf();
     let result =
         resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
             let project_dir =
                 if importer.id == "." { root_dir.clone() } else { root_dir.join(&importer.id) };
             let mut importer_opts = importer_opts(project_dir, None);
-            importer_opts.resolve_peers_from_workspace_root = true;
+            importer_opts.peers.resolve_peers_from_workspace_root = true;
             importer_opts
         })
         .await
@@ -676,7 +646,7 @@ impl Resolver for OverlapRecordingResolver {
         wanted: &'a WantedDependency,
         opts: &'a ResolveOptions,
     ) -> ResolveFuture<'a> {
-        let project_dir = opts.project_dir.clone();
+        let project_dir = opts.project.project_dir.clone();
         let alias = wanted.alias.clone();
         Box::pin(async move {
             let Some(alias) = alias else { return Ok(None) };
@@ -686,14 +656,20 @@ impl Resolver for OverlapRecordingResolver {
                 if in_flight.len() > 1 {
                     let mut overlapping: Vec<_> = in_flight.iter().cloned().collect();
                     overlapping.sort();
-                    self.overlaps.lock().unwrap().push(overlapping);
+                    self.overlaps
+                        .lock()
+                        .unwrap()
+                        .push(overlapping);
                 }
             }
             // Give every other in-flight resolution a chance to run.
             for _ in 0..4 {
                 tokio::task::yield_now().await;
             }
-            self.in_flight.lock().unwrap().remove(&project_dir);
+            self.in_flight
+                .lock()
+                .unwrap()
+                .remove(&project_dir);
 
             let name_ver = pnpm_lockfile::PkgNameVer::new(
                 pnpm_lockfile::PkgName::parse(&alias).expect("alias parses as a package name"),
@@ -701,20 +677,22 @@ impl Resolver for OverlapRecordingResolver {
             );
             Ok::<_, ResolveError>(Some(ResolveResult {
                 id: PkgResolutionId::from(&name_ver),
-                name_ver: Some(name_ver),
-                latest: Some("1.0.0".to_string()),
-                published_at: None,
-                manifest: Some(Arc::new(serde_json::json!({
-                    "name": alias,
-                    "version": "1.0.0",
-                }))),
                 resolution: LockfileResolution::Directory(DirectoryResolution {
                     directory: format!("/repo/{alias}"),
                 }),
                 resolved_via: "npm-registry".to_string(),
                 normalized_bare_specifier: None,
-                alias: Some(alias),
                 policy_violation: None,
+                package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                    name_ver: Some(name_ver),
+                    latest: Some("1.0.0".to_string()),
+                    published_at: None,
+                    manifest: Some(Arc::new(serde_json::json!({
+                        "name": alias,
+                        "version": "1.0.0",
+                    }))),
+                },
+                alias: Some(alias),
             }))
         })
     }
@@ -744,10 +722,14 @@ async fn announced_finalized_packages(
     let announced: Arc<Mutex<Announcements>> = Arc::new(Mutex::new(Vec::new()));
     let mut opts = workspace_opts(false, false);
     let sink = Arc::clone(&announced);
-    opts.finalized_package = Some(Arc::new(move |package| {
-        let children =
-            package.children.iter().map(|child| child.pkg_id.to_string()).collect::<Vec<_>>();
-        sink.lock().unwrap().push((package.pkg_id.to_string(), children));
+    opts.hooks.finalized_package = Some(Arc::new(move |package| {
+        let children = package.children
+            .iter()
+            .map(|child| child.pkg_id.to_string())
+            .collect::<Vec<_>>();
+        sink.lock()
+            .unwrap()
+            .push((package.pkg_id.to_string(), children));
     }));
     resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
         importer_opts(std::path::PathBuf::from("/repo"), None)
@@ -786,7 +768,12 @@ impl WarmupProbeResolver {
     }
 
     fn calls_for(&self, alias: &str, range: &str) -> usize {
-        self.calls.lock().unwrap().iter().filter(|(a, r)| a == alias && r == range).count()
+        self.calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(a, r)| a == alias && r == range)
+            .count()
     }
 }
 
@@ -798,10 +785,14 @@ impl Resolver for WarmupProbeResolver {
     ) -> ResolveFuture<'a> {
         let alias = wanted.alias.clone().unwrap_or_default();
         let range = wanted.bare_specifier.clone().unwrap_or_default();
-        self.calls.lock().unwrap().push((alias.clone(), range.clone()));
-        let result = self.table.get(&(alias.clone(), range)).cloned();
-        let (held, release) = self
-            .gate
+        self.calls
+            .lock()
+            .unwrap()
+            .push((alias.clone(), range.clone()));
+        let result = self.table
+            .get(&(alias.clone(), range))
+            .cloned();
+        let (held, release) = self.gate
             .as_ref()
             .map_or((false, false), |(held, release)| (*held == alias, *release == alias));
         if release {
@@ -848,7 +839,7 @@ async fn resolve_single_importer(
         std::time::Duration::from_secs(5),
         resolve_workspace(resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
             let mut opts = importer_opts(std::path::PathBuf::from("/repo"), None);
-            opts.patched_dependencies = patched.clone();
+            opts.resolution.patched_dependencies = patched.clone();
             opts
         }),
     )

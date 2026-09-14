@@ -57,31 +57,25 @@ impl FindHashArgs {
         let hash = parse_hash(self.hash)?;
 
         let config = config()?;
-        let store_dir = &config.store_dir;
-
-        let store_index = if config.frozen_store {
-            StoreIndex::open_immutable(store_dir.root())
-                .into_diagnostic()
-                .wrap_err("Failed to open store index (frozen)")?
-        } else {
-            StoreIndex::open_readonly_in(store_dir)
-                .into_diagnostic()
-                .wrap_err("Failed to open store index")?
-        };
+        let store_index = open_store_index(config)?;
 
         let mut results = Vec::new();
 
         store_index.for_each_raw(|index_key, bytes| -> Result<(), FindHashError> {
-            let data = decode_find_hash_index(&bytes).map_err(|source| {
-                FindHashError::CorruptStoreIndexRow { key: index_key.clone(), source }
-            })?;
+            let data = decode_find_hash_index(&bytes)
+                .map_err(|source| FindHashError::CorruptStoreIndexRow {
+                    key: index_key.clone(),
+                    source,
+                })?;
             if !contains_hash(&data, &hash) {
                 return Ok(());
             }
 
-            let (name, version) = package_identity(&bytes).map_err(|source| {
-                FindHashError::CorruptStoreIndexRow { key: index_key.clone(), source }
-            })?;
+            let (name, version) = package_identity(&bytes)
+                .map_err(|source| FindHashError::CorruptStoreIndexRow {
+                    key: index_key.clone(),
+                    source,
+                })?;
             results.push((name, version, index_key));
             Ok(())
         })?;
@@ -100,6 +94,20 @@ impl FindHashArgs {
         }
 
         Ok(())
+    }
+}
+
+fn open_store_index(config: &Config) -> miette::Result<StoreIndex> {
+    let store_dir = &config.store_dir;
+
+    if config.frozen_store {
+        StoreIndex::open_immutable(store_dir.root())
+            .into_diagnostic()
+            .wrap_err("Failed to open store index (frozen)")
+    } else {
+        StoreIndex::open_readonly_in(store_dir)
+            .into_diagnostic()
+            .wrap_err("Failed to open store index")
     }
 }
 
@@ -192,8 +200,8 @@ struct FindHashSideEffectsDiff {
 }
 
 fn decode_find_hash_index(bytes: &[u8]) -> Result<FindHashPackageIndex, StoreIndexError> {
-    let plain = transcode_to_plain_msgpack(bytes)
-        .map_err(|source| StoreIndexError::Transcode { source })?;
+    let plain =
+        transcode_to_plain_msgpack(bytes).map_err(|source| StoreIndexError::Transcode { source })?;
     rmp_serde::from_slice(&plain).map_err(|source| StoreIndexError::Decode { source })
 }
 
@@ -229,18 +237,22 @@ fn contains_file_hash(files: &HashMap<String, FindHashFileInfo>, hash: &str) -> 
 
 fn package_identity(bytes: &[u8]) -> Result<(String, String), StoreIndexError> {
     let data = decode_package_files_index(bytes)?;
-    let name = data
-        .manifest
+    let name = data.manifest
         .as_ref()
         .and_then(|manifest| {
-            manifest.get("name").and_then(|n| n.as_str()).map(std::string::ToString::to_string)
+            manifest
+                .get("name")
+                .and_then(|n| n.as_str())
+                .map(std::string::ToString::to_string)
         })
         .unwrap_or_else(|| "unknown".to_string());
-    let version = data
-        .manifest
+    let version = data.manifest
         .as_ref()
         .and_then(|manifest| {
-            manifest.get("version").and_then(|n| n.as_str()).map(std::string::ToString::to_string)
+            manifest
+                .get("version")
+                .and_then(|n| n.as_str())
+                .map(std::string::ToString::to_string)
         })
         .unwrap_or_else(|| "unknown".to_string());
     Ok((name, version))
@@ -250,7 +262,10 @@ fn package_identity(bytes: &[u8]) -> Result<(String, String), StoreIndexError> {
 /// `chalk` suppresses color when stdout is not a TTY, so this only emits ANSI
 /// when stdout supports color.
 fn package_info(text: &str) -> String {
-    sanitize(text).as_ref().if_supports_color(Stream::Stdout, |t| t.bright_green()).to_string()
+    sanitize(text)
+        .as_ref()
+        .if_supports_color(Stream::Stdout, |t| t.bright_green())
+        .to_string()
 }
 
 /// Color an index key like pnpm's `INDEX_PATH_CLR = chalk.hex('#078487')`

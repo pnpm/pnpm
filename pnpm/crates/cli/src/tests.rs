@@ -2,7 +2,10 @@ use super::inject_alias_subcommand;
 use std::ffi::OsString;
 
 fn argv(parts: &[&str]) -> Vec<OsString> {
-    parts.iter().map(OsString::from).collect()
+    parts
+        .iter()
+        .map(OsString::from)
+        .collect()
 }
 
 #[test]

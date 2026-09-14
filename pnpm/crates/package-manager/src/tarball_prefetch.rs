@@ -23,7 +23,7 @@ use pnpm_lockfile::{Lockfile, LockfileResolution};
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexError,
+    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex, StoreIndexError,
     StoreIndexWriter, store_index_key,
 };
 use pnpm_tarball::{IngestTarballToStore, MemCache, RetryOpts, TarballError};
@@ -54,7 +54,10 @@ async fn without_store_hits(
     let Some(index) = index else {
         return pending;
     };
-    let keys: Vec<String> = pending.iter().map(|entry| entry.store_key.clone()).collect();
+    let keys: Vec<String> = pending
+        .iter()
+        .map(|entry| entry.store_key.clone())
+        .collect();
     let hits = tokio::task::spawn_blocking(move || {
         let Ok(guard) = index.lock() else {
             return HashSet::new();
@@ -63,30 +66,37 @@ async fn without_store_hits(
     })
     .await
     .unwrap_or_default();
-    pending.into_iter().filter(|entry| !hits.contains(&entry.store_key)).collect()
+    pending
+        .into_iter()
+        .filter(|entry| !hits.contains(&entry.store_key))
+        .collect()
 }
 
 /// One background tarball download. Every field is owned (an `Arc`
 /// clone or a `Copy` scalar) so the spawned task captures an
 /// independent set without borrowing the caller's scope.
 pub(crate) struct TarballDownload {
-    pub http_client: Arc<ThrottledClient>,
     pub mem_cache: Arc<MemCache>,
-    pub store_dir: &'static StoreDir,
-    pub store_index: Option<SharedReadonlyStoreIndex>,
-    pub store_index_writer: Option<Arc<StoreIndexWriter>>,
-    pub verified_files_cache: SharedVerifiedFilesCache,
+    pub requester: Arc<str>,
+    pub store: pnpm_tarball::ArchiveStoreContext<'static>,
+    pub fetching: crate::tarball_prefetch::PrefetchHttpClient,
+    pub package: crate::tarball_prefetch::TarballDownloadPackage,
+}
+
+#[derive(Clone)]
+pub(crate) struct PrefetchHttpClient {
+    pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     pub retry_opts: RetryOpts,
-    pub requester: Arc<str>,
     pub offline: bool,
-    pub verify_store_integrity: bool,
-    pub strict_store_pkg_content_check: bool,
-    pub package_id: String,
-    pub package_url: String,
+}
+
+pub(crate) struct TarballDownloadPackage {
+    pub id: String,
+    pub url: String,
     pub integrity: Integrity,
-    pub package_unpacked_size: Option<usize>,
-    pub package_file_count: Option<usize>,
+    pub unpacked_size: Option<usize>,
+    pub file_count: Option<usize>,
     pub revision_addressed: bool,
 }
 
@@ -108,24 +118,20 @@ async fn run_tarball_download(
     download: TarballDownload,
 ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
     let ingest = IngestTarballToStore {
-        http_client: &download.http_client,
-        store_dir: download.store_dir,
-        store_index: download.store_index,
-        store_index_writer: download.store_index_writer,
-        verify_store_integrity: download.verify_store_integrity,
-        strict_store_pkg_content_check: download.strict_store_pkg_content_check,
-        verified_files_cache: download.verified_files_cache,
-        package_integrity: Some(&download.integrity),
-        package_unpacked_size: download.package_unpacked_size,
-        package_file_count: download.package_file_count,
-        package_url: &download.package_url,
-        package_id: &download.package_id,
+        fetching: download.fetching.options(),
+        package: pnpm_tarball::TarballPackage {
+            integrity: Some(&download.package.integrity),
+            unpacked_size: download.package.unpacked_size,
+            file_count: download.package.file_count,
+            url: &download.package.url,
+            id: &download.package.id,
+        },
+        store: download.store,
+
         requester: &download.requester,
-        prefetched_cas_paths: None,
-        retry_opts: download.retry_opts,
-        auth_headers: &download.auth_headers,
+
         ignore_file_pattern: None,
-        offline: download.offline,
+
         // The client prefetch routes through `SilentReporter`, so
         // there's no install reporter to dedup progress events
         // against — the frozen materialization install emits its own
@@ -133,7 +139,7 @@ async fn run_tarball_download(
         progress_reported: None,
         store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
     };
-    if download.revision_addressed {
+    if download.package.revision_addressed {
         ingest.run_revision_addressed_with_mem_cache::<SilentReporter>(&download.mem_cache).await
     } else {
         ingest.run_with_mem_cache::<SilentReporter>(&download.mem_cache).await
@@ -155,23 +161,15 @@ async fn run_tarball_download(
 /// how `PrefetchingResolver` shares the install's writer.
 #[must_use]
 pub struct TarballPrefetcher {
-    http_client: Arc<ThrottledClient>,
     mem_cache: Arc<MemCache>,
-    store_dir: &'static StoreDir,
-    store_index: Option<SharedReadonlyStoreIndex>,
-    store_index_writer: Arc<StoreIndexWriter>,
     writer_task: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
-    verified_files_cache: SharedVerifiedFilesCache,
-    auth_headers: Arc<AuthHeaders>,
-    retry_opts: RetryOpts,
     requester: Arc<str>,
-    offline: bool,
-    verify_store_integrity: bool,
-    strict_store_pkg_content_check: bool,
     /// URLs already spawned, so repeated frames for the same tarball
     /// (the resolver yields one per dependent edge) collapse to a single
     /// download. Mirrors `PrefetchingResolver::spawned_urls`.
     spawned_urls: DashSet<String>,
+    store: pnpm_tarball::ArchiveStoreContext<'static>,
+    fetching: crate::tarball_prefetch::PrefetchHttpClient,
 }
 
 impl TarballPrefetcher {
@@ -205,23 +203,21 @@ impl TarballPrefetcher {
             }
         };
         let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
-        let auth_headers =
-            auth_override.map_or_else(|| Arc::clone(&config.auth_headers), Arc::clone);
         TarballPrefetcher {
-            http_client: Arc::clone(http_client),
             mem_cache: Arc::clone(mem_cache),
-            store_dir,
-            store_index,
-            store_index_writer,
             writer_task,
-            verified_files_cache: SharedVerifiedFilesCache::default(),
-            auth_headers,
-            retry_opts: retry_opts_from_config(config),
             requester: Arc::<str>::from(requester),
-            offline: config.offline,
-            verify_store_integrity: config.verify_store_integrity,
-            strict_store_pkg_content_check: config.strict_store_pkg_content_check,
             spawned_urls: DashSet::new(),
+            store: pnpm_tarball::ArchiveStoreContext {
+                dir: store_dir,
+                index: store_index,
+                index_writer: Some(store_index_writer),
+                verified_files_cache: SharedVerifiedFilesCache::default(),
+                verify_integrity: config.verify_store_integrity,
+                strict_pkg_content_check: config.strict_store_pkg_content_check,
+                prefetched_cas_paths: None,
+            },
+            fetching: PrefetchHttpClient::new(config, http_client, auth_override),
         }
     }
 
@@ -257,24 +253,18 @@ impl TarballPrefetcher {
             return;
         }
         spawn_tarball_download(TarballDownload {
-            http_client: Arc::clone(&self.http_client),
             mem_cache: Arc::clone(&self.mem_cache),
-            store_dir: self.store_dir,
-            store_index: self.store_index.clone(),
-            store_index_writer: Some(Arc::clone(&self.store_index_writer)),
-            verified_files_cache: SharedVerifiedFilesCache::clone(&self.verified_files_cache),
-            auth_headers: Arc::clone(&self.auth_headers),
-            retry_opts: self.retry_opts,
             requester: Arc::clone(&self.requester),
-            offline: self.offline,
-            verify_store_integrity: self.verify_store_integrity,
-            strict_store_pkg_content_check: self.strict_store_pkg_content_check,
-            package_id,
-            package_url,
-            integrity,
-            package_unpacked_size: unpacked_size,
-            package_file_count: file_count,
-            revision_addressed,
+            store: self.store.clone(),
+            fetching: self.fetching.clone(),
+            package: crate::tarball_prefetch::TarballDownloadPackage {
+                id: package_id,
+                url: package_url,
+                integrity,
+                unpacked_size,
+                file_count,
+                revision_addressed,
+            },
         });
     }
 
@@ -320,9 +310,14 @@ impl TarballPrefetcher {
                 revision_addressed,
             });
         }
-        for entry in without_store_hits(self.store_index.clone(), pending).await {
-            let PendingPrefetch { package_id, package_url, integrity, revision_addressed, .. } =
-                entry;
+        for entry in without_store_hits(self.store.index.clone(), pending).await {
+            let PendingPrefetch {
+                package_id,
+                package_url,
+                integrity,
+                revision_addressed,
+                ..
+            } = entry;
             // The lockfile records no dist size hints, so the downloads
             // queue without a work estimate.
             self.prefetch(package_id, package_url, &integrity, None, None, revision_addressed);
@@ -337,10 +332,37 @@ impl TarballPrefetcher {
     /// downgraded to a warning — the install already succeeded and a
     /// missing index row only costs the next install a re-download.
     pub async fn shutdown(self) {
-        drop(self.store_index_writer);
+        drop(self.store.index_writer);
         StoreIndexWriter::drain(self.writer_task, "; some rows may not be persisted").await;
     }
 }
 
 #[cfg(test)]
 mod tests;
+
+impl PrefetchHttpClient {
+    pub(crate) fn new(
+        config: &Config,
+        http_client: &Arc<ThrottledClient>,
+        auth_override: Option<&Arc<AuthHeaders>>,
+    ) -> Self {
+        Self {
+            http_client: Arc::clone(http_client),
+            auth_headers: auth_override.map_or_else(
+                || Arc::clone(&config.auth_headers),
+                Arc::clone,
+            ),
+            retry_opts: retry_opts_from_config(config),
+            offline: config.offline,
+        }
+    }
+
+    pub(crate) fn options(&self) -> pnpm_tarball::ArchiveFetchOptions<'_> {
+        pnpm_tarball::ArchiveFetchOptions {
+            http_client: &self.http_client,
+            auth_headers: &self.auth_headers,
+            retry_opts: self.retry_opts,
+            offline: self.offline,
+        }
+    }
+}

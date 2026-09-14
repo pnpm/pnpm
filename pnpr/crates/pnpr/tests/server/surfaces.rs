@@ -9,7 +9,14 @@ async fn ping_endpoint_returns_json_empty_object() {
     let config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
     let app = router(config);
 
-    let response = app.oneshot(Request::get("/-/ping").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/-/ping")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body_bytes = body_bytes(response.into_body()).await;
     let body: Value = serde_json::from_slice(&body_bytes).unwrap();
@@ -20,13 +27,13 @@ async fn ping_endpoint_returns_json_empty_object() {
 async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
-    config.registry.enabled = false;
-    config.resolver.enabled = false;
-    config.pipeline.enabled = true;
+    config.features.registry.enabled = false;
+    config.features.resolver.enabled = false;
+    config.features.pipeline.enabled = true;
     for (workspace, reader, writer) in
         [("demo-abc123", "alice", "alice"), ("hidden", "bob", "bob"), ("read-only", "alice", "bob")]
     {
-        config.pipeline.workspaces.insert(
+        config.features.pipeline.workspaces.insert(
             workspace.to_string(),
             pnpr_config::StorageAccess {
                 access: pnpr_policy::AccessList::from_tokens([reader]),
@@ -34,11 +41,18 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
             },
         );
     }
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
-    let handshake =
-        app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
+    let handshake = app
+        .clone()
+        .oneshot(
+            Request::get("/-/pnpr")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(
         body_json(handshake.into_body()).await,
         json!({ "pnpr": { "versions": [], "artifacts": [], "pipeline": [0], "fixLockfile": [], "ecosystems": [], "publish": [] } }),
@@ -48,13 +62,21 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
     // with no data of its own and does not.
     let anonymous = app
         .clone()
-        .oneshot(Request::get("/-/pnpr/v0/pipeline/runs").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/pnpr/v0/pipeline/runs")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
     let viewer = app
         .clone()
-        .oneshot(Request::get("/-/pnpr/v0/pipeline").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::get("/-/pnpr/v0/pipeline")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(viewer.status(), StatusCode::OK);
@@ -78,7 +100,10 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
         .await
         .unwrap();
     assert_eq!(logged_in.status(), StatusCode::CREATED);
-    let token = body_json(logged_in.into_body()).await["token"].as_str().unwrap().to_string();
+    let token = body_json(logged_in.into_body()).await["token"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     let run = json!({
         "workspace": "demo-abc123",
@@ -154,7 +179,13 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
         )
         .await
         .unwrap();
-    assert_eq!(body_json(unfiltered.into_body()).await["runs"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        body_json(unfiltered.into_body()).await["runs"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
 
     let listed = app
         .clone()
@@ -205,7 +236,7 @@ async fn cors_allows_only_configured_origins_and_handles_preflight() {
         SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
         tmp.path().to_path_buf(),
     );
-    config.cors = pnpr::CorsConfig::from_allowed_origins(["https://npmx.example"]).unwrap();
+    config.http.cors = pnpr::CorsConfig::from_allowed_origins(["https://npmx.example"]).unwrap();
     let app = router(config);
 
     let allowed = app
@@ -222,8 +253,16 @@ async fn cors_allows_only_configured_origins_and_handles_preflight() {
         allowed.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
         Some(&HeaderValue::from_static("https://npmx.example")),
     );
-    let vary = allowed.headers().get(header::VARY).unwrap().to_str().unwrap();
-    assert!(vary.split(',').any(|header| header.trim().eq_ignore_ascii_case("origin")));
+    let vary = allowed
+        .headers()
+        .get(header::VARY)
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        vary.split(',')
+            .any(|header| header.trim().eq_ignore_ascii_case("origin")),
+    );
 
     let missing = app
         .clone()
@@ -251,7 +290,12 @@ async fn cors_allows_only_configured_origins_and_handles_preflight() {
         )
         .await
         .unwrap();
-    assert!(denied.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).is_none());
+    assert!(
+        denied
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .is_none(),
+    );
 
     let preflight = app
         .oneshot(
@@ -271,8 +315,12 @@ async fn cors_allows_only_configured_origins_and_handles_preflight() {
         preflight.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
         Some(&HeaderValue::from_static("https://npmx.example")),
     );
-    let allowed_headers =
-        preflight.headers().get(header::ACCESS_CONTROL_ALLOW_HEADERS).unwrap().to_str().unwrap();
+    let allowed_headers = preflight
+        .headers()
+        .get(header::ACCESS_CONTROL_ALLOW_HEADERS)
+        .unwrap()
+        .to_str()
+        .unwrap();
     assert!(
         allowed_headers
             .split(',')

@@ -40,9 +40,10 @@ pub(super) fn package_present_at(modules: &Path, dir: &Path, version: &str) -> b
     let Ok(raw) = fs::read(&manifest_path) else {
         return false;
     };
-    serde_json::from_slice::<serde_json::Value>(&raw).is_ok_and(|manifest| {
-        manifest.get("version").and_then(serde_json::Value::as_str) == Some(version)
-    })
+    serde_json::from_slice::<serde_json::Value>(&raw)
+        .is_ok_and(|manifest| {
+            manifest.get("version").and_then(serde_json::Value::as_str) == Some(version)
+        })
 }
 /// Whether the current lockfile resolves the package at `dir`
 /// differently from the wanted one.
@@ -62,7 +63,11 @@ pub(super) fn resolution_changed_at(
     dir: &Path,
     wanted: &LockfileResolution,
 ) -> bool {
-    prev_graph.is_some_and(|graph| graph.get(dir).is_some_and(|node| &node.resolution != wanted))
+    prev_graph.is_some_and(|graph| {
+        graph
+            .get(dir)
+            .is_some_and(|node| &node.package.resolution != wanted)
+    })
 }
 /// Whether the installability filter rules this package out on this
 /// host. Applied only when `!opts.force`. An optional dep on an
@@ -79,14 +84,16 @@ pub(super) fn installability_skip(
     }
     let manifest = manifest_for_installability(pkg_key, metadata);
     let install_opts = InstallabilityOptions {
-        engine_strict: state.opts.engine_strict,
+        engine_strict: state.opts.installability.engine_strict,
         optional,
-        current_node_version: &state.opts.current_node_version,
+        current_node_version: &state.opts.installability.current_node_version,
         pnpm_version: None,
-        current_os: &state.opts.current_os,
-        current_cpu: &state.opts.current_cpu,
-        current_libc: &state.opts.current_libc,
-        supported_architectures: state.opts.supported_architectures.as_ref(),
+        current_os: &state.opts.installability.current_os,
+        current_cpu: &state.opts.installability.current_cpu,
+        current_libc: &state.opts.installability.current_libc,
+        supported_architectures: state.opts.installability
+            .supported_architectures
+            .as_ref(),
     };
     match package_is_installable(&pkg_key.to_string(), &manifest, &install_opts) {
         Ok(
@@ -111,12 +118,14 @@ pub(super) fn lookup_package_metadata<'a>(
     // fall back to the stripped key so peered snapshots resolve their
     // metadata instead of being silently dropped from the graph along
     // with their whole subtree.
-    packages.get(key).or_else(|| {
-        if key.suffix.peer().is_empty() {
-            return None;
-        }
-        packages.get(&key.without_peer())
-    })
+    packages
+        .get(key)
+        .or_else(|| {
+            if key.suffix.peer().is_empty() {
+                return None;
+            }
+            packages.get(&key.without_peer())
+        })
 }
 /// Project the platform / engines axes from a `PackageMetadata`
 /// onto the [`PackageInstallabilityManifest`] shape
@@ -126,10 +135,12 @@ pub(super) fn manifest_for_installability(
     pkg_key: &PackageKey,
     metadata: &pnpm_lockfile::PackageMetadata,
 ) -> PackageInstallabilityManifest {
-    let engines = metadata.engines.as_ref().map(|engines| WantedEngine {
-        node: engines.get("node").cloned(),
-        pnpm: engines.get("pnpm").cloned(),
-    });
+    let engines = metadata.engines
+        .as_ref()
+        .map(|engines| WantedEngine {
+            node: engines.get("node").cloned(),
+            pnpm: engines.get("pnpm").cloned(),
+        });
     PackageInstallabilityManifest {
         name: pkg_key.name.to_string(),
         engines,
@@ -148,8 +159,9 @@ pub(super) fn manifest_for_installability(
 /// reason. pacquet normalizes here for cross-platform consistency
 /// with the rest of pnpm's serialised formats.
 pub(super) fn path_relative_to_lockfile_dir(dir: &Path, lockfile_dir: &Path) -> String {
-    dir.strip_prefix(lockfile_dir).map_or_else(
-        |_| dir.to_string_lossy().replace('\\', "/"),
-        |rel| rel.to_string_lossy().replace('\\', "/"),
-    )
+    dir.strip_prefix(lockfile_dir)
+        .map_or_else(
+            |_| dir.to_string_lossy().replace('\\', "/"),
+            |rel| rel.to_string_lossy().replace('\\', "/"),
+        )
 }

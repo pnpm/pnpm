@@ -83,12 +83,12 @@ fn write_new_versions(plan: &ReleasePlan) -> Result<Vec<AppliedRelease>, Version
         let manifest_path = release.root_dir.join("package.json");
         let mut manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path)
             .map_err(VersioningError::Manifest)?;
-        manifest.value_mut()["version"] = serde_json::Value::String(release.new_version.clone());
+        manifest.value_mut()["version"] = serde_json::Value::String(release.version.next.clone());
         manifest.save().map_err(VersioningError::Manifest)?;
         applied.push(AppliedRelease {
             name: release.name.clone(),
-            current_version: release.current_version.clone(),
-            new_version: release.new_version.clone(),
+            current_version: release.version.current.clone(),
+            new_version: release.version.next.clone(),
         });
     }
     Ok(applied)
@@ -108,7 +108,7 @@ fn write_changelog_section(
             prepend_changelog_section(&release.root_dir, &release.name, &section)
         }
         ChangelogStorage::Registry => {
-            write_pending_changelog(workspace_dir, &release.name, &release.new_version, &section)
+            write_pending_changelog(workspace_dir, &release.name, &release.version.next, &section)
         }
     }
 }
@@ -121,10 +121,13 @@ fn ledger_entries(plan: &ReleasePlan) -> BTreeMap<String, (String, Vec<String>)>
         if release.intents.is_empty() {
             continue;
         }
-        let mut ids: Vec<String> = release.intents.iter().map(|intent| intent.id.clone()).collect();
+        let mut ids: Vec<String> = release.intents
+            .iter()
+            .map(|intent| intent.id.clone())
+            .collect();
         ids.sort();
         entries.insert(
-            format!("{}@{}", release.name, release.new_version),
+            format!("{}@{}", release.name, release.version.next),
             (release.dir.clone(), ids),
         );
     }
@@ -140,9 +143,10 @@ fn consumed_ledger(
 ) -> Ledger {
     match storage {
         ChangelogStorage::Repository => ledger,
-        ChangelogStorage::Registry => {
-            ledger.into_iter().filter(|(key, _)| confirmed_published.contains(key)).collect()
-        }
+        ChangelogStorage::Registry => ledger
+            .into_iter()
+            .filter(|(key, _)| confirmed_published.contains(key))
+            .collect(),
     }
 }
 
@@ -155,19 +159,26 @@ fn remove_consumed_intents(
 ) -> Result<(), VersioningError> {
     let consumption = build_consumption_index(consumed_ledger, |name| refs.name_to_dirs(name))?;
     let mut lane_dirs: HashSet<String> = HashSet::new();
-    for reference in versioning.map(|settings| settings.lanes.keys()).into_iter().flatten() {
+    for reference in versioning
+        .map(|settings| settings.lanes.keys())
+        .into_iter()
+        .flatten()
+    {
         lane_dirs.extend(refs.ref_to_dirs(reference));
     }
 
     for intent in all_intents {
-        let deletable = intent.releases.iter().all(|(reference, bump_type)| {
-            is_release_consumed(intent, reference, *bump_type, refs, &consumption, &lane_dirs)
-        });
+        let deletable = intent.releases
+            .iter()
+            .all(|(reference, bump_type)| {
+                is_release_consumed(intent, reference, *bump_type, refs, &consumption, &lane_dirs)
+            });
         if deletable {
-            fs::remove_file(&intent.file_path).map_err(|source| VersioningError::Remove {
-                path: intent.file_path.clone(),
-                source,
-            })?;
+            fs::remove_file(&intent.file_path)
+                .map_err(|source| VersioningError::Remove {
+                    path: intent.file_path.clone(),
+                    source,
+                })?;
         }
     }
     Ok(())

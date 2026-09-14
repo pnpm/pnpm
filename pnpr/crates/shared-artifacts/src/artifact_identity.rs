@@ -35,14 +35,19 @@ pub(super) fn owner_key(username: &str, owner: &OwnerScope) -> Result<String> {
 }
 
 pub(super) fn object_name(path: &ObjectPath) -> &str {
-    path.as_ref().rsplit('/').next().unwrap_or_default()
+    path.as_ref()
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
 }
 
 pub(super) fn is_variant_file(name: &str) -> bool {
     let bytes = name.as_bytes();
     bytes.len() == 69
         && bytes[64..] == *b".json"
-        && bytes[..64].iter().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+        && bytes[..64]
+            .iter()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
 }
 
 pub(super) fn is_blob_path(relative: &str) -> bool {
@@ -62,20 +67,24 @@ pub(super) fn entry_owner(relative: &str) -> Option<&str> {
     else {
         return None;
     };
-    (is_digest_segment(owner) && is_digest_segment(entry) && is_variant_file(variant))
-        .then_some(owner)
+    (is_digest_segment(owner) && is_digest_segment(entry) && is_variant_file(variant)).then_some(
+        owner,
+    )
 }
 
 pub(super) fn is_digest_segment(segment: &str) -> bool {
     segment.len() == 64
-        && segment.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        && segment
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 pub(super) fn artifact_operation_id() -> Result<String> {
     let mut bytes = [0_u8; 16];
-    getrandom::fill(&mut bytes).map_err(|error| RegistryError::Internal {
-        reason: format!("could not generate a shared artifact operation ID: {error}"),
-    })?;
+    getrandom::fill(&mut bytes)
+        .map_err(|error| RegistryError::Internal {
+            reason: format!("could not generate a shared artifact operation ID: {error}"),
+        })?;
     Ok(hex(&bytes))
 }
 
@@ -84,11 +93,13 @@ pub(super) fn digest_segment(bytes: &[u8]) -> String {
 }
 
 pub(super) fn hex(bytes: &[u8]) -> String {
-    bytes.iter().fold(String::with_capacity(64), |mut output, byte| {
-        use std::fmt::Write as _;
-        write!(output, "{byte:02x}").expect("writing to a String cannot fail");
-        output
-    })
+    bytes
+        .iter()
+        .fold(String::with_capacity(64), |mut output, byte| {
+            use std::fmt::Write as _;
+            write!(output, "{byte:02x}").expect("writing to a String cannot fail");
+            output
+        })
 }
 
 /// The slot an artifact claims within its entry: one per set of compatibility
@@ -108,7 +119,10 @@ pub(super) fn compatibility_slot(compatibility: &CompatibilityConstraints) -> St
             // orderings are the same constraint, and hashing them apart would
             // hand the same platform two slots to be published into. The
             // protocol already rejects duplicates, so sorting canonicalizes.
-            let mut tags: Vec<&str> = tags.iter().map(String::as_str).collect();
+            let mut tags: Vec<&str> = tags
+                .iter()
+                .map(String::as_str)
+                .collect();
             tags.sort_unstable();
             for tag in tags {
                 hasher.update(tag.as_bytes());

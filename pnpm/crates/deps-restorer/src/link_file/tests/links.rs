@@ -1,14 +1,16 @@
-#[cfg(unix)]
-use super::{
-    super::{
-        AUTO_FIRST_TIER, LINK_STATE_CLONE, LINK_STATE_COPY, clone_or_copy_link,
-        import_into_fresh_target, is_link_permission_error, recover_from_concurrent_import,
-    },
-    EaccesHardLink, EaccesLinks, EpermHardLink, EpermReflink, inode,
-};
+#[cfg(target_os = "linux")]
+use super::super::AUTO_FIRST_TIER;
 use super::{
     super::{Host, LINK_STATE_HARDLINK, LinkFileError, auto_link, link_file, try_import},
     OutOfLinks, write_source,
+};
+#[cfg(unix)]
+use super::{
+    super::{
+        LINK_STATE_CLONE, LINK_STATE_COPY, clone_or_copy_link, import_into_fresh_target,
+        is_link_permission_error, recover_from_concurrent_import,
+    },
+    EaccesHardLink, EaccesLinks, EpermHardLink, EpermReflink, inode,
 };
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
@@ -282,13 +284,22 @@ fn eacces_from_both_link_tiers_copies_and_restores_exec_bits() {
     for first_tier in [LINK_STATE_CLONE, LINK_STATE_HARDLINK] {
         let state = AtomicU8::new(first_tier);
         let logged = AtomicU8::new(0);
-        let dst = tmp.path().join(format!("target-{first_tier}"));
+        let dst = tmp
+            .path()
+            .join(format!("target-{first_tier}"));
         auto_link::<SilentReporter, EaccesLinks>(&logged, &state, &src, &dst)
             .expect("copy works when link permissions are denied");
 
         assert_eq!(fs::read(&dst).unwrap(), b"executable");
         assert_ne!(inode(&src), inode(&dst), "copy has its own inode");
-        assert_eq!(fs::metadata(&dst).unwrap().permissions().mode() & 0o111, 0o111);
+        assert_eq!(
+            fs::metadata(&dst)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o111,
+            0o111,
+        );
         assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_COPY);
         assert_eq!(logged.load(Ordering::Relaxed), super::super::LOG_FLAG_COPY);
     }
@@ -416,7 +427,10 @@ fn copy_does_not_write_through_a_symlink_at_the_target() {
 
     assert_eq!(fs::read(&victim).unwrap(), b"do not touch", "the referent keeps its contents");
     assert!(
-        fs::symlink_metadata(&dst).unwrap().file_type().is_symlink(),
+        fs::symlink_metadata(&dst)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
         "the squatter is reported, not silently written through",
     );
 }
@@ -463,7 +477,11 @@ fn an_exec_source_does_not_make_a_symlinked_referent_executable() {
         &dst,
     );
 
-    let mode = fs::metadata(&victim).unwrap().permissions().mode() & 0o777;
+    let mode = fs::metadata(&victim)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o644, "the referent must not gain exec bits");
     assert_eq!(fs::read(&victim).unwrap(), b"plain data", "nor lose its contents");
 }

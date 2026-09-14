@@ -114,7 +114,7 @@ pub(super) async fn resolve_node<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    let base_overlay = ctx.base_opts.preferred_versions_overlay.clone();
+    let base_overlay = ctx.options.base.version.preferred_versions_overlay.clone();
     let seed = resolve_node_seed(
         ctx,
         resolver,
@@ -153,13 +153,8 @@ pub(super) enum NodeSeed {
 /// children, and [`fn@seed_node_children`] needs to seed them.
 pub(super) struct PendingNode {
     result: Arc<pnpm_resolving_resolver_base::ResolveResult>,
-    id: String,
-    alias: String,
-    node_id: NodeId,
     is_link: bool,
     resolves_children_through_catalogs: bool,
-    parent_ancestors: Arc<Vec<String>>,
-    next_ancestors: Arc<Vec<String>>,
     /// The dependency names this occurrence's own `peerDependencies`
     /// shadow. Ownership of the package's children is settled across
     /// the whole level once it has seeded (see
@@ -173,12 +168,25 @@ pub(super) struct PendingNode {
     /// The claim [`fn@assign_level_owners`] settled for this
     /// occurrence, once its level has seeded in full.
     claim: Option<ChildrenOwnerClaim>,
-    depth: i32,
-    current_is_optional: bool,
     /// The edge's recorded snapshot key in the prior lockfile, if
     /// any — threads each child's prior ref through the walk phase
     /// via `ReuseSource::Transitive`.
     pub(super) prior_key: Option<PkgNameVerPeer>,
+    identity: PendingNodeIdentity,
+    ancestry: PendingNodeAncestry,
+}
+
+pub(super) struct PendingNodeIdentity {
+    id: String,
+    alias: String,
+    node_id: NodeId,
+}
+
+pub(super) struct PendingNodeAncestry {
+    parent_ancestors: Arc<Vec<String>>,
+    next_ancestors: Arc<Vec<String>>,
+    depth: i32,
+    current_is_optional: bool,
 }
 
 /// What a fresh resolve knows about a package the first time it reaches it.
@@ -253,7 +261,10 @@ where
     Chain: Resolver + ?Sized,
 {
     assign_level_owners(ctx, seeds.iter_mut())?;
-    let direct: Vec<DirectDep> = seeds.iter().filter_map(seeded_dep).collect();
+    let direct: Vec<DirectDep> = seeds
+        .iter()
+        .filter_map(seeded_dep)
+        .collect();
     let mut frontier = settle_seeds(ctx, seeds, children_overlay.as_ref(), &children_pkg_aliases);
     let mut level = 0usize;
     while !frontier.is_empty() {

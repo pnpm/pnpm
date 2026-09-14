@@ -145,8 +145,7 @@ async fn read_local_tarball_metadata_reads_a_manifest_past_the_eager_ceiling() {
     );
     std::fs::write(&tarball_path, &archive).unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path)
-        .await
+    let metadata = read_local_tarball_metadata(&tarball_path).await
         .expect("an archive past the eager ceiling must still resolve");
 
     let manifest = metadata.manifest.expect("bundled manifest");
@@ -164,8 +163,7 @@ async fn read_local_tarball_metadata_rejects_an_unparsable_manifest() {
     let tarball_path = local_dir.path().join("pkg.tgz");
     std::fs::write(&tarball_path, gzipped_tar(&[("package/package.json", b"{ BROKEN")])).unwrap();
 
-    let err = read_local_tarball_metadata(&tarball_path)
-        .await
+    let err = read_local_tarball_metadata(&tarball_path).await
         .expect_err("an unparsable bundled manifest must fail the read");
     match err {
         TarballError::ParseBundledManifest { tarball, .. } => {
@@ -191,8 +189,7 @@ async fn read_local_tarball_metadata_lets_a_later_manifest_supersede_a_malformed
     )
     .unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path)
-        .await
+    let metadata = read_local_tarball_metadata(&tarball_path).await
         .expect("the surviving manifest parses, so the read succeeds");
     let manifest = metadata.manifest.expect("bundled manifest");
     assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("dup-pkg"));
@@ -207,8 +204,7 @@ async fn read_local_tarball_metadata_tolerates_an_archive_with_no_manifest() {
     let tarball_path = local_dir.path().join("pkg.tgz");
     std::fs::write(&tarball_path, gzipped_tar(&[("package/README.md", b"hi")])).unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path)
-        .await
+    let metadata = read_local_tarball_metadata(&tarball_path).await
         .expect("an archive without a manifest still reads");
     assert!(metadata.manifest.is_none(), "got {:?}", metadata.manifest);
 }
@@ -224,24 +220,33 @@ async fn mem_cache_partitions_synthesized_package_manifests_by_content() {
     let auth_headers = AuthHeaders::default();
     let mem_cache = MemCache::default();
     let ingest = |append_manifest| IngestTarballToStore {
-        http_client: &client,
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: None,
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &package_url,
-        package_id: "artifact@1.0.0",
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &client,
+            auth_headers: &auth_headers,
+            retry_opts: test_retry_opts(),
+            offline: true,
+        },
+        package: crate::TarballPackage {
+            integrity: None,
+            unpacked_size: None,
+            file_count: None,
+            url: &package_url,
+            id: "artifact@1.0.0",
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         requester: "",
-        prefetched_cas_paths: None,
-        retry_opts: test_retry_opts(),
-        auth_headers: &auth_headers,
+
         ignore_file_pattern: None,
-        offline: true,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::Package {
             append_manifest: Some(append_manifest),
@@ -281,24 +286,33 @@ async fn store_index_partitions_synthesized_package_manifests_by_content() {
     for manifest in [first_manifest.as_slice(), second_manifest.as_slice()] {
         let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
         IngestTarballToStore {
-            http_client: &client,
-            store_dir: store_path,
-            store_index: StoreIndex::shared_readonly_in(store_path),
-            store_index_writer: Some(Arc::clone(&writer)),
-            verify_store_integrity: true,
-            strict_store_pkg_content_check: true,
-            verified_files_cache: SharedVerifiedFilesCache::default(),
-            package_integrity: Some(&package_integrity),
-            package_unpacked_size: None,
-            package_file_count: None,
-            package_url: &package_url,
-            package_id,
+            fetching: crate::ArchiveFetchOptions {
+                http_client: &client,
+                auth_headers: &auth_headers,
+                retry_opts: test_retry_opts(),
+                offline: true,
+            },
+            package: crate::TarballPackage {
+                integrity: Some(&package_integrity),
+                unpacked_size: None,
+                file_count: None,
+                url: &package_url,
+                id: package_id,
+            },
+            store: crate::ArchiveStoreContext {
+                dir: store_path,
+                index: StoreIndex::shared_readonly_in(store_path),
+                index_writer: Some(Arc::clone(&writer)),
+                verify_integrity: true,
+                strict_pkg_content_check: true,
+                verified_files_cache: SharedVerifiedFilesCache::default(),
+                prefetched_cas_paths: None,
+            },
+
             requester: "",
-            prefetched_cas_paths: None,
-            retry_opts: test_retry_opts(),
-            auth_headers: &auth_headers,
+
             ignore_file_pattern: None,
-            offline: true,
+
             progress_reported: None,
             store_projection: ArchiveStoreProjection::Package { append_manifest: Some(manifest) },
         }
@@ -313,24 +327,33 @@ async fn store_index_partitions_synthesized_package_manifests_by_content() {
     let store_index = StoreIndex::shared_readonly_in(store_path);
     for manifest in [first_manifest.as_slice(), second_manifest.as_slice()] {
         let files = IngestTarballToStore {
-            http_client: &client,
-            store_dir: store_path,
-            store_index: store_index.clone(),
-            store_index_writer: None,
-            verify_store_integrity: true,
-            strict_store_pkg_content_check: true,
-            verified_files_cache: SharedVerifiedFilesCache::default(),
-            package_integrity: Some(&package_integrity),
-            package_unpacked_size: None,
-            package_file_count: None,
-            package_url: &package_url,
-            package_id,
+            fetching: crate::ArchiveFetchOptions {
+                http_client: &client,
+                auth_headers: &auth_headers,
+                retry_opts: test_retry_opts(),
+                offline: true,
+            },
+            package: crate::TarballPackage {
+                integrity: Some(&package_integrity),
+                unpacked_size: None,
+                file_count: None,
+                url: &package_url,
+                id: package_id,
+            },
+            store: crate::ArchiveStoreContext {
+                dir: store_path,
+                index: store_index.clone(),
+                index_writer: None,
+                verify_integrity: true,
+                strict_pkg_content_check: true,
+                verified_files_cache: SharedVerifiedFilesCache::default(),
+                prefetched_cas_paths: None,
+            },
+
             requester: "",
-            prefetched_cas_paths: None,
-            retry_opts: test_retry_opts(),
-            auth_headers: &auth_headers,
+
             ignore_file_pattern: None,
-            offline: true,
+
             progress_reported: None,
             store_projection: ArchiveStoreProjection::Package { append_manifest: Some(manifest) },
         }
@@ -341,7 +364,13 @@ async fn store_index_partitions_synthesized_package_manifests_by_content() {
     }
 
     let index = StoreIndex::open_in(store_path).expect("open store index");
-    assert_eq!(index.keys().expect("read index keys").len(), 2);
+    assert_eq!(
+        index
+            .keys()
+            .expect("read index keys")
+            .len(),
+        2,
+    );
     drop((index, store_dir, local_dir));
 }
 
@@ -354,24 +383,33 @@ async fn raw_archive_projection_does_not_inject_an_npm_manifest() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
 
     let cas_paths = IngestTarballToStore {
-        http_client: &fast_fail_client(),
-        store_dir: store_path,
-        store_index: None,
-        store_index_writer: None,
-        verify_store_integrity: true,
-        strict_store_pkg_content_check: true,
-        verified_files_cache: SharedVerifiedFilesCache::default(),
-        package_integrity: None,
-        package_unpacked_size: None,
-        package_file_count: None,
-        package_url: &package_url,
-        package_id: "artifact@1.0.0",
+        fetching: crate::ArchiveFetchOptions {
+            http_client: &fast_fail_client(),
+            auth_headers: &AuthHeaders::default(),
+            retry_opts: test_retry_opts(),
+            offline: true,
+        },
+        package: crate::TarballPackage {
+            integrity: None,
+            unpacked_size: None,
+            file_count: None,
+            url: &package_url,
+            id: "artifact@1.0.0",
+        },
+        store: crate::ArchiveStoreContext {
+            dir: store_path,
+            index: None,
+            index_writer: None,
+            verify_integrity: true,
+            strict_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prefetched_cas_paths: None,
+        },
+
         requester: "",
-        prefetched_cas_paths: None,
-        retry_opts: test_retry_opts(),
-        auth_headers: &AuthHeaders::default(),
+
         ignore_file_pattern: None,
-        offline: true,
+
         progress_reported: None,
         store_projection: ArchiveStoreProjection::RawArchive,
     }
@@ -395,8 +433,12 @@ async fn fetch_for_resolution_reads_manifest_from_subdirectory() {
         ("package.json", r#"{"name":"the-monorepo","version":"0.0.0"}"#),
         ("packages/foo/package.json", r#"{"name":"foo","version":"1.2.3"}"#),
     ]);
-    let mock =
-        server.mock("GET", "/repo.tgz").with_status(200).with_body(archive).create_async().await;
+    let mock = server
+        .mock("GET", "/repo.tgz")
+        .with_status(200)
+        .with_body(archive)
+        .create_async()
+        .await;
 
     let url = format!("{}/repo.tgz", server.url());
     let client = ThrottledClient::default();
@@ -434,8 +476,12 @@ async fn fetch_for_resolution_returns_no_manifest_for_subdirectory_without_one()
         ("package.json", r#"{"name":"the-monorepo","version":"0.0.0"}"#),
         ("packages/foo/index.js", "module.exports = 1"),
     ]);
-    let mock =
-        server.mock("GET", "/repo.tgz").with_status(200).with_body(archive).create_async().await;
+    let mock = server
+        .mock("GET", "/repo.tgz")
+        .with_status(200)
+        .with_body(archive)
+        .create_async()
+        .await;
 
     let url = format!("{}/repo.tgz", server.url());
     let client = ThrottledClient::default();
@@ -563,8 +609,7 @@ async fn read_local_tarball_metadata_reads_a_manifest_at_the_archive_root() {
     ]);
     std::fs::write(&tarball_path, gzip_bytes(&tar_bytes)).unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path)
-        .await
+    let metadata = read_local_tarball_metadata(&tarball_path).await
         .expect("read the local tarball's metadata");
 
     assert!(metadata.has_manifest_entry);
@@ -577,7 +622,9 @@ async fn read_local_tarball_metadata_reads_a_manifest_at_the_archive_root() {
     let (_, pkg_files_idx) =
         extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
     assert_eq!(
-        pkg_files_idx.manifest.as_ref().and_then(|manifest| manifest["name"].as_str()),
+        pkg_files_idx.manifest
+            .as_ref()
+            .and_then(|manifest| manifest["name"].as_str()),
         Some("real-name"),
     );
     drop(tempdir);
@@ -599,8 +646,7 @@ async fn read_local_tarball_metadata_ignores_a_manifest_below_the_package_root()
     );
     std::fs::write(&tarball_path, gzip_bytes(&tar_bytes)).unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path)
-        .await
+    let metadata = read_local_tarball_metadata(&tarball_path).await
         .expect("read the local tarball's metadata");
 
     assert!(!metadata.has_manifest_entry);

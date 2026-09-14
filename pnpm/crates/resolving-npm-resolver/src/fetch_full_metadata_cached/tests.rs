@@ -105,14 +105,16 @@ async fn assert_cache_loss_after_304_recovers(
     let auth_headers = AuthHeaders::default();
     let opts = FetchFullMetadataCachedOptions {
         registry: &registry,
-        http_client: &http_client,
-        auth_headers: &auth_headers,
         cache_dir: Some(cache.path()),
         full_metadata,
         filter_metadata: false,
         offline: false,
         priority: pnpm_network::UNPRIORITIZED,
-        retry_opts: no_retry_opts(),
+        http: crate::MetadataHttpClient {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            retry_opts: no_retry_opts(),
+        },
     };
 
     let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("fallback returns metadata");

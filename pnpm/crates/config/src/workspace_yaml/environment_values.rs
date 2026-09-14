@@ -15,7 +15,11 @@ pub(super) fn no_proxy_scalar(value: &serde_json::Value) -> String {
 pub(super) fn has_env_placeholder(value: &str) -> bool {
     value
         .match_indices("${")
-        .any(|(start, _)| value[start + 2..].find('}').is_some_and(|end| end > 0))
+        .any(|(start, _)| {
+            value[start + 2..]
+                .find('}')
+                .is_some_and(|end| end > 0)
+        })
 }
 
 pub(super) fn substitute_optional_string<Sys: EnvVar>(value: &mut Option<String>) {

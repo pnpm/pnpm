@@ -134,8 +134,20 @@ fn project_document_round_trips_and_reads_upstream_pages() {
     let document = document();
     let reparsed = ProjectDocument::parse(&document.to_bytes()).unwrap();
     assert_eq!(reparsed, document);
-    assert_eq!(reparsed.file("demo_pkg-1.0.0.tar.gz").unwrap().sha256(), Some("aa"));
-    assert!(reparsed.file("demo_pkg-1.1.0-py3-none-any.whl").unwrap().yanked.is_yanked());
+    assert_eq!(
+        reparsed
+            .file("demo_pkg-1.0.0.tar.gz")
+            .unwrap()
+            .sha256(),
+        Some("aa"),
+    );
+    assert!(
+        reparsed
+            .file("demo_pkg-1.1.0-py3-none-any.whl")
+            .unwrap()
+            .yanked
+            .is_yanked(),
+    );
 
     let upstream = json!({
         "meta": { "api-version": "1.1", "_last-serial": 1 },

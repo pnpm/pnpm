@@ -25,8 +25,8 @@ use tower::ServiceExt;
 fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
-    config.public_url = "http://example.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.http.public_url = "http://example.test".to_string();
+    config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -52,7 +52,10 @@ async fn add_user_and_get_token(app: axum::Router, username: &str, password: &st
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    payload["token"].as_str().expect("token in response").to_string()
+    payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string()
 }
 
 fn packument(name: &str, version: &str, tarball: &[u8]) -> Value {
@@ -155,14 +158,23 @@ async fn recovery_rolls_a_sealed_transaction_forward() {
     assert_eq!(std::fs::read(storage.join("crash-fwd/crash-fwd-1.0.0.tgz")).unwrap(), tarball);
     assert!(!tmp_path.exists(), "staged tmp file should be promoted away");
     assert!(
-        std::fs::read_dir(storage.join(".pnpr-journal")).unwrap().next().is_none(),
+        std::fs::read_dir(storage.join(".pnpr-journal"))
+            .unwrap()
+            .next()
+            .is_none(),
         "journal should be empty after recovery",
     );
 
     // And it serves.
     let app = router(static_config(storage));
-    let response =
-        app.oneshot(Request::get("/crash-fwd").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/crash-fwd")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 }
 
@@ -191,7 +203,12 @@ async fn recovery_rolls_a_sealed_org_transaction_forward_into_its_namespace() {
         !storage.join("crash-org").exists(),
         "nothing must land in the flat root for an org-journaled publish",
     );
-    assert!(std::fs::read_dir(storage.join(".pnpr-journal")).unwrap().next().is_none());
+    assert!(
+        std::fs::read_dir(storage.join(".pnpr-journal"))
+            .unwrap()
+            .next()
+            .is_none(),
+    );
 }
 
 #[tokio::test]
@@ -207,7 +224,12 @@ async fn recovery_rolls_an_unsealed_transaction_back() {
     assert!(!storage.join("crash-back/package.json").exists());
     assert!(!storage.join("crash-back/crash-back-1.0.0.tgz").exists());
     assert!(!tmp_path.exists(), "staged tmp file should be deleted");
-    assert!(std::fs::read_dir(storage.join(".pnpr-journal")).unwrap().next().is_none());
+    assert!(
+        std::fs::read_dir(storage.join(".pnpr-journal"))
+            .unwrap()
+            .next()
+            .is_none(),
+    );
 }
 
 /// Replaying a sealed transaction merges into the current on-disk
@@ -269,7 +291,9 @@ async fn successful_batch_publish_leaves_no_journal_residue() {
     assert!(storage.join("residue-pkg/package.json").exists());
     let journal_root = storage.join(".pnpr-journal");
     let leftover: Vec<_> = match std::fs::read_dir(&journal_root) {
-        Ok(entries) => entries.map(|entry| entry.unwrap().path()).collect(),
+        Ok(entries) => entries
+            .map(|entry| entry.unwrap().path())
+            .collect(),
         Err(_) => Vec::new(),
     };
     assert!(leftover.is_empty(), "journal entries must be removed after apply: {leftover:?}");

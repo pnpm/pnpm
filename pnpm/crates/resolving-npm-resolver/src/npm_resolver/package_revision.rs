@@ -12,9 +12,7 @@ pub(super) fn tarball_revision(
     integrity: Option<&Integrity>,
     registry: &str,
 ) -> Result<Option<TarballRevision>, ResolveError> {
-    let revision = picked
-        .dist
-        .revision
+    let revision = picked.dist.revision
         .as_ref()
         .map(|revision| {
             revision
@@ -178,12 +176,13 @@ pub(super) fn validate_current_package_revision(
                 format!("current revision {raw_revision} is not a canonical positive safe integer"),
             )
         })?;
-    let record = package_revision_record(picked, revision, registry)?.ok_or_else(|| {
-        malformed_revision_history(
-            picked,
-            format!("current revision {revision} has no history entry"),
-        )
-    })?;
+    let record = package_revision_record(picked, revision, registry)?
+        .ok_or_else(|| {
+            malformed_revision_history(
+                picked,
+                format!("current revision {revision} has no history entry"),
+            )
+        })?;
     if picked.dist.integrity.as_ref() != Some(&record.integrity)
         || !same_registry_artifact_url(&picked.dist.tarball, record.tarball)
     {
@@ -234,24 +233,36 @@ pub(super) fn validate_package_revision_record<'a>(
     registry: &str,
     record: &'a serde_json::Value,
 ) -> Result<ValidatedPackageRevision<'a>, ResolveError> {
-    let integrity_text =
-        record.get("integrity").and_then(serde_json::Value::as_str).ok_or_else(|| {
+    let integrity_text = record
+        .get("integrity")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| {
             malformed_revision_history(picked, format!("revision {requested} has no integrity"))
         })?;
-    let integrity = integrity_text.parse::<Integrity>().map_err(|_| {
-        malformed_revision_history(picked, format!("revision {requested} has invalid integrity"))
-    })?;
-    let tarball = record.get("tarball").and_then(serde_json::Value::as_str).ok_or_else(|| {
-        malformed_revision_history(picked, format!("revision {requested} has no tarball URL"))
-    })?;
+    let integrity = integrity_text
+        .parse::<Integrity>()
+        .map_err(|_| {
+            malformed_revision_history(
+                picked,
+                format!("revision {requested} has invalid integrity"),
+            )
+        })?;
+    let tarball = record
+        .get("tarball")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| {
+            malformed_revision_history(picked, format!("revision {requested} has no tarball URL"))
+        })?;
     if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, registry) {
         return Err(malformed_revision_history(
             picked,
             format!("revision {requested} is not addressed by its complete sha512 integrity"),
         ));
     }
-    let manifest =
-        record.get("manifest").and_then(serde_json::Value::as_object).ok_or_else(|| {
+    let manifest = record
+        .get("manifest")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
             malformed_revision_history(
                 picked,
                 format!("revision {requested} has an invalid manifest"),

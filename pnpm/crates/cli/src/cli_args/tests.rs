@@ -54,7 +54,7 @@ fn prefix_is_an_alias_of_dir() {
         ["pacquet", "install", "--prefix", "project"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses --prefix");
-        assert_eq!(parsed.dir, std::path::PathBuf::from("project"));
+        assert_eq!(parsed.paths.dir, std::path::PathBuf::from("project"));
     }
 }
 
@@ -62,7 +62,7 @@ fn prefix_is_an_alias_of_dir() {
 fn add_allow_build_collects_repeated_values() {
     let args =
         add_args(&["pacquet", "add", "foo", "--allow-build=esbuild", "--allow-build", "sharp"]);
-    assert_eq!(args.allow_build, ["esbuild", "sharp"]);
+    assert_eq!(args.install.allow_build, ["esbuild", "sharp"]);
 }
 
 #[test]
@@ -72,7 +72,7 @@ fn store_is_an_alias_of_store_dir() {
         ["pacquet", "install", "--store=custom-store"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses --store");
-        assert_eq!(parsed.store_dir.as_deref(), Some(Path::new("custom-store")));
+        assert_eq!(parsed.paths.store_dir.as_deref(), Some(Path::new("custom-store")));
     }
 }
 
@@ -80,18 +80,18 @@ fn store_is_an_alias_of_store_dir() {
 fn store_dir_accepts_an_explicit_empty_value() {
     let parsed = CliArgs::try_parse_from(["pacquet", "store", "path", "--store-dir="])
         .expect("parses empty global --store-dir");
-    assert_eq!(parsed.store_dir.as_deref(), Some(Path::new("")));
+    assert_eq!(parsed.paths.store_dir.as_deref(), Some(Path::new("")));
 }
 
 #[test]
 fn repeated_state_dir_uses_the_last_value_on_either_side_of_the_subcommand() {
     for argv in [
-        ["pacquet", "--state-dir", "first-state", "--state-dir", "last-state", "install"]
-            .as_slice(),
+        ["pacquet", "--state-dir", "first-state", "--state-dir", "last-state", "install"].as_slice(
+        ),
         ["pacquet", "install", "--state-dir=first-state", "--state-dir=last-state"].as_slice(),
     ] {
         let parsed = CliArgs::try_parse_from(argv).expect("parses repeated global --state-dir");
-        assert_eq!(parsed.state_dir.as_deref(), Some(Path::new("last-state")));
+        assert_eq!(parsed.paths.state_dir.as_deref(), Some(Path::new("last-state")));
     }
 }
 
@@ -112,7 +112,7 @@ fn list_accepts_the_electron_builder_collector_invocation() {
     ])
     .expect("parses the electron-builder `pnpm list` invocation");
     assert!(matches!(parsed.command, CliCommand::List(_)));
-    assert_eq!(parsed.loglevel, Some(LogLevelSetting::Error));
+    assert_eq!(parsed.output.presentation.loglevel, Some(LogLevelSetting::Error));
 }
 
 #[test]
@@ -132,8 +132,8 @@ fn runtime_alias_and_flags_parse() {
 fn version_message_short_flag_is_an_alias_of_message() {
     let short = version_args(&["pacquet", "version", "patch", "-m", "release %s"]);
     let long = version_args(&["pacquet", "version", "patch", "--message", "release %s"]);
-    assert_eq!(short.message.as_deref(), Some("release %s"));
-    assert_eq!(short.message, long.message);
+    assert_eq!(short.git.message.as_deref(), Some("release %s"));
+    assert_eq!(short.git.message, long.git.message);
     assert_eq!(short.params, ["patch"]);
 }
 
@@ -292,15 +292,30 @@ fn resolve_bool_override_tri_state() {
 
 #[test]
 fn trust_lockfile_pair_resolves_last_one_wins() {
-    assert!(install_args(&["pacquet", "install", "--no-trust-lockfile"]).no_trust_lockfile);
-    assert!(install_args(&["pacquet", "install", "--trust-lockfile"]).trust_lockfile);
+    assert!(
+        install_args(&["pacquet", "install", "--no-trust-lockfile"])
+            .lockfile_updates
+            .no_trust_lockfile,
+    );
+    assert!(
+        install_args(&["pacquet", "install", "--trust-lockfile"])
+            .lockfile_updates
+            .trust_lockfile,
+    );
 
     // Both spellings in one argv must not error (pnpm forwards raw tokens);
     // mutual `overrides_with` collapses them to the last-specified.
     let last_off = install_args(&["pacquet", "install", "--trust-lockfile", "--no-trust-lockfile"]);
-    assert!(last_off.no_trust_lockfile && !last_off.trust_lockfile, "--no wins when last");
+    assert!(
+        last_off.lockfile_updates.no_trust_lockfile
+            && !last_off.lockfile_updates.trust_lockfile,
+        "--no wins when last",
+    );
     let last_on = install_args(&["pacquet", "install", "--no-trust-lockfile", "--trust-lockfile"]);
-    assert!(last_on.trust_lockfile && !last_on.no_trust_lockfile, "--trust wins when last");
+    assert!(
+        last_on.lockfile_updates.trust_lockfile && !last_on.lockfile_updates.no_trust_lockfile,
+        "--trust wins when last",
+    );
 }
 
 /// Returns the canonicalized root too: a temp dir is a symlink on some
@@ -343,10 +358,10 @@ fn config_merged_boolean_negations_parse() {
         "--no-frozen-store",
         "--no-ignore-scripts",
     ]);
-    assert!(args.no_offline);
-    assert!(args.no_prefer_offline);
-    assert!(args.no_frozen_store);
-    assert!(args.no_ignore_scripts);
+    assert!(args.network_cache.no_offline);
+    assert!(args.network_cache.no_prefer_offline);
+    assert!(args.materialization.no_frozen_store);
+    assert!(args.scripts.no_ignore);
 }
 
 #[test]
@@ -403,9 +418,9 @@ fn dedupe_takes_the_install_options_pnpm_documents_for_it() {
         "--prefer-offline",
     ]);
     assert!(args.lockfile_only);
-    assert!(args.ignore_scripts);
-    assert!(args.offline);
-    assert!(args.prefer_offline);
+    assert!(args.scripts.ignore);
+    assert!(args.network_cache.offline);
+    assert!(args.network_cache.prefer_offline);
 
     let mut config = pnpm_config::Config::default();
     args.apply_cli_config(&mut config);

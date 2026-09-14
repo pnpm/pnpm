@@ -1,9 +1,9 @@
 use super::{
-    Config, Registry, RegistryError, org_collision_error, registry_err, validate_org_namespace,
-    validate_registry_key,
+    Features, Registry, RegistryError, RoutingConfig, org_collision_error, registry_err,
+    validate_org_namespace, validate_registry_key,
 };
 
-impl Config {
+impl Features {
     /// At least one top-level surface must be served; a server with no
     /// registry surface (no registries declared, or `--disable-registry`) and
     /// the resolver disabled would answer only `/-/ping` and the account
@@ -25,7 +25,9 @@ impl Config {
             })
         }
     }
+}
 
+impl RoutingConfig {
     /// Ready the registry graph for serving: fold every upstream into the graph
     /// as a pattern-less upstream registry, then apply every invariant YAML
     /// loading enforces — URL-safe registry names, path-safe and collision-free
@@ -36,9 +38,12 @@ impl Config {
     /// config fails closed like a YAML load. An embedder that wants a
     /// namespace bound on an upstream declares its registry entry (with
     /// patterns) before serving.
-    pub fn ensure_valid_registry_graph(&mut self) -> Result<(), RegistryError> {
+    pub fn ensure_valid_registry_graph(
+        &mut self,
+        registry_enabled: bool,
+    ) -> Result<(), RegistryError> {
         self.ensure_upstreams_in_graph()?;
-        self.ensure_concrete_registries_are_served()?;
+        self.ensure_concrete_registries_are_served(registry_enabled)?;
         self.ensure_hosted_rows_match_graph()?;
         self.ensure_public_upstreams_send_no_headers()?;
         self.registries.validate().map_err(|err| registry_err(&err))
@@ -75,7 +80,10 @@ impl Config {
     /// required when the registry surface is enabled: a resolver-only tier
     /// deliberately skips upstream (credential) resolution and never serves
     /// `/~<name>/` content.
-    pub(super) fn ensure_concrete_registries_are_served(&self) -> Result<(), RegistryError> {
+    pub(super) fn ensure_concrete_registries_are_served(
+        &self,
+        registry_enabled: bool,
+    ) -> Result<(), RegistryError> {
         for name in self.registries.names() {
             validate_registry_key(name)?;
             match self.registries.get(name) {
@@ -88,7 +96,7 @@ impl Config {
                     });
                 }
                 Some(Registry::Upstream { .. })
-                    if self.registry.enabled && !self.upstreams.contains_key(name) =>
+                    if registry_enabled && !self.upstreams.contains_key(name) =>
                 {
                     return Err(RegistryError::InvalidConfig {
                         reason: format!(
@@ -124,8 +132,10 @@ impl Config {
                     ),
                 });
             }
-            if let Some((other, _)) =
-                self.hosted.iter().take(index).find(|(_, existing)| existing.org == hosted.org)
+            if let Some((other, _)) = self.hosted
+                .iter()
+                .take(index)
+                .find(|(_, existing)| existing.org == hosted.org)
             {
                 return Err(org_collision_error(name, &hosted.org, other));
             }

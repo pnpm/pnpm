@@ -100,6 +100,13 @@ fn root_dir() -> String {
 /// parse.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "pnpr resolution request wire format is flat"
+    )
+)]
 pub struct ResolveRequest {
     #[serde(default)]
     pub dependencies: Option<DepMap>,
@@ -248,7 +255,10 @@ impl ResolveRequest {
     /// maps to a single root (`.`) importer; an empty/absent `projects`
     /// array falls back to it too.
     pub fn projects_normalized(&self) -> Vec<ProjectDeps> {
-        if let Some(projects) = self.projects.as_ref().filter(|projects| !projects.is_empty()) {
+        if let Some(projects) = self.projects
+            .as_ref()
+            .filter(|projects| !projects.is_empty())
+        {
             return projects
                 .iter()
                 .map(|project| ProjectDeps {

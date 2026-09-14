@@ -57,7 +57,10 @@ fn invalid_optional_child_entries_do_not_match() {
         ..SnapshotEntry::default()
     };
     let layout = VirtualStoreLayout::legacy(temp_dir.path().join("virtual-store"), 120);
-    let child_path = layout.slot_dir(&snapshot_key).join("node_modules").join("optional-child");
+    let child_path = layout
+        .slot_dir(&snapshot_key)
+        .join("node_modules")
+        .join("optional-child");
     fs::create_dir_all(child_path.parent().expect("child path has a parent"))
         .expect("create slot modules directory");
     let target = temp_dir.path().join("optional-target");
@@ -161,7 +164,10 @@ impl PlanFixture {
     }
 
     fn snapshot_key(&self) -> &PackageKey {
-        self.snapshots.keys().next().expect("fixture holds one snapshot")
+        self.snapshots
+            .keys()
+            .next()
+            .expect("fixture holds one snapshot")
     }
 
     fn slot_package_dir(&self) -> std::path::PathBuf {
@@ -191,8 +197,7 @@ impl PlanFixture {
 
     fn plan_inner(&self, current_matches_wanted: bool, force: bool) -> SnapshotPlan<'_> {
         let allow_build_policy = AllowBuildPolicy::new(HashSet::new(), HashSet::new(), false);
-        let mut cache_keys = self
-            .snapshots
+        let mut cache_keys = self.snapshots
             .keys()
             .map(|snapshot_key| {
                 (
@@ -205,6 +210,13 @@ impl PlanFixture {
             })
             .collect();
         plan_snapshots::<SilentReporter>(SnapshotPlanInputs {
+            policy: crate::create_virtual_store::snapshot_plan::SnapshotReusePolicy {
+                skipped: &SkippedSnapshots::default(),
+                link_dependencies: true,
+                force,
+                is_hoisted: false,
+                include_optional: true,
+            },
             snapshots: &self.snapshots,
             packages: &self.packages,
             current_entries: LockfileEntries {
@@ -213,11 +225,7 @@ impl PlanFixture {
             },
             layout: &self.layout,
             allow_build_policy: &allow_build_policy,
-            skipped: &SkippedSnapshots::default(),
-            link_dependencies: true,
-            force,
-            is_hoisted: false,
-            include_optional_dependencies: true,
+
             cache_keys: &mut cache_keys,
         })
         .expect("plan snapshots")
@@ -291,30 +299,43 @@ fn gvs_slot_missing_a_regular_child_link_survives() {
         None,
     );
     let fixture = PlanFixture { snapshots, packages, layout };
-    let parent_dir = fixture.layout.slot_dir(&parent_key).join("node_modules").join("foo");
+    let parent_dir = fixture.layout
+        .slot_dir(&parent_key)
+        .join("node_modules")
+        .join("foo");
     fs::create_dir_all(&parent_dir).expect("materialize the parent slot");
     fs::write(parent_dir.join("package.json"), "{}").expect("place the completion marker");
 
     let plan = fixture.plan(false);
-    let survivor_keys: HashSet<String> =
-        plan.survivors.iter().map(|(key, _, _)| key.to_string()).collect();
+    let survivor_keys: HashSet<String> = plan.survivors
+        .iter()
+        .map(|(key, _, _)| key.to_string())
+        .collect();
     assert!(
         survivor_keys.contains("foo@1.0.0"),
         "a marker-complete slot missing a child link is a partial import and must be repaired",
     );
 
-    let child_link = parent_dir.parent().expect("modules dir").join("bar");
+    let child_link = parent_dir
+        .parent()
+        .expect("modules dir")
+        .join("bar");
     fs::create_dir(&child_link).expect("plant a plain directory where the child link belongs");
     let plan = fixture.plan(false);
-    let survivor_keys: HashSet<String> =
-        plan.survivors.iter().map(|(key, _, _)| key.to_string()).collect();
+    let survivor_keys: HashSet<String> = plan.survivors
+        .iter()
+        .map(|(key, _, _)| key.to_string())
+        .collect();
     assert!(
         survivor_keys.contains("foo@1.0.0"),
         "a plain directory where the child link belongs is a corrupted slot and must be repaired",
     );
     fs::remove_dir(&child_link).expect("remove the plain directory");
 
-    let child_dir = fixture.layout.slot_dir(&child_key).join("node_modules").join("bar");
+    let child_dir = fixture.layout
+        .slot_dir(&child_key)
+        .join("node_modules")
+        .join("bar");
     fs::create_dir_all(&child_dir).expect("materialize the child slot");
     fs::write(child_dir.join("package.json"), "{}").expect("place the child completion marker");
     pnpm_fs::symlink_dir(&child_dir, &child_link).expect("link the child into the parent slot");

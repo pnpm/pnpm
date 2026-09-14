@@ -1,10 +1,10 @@
 use super::{
-    DEP, HELLO, HELLO_PARENT, ManifestDeps, PARENT, WorkspaceFixture, assert_eq,
+    DEP, HELLO, HELLO_PARENT, HashMap, ManifestDeps, NO_DEPS, PARENT, WorkspaceFixture, assert_eq,
     assert_full_wanted, assert_root_and_selected_are_materialized, assert_stage_once,
-    compatible_update_scenario, dependency_spec, fs, has_snapshot, importer,
-    importer_has_group_dependency, importer_specifier, importer_version, read_lockfile,
-    replace_dependencies, set_dependency, snapshot_entries, transitive_update_scenario,
-    workspace_with_installable_root,
+    compatible_update_scenario, dependency_spec, fs, has_link, has_snapshot, importer,
+    importer_has_group_dependency, importer_specifier, importer_version, map_contains,
+    read_lockfile, replace_dependencies, set_dependency, snapshot_entries,
+    transitive_update_scenario, workspace_with_installable_root,
 };
 
 #[test]
@@ -432,4 +432,88 @@ fn recursive_add_auto_excludes_workspace_root() {
     assert!(!importer_has_group_dependency(&wanted, ".", "dependencies", HELLO));
     assert!(importer_has_group_dependency(&wanted, "packages/member-a", "dependencies", HELLO,));
     assert!(importer_has_group_dependency(&wanted, "packages/member-b", "dependencies", HELLO,));
+}
+
+#[test]
+fn filtered_install_after_full_install_preserves_unselected_materialization() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(
+        "nodeExperimentalPackageMap: true\nhoistPattern:\n  - '*'\nmodulesCacheMaxAge: 0\n",
+    );
+    let selected = fixture.project(
+        "selected",
+        "selected",
+        ManifestDeps { prod: &[(HELLO, "1.0.0")], ..Default::default() },
+    );
+    let unselected = fixture.project(
+        "unselected",
+        "unselected",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+    fixture.run(["install"]);
+    let before_wanted = fixture.wanted();
+    let before_current = fixture.current();
+    let prior_wanted_importer = importer(&before_wanted, "packages/unselected").clone();
+    let prior_current_importer = importer(&before_current, "packages/unselected").clone();
+    let prior_parent = snapshot_entries(&before_wanted, PARENT);
+    let prior_child = snapshot_entries(&before_wanted, DEP);
+    let prior_current_parent = snapshot_entries(&before_current, PARENT);
+    let prior_current_child = snapshot_entries(&before_current, DEP);
+    let prior_package_map = fixture.package_map();
+    assert!(map_contains(&prior_package_map, PARENT));
+    assert!(map_contains(&prior_package_map, DEP));
+    let mut modules = fixture.modules();
+    let prior_hoisted: HashMap<_, _> = modules.hoisted_dependencies
+        .iter()
+        .filter(|(key, _)| key.contains(PARENT) || key.contains(DEP))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
+    assert!(!prior_hoisted.is_empty(), "unselected hoist metadata must be present");
+    let pending_id = snapshot_entries(&before_wanted, PARENT)[0].0.clone();
+    modules.pending_builds.push(pending_id.clone());
+    fixture.write_modules(modules);
+    let retained_link = unselected.join("node_modules").join(PARENT);
+    let retained_parent_slot = fixture.slot(PARENT, "100.0.0");
+    let retained_child_slot = fixture.slot(DEP, "100.1.0");
+    let obsolete_selected_slot = fixture.slot(HELLO, "1.0.0");
+    assert!(has_link(&unselected, PARENT));
+    assert!(retained_parent_slot.exists());
+    assert!(retained_child_slot.exists());
+    assert!(obsolete_selected_slot.exists());
+
+    replace_dependencies(&selected, &[(NO_DEPS, "1.0.0")]);
+    replace_dependencies(&unselected, &[(HELLO_PARENT, "1.0.0")]);
+    let external_manifest = fs::read(unselected.join("package.json")).expect("read manifest");
+    fixture.run(["--filter", "selected", "install"]);
+    let after_wanted = fixture.wanted();
+    let after_current = fixture.current();
+
+    assert_eq!(
+        fs::read(unselected.join("package.json")).expect("read manifest"),
+        external_manifest,
+    );
+    assert_eq!(importer(&after_wanted, "packages/unselected"), &prior_wanted_importer);
+    assert_eq!(snapshot_entries(&after_wanted, PARENT), prior_parent);
+    assert_eq!(snapshot_entries(&after_wanted, DEP), prior_child);
+    assert!(snapshot_entries(&after_wanted, HELLO_PARENT).is_empty());
+    assert!(retained_link.exists());
+    assert!(retained_parent_slot.exists());
+    assert!(retained_child_slot.exists());
+    assert_eq!(importer(&after_current, "packages/unselected"), &prior_current_importer);
+    assert_eq!(snapshot_entries(&after_current, PARENT), prior_current_parent);
+    assert_eq!(snapshot_entries(&after_current, DEP), prior_current_child);
+    let after_package_map = fixture.package_map();
+    assert!(map_contains(&after_package_map, PARENT));
+    assert!(map_contains(&after_package_map, DEP));
+    let after_modules = fixture.modules();
+    for (key, value) in prior_hoisted {
+        assert_eq!(after_modules.hoisted_dependencies.get(&key), Some(&value));
+    }
+    assert!(after_modules.pending_builds.contains(&pending_id));
+    assert!(!obsolete_selected_slot.exists());
+    assert!(!has_snapshot(&after_current, HELLO, "1.0.0"));
+    assert!(has_link(&selected, NO_DEPS));
+    assert!(fixture.slot(NO_DEPS, "1.0.0").exists());
+    assert_eq!(importer_version(&after_wanted, "packages/selected", NO_DEPS), "1.0.0");
+    assert_eq!(importer_version(&after_current, "packages/selected", NO_DEPS), "1.0.0");
 }

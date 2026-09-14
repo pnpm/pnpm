@@ -46,6 +46,13 @@ pub struct HoistPatterns {
 /// `.npmrc` (auth/registry/network) and `pnpm-workspace.yaml`
 /// (project-structural settings).
 #[derive(Debug, Clone, SmartDefault)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror pnpm configuration keys."
+    )
+)]
 pub struct Config {
     /// Whether recursive commands stop after the first failure.
     #[default = true]
@@ -123,6 +130,17 @@ pub struct Config {
     /// a value still reaches the settings-only readers, matching pnpm's
     /// `handleIgnoredBuilds`.
     pub ignore_workspace: bool,
+
+    /// Whether [`Self::current`] skipped the workspace search, which it
+    /// does exactly when [`Self::ignore_workspace`] was already set when
+    /// the search ran.
+    ///
+    /// A consumer that re-derives the workspace root reads this to tell
+    /// a deliberately suppressed search from an unresolved one. Reading
+    /// [`Self::ignore_workspace`] there would be wrong: the layers it
+    /// also collects land after discovery, and must not retroactively
+    /// turn the project standalone.
+    pub workspace_search_skipped: bool,
 
     /// Glob patterns selecting the workspace's projects, from
     /// `--workspace-packages` or `pnpm-workspace.yaml`'s `packages`.
@@ -1671,9 +1689,13 @@ impl Config {
         &self,
     ) -> Result<Option<PatchGroupRecord>, ResolvePatchedDependenciesError> {
         if let Some(hashes) = self.patched_dependency_hashes_override.as_ref() {
-            let groups = group_patched_dependencies(hashes.iter().map(|(key, hash)| {
-                (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
-            }))?;
+            let groups = group_patched_dependencies(
+                hashes
+                    .iter()
+                    .map(|(key, hash)| {
+                        (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
+                    }),
+            )?;
             return Ok((!groups.is_empty()).then_some(groups));
         }
         let (Some(workspace_dir), Some(raw)) = (&self.workspace_dir, &self.patched_dependencies)

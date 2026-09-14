@@ -72,7 +72,10 @@ use pnpm_reporter::{NdjsonReporter, SilentReporter};
 pub(super) fn recursive<'a>(_ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     Ok(Box::pin(async move {
         let mut cmd = crate::cli_args::CliArgs::command();
-        let _ = cmd.find_subcommand_mut("recursive").expect("recursive subcommand").print_help();
+        let _ = cmd
+            .find_subcommand_mut("recursive")
+            .expect("recursive subcommand")
+            .print_help();
         #[expect(clippy::exit, reason = "`recursive` exits non-zero, mirroring pnpm")]
         std::process::exit(1);
     }))
@@ -88,7 +91,7 @@ pub(super) fn outdated<'a>(
     args: OutdatedArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     if args.global {
-        let config = (ctx.global_config)()?;
+        let config = (ctx.loaders.global_config)()?;
         return Ok(Box::pin(async move {
             if args.run_global(config).await? == OutdatedOutcome::Outdated {
                 #[expect(
@@ -100,9 +103,9 @@ pub(super) fn outdated<'a>(
             Ok(())
         }));
     }
-    let config = (ctx.config)()?;
-    let dir = ctx.dir;
-    let manifest_path = ctx.manifest_path.to_path_buf();
+    let config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path.to_path_buf();
     let reporter = ctx.reporter;
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
@@ -127,7 +130,7 @@ pub(super) fn outdated<'a>(
 }
 
 pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<CommandFuture<'a>> {
-    let command_state = (ctx.state)(true)?;
+    let command_state = (ctx.loaders.state)(true)?;
     macro_rules! run_audit {
         ($reporter:ty) => {
             Box::pin(async move {
@@ -150,17 +153,17 @@ pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<Com
 }
 
 pub(super) fn list<'a>(ctx: &RunCtx<'a>, args: ListArgs) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.config)()?;
-    let dir = ctx.dir;
-    let recursive = ctx.recursive;
+    let config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    let recursive = ctx.workspace.recursive;
     Ok(Box::pin(async move { args.run(config, dir, recursive).await }))
 }
 
 pub(super) fn ll<'a>(ctx: &RunCtx<'a>, mut args: ListArgs) -> miette::Result<CommandFuture<'a>> {
-    args.long = true;
-    let config = (ctx.config)()?;
-    let dir = ctx.dir;
-    let recursive = ctx.recursive;
+    args.output.long = true;
+    let config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    let recursive = ctx.workspace.recursive;
     Ok(Box::pin(async move { args.run(config, dir, recursive).await }))
 }
 
@@ -168,24 +171,24 @@ pub(super) fn licenses<'a>(
     ctx: &RunCtx<'a>,
     args: LicensesArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.config)()?;
-    let dir = ctx.dir;
-    let recursive = ctx.recursive;
+    let config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    let recursive = ctx.workspace.recursive;
     Ok(Box::pin(async move { args.run(config, dir, recursive).await }))
 }
 
 pub(super) fn why<'a>(ctx: &RunCtx<'a>, args: WhyArgs) -> miette::Result<CommandFuture<'a>> {
-    Ok(Box::pin(args.run((ctx.state)(true)?)))
+    Ok(Box::pin(args.run((ctx.loaders.state)(true)?)))
 }
 
 pub(super) fn sbom<'a>(ctx: &RunCtx<'a>, args: SbomArgs) -> miette::Result<CommandFuture<'a>> {
-    Ok(Box::pin(args.run((ctx.state)(true)?)))
+    Ok(Box::pin(args.run((ctx.loaders.state)(true)?)))
 }
 
 pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
-    let recursive = ctx.recursive;
-    let dir = ctx.dir;
+    let cfg: &Config = (ctx.loaders.config)()?;
+    let recursive = ctx.workspace.recursive;
+    let dir = ctx.locations.dir;
     Ok(Box::pin(async move {
         if args.run(cfg, dir, recursive)? != PeersOutcome::NoIssues {
             #[expect(
@@ -199,12 +202,12 @@ pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<Com
 }
 
 pub(super) fn change<'a>(ctx: &RunCtx<'a>, args: ChangeArgs) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move { args.run(cfg).await }))
 }
 
 pub(super) fn lane<'a>(ctx: &RunCtx<'a>, args: LaneArgs) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg: &Config = (ctx.loaders.config)()?;
     let result = args.run(cfg);
     Ok(Box::pin(std::future::ready(result)))
 }
@@ -213,9 +216,9 @@ pub(super) fn version<'a>(
     ctx: &RunCtx<'a>,
     args: VersionArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
-    let dir = ctx.dir;
-    let recursive = ctx.recursive;
+    let cfg: &Config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    let recursive = ctx.workspace.recursive;
     let reporter = ctx.reporter;
     Ok(Box::pin(async move {
         match reporter {
@@ -234,9 +237,9 @@ pub(super) fn version<'a>(
 // print split. `run` is async (it may invoke `beforePacking` pnpmfile
 // hooks), so the work is deferred into the returned future.
 pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.config)()?;
-    let dir = ctx.dir;
-    let recursive = ctx.recursive;
+    let config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    let recursive = ctx.workspace.recursive;
     let reporter = ctx.reporter;
     async fn run<Reporter: pnpm_reporter::Reporter>(
         args: PackArgs,
@@ -278,10 +281,10 @@ pub(super) fn publish<'a>(
     ctx: &RunCtx<'a>,
     mut args: PublishArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.config)()?;
-    let dir = ctx.dir;
-    let recursive = ctx.recursive;
-    args.flags.report_summary |= ctx.recursive_report_summary;
+    let config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    let recursive = ctx.workspace.recursive;
+    args.flags.output.report_summary |= ctx.workspace.report_summary;
     async fn run<Reporter: pnpm_reporter::Reporter>(
         args: PublishArgs,
         dir: &std::path::Path,
@@ -291,7 +294,7 @@ pub(super) fn publish<'a>(
         let hooks = prepare_config::<Reporter>(config, dir).await?;
         args.run::<Reporter>(dir, config, recursive, hooks).await
     }
-    if args.flags.json {
+    if args.flags.output.json {
         return Ok(Box::pin(run::<SilentReporter>(args, dir, config, recursive)));
     }
     Ok(match ctx.reporter {
@@ -311,17 +314,20 @@ pub(super) fn stage<'a>(
     ctx: &RunCtx<'a>,
     mut args: StageArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let config = (ctx.config)()?;
-    let dir = ctx.dir;
-    let recursive = ctx.recursive;
-    args.flags.report_summary |= ctx.recursive_report_summary;
+    let config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    let recursive = ctx.workspace.recursive;
+    args.flags.output.report_summary |= ctx.workspace.report_summary;
     async fn print_output<Reporter: pnpm_reporter::Reporter>(
         args: StageArgs,
         dir: &std::path::Path,
         config: &mut Config,
         recursive: bool,
     ) -> miette::Result<()> {
-        let hooks = if args.params.first().is_some_and(|subcommand| subcommand == "publish") {
+        let hooks = if args.params
+            .first()
+            .is_some_and(|subcommand| subcommand == "publish")
+        {
             prepare_config::<Reporter>(config, dir).await?
         } else {
             Vec::new()
@@ -356,8 +362,8 @@ pub(super) fn pack_app<'a>(
     ctx: &RunCtx<'a>,
     args: PackAppArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
-    let dir = ctx.dir;
+    let cfg: &Config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
     Ok(Box::pin(async move { args.run(cfg, dir).await }))
 }
 

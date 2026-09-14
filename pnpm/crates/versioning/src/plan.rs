@@ -73,15 +73,20 @@ pub struct PlannedRelease {
     /// Workspace-relative project directory — the engine's unit of identity.
     pub dir: String,
     pub root_dir: PathBuf,
-    pub current_version: String,
-    pub new_version: String,
-    pub bump_type: ReleaseBumpType,
     /// The intent files this release consumes for this package: the pending
     /// ones, plus — when the release graduates the package off a lane — the
     /// ones the ledger recorded against the lane's prerelease versions.
     pub intents: Vec<ChangeIntent>,
     pub dependency_updates: Vec<DependencyUpdate>,
     pub causes: Vec<ReleaseCause>,
+    pub version: ReleaseVersion,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReleaseVersion {
+    pub current: String,
+    pub next: String,
+    pub bump: ReleaseBumpType,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -130,10 +135,7 @@ pub fn assemble_release_plan(
     let consumption = build_consumption_index(ledger, |name| workspace.refs.name_to_dirs(name))?;
 
     let ctx = AssembleContext {
-        participants: &workspace.participants,
-        lanes_by_dir: &workspace.lanes_by_dir,
-        fixed_groups: &workspace.fixed_groups,
-        epics: &workspace.epics,
+        workspace: &workspace,
         intent_bumps: &intent_bumps,
         consumption: &consumption,
         intents,
@@ -254,8 +256,10 @@ fn push_fixed_group_violations(
     violations: &mut Vec<VersioningInvariantViolation>,
 ) {
     for (index, group) in workspace.fixed_groups.iter().enumerate() {
-        let distinct: BTreeSet<&str> =
-            group.iter().map(|dir| workspace.participants[dir.as_str()].current_version).collect();
+        let distinct: BTreeSet<&str> = group
+            .iter()
+            .map(|dir| workspace.participants[dir.as_str()].current_version)
+            .collect();
         if distinct.len() > 1 {
             let detail = group
                 .iter()
@@ -265,8 +269,9 @@ fn push_fixed_group_violations(
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
-            let declared =
-                versioning.map(|settings| settings.fixed[index].join(", ")).unwrap_or_default();
+            let declared = versioning
+                .map(|settings| settings.fixed[index].join(", "))
+                .unwrap_or_default();
             violations.push(VersioningInvariantViolation {
                 code: VersioningInvariantCode::FixedGroupMismatch,
                 message: format!("The fixed group [{declared}] is not in lockstep: {detail}."),
@@ -307,10 +312,7 @@ struct ResolvedEpic {
 }
 
 struct AssembleContext<'a> {
-    participants: &'a BTreeMap<String, Participant<'a>>,
-    lanes_by_dir: &'a BTreeMap<String, String>,
-    fixed_groups: &'a [Vec<String>],
-    epics: &'a [ResolvedEpic],
+    workspace: &'a ResolvedWorkspace<'a>,
     /// Per intent id: the participant dirs it releases and their bump types.
     intent_bumps: &'a HashMap<String, BTreeMap<String, IntentBumpType>>,
     consumption: &'a HashMap<String, PackageConsumption>,
@@ -321,7 +323,10 @@ struct AssembleContext<'a> {
 
 impl AssembleContext<'_> {
     fn intent_bump_for(&self, intent: &ChangeIntent, dir: &str) -> Option<IntentBumpType> {
-        self.intent_bumps.get(&intent.id).and_then(|by_dir| by_dir.get(dir)).copied()
+        self.intent_bumps
+            .get(&intent.id)
+            .and_then(|by_dir| by_dir.get(dir))
+            .copied()
     }
 }
 
@@ -348,7 +353,7 @@ fn assemble(
     let releases = planned_releases(ctx, &intents, &state, &new_versions);
     assert_no_duplicate_release_identity(&releases)?;
     if ctx.opts.snapshot_suffix.is_none() {
-        enforce_epic_bands(ctx.epics, ctx.participants, &new_versions)?;
+        enforce_epic_bands(&ctx.workspace.epics, &ctx.workspace.participants, &new_versions)?;
         enforce_max_bump(&releases, ctx.versioning)?;
     }
 

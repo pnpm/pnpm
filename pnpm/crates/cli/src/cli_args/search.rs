@@ -157,8 +157,10 @@ impl SearchArgs {
     /// The results as JSON or as one block per package.
     fn render(&self, data: RegistrySearchResponse) -> miette::Result<String> {
         if self.json {
-            let packages: Vec<&serde_json::Value> =
-                data.objects.iter().map(|obj| &obj.package).collect();
+            let packages: Vec<&serde_json::Value> = data.objects
+                .iter()
+                .map(|obj| &obj.package)
+                .collect();
             return Ok(serde_json::to_string_pretty(&packages)
                 .map_err(|err| SearchError::NetworkError { message: err.to_string() })?);
         }
@@ -187,20 +189,27 @@ fn with_trailing_slash(registry_url: &str) -> String {
 /// The registry's own explanation of a rejected search, when it sent one.
 async fn search_request_failed(response: reqwest::Response) -> SearchError {
     let status = response.status();
-    let error_body = response.text().await.unwrap_or_default().trim().to_string();
+    let error_body = response
+        .text()
+        .await
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     let detail =
         if error_body.is_empty() { String::new() } else { format!(". {}", sanitize(&error_body)) };
     SearchError::SearchFailed {
         status: status.as_u16(),
-        status_text: status.canonical_reason().unwrap_or_default().to_string(),
+        status_text: status
+            .canonical_reason()
+            .unwrap_or_default()
+            .to_string(),
         detail,
     }
 }
 
 fn format_package(pkg: &SearchPackage) -> String {
     let author = author_name(pkg);
-    let date = pkg
-        .date
+    let date = pkg.date
         .as_deref()
         .and_then(|date_str| date_str.split('T').next())
         .unwrap_or_default()
@@ -235,8 +244,10 @@ fn format_package(pkg: &SearchPackage) -> String {
     if let Some(ref keywords) = pkg.keywords
         && !keywords.is_empty()
     {
-        let sanitized_keywords: Vec<String> =
-            keywords.iter().map(|keyword| sanitize(keyword).into_owned()).collect();
+        let sanitized_keywords: Vec<String> = keywords
+            .iter()
+            .map(|keyword| sanitize(keyword).into_owned())
+            .collect();
         lines.push(format!("Keywords: {}", sanitized_keywords.join(", ")));
     }
 
@@ -253,15 +264,24 @@ fn author_name(pkg: &SearchPackage) -> String {
             AuthorInfo::String(author_str) => author_str.clone(),
         };
     }
-    pkg.publisher.as_ref().map(|publisher| publisher.username.clone()).unwrap_or_default()
+    pkg.publisher
+        .as_ref()
+        .map(|publisher| publisher.username.clone())
+        .unwrap_or_default()
 }
 
 fn bold(text: &str) -> String {
     let cleaned = sanitize(text);
-    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
+    cleaned
+        .as_ref()
+        .if_supports_color(Stream::Stdout, |t| t.bold())
+        .to_string()
 }
 
 fn bright_blue(text: &str) -> String {
     let cleaned = sanitize(text);
-    cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.bright_blue()).to_string()
+    cleaned
+        .as_ref()
+        .if_supports_color(Stream::Stdout, |t| t.bright_blue())
+        .to_string()
 }

@@ -12,8 +12,12 @@ fn parents_of<'index>(
     index: &'index HashMap<Arc<str>, HashSet<Arc<str>>>,
     pkg_id: &str,
 ) -> Vec<&'index str> {
-    let mut parents: Vec<&str> =
-        index.get(pkg_id).into_iter().flatten().map(AsRef::as_ref).collect();
+    let mut parents: Vec<&str> = index
+        .get(pkg_id)
+        .into_iter()
+        .flatten()
+        .map(AsRef::as_ref)
+        .collect();
     parents.sort_unstable();
     parents
 }

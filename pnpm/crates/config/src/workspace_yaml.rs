@@ -55,7 +55,9 @@ pub struct WorkspaceKeyIssues {
 impl WorkspaceKeyIssues {
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.refused.is_empty() && self.unrecognized.is_empty() && self.non_camel_case.is_empty()
+        self.refused.is_empty()
+            && self.unrecognized.is_empty()
+            && self.non_camel_case.is_empty()
     }
 }
 
@@ -93,7 +95,12 @@ struct DroppedKeys {
 
 impl DroppedKeys {
     fn warn(self, path: &Path) {
-        let DroppedKeys { movable, unrecognized, nowhere, kebab_case } = self;
+        let DroppedKeys {
+            movable,
+            unrecognized,
+            nowhere,
+            kebab_case,
+        } = self;
 
         let path = path.display();
         if !movable.is_empty() {
@@ -213,8 +220,7 @@ macro_rules! identically_named_settings {
 
 fn global_shims_setting(config: &Config) -> crate::GlobalShimsSetting {
     crate::GlobalShimsSetting::Entries(
-        config
-            .global_shims
+        config.global_shims
             .entries()
             .map(|(name, policy)| {
                 // `Off` has no named spelling; it is written as the
@@ -266,7 +272,9 @@ fn explicit_or_default(
 
 /// The pattern a source still sets under `key`.
 fn explicit_pattern(config: &Config, key: &str) -> Option<Vec<String>> {
-    config.explicit_settings.get(key).and_then(|value| serde_json::from_value(value.clone()).ok())
+    config.explicit_settings
+        .get(key)
+        .and_then(|value| serde_json::from_value(value.clone()).ok())
 }
 
 /// Warn that a file sets both the `audit` section and the deprecated
@@ -330,7 +338,10 @@ fn opt_path(value: Option<&Path>) -> Option<String> {
 /// The value a source set for `key`, as written, or `None` when
 /// nothing set it.
 fn as_set<Setting: serde::de::DeserializeOwned>(config: &Config, key: &str) -> Option<Setting> {
-    config.explicit_settings.get(key).cloned().and_then(|value| serde_json::from_value(value).ok())
+    config.explicit_settings
+        .get(key)
+        .cloned()
+        .and_then(|value| serde_json::from_value(value).ok())
 }
 
 #[cfg(test)]

@@ -12,7 +12,8 @@ use std::{fs, io, path::Path};
 /// [`fs::FileType::is_dir`] is `false` for a name-surrogate reparse
 /// point. Either way the link is routed to `DeleteFileW`, which fails
 /// on directory-shaped entries with `ERROR_ACCESS_DENIED` (os error 5);
-/// they need `RemoveDirectoryW` instead.
+/// they need the `RemoveDirectoryW` that [`crate::remove_symlink_dir`]
+/// issues.
 pub fn remove_dirent(path: &Path) -> io::Result<()> {
     let metadata = fs::symlink_metadata(path)?;
     if metadata.is_dir() {
@@ -23,7 +24,7 @@ pub fn remove_dirent(path: &Path) -> io::Result<()> {
         use std::os::windows::fs::MetadataExt;
         const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x10;
         if metadata.file_attributes() & FILE_ATTRIBUTE_DIRECTORY != 0 {
-            return fs::remove_dir(path);
+            return crate::remove_symlink_dir(path);
         }
     }
     fs::remove_file(path)

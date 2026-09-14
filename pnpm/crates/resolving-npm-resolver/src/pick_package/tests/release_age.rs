@@ -15,18 +15,24 @@ async fn invalid_package_name_errors_synchronously() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: None,
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: None,
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
 
     let err = pick_package(&ctx, &range_spec("foo/bar", "*"), &default_opts(&registry))
@@ -65,18 +71,24 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
 
     let mut opts = default_opts(&registry);
@@ -84,7 +96,7 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
     // version's publish date in PACKAGE_BODY, so every version is
     // immature; the picker still returns a fall-back pick so the
     // call doesn't error.
-    opts.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+    opts.policy.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
 
     abbrev_mock.assert_async().await;
@@ -134,22 +146,28 @@ async fn published_by_upgrades_metadata_with_partial_time_map() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
 
     let mut opts = default_opts(&registry);
-    opts.published_by = Some(parse_cutoff("2025-01-01T00:00:00Z"));
+    opts.policy.published_by = Some(parse_cutoff("2025-01-01T00:00:00Z"));
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
 
     assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
@@ -186,22 +204,28 @@ async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: true,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: true,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
 
     let mut opts = default_opts(&registry);
-    opts.published_by = Some(parse_cutoff("2024-12-01T00:00:00Z"));
+    opts.policy.published_by = Some(parse_cutoff("2024-12-01T00:00:00Z"));
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
 
     abbrev_mock.assert_async().await;
@@ -234,24 +258,30 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
 
     let policy = create_package_version_policy(["acme"]).expect("policy");
     let mut opts = default_opts(&registry);
-    opts.published_by = Some(parse_cutoff("2020-01-01T00:00:00Z"));
-    opts.published_by_exclude = Some(&policy);
+    opts.policy.published_by = Some(parse_cutoff("2020-01-01T00:00:00Z"));
+    opts.policy.published_by_exclude = Some(&policy);
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
     assert_eq!(
@@ -289,25 +319,31 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
     meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        // The post-304 document still has no `time`, so let the picker
-        // take its warn-and-skip fallback instead of erroring.
-        ignore_missing_time_field: true,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            // The post-304 document still has no `time`, so let the picker
+            // take its warn-and-skip fallback instead of erroring.
+            ignore_missing_time_field: true,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
 
     let mut opts = default_opts(&registry);
     // Cutoff before `modified=2024-12-01`, so the upgrade trigger fires.
-    opts.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+    opts.policy.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
 
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("first pick");
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("second pick");
@@ -317,18 +353,24 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_install() {
     // install's marker from the cached Package.
     let next_install_fetch_locker = shared_packument_fetch_locker();
     let next_install_ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &next_install_fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: true,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: true,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &next_install_fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
     let _ = pick_package(&next_install_ctx, &range_spec("acme", "^1.0.0"), &opts)
         .await
@@ -373,24 +415,30 @@ async fn published_by_upgrade_answering_200_is_remembered_across_picks() {
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        // The upgraded document is still undecidable, so let the picker take
-        // its warn-and-skip fallback instead of erroring.
-        ignore_missing_time_field: true,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            // The upgraded document is still undecidable, so let the picker take
+            // its warn-and-skip fallback instead of erroring.
+            ignore_missing_time_field: true,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
 
     let mut opts = default_opts(&registry);
-    opts.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+    opts.policy.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
 
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("first pick");
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("second pick");
@@ -446,25 +494,34 @@ async fn published_by_upgrade_not_modified_marker_is_scoped_to_document() {
     meta_cache.set(format!("{registry}\u{0}acme"), Arc::new(seeded));
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: true,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: true,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
 
     let mut opts = default_opts(&registry);
-    opts.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
+    opts.policy.published_by = Some(parse_cutoff("2023-01-01T00:00:00Z"));
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("first pick");
 
-    let update_opts = PickPackageOptions { update_checksums: true, ..opts };
+    let update_opts = PickPackageOptions {
+        request: crate::MetadataPickRequest { update_checksums: true, ..opts.request },
+        ..opts
+    };
     let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &update_opts)
         .await
         .expect("checksum-refresh pick");
@@ -530,26 +587,32 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
     let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
         full_metadata: false,
         needs_full_metadata_for: None,
         filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        cache_policy: crate::MetadataCachePolicy {
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+        },
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
     };
 
     let policy = create_package_version_policy(["acme"]).expect("policy");
     let mut opts = default_opts(&registry);
     // Keep the mtime-guard condition deterministic: mirror mtime is set
     // explicitly to 2024-01-01 above.
-    opts.published_by = Some(parse_cutoff("2020-01-01T00:00:00Z"));
-    opts.published_by_exclude = Some(&policy);
+    opts.policy.published_by = Some(parse_cutoff("2020-01-01T00:00:00Z"));
+    opts.policy.published_by_exclude = Some(&policy);
 
     let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
     assert_eq!(

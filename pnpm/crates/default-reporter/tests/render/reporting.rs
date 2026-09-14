@@ -35,7 +35,10 @@ fn prints_progress_beginning() {
 #[test]
 fn prints_progress_without_added_packages_stats() {
     let mut reporter = state_with_options(ReporterOptions {
-        hide_added_pkgs_progress: true,
+        progress: pnpm_default_reporter::state::ProgressOptions {
+            hide_added_pkgs: true,
+            ..Default::default()
+        },
         ..ReporterOptions::default()
     });
     let frame =
@@ -480,7 +483,10 @@ fn a_hide_linked_pattern_drops_matching_linked_entries_from_the_summary() {
 fn hide_lifecycle_prefix_only_drops_it_from_output_lines() {
     let mut reporter = state_with_options(ReporterOptions {
         append_only: true,
-        hide_lifecycle_prefix: true,
+        lifecycle: pnpm_default_reporter::state::LifecycleOptions {
+            hide_prefix: true,
+            ..Default::default()
+        },
         ..ReporterOptions::default()
     });
 
