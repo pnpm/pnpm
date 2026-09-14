@@ -395,9 +395,8 @@ impl<'a> InstallFrozenLockfile<'a> {
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
         settled.skipped.add_fetch_failed_all(fetched.fetch_failed.drain());
 
-        let current_lockfile = self.current_lockfile(&settled.skipped);
-        let linked =
-            self.link_fetched::<Reporter>(ctx, &mut fetched, &mut settled, &current_lockfile)?;
+        let (linked, injected_deps) =
+            self.link_fetched::<Reporter>(ctx, &mut fetched, &mut settled)?;
 
         let phase_start = std::time::Instant::now();
         let built = self.build::<Reporter>(
@@ -428,8 +427,6 @@ impl<'a> InstallFrozenLockfile<'a> {
         // awaited by the install driver after its own tail writes.
         drop(store_index_writer);
 
-        let injected_deps =
-            injected_deps(ctx, &current_lockfile, &settled.skipped, &linked.hoisted_locations);
         Ok(InstallFrozenLockfileOutput {
             hoisted: crate::InstalledHoistedState {
                 injected_deps,
@@ -451,22 +448,32 @@ impl<'a> InstallFrozenLockfile<'a> {
         crate::filter_lockfile_for_current(self.lockfiles.wanted, self.inputs().included(), skipped)
     }
 
+    /// Run the link phase, and pair its output with the `injectedDeps`
+    /// record of the copies it kept.
+    ///
+    /// The filtered lockfile that the sidecars and that record share
+    /// clones the whole graph, so it lives no longer than this call:
+    /// the build phase that follows must not hold it alive across the
+    /// lifecycle scripts it runs.
     fn link_fetched<Reporter: self::Reporter>(
         &self,
         ctx: &crate::InstallContext<'_>,
         fetched: &mut CreateVirtualStoreOutput,
         settled: &mut SkipSetPlan,
-        current_lockfile: &Lockfile,
-    ) -> Result<crate::linking::LinkPhaseOutput, InstallFrozenLockfileError> {
+    ) -> Result<
+        (crate::linking::LinkPhaseOutput, BTreeMap<String, Vec<String>>),
+        InstallFrozenLockfileError,
+    > {
         let cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id.take();
         let phase_start = std::time::Instant::now();
+        let current_lockfile = self.current_lockfile(&settled.skipped);
         let linked = self.link::<Reporter>(
             ctx,
             LinkInputs {
                 fetched,
                 cas_paths_by_pkg_id,
                 host_node: settled.host_node.as_ref(),
-                current_lockfile,
+                current_lockfile: &current_lockfile,
             },
             &mut settled.skipped,
         )?;
@@ -476,6 +483,8 @@ impl<'a> InstallFrozenLockfile<'a> {
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             "phase complete",
         );
+        let injected_deps =
+            injected_deps(ctx, &current_lockfile, &settled.skipped, &linked.hoisted_locations);
 
         // `importing_done` fires once extraction and symlink linking
         // are complete, before any build phase. Reporters use it to
@@ -487,7 +496,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             stage: Stage::ImportingDone,
         }));
 
-        Ok(linked)
+        Ok((linked, injected_deps))
     }
 
     /// The borrowed inputs as one `Copy` value. See [`FrozenInputs`].
