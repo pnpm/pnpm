@@ -122,13 +122,24 @@ export async function fetchShasumsFileRaw (
 ): Promise<string> {
   const res = await fetch(shasumsUrl)
   if (!res.ok) {
-    throw new PnpmError(
-      'FAILED_DOWNLOAD_SHASUM_FILE',
-      `Failed to fetch integrity file: ${shasumsUrl} (status: ${res.status})`
-    )
+    throw new FetchShasumsFileError(shasumsUrl, res.status)
   }
   const body = await res.text()
   return body
+}
+
+/**
+ * A mirror answered a SHASUMS file request with a non-ok status. Callers that
+ * treat some statuses as expected (a mirror that never published a given
+ * release answers 404) match on {@link status}; every other failure mode
+ * reaches them as a plain fetch error.
+ */
+export class FetchShasumsFileError extends PnpmError {
+  public readonly status: number
+  constructor (shasumsUrl: string, status: number) {
+    super('FAILED_DOWNLOAD_SHASUM_FILE', `Failed to fetch integrity file: ${shasumsUrl} (status: ${status})`)
+    this.status = status
+  }
 }
 
 const SHA256_REGEX = /^[a-f0-9]{64}$/

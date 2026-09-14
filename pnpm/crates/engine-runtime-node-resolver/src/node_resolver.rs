@@ -338,8 +338,8 @@ impl NodeResolver {
     ///
     /// The musl branch only fires when the active mirror is the
     /// default one (custom mirrors are assumed to publish their own
-    /// musl-or-not policy), and musl-fetch failures are swallowed
-    /// because old releases simply don't have musl builds.
+    /// musl-or-not policy). See [`read_musl_assets`] for which musl
+    /// failures are tolerated.
     async fn read_node_assets(
         &self,
         mirror: &str,
@@ -356,19 +356,17 @@ impl NodeResolver {
             self.cache_dir.as_deref(),
         )
         .await?;
-        if mirror == DEFAULT_NODE_MIRROR_BASE_URL
-            && let Ok(mut musl_assets) = read_node_assets_from_mirror(
-                &self.http_client,
-                &self.auth_headers,
-                UNOFFICIAL_NODE_MIRROR_BASE_URL,
-                version,
-                /* musl_only */ true,
-                /* verify_signature */ false,
-                self.cache_dir.as_deref(),
-            )
-            .await
-        {
-            assets.append(&mut musl_assets);
+        if mirror == DEFAULT_NODE_MIRROR_BASE_URL {
+            assets.extend(
+                read_musl_assets(
+                    &self.http_client,
+                    &self.auth_headers,
+                    UNOFFICIAL_NODE_MIRROR_BASE_URL,
+                    version,
+                    self.cache_dir.as_deref(),
+                )
+                .await?,
+            );
         }
         Ok(assets)
     }
@@ -443,4 +441,6 @@ fn normalize_node_runtime_version_specifier(
 mod tests;
 
 mod assets;
-use assets::{current_platform, node_bins_for_current_os, read_node_assets_from_mirror};
+use assets::{
+    current_platform, node_bins_for_current_os, read_musl_assets, read_node_assets_from_mirror,
+};
