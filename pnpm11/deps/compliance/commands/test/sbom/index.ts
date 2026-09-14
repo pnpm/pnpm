@@ -1393,3 +1393,105 @@ test('pnpm sbom excludes platform-incompatible optional packages instead of emit
   // The installed binding carries a resolvable license from its manifest.
   expect(onlyBindings[0].licenses).toEqual([{ license: { id: 'MIT' } }])
 })
+
+test('pnpm sbom filtered single project inherits workspace root metadata when absent, but drops declared unusable values', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-sbom', workspaceDir)
+  const storeDir = path.join(workspaceDir, 'store')
+
+  fs.writeFileSync(
+    path.join(workspaceDir, 'package.json'),
+    JSON.stringify({
+      name: 'workspace-root',
+      version: '1.0.0',
+      author: 'Acme Engineering',
+      description: 'The workspace root',
+      license: 'MIT',
+      repository: 'https://github.com/acme/workspace',
+      bugs: { url: 'https://github.com/acme/workspace/issues' },
+    })
+  )
+
+  const appADir = path.join(workspaceDir, 'app-a')
+  fs.writeFileSync(
+    path.join(appADir, 'package.json'),
+    JSON.stringify({
+      name: 'app-a',
+      version: '2.0.0',
+    })
+  )
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph: allSelectedGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allSelectedGraph,
+  })
+
+  const { selectedProjectsGraph } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'app-a' }])
+
+  const sbomOpts = {
+    ...DEFAULT_OPTS,
+    dir: appADir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    sbomFormat: 'cyclonedx' as const,
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+    selectedProjectsGraph,
+    lockfileOnly: true,
+  }
+
+  const outputInherited = JSON.parse((await sbom.handler(sbomOpts)).output)
+  const root = outputInherited.metadata.component
+  expect(root.name).toBe('app-a')
+  expect(root.authors).toStrictEqual([{ name: 'Acme Engineering' }])
+  expect(root.description).toBe('The workspace root')
+  expect(root.licenses).toStrictEqual([{ license: { id: 'MIT' } }])
+  expect(root.externalReferences).toContainEqual({ type: 'vcs', url: 'https://github.com/acme/workspace' })
+  expect(root.externalReferences).toContainEqual({ type: 'issue-tracker', url: 'https://github.com/acme/workspace/issues' })
+
+  // Declared-but-unusable fields on app-a do not fall back to workspace root values
+  fs.writeFileSync(
+    path.join(appADir, 'package.json'),
+    JSON.stringify({
+      name: 'app-a',
+      version: '2.0.0',
+      author: '',
+      license: '',
+      repository: { type: 'git', url: '' },
+      bugs: { url: '' },
+    })
+  )
+
+  const { selectedProjectsGraph: selectedProjectsGraphDeclared } =
+    await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'app-a' }])
+
+  const outputDeclared = JSON.parse((await sbom.handler({
+    ...sbomOpts,
+    selectedProjectsGraph: selectedProjectsGraphDeclared,
+  })).output)
+  const rootDeclared = outputDeclared.metadata.component
+  expect(rootDeclared.authors).toBeUndefined()
+  expect(rootDeclared.licenses).toBeUndefined()
+  expect(rootDeclared.externalReferences).toBeUndefined()
+
+  const outputSpdxDeclared = JSON.parse((await sbom.handler({
+    ...sbomOpts,
+    sbomFormat: 'spdx',
+    selectedProjectsGraph: selectedProjectsGraphDeclared,
+  })).output)
+  expect(outputSpdxDeclared.creationInfo.creators).not.toContain('Person: Acme Engineering')
+  const spdxRoot = outputSpdxDeclared.packages.find((p: { name: string }) => p.name === 'app-a')
+  expect(spdxRoot.licenseConcluded).not.toBe('MIT')
+  expect(spdxRoot.licenseDeclared).not.toBe('MIT')
+  expect(spdxRoot.homepage).toBeUndefined()
+})

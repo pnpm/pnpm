@@ -467,8 +467,9 @@ async function generateSbomForProject (
 
   const rootName = manifest.name ?? 'unknown'
   const rootVersion = manifest.version ?? '0.0.0'
+  const hasDeclaredLicense = manifest.license !== undefined || (manifest as { licenses?: unknown }).licenses !== undefined
   const rootLicense = singleProject
-    ? (await resolveRootLicense(manifest, projectDir) ?? cachedRootLicense)
+    ? (await resolveRootLicense(manifest, projectDir) ?? (hasDeclaredLicense ? undefined : cachedRootLicense))
     : cachedRootLicense
   // Only a project that declares no `author` at all inherits the workspace
   // root's. A declared name that is blank names nobody, and putting someone
@@ -483,8 +484,9 @@ async function generateSbomForProject (
   )
   const rootDescription = manifest.description
     ?? (singleProject ? rootManifest.description : undefined)
-  const rootBugsUrl = bugsUrlFromField(manifest.bugs)
-    ?? (singleProject ? bugsUrlFromField(rootManifest.bugs) : undefined)
+  const rootBugsUrl = bugsUrlFromField(
+    manifest.bugs ?? (singleProject ? rootManifest.bugs : undefined)
+  )
 
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const includedImporterIds = opts.selectedProjectsGraph

@@ -5,6 +5,7 @@ use super::{
     extract_repository, required_sbom_lockfile, safe_read_package_json_from_dir,
     walk_importer_components,
 };
+use pnpm_package_manifest::extract_license;
 
 fn detect_dep_types(
     lockfile: &pnpm_lockfile::Lockfile,
@@ -118,7 +119,8 @@ pub(super) fn collect_components(
     let lockfile = required_sbom_lockfile(state)?;
 
     let lockfile_dir = state.lockfile_dir().to_path_buf();
-    let root = RootMetadata::of(&read_root_manifest(state, &lockfile_dir, filter_importer_ids));
+    let (manifest, root_manifest) = read_sbom_manifests(state, &lockfile_dir, filter_importer_ids);
+    let root = RootMetadata::from_manifests(&manifest, root_manifest.as_ref());
     let dep_types = detect_dep_types(lockfile, include.optional_dependencies);
 
     let default_virtual_store_dirs = [state.config.effective_virtual_store_dir().to_path_buf()];
@@ -168,7 +170,10 @@ struct RootMetadata {
 }
 
 impl RootMetadata {
-    pub(super) fn of(manifest: &serde_json::Value) -> Self {
+    pub(super) fn from_manifests(
+        manifest: &serde_json::Value,
+        root_manifest: Option<&serde_json::Value>,
+    ) -> Self {
         let name = manifest
             .get("name")
             .and_then(|v| v.as_str())
@@ -179,23 +184,70 @@ impl RootMetadata {
             .and_then(|v| v.as_str())
             .unwrap_or("0.0.0")
             .to_string();
+
         RootMetadata {
             purl: build_purl(&name, &version),
-            license: manifest
-                .get("license")
-                .and_then(|v| v.as_str())
-                .map(ToString::to_string),
-            description: manifest
-                .get("description")
-                .and_then(|v| v.as_str())
-                .map(ToString::to_string),
-            author: extract_author(manifest),
-            repository: extract_repository(manifest),
-            bugs_url: extract_bugs_url(manifest),
+            license: resolve_license(manifest, root_manifest),
+            description: resolve_description(manifest, root_manifest),
+            author: resolve_field_with_fallback(manifest, root_manifest, "author", extract_author),
+            repository: resolve_field_with_fallback(
+                manifest,
+                root_manifest,
+                "repository",
+                extract_repository,
+            ),
+            bugs_url: resolve_field_with_fallback(
+                manifest,
+                root_manifest,
+                "bugs",
+                extract_bugs_url,
+            ),
             name,
             version,
         }
     }
+}
+
+fn resolve_field_with_fallback<FieldValue>(
+    manifest: &serde_json::Value,
+    root_manifest: Option<&serde_json::Value>,
+    field_key: &str,
+    extractor: fn(&serde_json::Value) -> Option<FieldValue>,
+) -> Option<FieldValue> {
+    if manifest.get(field_key).is_some() {
+        extractor(manifest)
+    } else {
+        root_manifest.and_then(extractor)
+    }
+}
+
+fn resolve_license(
+    manifest: &serde_json::Value,
+    root_manifest: Option<&serde_json::Value>,
+) -> Option<String> {
+    let has_declared_license =
+        manifest.get("license").is_some() || manifest.get("licenses").is_some();
+    if has_declared_license {
+        extract_license(manifest)
+    } else {
+        extract_license(manifest).or_else(|| root_manifest.and_then(extract_license))
+    }
+}
+
+fn resolve_description(
+    manifest: &serde_json::Value,
+    root_manifest: Option<&serde_json::Value>,
+) -> Option<String> {
+    manifest
+        .get("description")
+        .and_then(|v| v.as_str())
+        .map(ToString::to_string)
+        .or_else(|| {
+            root_manifest
+                .and_then(|root| root.get("description"))
+                .and_then(|v| v.as_str())
+                .map(ToString::to_string)
+        })
 }
 
 fn initial_importer_ids(lockfile: &Lockfile, filter_importer_ids: Option<&[&str]>) -> Vec<String> {
@@ -206,18 +258,17 @@ fn initial_importer_ids(lockfile: &Lockfile, filter_importer_ids: Option<&[&str]
         .collect()
 }
 
-/// The manifest the SBOM's root component describes: the single filtered
-/// importer's, or the lockfile directory's.
+/// Reads the manifest(s) for the SBOM's root component. Returns `(project_manifest, optional_workspace_root_manifest)`.
 ///
 /// An importer id is a raw lockfile key, so it is confined to the
 /// workspace before it turns into an on-disk path: neither a crafted
 /// `../foo` / absolute key nor a symlinked importer dir may read a
 /// `package.json` outside the workspace.
-fn read_root_manifest(
+fn read_sbom_manifests(
     state: &State,
     lockfile_dir: &Path,
     filter_importer_ids: Option<&[&str]>,
-) -> serde_json::Value {
+) -> (serde_json::Value, Option<serde_json::Value>) {
     let fallback = |importer_id: &str| {
         if state.active_importer_id() == importer_id {
             state.manifest.value().clone()
@@ -225,15 +276,24 @@ fn read_root_manifest(
             serde_json::json!({})
         }
     };
+    let root_manifest = safe_read_package_json_from_dir(lockfile_dir)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| fallback("."));
+
     let Some(&[single_id]) = filter_importer_ids else {
-        return safe_read_package_json_from_dir(lockfile_dir)
-            .ok()
-            .flatten()
-            .unwrap_or_else(|| fallback("."));
+        return (root_manifest, None);
     };
-    confined_importer_dir(lockfile_dir, single_id)
+
+    if single_id == "." {
+        return (root_manifest, None);
+    }
+
+    let project_manifest = confined_importer_dir(lockfile_dir, single_id)
         .and_then(|dir| safe_read_package_json_from_dir(&dir).ok().flatten())
-        .unwrap_or_else(|| fallback(single_id))
+        .unwrap_or_else(|| fallback(single_id));
+
+    (project_manifest, Some(root_manifest))
 }
 
 fn assemble_sbom_result(
