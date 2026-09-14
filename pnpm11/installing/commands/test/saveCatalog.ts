@@ -84,13 +84,15 @@ test('saveCatalogName works with different protocols', async () => {
     .intercept({ path: '/kevva/is-positive', method: 'HEAD' })
     .reply(200)
 
-  const options = createOptions()
+  // Custom TLS or socket settings create a dispatcher that bypasses the global mock.
+  const options = { ...createOptions(), strictSsl: true, maxSockets: 0 }
   options.registriesByScope['@jsr'] = 'https://npm.jsr.io/'
   await add.handler(options, [
     '@pnpm.e2e/foo@100.1.0',
     'jsr:@rus/greet@0.0.3',
     'github:kevva/is-positive#97edff6',
   ])
+  getMockAgent().assertNoPendingInterceptors()
 
   expect(loadJsonFileSync('package.json')).toHaveProperty(['dependencies'], {
     '@pnpm.e2e/foo': 'catalog:',
