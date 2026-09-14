@@ -236,9 +236,6 @@ fn version_flag_switches_to_the_version_a_range_pin_resolved_to() {
     drop((root, mock_instance));
 }
 
-/// A sandbox that mounts the project read-only leaves the pin nowhere to be
-/// recorded. Reporting a version has to work there too, so the record is
-/// skipped and the reason is reported.
 #[test]
 #[cfg(unix)]
 fn version_flag_reports_a_pin_it_cannot_record() {
@@ -300,7 +297,7 @@ fn workspace_rejects_writes(workspace: &Path) -> bool {
 }
 
 /// Only the steps that write are skipped when the version is all that is
-/// wanted. A pin the running pnpm cannot stand in for still fails.
+/// wanted.
 #[test]
 fn version_flag_fails_when_the_project_pins_another_package_manager() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

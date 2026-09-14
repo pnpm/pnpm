@@ -141,8 +141,6 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
     }
 }
 
-/// A fetch that failed quotes the registry URL it was given, and that URL
-/// carries the credentials configured for the registry.
 #[test]
 fn the_reported_causes_redact_registry_credentials() {
     let error = miette::miette!("fetch https://user:hunter2@registry.example.com/pnpm failed");
@@ -153,8 +151,6 @@ fn the_reported_causes_redact_registry_credentials() {
     assert!(causes.contains("registry.example.com"), "the host should survive: {causes}");
 }
 
-/// The pinned pnpm installs into the store the command line names, laid
-/// out the way every other command lays it out.
 #[test]
 fn the_pre_command_config_resolves_the_store_dir_flag() {
     let root = TempDir::new().expect("tmp dir");
