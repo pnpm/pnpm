@@ -272,7 +272,10 @@ fn a_pathological_brace_pattern_keeps_its_braces_literal() {
     assert!(!is_match("/packages/aaaaaaaaaaaaaaaaaaaa", &product));
     assert!(is_match(&product, &product));
 
-    let branches = (0..2000).map(|branch| branch.to_string()).collect::<Vec<_>>().join(",");
+    let branches = (0..2000)
+        .map(|branch| branch.to_string())
+        .collect::<Vec<_>>()
+        .join(",");
     let wide = format!("/packages/{{{branches}}}");
     assert!(!is_match("/packages/5", &wide));
     assert!(is_match(&wide, &wide));

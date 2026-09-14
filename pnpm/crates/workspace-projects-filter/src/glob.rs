@@ -46,15 +46,17 @@ pub struct DirGlob {
 impl DirGlob {
     pub fn new(pattern: &str) -> Self {
         let normalized = normalize(pattern);
-        // A `{` left open makes picomatch compile a regex that matches
-        // nothing, so the exact-text shortcut in `is_match` is all that is
-        // left. No alternative says the same thing.
-        let alternatives = if brace_spans(&normalized.chars().collect::<Vec<_>>()).unmatched_open {
+        let alternatives = if has_unmatched_open_brace(&normalized) {
             Vec::new()
         } else {
             expand_braces(&normalized)
                 .iter()
-                .map(|alternative| alternative.split('/').map(Segment::parse).collect())
+                .map(|alternative| {
+                    alternative
+                        .split('/')
+                        .map(Segment::parse)
+                        .collect()
+                })
                 .collect()
         };
         DirGlob { normalized, alternatives }
@@ -79,6 +81,14 @@ fn normalize(path: &str) -> String {
         Some(stripped) => stripped.to_string(),
         None => path,
     }
+}
+
+/// Whether a `{` in `pattern` is left open. picomatch compiles such a
+/// pattern to a regex that matches nothing, so the exact-text shortcut in
+/// [`DirGlob::is_match`] is all that is left of it: no alternative it could
+/// expand to says the same thing.
+fn has_unmatched_open_brace(pattern: &str) -> bool {
+    pattern.contains('{') && brace_spans(&pattern.chars().collect::<Vec<_>>()).unmatched_open
 }
 
 /// The most alternatives a pattern may expand to. Past this cap the braces
@@ -120,14 +130,16 @@ fn expand_alternatives(pattern: &str) -> Option<Vec<String>> {
     let mut expanded = vec![String::new()];
     let mut literal_start = 0;
     while let Some(group) = next_brace_group(&chars, &spans, literal_start) {
-        // An alternative may hold groups of its own. Nesting is capped
-        // above, so this recursion is bounded.
         let mut branches = Vec::new();
         for alternative in &group.alternatives {
+            // An alternative may hold groups of its own. Nesting is capped
+            // above, so this recursion is bounded.
             branches.extend(expand_alternatives(alternative)?);
-        }
-        if expanded.len() * branches.len() > MAX_ALTERNATIVES {
-            return None;
+            // Applying the cap as the branches accumulate refuses a group of
+            // many wide alternatives before it holds every one of them.
+            if expanded.len() * branches.len() > MAX_ALTERNATIVES {
+                return None;
+            }
         }
         let literal: String = chars[literal_start..group.start].iter().collect();
         expanded = join_branches(&expanded, &literal, &branches);
@@ -158,7 +170,10 @@ fn next_brace_group(chars: &[char], spans: &BraceSpans, from: usize) -> Option<B
             index = bracket_end(chars, &spans.next_close_bracket, index + 1).unwrap_or(index + 1);
             continue;
         }
-        let Some(close) = (chars[index] == '{').then(|| spans.closes[index]).flatten() else {
+        let Some(close) = (chars[index] == '{')
+            .then(|| spans.closes[index])
+            .flatten()
+        else {
             index += 1;
             continue;
         };
@@ -265,8 +280,7 @@ fn split_top_level_commas(content: &str) -> Vec<String> {
 struct BraceSpans {
     /// For each `{`, the index of the `}` that closes it.
     closes: Vec<Option<usize>>,
-    /// For each index, the next `]` at or after it, so a bracket
-    /// expression's end is a lookup rather than a scan.
+    /// The [`next_close_brackets`] table for the whole pattern.
     next_close_bracket: Vec<Option<usize>>,
     /// Whether any `{` is left open.
     unmatched_open: bool,
@@ -279,15 +293,7 @@ struct BraceSpans {
 /// each of them, and leaves no recursion for a deeply nested selector to
 /// overflow.
 fn brace_spans(chars: &[char]) -> BraceSpans {
-    let mut next_close_bracket = vec![None; chars.len()];
-    let mut next_bracket = None;
-    for index in (0..chars.len()).rev() {
-        if chars[index] == ']' {
-            next_bracket = Some(index);
-        }
-        next_close_bracket[index] = next_bracket;
-    }
-
+    let next_close_bracket = next_close_brackets(chars);
     let mut closes = vec![None; chars.len()];
     let mut open = Vec::new();
     let mut max_depth = 0;
@@ -327,7 +333,7 @@ impl Segment {
             return Segment::Globstar;
         }
         let chars: Vec<char> = segment.chars().collect();
-        let spans = brace_spans(&chars);
+        let brackets = next_close_brackets(&chars);
         let mut tokens = Vec::with_capacity(chars.len());
         let mut index = 0;
         while let Some(&character) = chars.get(index) {
@@ -335,7 +341,7 @@ impl Segment {
             tokens.push(match character {
                 '*' => Token::Star,
                 '?' => Token::Char(CharPattern::Any),
-                '[' => match CharClass::parse(&chars, &spans.next_close_bracket, index) {
+                '[' => match CharClass::parse(&chars, &brackets, index) {
                     Some((class, next)) => {
                         index = next;
                         Token::Char(CharPattern::Class(class))
@@ -434,11 +440,25 @@ impl CharClass {
     }
 }
 
+/// For each index, the next `]` at or after it, so the end of a bracket
+/// expression is a lookup rather than a scan of the tail.
+fn next_close_brackets(chars: &[char]) -> Vec<Option<usize>> {
+    let mut table = vec![None; chars.len()];
+    let mut next = None;
+    for index in (0..chars.len()).rev() {
+        if chars[index] == ']' {
+            next = Some(index);
+        }
+        table[index] = next;
+    }
+    table
+}
+
 /// The index just past the `]` closing the bracket expression opened just
 /// before `start`, or `None` when it is unterminated. A `^` and then a `]`
 /// right after the `[` are part of the expression rather than its end.
-/// `next_close_bracket` is [`BraceSpans::next_close_bracket`], which makes
-/// this a lookup rather than a scan.
+/// `next_close_bracket` is a [`next_close_brackets`] table, which makes this
+/// a lookup rather than a scan.
 fn bracket_end(
     chars: &[char],
     next_close_bracket: &[Option<usize>],
@@ -451,7 +471,11 @@ fn bracket_end(
     if chars.get(index) == Some(&']') {
         index += 1;
     }
-    next_close_bracket.get(index).copied().flatten().map(|close| close + 1)
+    next_close_bracket
+        .get(index)
+        .copied()
+        .flatten()
+        .map(|close| close + 1)
 }
 
 fn match_segments(pattern: &[Segment], candidate: &[&str]) -> bool {
