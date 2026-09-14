@@ -291,8 +291,8 @@ test('a package whose child carries an optional peer suffix absorbs the variant 
 })
 
 // Chain longer than the call stack's budget, diverging at every level so the
-// compatibility walk has to reach the bottom. A recursive walk takes one frame
-// per level and throws a RangeError here.
+// compatibility walk has to reach the bottom. Compatibility stays answerable at
+// a depth the call stack cannot hold.
 test('a deep chain of peer-suffixed children does not overflow the call stack', () => {
   const depth = 30_000
   const depGraph: Record<string, unknown> = {}

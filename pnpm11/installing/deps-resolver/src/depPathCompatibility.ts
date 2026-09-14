@@ -23,11 +23,12 @@ export function nodeDepsCount (node: GenericDependenciesGraphNodeWithResolvedChi
 // Compares dependency/peer *sets* only, not package identity, so callers must
 // pass depPaths already known to share a `pkgIdWithPatchHash` — otherwise two
 // unrelated leaf packages (both with empty sets) would count as compatible.
-// Every pair must hold, so the walk is a conjunction and the first incompatible
-// pair settles it. Pairs are visited at most once, which both terminates
-// dependency cycles — a pair reached again is taken as compatible — and keeps
-// the walk linear in the pairs it reaches. The queue is explicit so the depth of
-// the graph cannot overflow the call stack.
+// Every pair must hold, so the walk is a conjunction and one incompatible pair
+// settles it. The queue runs breadth-first so that pair is the shallowest one,
+// reached before any subtree below its siblings. Pairs are visited at most once,
+// which both terminates dependency cycles — a pair reached again is taken as
+// compatible — and keeps the walk linear in the pairs it reaches. The queue is
+// explicit so the depth of the graph cannot overflow the call stack.
 export function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraphWithResolvedChildren<T>,
   depPath1: DepPath,
@@ -35,8 +36,8 @@ export function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
 ): boolean {
   const visited = new Map<DepPath, Set<DepPath>>()
   const pending: Array<[DepPath, DepPath]> = [[depPath1, depPath2]]
-  while (pending.length > 0) {
-    const [supersetDepPath, subsetDepPath] = pending.pop()!
+  for (let cursor = 0; cursor < pending.length; cursor++) {
+    const [supersetDepPath, subsetDepPath] = pending[cursor]
     if (supersetDepPath === subsetDepPath) continue
     let subsets = visited.get(supersetDepPath)
     if (subsets == null) {

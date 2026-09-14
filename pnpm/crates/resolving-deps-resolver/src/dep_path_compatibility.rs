@@ -2,6 +2,8 @@
 //! [`fn@crate::dedupe_peer_dependents::dedupe_peer_dependents`] and
 //! [`fn@crate::dedupe_injected_deps::dedupe_injected_deps`].
 
+use std::collections::VecDeque;
+
 use pnpm_deps_path::DepPath;
 use rustc_hash::FxHashSet as HashSet;
 
@@ -25,18 +27,20 @@ pub(crate) fn node_deps_count(node: &DependenciesGraphNode) -> usize {
 /// otherwise two unrelated leaf packages (both with empty sets) would
 /// count as compatible.
 ///
-/// Every child pair must hold, so the walk is a conjunction and the first
-/// incompatible pair settles it. Pairs are visited at most once, which
-/// both terminates dependency cycles — a pair reached again is taken as
-/// compatible — and keeps the walk linear in the pairs it reaches.
+/// Every child pair must hold, so the walk is a conjunction and one
+/// incompatible pair settles it. The queue runs breadth-first so that pair
+/// is the shallowest one, reached before any subtree below its siblings.
+/// Pairs are visited at most once, which both terminates dependency cycles
+/// — a pair reached again is taken as compatible — and keeps the walk
+/// linear in the pairs it reaches.
 pub(crate) fn is_compatible_and_has_more_deps<'a>(
     graph: &'a DependenciesGraph,
     larger: &'a DepPath,
     smaller: &'a DepPath,
 ) -> bool {
     let mut visited = HashSet::default();
-    let mut pending = vec![(larger, smaller)];
-    while let Some((larger, smaller)) = pending.pop() {
+    let mut pending = VecDeque::from([(larger, smaller)]);
+    while let Some((larger, smaller)) = pending.pop_front() {
         if larger == smaller || !visited.insert((larger, smaller)) {
             continue;
         }
@@ -52,7 +56,7 @@ fn pair_is_compatible<'a>(
     graph: &'a DependenciesGraph,
     larger: &DepPath,
     smaller: &DepPath,
-    pending: &mut Vec<(&'a DepPath, &'a DepPath)>,
+    pending: &mut VecDeque<(&'a DepPath, &'a DepPath)>,
 ) -> bool {
     let (Some(larger_node), Some(smaller_node)) = (graph.get(larger), graph.get(smaller)) else {
         return false;
@@ -87,7 +91,7 @@ fn queue_child_pair<'a>(
     larger_node: &'a DependenciesGraphNode,
     alias: &str,
     smaller_child: &'a DepPath,
-    pending: &mut Vec<(&'a DepPath, &'a DepPath)>,
+    pending: &mut VecDeque<(&'a DepPath, &'a DepPath)>,
 ) -> bool {
     let Some(larger_child) = larger_node.edges.children.get(alias) else {
         return false;
@@ -103,6 +107,6 @@ fn queue_child_pair<'a>(
     if larger_child_node.resolved_package_id != smaller_child_node.resolved_package_id {
         return false;
     }
-    pending.push((larger_child, smaller_child));
+    pending.push_back((larger_child, smaller_child));
     true
 }

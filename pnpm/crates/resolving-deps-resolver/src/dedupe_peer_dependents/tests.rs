@@ -306,8 +306,8 @@ fn parent_collapses_when_its_child_carries_a_peer_suffix_the_other_lacks() {
 }
 
 /// Chain longer than any thread's stack budget, diverging at every level
-/// so the compatibility walk has to reach the bottom. A recursive walk
-/// takes one frame per level and aborts here.
+/// so the compatibility walk has to reach the bottom. Compatibility stays
+/// answerable at a depth the native call stack cannot hold.
 #[test]
 fn deep_divergent_chain_does_not_overflow_the_stack() {
     const DEPTH: usize = 30_000;
