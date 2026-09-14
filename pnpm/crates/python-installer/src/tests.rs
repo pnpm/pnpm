@@ -1,4 +1,4 @@
-use super::{accept_server_lockfile, resolve_via_pnpr};
+use super::environment::{accept_server_lockfile, resolve_via_pnpr};
 use pnpm_config::Config;
 use pnpm_python_resolver::Target;
 

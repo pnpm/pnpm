@@ -18,11 +18,24 @@ pub(super) struct PythonPrepare<'a> {
 
 /// What [`PythonPrepare::lockfile`] needs about one project.
 pub(super) struct LockfileInputs<'a> {
-    /// The lockfile on disk, when it is still current for these inputs.
+    /// The lockfile on disk, when it still applies to these inputs on this
+    /// target.
     pub(super) existing: Option<Lockfile>,
+    pub(super) lock_path: &'a Path,
     pub(super) requirements: &'a [pep508_rs::Requirement],
     pub(super) inputs: Inputs,
     pub(super) requires_python: Option<String>,
+}
+
+/// What [`PythonPrepare::replay_lockfile`] needs about the lockfile on
+/// disk.
+pub(super) struct LockfileReplay<'a> {
+    pub(super) lock: Lockfile,
+    pub(super) lock_path: &'a Path,
+    pub(super) requirements: &'a [pep508_rs::Requirement],
+    /// Whether the lockfile was resolved for this install's own target,
+    /// so that every wheel it pins is one this target needs.
+    pub(super) same_target: bool,
 }
 
 /// The lockfile beside the project, or `None` when it has none yet.

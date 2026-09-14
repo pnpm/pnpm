@@ -4,14 +4,15 @@ pub use manifest::DependencySelection;
 mod add;
 mod environment;
 mod host;
+mod lockfile;
 mod manifest;
 mod registry;
 mod resolver;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use environment::{
-    LockfileInputs, PythonPrepare, accept_server_lockfile, ensure_environment_parent, publish_link,
-    read_existing_lock, resolve_via_pnpr, validate_environment_link,
+    LockfileInputs, PythonPrepare, ensure_environment_parent, publish_link,
+    validate_environment_link,
 };
 use host::Interpreter;
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
@@ -171,19 +172,14 @@ impl PythonPrepare<'_> {
         let inputs = Inputs::new(&requirements, &self.interpreter.target, self.index.as_str());
         let mut registry = self.registry();
         let lock_path = root.join("pylock.toml");
-        let existing = read_existing_lock(&lock_path).await?;
-        let fresh = existing
-            .as_ref()
-            .is_some_and(|lock| {
-                lock.tool.pnpm == inputs && lock.requires_python == project.requires_python
-            });
-        if self.context.frozen_lockfile && (!fresh || self.resolve) {
-            bail!("frozen Python lockfile is missing or out of date: {}", lock_path.display());
-        }
+        let existing =
+            self.replayable_lockfile(&lock_path, &inputs, project.requires_python.as_deref())
+                .await?;
         let lock = self.lockfile::<Reporter>(
             &mut registry,
             LockfileInputs {
-                existing: existing.filter(|_| fresh && !self.resolve),
+                existing,
+                lock_path: &lock_path,
                 requirements: &requirements,
                 inputs,
                 requires_python: project.requires_python.clone(),
@@ -241,57 +237,6 @@ impl PythonPrepare<'_> {
             );
         }
         Ok(())
-    }
-
-    /// The lockfile for one project: the one on disk when it still matches,
-    /// then the one the server resolves, and a local resolution last.
-    async fn lockfile<Reporter: self::Reporter + 'static>(
-        &self,
-        registry: &mut Registry<'_>,
-        LockfileInputs {
-            existing,
-            requirements,
-            inputs,
-            requires_python,
-        }: LockfileInputs<'_>,
-    ) -> Result<Lockfile> {
-        if let Some(lock) = existing {
-            self.accept_lockfile::<Reporter>(registry, lock, requirements).await
-        } else if let Some(lock) = resolve_via_pnpr(
-            self.context.config,
-            requirements,
-            &self.interpreter.target,
-            self.index.as_str(),
-            requires_python.clone(),
-        )
-        .await?
-        {
-            accept_server_lockfile(&lock, &inputs, requires_python.as_deref())?;
-            self.accept_lockfile::<Reporter>(registry, lock, requirements).await
-        } else {
-            let solution = resolver::resolve::<Reporter>(registry, requirements).await?;
-            Lockfile::new(
-                &registry.packages,
-                &self.interpreter.target,
-                solution,
-                inputs,
-                requires_python,
-            )
-        }
-    }
-
-    /// Fetch the wheels a ready-made lockfile pins and check that it still
-    /// covers the project's requirements.
-    async fn accept_lockfile<Reporter: self::Reporter + 'static>(
-        &self,
-        registry: &mut Registry<'_>,
-        lock: Lockfile,
-        requirements: &[pep508_rs::Requirement],
-    ) -> Result<Lockfile> {
-        lock.seed(&mut registry.packages)?;
-        registry.fetch_wheels::<Reporter>(&lock.packages).await?;
-        resolver::validate_locked(registry, requirements)?;
-        Ok(lock)
     }
 
     /// Install the locked wheels the project selects into a fresh
