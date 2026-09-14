@@ -32,6 +32,10 @@ fn repository_url(raw: &str) -> Option<String> {
     let hosted = HostedGit::from_url(raw)?;
     // A shorthand that names no owner (`github:repo`) still parses, but the
     // URL derived from it has an empty owner segment and points at nothing.
+    // This also keeps out the ownerless `gist:<id>` shorthand, which pnpm v11's
+    // parser expands and [`HostedGit`] does not recognise at all; dropping it
+    // in both is what keeps the two versions publishing the same SBOM. A gist
+    // named by its URL is published like any other URL.
     if hosted.user.is_empty() {
         return None;
     }

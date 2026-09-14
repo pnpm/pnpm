@@ -333,6 +333,18 @@ fn extract_repository_drops_values_that_name_no_repository() {
     }
 }
 
+/// Neither pnpm version expands the ownerless `gist:<id>` shorthand: pnpm
+/// v12's parser does not recognise gists, so dropping it on both sides is
+/// what keeps the two publishing the same SBOM. A gist named by its URL is
+/// published like any other URL.
+#[test]
+fn extract_repository_keeps_a_gist_url_and_drops_the_gist_shorthand() {
+    let shorthand = serde_json::json!({ "repository": "gist:11081aaa281" });
+    assert_eq!(extract_repository(&shorthand), None);
+    let url = serde_json::json!({ "repository": "https://gist.github.com/11081aaa281" });
+    assert_eq!(extract_repository(&url), Some("https://gist.github.com/11081aaa281".to_string()));
+}
+
 #[test]
 fn extract_repository_keeps_at_sign_in_path() {
     let manifest = serde_json::json!({ "repository": "https://github.com/foo/bar/baz@qux" });

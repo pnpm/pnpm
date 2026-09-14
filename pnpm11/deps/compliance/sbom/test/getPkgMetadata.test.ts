@@ -232,6 +232,15 @@ describe('repositoryFromField', () => {
     expect(repositoryFromField('https://github.com/foo/bar/baz@qux')).toBe('https://github.com/foo/bar/baz@qux')
   })
 
+  // Neither pnpm version expands the ownerless `gist:<id>` shorthand: pnpm v12's
+  // parser does not know gists, so dropping it on both sides is what keeps
+  // the two publishing the same SBOM. A gist named by its URL is published like
+  // any other URL.
+  it('keeps a gist URL and drops the gist shorthand', () => {
+    expect(repositoryFromField('gist:11081aaa281')).toBeUndefined()
+    expect(repositoryFromField('https://gist.github.com/11081aaa281')).toBe('https://gist.github.com/11081aaa281')
+  })
+
   it('does not treat userinfo lookalikes in the query as credentials', () => {
     // The query, not the authority, carries the `@`: the URL must come out
     // unchanged, not re-pointed at the query's host.

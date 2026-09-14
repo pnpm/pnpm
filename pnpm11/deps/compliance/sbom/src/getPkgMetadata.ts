@@ -110,7 +110,11 @@ export function repositoryFromField (field: unknown): string | undefined {
   if (absolute) return absolute
   const hosted = HostedGit.fromUrl(raw)
   // A shorthand that names no owner (`github:repo`) still parses, but the URL
-  // derived from it has an empty owner segment and points at nothing.
+  // derived from it names `null` as the owner and points at nothing. This also
+  // keeps out the ownerless `gist:<id>` shorthand, which pnpm v12's parser does
+  // not know at all; dropping it in both is what keeps the two versions
+  // publishing the same SBOM. A gist named by its URL is published like any
+  // other URL.
   if (!hosted?.user) return undefined
   const expanded = hosted.https()
   return expanded ? urlWithoutCredentials(expanded)?.href : undefined
