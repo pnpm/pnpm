@@ -180,7 +180,7 @@ mod platform {
     }
 
     fn validate_directory_name(name: &[u16]) -> io::Result<u16> {
-        let length = u16::try_from(name.len() * size_of::<u16>())
+        let length = u16::try_from(size_of_val(name))
             .map_err(|_| {
                 io::Error::new(io::ErrorKind::InvalidInput, "directory path is too long")
             })?;
