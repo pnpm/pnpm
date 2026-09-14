@@ -33,6 +33,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/bins.cmd-shim": "workspace:*",
     "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
@@ -40,7 +41,6 @@
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
-    "@zkochan/cmd-shim": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "bin-links": "catalog:",
     "is-subdir": "catalog:",

@@ -49,9 +49,9 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/bins.cmd-shim": "workspace:*",
     "@pnpm/exe": "workspace:*",
     "@pnpm/jest-config": "workspace:*",
-    "@zkochan/cmd-shim": "catalog:",
     "execa": "catalog:"
   },
   "jest": {

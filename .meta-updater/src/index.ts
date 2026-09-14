@@ -370,6 +370,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   let scripts: Record<string, string>
   let preset = '@pnpm/jest-config'
   switch (manifest.name) {
+    case '@pnpm/bins.cmd-shim':
     case '@pnpm/lockfile.types':
       scripts = { ...manifest.scripts }
       break
@@ -486,7 +487,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     repository = `https://github.com/pnpm/pnpm/tree/main/${relative}`
   }
   if (scripts.lint) {
-    if (fs.existsSync(path.join(dir, 'test'))) {
+    if (fs.existsSync(path.join(dir, 'test')) && manifest.name !== '@pnpm/bins.cmd-shim') {
       scripts.lint = 'eslint "src/**/*.ts" "test/**/*.ts"'
     } else {
       scripts.lint = 'eslint "src/**/*.ts"'
@@ -513,7 +514,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
     delete manifest.dependencies['@types/ramda']
   }
-  if (scripts.test) {
+  if (scripts.test && manifest.name !== '@pnpm/bins.cmd-shim') {
     Object.assign(manifest, {
       jest: {
         ...(manifest as any).jest, // eslint-disable-line
@@ -531,7 +532,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     files,
     funding: 'https://opencollective.com/pnpm',
     homepage,
-    license: 'MIT',
+    license: manifest.license ?? 'MIT',
     repository,
     scripts,
     exports: {

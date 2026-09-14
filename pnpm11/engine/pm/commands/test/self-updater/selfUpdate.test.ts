@@ -1516,7 +1516,7 @@ describe('linkExePlatformBinary', () => {
   // Regression coverage for https://github.com/pnpm/pnpm/issues/11486 — the
   // `pn` / `pnpx` / `pnx` aliases were broken in MSYS2 / Git Bash on Windows.
   // Root cause: linkExePlatformBinary pointed those bin entries at .cmd files,
-  // and @zkochan/cmd-shim's Bash shim for a .cmd source bounces through
+  // and @pnpm/bins.cmd-shim's Bash shim for a .cmd source bounces through
   // `exec cmd /C "...target.cmd" "$@"`. MSYS2's argument-conversion runtime
   // mangles the lone `/C` switch into a Windows path before cmd.exe sees it,
   // so cmd.exe finds no /C or /K and falls into interactive mode (printing its

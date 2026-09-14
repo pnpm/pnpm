@@ -2,6 +2,7 @@ import { existsSync, promises as fs } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
+import { cmdShim, getExeExtension, isShimPointingAt } from '@pnpm/bins.cmd-shim'
 import { type Command, getBinsFromPackageManifest, pkgOwnsBin } from '@pnpm/bins.resolver'
 import { PnpmError } from '@pnpm/error'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
@@ -10,7 +11,6 @@ import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import type { DependencyManifest, EngineDependency, ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
-import { cmdShim, isShimPointingAt } from '@zkochan/cmd-shim'
 import { rimraf } from '@zkochan/rimraf'
 import fixBin from 'bin-links/lib/fix-bin.js'
 import { isSubdir } from 'is-subdir'
@@ -509,18 +509,6 @@ async function hasWindowsShebang (file: string): Promise<boolean> {
   } finally {
     await fh.close().catch(() => {})
   }
-}
-
-function getExeExtension (): string {
-  let cmdExtension
-
-  if (process.env.PATHEXT) {
-    cmdExtension = process.env.PATHEXT
-      .split(path.delimiter)
-      .find(ext => ext.toUpperCase() === '.EXE')
-  }
-
-  return cmdExtension ?? '.exe'
 }
 
 async function safeReadPkgJson (pkgDir: string): Promise<DependencyManifest | null> {

@@ -178,10 +178,13 @@ async function runScriptTask (pkg) {
   try {
     if (pkg.manifest.name === 'pd') {
       await runCommand('node', ['pd.js', '--version'], { cwd: pkg.path })
+    } else if (pkg.manifest.name === '@pnpm/bins.cmd-shim') {
+      await runCommand('node', ['--test', 'test/test.js', 'test/e2e.test.js'], { cwd: pkg.path })
     } else {
       throw new Error(`Unsupported non-Jest .test script in ${relDir}: ${pkg.manifest.scripts['.test']}`)
     }
   } catch (err) {
+    console.error(err)
     status = 'failure'
     exitCode = err.exitCode ?? 1
   }
