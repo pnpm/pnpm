@@ -81,6 +81,19 @@ test('an entry script whose link target is gone is re-run', () => {
   expectReinvoked(entryScript)
 })
 
+test.each([
+  '{ not json',
+  'null',
+])('an entry script under the manifest %s is re-run', (contents) => {
+  const root = makeTempDir()
+  fs.writeFileSync(path.join(root, 'package.json'), contents)
+  const entryScript = path.join(root, 'pnpm.mjs')
+  fs.writeFileSync(entryScript, '')
+  process.argv[1] = entryScript
+
+  expectReinvoked(entryScript)
+})
+
 test('an entry script under an unreadable manifest is re-run', () => {
   const entryScript = installPackage({ pkgName: 'pnpm', binName: 'pnpm', scriptName: 'pnpm.mjs' })
   const pkgDir = path.dirname(path.dirname(fs.realpathSync(entryScript)))
