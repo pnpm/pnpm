@@ -142,6 +142,20 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
 }
 
 #[test]
+fn the_warning_carries_the_code_and_help_of_a_diagnostic() {
+    #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
+    #[display("the engine could not be installed")]
+    #[diagnostic(code(ERR_PNPM_TEST), help("Pin an exact version."))]
+    struct Failed;
+
+    let warning = super::warning_for_unusable_pin(&miette::Report::new(Failed));
+
+    assert!(warning.contains("ERR_PNPM_TEST"), "{warning}");
+    assert!(warning.contains("the engine could not be installed"), "{warning}");
+    assert!(warning.contains("Pin an exact version."), "{warning}");
+}
+
+#[test]
 fn the_reported_causes_redact_registry_credentials() {
     let error = miette::miette!("fetch https://user:hunter2@registry.example.com/pnpm failed");
 

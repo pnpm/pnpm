@@ -255,15 +255,24 @@ fn global_warn(emit: fn(&LogEvent), message: &str) {
 
 /// Report a pinned pnpm that `pnpm --version` could not act on. Why the
 /// command carries on afterwards is documented on its caller in `lib.rs`.
+///
+/// The command succeeds, so this is a warning rather than a diagnostic
+/// miette renders. It carries the code and the help a diagnostic came
+/// with, which is what that rendering would have added.
 pub(crate) fn warn_pinned_pnpm_unusable(error: &miette::Report) {
+    global_warn(DefaultReporter::emit, &warning_for_unusable_pin(error));
+}
+
+fn warning_for_unusable_pin(error: &miette::Report) -> String {
     let code = error
         .code()
         .map(|code| format!("{code}: "))
         .unwrap_or_default();
-    global_warn(
-        DefaultReporter::emit,
-        &format!("Cannot use the pnpm version this project pins: {code}{}", error_causes(error)),
-    );
+    let help = error
+        .help()
+        .map(|help| format!(". {}", redact_and_sanitize(&help.to_string())))
+        .unwrap_or_default();
+    format!("Cannot use the pnpm version this project pins: {code}{}{help}", error_causes(error))
 }
 
 /// Every cause of `error`, in miette's order, dropping the ones an earlier
