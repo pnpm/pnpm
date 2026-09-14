@@ -123,7 +123,6 @@ fn tarball_entry_content(tarball: &Path, entry_name: &str) -> Option<String> {
     None
 }
 
-/// Read one entry's mode out of a written `.tgz`.
 fn tarball_entry_mode(tarball: &Path, entry_name: &str) -> u32 {
     let file = std::fs::File::open(tarball).unwrap();
     let mut archive = tar::Archive::new(GzDecoder::new(file));
@@ -161,13 +160,10 @@ fn injected_files_are_packed_and_supersede_an_on_disk_entry() {
     assert_eq!(tarball_entry_content(&tarball, "package/CHANGELOG.md").as_deref(), Some(composed));
 }
 
-/// Tar entries must be written in npm-packlist's compression order —
-/// extension, then basename, then full path — no matter the order the
-/// maps happen to carry. Entries that join the pack late — a
-/// workspace-root LICENSE or an injected file such as the composed
-/// CHANGELOG.md — used to trail the archive out of order. The expected
-/// order is not the byte order: byte order would put `B.txt` before
-/// `a.txt` and `LICENSE` before `dir/`.
+/// The workspace-root LICENSE and the injected `mmm.txt` join the pack
+/// after the packlist walk, so they exercise the ordering of entries the
+/// maps carry last. The expected order is not byte order, which would put
+/// `B.txt` before `a.txt` and `LICENSE` before `dir/`.
 #[test]
 fn tarball_entries_are_written_in_compression_order() {
     let workspace = tempdir().unwrap();
@@ -197,12 +193,10 @@ fn tarball_entries_are_written_in_compression_order() {
     );
 }
 
-/// Template collections and generated trees carry the same file names in
-/// many directories with identical or near-identical contents. Extension
-/// grouping keeps those duplicates adjacent, so DEFLATE's window dedupes
-/// them instead of storing each copy in full — the regression behind
-/// pnpm/pnpm#14766, where a full-path order packed a template repo at
-/// nine times its published size.
+/// Template collections carry the same file names in many directories
+/// with identical or near-identical contents. Grouping by extension and
+/// basename keeps those copies adjacent, which is the whole point of the
+/// order: a path-ordered archive scatters them beyond DEFLATE's window.
 #[test]
 fn duplicate_named_files_are_adjacent_for_compression() {
     let (dir, opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
@@ -226,16 +220,18 @@ fn duplicate_named_files_are_adjacent_for_compression() {
     );
 }
 
-/// The case-only tiebreak is unreachable through fixtures on a
-/// case-insensitive filesystem, so it is pinned directly.
+/// Paths that differ only in case reach the tiebreak, and a
+/// case-insensitive filesystem cannot hold such a pair, so the ordering it
+/// gives them is pinned directly.
 #[test]
-fn case_precedence_tiebreak_orders_case_insensitively() {
+fn case_precedence_tiebreak_puts_lowercase_first() {
+    use super::contents::case_precedence_tiebreak;
     use std::cmp::Ordering;
 
-    assert_eq!(super::contents::case_precedence_tiebreak("B.txt", "a.txt"), Ordering::Greater);
-    assert_eq!(super::contents::case_precedence_tiebreak("a.txt", "A.txt"), Ordering::Less);
-    assert_eq!(super::contents::case_precedence_tiebreak("dir/x.js", "LICENSE"), Ordering::Less);
-    assert_eq!(super::contents::case_precedence_tiebreak("a.txt", "a.txt"), Ordering::Equal);
+    assert_eq!(case_precedence_tiebreak("readme.md", "README.md"), Ordering::Less);
+    assert_eq!(case_precedence_tiebreak("README.md", "readme.md"), Ordering::Greater);
+    assert_eq!(case_precedence_tiebreak("dir/a.js", "dir/A.js"), Ordering::Less);
+    assert_eq!(case_precedence_tiebreak("a.txt", "a.txt"), Ordering::Equal);
 }
 
 /// The packed manifest comes from memory rather than from its on-disk file,

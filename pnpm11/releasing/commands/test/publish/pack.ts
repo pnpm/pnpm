@@ -571,6 +571,54 @@ test('pack: package-level .npmignore disables workspace root gitignore', async (
   expect(fs.existsSync('package/LICENSE')).toBeFalsy()
 })
 
+test('pack: writes tarball entries in npm-packlist compression order', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  const workspaceDir = process.cwd()
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project'] })
+  fs.writeFileSync('LICENSE', 'workspace license', 'utf8')
+
+  process.chdir('project')
+  fs.writeFileSync('zzz.txt', 'z\n', 'utf8')
+  fs.mkdirSync('dir')
+  fs.writeFileSync('dir/x.js', 'x\n', 'utf8')
+  fs.writeFileSync('B.txt', 'B\n', 'utf8')
+  fs.writeFileSync('a.txt', 'a\n', 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    workspaceDir,
+  })
+
+  const names: string[] = []
+  await tar.list({
+    file: 'project-1.0.0.tgz',
+    onReadEntry: (entry) => {
+      names.push(entry.path)
+    },
+  })
+
+  // The workspace LICENSE joins the pack after the packlist walk, so it
+  // covers the entries added last. This is not byte order, which would put
+  // `B.txt` before `a.txt` and `LICENSE` before `dir/`.
+  expect(names).toStrictEqual([
+    'package/LICENSE',
+    'package/dir/x.js',
+    'package/package.json',
+    'package/a.txt',
+    'package/B.txt',
+    'package/zzz.txt',
+  ])
+})
+
 const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
 
 ;(process.platform === 'win32' ? test.skip : test)('the mode of executable is changed', async () => {

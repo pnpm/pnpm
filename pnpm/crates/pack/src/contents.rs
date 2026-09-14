@@ -152,13 +152,13 @@ pub fn sort_paths_en_locale(paths: &mut Vec<String>) {
 }
 
 /// Tie-breaker for [`sort_paths_en_locale`]'s `localeCompare(b, 'en')`
-/// approximation: once two ASCII path strings compare equal
-/// case-insensitively, give a lowercase character precedence over its
-/// uppercase counterpart. Full ICU collation is not a workspace
-/// dependency; this reproduces `en` ordering for ASCII paths, where the two
-/// agree. Non-ASCII paths keep code-point order, so an accented letter sorts
-/// past `z` rather than beside its unaccented base letter, where
-/// `localeCompare` places it.
+/// approximation: once two path strings compare equal case-insensitively,
+/// give a lowercase character precedence over its uppercase counterpart.
+/// Full ICU collation is not a workspace dependency, so the comparison
+/// ahead of this one stays code-point order. That agrees with `en` on
+/// letters and digits and parts ways elsewhere: `_` sorts after the digits
+/// rather than ahead of the punctuation, and an accented letter past `z`
+/// rather than beside its unaccented base letter.
 ///
 /// Callers that sort structured entries (e.g. the tar's write order) carry
 /// each path's lowercase form as a sort key and reach for this only when

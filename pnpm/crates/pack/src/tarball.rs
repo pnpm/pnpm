@@ -20,6 +20,7 @@ use flate2::{Compression, write::GzEncoder};
 use indexmap::IndexMap;
 use std::{
     collections::HashSet,
+    ffi::OsStr,
     io::{self, Write},
     path::{Path, PathBuf},
 };
@@ -37,15 +38,11 @@ const REGULAR_MODE: u32 = 0o644;
 const PACKED_MANIFEST_NAME: &str = "package/package.json";
 
 /// Stream the gzipped tar archive for `files_map` (`package/<path>` →
-/// absolute source) into `writer`, with `injected` packed in as well.
-/// Entries are grouped by npm-packlist's sort keys — extension, then
-/// basename, then full path — regardless of how the maps happen to be
-/// ordered, which also keeps a re-pack of unchanged sources byte-identical.
-/// The keys compare through the `en` approximation the `contents` listing
-/// uses: ASCII paths order as `localeCompare(b, 'en')` does, non-ASCII paths
-/// by code point. Manifest entries carry `manifest_json` instead of their
-/// on-disk bytes and are written under [`PACKED_MANIFEST_NAME`]; entries
-/// whose source path is in `bins` are marked executable.
+/// absolute source) into `writer`, with `injected` packed in as well, in
+/// the order [`compression_ordered_entries`] returns. Manifest entries
+/// carry `manifest_json` instead of their on-disk bytes and are written
+/// under [`PACKED_MANIFEST_NAME`]; entries whose source path is in `bins`
+/// are marked executable.
 pub fn build_tarball<Sys: FsReadFile>(
     writer: &mut dyn Write,
     files_map: &IndexMap<String, PathBuf>,
@@ -63,67 +60,67 @@ pub fn build_tarball<Sys: FsReadFile>(
         .map(PathBuf::as_path)
         .collect();
 
-    let mut entries: Vec<QueuedEntry<'_>> = files_map
-        .iter()
-        .map(|(name, source)| {
-            if is_manifest_entry(name) {
-                let packed_name = PACKED_MANIFEST_NAME.to_string();
-                queued_entry(packed_name, EntrySource::Manifest(source.as_path()))
-            } else {
-                queued_entry(name.clone(), EntrySource::File(source.as_path()))
-            }
-        })
-        .chain(
-            injected
-                .iter()
-                .map(|(name, data)| queued_entry(name.clone(), EntrySource::Injected(data))),
-        )
-        .collect();
-    // Same-extension files stay adjacent so DEFLATE's window matches
-    // repeated content — the same file name across template directories,
-    // say — instead of storing every copy in full.
-    entries.sort_by(|left, right| {
-        left.ext
-            .cmp(&right.ext)
-            .then_with(|| left.base.cmp(&right.base))
-            .then_with(|| left.name_lower.cmp(&right.name_lower))
-            .then_with(|| case_precedence_tiebreak(&left.name, &right.name))
-    });
-
     let mut builder = tar::Builder::new(GzEncoder::new(writer, compression));
-    write_entries::<Sys>(&mut builder, &entries, manifest_json, &bin_set)?;
+    for entry in compression_ordered_entries(files_map, injected) {
+        let file_data;
+        let (data, mode) = match entry.source {
+            EntrySource::Manifest(path) => (manifest_json, bin_mode(&bin_set, path)),
+            EntrySource::Injected(data) => (data, REGULAR_MODE),
+            EntrySource::File(path) => {
+                file_data = Sys::read_file(path)?;
+                (file_data.as_slice(), bin_mode(&bin_set, path))
+            }
+        };
+        append_entry(&mut builder, entry.name, data, mode)?;
+    }
 
     builder.into_inner()?.finish()?;
     Ok(())
 }
 
-/// Write the queued entries in their sorted order, reading each file's
-/// bytes only when its turn comes so the archive stays streamed.
-fn write_entries<Sys: FsReadFile>(
-    builder: &mut tar::Builder<GzEncoder<&mut dyn Write>>,
-    entries: &[QueuedEntry<'_>],
-    manifest_json: &[u8],
-    bin_set: &HashSet<&Path>,
-) -> io::Result<()> {
-    for entry in entries {
-        let file_data;
-        let (data, mode) = match &entry.source {
-            EntrySource::Manifest(path) => (manifest_json, bin_mode(bin_set, path)),
-            EntrySource::Injected(data) => (*data, REGULAR_MODE),
-            EntrySource::File(path) => {
-                file_data = Sys::read_file(path)?;
-                (file_data.as_slice(), bin_mode(bin_set, path))
+/// Every entry the archive will carry, in npm-packlist's compression
+/// order: extension, then basename, then full path. Each key compares
+/// through the same approximation of `localeCompare(b, 'en')` that
+/// [`sort_paths_en_locale`](crate::contents::sort_paths_en_locale) applies
+/// to the contents listing, whose divergences reorder a group of
+/// same-named files without splitting it up. The fixed order also keeps a
+/// re-pack of unchanged sources byte-identical.
+fn compression_ordered_entries<'a>(
+    files_map: &'a IndexMap<String, PathBuf>,
+    injected: &'a [(String, Vec<u8>)],
+) -> Vec<QueuedEntry<'a>> {
+    let mut entries: Vec<QueuedEntry<'a>> = files_map
+        .iter()
+        .map(|(name, source)| {
+            if is_manifest_entry(name) {
+                queued_entry(PACKED_MANIFEST_NAME, EntrySource::Manifest(source.as_path()))
+            } else {
+                queued_entry(name, EntrySource::File(source.as_path()))
             }
-        };
-        append_entry(builder, &entry.name, data, mode)?;
-    }
-    Ok(())
+        })
+        .chain(
+            injected
+                .iter()
+                .map(|(name, data)| queued_entry(name, EntrySource::Injected(data))),
+        )
+        .collect();
+    // Grouping by extension and basename keeps the same file name from
+    // every template directory adjacent, so DEFLATE's window matches the
+    // repeated content instead of storing each copy in full.
+    entries.sort_by(|left, right| {
+        left.ext
+            .cmp(&right.ext)
+            .then_with(|| left.base.cmp(&right.base))
+            .then_with(|| left.name_lower.cmp(&right.name_lower))
+            .then_with(|| case_precedence_tiebreak(left.name, right.name))
+    });
+    entries
 }
 
-/// Where a tar entry's bytes come from at write time. File contents are
-/// read only once the sorted write order is known, keeping the archive
+/// Where a tar entry's bytes come from at write time: file contents are
+/// read only once the sorted write order is known, so the archive stays
 /// streamed rather than buffered. The manifest carries its source path so
-/// an executable-files entry naming it still marks it executable.
+/// an `executableFiles` entry naming it still marks it executable.
 enum EntrySource<'a> {
     Manifest(&'a Path),
     Injected(&'a [u8]),
@@ -137,23 +134,23 @@ struct QueuedEntry<'a> {
     ext: String,
     base: String,
     name_lower: String,
-    name: String,
+    name: &'a str,
     source: EntrySource<'a>,
 }
 
-fn queued_entry(name: String, source: EntrySource<'_>) -> QueuedEntry<'_> {
-    let path = Path::new(&name);
+fn queued_entry<'a>(name: &'a str, source: EntrySource<'a>) -> QueuedEntry<'a> {
+    let path = Path::new(name);
     QueuedEntry {
-        ext: path
-            .extension()
-            .map_or_else(String::new, |ext| ext.to_string_lossy().to_lowercase()),
-        base: path
-            .file_name()
-            .map_or_else(String::new, |base| base.to_string_lossy().to_lowercase()),
+        ext: lowercased(path.extension()),
+        base: lowercased(path.file_name()),
         name_lower: name.to_lowercase(),
         name,
         source,
     }
+}
+
+fn lowercased(component: Option<&OsStr>) -> String {
+    component.map_or_else(String::new, |value| value.to_string_lossy().to_lowercase())
 }
 
 fn bin_mode(bin_set: &HashSet<&Path>, source: &Path) -> u32 {
