@@ -25,7 +25,7 @@ cmdShim('/path/to/cli.js', '/usr/bin/command-name')
 
 ### `cmdShimIfExists(src, to, opts?): Promise<void>`
 
-The same as above, but will just continue if the file does not exist.
+Creates shims like `cmdShim`, but ignores all creation errors, including a missing source file.
 
 #### Arguments:
 

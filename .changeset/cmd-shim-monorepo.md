@@ -4,4 +4,4 @@
 "pnpm": patch
 ---
 
-Moved cmd-shim into the pnpm monorepo and renamed the package to `@pnpm/bins.cmd-shim`. Its BSD-2-Clause license is unchanged.
+The `@zkochan/cmd-shim` package is now available as `@pnpm/bins.cmd-shim`.

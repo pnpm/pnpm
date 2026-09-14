@@ -92,9 +92,7 @@ type FsPromises = Pick<typeof fs.promises, 'chmod' | 'mkdir' | 'readFile' | 'sta
 type ShimGenerator = (src: string, to: string, opts: InternalOptions) => string
 
 interface ShimGenExtTuple {
-  /** The shim generator function. */
   generator: ShimGenerator
-  /** The file extension for the shim. */
   extension: string
 }
 
@@ -148,7 +146,7 @@ export async function cmdShim (src: string, to: string, opts?: Options): Promise
 /**
  * Try to create shims.
  *
- * Does nothing if `src` doesn't exist.
+ * Resolves even when shim creation fails, including when `src` is missing.
  *
  * @param src Path to program (executable or script).
  * @param to Path to shims.
@@ -190,10 +188,6 @@ function rm (path: string, opts: InternalOptions): Promise<void> {
  */
 async function cmdShim_ (src: string, to: string, opts: InternalOptions) {
   const srcRuntimeInfo = await searchScriptRuntime(src, opts)
-  // Always tries to create all types of shims by calling `writeAllShims` as of now.
-  // Append your code here to change the behavior in response to `srcRuntimeInfo`.
-
-  // Create 3 shims for (Ba)sh in Cygwin / MSYS, no extension) & CMD (.cmd) & PowerShell (.ps1)
   await writeShimsPreCommon(to, opts)
   return writeAllShims(src, to, srcRuntimeInfo, opts)
 }
@@ -209,15 +203,8 @@ function writeShimsPreCommon (target: string, opts: InternalOptions) {
 }
 
 /**
- * Write all types (sh & cmd & pwsh) of shims to files.
- * Extensions (`.cmd` and `.ps1`) are appended to cmd and pwsh shims.
- *
- *
- * @param src Path to program (executable or script).
- * @param to Path to shims **without extensions**.
- * Extensions are added for CMD and PowerShell shims.
- * @param srcRuntimeInfo Return value of `await searchScriptRuntime(src)`.
- * @param opts Options.
+ * Replaces the shell shim and the enabled CMD/PowerShell siblings with executable files.
+ * Resolves when all writes and permission changes finish; rejects if any fail.
  */
 function writeAllShims (src: string, to: string, srcRuntimeInfo: RuntimeInfo, opts: Options) {
   const opts_ = ingestOptions(opts)
@@ -322,19 +309,10 @@ function escapeMsysCmdSwitches (args: string): string {
 }
 
 /**
- * Write shim to the file system while executing the pre- and post-processes
- * defined in `WriteShimPre` and `WriteShimPost`.
- *
- * @param src Path to the executable or script.
- * @param to Path to the (sh) shim(s) that is going to be created.
- * @param srcRuntimeInfo Result of `await searchScriptRuntime(src)`.
- * @param generateShimScript Generator of shim script.
- * @param opts Other options.
+ * Replaces `to` with an executable shim. Rejects if writing or setting permissions fails.
  */
 async function writeShim (src: string, to: string, srcRuntimeInfo: RuntimeInfo, generateShimScript: ShimGenerator, opts: InternalOptions) {
   const defaultArgs = opts.preserveSymlinks ? '--preserve-symlinks' : ''
-  // `Array.prototype.filter` removes ''.
-  // ['--foo', '--bar'].join(' ') and [].join(' ') returns '--foo --bar' and '' respectively.
   const args = [srcRuntimeInfo.additionalArgs, defaultArgs].filter(arg => arg).join(' ')
   opts = Object.assign({}, opts, {
     prog: srcRuntimeInfo.program,
@@ -794,11 +772,6 @@ exit $LASTEXITCODE
   return pwsh
 }
 
-/**
- * Chmod just created shim and make it executable
- *
- * @param to Path to shim.
- */
 function chmodShim (to: string, opts: InternalOptions) {
   return opts.fs_.chmod(to, 0o755)
 }
