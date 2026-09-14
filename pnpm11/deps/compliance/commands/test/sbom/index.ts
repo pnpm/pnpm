@@ -1208,12 +1208,12 @@ test('pnpm sbom spdx expands the root repository shorthand into the root package
   expect(rootPkg.homepage).toBe('git+https://github.com/acme/sbom-repository-test.git')
 })
 
-test('pnpm sbom --filter keeps a non-URL project repository from inheriting the workspace repository', async () => {
+test('pnpm sbom --filter keeps an unpublishable project repository from inheriting the workspace repository', async () => {
   const workspaceDir = tempDir()
   f.copy('workspace-sbom', workspaceDir)
 
   setManifestRepository(path.join(workspaceDir, 'package.json'), 'acme/workspace-repo')
-  setManifestRepository(path.join(workspaceDir, 'app-a', 'package.json'), 'git@github.com:acme/app-a.git')
+  setManifestRepository(path.join(workspaceDir, 'app-a', 'package.json'), 'maintainers@example.com')
 
   const { allProjects, allProjectsGraph, selectedProjectsGraph } =
     await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
@@ -1290,7 +1290,7 @@ test('pnpm sbom omits a root repository value that is not a URL', async () => {
   const workspaceDir = tempDir()
   f.copy('sbom-repository', workspaceDir)
   const manifest = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'package.json'), 'utf8'))
-  manifest.repository = 'git@github.com:foo/bar.git'
+  manifest.repository = 'maintainers@example.com'
   fs.writeFileSync(path.join(workspaceDir, 'package.json'), JSON.stringify(manifest))
 
   const { output, exitCode } = await sbom.handler({

@@ -763,9 +763,8 @@ fn sbom_spdx_root_repository_shorthand_is_expanded_to_github_url() {
     assert_eq!(root["homepage"], "git+https://github.com/acme/sbom-repository-test.git");
 }
 
-/// A `repository` value that is neither an absolute URL nor the two-segment
-/// shorthand (an scp-style git remote here) is dropped instead of published
-/// as a broken URL.
+/// A `repository` value that names no repository (an email here) is dropped
+/// instead of published as a broken URL.
 #[test]
 fn sbom_root_repository_that_is_not_a_url_is_omitted() {
     let tmp = copy_fixture("sbom-repository");
@@ -775,7 +774,7 @@ fn sbom_root_repository_that_is_not_a_url_is_omitted() {
   "name": "sbom-repository-test",
   "version": "1.0.0",
   "license": "ISC",
-  "repository": "git@github.com:foo/bar.git",
+  "repository": "maintainers@example.com",
   "dependencies": { "is-positive": "^3.1.0" }
 }"#,
     )
@@ -789,7 +788,7 @@ fn sbom_root_repository_that_is_not_a_url_is_omitted() {
             .is_some_and(|ext_refs| ext_refs
                 .iter()
                 .any(|ext_ref| ext_ref["type"] == "vcs")),
-        "an scp-style remote is not an iri-reference and must not be published: {root}",
+        "an email is not a repository URL and must not be published: {root}",
     );
 }
 

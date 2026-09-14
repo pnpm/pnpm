@@ -33,6 +33,7 @@ use pnpm_package_is_installable::{
 };
 use pnpm_package_manager::{importer_root_dir, validate_importer_id};
 use pnpm_package_manifest::{extract_author, extract_homepage, safe_read_package_json_from_dir};
+use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
 use spdx::serialize_spdx;
 use std::{
     collections::{HashMap, HashSet, hash_map::Entry},

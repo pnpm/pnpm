@@ -230,20 +230,19 @@ fn extract_repository_object() {
 }
 
 #[test]
-fn extract_repository_expands_github_shorthand() {
-    let manifest = serde_json::json!({ "repository": "vercel/ms" });
-    assert_eq!(
-        extract_repository(&manifest),
-        Some("git+https://github.com/vercel/ms.git".to_string()),
-    );
-}
-
-#[test]
-fn extract_repository_expands_prefixed_shorthand_of_every_host() {
+fn extract_repository_expands_the_shorthands_hosted_git_info_knows() {
     for (value, expected) in [
+        ("vercel/ms", "git+https://github.com/vercel/ms.git"),
+        ("acme/widgets.git", "git+https://github.com/acme/widgets.git"),
+        ("  vercel/ms  ", "git+https://github.com/vercel/ms.git"),
         ("github:vercel/ms", "git+https://github.com/vercel/ms.git"),
         ("gitlab:acme/widgets", "git+https://gitlab.com/acme/widgets.git"),
         ("bitbucket:acme/widgets", "git+https://bitbucket.org/acme/widgets.git"),
+        // A GitLab subgroup path and a committish are part of the shorthand.
+        ("gitlab:foo/bar/baz", "git+https://gitlab.com/foo/bar/baz.git"),
+        ("owner/repo#main", "git+https://github.com/owner/repo.git#main"),
+        // An scp-style remote names the same repository as its https URL.
+        ("git@github.com:foo/bar.git", "git+https://github.com/foo/bar.git"),
     ] {
         let manifest = serde_json::json!({ "repository": value });
         assert_eq!(extract_repository(&manifest), Some(expected.to_string()), "value: {value:?}");
@@ -253,24 +252,6 @@ fn extract_repository_expands_prefixed_shorthand_of_every_host() {
 #[test]
 fn extract_repository_expands_shorthand_in_object() {
     let manifest = serde_json::json!({ "repository": { "type": "git", "url": "acme/widgets" } });
-    assert_eq!(
-        extract_repository(&manifest),
-        Some("git+https://github.com/acme/widgets.git".to_string()),
-    );
-}
-
-#[test]
-fn extract_repository_expands_trimmed_shorthand() {
-    let manifest = serde_json::json!({ "repository": "  vercel/ms  " });
-    assert_eq!(
-        extract_repository(&manifest),
-        Some("git+https://github.com/vercel/ms.git".to_string()),
-    );
-}
-
-#[test]
-fn extract_repository_shorthand_already_ending_in_git() {
-    let manifest = serde_json::json!({ "repository": "acme/widgets.git" });
     assert_eq!(
         extract_repository(&manifest),
         Some("git+https://github.com/acme/widgets.git".to_string()),
@@ -288,6 +269,12 @@ fn extract_repository_keeps_non_http_absolute_urls() {
         let manifest = serde_json::json!({ "repository": url });
         assert_eq!(extract_repository(&manifest), Some(url.to_string()));
     }
+}
+
+#[test]
+fn extract_repository_completes_a_url_missing_a_slash() {
+    let manifest = serde_json::json!({ "repository": "https:/github.com/foo/bar.git" });
+    assert_eq!(extract_repository(&manifest), Some("https://github.com/foo/bar.git".to_string()));
 }
 
 #[test]
@@ -314,6 +301,8 @@ fn extract_repository_strips_a_username_only_authority() {
         ("https://token@github.com/foo/bar", "https://github.com/foo/bar"),
         ("git+https://token@github.com/foo/bar.git", "git+https://github.com/foo/bar.git"),
         ("ssh://git:token@github.com/foo/bar.git", "ssh://github.com/foo/bar.git"),
+        // A scheme that merely ends in `ssh` is not an ssh remote.
+        ("not-ssh://token@example.com/foo/bar", "not-ssh://example.com/foo/bar"),
     ] {
         let manifest = serde_json::json!({ "repository": url });
         assert_eq!(extract_repository(&manifest), Some(expected.to_string()), "url: {url:?}");
@@ -321,20 +310,21 @@ fn extract_repository_strips_a_username_only_authority() {
 }
 
 #[test]
-fn extract_repository_drops_non_url_values() {
+fn extract_repository_drops_values_that_name_no_repository() {
     for value in [
-        "git@github.com:foo/bar.git",
         "foo@example.com",
         "a/b/c",
         "/abs/path",
         ".hidden/repo",
         "owner/",
         "owner",
-        "owner/repo#main",
-        "owner/repo?%",
         "owner /repo",
+        // The shorthand names no owner, so the URL it would derive has an
+        // empty owner segment.
         "github:owner",
-        "github:owner/repo/extra",
+        // A URL with no host names no repository a consumer can reach.
+        "mailto:bugs@example.com",
+        "git+file:/tmp/repo",
         "",
         "   ",
     ] {
@@ -366,6 +356,15 @@ fn extract_repository_does_not_treat_query_userinfo_lookalikes_as_credentials() 
 fn extract_repository_percent_encodes_whitespace_in_urls() {
     let manifest = serde_json::json!({ "repository": "https://example.com/a b" });
     assert_eq!(extract_repository(&manifest), Some("https://example.com/a%20b".to_string()));
+}
+
+/// Both parsers leave a malformed escape as the manifest wrote it, so the
+/// two pnpm versions publish the same value. The pnpm v11 test asserts the
+/// same string.
+#[test]
+fn extract_repository_leaves_a_malformed_percent_escape_alone() {
+    let manifest = serde_json::json!({ "repository": "https://example.com/%zz" });
+    assert_eq!(extract_repository(&manifest), Some("https://example.com/%zz".to_string()));
 }
 
 #[test]
@@ -445,10 +444,16 @@ fn url_without_credentials_keeps_an_ssh_login() {
 
 #[test]
 fn url_without_credentials_removes_a_username_only_authority() {
-    assert_eq!(
-        url_without_credentials("https://token@github.com/foo/bar").map(|u| u.to_string()),
-        Some("https://github.com/foo/bar".to_string()),
-    );
+    for (url, expected) in [
+        ("https://token@github.com/foo/bar", "https://github.com/foo/bar"),
+        ("not-ssh://token@example.com/foo/bar", "not-ssh://example.com/foo/bar"),
+    ] {
+        assert_eq!(
+            url_without_credentials(url).map(|u| u.to_string()),
+            Some(expected.to_string()),
+            "url: {url:?}",
+        );
+    }
 }
 
 #[test]

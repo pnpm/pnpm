@@ -190,17 +190,19 @@ describe('authorNameFromField', () => {
 })
 
 describe('repositoryFromField', () => {
-  it('expands the npm owner/repo shorthand to the git+https URL npm derives', () => {
+  it('expands the shorthands hosted-git-info knows to the URL npm derives', () => {
     expect(repositoryFromField('vercel/ms')).toBe('git+https://github.com/vercel/ms.git')
-    expect(repositoryFromField({ type: 'git', url: 'acme/widgets' })).toBe('git+https://github.com/acme/widgets.git')
-    expect(repositoryFromField('  vercel/ms  ')).toBe('git+https://github.com/vercel/ms.git')
     expect(repositoryFromField('acme/widgets.git')).toBe('git+https://github.com/acme/widgets.git')
-  })
-
-  it('expands the prefixed shorthand of every host npm supports', () => {
+    expect(repositoryFromField('  vercel/ms  ')).toBe('git+https://github.com/vercel/ms.git')
+    expect(repositoryFromField({ type: 'git', url: 'acme/widgets' })).toBe('git+https://github.com/acme/widgets.git')
     expect(repositoryFromField('github:vercel/ms')).toBe('git+https://github.com/vercel/ms.git')
     expect(repositoryFromField('gitlab:acme/widgets')).toBe('git+https://gitlab.com/acme/widgets.git')
     expect(repositoryFromField('bitbucket:acme/widgets')).toBe('git+https://bitbucket.org/acme/widgets.git')
+    // A GitLab subgroup path and a committish are part of the shorthand.
+    expect(repositoryFromField('gitlab:foo/bar/baz')).toBe('git+https://gitlab.com/foo/bar/baz.git')
+    expect(repositoryFromField('owner/repo#main')).toBe('git+https://github.com/owner/repo.git#main')
+    // An scp-style remote names the same repository as its https URL.
+    expect(repositoryFromField('git@github.com:foo/bar.git')).toBe('git+https://github.com/foo/bar.git')
   })
 
   it('keeps absolute URLs of other schemes', () => {
@@ -215,12 +217,18 @@ describe('repositoryFromField', () => {
     }
   })
 
+  it('completes a URL missing a slash', () => {
+    expect(repositoryFromField('https:/github.com/foo/bar.git')).toBe('https://github.com/foo/bar.git')
+  })
+
   it('strips the userinfo of an http(s) URL but keeps an ssh login', () => {
     expect(repositoryFromField('https://user:token@github.com/foo/bar')).toBe('https://github.com/foo/bar')
     expect(repositoryFromField('https://token@github.com/foo/bar')).toBe('https://github.com/foo/bar')
     expect(repositoryFromField('git+https://token@github.com/foo/bar.git')).toBe('git+https://github.com/foo/bar.git')
     expect(repositoryFromField('git+ssh://git@github.com/foo/bar.git')).toBe('git+ssh://git@github.com/foo/bar.git')
     expect(repositoryFromField('ssh://git:token@github.com/foo/bar.git')).toBe('ssh://github.com/foo/bar.git')
+    // A scheme that merely ends in `ssh` is not an ssh remote.
+    expect(repositoryFromField('not-ssh://token@example.com/foo/bar')).toBe('not-ssh://example.com/foo/bar')
     expect(repositoryFromField('https://github.com/foo/bar/baz@qux')).toBe('https://github.com/foo/bar/baz@qux')
   })
 
@@ -236,26 +244,34 @@ describe('repositoryFromField', () => {
     expect(repositoryFromField('https://example.com/a b')).toBe('https://example.com/a%20b')
   })
 
+  // Both parsers leave a malformed escape as the manifest wrote it, so the two
+  // pnpm versions publish the same value. The pnpm v12 test asserts the same
+  // string.
+  it('leaves a malformed percent escape alone', () => {
+    expect(repositoryFromField('https://example.com/%zz')).toBe('https://example.com/%zz')
+  })
+
   it('drops absolute URLs that do not parse', () => {
     for (const value of ['https://', 'http://user:pass@']) {
       expect(repositoryFromField(value)).toBeUndefined()
     }
   })
 
-  it('drops values that are not URLs or the shorthand', () => {
+  it('drops values that name no repository', () => {
     for (const value of [
-      'git@github.com:foo/bar.git',
       'foo@example.com',
       'a/b/c',
       '/abs/path',
       '.hidden/repo',
       'owner/',
       'owner',
-      'owner/repo#main',
-      'owner/repo?%',
       'owner /repo',
+      // The shorthand names no owner, so the URL it would derive has an empty
+      // owner segment.
       'github:owner',
-      'github:owner/repo/extra',
+      // A URL with no host names no repository a consumer can reach.
+      'mailto:bugs@example.com',
+      'git+file:/tmp/repo',
       '',
       '   ',
     ]) {

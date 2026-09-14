@@ -1,6 +1,6 @@
 use super::{
-    HashSet, InstallabilityOptions, LockfileResolution, PackageMetadata, PkgNameVerPeer,
-    WalkContext, WantedPlatformRef, extract_author, extract_homepage,
+    HashSet, HostedGit, HostedOpts, InstallabilityOptions, LockfileResolution, PackageMetadata,
+    PkgNameVerPeer, WalkContext, WantedPlatformRef, extract_author, extract_homepage,
     platform_is_supported_with_inference, safe_read_package_json_from_dir,
 };
 
@@ -8,9 +8,9 @@ use super::{
 /// `None` when the value is not one. A `CycloneDX` `externalReferences[].url`
 /// is an `iri-reference`, so a raw value like the npm `owner/repo`
 /// shorthand fails schema validation in consumers such as Dependency-Track.
-/// Absolute URLs are parsed and emitted in their normalized form, npm's
-/// hosted shorthands are expanded to the URL npm's own hosted-git-info
-/// derives, and anything else (an scp-style remote, an email, a relative
+/// Absolute URLs are emitted in their normalized form, the shorthands and
+/// scp-style remotes npm's hosted-git-info recognizes are expanded to the
+/// `git+https` URL it derives, and anything else (an email, a relative
 /// path) is dropped.
 pub(super) fn extract_repository(manifest: &serde_json::Value) -> Option<String> {
     let repo = manifest.get("repository")?;
@@ -21,50 +21,33 @@ pub(super) fn extract_repository(manifest: &serde_json::Value) -> Option<String>
     repository_url(raw)
 }
 
-/// A `repository` value safe to emit as an SBOM URL: an absolute URL in its
-/// normalized form, with embedded credentials stripped, or an expanded npm
-/// hosted shorthand.
+/// A `repository` value safe to emit as an SBOM URL, without the
+/// credentials the manifest may carry: an absolute URL in its normalized
+/// form, or the URL [`HostedGit`] derives for a value naming a repository
+/// on a host it knows.
 fn repository_url(raw: &str) -> Option<String> {
-    if raw.contains("://") {
-        return url_without_credentials(raw).map(|url| url.to_string());
+    if let Some(url) = absolute_url(raw) {
+        return Some(url);
     }
-    hosted_shorthand_url(raw)
-}
-
-/// The host each npm shorthand prefix names. A shorthand with no prefix is
-/// a GitHub one, as it is for npm.
-const SHORTHAND_HOSTS: [(&str, &str); 3] =
-    [("github:", "github.com"), ("gitlab:", "gitlab.com"), ("bitbucket:", "bitbucket.org")];
-
-/// An npm hosted shorthand (`owner/repo`, or the same prefixed with
-/// `github:`, `gitlab:` or `bitbucket:`) expanded to the `git+https` URL
-/// npm's hosted-git-info resolves it to (what `normalize-package-data` and
-/// `npm view` derive, so an SBOM shows the URL npm itself would).
-fn hosted_shorthand_url(raw: &str) -> Option<String> {
-    let (host, path) = SHORTHAND_HOSTS
-        .iter()
-        .find_map(|(prefix, host)| Some((*host, raw.strip_prefix(prefix)?)))
-        .unwrap_or(("github.com", raw));
-    let (owner, repo) = path.split_once('/')?;
-    let repo = repo.strip_suffix(".git").unwrap_or(repo);
-    if !is_shorthand_segment(owner) || !is_shorthand_segment(repo) {
+    let hosted = HostedGit::from_url(raw)?;
+    // A shorthand that names no owner (`github:repo`) still parses, but the
+    // URL derived from it has an empty owner segment and points at nothing.
+    if hosted.user.is_empty() {
         return None;
     }
-    Some(format!("git+https://{host}/{owner}/{repo}.git"))
+    let expanded = hosted.https(HostedOpts::default())?;
+    url_without_credentials(&expanded).map(|url| url.to_string())
 }
 
-/// Whether a segment can be the owner or the repository of a shorthand. The
-/// hosts allow only ASCII letters, digits, `-`, `_` and `.` in either name,
-/// and a leading `.` addresses a path rather than naming a repository.
-/// Anything else — a second `/`, a fragment, a query, whitespace — means the
-/// value is not a shorthand, and expanding it would publish a URL that
-/// resolves to nothing.
-fn is_shorthand_segment(segment: &str) -> bool {
-    !segment.is_empty()
-        && !segment.starts_with('.')
-        && segment
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+/// The value as an absolute URL, or `None` when it is not one. A URL with
+/// no host is not: `github:owner/repo` parses, but the repository the
+/// shorthand names says more than the literal text does, and `mailto:` and
+/// `file:` values name no repository an SBOM consumer can reach.
+fn absolute_url(raw: &str) -> Option<String> {
+    let url = url_without_credentials(raw)?;
+    url.host_str()
+        .is_some_and(|host| !host.is_empty())
+        .then(|| url.to_string())
 }
 
 /// An absolute URL validated and normalized by the WHATWG parser, with the
@@ -81,7 +64,7 @@ pub(super) fn url_without_credentials(raw: &str) -> Option<url::Url> {
     // with no password there names the login, not a secret. Under any other
     // scheme the username alone can be the secret: GitHub and GitLab both
     // take a token in place of the whole `user:password`.
-    let ssh_login = url.password().is_none() && url.scheme().ends_with("ssh");
+    let ssh_login = url.password().is_none() && matches!(url.scheme(), "ssh" | "git+ssh");
     if !ssh_login && (!url.username().is_empty() || url.password().is_some()) {
         url.set_username("").ok()?;
         url.set_password(None).ok()?;

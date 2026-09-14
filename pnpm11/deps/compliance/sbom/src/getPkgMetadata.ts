@@ -4,6 +4,7 @@ import { readPackageJson } from '@pnpm/pkg-manifest.reader'
 import type { StoreIndex } from '@pnpm/store.index'
 import { readPackageFileMap } from '@pnpm/store.pkg-finder'
 import type { DepPath, PackageManifest } from '@pnpm/types'
+import HostedGit from 'hosted-git-info'
 import pLimit from 'p-limit'
 
 const limitMetadataReads = pLimit(4)
@@ -99,14 +100,30 @@ export function authorNameFromField (field: unknown): string | undefined {
 // or `{ type, url }`. CycloneDX's `externalReferences[].url` is an
 // `iri-reference`, so a raw shorthand or remote fails schema validation in
 // consumers such as Dependency-Track. Absolute URLs are emitted in their
-// normalized form, a hosted shorthand is expanded to the URL npm's own
-// hosted-git-info derives, and everything else is dropped. Exported so the
-// command's root-package handling uses the same rule.
+// normalized form, a value naming a repository on a host hosted-git-info knows
+// is expanded to the `git+https` URL npm derives, and everything else is
+// dropped. Exported so the command's root-package handling uses the same rule.
 export function repositoryFromField (field: unknown): string | undefined {
   const raw = urlFieldValue(field)
   if (!raw) return undefined
-  if (raw.includes('://')) return urlWithoutCredentials(raw)?.href
-  return hostedShorthandUrl(raw)
+  const absolute = absoluteUrl(raw)
+  if (absolute) return absolute
+  const hosted = HostedGit.fromUrl(raw)
+  // A shorthand that names no owner (`github:repo`) still parses, but the URL
+  // derived from it has an empty owner segment and points at nothing.
+  if (!hosted?.user) return undefined
+  const expanded = hosted.https()
+  return expanded ? urlWithoutCredentials(expanded)?.href : undefined
+}
+
+// The value as an absolute URL, or undefined when it is not one. A URL with no
+// host is not: `github:owner/repo` parses, but the repository the shorthand
+// names says more than the literal text does, and `mailto:` and `file:` values
+// name no repository an SBOM consumer can reach.
+function absoluteUrl (raw: string): string | undefined {
+  const url = urlWithoutCredentials(raw)
+  if (!url || url.host === '') return undefined
+  return url.href
 }
 
 // `bugs` may be a URL string, a bare email, or `{ url, email }`. The CycloneDX
@@ -135,41 +152,6 @@ function urlFieldValue (field: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined
 }
 
-// The host each npm shorthand prefix names. A shorthand with no prefix is a
-// GitHub one, as it is for npm.
-const SHORTHAND_HOSTS = [
-  ['github:', 'github.com'],
-  ['gitlab:', 'gitlab.com'],
-  ['bitbucket:', 'bitbucket.org'],
-] as const
-
-// An npm hosted shorthand (`owner/repo`, or the same prefixed with `github:`,
-// `gitlab:` or `bitbucket:`) expanded to the `git+https` URL npm's
-// hosted-git-info resolves it to (what `normalize-package-data` and `npm view`
-// derive, so an SBOM shows the URL npm itself would).
-function hostedShorthandUrl (raw: string): string | undefined {
-  const prefixed = SHORTHAND_HOSTS.find(([prefix]) => raw.startsWith(prefix))
-  const host = prefixed?.[1] ?? 'github.com'
-  const path = prefixed ? raw.slice(prefixed[0].length) : raw
-  const slashIndex = path.indexOf('/')
-  if (slashIndex === -1) return undefined
-  const owner = path.slice(0, slashIndex)
-  const rest = path.slice(slashIndex + 1)
-  const repo = rest.endsWith('.git') ? rest.slice(0, -'.git'.length) : rest
-  if (!isShorthandSegment(owner) || !isShorthandSegment(repo)) return undefined
-  return `git+https://${host}/${owner}/${repo}.git`
-}
-
-// Whether a segment can be the owner or the repository of a shorthand. The
-// hosts allow only ASCII letters, digits, `-`, `_` and `.` in either name, and
-// a leading `.` addresses a path rather than naming a repository. Anything
-// else — a second `/`, a fragment, a query, whitespace — means the value is not
-// a shorthand, and expanding it would publish a URL that resolves to nothing.
-function isShorthandSegment (segment: string): boolean {
-  if (segment.startsWith('.')) return false
-  return /^[\w.-]+$/.test(segment)
-}
-
 // An absolute URL validated and normalized by the WHATWG parser, with the
 // userinfo an SBOM must not publish removed, or undefined when the value does
 // not parse. Parsing is what makes the emitted form a valid iri-reference: the
@@ -187,7 +169,7 @@ function urlWithoutCredentials (raw: string): URL | undefined {
   // no password there names the login, not a secret. Under any other scheme
   // the username alone can be the secret: GitHub and GitLab both take a token
   // in place of the whole `user:password`.
-  const sshLogin = !url.password && url.protocol.endsWith('ssh:')
+  const sshLogin = !url.password && (url.protocol === 'ssh:' || url.protocol === 'git+ssh:')
   if (!sshLogin) {
     url.username = ''
     url.password = ''
