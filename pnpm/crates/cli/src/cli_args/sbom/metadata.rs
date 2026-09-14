@@ -66,18 +66,11 @@ pub(super) fn url_without_credentials(raw: &str) -> Option<url::Url> {
 /// The parser keeps a `%` that begins no `%XX` escape as the manifest wrote
 /// it, and an iri-reference admits no such thing.
 fn percent_escapes_are_complete(url: &str) -> bool {
-    let bytes = url.as_bytes();
-    bytes
-        .iter()
-        .enumerate()
-        .all(|(index, byte)| {
-            *byte != b'%'
-                || bytes[index + 1..]
-                    .iter()
-                    .take(2)
-                    .filter(|byte| byte.is_ascii_hexdigit())
-                    .count()
-                    == 2
+    url.split('%')
+        .skip(1)
+        .all(|rest| {
+            let mut escape = rest.bytes().take(2);
+            escape.len() == 2 && escape.all(|byte| byte.is_ascii_hexdigit())
         })
 }
 
