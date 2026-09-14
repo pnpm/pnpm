@@ -7,6 +7,7 @@ use super::{
 use super::{
     EnvGuard, failing_fetcher, parse_shim_log, position_of, write_failing_git_shim, write_git_shim,
 };
+#[cfg(unix)]
 use miette::Diagnostic;
 
 #[test]
