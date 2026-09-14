@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-`pn`, `pnpx`, and `pnx` from `@pnpm/exe` now report a clear error when the package's install script is blocked. The Windows wrappers no longer run an unrelated `pnpm` found on `PATH` [#14885](https://github.com/pnpm/pnpm/issues/14885).
+On Windows, `pn`, `pnpx`, and `pnx` from `@pnpm/exe` now run only the adjacent native binary. If the package's install script was blocked, an unrelated `pnpm` from `PATH` could run. The wrappers now report clear reinstall guidance [#14885](https://github.com/pnpm/pnpm/issues/14885).

@@ -7,6 +7,7 @@ import { describe, expect, test } from '@jest/globals'
 import { cmdShim } from '@pnpm/bins.cmd-shim'
 import { familySync } from 'detect-libc'
 
+// cspell:ignore errorlevel
 // @ts-expect-error — JS helper without type declarations
 import { exePlatformPkgName } from '../platform-pkg-name.js'
 
@@ -78,12 +79,15 @@ test('prepare writes correct content for all bin files', () => {
   for (const { name, shell } of ALIASES) {
     const missingBinaryMessage = `${name}: pnpm's native binary was not installed next to this script.`
     expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off
-if not exist "%~dp0pnpm.exe" (
-  echo ${missingBinaryMessage} 1>&2
-  echo Reinstall @pnpm/exe with its install scripts allowed. 1>&2
-  exit /b 1
-)
+if not exist "%~dp0pnpm.exe" goto missing_binary
+if exist "%~dp0pnpm.exe\\" goto missing_binary
 "%~dp0pnpm.exe"${shell} %*
+exit /b %errorlevel%
+
+:missing_binary
+echo ${missingBinaryMessage} 1>&2
+echo Reinstall @pnpm/exe with its install scripts allowed. 1>&2
+exit /b 1
 `)
     expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe(`$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
 $pnpm="$basedir\\pnpm.exe"
@@ -203,12 +207,7 @@ function buildWinSetupSandbox (): string {
   // cross-device. The seed's identity doesn't matter here; the assertions
   // exercise setup.js's own intra-sandbox hardlinking.
   const seedTarget = path.join(platformDir, 'pnpm.exe')
-  try {
-    fs.linkSync(process.execPath, seedTarget)
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
-    fs.copyFileSync(process.execPath, seedTarget)
-  }
+  linkOrCopyFile(process.execPath, seedTarget)
   // platform-pkg-name.js calls into detect-libc; make the package resolvable
   // from the sandbox. On Windows, use a junction — non-junction directory
   // symlinks require Developer Mode or admin privileges, which Windows CI and
@@ -227,6 +226,150 @@ function buildWinSetupSandbox (): string {
 }
 
 const winSetupTest = isWindows ? test : test.skip
+
+// Exercise prepare.js's checked-in Windows wrappers through the shells that run
+// them. Text snapshots alone cannot catch shell parsing, argument forwarding,
+// executable selection, or exit-code regressions.
+const SYSTEM32 = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
+const POWERSHELL_DIR = path.join(SYSTEM32, 'WindowsPowerShell', 'v1.0')
+const WINDOWS_WRAPPERS = [
+  {
+    extension: 'cmd',
+    command: path.join(SYSTEM32, 'cmd.exe'),
+    argv: (script: string, args: string[]) => ['/d', '/c', script, ...args],
+  },
+  {
+    extension: 'ps1',
+    command: path.join(POWERSHELL_DIR, 'powershell.exe'),
+    argv: (script: string, args: string[]) => [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, ...args,
+    ],
+  },
+] as const
+const WRAPPER_EXIT_CODE = 23
+
+describe('prepared Windows alias wrappers', () => {
+  for (const wrapper of WINDOWS_WRAPPERS) {
+    winSetupTest(`.${wrapper.extension} wrappers use the sibling binary, forward arguments, and preserve its exit code`, () => {
+      const sandbox = buildWindowsAliasSandbox()
+      try {
+        const decoyDir = path.join(sandbox, 'decoy')
+        writeWindowsCmdStub(path.join(decoyDir, 'pnpm.cmd'), 'decoy', 91)
+        const args = ['probe.mjs', 'add', 'two words']
+
+        for (const { name, argv } of ALIASES) {
+          const result = runWindowsWrapper(wrapper, path.join(sandbox, `${name}.${wrapper.extension}`), args, decoyDir)
+          if (result.error != null) throw result.error
+          expect({
+            name,
+            output: JSON.parse(result.stdout),
+            stderr: result.stderr,
+            status: result.status,
+          }).toEqual({
+            name,
+            output: {
+              entry: argv.length === 0 ? 'probe.mjs' : 'dlx',
+              argv: argv.length === 0 ? args.slice(1) : args,
+            },
+            stderr: '',
+            status: WRAPPER_EXIT_CODE,
+          })
+        }
+      } finally {
+        fs.rmSync(path.dirname(sandbox), { recursive: true, force: true })
+      }
+    })
+
+    for (const binaryState of ['absent', 'directory'] as const) {
+      winSetupTest(`.${wrapper.extension} wrappers reject a ${binaryState} sibling binary and ignore PATH`, () => {
+        const sandbox = buildWindowsAliasSandbox({ installBinary: false })
+        try {
+          if (binaryState === 'directory') fs.mkdirSync(path.join(sandbox, 'pnpm.exe'))
+          const decoyDir = path.join(sandbox, 'decoy')
+          writeWindowsCmdStub(path.join(decoyDir, 'pnpm.cmd'), 'decoy', 91)
+
+          for (const { name } of ALIASES) {
+            const result = runWindowsWrapper(
+              wrapper,
+              path.join(sandbox, `${name}.${wrapper.extension}`),
+              ['probe.mjs', 'add', 'two words'],
+              decoyDir
+            )
+            if (result.error != null) throw result.error
+            expect({
+              name,
+              stderr: result.stderr.replace(/\r\n/g, '\n'),
+              stdout: result.stdout,
+              status: result.status,
+            }).toEqual({
+              name,
+              stderr: `${name}: pnpm's native binary was not installed next to this script.\n` +
+                'Reinstall @pnpm/exe with its install scripts allowed.\n',
+              stdout: '',
+              status: 1,
+            })
+          }
+        } finally {
+          fs.rmSync(path.dirname(sandbox), { recursive: true, force: true })
+        }
+      })
+    }
+  }
+})
+
+function buildWindowsAliasSandbox ({ installBinary = true } = {}): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-exe-windows-alias-'))
+  // Spaces verify that every wrapper quotes the path derived from its own location.
+  const sandbox = path.join(root, 'wrapper path with spaces')
+  fs.mkdirSync(sandbox)
+  fs.copyFileSync(path.join(exeDir, 'prepare.js'), path.join(sandbox, 'prepare.js'))
+  fs.writeFileSync(path.join(sandbox, 'package.json'), JSON.stringify({ name: '@pnpm/exe', type: 'module' }))
+  execFileSync(process.execPath, [path.join(sandbox, 'prepare.js')], { cwd: sandbox })
+
+  const probe = `import path from 'node:path'
+process.stdout.write(JSON.stringify({
+  entry: path.basename(process.argv[1]),
+  argv: process.argv.slice(2),
+}))
+process.exit(Number(process.env.PNPM_TEST_WRAPPER_EXIT_CODE))
+`
+  fs.writeFileSync(path.join(sandbox, 'probe.mjs'), probe)
+  fs.writeFileSync(path.join(sandbox, 'dlx'), probe)
+  if (installBinary) linkOrCopyFile(process.execPath, path.join(sandbox, 'pnpm.exe'))
+  return sandbox
+}
+
+function runWindowsWrapper (
+  wrapper: typeof WINDOWS_WRAPPERS[number],
+  script: string,
+  args: string[],
+  decoyDir: string
+) {
+  return spawnSync(wrapper.command, wrapper.argv(script, args), {
+    cwd: path.dirname(script),
+    encoding: 'utf8',
+    timeout: 30_000,
+    env: {
+      ...process.env,
+      PATH: [decoyDir, SYSTEM32, POWERSHELL_DIR].join(path.delimiter),
+      PNPM_TEST_WRAPPER_EXIT_CODE: String(WRAPPER_EXIT_CODE),
+    },
+  })
+}
+
+function writeWindowsCmdStub (file: string, label: string, exitCode: number): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, `@echo off\r\necho ${label}: %*\r\nexit /b ${exitCode}\r\n`)
+}
+
+function linkOrCopyFile (source: string, target: string): void {
+  try {
+    fs.linkSync(source, target)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
+    fs.copyFileSync(source, target)
+  }
+}
 
 // Regression coverage for https://github.com/pnpm/pnpm/issues/11486.
 // See the matching describe block in

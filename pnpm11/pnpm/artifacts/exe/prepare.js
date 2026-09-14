@@ -81,12 +81,15 @@ exec "$pnpm"${subcommand} "$@"
 function cmdScript (name, subcommand) {
   const message = missingBinaryMessage(name)
   return `@echo off
-if not exist "%~dp0pnpm.exe" (
-  echo ${message} 1>&2
-  echo Reinstall @pnpm/exe with its install scripts allowed. 1>&2
-  exit /b 1
-)
+if not exist "%~dp0pnpm.exe" goto missing_binary
+if exist "%~dp0pnpm.exe\\" goto missing_binary
 "%~dp0pnpm.exe"${subcommand} %*
+exit /b %errorlevel%
+
+:missing_binary
+echo ${message} 1>&2
+echo Reinstall @pnpm/exe with its install scripts allowed. 1>&2
+exit /b 1
 `
 }
 
