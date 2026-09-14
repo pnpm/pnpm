@@ -344,7 +344,7 @@ fn set_manifest_dependencies(
     let deps = dependencies
         .into_iter()
         .flatten()
-        .map(|(name, spec)| (name.to_string(), Value::String(spec.version.to_string())))
+        .map(|(name, spec)| (name.to_string(), Value::String(spec.specifier.clone())))
         .collect::<Map<_, _>>();
     if let Some(object) = manifest.as_object_mut() {
         object.insert(field.to_string(), Value::Object(deps));
