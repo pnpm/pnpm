@@ -400,8 +400,6 @@ async fn asset_reader_serves_repeat_reads_from_the_cache() {
     shasums.assert_async().await;
 }
 
-/// unofficial-builds answers 404 for a release it never built, so the
-/// musl read reports no assets instead of failing the resolve.
 #[tokio::test]
 async fn musl_reader_reports_no_assets_for_a_release_without_musl_builds() {
     let assets = read_musl_assets_from_mock(404, None).await
@@ -410,9 +408,6 @@ async fn musl_reader_reports_no_assets_for_a_release_without_musl_builds() {
     assert!(assets.is_empty());
 }
 
-/// A proxy blocking unofficial-builds answers 403. Absorbing that would
-/// write a lockfile missing the musl assets the same command records on
-/// an unblocked machine.
 #[tokio::test]
 async fn musl_reader_propagates_a_blocked_mirror() {
     let err = read_musl_assets_from_mock(403, None).await
@@ -435,8 +430,6 @@ async fn musl_reader_propagates_a_mirror_server_error() {
     ));
 }
 
-/// The glibc rows the unofficial mirror also lists belong to the
-/// official mirror's asset set, so only the musl ones are kept.
 #[tokio::test]
 async fn musl_reader_keeps_only_the_musl_assets() {
     let assets = read_musl_assets_from_mock(200, Some(SHASUMS_WITH_GLIBC_AND_MUSL_ASSETS))
@@ -447,8 +440,6 @@ async fn musl_reader_keeps_only_the_musl_assets() {
     assert_eq!(assets[0].targets[0].libc.as_deref(), Some("musl"));
 }
 
-/// Run [`read_musl_assets`] against a mirror that answers the
-/// `SHASUMS256.txt` request with `status` and, when given, `body`.
 async fn read_musl_assets_from_mock(
     status: usize,
     body: Option<&str>,

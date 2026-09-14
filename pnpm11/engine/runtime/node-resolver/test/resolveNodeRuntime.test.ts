@@ -246,11 +246,9 @@ test('resolveNodeRuntime() fails when unofficial-builds cannot be reached', asyn
 })
 
 /**
- * Resolve a release whose musl SHASUMS request is answered by
- * `respondToMuslRequest`. That request is only made when the picked mirror is
- * the default one, and pointing the `rc` channel at it keeps its own SHASUMS
- * file unsigned, so no release signature has to be minted for the official
- * half.
+ * The musl request is only made when the picked mirror is the default one, and
+ * pointing the `rc` channel at it keeps that mirror's own SHASUMS file
+ * unsigned, so no release signature has to be minted for the official half.
  */
 async function resolveMuslVariants (respondToMuslRequest: () => Promise<Response>): Promise<PlatformAssetResolution[]> {
   const fetch: FetchFromRegistry = async (url) => {
