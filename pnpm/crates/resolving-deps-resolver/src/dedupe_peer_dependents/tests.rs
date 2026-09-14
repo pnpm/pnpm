@@ -299,7 +299,8 @@ fn parent_collapses_when_its_child_carries_a_peer_suffix_the_other_lacks() {
 
     dedupe_peer_dependents(&mut graph, &mut direct);
 
-    dbg!(&direct);
-    assert_ne!(direct["project-bare"]["parent"], dp(PARENT_BARE));
+    assert_eq!(direct["project-opt-peer"]["parent"], dp(PARENT_WITH_OPT_PEER));
+    assert_eq!(direct["project-other"]["parent"], dp(PARENT_WITH_OTHER));
+    assert_eq!(direct["project-bare"]["parent"], dp(PARENT_WITH_OTHER));
     assert!(!graph.contains_key(&dp(PARENT_BARE)));
 }
