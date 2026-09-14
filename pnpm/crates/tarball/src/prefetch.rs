@@ -10,7 +10,7 @@ use super::{
     Arc, ArchiveStoreProjection, HashMap, IntoParallelIterator, PackageContentCheck,
     ParallelIterator, PathBuf, TarballError,
 };
-use pnpm_package_manifest::{files_include_install_scripts, manifest_requires_build};
+use pnpm_package_manifest::files_build_triggers;
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_store_dir::{
     PackageFilesIndex, PendingFilesCheck, PkgContentMismatch, SharedReadonlyStoreIndex,
@@ -329,6 +329,23 @@ fn decode_matching_prefetch_entry(cache_key: &str, bytes: &[u8]) -> Option<Packa
     Some(entry)
 }
 
+/// Derive `requiresBuild` for a store-index row that does not carry it, from
+/// the row's bundled manifest and its file list.
+fn row_requires_build<Filenames, Filename>(
+    manifest: Option<&serde_json::Value>,
+    filenames: Filenames,
+) -> bool
+where
+    Filenames: IntoIterator<Item = Filename>,
+    Filename: AsRef<str>,
+{
+    let mut triggers = files_build_triggers(filenames);
+    if let Some(manifest) = manifest {
+        triggers.read_manifest(manifest);
+    }
+    triggers.requires_build()
+}
+
 /// Fold the verified rows into the per-key maps the install path reads.
 fn collect_prefetch_result(decoded: Vec<DecodedPrefetchRow>) -> PrefetchResult {
     let mut result = PrefetchResult {
@@ -352,8 +369,7 @@ fn collect_prefetch_result(decoded: Vec<DecodedPrefetchRow>) -> PrefetchResult {
             result.pending_checks.insert(cache_key.clone(), pending_check);
         }
         let calculated_requires_build = stored_requires_build.unwrap_or_else(|| {
-            manifest.as_deref().is_some_and(manifest_requires_build)
-                || files_include_install_scripts(verify_result.files_map.keys())
+            row_requires_build(manifest.as_deref(), verify_result.files_map.keys())
         });
         if let Some(manifest) = manifest {
             result.manifests.insert(cache_key.clone(), manifest);

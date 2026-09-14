@@ -121,6 +121,18 @@ export interface BaseManifest {
     email?: string
   }
   scripts?: PackageScripts
+  /**
+   * `false` opts the package out of the `node-gyp rebuild` install script pnpm
+   * synthesizes for a package that ships a `binding.gyp` and declares no
+   * `install` or `preinstall` script of its own.
+   *
+   * npm documents `gypfile` as that opt-out, and sets `gypfile: true` at
+   * publish time on every package it synthesizes the script for, so only the
+   * `false` value carries anything pnpm can act on.
+   *
+   * @see https://docs.npmjs.com/cli/v12/configuring-npm/package-json#gypfile
+   */
+  gypfile?: boolean
   config?: Record<string, unknown>
   engines?: {
     node?: string
@@ -408,6 +420,7 @@ export type BundledManifest = Pick<
 | 'devDependencies'
 | 'directories'
 | 'engines'
+| 'gypfile'
 | 'libc'
 | 'name'
 | 'optionalDependencies'

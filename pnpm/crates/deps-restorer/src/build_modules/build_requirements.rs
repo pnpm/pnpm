@@ -1,7 +1,7 @@
 use super::slots::PkgRoots;
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
 use pnpm_package_manifest::{
-    file_path_requires_build, manifest_requires_build, parse_manifest, pkg_requires_build,
+    files_build_triggers, parse_manifest, pkg_requires_build, safe_read_package_json_from_dir,
 };
 use pnpm_patching::{ExtendedPatchInfo, preview_patch};
 use std::collections::HashMap;
@@ -140,9 +140,13 @@ pub(super) fn patch_added_build_by_package(
 }
 /// Whether previewing the configured patch shows it adding build work.
 ///
-/// The same two triggers `pkg_requires_build` reads off an extracted package:
-/// the manifest's install scripts, and the presence of `binding.gyp` /
-/// `.hooks/`. A patch can add either. `None` when nothing can be previewed.
+/// The same triggers `pkg_requires_build` reads off an extracted package: the
+/// manifest's install scripts, and the presence of `.hooks/` or a `binding.gyp`
+/// the manifest does not opt out of. A patch can add any of them. `None` when
+/// nothing can be previewed.
+///
+/// The patch's own manifest answers the `gypfile` opt-out when the patch
+/// rewrites `package.json`, and the package's published one otherwise.
 pub(super) fn previewed_patch_adds_build(
     patches: &HashMap<PackageKey, ExtendedPatchInfo>,
     metadata_key: &PackageKey,
@@ -152,12 +156,15 @@ pub(super) fn previewed_patch_adds_build(
     let patch_file_path = patches.get(metadata_key)?.patch_file_path.as_deref()?;
     let pkg_root = pkg_roots.canonical(key)?;
     let preview = preview_patch(&pkg_root, patch_file_path).ok()?;
-    Some(
-        preview.written_paths.iter().any(|path| file_path_requires_build(path))
-            || preview.manifest.is_some_and(|manifest| {
-                parse_manifest(&manifest).is_ok_and(|manifest| manifest_requires_build(&manifest))
-            }),
-    )
+    let mut triggers = files_build_triggers(&preview.written_paths);
+    let manifest = match preview.manifest.as_deref() {
+        Some(patched) => parse_manifest(patched).ok(),
+        None => safe_read_package_json_from_dir(&pkg_root).ok().flatten(),
+    };
+    if let Some(manifest) = manifest {
+        triggers.read_manifest(&manifest);
+    }
+    Some(triggers.requires_build())
 }
 /// The snapshots `--ignore-scripts` kept from building, sorted for a
 /// stable `.modules.yaml`.
