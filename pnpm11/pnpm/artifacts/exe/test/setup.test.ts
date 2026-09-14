@@ -73,12 +73,28 @@ test('prepare writes correct content for all bin files', () => {
     }
   }
 
-  // Windows wrappers should exist. setup.js hardlinks the binary onto
-  // pn.exe/pnpx.exe/pnx.exe and points `bin` at those, so these only run when
-  // setup.js did not — where there is no sibling binary and PATH is all they have.
+  // Windows wrappers should resolve only the native binary beside them and
+  // report when setup.js was blocked instead of falling through to PATH.
   for (const { name, shell } of ALIASES) {
-    expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off\npnpm${shell} %*\n`)
-    expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe(`pnpm${shell} @args\n`)
+    const missingBinaryMessage = `${name}: pnpm's native binary was not installed next to this script.`
+    expect(fs.readFileSync(path.join(exeDir, name + '.cmd'), 'utf8')).toBe(`@echo off
+if not exist "%~dp0pnpm.exe" (
+  echo ${missingBinaryMessage} 1>&2
+  echo Reinstall @pnpm/exe with its install scripts allowed. 1>&2
+  exit /b 1
+)
+"%~dp0pnpm.exe"${shell} %*
+`)
+    expect(fs.readFileSync(path.join(exeDir, name + '.ps1'), 'utf8')).toBe(`$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+$pnpm="$basedir\\pnpm.exe"
+if (!(Test-Path -LiteralPath $pnpm -PathType Leaf)) {
+  [Console]::Error.WriteLine("${missingBinaryMessage}")
+  [Console]::Error.WriteLine("Reinstall @pnpm/exe with its install scripts allowed.")
+  exit 1
+}
+& $pnpm${shell} @args
+exit $LastExitCode
+`)
   }
 });
 

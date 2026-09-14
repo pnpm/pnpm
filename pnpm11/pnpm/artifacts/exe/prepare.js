@@ -17,13 +17,10 @@ for (const name of ['pnpm']) {
 
 // pn, pnpx, and pnx — write the real shell scripts and Windows wrappers.
 //
-// The Unix scripts hand over to the pnpm installed alongside them, found
-// relative to the script: a `PATH` lookup would run whatever other pnpm comes
-// first there, and would find nothing at all when the directory holding these
-// bins is not on `PATH`. On Windows setup.js hardlinks the binary onto
-// pn.exe/pnpx.exe/pnx.exe and points `bin` at them, so the .cmd and .ps1
-// wrappers below only run when setup.js did not — where there is no sibling
-// binary to resolve and `PATH` is all they have.
+// Every script hands over to the pnpm installed alongside it. On Windows,
+// setup.js normally replaces the aliases with hardlinks to the native binary.
+// If that install script was blocked, the wrappers report the missing sibling
+// rather than running an unrelated pnpm from PATH.
 for (const [name, subcommand] of [['pn', ''], ['pnpx', ' dlx'], ['pnx', ' dlx']]) {
   const file = path.join(ownDir, name)
   try {
@@ -32,8 +29,8 @@ for (const [name, subcommand] of [['pn', ''], ['pnpx', ' dlx'], ['pnx', ' dlx']]
     if (e.code !== 'ENOENT') throw e
   }
   fs.writeFileSync(file, unixScript(name, subcommand), { mode: 0o755 })
-  fs.writeFileSync(path.join(ownDir, name + '.cmd'), `@echo off\npnpm${subcommand} %*\n`)
-  fs.writeFileSync(path.join(ownDir, name + '.ps1'), `pnpm${subcommand} @args\n`)
+  fs.writeFileSync(path.join(ownDir, name + '.cmd'), cmdScript(name, subcommand))
+  fs.writeFileSync(path.join(ownDir, name + '.ps1'), powershellScript(name, subcommand))
 }
 
 function unixScript (name, subcommand) {
@@ -79,4 +76,34 @@ fi
 
 exec "$pnpm"${subcommand} "$@"
 `
+}
+
+function cmdScript (name, subcommand) {
+  const message = missingBinaryMessage(name)
+  return `@echo off
+if not exist "%~dp0pnpm.exe" (
+  echo ${message} 1>&2
+  echo Reinstall @pnpm/exe with its install scripts allowed. 1>&2
+  exit /b 1
+)
+"%~dp0pnpm.exe"${subcommand} %*
+`
+}
+
+function powershellScript (name, subcommand) {
+  const message = missingBinaryMessage(name)
+  return `$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
+$pnpm="$basedir\\pnpm.exe"
+if (!(Test-Path -LiteralPath $pnpm -PathType Leaf)) {
+  [Console]::Error.WriteLine("${message}")
+  [Console]::Error.WriteLine("Reinstall @pnpm/exe with its install scripts allowed.")
+  exit 1
+}
+& $pnpm${subcommand} @args
+exit $LastExitCode
+`
+}
+
+function missingBinaryMessage (name) {
+  return `${name}: pnpm's native binary was not installed next to this script.`
 }
