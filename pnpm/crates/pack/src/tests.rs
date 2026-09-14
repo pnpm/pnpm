@@ -123,6 +123,19 @@ fn tarball_entry_content(tarball: &Path, entry_name: &str) -> Option<String> {
     None
 }
 
+/// Read one entry's mode out of a written `.tgz`.
+fn tarball_entry_mode(tarball: &Path, entry_name: &str) -> u32 {
+    let file = std::fs::File::open(tarball).unwrap();
+    let mut archive = tar::Archive::new(GzDecoder::new(file));
+    for entry in archive.entries().unwrap() {
+        let entry = entry.unwrap();
+        if entry.path().unwrap().to_str() == Some(entry_name) {
+            return entry.header().mode().unwrap();
+        }
+    }
+    panic!("entry {entry_name:?} not found in {}", tarball.display());
+}
+
 #[test]
 fn injected_files_are_packed_and_supersede_an_on_disk_entry() {
     let (dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.1.0" }));
@@ -165,7 +178,7 @@ fn tarball_entries_are_written_in_compression_order() {
     touch(dir.path(), "B.txt", "B\n");
     touch(dir.path(), "a.txt", "a\n");
     opts.workspace_dir = Some(workspace.path().to_path_buf());
-    opts.injected_files = vec![("package/mmm.txt".to_string(), b"m\n".to_vec())];
+    opts.output.injected_files = vec![("package/mmm.txt".to_string(), b"m\n".to_vec())];
 
     api::<SilentReporter, Host>(&opts).unwrap();
 
@@ -216,13 +229,30 @@ fn duplicate_named_files_are_adjacent_for_compression() {
 /// The case-only tiebreak is unreachable through fixtures on a
 /// case-insensitive filesystem, so it is pinned directly.
 #[test]
-fn compare_paths_en_locale_orders_case_insensitively() {
+fn case_precedence_tiebreak_orders_case_insensitively() {
     use std::cmp::Ordering;
 
-    assert_eq!(super::contents::compare_paths_en_locale("B.txt", "a.txt"), Ordering::Greater);
-    assert_eq!(super::contents::compare_paths_en_locale("a.txt", "A.txt"), Ordering::Less);
-    assert_eq!(super::contents::compare_paths_en_locale("dir/x.js", "LICENSE"), Ordering::Less);
-    assert_eq!(super::contents::compare_paths_en_locale("a.txt", "a.txt"), Ordering::Equal);
+    assert_eq!(super::contents::case_precedence_tiebreak("B.txt", "a.txt"), Ordering::Greater);
+    assert_eq!(super::contents::case_precedence_tiebreak("a.txt", "A.txt"), Ordering::Less);
+    assert_eq!(super::contents::case_precedence_tiebreak("dir/x.js", "LICENSE"), Ordering::Less);
+    assert_eq!(super::contents::case_precedence_tiebreak("a.txt", "a.txt"), Ordering::Equal);
+}
+
+/// The packed manifest comes from memory rather than from its on-disk file,
+/// but `publishConfig.executableFiles` names it by source path, so listing
+/// it there must keep marking it executable in the archive.
+#[test]
+fn manifest_named_in_executable_files_is_packed_executable() {
+    let (dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "publishConfig": { "executableFiles": ["package.json"] },
+    }));
+
+    api::<SilentReporter, Host>(&opts).unwrap();
+
+    let mode = tarball_entry_mode(&dir.path().join("foo-1.0.0.tgz"), "package/package.json");
+    assert_eq!(mode, 0o755);
 }
 
 /// A `publishConfig.name` rename has to reach the tarball filename and the

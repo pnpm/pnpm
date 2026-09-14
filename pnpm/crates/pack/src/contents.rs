@@ -151,25 +151,20 @@ pub fn sort_paths_en_locale(paths: &mut Vec<String>) {
         .collect();
 }
 
-/// Order two path strings the way [`sort_paths_en_locale`] orders a list:
-/// case-insensitively, with lowercase given precedence over uppercase on
-/// case-only ties. Sorts over structured entry lists (e.g. the tar's write
-/// order) compare through this; plain string lists use
-/// [`sort_paths_en_locale`], which decorates the lowercase keys once
-/// instead of recomputing them on every comparison.
-pub(super) fn compare_paths_en_locale(left: &str, right: &str) -> Ordering {
-    left.to_lowercase()
-        .cmp(&right.to_lowercase())
-        .then_with(|| case_precedence_tiebreak(left, right))
-}
-
 /// Tie-breaker for [`sort_paths_en_locale`]'s `localeCompare(b, 'en')`
 /// approximation: once two ASCII path strings compare equal
 /// case-insensitively, give a lowercase character precedence over its
 /// uppercase counterpart. Full ICU collation is not a workspace
-/// dependency; this reproduces `en` ordering for plain file paths, where
-/// the two agree.
-fn case_precedence_tiebreak(left: &str, right: &str) -> Ordering {
+/// dependency; this reproduces `en` ordering for ASCII paths, where the two
+/// agree. Non-ASCII paths keep code-point order, so an accented letter sorts
+/// past `z` rather than beside its unaccented base letter, where
+/// `localeCompare` places it.
+///
+/// Callers that sort structured entries (e.g. the tar's write order) carry
+/// each path's lowercase form as a sort key and reach for this only when
+/// those keys tie; [`sort_paths_en_locale`] is the plain string list
+/// equivalent.
+pub(super) fn case_precedence_tiebreak(left: &str, right: &str) -> Ordering {
     for (left_char, right_char) in left.chars().zip(right.chars()) {
         if left_char == right_char {
             continue;

@@ -14,7 +14,7 @@
 //! per entry.
 
 use crate::{
-    capabilities::FsReadFile, contents::compare_paths_en_locale, manifest_entry::is_manifest_entry,
+    capabilities::FsReadFile, contents::case_precedence_tiebreak, manifest_entry::is_manifest_entry,
 };
 use flate2::{Compression, write::GzEncoder};
 use indexmap::IndexMap;
@@ -38,16 +38,14 @@ const PACKED_MANIFEST_NAME: &str = "package/package.json";
 
 /// Stream the gzipped tar archive for `files_map` (`package/<path>` →
 /// absolute source) into `writer`, with `injected` packed in as well.
-/// Entries are written in npm-packlist's compression order — extension,
-/// then basename, then full path — regardless of the maps' insertion
-/// order. Files sharing a name tend to share contents across generated
-/// trees, and that adjacency keeps them inside DEFLATE's window so the
-/// duplicates dedupe instead of repeating; a full-path order scatters
-/// them and has packed some packages at nine times the size
-/// (pnpm/pnpm#14766). The fixed order also keeps a re-pack
-/// byte-identical. Manifest entries carry `manifest_json` instead of
-/// their on-disk bytes and are written under [`PACKED_MANIFEST_NAME`];
-/// entries whose source path is in `bins` are marked executable.
+/// Entries are grouped by npm-packlist's sort keys — extension, then
+/// basename, then full path — regardless of how the maps happen to be
+/// ordered, which also keeps a re-pack of unchanged sources byte-identical.
+/// The keys compare through the `en` approximation the `contents` listing
+/// uses: ASCII paths order as `localeCompare(b, 'en')` does, non-ASCII paths
+/// by code point. Manifest entries carry `manifest_json` instead of their
+/// on-disk bytes and are written under [`PACKED_MANIFEST_NAME`]; entries
+/// whose source path is in `bins` are marked executable.
 pub fn build_tarball<Sys: FsReadFile>(
     writer: &mut dyn Write,
     files_map: &IndexMap<String, PathBuf>,
@@ -69,7 +67,8 @@ pub fn build_tarball<Sys: FsReadFile>(
         .iter()
         .map(|(name, source)| {
             if is_manifest_entry(name) {
-                queued_entry(PACKED_MANIFEST_NAME.to_string(), EntrySource::Manifest)
+                let packed_name = PACKED_MANIFEST_NAME.to_string();
+                queued_entry(packed_name, EntrySource::Manifest(source.as_path()))
             } else {
                 queued_entry(name.clone(), EntrySource::File(source.as_path()))
             }
@@ -80,11 +79,15 @@ pub fn build_tarball<Sys: FsReadFile>(
                 .map(|(name, data)| queued_entry(name.clone(), EntrySource::Injected(data))),
         )
         .collect();
+    // Same-extension files stay adjacent so DEFLATE's window matches
+    // repeated content — the same file name across template directories,
+    // say — instead of storing every copy in full.
     entries.sort_by(|left, right| {
         left.ext
             .cmp(&right.ext)
             .then_with(|| left.base.cmp(&right.base))
-            .then_with(|| compare_paths_en_locale(&left.name, &right.name))
+            .then_with(|| left.name_lower.cmp(&right.name_lower))
+            .then_with(|| case_precedence_tiebreak(&left.name, &right.name))
     });
 
     let mut builder = tar::Builder::new(GzEncoder::new(writer, compression));
@@ -105,7 +108,7 @@ fn write_entries<Sys: FsReadFile>(
     for entry in entries {
         let file_data;
         let (data, mode) = match &entry.source {
-            EntrySource::Manifest => (manifest_json, REGULAR_MODE),
+            EntrySource::Manifest(path) => (manifest_json, bin_mode(bin_set, path)),
             EntrySource::Injected(data) => (*data, REGULAR_MODE),
             EntrySource::File(path) => {
                 file_data = Sys::read_file(path)?;
@@ -119,19 +122,21 @@ fn write_entries<Sys: FsReadFile>(
 
 /// Where a tar entry's bytes come from at write time. File contents are
 /// read only once the sorted write order is known, keeping the archive
-/// streamed rather than buffered.
+/// streamed rather than buffered. The manifest carries its source path so
+/// an executable-files entry naming it still marks it executable.
 enum EntrySource<'a> {
-    Manifest,
+    Manifest(&'a Path),
     Injected(&'a [u8]),
     File(&'a Path),
 }
 
 /// One entry queued for the archive, decorated with the compression-order
-/// sort keys (lowercased extension and basename) so the sort does not
-/// recompute them on every comparison.
+/// sort keys (lowercased extension, basename, and full path) so the sort
+/// does not recompute them on every comparison.
 struct QueuedEntry<'a> {
     ext: String,
     base: String,
+    name_lower: String,
     name: String,
     source: EntrySource<'a>,
 }
@@ -139,10 +144,13 @@ struct QueuedEntry<'a> {
 fn queued_entry(name: String, source: EntrySource<'_>) -> QueuedEntry<'_> {
     let path = Path::new(&name);
     QueuedEntry {
-        ext: path.extension().map_or_else(String::new, |ext| ext.to_string_lossy().to_lowercase()),
+        ext: path
+            .extension()
+            .map_or_else(String::new, |ext| ext.to_string_lossy().to_lowercase()),
         base: path
             .file_name()
             .map_or_else(String::new, |base| base.to_string_lossy().to_lowercase()),
+        name_lower: name.to_lowercase(),
         name,
         source,
     }
