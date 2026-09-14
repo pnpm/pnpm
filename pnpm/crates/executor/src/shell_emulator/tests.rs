@@ -244,6 +244,57 @@ fn keeps_a_shell_operator_in_a_default_as_word_text() {
     assert!(!dir.path().join("written.txt").exists(), "a `>` in a word must not redirect");
 }
 
+/// The parser reads a run of backslashes before an operator by its own rules,
+/// so an operator in a `word` is quoted rather than escaped. However many
+/// backslashes the word puts in front of one, it stays text and the command
+/// behind it still runs.
+#[test]
+fn keeps_an_operator_literal_behind_any_backslash_run() {
+    let dir = tempdir().expect("create a temp dir");
+
+    for (operator, backslashes) in [';', '&', '|', '<', '>'].into_iter().flat_map(with_run_lengths)
+    {
+        let run_of = r"\".repeat(backslashes);
+        let script = format!("echo [${{MISSING:-a{run_of}{operator}b}}] && echo second");
+        // A pair of backslashes is one literal backslash and an odd one
+        // escapes the operator, so either way the operator is text.
+        let literal = r"\".repeat(backslashes / 2);
+        let expected = format!("[a{literal}{operator}b]");
+
+        let (code, lines) = run(&script, dir.path(), &HashMap::new());
+        assert_eq!(code, 0, "`{script}` must exit zero");
+        let second = (LifecycleStdio::Stdout, "second".to_string());
+        assert_eq!(lines, vec![(LifecycleStdio::Stdout, expected), second], "`{script}`");
+    }
+}
+
+fn with_run_lengths(operator: char) -> impl Iterator<Item = (char, usize)> {
+    (0..=3).map(move |backslashes| (operator, backslashes))
+}
+
+/// A newline in a `word` splits it, and a `#` starting one is text. The parser
+/// would otherwise end the command at the newline and read the `#` as opening
+/// a comment that swallows the rest of the line.
+#[test]
+fn keeps_a_newline_and_a_comment_start_in_a_default_as_word_text() {
+    let dir = tempdir().expect("create a temp dir");
+
+    for (script, expected) in [
+        ("echo [${MISSING:-a\nb}] && echo second", "[a b]"),
+        ("echo ${MISSING:-#fallback} && echo second", "#fallback"),
+        ("echo [${MISSING:-#fallback}] && echo second", "[#fallback]"),
+    ] {
+        let (code, lines) = run(script, dir.path(), &HashMap::new());
+        assert_eq!(code, 0, "`{script}` must exit zero");
+        let second = (LifecycleStdio::Stdout, "second".to_string());
+        assert_eq!(
+            lines,
+            vec![(LifecycleStdio::Stdout, expected.to_string()), second],
+            "`{script}`",
+        );
+    }
+}
+
 /// A backslash in a `word` escapes whatever follows it, which is then the
 /// plain character. Every expectation here is what `bash` prints.
 #[test]
