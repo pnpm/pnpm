@@ -23,30 +23,31 @@ export function nodeDepsCount (node: GenericDependenciesGraphNodeWithResolvedChi
 // Compares dependency/peer *sets* only, not package identity, so callers must
 // pass depPaths already known to share a `pkgIdWithPatchHash` — otherwise two
 // unrelated leaf packages (both with empty sets) would count as compatible.
-// Every pair must hold, so the walk is a conjunction and one incompatible pair
-// settles it. The queue runs breadth-first so that pair is the shallowest one,
-// reached before any subtree below its siblings. Pairs are visited at most once,
-// which both terminates dependency cycles — a pair reached again is taken as
-// compatible — and keeps the walk linear in the pairs it reaches. The queue is
-// explicit so the depth of the graph cannot overflow the call stack.
+// A pair reached twice is taken as compatible, which is what terminates
+// dependency cycles.
 export function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraphWithResolvedChildren<T>,
   depPath1: DepPath,
   depPath2: DepPath
 ): boolean {
-  const visited = new Map<DepPath, Set<DepPath>>()
-  const pending: Array<[DepPath, DepPath]> = [[depPath1, depPath2]]
-  for (let cursor = 0; cursor < pending.length; cursor++) {
-    const [supersetDepPath, subsetDepPath] = pending[cursor]
-    if (supersetDepPath === subsetDepPath) continue
-    let subsets = visited.get(supersetDepPath)
+  const queued = new Map<DepPath, Set<DepPath>>()
+  const pending: Array<[DepPath, DepPath]> = []
+  // Breadth-first, so the shallowest incompatible pair settles the check.
+  const queuePair = (supersetDepPath: DepPath, subsetDepPath: DepPath): void => {
+    if (supersetDepPath === subsetDepPath) return
+    let subsets = queued.get(supersetDepPath)
     if (subsets == null) {
       subsets = new Set()
-      visited.set(supersetDepPath, subsets)
+      queued.set(supersetDepPath, subsets)
     }
-    if (subsets.has(subsetDepPath)) continue
+    if (subsets.has(subsetDepPath)) return
     subsets.add(subsetDepPath)
+    pending.push([supersetDepPath, subsetDepPath])
+  }
 
+  queuePair(depPath1, depPath2)
+  for (let cursor = 0; cursor < pending.length; cursor++) {
+    const [supersetDepPath, subsetDepPath] = pending[cursor]
     const supersetNode = depGraph[supersetDepPath]
     const subsetNode = depGraph[subsetDepPath]
     if (supersetNode == null || subsetNode == null) return false
@@ -69,7 +70,7 @@ export function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
       ) {
         return false
       }
-      pending.push([supersetChildDepPath, subsetChildDepPath])
+      queuePair(supersetChildDepPath, subsetChildDepPath)
     }
   }
   return true
