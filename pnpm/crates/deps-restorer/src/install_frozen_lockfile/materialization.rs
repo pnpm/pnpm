@@ -148,7 +148,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                     custom_fetcher_session.as_ref(),
                 ),
                 ConcurrentVerification {
-                    lockfile: install.lockfiles.wanted,
+                    lockfile: install.lockfiles.verified,
                     verifiers: install.lockfiles.resolution_verifiers,
                     precomputed: phase.verification_override,
                     lockfile_path: install.lockfiles.path,

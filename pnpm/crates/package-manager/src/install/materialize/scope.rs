@@ -156,34 +156,35 @@ pub(super) fn frozen_project_anchor_ids(
     requested_importer_ids: Option<&HashSet<String>>,
     real_importer_ids: &HashSet<String>,
     node_linker: NodeLinker,
-    materialization: Option<&crate::MaterializationClosure>,
+    materialization: &crate::MaterializationClosure,
 ) -> HashSet<String> {
     match requested_importer_ids {
         Some(selected) if matches!(node_linker, NodeLinker::Hoisted) => selected.clone(),
-        Some(_) => materialization
-            .expect("selected install has a materialization closure")
-            .importer_ids
-            .clone(),
+        Some(_) => materialization.importer_ids.clone(),
         None => real_importer_ids.clone(),
     }
 }
 /// The importers a frozen install materializes first. A hoisted linker shares
 /// one tree, so a selected install still has to materialize every importer.
+///
+/// A full install roots the walk at every importer, which is what makes the
+/// graph it materializes the same graph
+/// [`pnpm_deps_restorer::filter_lockfile_for_current`] records as the current
+/// lockfile. A lockfile snapshot no importer reaches is then absent from both,
+/// instead of being imported on every run and pruned again when the current
+/// lockfile is written.
 pub(super) fn initial_materialization_ids(
     lockfile: &Lockfile,
     requested_importer_ids: Option<&HashSet<String>>,
     node_linker: NodeLinker,
-) -> Option<HashSet<String>> {
-    let selected = requested_importer_ids?;
-    if matches!(node_linker, NodeLinker::Hoisted) {
-        return Some(
-            lockfile.importers
-                .keys()
-                .cloned()
-                .collect(),
-        );
+) -> HashSet<String> {
+    match requested_importer_ids {
+        Some(selected) if !matches!(node_linker, NodeLinker::Hoisted) => selected.clone(),
+        _ => lockfile.importers
+            .keys()
+            .cloned()
+            .collect(),
     }
-    Some(selected.clone())
 }
 /// pnpm's headless installer announces itself whenever it is entered — also
 /// on a cold `node_modules` and on subset (`--filter`) installs — not only

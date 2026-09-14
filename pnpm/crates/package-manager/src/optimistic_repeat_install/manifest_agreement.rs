@@ -232,41 +232,33 @@ pub(crate) fn assert_wanted_lockfile_equals_current(
 ) -> Result<(), &'static str> {
     let current = Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir)
         .map_err(|_| "the current lockfile cannot be loaded")?;
-    let Some(current) = current else {
-        return check_wanted_lockfile_has_no_deps(wanted);
-    };
-    if &current == wanted {
-        return Ok(());
-    }
-    let filtered = pnpm_deps_restorer::filter_lockfile_for_current(
-        wanted,
-        pnpm_modules_yaml::IncludedDependencies::default(),
-        &pnpm_deps_restorer::SkippedSnapshots::new(),
-    );
-    if current == filtered {
-        Ok(())
-    } else {
-        Err("the installed dependencies are not up to date with the lockfile")
-    }
-}
-
-fn check_wanted_lockfile_has_no_deps(wanted: &Lockfile) -> Result<(), &'static str> {
-    let any_deps = wanted.importers
-        .values()
-        .any(|snapshot| {
-            snapshot
-                .dependencies_by_groups([
-                    DependencyGroup::Prod,
-                    DependencyGroup::Dev,
-                    DependencyGroup::Optional,
-                ])
-                .next()
-                .is_some()
-        });
-    if any_deps {
-        Err("the lockfile requires dependencies but none were installed")
-    } else {
-        Ok(())
+    match current {
+        None => {
+            let any_deps = wanted.importers
+                .values()
+                .any(|snapshot| {
+                    snapshot
+                        .dependencies_by_groups([
+                            DependencyGroup::Prod,
+                            DependencyGroup::Dev,
+                            DependencyGroup::Optional,
+                        ])
+                        .next()
+                        .is_some()
+                });
+            if any_deps {
+                Err("the lockfile requires dependencies but none were installed")
+            } else {
+                Ok(())
+            }
+        }
+        Some(current) => {
+            if &current == wanted {
+                Ok(())
+            } else {
+                Err("the installed dependencies are not up to date with the lockfile")
+            }
+        }
     }
 }
 

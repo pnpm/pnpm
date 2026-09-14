@@ -790,77 +790,110 @@ fn silent_recursive_run_suppresses_verifier_output() {
     drop(root);
 }
 
-/// [pnpm/pnpm#14891](https://github.com/pnpm/pnpm/issues/14891): When a `pnpm-lock.yaml` contains an unreachable snapshot (a snapshot
-/// entry no importer references anymore), frozen installs and `verifyDepsBeforeRun`
-/// must not re-materialize packages or fail in a non-convergence loop.
 #[test]
 fn unreachable_lockfile_snapshots_do_not_trigger_reinstall_loop() {
-    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    fs::write(
-        workspace.join("package.json"),
-        json!({
-            "name": "repro",
-            "version": "1.0.0",
-            "dependencies": {
-                "is-odd": "3.0.1",
-                "is-even": "1.0.0"
-            }
-        })
-        .to_string(),
-    )
-    .expect("write package.json");
+    const PREPARE_MARKER: &str = "prepare-ran.txt";
+    const ORPHANED: &str = "@pnpm.e2e/pkg-with-1-dep";
+    const ORPHANED_HOISTED_LINK: &str =
+        "node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep";
 
-    pacquet_in(&workspace)
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let marker = workspace.join(PREPARE_MARKER);
+    let write_project = |dependencies: serde_json::Value| {
+        fs::write(
+            workspace.join("package.json"),
+            json!({
+                "name": "unreachable-snapshots-project",
+                "version": "0.0.0",
+                "scripts": {
+                    "prepare": format!(
+                        r#"node -e "require('fs').writeFileSync('{PREPARE_MARKER}', '')""#,
+                    ),
+                },
+                "dependencies": dependencies,
+            })
+            .to_string(),
+        )
+        .expect("write the project manifest");
+    };
+
+    write_project(json!({
+        "@pnpm.e2e/foo": "100.0.0",
+        ORPHANED: "100.0.0",
+    }));
+    pacquet
         .with_arg("install")
         .assert()
         .success();
 
-    // Remove is-even from package.json and lockfile importer section,
-    // leaving is-even@1.0.0 as an unreachable snapshot in pnpm-lock.yaml.
-    fs::write(
-        workspace.join("package.json"),
-        json!({
-            "name": "repro",
-            "version": "1.0.0",
-            "dependencies": {
-                "is-odd": "3.0.1"
-            }
-        })
-        .to_string(),
-    )
-    .expect("write updated package.json");
+    // Drop the dependency from the manifest and from the lockfile's importer
+    // without regenerating the lockfile, which is the state the issue reports:
+    // the snapshots only that importer entry reached stay in `pnpm-lock.yaml`
+    // with nothing referencing them.
+    write_project(json!({ "@pnpm.e2e/foo": "100.0.0" }));
+    let mut wanted = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
+        .expect("read the wanted lockfile")
+        .expect("the install wrote a wanted lockfile");
+    let importer = wanted.importers.get_mut(".").expect("the root importer is in the lockfile");
+    let orphaned = ORPHANED.parse().expect("the dependency name is valid");
+    importer.dependencies
+        .as_mut()
+        .expect("the root importer has dependencies")
+        .remove(&orphaned);
+    wanted
+        .save_to_path(&workspace.join("pnpm-lock.yaml"))
+        .expect("save the wanted lockfile");
+    bump_mtime(&workspace.join("package.json"));
 
-    let lockfile_path = workspace.join("pnpm-lock.yaml");
-    let mut lockfile = pnpm_lockfile::Lockfile::load_wanted_from_dir(&workspace)
-        .expect("load lockfile")
-        .expect("lockfile exists");
-
-    if let Some(importer) = lockfile.importers.get_mut(".") {
-        if let Some(deps) = &mut importer.dependencies {
-            deps.remove(&"is-even".parse().unwrap());
-        }
-        if let Some(specs) = &mut importer.specifiers {
-            specs.remove("is-even");
-        }
-    }
-
-    pnpm_lockfile::save_value_to_path(&lockfile, &lockfile_path).expect("save lockfile");
-
+    // The frozen install settles the tree on what the importers reach: it
+    // materializes only that graph, and records the same graph as the current
+    // lockfile.
     pacquet_in(&workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
+    assert!(
+        !workspace
+            .join("node_modules")
+            .join(ORPHANED)
+            .exists(),
+        "the frozen install must unlink the dependency the importer no longer declares",
+    );
+    assert!(
+        !workspace.join(ORPHANED_HOISTED_LINK).exists(),
+        "the frozen install must unhoist a package only the unreachable snapshot reached",
+    );
+    let current = fs::read_to_string(workspace.join("node_modules/.pnpm/lock.yaml"))
+        .expect("read the current lockfile");
+    assert!(
+        !current.contains(ORPHANED),
+        "the current lockfile must record only what the importers reach, got:\n{current}",
+    );
 
-    let output2 = pacquet_in(&workspace)
+    // The wanted lockfile still carries the unreachable snapshots, so a second
+    // frozen install faces the same input as the first. It has nothing left to
+    // do: no re-import, and no lifecycle script rerun.
+    fs::remove_file(&marker).expect("clear the prepare marker");
+    pacquet_in(&workspace)
         .with_args(["install", "--frozen-lockfile"])
-        .output()
-        .expect("frozen install pass 2");
-    assert!(output2.status.success(), "frozen install pass 2 failed");
+        .assert()
+        .success();
+    assert!(
+        !marker.exists(),
+        "a repeated frozen install must not re-materialize the tree and rerun `prepare`",
+    );
 
     pacquet_in(&workspace)
         .with_args(["--config.verify-deps-before-run=error", "exec", "node", "-e", "0"])
         .assert()
         .success();
 
-    drop(root);
+    drop((root, mock_instance));
 }

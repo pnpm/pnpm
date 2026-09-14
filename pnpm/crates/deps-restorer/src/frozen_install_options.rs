@@ -27,10 +27,16 @@ pub struct FrozenInstallDrivers<'a> {
 
 #[derive(Clone, Copy)]
 pub struct FrozenLockfileInputs<'a> {
-    /// The fully-deserialized wanted lockfile. Its `importers`,
-    /// `packages` and `snapshots` are read straight off it, so a caller
-    /// cannot pair one lockfile's entries with another's maps.
+    /// The wanted lockfile narrowed to what this install materializes:
+    /// the closure of its importers under the included dependency
+    /// groups. Its `importers`, `packages` and `snapshots` are read
+    /// straight off it, so a caller cannot pair one lockfile's entries
+    /// with another's maps.
     pub wanted: &'a Lockfile,
+    /// The whole wanted lockfile, before [`Self::wanted`] was narrowed to
+    /// the materialization closure. The verification gates read this one
+    /// so a narrower install scope can never narrow what gets checked.
+    pub verified: &'a Lockfile,
     /// Absolute path of the lockfile being verified, for the on-disk
     /// verification cache. `None` disables the cache.
     pub path: Option<&'a Path>,

@@ -12,7 +12,8 @@ impl<'a> MaterializationInputs<'a, '_> {
         lockfile: &'b Lockfile,
     ) -> pnpm_deps_restorer::FrozenLockfileInputs<'b> {
         pnpm_deps_restorer::FrozenLockfileInputs {
-            wanted: scope.lockfile(lockfile),
+            wanted: scope.lockfile(),
+            verified: lockfile,
             path: self.lockfiles.verification.derived_lockfile_path.as_deref(),
             current: self.lockfiles.current,
             current_entries: LockfileEntries::of_previous_install(
@@ -102,8 +103,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             self.install.execution.node_linker,
             self.modules.included,
         );
-        let supported_lockfile_major =
-            matches!(scope.lockfile(lockfile).lockfile_version.major, 9 | 12);
+        let supported_lockfile_major = matches!(scope.lockfile().lockfile_version.major, 9 | 12);
         debug_assert!(supported_lockfile_major);
 
         let frozen_verification_override = settle_frozen_verification::<Reporter>(
