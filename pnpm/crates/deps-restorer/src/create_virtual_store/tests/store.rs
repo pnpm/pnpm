@@ -125,6 +125,7 @@ async fn cold_batch_links_slots_in_parallel() {
 
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+            dir_clone_cache: None,
         },
 
         entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
@@ -317,6 +318,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
 
             logged_methods: &logged_methods,
             git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+            dir_clone_cache: None,
         },
 
         entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },

@@ -420,8 +420,7 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
     inputs: &mut LinkPhaseInputs<'_>,
     skipped: &mut SkippedSnapshots,
 ) -> Result<crate::HoistedLinkerOutput, LinkPhaseError> {
-    let config = inputs.ctx.config;
-    let hoisted = inputs.ctx
+    inputs.ctx
         .is_hoisted()
         .then(|| {
             run_hoisted_linker::<Reporter>(
@@ -445,22 +444,22 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
                         walker_lockfile_dir: inputs.ctx.workspace_root,
                         symlink_workspace_root: inputs.projects.symlink_root,
                     },
-                    config,
-
+                    config: inputs.ctx.config,
                     host_node: inputs.host_node,
                     supported_architectures: inputs.supported_architectures,
-
-                    logged_methods: inputs.ctx.logged_methods,
-                    requester: inputs.ctx.requester,
+                    materialization: crate::HoistedMaterialization {
+                        logged_methods: inputs.ctx.logged_methods,
+                        requester: inputs.ctx.requester,
+                        requires_build_by_snapshot: inputs.packages.requires_build_by_snapshot,
+                        dir_clone_cache: inputs.ctx.dir_clone_cache,
+                    },
                 },
                 skipped,
             )
             .map_err(LinkPhaseError::from)
         })
-        .transpose()?
-        .unwrap_or_default();
-
-    Ok(hoisted)
+        .transpose()
+        .map(Option::unwrap_or_default)
 }
 
 /// Publicly hoisted *workspace* packages are the one source of root

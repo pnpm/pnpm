@@ -1,7 +1,7 @@
 use super::{FreshInputs, errors::InstallWithFreshLockfileError};
 use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::Config;
+use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -167,15 +167,21 @@ pub(super) fn lay_out_slots<'l>(
         Some(allow_build_policy),
         Some(install.projects.lockfile_dir),
     );
-    let dir_clone_cache = pnpm_deps_restorer::DirCloneCache::build(
-        install.drivers.config,
-        install.execution.node_linker,
-        engine_name_source(deferred_engine_name, engine_name),
-        initial.snapshots.as_ref(),
-        initial.packages.as_ref(),
-        Some(allow_build_policy),
-        Some(install.projects.lockfile_dir),
-    );
+    // `fresh_install_context` hands the hoisted linker `None`, so a cache
+    // built here would pay for the capability probe and never clone.
+    let dir_clone_cache = (install.execution.node_linker == NodeLinker::Isolated)
+        .then(|| {
+            pnpm_deps_restorer::DirCloneCache::build(
+                install.drivers.config,
+                install.execution.node_linker,
+                engine_name_source(deferred_engine_name, engine_name),
+                initial.snapshots.as_ref(),
+                initial.packages.as_ref(),
+                Some(allow_build_policy),
+                Some(install.projects.lockfile_dir),
+            )
+        })
+        .flatten();
     log_layout_phase(install.drivers.config, phase_start);
     (layout, dir_clone_cache)
 }

@@ -3,9 +3,9 @@ pub use build_phase::{
 };
 pub use hoisted::{
     HoistPlan, HoistedLinkerError, HoistedLinkerInputs, HoistedLinkerOutput,
-    collect_public_hoist_targets, compute_hoist_plan, find_own_runtime_node_major,
-    find_runtime_node_major, parse_major_from_version, run_hoisted_linker,
-    workspace_packages_for_hoist,
+    HoistedMaterialization, collect_public_hoist_targets, compute_hoist_plan,
+    find_own_runtime_node_major, find_runtime_node_major, parse_major_from_version,
+    run_hoisted_linker, workspace_packages_for_hoist,
 };
 
 mod verification;
@@ -340,6 +340,7 @@ impl<'a> InstallFrozenLockfile<'a> {
 
             logged_methods: self.logged_methods,
             git_source_cache: &plan.git_source_cache,
+            dir_clone_cache: plan.dir_clone_cache.as_ref(),
         };
 
         // Spawn the batched store-index writer here so it lives

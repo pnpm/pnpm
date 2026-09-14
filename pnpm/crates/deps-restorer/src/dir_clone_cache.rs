@@ -19,17 +19,19 @@
 //! one `stat` plus one `clonefile` per package instead of one syscall
 //! per file.
 //!
-//! Only isolated-linker installs with the project-local virtual store
-//! consult the cache, and only when the resolved import method may
-//! clone (`auto`, `clone`, `clone-or-copy`): an explicit `hardlink`
-//! promises store-shared inodes and an explicit `copy` promises
-//! independent data, and a clone of the canonical copy would deliver
-//! neither. Per-slot qualification is decided by the caller — see
-//! `create_virtual_store::dir_clone_cacheable` for the exclusions and
-//! their reasons. Excluded slots take the per-file import, so cached
-//! slots are always plain pre-build CAS content, indistinguishable
-//! from what a GVS-enabled install materializes before its build
-//! phase.
+//! Two install shapes consult the cache: isolated installs with a
+//! project-local virtual store, which clone into each virtual-store
+//! slot, and frozen-lockfile hoisted installs, which clone into each
+//! package's directory under `node_modules`. Both only when the
+//! resolved import method may clone (`auto`, `clone`, `clone-or-copy`):
+//! an explicit `hardlink` promises store-shared inodes and an explicit
+//! `copy` promises independent data, and a clone of the canonical copy
+//! would deliver neither. Per-slot qualification is decided by the
+//! caller — see `create_virtual_store::dir_clone_cacheable` for the
+//! exclusions and their reasons. Excluded slots take the per-file
+//! import, so cached slots are always plain pre-build CAS content,
+//! indistinguishable from what a GVS-enabled install materializes
+//! before its build phase.
 //!
 //! The cache is strictly best-effort: a per-install capability probe
 //! (`dir_clone_supported`) declines the whole cache up front when the
@@ -98,7 +100,7 @@ impl<'install> DirCloneCache<'install> {
     #[must_use]
     pub fn eligible(config: &Config, node_linker: NodeLinker) -> bool {
         cfg!(target_os = "macos")
-            && node_linker == NodeLinker::Isolated
+            && matches!(node_linker, NodeLinker::Isolated | NodeLinker::Hoisted)
             && !config.enable_global_virtual_store
             && matches!(
                 config.package_import_method,
@@ -132,8 +134,12 @@ impl<'install> DirCloneCache<'install> {
         // `frozenStore` the cache never writes canonical slots, so
         // there is no duplicated work to prevent — and the store must
         // not be written a probe directory either.
+        let destination = match node_linker {
+            NodeLinker::Hoisted => &config.modules_dir,
+            _ => &config.virtual_store_dir,
+        };
         if !config.frozen_store
-            && !dir_clone_supported(&config.global_virtual_store_dir, &config.virtual_store_dir)
+            && !dir_clone_supported(&config.global_virtual_store_dir, destination)
         {
             return None;
         }
@@ -273,6 +279,12 @@ impl<'install> DirCloneCache<'install> {
         save_path: &Path,
     ) -> bool {
         let Err(error) = reflink_copy::reflink(canonical, save_path) else {
+            tracing::trace!(
+                target: "pacquet::dir_clone_cache",
+                package = %package_key,
+                target_path = %save_path.display(),
+                "cloned the canonical slot",
+            );
             return true;
         };
         // `NotFound` (a concurrent prune removed the canonical slot),
@@ -300,15 +312,16 @@ impl<'install> DirCloneCache<'install> {
 }
 
 /// Whether a directory `clonefile` from under `links_root` can land in
-/// `virtual_store_dir`: clone an empty probe directory across and
+/// `destination` — the project's virtual store, or its `node_modules`
+/// under the hoisted linker: clone an empty probe directory across and
 /// remove both. The store side is created if absent (the caller
 /// guarantees the store is writable), but nothing is created on the
 /// project side — the probe lands in the deepest existing ancestor of
-/// the virtual-store dir, which is on the same volume, so an install
-/// the lockfile checks later reject leaves no directory behind. A
-/// stale destination from a crashed probe is removed first so pid
-/// reuse can't fail the probe with `EEXIST`.
-fn dir_clone_supported(links_root: &Path, virtual_store_dir: &Path) -> bool {
+/// the destination, which is on the same volume, so an install the
+/// lockfile checks later reject leaves no directory behind. A stale
+/// destination from a crashed probe is removed first so pid reuse
+/// can't fail the probe with `EEXIST`.
+fn dir_clone_supported(links_root: &Path, destination: &Path) -> bool {
     // Distinct basenames: were the two roots to resolve to one
     // directory, a shared name would have the destination pre-clean
     // remove the just-created source.
@@ -317,7 +330,7 @@ fn dir_clone_supported(links_root: &Path, virtual_store_dir: &Path) -> bool {
     if fs::create_dir_all(&src).is_err() {
         return false;
     }
-    let dst_parent = deepest_existing_ancestor(virtual_store_dir);
+    let dst_parent = deepest_existing_ancestor(destination);
     let dst = dst_parent.join(format!(".pacquet-dir-clone-probe-dst-{pid}"));
     let _ = fs::remove_dir(&dst);
     let supported = reflink_copy::reflink(&src, &dst).is_ok();

@@ -1,3 +1,7 @@
+mod cas_paths;
+
+mod dir_clone;
+
 mod integrity;
 
 mod store;
@@ -229,6 +233,7 @@ impl SeededStoreInstall {
 
                 logged_methods: &logged_methods,
                 git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+                dir_clone_cache: None,
             },
 
             entries: LockfileEntries {
