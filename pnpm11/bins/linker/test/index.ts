@@ -29,8 +29,6 @@ const {
 } = await import('@pnpm/bins.linker')
 
 const binsConflictLogger = logger('bins-conflict')
-// The header line that converts the shim path. A shim missing it predates the
-// switch away from `echo`, which ate the escapes in a Windows-form path.
 const PRINTF_BASEDIR_LINE = String.raw`basedir=$(printf '%s\n' "$link" | command -p sed -e 's,\\,/,g')`
 // The fixture directories are copied to before the tests run
 // This happens because the tests convert some of the files into executables
