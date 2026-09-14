@@ -1,7 +1,7 @@
 use super::slots::PkgRoots;
 use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_package_manifest::{
-    files_build_triggers, parse_manifest, pkg_build_triggers, pkg_requires_build,
+    BINDING_GYP, files_build_triggers, parse_manifest, pkg_build_triggers, pkg_requires_build,
 };
 use pnpm_patching::{ExtendedPatchInfo, preview_patch};
 use std::collections::{HashMap, HashSet};
@@ -160,6 +160,13 @@ pub(super) fn previewed_patch_adds_build(
     let pkg_root = pkg_roots.canonical(key)?;
     let preview = preview_patch(&pkg_root, patch_file_path).ok()?;
     let mut triggers = pkg_build_triggers(&pkg_root);
+    // A `binding.gyp` the patch deletes leaves no gyp build to synthesize.
+    // `.hooks/` is not subtracted the same way: one deleted entry does not
+    // empty the directory, and a package that ships one already answers `true`
+    // to `published_requires_build`, so it never reaches this preview.
+    if preview.removed_paths.iter().any(|path| path == BINDING_GYP) {
+        triggers.binding_gyp = false;
+    }
     triggers.add_files(files_build_triggers(&preview.written_paths));
     // A rewritten manifest replaces the published one the triggers were read
     // from, so its scripts and its `gypfile` value are what the build sees.

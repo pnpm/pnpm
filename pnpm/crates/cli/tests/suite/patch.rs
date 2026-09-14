@@ -52,6 +52,33 @@ const GYPFILE_FALSE_REMOVAL_PATCH: &str = concat!(
     " }\n",
 );
 
+/// Deletes the `binding.gyp` `@pnpm.e2e/gypfile-false` ships. Appended to
+/// [`GYPFILE_FALSE_REMOVAL_PATCH`] to leave a package with neither the opt-out
+/// nor the file it opted out of.
+const BINDING_GYP_DELETION_HUNK: &str = concat!(
+    "diff --git a/binding.gyp b/binding.gyp\n",
+    "deleted file mode 100644\n",
+    "index d7ea4ac..0000000\n",
+    "--- a/binding.gyp\n",
+    "+++ /dev/null\n",
+    "@@ -1,15 +0,0 @@\n",
+    "-{\n",
+    "-  \"targets\": [\n",
+    "-    {\n",
+    "-      \"target_name\": \"run_js_script\",\n",
+    "-      \"actions\": [\n",
+    "-        {\n",
+    "-          \"action_name\": \"execute_postinstall\",\n",
+    "-          \"inputs\": [],\n",
+    "-          \"outputs\": [\"generated.js\"],\n",
+    "-          \"action\": [\"node\", \"postinstall.js\"]\n",
+    "-        }\n",
+    "-      ]\n",
+    "-    }\n",
+    "-  ]\n",
+    "-}\n",
+);
+
 /// Adds a marker file, so a package's patched state can be read off the
 /// filesystem without depending on the package's own sources.
 pub(crate) const MARKER_PATCH: &str = concat!(

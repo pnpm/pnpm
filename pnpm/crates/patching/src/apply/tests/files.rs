@@ -255,6 +255,38 @@ fn previews_no_path_for_a_file_the_patch_creates_and_then_deletes() {
     );
 }
 
+/// A build trigger the package published and the patch deletes is not one the
+/// package ends up with either, and the preview's written paths cannot say so
+/// on their own: the file was never written by the patch.
+#[test]
+fn previews_the_paths_a_patch_deletes() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("binding.gyp"), "{}\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), BINDING_GYP_DELETE_PATCH);
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    assert!(preview.written_paths.is_empty(), "written_paths: {:?}", preview.written_paths);
+    assert_eq!(preview.removed_paths, ["binding.gyp"]);
+}
+
+/// A path the patch deletes and then writes again is one the package holds, so
+/// it is reported as written rather than removed.
+#[test]
+fn previews_a_deleted_then_recreated_path_as_written() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("binding.gyp"), "{}\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch =
+        write_patch(patch_dir.path(), &format!("{BINDING_GYP_DELETE_PATCH}{BINDING_GYP_PATCH}"));
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    assert_eq!(preview.written_paths, ["binding.gyp"]);
+    assert!(preview.removed_paths.is_empty(), "removed_paths: {:?}", preview.removed_paths);
+}
+
 /// The build phase owns the real apply. Applying twice to one slot is not
 /// something a read-only question should risk.
 #[test]
