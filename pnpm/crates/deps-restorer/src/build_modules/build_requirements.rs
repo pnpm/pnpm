@@ -1,7 +1,7 @@
 use super::slots::PkgRoots;
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
 use pnpm_package_manifest::{
-    files_build_triggers, parse_manifest, pkg_requires_build, safe_read_package_json_from_dir,
+    files_build_triggers, parse_manifest, pkg_build_triggers, pkg_requires_build,
 };
 use pnpm_patching::{ExtendedPatchInfo, preview_patch};
 use std::collections::HashMap;
@@ -138,15 +138,18 @@ pub(super) fn patch_added_build_by_package(
     }
     answers
 }
-/// Whether previewing the configured patch shows it adding build work.
+/// Whether the package the configured patch would leave needs a build pass.
 ///
 /// The same triggers `pkg_requires_build` reads off an extracted package: the
 /// manifest's install scripts, and the presence of `.hooks/` or a `binding.gyp`
-/// the manifest does not opt out of. A patch can add any of them. `None` when
-/// nothing can be previewed.
+/// the manifest does not opt out of. `None` when nothing can be previewed.
 ///
-/// The patch's own manifest answers the `gypfile` opt-out when the patch
-/// rewrites `package.json`, and the package's published one otherwise.
+/// Answered for the whole patched package rather than for the patch alone,
+/// because the `gypfile` opt-out couples the two: a package can ship a
+/// `binding.gyp` *and* `gypfile: false`, which leaves it build-free until a
+/// patch rewrites the manifest. The `binding.gyp` the build then needs is one
+/// the package already had, so a trigger set built only from the patch's own
+/// written paths would miss it.
 pub(super) fn previewed_patch_adds_build(
     patches: &HashMap<PackageKey, ExtendedPatchInfo>,
     metadata_key: &PackageKey,
@@ -156,13 +159,12 @@ pub(super) fn previewed_patch_adds_build(
     let patch_file_path = patches.get(metadata_key)?.patch_file_path.as_deref()?;
     let pkg_root = pkg_roots.canonical(key)?;
     let preview = preview_patch(&pkg_root, patch_file_path).ok()?;
-    let mut triggers = files_build_triggers(&preview.written_paths);
-    let manifest = match preview.manifest.as_deref() {
-        Some(patched) => parse_manifest(patched).ok(),
-        None => safe_read_package_json_from_dir(&pkg_root).ok().flatten(),
-    };
-    if let Some(manifest) = manifest {
-        triggers.read_manifest(&manifest);
+    let mut triggers = pkg_build_triggers(&pkg_root);
+    triggers.add_files(files_build_triggers(&preview.written_paths));
+    // A rewritten manifest replaces the published one the triggers were read
+    // from, so its scripts and its `gypfile` value are what the build sees.
+    if let Some(patched) = preview.manifest.as_deref().and_then(|raw| parse_manifest(raw).ok()) {
+        triggers.read_manifest(&patched);
     }
     Some(triggers.requires_build())
 }

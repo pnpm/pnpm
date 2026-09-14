@@ -1,7 +1,7 @@
 pub mod package_manager_spec;
 pub use build_triggers::{
     BINDING_GYP, BuildTriggers, files_build_triggers, manifest_opts_out_of_gyp_build,
-    manifest_requires_build, pkg_requires_build,
+    manifest_requires_build, pkg_build_triggers, pkg_requires_build,
 };
 pub use initialization::{InitAuthor, InitOptions};
 pub use runtime::{

@@ -32,9 +32,14 @@ impl BuildTriggers {
     /// Fold in what one of the package's files says, leaving the
     /// manifest-sourced fields alone.
     pub fn add_file(&mut self, filename: &str) {
-        let file = file_path_build_triggers(filename);
-        self.binding_gyp |= file.binding_gyp;
-        self.hooks |= file.hooks;
+        self.add_files(file_path_build_triggers(filename));
+    }
+
+    /// Fold in the file-sourced fields of `other`, leaving the
+    /// manifest-sourced ones alone.
+    pub fn add_files(&mut self, other: BuildTriggers) {
+        self.binding_gyp |= other.binding_gyp;
+        self.hooks |= other.hooks;
     }
 
     /// Record what the package's manifest says, leaving the file-sourced
@@ -63,32 +68,35 @@ pub fn manifest_opts_out_of_gyp_build(manifest: &Value) -> bool {
     manifest.get("gypfile") == Some(&Value::Bool(false))
 }
 
-/// Decide whether a package directory needs a build pass.
+/// The build triggers an extracted package carries on disk: its files, and the
+/// manifest that can cancel the [`BINDING_GYP`] one.
 ///
-/// True when the package's manifest declares any of `preinstall`, `install`,
-/// or `postinstall`, or when the package contains a `.hooks/` directory, or
-/// when it contains a [`BINDING_GYP`] its manifest does not opt out of.
-/// A manifest that cannot be read leaves both of its triggers unset — pacquet
+/// A manifest that cannot be read leaves both of its fields unset — pacquet
 /// cannot meaningfully build a package whose extracted content cannot be
 /// inspected, and a `binding.gyp` no manifest speaks for is build work, as it is
 /// under npm.
 #[must_use]
-pub fn pkg_requires_build(pkg_root: &Path) -> bool {
+pub fn pkg_build_triggers(pkg_root: &Path) -> BuildTriggers {
     let mut triggers = BuildTriggers {
         manifest_scripts: false,
         binding_gyp: pkg_root.join(BINDING_GYP).exists(),
         hooks: pkg_root.join(".hooks").is_dir(),
         gyp_build_opted_out: false,
     };
-    // Only the `binding.gyp` trigger needs the manifest, to read the opt-out
-    // off it. A `.hooks/` package is build work whatever the manifest says.
-    if triggers.hooks {
-        return true;
-    }
     if let Ok(Some(manifest)) = safe_read_package_json_from_dir(pkg_root) {
         triggers.read_manifest(&manifest);
     }
-    triggers.requires_build()
+    triggers
+}
+
+/// Decide whether a package directory needs a build pass.
+///
+/// True when the package's manifest declares any of `preinstall`, `install`,
+/// or `postinstall`, or when the package contains a `.hooks/` directory, or
+/// when it contains a [`BINDING_GYP`] its manifest does not opt out of.
+#[must_use]
+pub fn pkg_requires_build(pkg_root: &Path) -> bool {
+    pkg_build_triggers(pkg_root).requires_build()
 }
 
 /// Decide whether a parsed manifest declares lifecycle scripts that
