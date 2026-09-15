@@ -814,8 +814,6 @@ fn gypfile_false_suppresses_the_synthesized_node_gyp_rebuild() {
     assert_eq!(install_stage_script(&opted_out, pkg_root), None);
 }
 
-/// The opt-out speaks only for the script pnpm synthesizes. A package that
-/// declares its own `install` still runs it.
 #[test]
 fn gypfile_false_leaves_an_explicit_install_script_alone() {
     let dir = tempdir().expect("create temp dir");

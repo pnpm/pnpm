@@ -79,6 +79,23 @@ const BINDING_GYP_DELETION_HUNK: &str = concat!(
     "-}\n",
 );
 
+/// Deletes the manifest `@pnpm.e2e/gypfile-false` ships, taking its
+/// `gypfile: false` with it and leaving the `binding.gyp` with no manifest to
+/// speak for it.
+const MANIFEST_DELETION_PATCH: &str = concat!(
+    "diff --git a/package.json b/package.json\n",
+    "deleted file mode 100644\n",
+    "index 1d0f9e2..0000000\n",
+    "--- a/package.json\n",
+    "+++ /dev/null\n",
+    "@@ -1,5 +0,0 @@\n",
+    "-{\n",
+    "-  \"name\": \"@pnpm.e2e/gypfile-false\",\n",
+    "-  \"version\": \"1.0.0\",\n",
+    "-  \"gypfile\": false\n",
+    "-}\n",
+);
+
 /// Adds a marker file, so a package's patched state can be read off the
 /// filesystem without depending on the package's own sources.
 pub(crate) const MARKER_PATCH: &str = concat!(

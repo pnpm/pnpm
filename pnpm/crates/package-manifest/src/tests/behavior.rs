@@ -214,9 +214,6 @@ fn a_script_without_a_value_is_not_build_work() {
     assert!(!manifest_requires_build(&json!({ "scripts": { "test": "node x.js" } })));
 }
 
-/// Only `gypfile: false` opts out. npm writes `gypfile: true` at publish time
-/// for every package it synthesizes the install script for, so that value says
-/// nothing pnpm did not already know from the `binding.gyp` itself.
 #[test]
 fn only_a_false_gypfile_opts_out_of_the_gyp_build() {
     assert!(manifest_opts_out_of_gyp_build(&json!({ "gypfile": false })));
@@ -225,8 +222,6 @@ fn only_a_false_gypfile_opts_out_of_the_gyp_build() {
     assert!(!manifest_opts_out_of_gyp_build(&json!({})));
 }
 
-/// `gypfile` speaks for the synthesized `node-gyp rebuild` alone, so it silences
-/// a `binding.gyp` and nothing else.
 #[test]
 fn gypfile_false_silences_only_the_binding_gyp_trigger() {
     let dir = tempdir().expect("create temp dir");
@@ -253,9 +248,6 @@ fn gypfile_false_silences_only_the_binding_gyp_trigger() {
     assert!(pkg_requires_build(pkg_root));
 }
 
-/// A package whose files carry a `binding.gyp` reports it apart from a
-/// `.hooks/` entry, so a caller that reads the manifest after the files can
-/// still apply the opt-out.
 #[test]
 fn file_triggers_report_binding_gyp_and_hooks_separately() {
     let gyp = files_build_triggers([BINDING_GYP, "lib/index.js"]);

@@ -3,7 +3,7 @@ use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_package_manifest::{
     BINDING_GYP, files_build_triggers, parse_manifest, pkg_build_triggers, pkg_requires_build,
 };
-use pnpm_patching::{ExtendedPatchInfo, preview_patch};
+use pnpm_patching::{ExtendedPatchInfo, MANIFEST_FILE_NAME, preview_patch};
 use std::collections::{HashMap, HashSet};
 
 /// Whether each configured patch adds build work its package's published
@@ -160,17 +160,26 @@ pub(super) fn previewed_patch_adds_build(
     let pkg_root = pkg_roots.canonical(key)?;
     let preview = preview_patch(&pkg_root, patch_file_path).ok()?;
     let mut triggers = pkg_build_triggers(&pkg_root);
-    // A `binding.gyp` the patch deletes leaves no gyp build to synthesize.
-    // `.hooks/` is not subtracted the same way: one deleted entry does not
-    // empty the directory, and a package that ships one already answers `true`
-    // to `published_requires_build`, so it never reaches this preview.
-    if preview.removed_paths.iter().any(|path| path == BINDING_GYP) {
-        triggers.binding_gyp = false;
+    // A `binding.gyp` the patch deletes leaves no gyp build to synthesize, and a
+    // manifest it deletes leaves no scripts and no `gypfile` to opt a surviving
+    // `binding.gyp` out. `.hooks/` is not subtracted the same way: one deleted
+    // entry does not empty the directory, and a package that ships one already
+    // answers `true` to `published_requires_build`, so it never reaches this
+    // preview.
+    for removed in &preview.removed_paths {
+        match removed.as_str() {
+            BINDING_GYP => triggers.binding_gyp = false,
+            MANIFEST_FILE_NAME => triggers.forget_manifest(),
+            _ => {}
+        }
     }
     triggers.add_files(files_build_triggers(&preview.written_paths));
     // A rewritten manifest replaces the published one the triggers were read
     // from, so its scripts and its `gypfile` value are what the build sees.
-    if let Some(patched) = preview.manifest.as_deref().and_then(|raw| parse_manifest(raw).ok()) {
+    if let Some(patched) = preview.manifest
+        .as_deref()
+        .and_then(|raw| parse_manifest(raw).ok())
+    {
         triggers.read_manifest(&patched);
     }
     Some(triggers.requires_build())

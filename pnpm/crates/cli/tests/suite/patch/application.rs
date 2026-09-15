@@ -1,10 +1,10 @@
 use super::{
     AddMockedRegistry, BINDING_GYP_DELETION_HUNK, CommandTempCwd, GYPFILE_FALSE_REMOVAL_PATCH,
     GitRepoFixture, IS_POSITIVE_BINDING_GYP_PATCH, IS_POSITIVE_HOOKS_FILE_PATCH,
-    IS_POSITIVE_POSTINSTALL_PATCH, MARKER_PATCH, Value, append_workspace_yaml_key,
-    assert_patch_apply_failure, assert_patch_install_scenario, fs, is_positive_store_row, pacquet,
-    patch_file_hash, read_installed_index, read_wanted_lockfile, remove_dir_if_exists,
-    setup_configured_patch, setup_configured_patch_with_yaml, snapshot_keys,
+    IS_POSITIVE_POSTINSTALL_PATCH, MANIFEST_DELETION_PATCH, MARKER_PATCH, Value,
+    append_workspace_yaml_key, assert_patch_apply_failure, assert_patch_install_scenario, fs,
+    is_positive_store_row, pacquet, patch_file_hash, read_installed_index, read_wanted_lockfile,
+    remove_dir_if_exists, setup_configured_patch, setup_configured_patch_with_yaml, snapshot_keys,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -448,13 +448,9 @@ fn install_level_name_only_patch_that_does_not_apply_fails() {
     assert_patch_apply_failure("is-positive");
 }
 
-/// A package can ship a `binding.gyp` *and* `gypfile: false`, which leaves it
-/// build-free. A patch that drops the opt-out puts that `binding.gyp` back in
-/// scope, so the build it enables needs approval like any other. The
-/// `binding.gyp` is one the package already had rather than one the patch wrote,
-/// so the preview has to answer for the whole patched package.
-#[test]
-fn install_level_patch_that_drops_gypfile_false_asks_for_approval() {
+/// Install `@pnpm.e2e/gypfile-false` under `patch`, with no `allowBuilds` entry
+/// for it, and report whether the install succeeded alongside its output.
+fn install_gypfile_false_under_patch(patch: &str) -> (bool, String) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -464,7 +460,7 @@ fn install_level_patch_that_drops_gypfile_false_asks_for_approval() {
     )
     .expect("write package.json");
     fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
-    fs::write(workspace.join("patches/gypfile-false.patch"), GYPFILE_FALSE_REMOVAL_PATCH)
+    fs::write(workspace.join("patches/gypfile-false.patch"), patch)
         .expect("write the gypfile patch");
     append_workspace_yaml_key(
         &workspace,
@@ -478,14 +474,39 @@ fn install_level_patch_that_drops_gypfile_false_asks_for_approval() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
-    eprintln!("unapproved install:\n{combined}");
-    assert!(!output.status.success(), "an unapproved native build must fail the install");
-    assert!(
-        combined.contains("ERR_PNPM_IGNORED_BUILDS"),
-        "expected the patched package to be reported as an ignored build; got:\n{combined}",
-    );
+    eprintln!("install:\n{combined}");
 
     drop((root, mock_instance));
+    (output.status.success(), combined)
+}
+
+/// A package can ship a `binding.gyp` *and* `gypfile: false`, which leaves it
+/// build-free. A patch that drops the opt-out puts that `binding.gyp` back in
+/// scope, so the build it enables needs approval like any other. The
+/// `binding.gyp` is one the package already had rather than one the patch wrote,
+/// so the preview has to answer for the whole patched package.
+#[test]
+fn install_level_patch_that_drops_gypfile_false_asks_for_approval() {
+    let (succeeded, output) = install_gypfile_false_under_patch(GYPFILE_FALSE_REMOVAL_PATCH);
+
+    assert!(!succeeded, "an unapproved native build must fail the install");
+    assert!(
+        output.contains("ERR_PNPM_IGNORED_BUILDS"),
+        "expected the patched package to be reported as an ignored build; got:\n{output}",
+    );
+}
+
+/// Deleting the manifest takes the opt-out with it, and a `binding.gyp` no
+/// manifest speaks for is build work.
+#[test]
+fn install_level_patch_that_deletes_the_manifest_asks_for_approval() {
+    let (succeeded, output) = install_gypfile_false_under_patch(MANIFEST_DELETION_PATCH);
+
+    assert!(!succeeded, "an unapproved native build must fail the install");
+    assert!(
+        output.contains("ERR_PNPM_IGNORED_BUILDS"),
+        "expected the patched package to be reported as an ignored build; got:\n{output}",
+    );
 }
 
 /// The mirror of [`install_level_patch_that_drops_gypfile_false_asks_for_approval`]:
@@ -493,38 +514,13 @@ fn install_level_patch_that_drops_gypfile_false_asks_for_approval() {
 /// nothing to build, so the install must not stop for an approval.
 #[test]
 fn install_level_patch_that_drops_gypfile_false_and_its_binding_gyp_needs_no_approval() {
-    let CommandTempCwd { root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({ "dependencies": { "@pnpm.e2e/gypfile-false": "1.0.0" } }).to_string(),
-    )
-    .expect("write package.json");
-    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
-    fs::write(
-        workspace.join("patches/gypfile-false.patch"),
-        format!("{GYPFILE_FALSE_REMOVAL_PATCH}{BINDING_GYP_DELETION_HUNK}"),
-    )
-    .expect("write the gypfile patch");
-    append_workspace_yaml_key(
-        &workspace,
-        "patchedDependencies",
-        "\n  \"@pnpm.e2e/gypfile-false@1.0.0\": patches/gypfile-false.patch",
-    );
+    let (succeeded, output) = install_gypfile_false_under_patch(&format!(
+        "{GYPFILE_FALSE_REMOVAL_PATCH}{BINDING_GYP_DELETION_HUNK}",
+    ));
 
-    let output = pacquet(&workspace, ["install"]).output().expect("run install");
-    let combined = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr),
-    );
-    eprintln!("install:\n{combined}");
-    assert!(output.status.success(), "the patched package has no build to approve:\n{combined}");
+    assert!(succeeded, "the patched package has no build to approve:\n{output}");
     assert!(
-        !combined.contains("ERR_PNPM_IGNORED_BUILDS"),
-        "a deleted binding.gyp must not hold the install for approval; got:\n{combined}",
+        !output.contains("ERR_PNPM_IGNORED_BUILDS"),
+        "a deleted binding.gyp must not hold the install for approval; got:\n{output}",
     );
-
-    drop((root, mock_instance));
 }

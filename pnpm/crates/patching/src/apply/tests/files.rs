@@ -255,9 +255,6 @@ fn previews_no_path_for_a_file_the_patch_creates_and_then_deletes() {
     );
 }
 
-/// A build trigger the package published and the patch deletes is not one the
-/// package ends up with either, and the preview's written paths cannot say so
-/// on their own: the file was never written by the patch.
 #[test]
 fn previews_the_paths_a_patch_deletes() {
     let patched = tempdir().unwrap();
@@ -271,8 +268,6 @@ fn previews_the_paths_a_patch_deletes() {
     assert_eq!(preview.removed_paths, ["binding.gyp"]);
 }
 
-/// A path the patch deletes and then writes again is one the package holds, so
-/// it is reported as written rather than removed.
 #[test]
 fn previews_a_deleted_then_recreated_path_as_written() {
     let patched = tempdir().unwrap();

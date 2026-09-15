@@ -48,6 +48,15 @@ impl BuildTriggers {
         self.manifest_scripts = manifest_requires_build(manifest);
         self.gyp_build_opted_out = manifest_opts_out_of_gyp_build(manifest);
     }
+
+    /// Record that the package holds no manifest: no scripts of its own, and
+    /// nothing to opt a [`BINDING_GYP`] out of, which is what
+    /// [`pkg_build_triggers`] reports for a package whose manifest cannot be
+    /// read.
+    pub fn forget_manifest(&mut self) {
+        self.manifest_scripts = false;
+        self.gyp_build_opted_out = false;
+    }
 }
 
 /// Whether the manifest opts out of the `node-gyp rebuild` install script
