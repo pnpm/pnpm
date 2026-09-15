@@ -1,16 +1,13 @@
 //! `pacquet self-update` — dispatch-level coverage.
 //!
-//! [`self_update_loads_config_and_reaches_the_resolver`] exercises the
-//! dispatch wiring that routes `self-update` through the
-//! `config_self_update` closure, which drops the release-age and trust
-//! policies a repo-controlled `pnpm-workspace.yaml` would otherwise set.
-//! The command is expected to fail at the resolve step, by which point the
-//! closure has already run.
+//! `self-update` routes through the `config_self_update` closure, which
+//! drops the release-age and trust policies a repo-controlled
+//! `pnpm-workspace.yaml` would otherwise set.
 //!
-//! The remaining tests cover a project that pins pnpm. The mocked
-//! registry's pnpm ships no platform binaries, so the switch to it always
-//! stops in the engine-identity verifier — no test here can assert an
-//! activated binary in the global bin directory.
+//! No test here reaches an activated binary in the global bin directory:
+//! the mocked registry's pnpm clears neither half of the engine-identity
+//! gate — it ships no platform binaries, and its tarball carries no npm
+//! registry signature.
 //!
 //! Every test points `PNPM_HOME` at a temp dir, so the install and link
 //! steps write there instead of clobbering the caller's real pnpm.
@@ -84,7 +81,21 @@ fn self_update_switches_the_global_pnpm_after_rewriting_the_project_pin() {
     assert_eq!(project.manifest_text(), format!(r#"{{"packageManager":"pnpm@{NEWER_PNPM}"}}"#));
 }
 
-/// A project whose `packageManager` pins pnpm, wired to a mocked registry
+#[test]
+fn self_update_switches_the_global_pnpm_after_rewriting_a_dev_engines_pin() {
+    let mut project = PinnedProject::pinned_through_dev_engines("1.2.3");
+
+    let output = project.self_update();
+
+    assert_reached_the_global_switch(&output);
+    let manifest = project.manifest_text();
+    assert!(
+        manifest.contains(&format!(r#""version":"{NEWER_PNPM}""#)),
+        "the devEngines pin was not rewritten: {manifest}",
+    );
+}
+
+/// A project that pins pnpm, wired to a mocked registry
 /// serving [`NEWER_PNPM`] as `latest` and to a throwaway `PNPM_HOME`.
 struct PinnedProject {
     pacquet: Command,
@@ -97,6 +108,16 @@ struct PinnedProject {
 
 impl PinnedProject {
     fn pinned_to(version: &str) -> Self {
+        Self::with_manifest(&format!(r#"{{"packageManager":"pnpm@{version}"}}"#))
+    }
+
+    fn pinned_through_dev_engines(version: &str) -> Self {
+        Self::with_manifest(&format!(
+            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{version}"}}}}}}"#,
+        ))
+    }
+
+    fn with_manifest(manifest: &str) -> Self {
         let CommandTempCwd {
             mut pacquet,
             root,
@@ -109,11 +130,7 @@ impl PinnedProject {
         // Point the trusted package-manager bootstrap registry at the mock
         // too: the project registry never drives an engine download.
         pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
-        fs::write(
-            workspace.join("package.json"),
-            format!(r#"{{"packageManager":"pnpm@{version}"}}"#),
-        )
-        .expect("write package.json");
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
         PinnedProject {
             pacquet,
             workspace,
