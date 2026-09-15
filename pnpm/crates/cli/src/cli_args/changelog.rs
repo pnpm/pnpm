@@ -128,11 +128,17 @@ pub async fn unpublished_release_dirs(
     if std::env::var_os("PACQUET_ASSUME_VERSIONS_PUBLISHED").is_some() {
         return Ok(HashSet::new());
     }
-    // One client for the batch; its per-origin semaphore bounds the fan-out.
-    let client = build_registry_client(config)?;
-    let checks = plan.releases
+    let releases: Vec<_> = plan.releases
         .iter()
         .filter(|release| !private_dirs.contains(&release.dir))
+        .collect();
+    if releases.is_empty() {
+        return Ok(HashSet::new());
+    }
+    // One client for the batch; its per-origin semaphore bounds the fan-out.
+    let client = build_registry_client(config)?;
+    let checks = releases
+        .into_iter()
         .map(|release| {
             let client = &client;
             let probe =

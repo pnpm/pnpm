@@ -25,15 +25,15 @@ export type UnpublishedProbeOptions = PreviousChangelogOptions & {
  * debuts at its manifest version on every release.
  */
 export async function resolveUnpublishedDirs (plan: ReleasePlan, opts: UnpublishedProbeOptions): Promise<Set<string>> {
+  const releases = plan.releases.filter((release) => !opts.privateDirs?.has(release.dir))
+  if (releases.length === 0) return new Set()
   const checkVersionPublished = opts.checkVersionPublished ?? createVersionPublishedChecker(opts)
   const limit = pLimit(opts.networkConcurrency ?? DEFAULT_NETWORK_CONCURRENCY)
   const probed = await Promise.all(
-    plan.releases
-      .filter((release) => !opts.privateDirs?.has(release.dir))
-      .map((release) => limit(async () => ({
-        dir: release.dir,
-        published: await checkVersionPublished(opts.publishedNames?.get(release.name) ?? release.name, release.currentVersion),
-      })))
+    releases.map((release) => limit(async () => ({
+      dir: release.dir,
+      published: await checkVersionPublished(opts.publishedNames?.get(release.name) ?? release.name, release.currentVersion),
+    })))
   )
   return new Set(probed.filter(({ published }) => !published).map(({ dir }) => dir))
 }
