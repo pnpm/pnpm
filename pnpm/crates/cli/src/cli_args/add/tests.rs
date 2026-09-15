@@ -308,5 +308,5 @@ fn the_dependency_group_filter_honors_the_optional_setting() {
     let mut config = Config::default();
     args.apply_cli_config(&mut config);
 
-    assert_eq!(args.included_groups(&config), [DependencyGroup::Prod, DependencyGroup::Dev],);
+    assert_eq!(args.included_groups(&config), [DependencyGroup::Prod, DependencyGroup::Dev]);
 }
