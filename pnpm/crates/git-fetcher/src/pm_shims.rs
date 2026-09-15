@@ -95,7 +95,7 @@ fn shim_files(
 
 #[cfg(windows)]
 fn shim_files(
-    name: String,
+    mut name: String,
     run_as: &[&str],
     spec: &str,
     pnpm_execpath: &Path,
@@ -110,7 +110,8 @@ fn shim_files(
         .collect();
     let run_as = run_as.join(" ");
     let contents = format!("@\"{pnpm}\" dlx --package \"{spec}\" {run_as} %*\r\n");
-    vec![(format!("{name}.cmd"), contents)]
+    name.push_str(".cmd");
+    vec![(name, contents)]
 }
 
 /// `version_spec` if every character of it can appear in a semver range,
