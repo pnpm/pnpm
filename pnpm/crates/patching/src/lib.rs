@@ -26,7 +26,9 @@
 //! surfacing the map (today: from yaml; in the lockfile-only path,
 //! from `pnpm-lock.yaml`'s top-level `patchedDependencies` field).
 
-pub use apply::{PatchApplyError, PatchPreview, apply_patch_to_dir, preview_patch};
+pub use apply::{
+    MANIFEST_FILE_NAME, PatchApplyError, PatchPreview, apply_patch_to_dir, preview_patch,
+};
 pub use commit::*;
 pub use get_patch_info::{PatchKeyConflictError, get_patch_info};
 pub use group::{PatchInput, PatchNonSemverRangeError, group_patched_dependencies};

@@ -106,7 +106,9 @@ pub fn apply_patch_to_dir(
     Ok(())
 }
 
-const MANIFEST_FILE_NAME: &str = "package.json";
+/// How a package's manifest is spelled in [`PatchPreview::written_paths`] and
+/// [`PatchPreview::removed_paths`].
+pub const MANIFEST_FILE_NAME: &str = "package.json";
 
 /// What a patch file would leave behind in a package directory, read
 /// without writing anything.
