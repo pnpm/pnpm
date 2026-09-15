@@ -45,3 +45,45 @@ fn normalizes_hosted_git_specifiers_to_shortcut_form() {
     assert_eq!(normalized_save_specifier("file:../bar"), "file:../bar");
     assert_eq!(normalized_save_specifier("workspace:*"), "workspace:*");
 }
+
+#[test]
+fn git_dependency_falls_back_to_the_repository_host_identity() {
+    use crate::add::aliasless::git_package_name;
+
+    let declared = serde_json::json!({ "name": "@vercel-labs/agent-skills" });
+    assert_eq!(
+        git_package_name(Some(&declared), "github:vercel-labs/agent-skills").as_deref(),
+        Some("@vercel-labs/agent-skills"),
+    );
+    assert_eq!(
+        git_package_name(None, "github:anthropics/skills").as_deref(),
+        Some("@anthropics/skills"),
+    );
+    assert_eq!(
+        git_package_name(Some(&serde_json::json!({ "name": "" })), "github:anthropics/skills")
+            .as_deref(),
+        Some("@anthropics/skills"),
+    );
+    // A host with no owner and project to read leaves the name unknown.
+    assert_eq!(git_package_name(None, "git+file:///tmp/skills"), None);
+}
+
+/// A synthesized name keys the manifest entry and names the directory the
+/// package is linked into, so `add` refuses it unless npm would.
+#[test]
+fn a_synthesized_git_dependency_name_is_a_usable_alias() {
+    use crate::add::aliasless::git_package_name;
+
+    for specifier in [
+        "github:anthropics/skills",
+        "gitlab:group/subgroup/project",
+        "bitbucket:pnpmjs/git-resolver",
+    ] {
+        let name = git_package_name(None, specifier)
+            .unwrap_or_else(|| panic!("{specifier} synthesized no name"));
+        assert!(
+            pnpm_package_name::is_valid_dependency_alias(&name),
+            "{specifier} synthesized the invalid name {name:?}",
+        );
+    }
+}
