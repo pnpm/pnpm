@@ -86,6 +86,56 @@ fn first_release_probe_debuts_an_unpublished_version_verbatim() {
     drop(root);
 }
 
+#[test]
+fn private_package_bumps_without_a_registry_release_probe() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init().add_mocked_registry();
+    setup_mock_workspace(&workspace);
+    let pkg_dir = workspace.join("packages").join("app");
+    fs::create_dir_all(&pkg_dir).expect("create package dir");
+    fs::write(
+        pkg_dir.join("package.json"),
+        "{\"name\": \"app\", \"version\": \"0.5.0\", \"private\": true}\n",
+    )
+    .expect("write package.json");
+
+    stdout_of(
+        pnpm_probing(&workspace)
+            .with_args(["change", "--bump", "minor", "--summary", "A deployable feature.", "app"]),
+    );
+    let status = stdout_of(pnpm_probing(&workspace).with_args(["change", "status"]));
+    assert!(status.contains("app: 0.5.0 → 0.6.0"), "unexpected: {status}");
+    let preview = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r", "--dry-run"]));
+    assert!(preview.contains("app: 0.5.0 → 0.6.0"), "unexpected: {preview}");
+
+    drop(root);
+}
+
+#[test]
+fn private_only_release_ignores_invalid_registry_configuration() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "\n").expect("write workspace yaml");
+    setup_mock_workspace(&workspace);
+    fs::write(workspace.join(".npmrc"), "https-proxy=://nonsense\n").expect("write npmrc");
+    let pkg_dir = workspace.join("packages").join("app");
+    fs::create_dir_all(&pkg_dir).expect("create package dir");
+    fs::write(
+        pkg_dir.join("package.json"),
+        "{\"name\": \"app\", \"version\": \"0.5.0\", \"private\": true}\n",
+    )
+    .expect("write package.json");
+
+    stdout_of(
+        pnpm_probing(&workspace)
+            .with_args(["change", "--bump", "minor", "--summary", "A deployable feature.", "app"]),
+    );
+    let status = stdout_of(pnpm_probing(&workspace).with_args(["change", "status"]));
+    assert!(status.contains("app: 0.5.0 → 0.6.0"), "unexpected: {status}");
+    let preview = stdout_of(pnpm_probing(&workspace).with_args(["version", "-r", "--dry-run"]));
+    assert!(preview.contains("app: 0.5.0 → 0.6.0"), "unexpected: {preview}");
+
+    drop(root);
+}
+
 /// A project renamed by `publishConfig.name` is only on the registry under the
 /// published name — the workspace name is either absent or, as with `pacquet`,
 /// someone else's package. Probing the workspace name would read as unpublished

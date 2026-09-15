@@ -23,6 +23,23 @@ fn filtered_project_dirs(
     ))
 }
 
+fn private_project_dirs(
+    projects: &[pnpm_workspace::Project],
+    workspace_dir: &Path,
+) -> HashSet<String> {
+    projects
+        .iter()
+        .filter(|project| {
+            project.manifest
+                .value()
+                .get("private")
+                .and_then(serde_json::Value::as_bool)
+                == Some(true)
+        })
+        .map(|project| pnpm_versioning::to_project_dir(workspace_dir, &project.root_dir))
+        .collect()
+}
+
 /// The projects the active `--filter` selectors pick, in graph order, as
 /// `(name, workspace-relative dir)` pairs.
 pub(crate) fn selected_projects(
@@ -62,6 +79,7 @@ async fn plan_workspace_release(
     let (projects, _) = discover_workspace_projects(workspace_dir, config)?;
     let engine_projects = to_engine_projects(&projects);
     let published_names = changelog::published_names(&projects);
+    let private_dirs = private_project_dirs(&projects, workspace_dir);
 
     let filter = filtered_project_dirs(&projects, config, workspace_dir)?;
     let assemble = |unpublished_dirs: HashSet<String>| {
@@ -79,8 +97,13 @@ async fn plan_workspace_release(
             },
         )
     };
-    let unpublished_dirs =
-        unpublished_release_dirs(config, &assemble(HashSet::new())?, &published_names).await?;
+    let unpublished_dirs = unpublished_release_dirs(
+        config,
+        &assemble(HashSet::new())?,
+        &published_names,
+        &private_dirs,
+    )
+    .await?;
     let plan = assemble(unpublished_dirs)?;
 
     Ok(PlannedWorkspaceRelease {

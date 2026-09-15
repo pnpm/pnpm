@@ -267,7 +267,8 @@ async function renderStatus (workspaceDir: string, opts: ChangeCommandOptions): 
     versioning: opts.versioning,
   }
   const publishedNames = publishedNameByManifestName(baseArgs.projects)
-  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames })
+  const privateDirs = new Set(baseArgs.projects.filter((project) => project.manifest.private === true).map((project) => toProjectDir(workspaceDir, project.rootDir)))
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames, privateDirs })
   const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
   if (plan.releases.length === 0) {
     return 'No pending changes.'
