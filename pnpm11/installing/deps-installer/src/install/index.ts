@@ -1110,6 +1110,7 @@ export async function mutateModules (
     | 'manifest'
     | 'modulesDir'
     | 'mutation'
+    | 'originalManifest'
     | 'rootDir'
     | 'updatePackageManifest'
     > & Pick<InstallSomeDepsMutation,
@@ -1129,6 +1130,9 @@ export async function mutateModules (
       const currentBareSpecifiers = opts.ignoreCurrentSpecifiers
         ? {}
         : getAllDependenciesFromManifest(project.manifest, { autoInstallPeers: opts.autoInstallPeers })
+      const originalBareSpecifiers = project.originalManifest == null
+        ? currentBareSpecifiers
+        : getAllDependenciesFromManifest(project.originalManifest, { autoInstallPeers: opts.autoInstallPeers })
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
       if (preferredSpecs == null) {
@@ -1230,7 +1234,7 @@ export async function mutateModules (
         pruneDirectDependencies: false,
         ...project,
         updateToLatest,
-        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true })),
+        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !originalBareSpecifiers[wantedDep.alias], updateSpec: true })),
       } as ImporterToUpdate)
     }
 
